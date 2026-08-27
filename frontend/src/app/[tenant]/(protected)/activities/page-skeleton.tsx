@@ -19,9 +19,7 @@ export function ActivitiesSkeleton() {
     >
       {/* Der Kopf rendert sofort, nur die Liste skeletonisiert. */}
       <PageIntro
-        kicker="Betrieb"
         title="Aktivitäten"
-        description="Angebote der OGS anlegen, suchen und verwalten."
         className="mb-6"
         actions={
           <Button

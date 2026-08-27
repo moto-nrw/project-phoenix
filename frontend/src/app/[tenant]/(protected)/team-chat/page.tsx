@@ -114,9 +114,7 @@ function TeamChatInboxContent() {
       {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
           Primäraktion in EINER Karte, auf allen Breakpoints. */}
       <PageIntro
-        kicker="Kommunikation"
         title="Team-Chat"
-        description="Unterhaltungen mit einzelnen Personen aus dem Team."
         actions={
           chatEnabled ? (
             <Button

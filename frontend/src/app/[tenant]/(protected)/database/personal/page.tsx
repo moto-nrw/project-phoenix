@@ -303,8 +303,6 @@ function TeachersPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Personal",
-        description:
-          "Stammdaten, Rollen und Gruppenzuordnungen der Mitarbeitenden pflegen.",
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

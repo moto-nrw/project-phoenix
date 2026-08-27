@@ -29,12 +29,7 @@ const logger = createLogger({ component: "ProfilePage" });
 // nur die Datenregion darunter skeletonisiert.
 const profileLoadingFallback = (
   <div className="w-full">
-    <PageIntro
-      kicker="Konto"
-      title="Profil"
-      description="Ihre persönlichen Daten, Anmeldung und Benachrichtigungen."
-      className="mb-6"
-    />
+    <PageIntro title="Profil" className="mb-6" />
     <SkeletonRegion label="Profil wird geladen…">
       <DetailSkeleton sections={3} fieldsPerSection={3} />
     </SkeletonRegion>
@@ -143,12 +138,7 @@ function ProfileContent() {
 
   return (
     <div className="w-full">
-      <PageIntro
-        kicker="Konto"
-        title="Profil"
-        description="Ihre persönlichen Daten, Anmeldung und Benachrichtigungen."
-        className="mb-6"
-      />
+      <PageIntro title="Profil" className="mb-6" />
 
       <div className="max-w-3xl space-y-6 pb-8">
         {/* Avatar Section */}

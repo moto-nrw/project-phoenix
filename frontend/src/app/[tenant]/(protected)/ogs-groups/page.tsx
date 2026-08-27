@@ -851,7 +851,7 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <div className="w-full">
-        <PageIntro kicker="Betreuung" title="Meine Gruppe" className="mb-6" />
+        <PageIntro title="Meine Gruppe" className="mb-6" />
 
         <EmptyState
           icon={<MotoConceptIcon concept="groups" size={48} />}
@@ -1043,7 +1043,6 @@ function OGSGroupPageContent() {
             die Anwesenheit der gewählten Gruppe steht als Zähler in den
             Aktionen, daneben der Vertretungshinweis und das Kebab-Menü. */}
         <PageIntro
-          kicker="Betreuung"
           title="Meine Gruppe"
           description={
             currentGroup?.name

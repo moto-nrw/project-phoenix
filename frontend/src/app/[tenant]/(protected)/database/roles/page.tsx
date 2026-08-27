@@ -317,8 +317,6 @@ function RolesPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Rollen",
-        description:
-          "Rollen anlegen und festlegen, welche Berechtigungen sie mitbringen.",
         actions: (
           <DatabaseCreateAction
             label="Rolle"

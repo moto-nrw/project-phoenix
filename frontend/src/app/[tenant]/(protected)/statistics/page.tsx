@@ -438,11 +438,7 @@ export default function StatisticsPage() {
   return (
     <div className="w-full space-y-6">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-      <PageIntro
-        kicker="Auswertung"
-        title="Statistik"
-        description="Anwesenheitsquoten je Kind und Gruppe sowie die Auslastung der Räume."
-      />
+      <PageIntro title="Statistik" />
       <SectionCard
         title="Anwesenheit und Räume im Zeitraum"
         description="Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."

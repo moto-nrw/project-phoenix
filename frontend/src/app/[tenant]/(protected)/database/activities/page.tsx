@@ -318,8 +318,6 @@ function ActivitiesPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Aktivitäten",
-        description:
-          "Aktivitäten der Schule anlegen und ihre Kategorien pflegen.",
         actions: (
           <DatabaseCreateAction
             label="Aktivität"

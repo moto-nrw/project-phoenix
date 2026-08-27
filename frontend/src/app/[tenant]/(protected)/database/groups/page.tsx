@@ -255,8 +255,6 @@ function GroupsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Gruppen",
-        description:
-          "Gruppen der OGS anlegen und ihnen Räume und Kinder zuordnen.",
         actions: (
           <DatabaseCreateAction
             label="Gruppe"

@@ -210,12 +210,7 @@ function DatabaseContent() {
 
   return (
     <div className="w-full">
-      <PageIntro
-        kicker="Verwaltung"
-        title="Datenverwaltung"
-        description="Alle Stammdaten der Schule an einer Stelle: Kinder, Personal, Räume, Gruppen, Rollen und Geräte."
-        className="mb-6"
-      />
+      <PageIntro title="Datenverwaltung" className="mb-6" />
 
       {/* Data Sections Grid */}
       <div className="min-h-[60vh]">

@@ -571,8 +571,6 @@ function StudentsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Kinder",
-        description:
-          "Stammdaten, Gruppen und Betreuungszeiten aller Kinder der OGS.",
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

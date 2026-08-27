@@ -3846,12 +3846,7 @@ function TimeTrackingContent() {
       {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
           Karte, auf allen Breakpoints. Die Seite hat weder Suche noch Filter,
           deshalb entfällt die Suchkopfzeile ganz. */}
-      <PageIntro
-        kicker="Arbeitszeit"
-        title="Zeiterfassung"
-        description="Kommen und Gehen stempeln, Pausen und Abwesenheiten erfassen und den Saldo im Blick behalten."
-        className="mb-4 md:mb-6"
-      />
+      <PageIntro title="Zeiterfassung" className="mb-4 md:mb-6" />
 
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
           50/50 nebeneinander. Drunter eine Placeholder-Section für den
@@ -4050,12 +4045,7 @@ function TimeTrackingPageSkeleton() {
     <div className="w-full">
       {/* Kicker und Titel sind statisch, also rendert die echte Kopfkarte
           sofort; nur die Datenbereiche skeletonisieren. */}
-      <PageIntro
-        kicker="Arbeitszeit"
-        title="Zeiterfassung"
-        description="Kommen und Gehen stempeln, Pausen und Abwesenheiten erfassen und den Saldo im Blick behalten."
-        className="mb-4 md:mb-6"
-      />
+      <PageIntro title="Zeiterfassung" className="mb-4 md:mb-6" />
       <SkeletonRegion label="Zeiterfassung wird geladen">
         <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
           <CardSkeleton rows={4} />

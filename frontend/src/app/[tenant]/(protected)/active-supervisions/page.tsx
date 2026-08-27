@@ -267,12 +267,7 @@ function MeinRaumPageContent() {
       <div className="w-full">
         {/* Kopfkarte wie auf jeder Tenant-Seite; die Reiterleiste der
             einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
-        <PageIntro
-          kicker="Betrieb"
-          title="Aktuelle Aufsicht"
-          description="Die Kinder in der Aufsicht, die Sie gerade führen."
-          className="mb-6"
-        />
+        <PageIntro title="Aktuelle Aufsicht" className="mb-6" />
         {reopenBanner}
         {spontaneousStartBanner}
         <EmptyRoomsView
@@ -350,12 +345,7 @@ function MeinRaumPageContent() {
     <div className="w-full">
       {/* Kopfkarte wie auf jeder Tenant-Seite; die Reiterleiste der
           einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
-      <PageIntro
-        kicker="Betrieb"
-        title="Aktuelle Aufsicht"
-        description="Die Kinder in der Aufsicht, die Sie gerade führen."
-        className="mb-6"
-      />
+      <PageIntro title="Aktuelle Aufsicht" className="mb-6" />
       {reopenBanner}
       <ConfirmationModal
         isOpen={actions.showCompleteConfirmation}

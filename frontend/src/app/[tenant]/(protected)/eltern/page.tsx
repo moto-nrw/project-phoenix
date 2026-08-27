@@ -100,7 +100,6 @@ function ElternContent() {
       {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in
           einer Karte, statt eines frei stehenden Absatzes darunter. */}
       <PageIntro
-        kicker="Elternbereich"
         title="Eltern"
         description="Alles rund um die Kommunikation mit den Eltern an einem Ort. Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan."
         className="mb-6"
@@ -150,7 +149,6 @@ export default function ElternPage() {
         // Kicker sind statisch, nur das Kachelraster skelettiert.
         <div className="w-full">
           <PageIntro
-            kicker="Elternbereich"
             title="Eltern"
             description="Alles rund um die Kommunikation mit den Eltern an einem Ort. Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan."
             className="mb-6"

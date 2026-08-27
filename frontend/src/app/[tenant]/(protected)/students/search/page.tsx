@@ -2727,9 +2727,7 @@ function SearchPageContent() {
       {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel, Erklärtext und
           das Aktionsmenü, auf allen Breakpoints sichtbar. */}
       <PageIntro
-        kicker="Kinder"
         title="Alle Kinder"
-        description="Alle betreuten Kinder suchen, filtern und ihren aktuellen Aufenthaltsort sehen."
         className="mb-6"
         actions={
           <OverflowMenu

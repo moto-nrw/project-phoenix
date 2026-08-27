@@ -9,12 +9,7 @@ export default function StaffLoading() {
     <div className="w-full">
       {/* Titel und Kicker sind statisch, also rendert die echte Kopfkarte
           sofort; nur die Kartenliste darunter skelettiert. */}
-      <PageIntro
-        kicker="Personal"
-        title="Mitarbeiter"
-        description="Personen, Zeitkonten und Unterlagen Ihrer Einrichtung an einem Ort."
-        className="mb-6"
-      />
+      <PageIntro title="Mitarbeiter" className="mb-6" />
       <PageHeaderWithSearch
         title=""
         search={{

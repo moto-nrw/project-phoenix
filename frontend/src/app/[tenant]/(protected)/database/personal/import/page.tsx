@@ -426,7 +426,7 @@ export default function StaffImportPage() {
       />
 
       {/* Info Section */}
-      <SectionCard kicker="Personal" title="Import-Anleitung" icon={Info}>
+      <SectionCard title="Import-Anleitung" icon={Info}>
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
           <li>Laden Sie die Vorlage herunter (siehe unten)</li>
           <li>Füllen Sie die Datei mit Ihren Mitarbeiterdaten aus</li>

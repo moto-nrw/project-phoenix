@@ -62,14 +62,7 @@ export function ActiveSupervisionLoadingView({
     <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
       {/* Titel und Kicker sind statisch, also rendert die echte Kopfkarte
           sofort; nur die Karten darunter skelettieren. */}
-      {withHeader && (
-        <PageIntro
-          kicker="Betrieb"
-          title="Aktuelle Aufsicht"
-          description="Die Kinder in der Aufsicht, die Sie gerade führen."
-          className="mb-6"
-        />
-      )}
+      {withHeader && <PageIntro title="Aktuelle Aufsicht" className="mb-6" />}
       {withHeader && <PageHeaderSkeleton actions={1} />}
       <CardGridSkeleton
         cards={6}
@@ -89,12 +82,7 @@ export function NoActiveSupervisionAccessView() {
 
   return (
     <div className="w-full">
-      <PageIntro
-        kicker="Betrieb"
-        title="Aktuelle Aufsicht"
-        description="Die Kinder im Raum, den Sie gerade beaufsichtigen."
-        className="mb-6"
-      />
+      <PageIntro title="Aktuelle Aufsicht" className="mb-6" />
 
       <EmptyState
         icon={<MotoConceptIcon concept="rooms" size={48} />}

@@ -447,12 +447,7 @@ export default function DayLogPage() {
   return (
     <div className="w-full">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-      <PageIntro
-        kicker="Auswertung"
-        title="Tagesauswertung"
-        description="Wer war an einem Tag anwesend, krank, entschuldigt oder fehlt ohne Meldung."
-        className="mb-6"
-      />
+      <PageIntro title="Tagesauswertung" className="mb-6" />
 
       <SectionCard
         title="Anwesenheit pro Gruppe"

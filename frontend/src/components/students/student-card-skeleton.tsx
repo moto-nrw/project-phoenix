@@ -83,7 +83,7 @@ export function StudentCardPageSkeleton({
 }: Readonly<{
   label: string;
   testId: string;
-  kicker: string;
+  kicker?: string;
   title: string;
   description?: string;
 }>) {

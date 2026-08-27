@@ -77,7 +77,6 @@ function DocumentDirectory({
     <div className="w-full">
       {!embedded && (
         <PageIntro
-          kicker="Personal"
           title="Mitarbeiter"
           description="Die für Sie freigegebenen Personalunterlagen."
           className="mb-6"
@@ -609,12 +608,7 @@ function StaffPageContent() {
     <div className="w-full">
       {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel und Erklärtext in
           einer Karte, auf allen Breakpoints sichtbar. */}
-      <PageIntro
-        kicker="Personal"
-        title="Mitarbeiter"
-        description="Personen, Zeitkonten und Unterlagen Ihrer Einrichtung an einem Ort."
-        className="mb-6"
-      />
+      <PageIntro title="Mitarbeiter" className="mb-6" />
       {/* title="" versteckt die frühere Titelzeile; die Karte oben trägt den
           Titel jetzt auf allen Breakpoints. */}
       <PageHeaderWithSearch

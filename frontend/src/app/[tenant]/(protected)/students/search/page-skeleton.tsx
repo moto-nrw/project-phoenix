@@ -8,9 +8,7 @@ export function StudentSearchPageSkeleton() {
     <StudentCardPageSkeleton
       label="Alle Kinder werden geladen"
       testId="students-search-skeleton"
-      kicker="Kinder"
       title="Alle Kinder"
-      description="Alle betreuten Kinder suchen, filtern und ihren aktuellen Aufenthaltsort sehen."
     />
   );
 }

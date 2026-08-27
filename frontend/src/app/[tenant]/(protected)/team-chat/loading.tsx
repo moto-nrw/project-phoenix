@@ -13,11 +13,7 @@ import { TeamChatSkeleton } from "./page-skeleton";
 export default function TeamChatLoading() {
   return (
     <div className="w-full space-y-6">
-      <PageIntro
-        kicker="Kommunikation"
-        title="Team-Chat"
-        description="Unterhaltungen mit einzelnen Personen aus dem Team."
-      />
+      <PageIntro title="Team-Chat" />
       <PageHeaderWithSearch
         title=""
         search={{

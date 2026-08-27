@@ -505,9 +505,7 @@ function RoomsPageContent() {
           Exportmenü zieht mit in die Kopfkarte, damit es auch mobil erreichbar
           bleibt (ohne Titel rendert PageHeaderWithSearch keinen Kebab). */}
       <PageIntro
-        kicker="Betrieb"
         title="Räume"
-        description="Wer hält sich gerade wo auf, und welche Räume sind frei."
         className="mb-6"
         actions={<OverflowMenu items={overflowItems} />}
       />

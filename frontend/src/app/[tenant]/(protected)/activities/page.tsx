@@ -311,9 +311,7 @@ function ActivitiesPageContent() {
             Primäraktion steht hier; mobil bleibt zusätzlich der schwebende
             Knopf unten rechts. */}
         <PageIntro
-          kicker="Betrieb"
           title="Aktivitäten"
-          description="Angebote der OGS anlegen, suchen und verwalten."
           className="mb-6"
           actions={
             <Button

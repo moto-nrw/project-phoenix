@@ -2080,12 +2080,7 @@ export default function SlotListsPage() {
       {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
       <BackButton referrer="/database/exports" />
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-      <PageIntro
-        kicker="Planung"
-        title="Tageslisten"
-        description="Listen für einen Tag zusammenstellen, drucken und exportieren."
-        className="mb-6"
-      />
+      <PageIntro kicker="Planung" title="Tageslisten" className="mb-6" />
 
       {/* Selection: source + date + data mode */}
       <section

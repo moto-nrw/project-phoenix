@@ -244,7 +244,6 @@ export default function AbsencesPage() {
     <div className="w-full space-y-6">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
       <PageIntro
-        kicker="Kinder"
         title="Abwesenheiten"
         description="Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von heute an, zum Nachschlagen, ob für ein Kind schon etwas eingetragen ist."
       />

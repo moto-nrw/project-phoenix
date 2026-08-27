@@ -156,8 +156,6 @@ function PermissionsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Berechtigungen",
-        description:
-          "Alle Berechtigungen, die sich im System an Rollen vergeben lassen.",
       }}
     >
       <div className="mb-4">

@@ -238,7 +238,6 @@ function DashboardContent() {
       {/* Begrüßung als Kopfkarte wie auf der Eltern-Startseite: der Gruß ist
           der Titel, der Erklärtext hängt als description darunter. */}
       <PageIntro
-        kicker="Übersicht"
         title={`${greeting}, ${firstName}`}
         description="Das Wichtigste für heute auf einen Blick."
         prominent

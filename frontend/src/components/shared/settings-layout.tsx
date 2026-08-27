@@ -216,12 +216,7 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
           mobilen Detailansicht trägt der Zurück-Kopf den Reiternamen, dort
           wäre die Kopfkarte ein zweiter Kopf. */}
       {!(isMobile && activeTab !== null) && (
-        <PageIntro
-          kicker="Verwaltung"
-          title="Einstellungen"
-          description="Alles, was Sie für Ihre Schule ein- und ausschalten oder anpassen können."
-          className="mb-6"
-        />
+        <PageIntro title="Einstellungen" className="mb-6" />
       )}
 
       {!isMobile && (

@@ -348,11 +348,7 @@ export default function AnfragenPage() {
   if (!isReady) {
     return (
       <div className="w-full space-y-6">
-        <PageIntro
-          kicker="Freigaben"
-          title="Anfragen"
-          description="Anträge von Eltern und aus dem Team an einer Stelle prüfen und entscheiden."
-        />
+        <PageIntro title="Anfragen" />
         <SkeletonRegion label="Anfragen werden geladen…">
           <ListSkeleton rows={4} avatar={false} />
         </SkeletonRegion>
@@ -380,11 +376,7 @@ export default function AnfragenPage() {
           Karte, auf allen Breakpoints. Reiter, Suche, Filter und der
           Ansichts-Umschalter bleiben in PageHeaderWithSearch; title="" blendet
           dort nur die eigene (jetzt doppelte) Titelzeile aus. */}
-      <PageIntro
-        kicker="Freigaben"
-        title="Anfragen"
-        description="Anträge von Eltern und aus dem Team an einer Stelle prüfen und entscheiden."
-      />
+      <PageIntro title="Anfragen" />
       <PageHeaderWithSearch
         title=""
         tabs={

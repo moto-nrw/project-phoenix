@@ -342,8 +342,6 @@ function DevicesPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Geräte",
-        description:
-          "Tablets und NFC-Geräte der Schule registrieren und verwalten.",
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

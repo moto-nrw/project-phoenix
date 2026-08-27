@@ -587,7 +587,6 @@ function SubstitutionPageContent() {
       <div className="w-full">
         {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
         <PageIntro
-          kicker="Personal"
           title="Gruppenzugriff"
           description="Wer darf vorübergehend auf welche Gruppe zugreifen."
           className="mb-6"

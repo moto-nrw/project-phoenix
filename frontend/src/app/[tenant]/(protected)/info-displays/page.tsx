@@ -241,9 +241,7 @@ function InfoDisplaysPageContent() {
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App; die
           Primäraktion steht in ihrer Titelzeile. */}
       <PageIntro
-        kicker="Betrieb"
         title="Info-Displays"
-        description="Bildschirme in der Einrichtung anlegen und ihre Anzeige steuern."
         className="mb-6"
         actions={
           canManage ? (

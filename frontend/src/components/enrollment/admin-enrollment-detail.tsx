@@ -291,7 +291,6 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             <RequestExtraSection request={data} />
 
             <SectionCard
-              kicker="Kinder"
               title="Angaben der Kinder"
               description="Zusatzfragen und Stammdaten-Antworten werden pro Kind angezeigt."
               bodyClassName="mt-4 space-y-3"

@@ -349,8 +349,6 @@ function RoomsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Räume",
-        description:
-          "Räume der Schule mit Gebäude, Etage und Kategorie pflegen.",
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (
