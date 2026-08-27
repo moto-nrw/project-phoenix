@@ -1032,10 +1032,10 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Team-Chat",
         icon: MessageSquare,
         summary:
-          "Nachrichten an einzelne Kolleginnen und Kollegen Ihrer Schule. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
+          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
         steps: [
           "`Team-Chat` in der Seitenleiste öffnen.",
-          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule.",
+          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule. Lehrkräfte sind mit `Lehrkraft` gekennzeichnet; sie lesen und antworten in ihrem Portal „moto schule“ unter `Nachrichten`.",
           "Nachricht schreiben und mit `Senden` abschicken.",
           "Eine Zahl neben `Team-Chat` zeigt, wie viele Nachrichten Sie noch nicht gelesen haben. Sie verschwindet, sobald Sie die Unterhaltung öffnen.",
           "Über `Nur ungelesen` blenden Sie alles aus, was Sie schon gelesen haben.",

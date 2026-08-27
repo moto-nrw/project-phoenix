@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NotificationBadge } from "~/components/ui/notification-badge";
+import { useSchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
-import {
-  SCHOOL_PRIMARY_NAV,
-  SCHOOL_SECONDARY_NAV,
-} from "./school-nav-items";
+import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
 
 const ITEM =
   "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-4 py-2.5 transition-colors duration-200";
@@ -33,6 +32,7 @@ const SCHOOL_MOBILE_NAV = [...SCHOOL_PRIMARY_NAV, ...SCHOOL_SECONDARY_NAV];
  */
 export function SchoolBottomNav() {
   const pathname = usePathname();
+  const teamChat = useSchoolTeamChatUnread();
 
   return (
     <nav
@@ -52,6 +52,9 @@ export function SchoolBottomNav() {
         <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
           <ul className="flex items-center justify-around gap-1">
             {SCHOOL_MOBILE_NAV.map((item) => {
+              if (item.optional === "teamChat" && teamChat.available !== true) {
+                return null;
+              }
               const active = isSchoolNavActive(item.href, pathname);
               return (
                 <li key={item.key}>
@@ -66,11 +69,23 @@ export function SchoolBottomNav() {
                     aria-label={item.label}
                     className={`${ITEM} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
                   >
-                    <MotoNavIcon
-                      concept={item.concept}
-                      active={active}
-                      className="h-5 w-5 shrink-0"
-                    />
+                    <span className="relative inline-flex">
+                      <MotoNavIcon
+                        concept={item.concept}
+                        active={active}
+                        className="h-5 w-5 shrink-0"
+                      />
+                      {item.badge === "teamChat" &&
+                        teamChat.unreadCount > 0 && (
+                          <NotificationBadge
+                            count={teamChat.unreadCount}
+                            tone="staff"
+                            size="sm"
+                            ariaLabel={`${teamChat.unreadCount} ungelesene Nachrichten`}
+                            className="absolute -top-2 -right-3"
+                          />
+                        )}
+                    </span>
                     {active ? (
                       <span className="text-sm font-semibold whitespace-nowrap">
                         {item.label}
