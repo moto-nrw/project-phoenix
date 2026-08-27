@@ -105,7 +105,7 @@ func TestSchoolPushSubscriptionIsRecordedAsSchoolDevice(t *testing.T) {
 	}
 
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", time.Now().UnixNano())
-	body := fmt.Sprintf(`{"endpoint":%q,"keys":{"p256dh":"BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_iDb9sByR6yeA-QtbErWx5yZJ-U5bAYzpL5y-Z-9YBI_S2xKDs","auth":"tBHItJI5svbpez7KI4CCXg"}}`, endpoint)
+	body := fmt.Sprintf(`{"endpoint":%q,"keys":{"p256dh":"key","auth":"auth"}}`, endpoint)
 	req := httptest.NewRequest(http.MethodPost, "/notifications/push/subscriptions", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
