@@ -177,7 +177,7 @@ func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, account
 		}
 		for _, mapping := range mappings {
 			tenantCtx := tenant.WithTenantID(txCtx, mapping.TenantID)
-			if err := s.repo.DeleteByEndpoint(tenantCtx, accountID, endpoint); err != nil {
+			if err := s.repo.DeleteParentByAccountEndpoint(tenantCtx, accountID, endpoint); err != nil {
 				return fmt.Errorf("removing push subscription for tenant %d: %w", mapping.TenantID, err)
 			}
 		}

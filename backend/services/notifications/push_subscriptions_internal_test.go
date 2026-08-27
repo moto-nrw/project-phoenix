@@ -61,6 +61,16 @@ func (r *recordingPushRepository) DeleteSchoolByEndpoint(ctx context.Context, ac
 	return r.err
 }
 
+func (r *recordingPushRepository) DeleteParentByAccountEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	r.deletedAccount = accountID
+	r.deletedEndpoint = endpoint
+	r.deletedTenants = append(r.deletedTenants, tenant.FromContext(ctx))
+	if r.deleteFailAfter > 0 && len(r.deletedTenants) < r.deleteFailAfter {
+		return nil
+	}
+	return r.err
+}
+
 func (r *recordingPushRepository) DeleteParentByEndpoint(_ context.Context, endpoint string) error {
 	r.reboundEndpoint = endpoint
 	r.operations = append(r.operations, "clear")

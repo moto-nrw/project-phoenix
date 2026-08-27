@@ -379,6 +379,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		sharedEndpoint := endpoint + "/shared-portals"
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, sharedEndpoint)))
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalSchool, sharedEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalParent, sharedEndpoint)))
 
 		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{account.ID})
 		require.NoError(t, err)
@@ -388,8 +389,17 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, hasSubscriptionEndpoint(schoolSubs, sharedEndpoint))
 
-		require.NoError(t, repo.DeleteSchoolByEndpoint(ctx, account.ID, sharedEndpoint))
 		require.NoError(t, repo.DeleteByEndpoint(ctx, account.ID, sharedEndpoint))
+		schoolSubs, err = repo.FindForSchoolAccounts(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(schoolSubs, sharedEndpoint))
+
+		require.NoError(t, repo.DeleteParentByAccountEndpoint(ctx, account.ID, sharedEndpoint))
+		schoolSubs, err = repo.FindForSchoolAccounts(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(schoolSubs, sharedEndpoint))
+
+		require.NoError(t, repo.DeleteSchoolByEndpoint(ctx, account.ID, sharedEndpoint))
 	})
 
 	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {

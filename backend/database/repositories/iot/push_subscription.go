@@ -90,19 +90,32 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSu
 	return nil
 }
 
-// DeleteByEndpoint removes the caller's subscription for the current tenant.
-// Scoped to the account so one user cannot unsubscribe another's device.
+// DeleteByEndpoint removes the caller's staff-portal subscription for the
+// current tenant. Scoped to the account so one user cannot unsubscribe
+// another's device.
 func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalStaff, "delete staff push subscription")
+}
+
+// DeleteParentByAccountEndpoint removes the caller's parent-portal
+// subscription for the current tenant without affecting another portal that
+// uses the same browser endpoint.
+func (r *PushSubscriptionRepository) DeleteParentByAccountEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalParent, "delete parent push subscription")
+}
+
+func (r *PushSubscriptionRepository) deleteByEndpointPortal(ctx context.Context, accountID int64, endpoint, portal, op string) error {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*iot.PushSubscription)(nil)).
 		ModelTableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
-		Where("endpoint = ?", endpoint)
+		Where("endpoint = ?", endpoint).
+		Where("portal = ?", portal)
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete push subscription", Err: err}
+		return &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	return nil
 }
@@ -111,19 +124,7 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accou
 // the current tenant without affecting a tenant-portal registration that uses
 // the same browser endpoint.
 func (r *PushSubscriptionRepository) DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
-	query := base.GetDB(ctx, r.DB).NewDelete().
-		Model((*iot.PushSubscription)(nil)).
-		ModelTableExpr(tablePushSubscriptions).
-		Where("account_id = ?", accountID).
-		Where("endpoint = ?", endpoint).
-		Where("portal = ?", iot.PushPortalSchool)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete school push subscription", Err: err}
-	}
-	return nil
+	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalSchool, "delete school push subscription")
 }
 
 // DeleteExpiredIfUnchanged removes an expired subscription only while it still

@@ -101,8 +101,12 @@ type PushSubscriptionRepository interface {
 	// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
 	// endpoint).
 	Upsert(ctx context.Context, sub *PushSubscription) error
-	// DeleteByEndpoint removes the caller's subscription for the current tenant.
+	// DeleteByEndpoint removes the caller's staff-portal subscription for the
+	// current tenant.
 	DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteParentByAccountEndpoint removes the caller's parent-portal
+	// subscription for the current tenant.
+	DeleteParentByAccountEndpoint(ctx context.Context, accountID int64, endpoint string) error
 	// DeleteSchoolByEndpoint removes only a school-portal subscription for the
 	// caller in the current tenant.
 	DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error
