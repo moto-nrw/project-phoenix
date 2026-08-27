@@ -72,12 +72,16 @@ export function DateRangePicker({
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        className={`inline-flex h-8 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors ${
+        // Gleiche Geometrie wie jedes andere Bedienelement im Seitenkopf:
+        // 36 px hoch, 12 px Radius, 14 px Schrift. Die frühere Pille (32 px,
+        // rounded-full, 12 px Schrift) stand neben 36-px-Knöpfen und las sich
+        // als anderes Bauteil.
+        className={`inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors ${
           isOpen ? "bg-gray-50" : "hover:bg-gray-50"
         } ${triggerClassName}`}
       >
         <svg
-          className="h-3.5 w-3.5 text-gray-400"
+          className="h-4 w-4 text-gray-400"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -303,21 +307,21 @@ export function RangeCalendarInline({
       className={`flex flex-col sm:flex-row ${hasPresets ? "" : "justify-center"}`}
     >
       {hasPresets && (
-        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-3 text-xs sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0">
+        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-2 text-sm sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:p-3">
           {presets.map((preset) => (
             <button
               key={preset.label}
               type="button"
               onClick={() => handlePreset(preset)}
-              className="shrink-0 rounded-md px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
             >
               {preset.label}
             </button>
           ))}
         </div>
       )}
-      <div className="p-3">
-        <div className="mb-2 px-1 text-center text-xs text-gray-500">
+      <div className="p-3 sm:p-4">
+        <div className="mb-3 text-center text-sm font-medium text-gray-700">
           {draftLabel}
         </div>
         <div className="mb-3 flex items-center justify-between">

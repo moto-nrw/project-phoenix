@@ -5,7 +5,6 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
 import { Skeleton } from "~/components/ui/skeleton";
 import type {
   ActiveFilter,
@@ -148,6 +147,15 @@ export function TenantPageStats({
   );
 }
 
+/**
+ * Eine Bedienhöhe im Seitenkopf. Ohne diese Klammer stehen dort 32, 36 und
+ * 40 px nebeneinander, je nachdem welches Kit-Bauteil eine Seite gerade
+ * greift — gemessen auf /statistics: Zeitraum 32, Export 36, Filter 40.
+ * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
+ * nicht nur direkte Kinder.
+ */
+const CONTROL_HEIGHT = "[&_button]:h-9 [&_select]:h-9";
+
 export function TenantPage({
   title,
   stats,
@@ -185,7 +193,7 @@ export function TenantPage({
   );
 
   return (
-    <div className="w-full space-y-6" data-testid={testId}>
+    <div className="w-full" data-testid={testId}>
       {back && (
         <MobileBackButton
           href={backHref}
@@ -195,34 +203,79 @@ export function TenantPage({
         />
       )}
 
-      <PageIntro
-        title={title}
-        description={statusLine}
-        actions={actions}
-        leading={leading}
-        prominent={prominent}
-      >
-        {searchSlot}
-        {!searchSlot && hasSearchRow && (
-          <PageHeaderWithSearch
-            // Der Titel steht in der Kopfkarte darüber.
-            embedded
-            title=""
-            search={search}
-            filters={filters as FilterConfig[] | undefined}
-            activeFilters={activeFilters as ActiveFilter[] | undefined}
-            onClearAllFilters={onClearAllFilters}
-            overflowMenu={overflowMenu as OverflowMenuItem[] | undefined}
-            badge={badge}
-          />
+      {/* Der Kopf steht auf der Seitenfläche, NICHT in einer Karte. Eine
+          Karte um Titel und Statuszeile ist ein 156 px hoher Rahmen um
+          90 px Inhalt — sie kostet Höhe und trägt nichts. Karten sind für
+          Inhalt da, der eine Fläche braucht. */}
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 items-center gap-3">
+          {leading}
+          <div className="min-w-0">
+            <h1
+              className={cn(
+                "font-semibold tracking-tight text-balance text-gray-900",
+                prominent
+                  ? "text-2xl leading-tight sm:text-[28px]"
+                  : "text-xl leading-tight sm:text-2xl",
+              )}
+            >
+              {title}
+            </h1>
+            {statusLine != null && (
+              <p className="mt-1 text-sm leading-5 text-gray-600">
+                {statusLine}
+              </p>
+            )}
+          </div>
+        </div>
+        {actions && (
+          // Eine Bedienhöhe im Kopf. Ohne diese Klammer stehen dort 32,
+          // 36 und 40 px nebeneinander, je nachdem welches Kit-Bauteil
+          // eine Seite gerade greift.
+          <div
+            className={cn(
+              "flex shrink-0 flex-wrap items-center gap-2",
+              CONTROL_HEIGHT,
+            )}
+          >
+            {actions}
+          </div>
         )}
-      </PageIntro>
+      </header>
 
-      {tabs && <TenantPageTabs {...tabs} />}
+      {(searchSlot ?? hasSearchRow) && (
+        <div className={cn("mt-4", CONTROL_HEIGHT)}>
+          {searchSlot}
+          {!searchSlot && hasSearchRow && (
+            <PageHeaderWithSearch
+              // Der Titel steht im Seitenkopf darüber.
+              embedded
+              title=""
+              search={search}
+              filters={filters as FilterConfig[] | undefined}
+              activeFilters={activeFilters as ActiveFilter[] | undefined}
+              onClearAllFilters={onClearAllFilters}
+              overflowMenu={overflowMenu as OverflowMenuItem[] | undefined}
+              badge={badge}
+            />
+          )}
+        </div>
+      )}
 
-      <TenantPageBody loading={loading} error={error} empty={empty}>
-        {children}
-      </TenantPageBody>
+      {/* Die Reiter gehören zum Kopf, nicht zum Inhalt: eng darüber, mit
+          echtem Abstand darunter. Vorher lagen 24 px darüber und 0 darunter,
+          der Inhalt klebte an der Trennlinie. */}
+      {tabs && (
+        <div className="mt-4">
+          <TenantPageTabs {...tabs} />
+        </div>
+      )}
+
+      <div className="mt-6 space-y-6">
+        <TenantPageBody loading={loading} error={error} empty={empty}>
+          {children}
+        </TenantPageBody>
+      </div>
     </div>
   );
 }
