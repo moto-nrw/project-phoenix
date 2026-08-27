@@ -22,6 +22,7 @@ func Check(policy *Policy, graph *Graph) []Violation {
 	packages := policy.packageMap()
 	externalPackages := policy.externalPackageMap()
 	violations := packageClassificationViolations(packages, graph.Packages)
+	violations = append(violations, graph.SemanticViolations...)
 	usedExternalPackages := make(map[string]struct{}, len(externalPackages))
 	for _, edge := range graph.Edges {
 		if violation := checkEdge(policy, packages, externalPackages, usedExternalPackages, edge); violation != nil {
@@ -29,8 +30,24 @@ func Check(policy *Policy, graph *Graph) []Violation {
 		}
 	}
 	violations = append(violations, staleExternalViolations(externalPackages, usedExternalPackages)...)
-	sort.Slice(violations, func(i, j int) bool { return violations[i].Key() < violations[j].Key() })
-	return violations
+	return uniqueSortedViolations(violations)
+}
+
+func uniqueSortedViolations(violations []Violation) []Violation {
+	byKey := make(map[string]Violation, len(violations))
+	for _, violation := range violations {
+		key := violation.Key()
+		previous, exists := byKey[key]
+		if !exists || violation.Detail < previous.Detail {
+			byKey[key] = violation
+		}
+	}
+	result := make([]Violation, 0, len(byKey))
+	for _, violation := range byKey {
+		result = append(result, violation)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Key() < result[j].Key() })
+	return result
 }
 
 func (p *Policy) packageMap() map[string]Package {
