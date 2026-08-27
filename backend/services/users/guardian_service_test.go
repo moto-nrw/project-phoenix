@@ -2744,3 +2744,90 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	assert.True(t, res[0].InvitationPending,
 		"account holder with a pending upgrade approval for this child must read as pending")
 }
+
+// TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions pins that a
+// bank-detail change whose masked representation is unchanged (a new IBAN with
+// the same last four digits, a renamed account holder behind the fixed mask)
+// still persists and still leaves a distinguishable, plaintext-free audit row
+// (#2608).
+func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupGuardianService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	loadAudits := func(t *testing.T, profileID int64, field string) []auditModels.GuardianFinancialChange {
+		t.Helper()
+		var rows []auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&rows).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profileID).
+			Where(`"guardian_financial_change".field_name = ?`, field).
+			OrderExpr(`"guardian_financial_change".id ASC`).
+			Scan(ctx))
+		return rows
+	}
+
+	t.Run("new IBAN with the same last four digits", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "same-tail")
+
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN: strPtr("DE89370400440532013000"),
+		}, 1, ""))
+
+		// ACT: valid IBAN, same "3000" tail, different account.
+		err := service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN: strPtr("DE84120300000000203000"),
+		}, 1, "")
+
+		// ASSERT
+		require.NoError(t, err)
+		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+		require.NotNil(t, stored.IBAN)
+		assert.Equal(t, "DE84120300000000203000", *stored.IBAN)
+
+		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN)
+		require.Len(t, audits, 2)
+		assert.Equal(t, "•••• 3000", audits[1].OldValue)
+		assert.Equal(t, "•••• 3000 (geändert)", audits[1].NewValue)
+		assert.NotContains(t, audits[1].NewValue, "DE84")
+	})
+
+	t.Run("renamed account holder behind the fixed mask", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "holder-rename")
+
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN:          strPtr("DE89370400440532013000"),
+			AccountHolder: strPtr("Sabine Schneider"),
+		}, 1, ""))
+
+		// ACT
+		err := service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN:          strPtr("DE89370400440532013000"),
+			AccountHolder: strPtr("Peter Schneider"),
+		}, 1, "")
+
+		// ASSERT
+		require.NoError(t, err)
+		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+		require.NotNil(t, stored.AccountHolder)
+		assert.Equal(t, "Peter Schneider", *stored.AccountHolder)
+
+		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldAccountHolder)
+		require.Len(t, audits, 2)
+		assert.Equal(t, "••••••••", audits[1].OldValue)
+		assert.Equal(t, "•••••••• (geändert)", audits[1].NewValue)
+		for _, row := range audits {
+			assert.NotContains(t, row.OldValue, "Schneider")
+			assert.NotContains(t, row.NewValue, "Schneider")
+		}
+		// The unchanged IBAN produced no extra row.
+		assert.Len(t, loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN), 1)
+	})
+}

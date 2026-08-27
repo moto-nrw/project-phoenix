@@ -6,6 +6,7 @@ import { Eye, Landmark, Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
 import { getGuardianFullName } from "@/lib/guardian-helpers";
@@ -188,21 +189,12 @@ export function StudentPaymentCard({
   ];
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <Landmark className="h-4 w-4 text-gray-600" aria-hidden />
-        </div>
-        <div>
-          <h3 className="text-base font-semibold text-gray-900">
-            Zahlungskonto
-          </h3>
-          <p className="text-sm text-gray-600">
-            Von diesem Konto zieht die Schule den Beitrag für dieses Kind ein.
-          </p>
-        </div>
-      </div>
-
+    <SectionCard
+      title="Zahlungskonto"
+      description="Von diesem Konto zieht die Schule den Beitrag für dieses Kind ein."
+      icon={Landmark}
+      headingLevel={3}
+    >
       <div className="space-y-4">
         <div>
           <label
@@ -348,6 +340,6 @@ export function StudentPaymentCard({
           </p>
         )}
       </div>
-    </section>
+    </SectionCard>
   );
 }
