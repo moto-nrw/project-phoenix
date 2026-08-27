@@ -376,3 +376,24 @@ func TestGuardianPayment_ChangesAreAuditedWithMaskedValues(t *testing.T) {
 	assert.NotContains(t, rows[0].NewValue, testIBAN, "the trail must not store the IBAN")
 	assert.Nil(t, rows[0].StudentID, "a bank change is guardian-scoped")
 }
+
+// TestPaymentExport_UnknownFormatLeavesNoAccessLog pins that a rejected format
+// is rejected BEFORE the rows are loaded. The row load writes the
+// full-IBAN export access-log entry, so an export that never produced a file
+// must not leave that entry behind.
+func TestPaymentExport_UnknownFormatLeavesNoAccessLog(t *testing.T) {
+	t.Parallel()
+
+	ctx := paymentContext(t)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Format", "Child", "1a")
+	guardian := linkGuardian(t, ctx, student.ID, "format-child")
+	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
+		fmt.Sprintf("/%d/payment", guardian.ID), map[string]any{"iban": testIBAN}, financialPerm))
+
+	code, body := paymentBody(t, ctx, http.MethodPost, "/payment-overview/export",
+		map[string]any{"format": "csv"}, financialPerm)
+
+	require.Equal(t, http.StatusBadRequest, code, body)
+	assert.Equal(t, 0, countAccessLogs(t, ctx, auditModels.ResourceTypeGuardianPaymentExport),
+		"a refused export must not be logged as a full-IBAN access")
+}

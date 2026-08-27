@@ -76,8 +76,8 @@ describe("BankverbindungenPage", () => {
 
   // jsdom applies no CSS, so the stacked and the table layout both render.
   // Scoping every row query keeps the assertions unambiguous.
-  const table = () => within(screen.getByTestId("payment-list-table"));
-  const stacked = () => within(screen.getByTestId("payment-list-stacked"));
+  const table = () => within(screen.getByTestId("data-table-table"));
+  const stacked = () => within(screen.getByTestId("data-table-stacked"));
 
   it("shows children without bank details as a gap, not as a blank cell", async () => {
     mockFetchOverview.mockResolvedValue([
@@ -163,11 +163,15 @@ describe("BankverbindungenPage", () => {
       expect(stacked().getByText("Kind 0")).toBeInTheDocument(),
     );
 
-    expect(stacked().queryByText("Kind 25")).not.toBeInTheDocument();
+    // Rows render in the table's sort order (by name), so the tail of the
+    // first page is "Kind 4" — "Kind 9" is on the second.
+    expect(stacked().queryByText("Kind 9")).not.toBeInTheDocument();
 
-    fireEvent.click(stacked().getByRole("button", { name: /Weitere 5/ }));
+    fireEvent.click(
+      stacked().getByRole("button", { name: "Mehr laden (25 von 30)" }),
+    );
 
-    expect(stacked().getByText("Kind 25")).toBeInTheDocument();
+    expect(stacked().getByText("Kind 9")).toBeInTheDocument();
   });
 
   it("warns that the downloaded file carries full IBANs", async () => {

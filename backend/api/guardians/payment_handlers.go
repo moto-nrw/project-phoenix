@@ -84,8 +84,23 @@ type PaymentExportRequest struct {
 	Format listexport.Format `json:"format"`
 }
 
-// Bind satisfies render.Binder.
-func (r *PaymentExportRequest) Bind(_ *http.Request) error { return nil }
+// Bind normalizes and validates the requested format. It is rejected HERE,
+// before the handler asks for the rows: loading them writes a
+// guardian_payment_export access-log entry, and a full-IBAN export that never
+// happened must not leave that trace behind.
+func (r *PaymentExportRequest) Bind(_ *http.Request) error {
+	format := listexport.Format(strings.ToLower(strings.TrimSpace(string(r.Format))))
+	if format == "" {
+		format = listexport.FormatPDF
+	}
+	switch format {
+	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
+		r.Format = format
+		return nil
+	default:
+		return fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", r.Format)
+	}
+}
 
 // paymentActor pulls the acting account from the JWT for the GDPR access log.
 // Role is the comma-joined role list, mirroring the staff financial shape.

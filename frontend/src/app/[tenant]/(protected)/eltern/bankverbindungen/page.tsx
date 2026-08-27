@@ -10,7 +10,6 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { Skeleton } from "~/components/ui/skeleton";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import {
@@ -35,129 +34,6 @@ const FORMAT_LABELS: Record<PaymentExportFormat, string> = {
 // A school has hundreds of children; rendering every row at once costs a long
 // scroll on both layouts and a lot of DOM on a phone.
 const ROWS_PER_PAGE = 25;
-
-/** One field of a stacked row: a fixed label column so the values line up. */
-function RowField({
-  label,
-  children,
-}: Readonly<{ label: string; children: React.ReactNode }>) {
-  return (
-    <div className="flex gap-3">
-      <dt className="w-28 shrink-0 text-gray-500">{label}</dt>
-      <dd className="min-w-0 flex-1 text-right">{children}</dd>
-    </div>
-  );
-}
-
-/**
- * The phone layout of the list: one stacked row per child inside a single
- * surface, so the IBAN sits under the name instead of in a fourth column the
- * viewport cannot show.
- */
-function PaymentRowList({
-  rows,
-  caption,
-  isLoading,
-  emptyState,
-}: Readonly<{
-  rows: readonly PaymentOverviewRow[];
-  caption: string;
-  isLoading: boolean;
-  emptyState: React.ReactNode;
-}>) {
-  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
-
-  // A narrowed filter must show its first results, not the tail of the
-  // previous page.
-  const key = rows.length;
-  const [lastKey, setLastKey] = useState(key);
-  if (key !== lastKey) {
-    setLastKey(key);
-    setVisibleCount(ROWS_PER_PAGE);
-  }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-gray-600">{caption}</p>
-        <div className="moto-content-surface rounded-2xl border shadow-sm">
-          <ul className="divide-y divide-gray-100">
-            {Array.from({ length: 5 }, (_, i) => (
-              <li key={i} className="space-y-2 p-4">
-                <Skeleton className="h-4 w-40 rounded" />
-                <Skeleton className="h-3 w-full rounded" />
-                <Skeleton className="h-3 w-2/3 rounded" />
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <div className="moto-content-surface rounded-2xl border p-6 shadow-sm">
-        {emptyState}
-      </div>
-    );
-  }
-
-  const shown = rows.slice(0, visibleCount);
-
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-gray-600">{caption}</p>
-      <div className="moto-content-surface rounded-2xl border shadow-sm">
-        <ul className="divide-y divide-gray-100">
-          {shown.map((row) => (
-            <li key={row.studentId} className="p-4">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 font-medium text-gray-900">
-                  {row.studentName}
-                </span>
-                <span className="shrink-0 text-xs text-gray-500">
-                  {row.schoolClass || "—"}
-                </span>
-              </div>
-              <dl className="mt-2 space-y-1 text-sm">
-                <RowField label="Kontoinhaber">
-                  {row.guardianId ? (
-                    <span className="text-gray-900">{row.accountHolder}</span>
-                  ) : (
-                    <span className="text-gray-500">Nicht zugeordnet</span>
-                  )}
-                </RowField>
-                <RowField label="IBAN">
-                  {row.ibanMasked === "" ? (
-                    <span style={{ color: LOCATION_COLORS.WARNING }}>
-                      Fehlt
-                    </span>
-                  ) : (
-                    <span className="font-mono text-gray-900">
-                      {row.ibanMasked}
-                    </span>
-                  )}
-                </RowField>
-              </dl>
-            </li>
-          ))}
-        </ul>
-      </div>
-      {shown.length < rows.length && (
-        <Button
-          type="button"
-          size="md"
-          variant="outline"
-          className="w-full"
-          onClick={() => setVisibleCount((count) => count + ROWS_PER_PAGE)}
-        >
-          Weitere {Math.min(ROWS_PER_PAGE, rows.length - shown.length)} anzeigen
-        </Button>
-      )}
-    </div>
-  );
-}
 
 function BankverbindungenContent() {
   const { data: session, status } = useSession({ required: true });
@@ -253,6 +129,7 @@ function BankverbindungenContent() {
     {
       key: "student",
       header: "Kind",
+      stacked: "title",
       render: (row) => (
         <span className="font-medium text-gray-900">{row.studentName}</span>
       ),
@@ -261,6 +138,7 @@ function BankverbindungenContent() {
     {
       key: "class",
       header: "Klasse",
+      stacked: "meta",
       render: (row) => (
         <span className="text-gray-600">{row.schoolClass || "—"}</span>
       ),
@@ -380,30 +258,20 @@ function BankverbindungenContent() {
         </p>
 
         {/* A four-column table on a phone pushes the IBAN — the one value the
-            page exists for — off screen. Under md the same rows render as a
-            stacked list; from md up the table is the denser read. */}
-        <div className="md:hidden" data-testid="payment-list-stacked">
-          <PaymentRowList
-            rows={visibleRows}
-            caption={captionText}
-            isLoading={isLoading}
-            emptyState={emptyState}
-          />
-        </div>
-
-        <div className="hidden md:block" data-testid="payment-list-table">
-          <DataTable
-            columns={columns}
-            rows={visibleRows}
-            getRowKey={(row) => row.studentId}
-            isLoading={isLoading}
-            defaultSortKey="student"
-            caption={captionText}
-            pageSize={ROWS_PER_PAGE}
-            paginationResetKey={`${completeness}:${searchValue}`}
-            emptyState={emptyState}
-          />
-        </div>
+            page exists for — off screen, so the kit table renders its stacked
+            phone layout below md. */}
+        <DataTable
+          columns={columns}
+          rows={visibleRows}
+          getRowKey={(row) => row.studentId}
+          isLoading={isLoading}
+          defaultSortKey="student"
+          caption={captionText}
+          pageSize={ROWS_PER_PAGE}
+          paginationResetKey={`${completeness}:${searchValue}`}
+          emptyState={emptyState}
+          stackedOnMobile
+        />
       </div>
     </div>
   );

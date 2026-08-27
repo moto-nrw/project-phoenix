@@ -1002,7 +1002,33 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 		relationship.EmergencyPriority = *req.EmergencyPriority
 	}
 
-	return s.StudentGuardianRepo.Update(ctx, relationship)
+	if err := relationship.Validate(); err != nil {
+		return err
+	}
+
+	// Column-limited on purpose: is_payer is owned by SetStudentPayer, which
+	// is gated on guardians:financial and writes an audit row. A whole-row
+	// update here would carry the is_payer value this request read back into
+	// the row, so a payer assigned in between (or removed in between) would be
+	// silently undone by an unrelated relationship edit — without the
+	// permission and without a trace.
+	updated, err := s.StudentGuardianRepo.UpdateColumns(ctx, relationship,
+		"relationship_type",
+		"guardian_role",
+		"permissions",
+		"is_primary",
+		"is_emergency_contact",
+		"can_pickup",
+		"pickup_notes",
+		"emergency_priority",
+	)
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return fmt.Errorf("relationship not found: %d", relationshipID)
+	}
+	return nil
 }
 
 // RemoveGuardianFromStudent removes a guardian from a student

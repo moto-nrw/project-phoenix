@@ -1030,6 +1030,36 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		assert.Equal(t, emergencyPriority, updated.EmergencyPriority)
 	})
 
+	// The payer mark is owned by SetStudentPayer (guardians:financial, audited).
+	// A relationship edit holding a stale copy of the row must not carry it
+	// back into the table — that would silently undo a payer assignment.
+	t.Run("leaves the payer mark untouched", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-payer")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdatePayer", "Student", "5c")
+
+		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+		require.False(t, created.IsPayer)
+
+		// The payer is assigned AFTER the caller read the relationship, so the
+		// in-memory copy still says false — exactly the concurrent shape.
+		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+
+		canPickup := true
+		require.NoError(t, service.UpdateStudentGuardianRelationship(ctx, created.ID,
+			users.StudentGuardianUpdateRequest{CanPickup: &canPickup}))
+
+		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		require.NoError(t, err)
+		assert.True(t, updated.CanPickup, "the requested field must still be written")
+		assert.True(t, updated.IsPayer, "an unrelated relationship edit must not clear the payer mark")
+	})
+
 	t.Run("returns error when relationship is missing", func(t *testing.T) {
 		missingID := time.Now().UnixNano()
 		isPrimary := true

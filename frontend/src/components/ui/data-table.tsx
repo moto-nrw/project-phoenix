@@ -21,6 +21,11 @@ export interface DataTableColumn<T> {
   className?: string;
   headerClassName?: string;
   sortValue?: (row: T) => string | number;
+  // Role this column plays in the stacked phone layout (`stackedOnMobile`).
+  // "title" is the headline of a stacked row, "meta" the muted value beside
+  // it, "field" a labelled line below, "hidden" is dropped on phones.
+  // Defaults to "field".
+  stacked?: "title" | "meta" | "field" | "hidden";
 }
 
 interface DataTableProps<T> {
@@ -45,6 +50,12 @@ interface DataTableProps<T> {
   // Changing this value resets incremental pagination to the first page.
   // Callers with externally filtered rows should pass their active filter key.
   paginationResetKey?: string | number;
+  // Below md, render the same rows stacked instead of as a table. Use it when
+  // a phone viewport cannot show the columns that carry the point of the list
+  // (a fourth column pushed off screen is a value nobody reads). Sorting,
+  // paging, loading and empty state stay shared between both layouts —
+  // per-column roles come from `DataTableColumn.stacked`.
+  stackedOnMobile?: boolean;
 }
 
 const alignClass: Record<
@@ -92,6 +103,140 @@ function SkeletonBodyRows({
         </tr>
       ))}
     </>
+  );
+}
+
+/** One labelled line of a stacked row; the label column keeps values aligned. */
+function StackedField({
+  label,
+  children,
+}: Readonly<{ label: string; children: ReactNode }>) {
+  return (
+    <div className="flex gap-3">
+      <dt className="w-28 shrink-0 text-gray-500">{label}</dt>
+      <dd className="min-w-0 flex-1 text-right">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * The phone layout of DataTable: the same sorted, paged rows rendered stacked
+ * inside one surface. Enabled per call site via `stackedOnMobile`.
+ */
+function StackedRows<T>({
+  columns,
+  rows,
+  getRowKey,
+  onRowClick,
+  rowClassName,
+  isLoading,
+  loadingRowCount,
+  emptyState,
+  hasMore,
+  loadMore,
+  totalCount,
+}: Readonly<{
+  columns: DataTableColumn<T>[];
+  rows: T[];
+  getRowKey: (row: T) => string | number;
+  onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string;
+  isLoading?: boolean;
+  loadingRowCount: number;
+  emptyState?: ReactNode;
+  hasMore: boolean;
+  loadMore: () => void;
+  totalCount: number;
+}>) {
+  const title = columns.find((c) => c.stacked === "title") ?? columns[0];
+  const meta = columns.find((c) => c.stacked === "meta");
+  const fields = columns.filter(
+    (c) => c !== title && c !== meta && c.stacked !== "hidden",
+  );
+  const clickable = Boolean(onRowClick);
+
+  if (isLoading) {
+    return (
+      <div className={surfaceClass} aria-hidden="true">
+        <ul className="divide-y divide-gray-100">
+          {Array.from({ length: loadingRowCount }, (_, i) => (
+            <li key={i} className="space-y-2 p-4">
+              <Skeleton className="h-4 w-40 rounded" />
+              <Skeleton className="h-3 w-full rounded" />
+              <Skeleton className="h-3 w-2/3 rounded" />
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className={`${surfaceClass} p-6`}>
+        {emptyState ?? (
+          <p className="text-center text-sm text-gray-500">
+            Keine Einträge vorhanden.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className={surfaceClass}>
+        <ul className="divide-y divide-gray-100">
+          {rows.map((row) => (
+            <li
+              key={getRowKey(row)}
+              className={`p-4 ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
+              tabIndex={clickable ? 0 : undefined}
+              role={clickable ? "button" : undefined}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0">{title?.render(row)}</span>
+                {meta ? (
+                  <span className="shrink-0 text-xs text-gray-500">
+                    {meta.render(row)}
+                  </span>
+                ) : null}
+              </div>
+              {fields.length > 0 && (
+                <dl className="mt-2 space-y-1 text-sm">
+                  {fields.map((col) => (
+                    <StackedField key={col.key} label={col.header}>
+                      {col.render(row)}
+                    </StackedField>
+                  ))}
+                </dl>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={loadMore}
+          className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+        >
+          {`Mehr laden (${rows.length} von ${totalCount})`}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -149,6 +294,7 @@ export function DataTable<T>({
   defaultSortDirection = "asc",
   pageSize,
   paginationResetKey,
+  stackedOnMobile = false,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
 
@@ -226,11 +372,34 @@ export function DataTable<T>({
         </div>
       )}
 
+      {stackedOnMobile && (
+        <div className="md:hidden" data-testid="data-table-stacked">
+          <StackedRows
+            columns={columns}
+            rows={visibleRows}
+            getRowKey={getRowKey}
+            onRowClick={onRowClick}
+            rowClassName={rowClassName}
+            isLoading={isLoading}
+            loadingRowCount={loadingRowCount}
+            emptyState={emptyState}
+            hasMore={hasMore}
+            loadMore={loadMore}
+            totalCount={sortedRows.length}
+          />
+        </div>
+      )}
+
       {/* Radius, Rand und Ausschnitt bleiben auf der Kartenfläche, gescrollt
           wird im inneren Container. Sonst zeichnet der Browser die
           Scrollleiste quer durch die abgerundeten Ecken und über den unteren
           Rand hinaus. */}
-      <div className={surfaceClass}>
+      <div
+        className={
+          stackedOnMobile ? `${surfaceClass} hidden md:block` : surfaceClass
+        }
+        data-testid={stackedOnMobile ? "data-table-table" : undefined}
+      >
         <div className="overflow-x-auto">
           <table className={tableClass}>
             <thead>
