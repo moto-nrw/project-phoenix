@@ -108,7 +108,7 @@ export function DienstplanGridSkeleton() {
 // dem Raster.
 export function DienstplanPageSkeleton() {
   return (
-    <div className="w-full space-y-4" data-testid="dienstplan-page-skeleton">
+    <div className="w-full space-y-6" data-testid="dienstplan-page-skeleton">
       <PlanningContextBarSkeleton
         ariaLabel="Dienstplan-Kopfzeile wird geladen"
         testId="dienstplan-header-skeleton"

@@ -23,7 +23,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -447,60 +447,58 @@ function DienstplanContent() {
           </Button>
         </>
       }
-    >
-      {/* Die Zeitnavigation der Planungsflächen steht als erster Inhaltsblock
-          unter der Kopfkarte, nicht als zweiter Seitenkopf. Ohne `title`:
-          den Seitentitel trägt die Kopfkarte darüber. */}
-      <PlanningContextBar
-        onPrevious={() => goToWeek(-7)}
-        onNext={() => goToWeek(7)}
-        previousLabel="Vorherige Woche"
-        nextLabel="Nächste Woche"
-        dateLabel={weekLabel}
-        onToday={isOnCurrentWeek ? undefined : goToToday}
-        viewSwitcher={
-          // Ohne schedules:read gibt es nur die Wochenansicht — ein
-          // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz.
-          canViewHalbjahr ? (
-            <Tabs
-              value={view}
-              onValueChange={(v) => setView(v as DienstplanView)}
-            >
-              <TabsList variant="default">
-                <TabsTrigger value="woche">Woche</TabsTrigger>
-                <TabsTrigger value="halbjahr">Halbjahr</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          ) : undefined
-        }
-      >
-        {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
-            damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
-            sichtbar, wechselbar und verwaltbar ist. */}
-        <PeriodSwitcherDropdown
-          periods={periods ?? []}
-          weekDays={weekDayDates}
-          isLoading={showSkeleton || periodsLoading}
-          onCreate={() => {
-            setEditingPeriod(null);
-            setPeriodModalOpen(true);
-          }}
-          onEdit={(period) => {
-            setEditingPeriod(period);
-            setPeriodModalOpen(true);
-          }}
-          onSelect={(period) =>
-            updateUrlParams({
-              d: firstSchoolDayInPeriod(
-                period.startDate,
-                period.endDate,
-                period.startDate,
-              ),
-            })
+      searchSlot={
+        <PlanningContextBar
+          onPrevious={() => goToWeek(-7)}
+          onNext={() => goToWeek(7)}
+          previousLabel="Vorherige Woche"
+          nextLabel="Nächste Woche"
+          dateLabel={weekLabel}
+          onToday={isOnCurrentWeek ? undefined : goToToday}
+          viewSwitcher={
+            // Ohne schedules:read gibt es nur die Wochenansicht — ein
+            // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz.
+            canViewHalbjahr ? (
+              <SegmentedControl
+                ariaLabel="Ansicht"
+                value={view}
+                onChange={(next) => setView(next as DienstplanView)}
+                items={[
+                  { value: "woche", label: "Woche" },
+                  { value: "halbjahr", label: "Halbjahr" },
+                ]}
+              />
+            ) : undefined
           }
-        />
-      </PlanningContextBar>
-
+        >
+          {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
+              damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
+              sichtbar, wechselbar und verwaltbar ist. */}
+          <PeriodSwitcherDropdown
+            periods={periods ?? []}
+            weekDays={weekDayDates}
+            isLoading={showSkeleton || periodsLoading}
+            onCreate={() => {
+              setEditingPeriod(null);
+              setPeriodModalOpen(true);
+            }}
+            onEdit={(period) => {
+              setEditingPeriod(period);
+              setPeriodModalOpen(true);
+            }}
+            onSelect={(period) =>
+              updateUrlParams({
+                d: firstSchoolDayInPeriod(
+                  period.startDate,
+                  period.endDate,
+                  period.startDate,
+                ),
+              })
+            }
+          />
+        </PlanningContextBar>
+      }
+    >
       {content}
 
       {modal && (

@@ -173,9 +173,9 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
 }
 
 /**
- * Skeleton der zweizeiligen PlanningContextBar-Kopfzeile: Navigation,
- * Ansichts-Umschalter, Primäraktion und Kontextzeile als Platzhalter — passend
- * zur neuen Kopfzeile (statt der abgebauten Werkzeugleiste + Setup-Karten).
+ * Platzhalter der Kopfkarte einer Planungsfläche: Titel, Statuszeile und das
+ * Bedienband (Navigation, Ansichtsumschalter, Kontextzeile) — dieselbe
+ * Anordnung wie im geladenen Zustand, damit beim Laden nichts springt.
  */
 export function PlanningContextBarSkeleton({
   ariaLabel = "Betreuungsplan-Kopfzeile wird geladen",
@@ -191,15 +191,16 @@ export function PlanningContextBarSkeleton({
       aria-busy="true"
       aria-label={ariaLabel}
       data-testid={testId}
-      className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3"
+      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 shadow-sm"
     >
-      {/* Der Titel steht seit der Kopfkarten-Vereinheitlichung auf allen
-          Breakpoints in der Leiste, also auch hier als Platzhalter. */}
-      <Skeleton className="h-7 w-40" />
+      <div>
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="mt-2 h-4 w-56" />
+      </div>
       <div className="flex min-h-9 flex-wrap items-center gap-3">
-        <Skeleton className="h-8 w-28 rounded-lg" />
+        <Skeleton className="h-9 w-28 rounded-lg" />
         <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-8 w-48 rounded-lg" />
+        <Skeleton className="h-9 w-48 rounded-lg" />
         <Skeleton className="ml-auto h-9 w-24 rounded-lg bg-gray-300" />
       </div>
       <div className="border-t border-gray-100 pt-2">
@@ -213,7 +214,7 @@ export function PlanningContextBarSkeleton({
 
 export function TimetablePageSkeleton() {
   return (
-    <div className="w-full space-y-4" data-testid="timetable-page-skeleton">
+    <div className="w-full space-y-6" data-testid="timetable-page-skeleton">
       <PlanningContextBarSkeleton />
       <TimetableContentSkeleton view="week" />
     </div>

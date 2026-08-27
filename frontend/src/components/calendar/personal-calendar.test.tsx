@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PersonalCalendar } from "./personal-calendar";
+import { PersonalCalendar, PersonalCalendarChrome } from "./personal-calendar";
 import type { CalendarEvent } from "~/lib/personal-calendar-api";
 
 const appointment: CalendarEvent = {
@@ -63,15 +64,44 @@ function openEvent(title: string) {
   );
 }
 
+/**
+ * Bedienband und Raster sind zwei Komponenten: das Band sitzt in der
+ * Kopfkarte der Seite, das Raster darunter. Beide teilen sich den
+ * Wochenend-Schalter, deshalb hält dieser Wrapper den Zustand — genau wie
+ * die Kalenderseite.
+ */
+function CalendarWithChrome(
+  props: Readonly<{
+    events: CalendarEvent[];
+    weekStart: Date;
+    onWeekChange: (date: Date) => void;
+    onCreate?: () => void;
+  }>,
+) {
+  const [showWeekend, setShowWeekend] = useState(false);
+  return (
+    <>
+      <PersonalCalendarChrome
+        events={props.events}
+        weekStart={props.weekStart}
+        onWeekChange={props.onWeekChange}
+        onCreate={props.onCreate}
+        showWeekend={showWeekend}
+        onShowWeekendChange={setShowWeekend}
+      />
+      <PersonalCalendar
+        events={props.events}
+        weekStart={props.weekStart}
+        showWeekend={showWeekend}
+      />
+    </>
+  );
+}
+
 describe("PersonalCalendar", () => {
   it("renders shift events with the Dienst badge", () => {
     render(
-      <PersonalCalendar
-        title="Mein Kalender"
-        events={[shift]}
-        weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
-      />,
+      <PersonalCalendar events={[shift]} weekStart={new Date(2026, 0, 5)} />,
     );
 
     expect(screen.getAllByText("Frühdienst").length).toBeGreaterThan(0);
@@ -85,19 +115,15 @@ describe("PersonalCalendar", () => {
     const onRespond = vi.fn();
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[appointment, timetable]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
         onRespond={onRespond}
       />,
     );
 
-    // The component is the whole page body on both calendar routes, so it owns
-    // the h1. Without it the subscribe panel's h2 becomes the first heading.
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Mein Kalender" }),
-    ).toBeInTheDocument();
+    // Den Seitentitel trägt die Kopfkarte der Seite (`TenantPage`), nicht
+    // dieses Raster — es gibt hier bewusst keine eigene <h1> mehr.
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     expect(screen.getAllByText("Staff meeting").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Betreuung Gruppe A").length).toBeGreaterThan(0);
     // The pending response badge is shown on the event surface.
@@ -136,10 +162,8 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[shortRsvp, followUp]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
         onRespond={vi.fn()}
       />,
     );
@@ -169,8 +193,7 @@ describe("PersonalCalendar", () => {
       can_edit: false,
     };
     render(
-      <PersonalCalendar
-        title="Mein Kalender"
+      <CalendarWithChrome
         events={[appointment, weekendEvent]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={vi.fn()}
@@ -194,8 +217,7 @@ describe("PersonalCalendar", () => {
     const onWeekChange = vi.fn();
     const onCreate = vi.fn();
     render(
-      <PersonalCalendar
-        title="Mein Kalender"
+      <CalendarWithChrome
         events={[]}
         weekStart={new Date(2026, 0, 5)}
         onWeekChange={onWeekChange}
@@ -221,10 +243,8 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[cancelled]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
         onRespond={onRespond}
         icsHrefBase="/api/parent/calendar/appointments"
       />,
@@ -242,10 +262,8 @@ describe("PersonalCalendar", () => {
   it("renders an add-to-calendar link for active appointments", () => {
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[appointment]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
         icsHrefBase="/api/parent/calendar/appointments"
       />,
     );
@@ -267,10 +285,8 @@ describe("PersonalCalendar", () => {
     const editable: CalendarEvent = { ...appointment, can_edit: true };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[editable]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
         onEdit={onEdit}
         onCancel={onCancel}
         onDelete={onDelete}
@@ -293,10 +309,8 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[cancelled]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
         onEdit={vi.fn()}
         onCancel={vi.fn()}
         onDelete={vi.fn()}
@@ -324,10 +338,8 @@ describe("PersonalCalendar", () => {
     };
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[multiDayTimed]}
         weekStart={new Date(2026, 0, 5)}
-        onWeekChange={vi.fn()}
       />,
     );
 
@@ -354,11 +366,9 @@ describe("PersonalCalendar", () => {
       };
       render(
         <PersonalCalendar
-          title="Mein Kalender"
           events={[multiDayTimed]}
           referenceDate={new Date(2026, 0, 5)}
           viewMode={viewMode}
-          onDateChange={vi.fn()}
         />,
       );
 
@@ -372,11 +382,9 @@ describe("PersonalCalendar", () => {
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar
-        title="Mein Kalender"
         events={[]}
         weekStart={new Date(2026, 0, 5)}
         error="Kalender konnte nicht geladen werden."
-        onWeekChange={vi.fn()}
       />,
     );
 

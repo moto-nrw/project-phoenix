@@ -7,7 +7,7 @@ import { Modal } from "~/components/ui/modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Button } from "~/components/ui/button";
 import { Radio } from "~/components/ui/radio";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -235,17 +235,18 @@ export function PlanExportModal({
 
         <section>
           <p className="text-sm font-medium text-gray-900">Zeitraum</p>
-          <Tabs
+          <SegmentedControl
+            ariaLabel="Zeitraum des Exports"
             value={rangeMode}
-            onValueChange={(value) => setRangeMode(value as RangeMode)}
-          >
-            <TabsList>
-              <TabsTrigger value="week">
-                {isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche"}
-              </TabsTrigger>
-              <TabsTrigger value="range">Mehrere Wochen</TabsTrigger>
-            </TabsList>
-          </Tabs>
+            onChange={(next) => setRangeMode(next as RangeMode)}
+            items={[
+              {
+                value: "week",
+                label: isWeekOnScreen ? "Angezeigte Woche" : "Einzelne Woche",
+              },
+              { value: "range", label: "Mehrere Wochen" },
+            ]}
+          />
 
           {rangeMode === "range" && (
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -6,7 +6,6 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
 import type {
   EventFormState,
@@ -317,25 +316,20 @@ export function StepPersonalKinder({
           <span className="text-xs font-semibold text-gray-700">
             Zielgruppe
           </span>
-          <Tabs
+          {/* Fünf Segmente sprengen schmale Ansichten; sie brechen um,
+              statt aus dem Dialog zu laufen. */}
+          <SegmentedControl
+            ariaLabel="Zielgruppe"
+            className="max-w-full"
             value={form.targetGroupType}
-            onValueChange={(value) =>
+            onChange={(value) =>
               changeTargetGroupType(value as TargetGroupType)
             }
-          >
-            {/* Five pills exceed narrow viewports; wrap instead of bleeding
-                out of the dialog (h-auto overrides the kit's fixed h-9). */}
-            <TabsList
-              aria-label="Zielgruppe"
-              className="h-auto w-fit max-w-full flex-wrap justify-start"
-            >
-              {TARGET_GROUP_OPTIONS.map((option) => (
-                <TabsTrigger key={option.value} value={option.value}>
-                  {option.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+            items={TARGET_GROUP_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
 
           {form.targetGroupType === "jahrgang" && (
             <div className="mt-1">

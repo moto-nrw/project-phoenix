@@ -3,23 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PlanningContextBar, PlanningDayChip } from "./planning-context-bar";
-import { Tabs, TabsList, TabsTrigger } from "./tabs";
+import { SegmentedControl } from "./segmented-control";
 
 describe("PlanningContextBar", () => {
-  it("shows the page title on mobile and hides it from the duplicate desktop header", () => {
+  it("navigiert zurück und weiter und trägt keine eigene Überschrift", () => {
     const onPrevious = vi.fn();
     const onNext = vi.fn();
-    render(
-      <PlanningContextBar
-        title="Vertretung"
-        onPrevious={onPrevious}
-        onNext={onNext}
-      />,
+    const { container } = render(
+      <PlanningContextBar onPrevious={onPrevious} onNext={onNext} />,
     );
 
-    const heading = screen.getByRole("heading", { name: "Vertretung" });
-    expect(heading).not.toHaveClass("md:sr-only");
-    expect(heading).toHaveClass("text-xl");
+    // Die Leiste ist ein Bedienband IN der Kopfkarte: keine zweite
+    // Überschrift, keine zweite Kartenfläche.
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(container.querySelector(".moto-content-surface")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
     expect(onPrevious).toHaveBeenCalledTimes(1);
@@ -27,7 +24,7 @@ describe("PlanningContextBar", () => {
   });
 
   it("renders a plain date label between the arrows when no navigation slot is given", () => {
-    render(<PlanningContextBar title="Vertretung" dateLabel="Mo 13.07." />);
+    render(<PlanningContextBar dateLabel="Mo 13.07." />);
 
     expect(screen.getByText("Mo 13.07.")).toBeInTheDocument();
   });
@@ -35,7 +32,6 @@ describe("PlanningContextBar", () => {
   it("renders custom navigation content instead of the date label when navigationSlot is given", () => {
     render(
       <PlanningContextBar
-        title="Vertretung"
         dateLabel="Mo 13.07."
         navigationSlot={<div data-testid="week-strip">Woche</div>}
       />,
@@ -49,11 +45,11 @@ describe("PlanningContextBar", () => {
     // #2031: der Button verschwindet nicht mehr, wenn er wirkungslos ist —
     // ein auftauchendes und verschwindendes Segment ließ die Navigationsgruppe
     // seitlich springen. Ohne Callback ist er deaktiviert.
-    const { rerender } = render(<PlanningContextBar title="Vertretung" />);
+    const { rerender } = render(<PlanningContextBar />);
     expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
 
     const onToday = vi.fn();
-    rerender(<PlanningContextBar title="Vertretung" onToday={onToday} />);
+    rerender(<PlanningContextBar onToday={onToday} />);
     const todayButton = screen.getByRole("button", { name: "Heute" });
     expect(todayButton).toBeEnabled();
     fireEvent.click(todayButton);
@@ -63,7 +59,6 @@ describe("PlanningContextBar", () => {
   it("renders the view-switcher and actions slots", () => {
     render(
       <PlanningContextBar
-        title="Vertretung"
         viewSwitcher={<div data-testid="view-switcher" />}
         actions={<button type="button">Speichern</button>}
       />,
@@ -79,36 +74,39 @@ describe("PlanningContextBar", () => {
     // #2031: die zweite Zeile wird IMMER gerendert, sonst ist die Bar auf einer
     // Fläche ohne Kontext eine Zeile niedriger und der Inhalt darunter springt
     // beim Seitenwechsel. Leer heißt leer, nicht abwesend.
-    const { rerender } = render(<PlanningContextBar title="Vertretung" />);
+    const { rerender } = render(<PlanningContextBar />);
     expect(screen.queryByText("2 Lücken")).not.toBeInTheDocument();
 
     rerender(
-      <PlanningContextBar title="Vertretung">
+      <PlanningContextBar>
         <span>2 Lücken</span>
       </PlanningContextBar>,
     );
     expect(screen.getByText("2 Lücken")).toBeInTheDocument();
   });
 
-  it("supports embedding a real ui/Tabs view switcher (Radix activates on mousedown)", () => {
-    const onValueChange = vi.fn();
+  it("nimmt den SegmentedControl-Umschalter der Planungsflächen auf", () => {
+    // Die Ansicht ist eine Wertauswahl, kein Inhaltsreiter: alle drei
+    // Planungsflächen nutzen dafür dasselbe Bauteil.
+    const onChange = vi.fn();
     render(
       <PlanningContextBar
-        title="Vertretung"
         viewSwitcher={
-          <Tabs defaultValue="stoerungen" onValueChange={onValueChange}>
-            <TabsList>
-              <TabsTrigger value="stoerungen">Nur Störungen</TabsTrigger>
-              <TabsTrigger value="ganzerTag">Ganzer Tag</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <SegmentedControl
+            ariaLabel="Ansicht"
+            value="stoerungen"
+            onChange={onChange}
+            items={[
+              { value: "stoerungen", label: "Nur Störungen" },
+              { value: "ganzerTag", label: "Ganzer Tag" },
+            ]}
+          />
         }
       />,
     );
 
-    const tab = screen.getByRole("tab", { name: "Ganzer Tag" });
-    fireEvent.mouseDown(tab, { button: 0 });
-    expect(onValueChange).toHaveBeenCalledWith("ganzerTag");
+    fireEvent.click(screen.getByRole("button", { name: "Ganzer Tag" }));
+    expect(onChange).toHaveBeenCalledWith("ganzerTag");
   });
 });
 

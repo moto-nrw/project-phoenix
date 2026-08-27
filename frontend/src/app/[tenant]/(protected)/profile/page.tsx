@@ -19,7 +19,8 @@ import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
@@ -136,160 +137,154 @@ function ProfileContent() {
     redirect("/");
   }
 
+  const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Profil" />
-
-      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
-        {/* Avatar Section */}
-        <div className="flex flex-col items-center pt-4">
-          <div className="group relative">
-            <div className="bg-moto-green-soft text-moto-green-strong relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full">
-              {profile?.avatar ? (
-                <Image
-                  src={profile.avatar}
-                  alt="Profile"
-                  fill
-                  className="object-cover"
-                  sizes="112px"
-                  priority
-                  unoptimized
-                />
-              ) : (
-                <span className="text-3xl font-bold">
-                  {getInitials(
-                    `${formData.firstName} ${formData.lastName}`.trim(),
-                  )}
-                </span>
-              )}
-            </div>
-            <label
-              htmlFor="avatar-upload"
-              aria-label="Profilbild ändern"
-              className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              <Camera className="h-7 w-7 text-white" />
-            </label>
-            <input
-              id="avatar-upload"
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleAvatarChange(file);
-              }}
-              className="hidden"
-            />
-            <button
-              type="button"
-              aria-label="Profilbild ändern"
-              onClick={() => document.getElementById("avatar-upload")?.click()}
-              className="absolute -right-1 -bottom-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
-            >
-              <Camera className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Profile Data */}
-        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-gray-900">
-              Persönliche Daten
-            </h3>
-            {!isEditing && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setIsEditing(true)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Bearbeiten
-              </Button>
+    <TenantPage
+      title="Profil"
+      stats={[fullName, formData.email].filter(Boolean).join(" · ")}
+      leading={
+        // Das Profilbild sitzt im Kopf der Seite, wie der Avatar auf jeder
+        // Detailseite. Vorher stand es freischwebend über der ersten Karte.
+        <div className="group relative">
+          <div className="bg-moto-green-soft text-moto-green-strong relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full">
+            {profile?.avatar ? (
+              <Image
+                src={profile.avatar}
+                alt="Profilbild"
+                fill
+                className="object-cover"
+                sizes="56px"
+                priority
+                unoptimized
+              />
+            ) : (
+              <span className="text-lg font-bold">{getInitials(fullName)}</span>
             )}
           </div>
-          {isEditing ? (
-            <div className="space-y-4">
-              <Input
-                label="Vorname"
-                name="profile-firstname"
-                type="text"
-                value={formData.firstName}
-                onChange={(e) =>
-                  setFormData({ ...formData, firstName: e.target.value })
-                }
-                maxLength={255}
-              />
-              <Input
-                label="Nachname"
-                name="profile-lastname"
-                type="text"
-                value={formData.lastName}
-                onChange={(e) =>
-                  setFormData({ ...formData, lastName: e.target.value })
-                }
-                maxLength={255}
-              />
-              <div>
-                <span className="text-xs font-medium text-gray-500">
-                  E-Mail
-                </span>
-                <p className="text-sm font-medium text-gray-900">
-                  {formData.email}
-                </p>
-              </div>
-              <div className="flex justify-end gap-3 pt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => {
-                    setIsEditing(false);
-                    resetFormFromProfile();
-                  }}
-                >
-                  Abbrechen
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  isLoading={isSaving}
-                  loadingText="Speichern..."
-                  onClick={() => void handleSaveProfile()}
-                >
-                  Speichern
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <dl className="space-y-3">
-              <div>
-                <dt className="text-xs font-medium text-gray-500">Vorname</dt>
-                <dd className="text-sm font-medium text-gray-900">
-                  {formData.firstName || "–"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-gray-500">Nachname</dt>
-                <dd className="text-sm font-medium text-gray-900">
-                  {formData.lastName || "–"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-gray-500">E-Mail</dt>
-                <dd className="text-sm font-medium text-gray-900">
-                  {formData.email || "–"}
-                </dd>
-              </div>
-            </dl>
-          )}
+          <label
+            htmlFor="avatar-upload"
+            aria-label="Profilbild ändern"
+            className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+          >
+            <Camera className="h-5 w-5 text-white" />
+          </label>
+          <input
+            id="avatar-upload"
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleAvatarChange(file);
+            }}
+            className="hidden"
+          />
+          <button
+            type="button"
+            aria-label="Profilbild ändern"
+            onClick={() => document.getElementById("avatar-upload")?.click()}
+            className="absolute -right-1 -bottom-1 flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
+          >
+            <Camera className="h-3 w-3" />
+          </button>
         </div>
+      }
+    >
+      <SectionCard
+        title="Persönliche Daten"
+        actions={
+          isEditing ? undefined : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setIsEditing(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Bearbeiten
+            </Button>
+          )
+        }
+      >
+        {isEditing ? (
+          <div className="space-y-4">
+            <Input
+              label="Vorname"
+              name="profile-firstname"
+              type="text"
+              value={formData.firstName}
+              onChange={(e) =>
+                setFormData({ ...formData, firstName: e.target.value })
+              }
+              maxLength={255}
+            />
+            <Input
+              label="Nachname"
+              name="profile-lastname"
+              type="text"
+              value={formData.lastName}
+              onChange={(e) =>
+                setFormData({ ...formData, lastName: e.target.value })
+              }
+              maxLength={255}
+            />
+            <div>
+              <span className="text-xs font-medium text-gray-500">E-Mail</span>
+              <p className="text-sm font-medium text-gray-900">
+                {formData.email}
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setIsEditing(false);
+                  resetFormFromProfile();
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                isLoading={isSaving}
+                loadingText="Speichern..."
+                onClick={() => void handleSaveProfile()}
+              >
+                Speichern
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <dl className="space-y-3">
+            <div>
+              <dt className="text-xs font-medium text-gray-500">Vorname</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {formData.firstName || "–"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">Nachname</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {formData.lastName || "–"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-gray-500">E-Mail</dt>
+              <dd className="text-sm font-medium text-gray-900">
+                {formData.email || "–"}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </SectionCard>
 
-        {/* Security Section */}
-        <div className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-          <h3 className="text-base font-semibold text-gray-900">Passwort</h3>
+      <SectionCard
+        title="Passwort"
+        actions={
           <Button
             type="button"
             variant="outline"
@@ -298,19 +293,17 @@ function ProfileContent() {
           >
             Ändern
           </Button>
-        </div>
+        }
+      />
 
-        {/* Trusted Devices Section — personal device management.
-            Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
-        {/* "Was" before "wo": pick the topics first, then the device. */}
-        <NotificationPreferencesSection />
-        {/* Persönliche Geburtstagsanzeige (#1542) — steht bei den anderen
-            Sichtbarkeits-/Benachrichtigungsentscheidungen des eigenen Kontos. */}
-        <BirthdayVisibilitySection />
-        <PushNotificationSection />
-        <PasskeySettingsSection />
-        <TrustedDevicesSection />
-      </div>
+      {/* „Was" vor „wo": erst die Themen, dann das Gerät. */}
+      <NotificationPreferencesSection />
+      {/* Persönliche Geburtstagsanzeige (#1542) — steht bei den anderen
+          Sichtbarkeits- und Benachrichtigungsentscheidungen des eigenen Kontos. */}
+      <BirthdayVisibilitySection />
+      <PushNotificationSection />
+      <PasskeySettingsSection />
+      <TrustedDevicesSection />
 
       {showPasswordModal && (
         <PasswordChangeModal
@@ -322,7 +315,7 @@ function ProfileContent() {
           }}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

@@ -13,6 +13,10 @@
 // (`tone`, ohne Angabe grau); die Form-Props der großen (hint, progressPct,
 // action) sind in ihr per Typ ausgeschlossen statt still wirkungslos.
 //
+// Mit `icon` und `href` deckt die große Variante auch die Kacheln der
+// Startseite und der Importvorschau ab, die sich vorher jede selbst gebaut
+// haben. Es gibt im Tenant-Portal keine zweite Kennzahl-Kachel mehr.
+//
 // InfoCard bleibt die Antwort für die Karte mit Icon, Überschrift und Inhalt;
 // DataField die für ein Label-Wert-Paar in einem Detail-Panel.
 //
@@ -25,7 +29,10 @@
 // green by a factor of two). Both come from LOCATION_COLORS, so this component
 // holds no palette values of its own and cannot go stale when the palette moves.
 
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { Skeleton } from "~/components/ui/skeleton";
 
 export type StatCardTone = "blue" | "green" | "orange" | "red" | "gray";
 
@@ -40,7 +47,7 @@ const TONE_COLOR: Record<StatCardTone, string> = {
 type StatCardProps = {
   readonly variant?: "card";
   readonly label: string;
-  readonly value: string;
+  readonly value: string | number;
   readonly hint?: string;
   /** Renders the progress bar when set. Clamped to 0…100. */
   readonly progressPct?: number;
@@ -52,6 +59,15 @@ type StatCardProps = {
   readonly compactValue?: boolean;
   /** Optional control in the top-right corner (edit pencil, info button). */
   readonly action?: React.ReactNode;
+  /**
+   * Symbol rechts neben der Zahl. Die Startseite und die Importvorschau
+   * hatten dafür je eine eigene Kachel — das Symbol gehört in diese hier.
+   */
+  readonly icon?: ReactNode;
+  /** Macht die Kachel zum Link auf die Liste hinter der Zahl. */
+  readonly href?: string;
+  /** Zeigt statt der Zahl ein Skelett. */
+  readonly loading?: boolean;
 };
 
 type StatTileProps = {
@@ -95,26 +111,48 @@ export function StatCard(props: StatCardProps | StatTileProps) {
     tone = "gray",
     compactValue,
     action,
+    icon,
+    href,
+    loading = false,
   } = props;
 
-  return (
-    <div className="moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm sm:p-5">
+  const card = (
+    <div
+      className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm sm:p-5 ${
+        href
+          ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
+          : ""
+      }`}
+    >
       {/* Absolute so a tile carrying an action keeps the same label→value
           rhythm as its neighbours in the row. */}
       {action != null ? (
         <div className="absolute top-2.5 right-2.5">{action}</div>
       ) : null}
-      <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </p>
-      <p
-        className={`mt-2 font-bold ${
-          compactValue ? "text-xl whitespace-nowrap" : "text-2xl"
-        }`}
-        style={{ color: getAccessibleTextColor(TONE_COLOR[tone]) }}
-      >
-        {value}
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+            {label}
+          </p>
+          {loading ? (
+            <Skeleton className="mt-2 h-8 w-16" />
+          ) : (
+            <p
+              className={`mt-2 font-bold ${
+                compactValue ? "text-xl whitespace-nowrap" : "text-2xl"
+              }`}
+              style={{ color: getAccessibleTextColor(TONE_COLOR[tone]) }}
+            >
+              {value}
+            </p>
+          )}
+        </div>
+        {icon != null ? (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600">
+            {icon}
+          </span>
+        ) : null}
+      </div>
       {hint !== undefined && hint !== "" ? (
         <p className="mt-1 text-xs text-gray-500">{hint}</p>
       ) : null}
@@ -131,4 +169,17 @@ export function StatCard(props: StatCardProps | StatTileProps) {
       ) : null}
     </div>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="focus-visible:ring-moto-blue group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+      >
+        {card}
+      </Link>
+    );
+  }
+
+  return card;
 }

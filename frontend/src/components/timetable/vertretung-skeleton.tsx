@@ -41,7 +41,7 @@ export function VertretungContentSkeleton({
   if (!withBar) return content;
 
   return (
-    <div className="w-full space-y-4" data-testid="vertretung-page-skeleton">
+    <div className="w-full space-y-6" data-testid="vertretung-page-skeleton">
       <PlanningContextBarSkeleton
         ariaLabel="Vertretungs-Kopfzeile wird geladen"
         testId="vertretung-header-skeleton"

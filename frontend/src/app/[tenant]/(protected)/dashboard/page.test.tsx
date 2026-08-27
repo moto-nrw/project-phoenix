@@ -698,10 +698,10 @@ describe("StatCard component behavior", () => {
 
     render(<DashboardPage />);
 
-    // During loading, stat cards should show "…" for values
+    // Während des Ladens tragen die Kacheln ein Skelett statt einer Zahl.
     await waitFor(() => {
-      const dots = screen.getAllByText("…");
-      expect(dots.length).toBeGreaterThan(0);
+      const grid = screen.getByTestId("dashboard-stats-grid");
+      expect(grid.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
     });
   });
 });

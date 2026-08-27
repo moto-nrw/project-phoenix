@@ -46,7 +46,7 @@ import {
   PlanningContextBar,
   PlanningDayChip,
 } from "~/components/ui/planning-context-bar";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { BulkSubstitutionModal } from "~/components/timetable/bulk-substitution-modal";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
@@ -649,94 +649,95 @@ function VertretungContent() {
             </Button>
           ) : undefined
         }
+        searchSlot={
+          <PlanningContextBar
+            dateLabel={weekLabel}
+            onPrevious={() => goToDay(shiftDayISO(dayISO, -7))}
+            onNext={() => goToDay(shiftDayISO(dayISO, 7))}
+            previousLabel="Vorherige Woche"
+            nextLabel="Nächste Woche"
+            onToday={
+              // Tagesansicht: der Button erscheint, sobald ein anderer Tag als das
+              // Heute-Ziel gezeigt wird. Wochenansicht: sobald das Heute-Ziel gar
+              // nicht in der sichtbaren Woche liegt.
+              (
+                isWeekView
+                  ? todayTarget < fromISO || todayTarget > toISO
+                  : dayISO !== todayTarget
+              )
+                ? () => goToDay(todayTarget)
+                : undefined
+            }
+            viewSwitcher={
+              <SegmentedControl
+                ariaLabel="Ansicht"
+                value={view}
+                onChange={(next) => setView(next as VertretungViewMode)}
+                items={[
+                  { value: "tag", label: "Tag" },
+                  { value: "woche", label: "Woche" },
+                ]}
+              />
+            }
+          >
+            {/* Die Tagesleiste steht in der Kontextzeile, nicht zwischen den
+              Pfeilen: sie wählt einen Tag INNERHALB der Woche, die oben schon
+              benannt ist. In der Wochenansicht entfällt sie, weil eine
+              Tagesauswahl dort keine sichtbare Wirkung hätte — die Lücken pro Tag
+              zeigen dann die Kopfzeilen der Wochenliste. */}
+            {!isWeekView && (
+              <>
+                {weekDays.map((day) => {
+                  const iso = toISODate(day);
+                  const isPast = iso < today;
+                  // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
+                  // ladender Gaps-Abruf bekommen GAR KEINEN Zähler, nie eine
+                  // erfundene 0 (Akzeptanzkriterium 5). Der Chip bleibt dann still.
+                  const countUnavailable = isPast || !gapsLoaded;
+                  return (
+                    <PlanningDayChip
+                      key={iso}
+                      weekdayLabel={getGermanWeekdayShort(day)}
+                      dateLabel={dayChipLabel(day)}
+                      count={
+                        countUnavailable
+                          ? undefined
+                          : (gapsByDate.get(iso) ?? 0)
+                      }
+                      selected={iso === dayISO}
+                      onClick={() => goToDay(iso)}
+                      aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
+                    />
+                  );
+                })}
+                <span aria-hidden className="h-4 w-px bg-gray-200" />
+              </>
+            )}
+            <CoverageIndicator
+              size="sm"
+              state={!countsUnavailable && openCount > 0 ? "gap" : "covered"}
+              label={`Offen: ${countsUnavailable ? "–" : openCount}`}
+              title={
+                countsUnavailable
+                  ? "Offene Lücken nicht verfügbar"
+                  : `${openCount} offene Lücke(n) ${countScope}`
+              }
+            />
+            <CoverageIndicator
+              size="sm"
+              state={
+                !countsUnavailable && ackCount > 0 ? "acknowledged" : "covered"
+              }
+              label={`Quittiert: ${countsUnavailable ? "–" : ackCount}`}
+              title={
+                countsUnavailable
+                  ? "Quittierte Lücken nicht verfügbar"
+                  : `${ackCount} bewusst unbesetzt ${countScope}`
+              }
+            />
+          </PlanningContextBar>
+        }
       >
-        {/* Zeitnavigation als erster Inhaltsblock unter der Kopfkarte, ohne
-            eigenen Titel: der Seitentitel steht in der Kopfkarte darüber. */}
-        <PlanningContextBar
-          dateLabel={weekLabel}
-          onPrevious={() => goToDay(shiftDayISO(dayISO, -7))}
-          onNext={() => goToDay(shiftDayISO(dayISO, 7))}
-          previousLabel="Vorherige Woche"
-          nextLabel="Nächste Woche"
-          onToday={
-            // Tagesansicht: der Button erscheint, sobald ein anderer Tag als das
-            // Heute-Ziel gezeigt wird. Wochenansicht: sobald das Heute-Ziel gar
-            // nicht in der sichtbaren Woche liegt.
-            (
-              isWeekView
-                ? todayTarget < fromISO || todayTarget > toISO
-                : dayISO !== todayTarget
-            )
-              ? () => goToDay(todayTarget)
-              : undefined
-          }
-          viewSwitcher={
-            <Tabs
-              value={view}
-              onValueChange={(v) => setView(v as VertretungViewMode)}
-            >
-              <TabsList variant="default">
-                <TabsTrigger value="tag">Tag</TabsTrigger>
-                <TabsTrigger value="woche">Woche</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          }
-        >
-          {/* Die Tagesleiste steht in der Kontextzeile, nicht zwischen den
-            Pfeilen: sie wählt einen Tag INNERHALB der Woche, die oben schon
-            benannt ist. In der Wochenansicht entfällt sie, weil eine
-            Tagesauswahl dort keine sichtbare Wirkung hätte — die Lücken pro Tag
-            zeigen dann die Kopfzeilen der Wochenliste. */}
-          {!isWeekView && (
-            <>
-              {weekDays.map((day) => {
-                const iso = toISODate(day);
-                const isPast = iso < today;
-                // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
-                // ladender Gaps-Abruf bekommen GAR KEINEN Zähler, nie eine
-                // erfundene 0 (Akzeptanzkriterium 5). Der Chip bleibt dann still.
-                const countUnavailable = isPast || !gapsLoaded;
-                return (
-                  <PlanningDayChip
-                    key={iso}
-                    weekdayLabel={getGermanWeekdayShort(day)}
-                    dateLabel={dayChipLabel(day)}
-                    count={
-                      countUnavailable ? undefined : (gapsByDate.get(iso) ?? 0)
-                    }
-                    selected={iso === dayISO}
-                    onClick={() => goToDay(iso)}
-                    aria-label={`${getGermanWeekdayShort(day)} ${dayChipLabel(day)}`}
-                  />
-                );
-              })}
-              <span aria-hidden className="h-4 w-px bg-gray-200" />
-            </>
-          )}
-          <CoverageIndicator
-            size="sm"
-            state={!countsUnavailable && openCount > 0 ? "gap" : "covered"}
-            label={`Offen: ${countsUnavailable ? "–" : openCount}`}
-            title={
-              countsUnavailable
-                ? "Offene Lücken nicht verfügbar"
-                : `${openCount} offene Lücke(n) ${countScope}`
-            }
-          />
-          <CoverageIndicator
-            size="sm"
-            state={
-              !countsUnavailable && ackCount > 0 ? "acknowledged" : "covered"
-            }
-            label={`Quittiert: ${countsUnavailable ? "–" : ackCount}`}
-            title={
-              countsUnavailable
-                ? "Quittierte Lücken nicht verfügbar"
-                : `${ackCount} bewusst unbesetzt ${countScope}`
-            }
-          />
-        </PlanningContextBar>
-
         {staffErrorMessage && (
           <Alert
             type="error"

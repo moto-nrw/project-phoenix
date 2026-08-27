@@ -109,12 +109,10 @@ export const userContextService = {
       }
     } catch (error) {
       // Suppress 404 logs (account not linked to a person) to avoid noisy console
-      if (
-        !(
-          error instanceof Error &&
-          error.message.includes("Get current staff failed: 404")
-        )
-      ) {
+      if (!(
+        error instanceof Error &&
+        error.message.includes("Get current staff failed: 404")
+      )) {
         logger.error("get current staff error", { error: String(error) });
       }
       throw error;

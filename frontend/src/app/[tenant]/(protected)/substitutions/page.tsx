@@ -22,7 +22,7 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
@@ -713,19 +713,15 @@ function SubstitutionPageContent() {
             >
               Dauer
             </p>
-            <Tabs value={durationPreset} onValueChange={setDurationPreset}>
-              <TabsList
-                variant="default"
-                aria-labelledby="substitution-duration-label"
-                className="h-auto flex-wrap"
-              >
-                {DURATION_PRESETS.map((preset) => (
-                  <TabsTrigger key={preset.value} value={preset.value}>
-                    {preset.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            <SegmentedControl
+              ariaLabel="Dauer"
+              value={durationPreset}
+              onChange={setDurationPreset}
+              items={DURATION_PRESETS.map((preset) => ({
+                value: preset.value,
+                label: preset.label,
+              }))}
+            />
 
             {durationPreset === CUSTOM_DURATION ? (
               <div className="mt-3 w-40">

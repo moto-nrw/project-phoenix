@@ -767,7 +767,7 @@ function urlParams() {
 
 /** Radix-Tab: Aktivierung per mousedown (Kit-Regel), nicht click. */
 function selectTab(name: string) {
-  fireEvent.mouseDown(screen.getByRole("tab", { name }));
+  fireEvent.click(screen.getByRole("button", { name }));
 }
 
 let realReplaceState: typeof window.history.replaceState;

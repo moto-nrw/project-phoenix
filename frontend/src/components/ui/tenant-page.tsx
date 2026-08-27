@@ -274,7 +274,12 @@ export function TenantPage({
       )}
 
       <div className="mt-6 space-y-6">
-        <TenantPageBody loading={loading} error={error} empty={empty}>
+        <TenantPageBody
+          loading={loading}
+          loadingLabel={`${title} wird geladen…`}
+          error={error}
+          empty={empty}
+        >
           {children}
         </TenantPageBody>
       </div>
@@ -369,11 +374,14 @@ function TenantPageTabs({
  */
 function TenantPageBody({
   loading,
+  loadingLabel,
   error,
   empty,
   children,
 }: Readonly<{
   loading: boolean;
+  /** Vorlesbarer Text des Ladezustands, aus dem Seitentitel gebildet. */
+  loadingLabel: string;
   error?: TenantPageProps["error"];
   empty?: TenantPageProps["empty"];
   children?: ReactNode;
@@ -385,7 +393,13 @@ function TenantPageBody({
   }
   if (loading) {
     return (
-      <div className="space-y-3" aria-busy="true" aria-live="polite">
+      <div
+        className="space-y-3"
+        role="status"
+        aria-busy="true"
+        aria-live="polite"
+        aria-label={loadingLabel}
+      >
         <Skeleton className="h-24 w-full rounded-2xl" />
         <Skeleton className="h-24 w-full rounded-2xl" />
         <Skeleton className="h-24 w-full rounded-2xl" />

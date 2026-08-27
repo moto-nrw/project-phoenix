@@ -2,6 +2,8 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -24,17 +26,12 @@ function StatTileSkeleton({
   tone: MotoDuotoneTone;
 }>) {
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md md:p-6">
-      <div className="mb-3 flex items-start justify-between">
-        <div className="p-0.5">
-          <MotoDuotoneIcon icon={icon} tone={tone} />
-        </div>
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-gray-600 md:text-sm">{title}</p>
-        <Skeleton className="h-7 w-16 rounded-full" />
-      </div>
-    </div>
+    <StatCard
+      label={title}
+      value=""
+      loading
+      icon={<MotoDuotoneIcon icon={icon} tone={tone} />}
+    />
   );
 }
 
@@ -46,21 +43,21 @@ function InfoTileSkeleton({
   rows = 3,
 }: Readonly<{ title: string; concept: MotoConceptKey; rows?: number }>) {
   return (
-    <div className="moto-content-surface relative h-full overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md md:p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <div className="rounded-xl bg-gray-100 p-2">
+    <SectionCard
+      title={title}
+      className="h-full"
+      leading={
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
           <MotoConceptIcon concept={concept} size={20} />
-        </div>
-        <h3 className="text-base font-semibold text-gray-900 md:text-lg">
-          {title}
-        </h3>
-      </div>
+        </span>
+      }
+    >
       <div className="space-y-2">
         {Array.from({ length: rows }, (_, i) => (
           <Skeleton key={i} className="h-12 w-full rounded-xl" />
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -85,16 +82,15 @@ export function DashboardSkeleton() {
       aria-busy="true"
       aria-label="Übersicht wird geladen"
       data-testid="dashboard-skeleton"
-      className="w-full"
+      className="w-full space-y-6"
     >
-      {/* Kopfkarte wie im geladenen Zustand (PageIntro): Kicker, Gruß, Text. */}
-      <div className="moto-content-surface mb-6 rounded-2xl border p-5 shadow-sm backdrop-blur-md md:mb-8">
-        <Skeleton className="h-3 w-20 rounded-full" />
-        <Skeleton className="mt-2 h-7 w-64 max-w-3/4 rounded-full" />
+      {/* Kopfkarte wie im geladenen Zustand: Gruß als Titel, Statuszeile. */}
+      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+        <Skeleton className="h-7 w-64 max-w-3/4 rounded-full" />
         <Skeleton className="mt-2 h-4 w-72 max-w-full rounded-full" />
-      </div>
+      </header>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
         <StatTileSkeleton
           title="Kinder anwesend"
           icon={MOTO_CONCEPTS.present.icon}
@@ -150,7 +146,7 @@ export function DashboardSkeleton() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {showRoomSurfaces ? (
           <InfoTileSkeleton title="Letzte Bewegungen" concept="changeHistory" />
         ) : null}

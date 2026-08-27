@@ -16,14 +16,12 @@ const SRC_DIR = path.join(
 const PROTECTED_DIR = path.join(SRC_DIR, "app", "[tenant]", "(protected)");
 
 /**
- * Seiten mit bewusst eigenem Gerüst. Diese Liste darf nur schrumpfen; ein
- * neuer Eintrag braucht die Zustimmung im PR (Regel „When to deviate").
+ * Seiten mit bewusst eigenem Gerüst. Die Liste ist leer und soll es bleiben:
+ * Startseite, Profil und Notfallliste hatten früher ein eigenes Layout und
+ * tragen seit dem Umbau dasselbe Gerüst wie alle anderen Seiten. Ein neuer
+ * Eintrag braucht die Zustimmung im PR (Regel „When to deviate").
  */
-const EXEMPT = new Set([
-  "dashboard/page.tsx",
-  "profile/page.tsx",
-  "emergency/page.tsx",
-]);
+const EXEMPT = new Set<string>([]);
 
 function collectPageFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {

@@ -17,14 +17,14 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  * chip, …) is composed by the caller via `navigationSlot`/`viewSwitcher`/
  * `actions`/`children`.
  *
- * Form (#2031): ein eigener Balken, damit die Leiste auf den ersten Blick als
- * Kopfbereich lesbar ist und nicht wie freistehende Bedienelemente über dem
- * Raster wirkt. Drei Regeln halten die drei Flächen zusammen:
+ * Form: die Leiste ist KEINE eigene Karte mehr. Sie sitzt als Bedienband IN
+ * der Kopfkarte von `TenantPage` (Slot `searchSlot`), an derselben Stelle, an
+ * der jede andere Seite Suche und Filter trägt. Zwei Karten übereinander —
+ * Seitenkopf und Planungsbalken — waren der letzte Ort im Portal, an dem eine
+ * Seite zwei Köpfe hatte. Zwei Regeln halten die drei Flächen zusammen:
  *
- * 1. Der Seitenname steht als Titelblock über der Bedienzeile, auf allen
- *    Breakpoints sichtbar und in der Optik der PageIntro-Kopfkarte, damit die
- *    Planungsseiten denselben Kopf haben wie jede andere Tenant-Seite. Das
- *    Datum in der Bedienzeile beantwortet "was sehe ich gerade".
+ * 1. Den Seitennamen trägt die Kopfkarte. Das Datum in der Bedienzeile
+ *    beantwortet "was sehe ich gerade".
  * 2. Die Navigation ist EIN Objekt: eine gerahmte Gruppe aus Zurück, Heute und
  *    Weiter. "Heute" ist immer da (deaktiviert, wenn man schon dort steht), weil
  *    ein auftauchender und verschwindender Button die Zeile seitlich springen
@@ -54,11 +54,6 @@ const PRIMARY_ROW_MIN_H = "min-h-9";
 const CONTEXT_ROW_MIN_H = "min-h-8";
 
 interface PlanningContextBarProps {
-  /** Optionaler Titel der Leiste. Auf Seiten mit `TenantPage` bleibt er leer:
-   *  den Seitentitel traegt die Kopfkarte darueber, und zwei <h1> auf einer
-   *  Seite waeren eine falsche Dokumentgliederung. Der Zeitraum gehoert dann
-   *  in `dateLabel`. */
-  readonly title?: string;
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
@@ -72,7 +67,7 @@ interface PlanningContextBarProps {
    *  aber deaktiviert (feste Geometrie, siehe Regel 2 oben). */
   readonly onToday?: () => void;
   readonly todayLabel?: string;
-  /** Slot für den Ansichts-Umschalter (`ui/Tabs` kommt vom Aufrufer). */
+  /** Slot für den Ansichts-Umschalter (`SegmentedControl` vom Aufrufer). */
   readonly viewSwitcher?: ReactNode;
   /** Rechtsbündige Aktionen (Primäraktion etc.). */
   readonly actions?: ReactNode;
@@ -82,7 +77,6 @@ interface PlanningContextBarProps {
 }
 
 export function PlanningContextBar({
-  title,
   onPrevious,
   onNext,
   previousLabel = "Zurück",
@@ -97,18 +91,7 @@ export function PlanningContextBar({
   className,
 }: PlanningContextBarProps) {
   return (
-    <div
-      className={`moto-content-surface flex flex-col gap-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className ?? ""}`}
-    >
-      {/* Ohne Titel rendert die Leiste keinen Titelblock: den Seitentitel
-          traegt dann die Kopfkarte (`TenantPage`) darueber. */}
-      {title && (
-        <div className="min-w-0">
-          <h1 className="truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
-            {title}
-          </h1>
-        </div>
-      )}
+    <div className={`flex flex-col gap-3 ${className ?? ""}`}>
       <div
         className={`flex flex-wrap items-center gap-2 sm:gap-3 ${PRIMARY_ROW_MIN_H}`}
       >
@@ -129,7 +112,7 @@ export function PlanningContextBar({
             Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
             Mobil sitzt sie rechts neben dem Datumsblock, ab md rückt sie per
             `order` wieder an den Anfang der Zeile. */}
-        <div className="inline-flex h-8 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1">
+        <div className="inline-flex h-9 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1">
           <Button
             type="button"
             size="icon"
@@ -184,12 +167,10 @@ export function PlanningContextBar({
           <div
             className={`flex basis-full flex-wrap items-center gap-2 md:order-3 md:ml-auto md:basis-auto md:flex-nowrap ${
               viewSwitcher
-                ? // Drei Ebenen, weil der Umschalter drei verschachtelte
-                  // Elemente hat: der Tabs-Rahmen muss die freie Breite nehmen
-                  // (flex-1), die Liste darin sie ausfüllen (w-full), und die
-                  // Schaltflächen sie untereinander aufteilen (flex-1). Fehlt
-                  // eine davon, bleibt alles auf Textbreite stehen.
-                  "[&_[role=tab]]:flex-1 md:[&_[role=tab]]:flex-none [&_[role=tablist]]:w-full md:[&_[role=tablist]]:w-auto [&>*:first-child]:min-w-0 [&>*:first-child]:flex-1 md:[&>*:first-child]:flex-none"
+                ? // Der Umschalter nimmt unter md die freie Breite, damit er
+                  // nicht auf Textbreite links klebt; ab md steht er wieder in
+                  // seiner eigenen Breite am rechten Rand.
+                  "[&>*:first-child]:min-w-0 [&>*:first-child]:flex-1 md:[&>*:first-child]:flex-none"
                 : ""
             }`}
           >
@@ -199,8 +180,7 @@ export function PlanningContextBar({
         )}
       </div>
 
-      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten) INNERHALB des
-          Balkens: zwei Zonen, eine Fläche. */}
+      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten). */}
       <div className="border-t border-gray-100 pt-2">
         {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
             umbrechende Wochenleiste warf die Trennlinie und die Zähler mitten

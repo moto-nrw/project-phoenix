@@ -28,6 +28,8 @@ interface BrandTenantSwitcherProps {
   readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
+  /** Unterhalb dieser Breite nur das Logo zeigen, siehe `BrandLink`. */
+  readonly hideLabelBelow?: "md" | "lg";
 }
 
 /**
@@ -49,6 +51,7 @@ export function BrandTenantSwitcher({
   isScrolled = false,
   href = "/dashboard",
   label,
+  hideLabelBelow,
 }: BrandTenantSwitcherProps) {
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -153,7 +156,14 @@ export function BrandTenantSwitcher({
 
   // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
-    return <BrandLink isScrolled={isScrolled} href={href} label={label} />;
+    return (
+      <BrandLink
+        isScrolled={isScrolled}
+        href={href}
+        label={label}
+        hideLabelBelow={hideLabelBelow}
+      />
+    );
   }
 
   // currentSlug comes from the URL, which is the tenant's subdomain — so
@@ -188,7 +198,15 @@ export function BrandTenantSwitcher({
         className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
       >
         <BrandLogo />
-        <span className={brandLabelClass(isScrolled, true)}>
+        <span
+          className={`${brandLabelClass(isScrolled, true)} ${
+            hideLabelBelow === "md"
+              ? "hidden md:inline-block"
+              : hideLabelBelow === "lg"
+                ? "hidden lg:inline-block"
+                : ""
+          }`}
+        >
           {displayLabel}
         </span>
         <svg

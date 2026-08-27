@@ -28,22 +28,16 @@ export type CalendarViewMode = "day" | "week" | "month";
 
 interface PersonalCalendarProps {
   /**
-   * Seitenname für die Kopfleiste. Seiten, die den Kalender in `TenantPage`
-   * einhängen, lassen ihn weg: den Titel trägt dort die Kopfkarte.
+   * Wochenenden anzeigen. Den Schalter dazu trägt `PersonalCalendarChrome`
+   * in der Kopfkarte der Seite, deshalb kommt der Wert von außen.
    */
-  readonly title?: string;
-  /** Erklärzeile, erscheint in der Kontextzeile der Kopfleiste. */
-  readonly subtitle?: string;
+  readonly showWeekend?: boolean;
   readonly events: readonly CalendarEvent[];
   readonly referenceDate?: Date;
   readonly weekStart?: Date;
   readonly viewMode?: CalendarViewMode;
   readonly loading?: boolean;
   readonly error?: string | null;
-  readonly onDateChange?: (nextDate: Date) => void;
-  readonly onWeekChange?: (nextWeekStart: Date) => void;
-  readonly onViewModeChange?: (mode: CalendarViewMode) => void;
-  readonly onCreate?: () => void;
   readonly onShowOverview?: (appointmentId: string) => void;
   readonly onRespond?: (
     recipientId: string,
@@ -391,18 +385,13 @@ function nextLabel(viewMode: CalendarViewMode): string {
 }
 
 export function PersonalCalendar({
-  title,
-  subtitle,
+  showWeekend = false,
   events,
   referenceDate: rawReferenceDate,
   weekStart,
   viewMode = "week",
   loading,
   error,
-  onDateChange,
-  onWeekChange,
-  onViewModeChange,
-  onCreate,
   onShowOverview,
   onRespond,
   respondingRecipientId,
@@ -427,29 +416,18 @@ export function PersonalCalendar({
     icsHrefBase,
   };
   const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
-  const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
-  const handleViewModeChange = onViewModeChange ?? (() => undefined);
-  const { from, to } = getWeekRange(referenceDate);
+  const { from } = getWeekRange(referenceDate);
   const days = getWeekdays(from);
   const monthDays = monthGridDays(referenceDate);
   const sortedEvents = [...events].sort((a, b) =>
     eventSortValue(a).localeCompare(eventSortValue(b)),
   );
-  const label = periodLabel(referenceDate, viewMode, from, to);
-  const [showWeekend, setShowWeekend] = useState(false);
   const visibleWeekDays = showWeekend
     ? days
     : days.filter((day) => !isWeekendDay(day));
   const visibleMonthDays = showWeekend
     ? monthDays
     : monthDays.filter((day) => !isWeekendDay(day));
-  const hiddenWeekendDays =
-    viewMode === "month"
-      ? monthDays.filter(isWeekendDay)
-      : days.filter(isWeekendDay);
-  const hiddenWeekendCount = showWeekend
-    ? 0
-    : countWeekendEvents(events, hiddenWeekendDays);
   const visibleSortedEvents =
     showWeekend || viewMode === "day"
       ? sortedEvents
@@ -466,63 +444,6 @@ export function PersonalCalendar({
 
   return (
     <div className="w-full space-y-6">
-      <PlanningContextBar
-        title={title}
-        onPrevious={() =>
-          handleDateChange(shiftDate(referenceDate, viewMode, -1))
-        }
-        onNext={() => handleDateChange(shiftDate(referenceDate, viewMode, 1))}
-        previousLabel={previousLabel(viewMode)}
-        nextLabel={nextLabel(viewMode)}
-        dateLabel={label}
-        onToday={
-          showsToday(referenceDate, viewMode)
-            ? undefined
-            : () => handleDateChange(new Date())
-        }
-        viewSwitcher={
-          <SegmentedControl
-            items={viewOptions.map((option) => ({
-              value: option.mode,
-              label: option.label,
-            }))}
-            value={viewMode}
-            onChange={handleViewModeChange}
-            ariaLabel="Ansicht wählen"
-          />
-        }
-        actions={
-          onCreate ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="gap-1.5"
-              onClick={onCreate}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Neuer Termin
-            </Button>
-          ) : undefined
-        }
-      >
-        {viewMode !== "day" ? (
-          <Button
-            type="button"
-            variant={showWeekend ? "primary" : "outline"}
-            size="compact"
-            className={showWeekend ? "" : "bg-white"}
-            aria-pressed={showWeekend}
-            onClick={() => setShowWeekend((value) => !value)}
-          >
-            {hiddenWeekendCount > 0 ? `Sa/So (${hiddenWeekendCount})` : "Sa/So"}
-          </Button>
-        ) : null}
-        {subtitle ? (
-          <p className="truncate text-xs text-gray-500">{subtitle}</p>
-        ) : null}
-      </PlanningContextBar>
-
       {error ? <Alert type="error" message={error} /> : null}
 
       <div className="relative">
@@ -1428,5 +1349,111 @@ function EmptyCalendarState({
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <EmptyState title={emptyLabel(viewMode)} />
     </div>
+  );
+}
+
+/**
+ * Das Bedienband des Kalenders: Zeitnavigation, Ansichtsumschalter,
+ * Wochenend-Schalter und die Primäraktion. Es sitzt in der Kopfkarte der
+ * Seite (`TenantPage` Slot `searchSlot`) und NICHT über dem Raster — sonst
+ * hätte die Seite zwei Köpfe. Deshalb ist es eine eigene Komponente und kein
+ * Teil von `PersonalCalendar`.
+ */
+export function PersonalCalendarChrome({
+  events,
+  referenceDate: rawReferenceDate,
+  weekStart,
+  viewMode = "week",
+  showWeekend,
+  onShowWeekendChange,
+  onDateChange,
+  onWeekChange,
+  onViewModeChange,
+  onCreate,
+  subtitle,
+}: Readonly<{
+  events: readonly CalendarEvent[];
+  referenceDate?: Date;
+  weekStart?: Date;
+  viewMode?: CalendarViewMode;
+  showWeekend: boolean;
+  onShowWeekendChange: (next: boolean) => void;
+  onDateChange?: (date: Date) => void;
+  onWeekChange?: (date: Date) => void;
+  onViewModeChange?: (mode: CalendarViewMode) => void;
+  onCreate?: () => void;
+  subtitle?: string;
+}>) {
+  const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
+  const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
+  const handleViewModeChange = onViewModeChange ?? (() => undefined);
+  const { from, to } = getWeekRange(referenceDate);
+  const days = getWeekdays(from);
+  const monthDays = monthGridDays(referenceDate);
+  const label = periodLabel(referenceDate, viewMode, from, to);
+  const hiddenWeekendDays =
+    viewMode === "month"
+      ? monthDays.filter(isWeekendDay)
+      : days.filter(isWeekendDay);
+  const hiddenWeekendCount = showWeekend
+    ? 0
+    : countWeekendEvents([...events], hiddenWeekendDays);
+
+  return (
+    <PlanningContextBar
+      onPrevious={() =>
+        handleDateChange(shiftDate(referenceDate, viewMode, -1))
+      }
+      onNext={() => handleDateChange(shiftDate(referenceDate, viewMode, 1))}
+      previousLabel={previousLabel(viewMode)}
+      nextLabel={nextLabel(viewMode)}
+      dateLabel={label}
+      onToday={
+        showsToday(referenceDate, viewMode)
+          ? undefined
+          : () => handleDateChange(new Date())
+      }
+      viewSwitcher={
+        <SegmentedControl
+          items={viewOptions.map((option) => ({
+            value: option.mode,
+            label: option.label,
+          }))}
+          value={viewMode}
+          onChange={handleViewModeChange}
+          ariaLabel="Ansicht wählen"
+        />
+      }
+      actions={
+        onCreate ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-1.5"
+            onClick={onCreate}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Neuer Termin
+          </Button>
+        ) : undefined
+      }
+    >
+      {viewMode !== "day" ? (
+        <Button
+          type="button"
+          variant={showWeekend ? "primary" : "outline"}
+          size="compact"
+          className={showWeekend ? "" : "bg-white"}
+          aria-pressed={showWeekend}
+          onClick={() => onShowWeekendChange(!showWeekend)}
+        >
+          {hiddenWeekendCount > 0 ? `Sa/So (${hiddenWeekendCount})` : "Sa/So"}
+        </Button>
+      ) : null}
+      {subtitle ? (
+        <p className="truncate text-xs text-gray-500">{subtitle}</p>
+      ) : null}
+    </PlanningContextBar>
   );
 }

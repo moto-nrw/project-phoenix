@@ -24,7 +24,7 @@ import { useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
@@ -155,15 +155,15 @@ export function SchoolOverviewSection() {
         >
           Einrichtungs-Übersicht
         </h2>
-        <Tabs
+        <SegmentedControl
+          ariaLabel="Zeitraum"
           value={period}
-          onValueChange={(value) => setPeriod(value as DashboardPeriod)}
-        >
-          <TabsList>
-            <TabsTrigger value="week">Woche</TabsTrigger>
-            <TabsTrigger value="month">Monat</TabsTrigger>
-          </TabsList>
-        </Tabs>
+          onChange={(next) => setPeriod(next as DashboardPeriod)}
+          items={[
+            { value: "week", label: "Woche" },
+            { value: "month", label: "Monat" },
+          ]}
+        />
       </div>
 
       {error && (

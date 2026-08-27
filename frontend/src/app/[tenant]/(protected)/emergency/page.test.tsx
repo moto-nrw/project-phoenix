@@ -42,7 +42,11 @@ vi.mock("~/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("lucide-react", () => ({
+// Nur die beiden Symbole der Seite bekommen ein Testkennzeichen; alle
+// weiteren Symbole zieht das Seitengerüst über das UI-Kit nach und braucht
+// dafür das echte Paket.
+vi.mock("lucide-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("lucide-react")>()),
   Download: (props: Record<string, unknown>) => (
     <svg data-testid="download-icon" {...props} />
   ),

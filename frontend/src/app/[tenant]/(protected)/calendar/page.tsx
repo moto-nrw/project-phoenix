@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import {
   CalendarOverviewList,
   PersonalCalendar,
+  PersonalCalendarChrome,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
 import { Button } from "~/components/ui/button";
@@ -307,6 +308,9 @@ export default function StaffCalendarPage() {
   const [activeTab, setActiveTab] = useState<CalendarTab>("meine");
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
+  // Der Wochenend-Schalter sitzt im Bedienband der Kopfkarte, das Raster
+  // darunter richtet sich danach — deshalb liegt der Zustand hier.
+  const [showWeekend, setShowWeekend] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busyAppointmentId, setBusyAppointmentId] = useState<string | null>(
@@ -648,23 +652,24 @@ export default function StaffCalendarPage() {
     }
   };
 
+  const calendarEvents = calendarError ? [] : (data?.events ?? []);
+
   const personalCalendar = (
     <PersonalCalendar
-      // Titel und Statuszeile trägt die Kopfkarte der Seite; die
-      // PlanningContextBar bleibt reine Zeitnavigation.
+      // Titel, Zeitnavigation und Umschalter trägt die Kopfkarte der Seite
+      // (`PersonalCalendarChrome`); hier bleibt nur das Raster.
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.
-      events={calendarError ? [] : (data?.events ?? [])}
+      events={calendarEvents}
       referenceDate={referenceDate}
       viewMode={viewMode}
+      showWeekend={showWeekend}
       loading={isLoading}
       error={
         calendarError
           ? errorMessage(calendarError, "Kalender konnte nicht geladen werden.")
           : null
       }
-      onDateChange={setReferenceDate}
-      onViewModeChange={setViewMode}
       onShowOverview={handleShowOverview}
       onRespond={handleRespond}
       respondingRecipientId={respondingRecipientId}
@@ -702,6 +707,19 @@ export default function StaffCalendarPage() {
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
           </Button>
+        ) : undefined
+      }
+      searchSlot={
+        activeTab === "meine" ? (
+          <PersonalCalendarChrome
+            events={calendarEvents}
+            referenceDate={referenceDate}
+            viewMode={viewMode}
+            showWeekend={showWeekend}
+            onShowWeekendChange={setShowWeekend}
+            onDateChange={setReferenceDate}
+            onViewModeChange={setViewMode}
+          />
         ) : undefined
       }
       tabs={

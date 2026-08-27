@@ -591,10 +591,7 @@ describe("DienstplanView", () => {
     mocks.search.value = "";
     window.history.replaceState(null, "", "/acme/dienstplan");
     render(<DienstplanView />);
-    // Radix-Tabs aktivieren per mousedown, nicht click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Halbjahr" }), {
-      button: 0,
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Halbjahr" }));
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get("view")).toBe(
         "halbjahr",
@@ -646,10 +643,10 @@ describe("DienstplanView", () => {
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Halbjahr" }),
+      screen.queryByRole("button", { name: "Halbjahr" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Woche" }),
+      screen.queryByRole("button", { name: "Woche" }),
     ).not.toBeInTheDocument();
   });
 
@@ -658,7 +655,9 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
-    expect(screen.getByRole("tab", { name: "Halbjahr" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Halbjahr" }),
+    ).toBeInTheDocument();
   });
 
   it("hides the Halbjahr tab without time_tracking:manage", () => {
@@ -683,7 +682,7 @@ describe("DienstplanView", () => {
 
     expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Halbjahr" }),
+      screen.queryByRole("button", { name: "Halbjahr" }),
     ).not.toBeInTheDocument();
   });
 

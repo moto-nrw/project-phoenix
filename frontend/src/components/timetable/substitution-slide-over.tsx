@@ -43,6 +43,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Radio } from "~/components/ui/radio";
 import {
@@ -1178,15 +1179,15 @@ function HistoryTab({
     <div className="flex min-h-0 flex-1 flex-col">
       {hasSlot && (
         <div className="border-b border-gray-200 px-5 py-3">
-          <Tabs
+          <SegmentedControl
+            ariaLabel="Umfang"
             value={scope}
-            onValueChange={(v) => setScope(v as HistoryScope)}
-          >
-            <TabsList variant="default">
-              <TabsTrigger value="block">Dieser Block</TabsTrigger>
-              <TabsTrigger value="day">Ganzer Tag</TabsTrigger>
-            </TabsList>
-          </Tabs>
+            onChange={(next) => setScope(next as HistoryScope)}
+            items={[
+              { value: "block", label: "Dieser Block" },
+              { value: "day", label: "Ganzer Tag" },
+            ]}
+          />
         </div>
       )}
 

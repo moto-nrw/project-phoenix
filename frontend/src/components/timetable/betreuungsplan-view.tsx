@@ -45,7 +45,7 @@ import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
@@ -1378,57 +1378,56 @@ function TimetablesContent() {
             )}
           </>
         }
+        searchSlot={
+          <PlanningContextBar
+            dateLabel={periodLabel}
+            onPrevious={view === "series" ? undefined : handlePrev}
+            onNext={view === "series" ? undefined : handleNext}
+            previousLabel="Zurück"
+            nextLabel="Weiter"
+            onToday={showTodayButton ? goToToday : undefined}
+            viewSwitcher={
+              // Leseansicht (#2283): nur die Woche — kein Umschalter.
+              canManageSchedules ? (
+                <SegmentedControl
+                  ariaLabel="Ansicht"
+                  value={viewToTab(view)}
+                  onChange={(next) => setViewParam(next as ViewParam)}
+                  items={[
+                    { value: "woche", label: "Woche" },
+                    { value: "monat", label: "Monat" },
+                    { value: "serien", label: "Serien" },
+                  ]}
+                />
+              ) : undefined
+            }
+          >
+            {calendarPeriods.length > 0 && (
+              <PeriodSwitcherDropdown
+                periods={calendarPeriods}
+                weekDays={periodContextDays}
+                view={view}
+                selectedPeriodId={focusedPeriodID}
+                isLoading={periodsLoading}
+                onCreate={openPeriodCreate}
+                onEdit={openPeriodEdit}
+                onSelect={jumpToPeriod}
+                canManage={canManageSchedules}
+              />
+            )}
+            {demandOriginChip}
+            {shouldLoadGaps && !gapsError && (
+              <GapJumpList
+                gaps={gaps}
+                state={gapsData === undefined ? "loading" : "ready"}
+                onJump={(gap) =>
+                  updateUrlParams({ d: gap.date, block: gap.instanceId })
+                }
+              />
+            )}
+          </PlanningContextBar>
+        }
       >
-        {/* Zeitnavigation als erster Inhaltsblock unter der Kopfkarte, ohne
-            eigenen Titel: der Seitentitel steht in der Kopfkarte darüber. */}
-        <PlanningContextBar
-          dateLabel={periodLabel}
-          onPrevious={view === "series" ? undefined : handlePrev}
-          onNext={view === "series" ? undefined : handleNext}
-          previousLabel="Zurück"
-          nextLabel="Weiter"
-          onToday={showTodayButton ? goToToday : undefined}
-          viewSwitcher={
-            // Leseansicht (#2283): nur die Woche — kein Umschalter.
-            canManageSchedules ? (
-              <Tabs
-                value={viewToTab(view)}
-                onValueChange={(v) => setViewParam(v as ViewParam)}
-              >
-                <TabsList variant="default">
-                  <TabsTrigger value="woche">Woche</TabsTrigger>
-                  <TabsTrigger value="monat">Monat</TabsTrigger>
-                  <TabsTrigger value="serien">Serien</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            ) : undefined
-          }
-        >
-          {calendarPeriods.length > 0 && (
-            <PeriodSwitcherDropdown
-              periods={calendarPeriods}
-              weekDays={periodContextDays}
-              view={view}
-              selectedPeriodId={focusedPeriodID}
-              isLoading={periodsLoading}
-              onCreate={openPeriodCreate}
-              onEdit={openPeriodEdit}
-              onSelect={jumpToPeriod}
-              canManage={canManageSchedules}
-            />
-          )}
-          {demandOriginChip}
-          {shouldLoadGaps && !gapsError && (
-            <GapJumpList
-              gaps={gaps}
-              state={gapsData === undefined ? "loading" : "ready"}
-              onJump={(gap) =>
-                updateUrlParams({ d: gap.date, block: gap.instanceId })
-              }
-            />
-          )}
-        </PlanningContextBar>
-
         {showEmptyPeriodState ? (
           <div className={`${timetableSurface} px-6`}>
             <EmptyState

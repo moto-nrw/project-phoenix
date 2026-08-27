@@ -129,10 +129,10 @@ describe("PlanExportModal", () => {
     renderModal({ isWeekOnScreen: false });
 
     expect(
-      screen.getByRole("tab", { name: "Einzelne Woche" }),
+      screen.getByRole("button", { name: "Einzelne Woche" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("tab", { name: "Angezeigte Woche" }),
+      screen.queryByRole("button", { name: "Angezeigte Woche" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText(/Woche vom 27\.07\.2026 bis 31\.07\.2026/),
@@ -142,7 +142,7 @@ describe("PlanExportModal", () => {
   it("refuses a range beyond the eight-week cap instead of failing server-side", async () => {
     renderModal();
 
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Mehrere Wochen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mehrere Wochen" }));
     fireEvent.change(screen.getByLabelText("Von"), {
       target: { value: "2026-07-27" },
     });
