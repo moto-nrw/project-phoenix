@@ -508,31 +508,32 @@ function RoomsPageContent() {
         title="Räume"
         className="mb-6"
         actions={<OverflowMenu items={overflowItems} />}
-      />
-      <PageHeaderWithSearch
-        title=""
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MotoConceptIcon concept="rooms" size={20} />,
-                count: filteredRooms.length,
-                label: "Räume",
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Raum suchen…",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setBuildingFilter("all");
-          setOccupiedFilter("all");
-        }}
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          badge={
+            showSkeleton
+              ? undefined
+              : {
+                  icon: <MotoConceptIcon concept="rooms" size={20} />,
+                  count: filteredRooms.length,
+                  label: "Räume",
+                }
+          }
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Raum suchen…",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setBuildingFilter("all");
+            setOccupiedFilter("all");
+          }}
+        />
+      </PageIntro>
 
       {error && (
         <div className="mb-4">

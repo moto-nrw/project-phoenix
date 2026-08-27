@@ -26,7 +26,7 @@ interface Props {
   readonly phaseName?: string;
 }
 
-const REVIEW_QUEUE_DESCRIPTION =
+export const REVIEW_QUEUE_DESCRIPTION =
   "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
 
 export function RolloverReviewQueue({ phaseID, phaseName }: Props) {

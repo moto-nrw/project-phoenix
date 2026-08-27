@@ -63,6 +63,10 @@ interface Student {
 type ErrorCode =
   "feature_disabled" | "not_group_supervisor" | "not_found" | "generic";
 
+/** Unterzeile der Kopfkarte, wenn weder Klasse noch Gruppe bekannt sind. */
+const ROOM_HISTORY_DESCRIPTION =
+  "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
+
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   feature_disabled:
     "Diese Funktion ist für Ihre Schule deaktiviert. Bitte wenden Sie sich an Ihre Administration.",
@@ -903,6 +907,7 @@ function StudentRoomHistoryPageContent() {
           leading={<ConceptIconTile concept="changeHistory" variant="page" />}
           kicker="Anwesenheitsprotokoll"
           title={student?.name ?? "Anwesenheitsprotokoll"}
+          description={ROOM_HISTORY_DESCRIPTION}
         />
         <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
       </div>
@@ -911,6 +916,11 @@ function StudentRoomHistoryPageContent() {
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
+    : "";
+  // Klasse und Gruppe als Unterzeile; fehlen beide, erklärt stattdessen ein
+  // Satz die Seite, damit die Kopfkarte nie nur den Namen trägt.
+  const studentMeta = student
+    ? [student.school_class, student.group_name].filter(Boolean).join(" · ")
     : "";
 
   return (
@@ -929,12 +939,7 @@ function StudentRoomHistoryPageContent() {
           leading={<ConceptIconTile concept="changeHistory" variant="page" />}
           kicker="Anwesenheitsprotokoll"
           title={displayName}
-          description={
-            <>
-              {student.school_class}
-              {student.group_name ? ` · ${student.group_name}` : null}
-            </>
-          }
+          description={studentMeta || ROOM_HISTORY_DESCRIPTION}
         />
       )}
 

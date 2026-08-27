@@ -2759,50 +2759,51 @@ function SearchPageContent() {
             />
           </>
         }
-      />
-      {/* Page header scrolls with the rest of the page (no sticky).
-          Active filters surface as a count badge on the filter pill. The
-          check-in/out trigger lives in a floating FAB rendered at the
-          bottom of this component on mobile/tablet, or inline in the
-          header on desktop via primaryAction. */}
-      <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
-        <PageHeaderWithSearch
-          // Der Titel steht in der Kopfkarte darüber.
-          title=""
-          primaryAction={
-            checkinModeAvailable && !schoolCheckin.isActive ? (
-              <SchoolCheckinFab
-                variant="inline"
-                isActive={schoolCheckin.isActive}
-                onToggle={schoolCheckin.toggleActive}
-                successCount={
-                  schoolCheckin.selectionActive
-                    ? selectedStudentsForBulk.length
-                    : schoolCheckin.successCount
-                }
-                pendingCount={schoolCheckin.pendingIds.size}
-                disabled={schoolCheckin.isBulkRunning}
-              />
-            ) : undefined
-          }
-          // 6 filters overflow the inline desktop row at iPad-class
-          // viewports. Switch to the mobile sheet pattern up to xl
-          // (1280px). Matches Stripe / Airbnb / Slack pattern for
-          // filter-heavy pages.
-          desktopFiltersFrom="xl"
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Name suchen…",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          activeFilterDisplay="count"
-          filterVariant="quiet"
-          filterSections={filterSections}
-          onClearAllFilters={clearAllFilters}
-        />
-      </div>
+      >
+        {/* Page header scrolls with the rest of the page (no sticky).
+            Active filters surface as a count badge on the filter pill. The
+            check-in/out trigger lives in a floating FAB rendered at the
+            bottom of this component on mobile/tablet, or inline in the
+            header on desktop via primaryAction. */}
+        <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
+          <PageHeaderWithSearch
+            // Der Titel steht in der Kopfkarte darüber.
+            title=""
+            primaryAction={
+              checkinModeAvailable && !schoolCheckin.isActive ? (
+                <SchoolCheckinFab
+                  variant="inline"
+                  isActive={schoolCheckin.isActive}
+                  onToggle={schoolCheckin.toggleActive}
+                  successCount={
+                    schoolCheckin.selectionActive
+                      ? selectedStudentsForBulk.length
+                      : schoolCheckin.successCount
+                  }
+                  pendingCount={schoolCheckin.pendingIds.size}
+                  disabled={schoolCheckin.isBulkRunning}
+                />
+              ) : undefined
+            }
+            // 6 filters overflow the inline desktop row at iPad-class
+            // viewports. Switch to the mobile sheet pattern up to xl
+            // (1280px). Matches Stripe / Airbnb / Slack pattern for
+            // filter-heavy pages.
+            desktopFiltersFrom="xl"
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen…",
+            }}
+            filters={filterConfigs}
+            activeFilters={activeFilters}
+            activeFilterDisplay="count"
+            filterVariant="quiet"
+            filterSections={filterSections}
+            onClearAllFilters={clearAllFilters}
+          />
+        </div>
+      </PageIntro>
 
       {/* Planning-date context banner (#1939). The day chooser itself lives in
           the filter panel, in the "Anwesenheit" section right above the

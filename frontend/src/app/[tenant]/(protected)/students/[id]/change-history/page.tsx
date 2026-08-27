@@ -39,6 +39,10 @@ interface ChangeEntry {
 
 type ErrorCode = "forbidden" | "not_found" | "generic";
 
+/** Unterzeile der Kopfkarte, wenn weder Klasse noch Gruppe bekannt sind. */
+const CHANGE_HISTORY_DESCRIPTION =
+  "Wer hat wann welche Angaben zu diesem Kind geändert.";
+
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   forbidden:
     "Sie können den Änderungsverlauf nur für Kinder Ihrer betreuten Gruppen einsehen.",
@@ -177,6 +181,7 @@ function StudentChangeHistoryPageContent() {
           leading={<ConceptIconTile concept="changeHistory" variant="page" />}
           kicker="Änderungsverlauf"
           title={student?.name ?? "Änderungsverlauf"}
+          description={CHANGE_HISTORY_DESCRIPTION}
         />
         <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
       </div>
@@ -185,6 +190,11 @@ function StudentChangeHistoryPageContent() {
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
+    : "";
+  // Klasse und Gruppe als Unterzeile; fehlen beide, erklärt stattdessen ein
+  // Satz die Seite, damit die Kopfkarte nie nur den Namen trägt.
+  const studentMeta = student
+    ? [student.school_class, student.group_name].filter(Boolean).join(" · ")
     : "";
 
   return (
@@ -200,12 +210,7 @@ function StudentChangeHistoryPageContent() {
           leading={<ConceptIconTile concept="changeHistory" variant="page" />}
           kicker="Änderungsverlauf"
           title={displayName}
-          description={
-            <>
-              {student.school_class}
-              {student.group_name ? ` · ${student.group_name}` : null}
-            </>
-          }
+          description={studentMeta || CHANGE_HISTORY_DESCRIPTION}
         />
       )}
 

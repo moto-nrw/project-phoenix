@@ -257,19 +257,20 @@ function InfoDisplaysPageContent() {
             </Button>
           ) : undefined
         }
-      />
-      <PageHeaderWithSearch
-        title=""
-        badge={{
-          icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
-          count: displays?.length ?? 0,
-        }}
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: "Display suchen…",
-        }}
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          badge={{
+            icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
+            count: displays?.length ?? 0,
+          }}
+          search={{
+            value: searchQuery,
+            onChange: setSearchQuery,
+            placeholder: "Display suchen…",
+          }}
+        />
+      </PageIntro>
 
       <div className="space-y-6">
         {(error || loadError) && (

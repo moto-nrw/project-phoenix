@@ -32,6 +32,10 @@ import {
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
+/** Unterzeile der Kopfkarte, wenn weder Klasse noch Gruppe bekannt sind. */
+const FEEDBACK_HISTORY_DESCRIPTION =
+  "Rückmeldungen dieses Kindes im Zeitverlauf.";
+
 const feedbackTypeLabels: Record<FeedbackEntry["feedback_type"], string> = {
   positive: "Positives Feedback",
   neutral: "Neutrales Feedback",
@@ -228,6 +232,17 @@ function StudentFeedbackHistoryPageContent() {
     return <FeedbackHistorySkeleton />;
   }
 
+  // Klasse und Gruppe als Unterzeile; fehlen beide, erklärt stattdessen ein
+  // Satz die Seite, damit die Kopfkarte nie nur den Namen trägt.
+  const studentMeta = student
+    ? [
+        student.school_class,
+        student.group_name ? `Gruppe: ${student.group_name}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
   if (error || !student) {
     return (
       <div className="w-full">
@@ -238,6 +253,7 @@ function StudentFeedbackHistoryPageContent() {
           leading={<ConceptIconTile concept="feedback" variant="page" />}
           kicker="Feedbackhistorie"
           title={student?.name ?? "Feedbackhistorie"}
+          description={FEEDBACK_HISTORY_DESCRIPTION}
         />
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
       </div>
@@ -259,7 +275,7 @@ function StudentFeedbackHistoryPageContent() {
         leading={<ConceptIconTile concept="feedback" variant="page" />}
         kicker="Feedbackhistorie"
         title={student.name}
-        description={`${student.school_class} · Gruppe: ${student.group_name}`}
+        description={studentMeta || FEEDBACK_HISTORY_DESCRIPTION}
       />
 
       {/* Zeitraum ist ein Wert, kein Inhaltsreiter, also SegmentedControl. */}

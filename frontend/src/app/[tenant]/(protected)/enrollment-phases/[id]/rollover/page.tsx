@@ -5,7 +5,10 @@ import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { PageIntro } from "~/components/ui/page-intro";
-import { RolloverForm } from "~/components/enrollment/rollover-form";
+import {
+  ROLLOVER_DESCRIPTION,
+  RolloverForm,
+} from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { createLogger } from "~/lib/logger";
@@ -43,7 +46,11 @@ export default function MobileRolloverPage({ params }: PageProps) {
   if (!isReady || (phase === null && error === null)) {
     return (
       <div className="w-full space-y-4">
-        <PageIntro kicker="Anschlussphase" title="Anschlussphase erstellen" />
+        <PageIntro
+          kicker="Anschlussphase"
+          title="Anschlussphase erstellen"
+          description={ROLLOVER_DESCRIPTION}
+        />
         <SkeletonRegion label="Anschlussphase wird geladen">
           <DetailSkeleton sections={2} fieldsPerSection={3} />
         </SkeletonRegion>
@@ -56,7 +63,11 @@ export default function MobileRolloverPage({ params }: PageProps) {
       <BackButton referrer="/enrollment-phases" />
       {/* Ohne geladene Phase trägt die Seite trotzdem eine Kopfkarte. */}
       {phase ? null : (
-        <PageIntro kicker="Anschlussphase" title="Anschlussphase erstellen" />
+        <PageIntro
+          kicker="Anschlussphase"
+          title="Anschlussphase erstellen"
+          description={ROLLOVER_DESCRIPTION}
+        />
       )}
       {error ? <Alert type="error" message={error} /> : null}
       {phase ? (

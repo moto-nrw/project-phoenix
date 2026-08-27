@@ -220,7 +220,11 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
       {/* Auf dem Desktop tragen Kopfkarte und Reiterleiste EINE Zeile
           zusammen, statt zwei fast leere Zeilen zu stapeln. */}
       {!(isMobile && activeTab !== null) && (
-        <PageIntro title="Einstellungen" className="mb-6">
+        <PageIntro
+          title="Einstellungen"
+          description="Alle Einstellungen dieser Schule, nach Bereichen sortiert."
+          className="mb-6"
+        >
           {!isMobile && (
             <DesktopSettingsTabs
               tabs={tabs}

@@ -114,6 +114,7 @@ function TeamChatInboxContent() {
           Primäraktion in EINER Karte, auf allen Breakpoints. */}
       <PageIntro
         title="Team-Chat"
+        description="Unterhaltungen im Kollegium, ein Verlauf je Person."
         actions={
           chatEnabled ? (
             <Button
@@ -126,43 +127,43 @@ function TeamChatInboxContent() {
             </Button>
           ) : undefined
         }
-      />
-
-      <PageHeaderWithSearch
-        title=""
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MessagesSquare size={20} />,
-                count: filteredThreads.length,
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Person suchen…",
-        }}
-        // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
-        // fast leeren Zeile darunter.
-        filters={
-          chatEnabled
-            ? [
-                {
-                  id: "unread",
-                  type: "dropdown",
-                  label: "Unterhaltungen filtern",
-                  value: onlyUnread ? "unread" : "all",
-                  onChange: (next) => setOnlyUnread(next === "unread"),
-                  options: [
-                    { value: "all", label: "Alle Unterhaltungen" },
-                    { value: "unread", label: "Nur ungelesen" },
-                  ],
-                },
-              ]
-            : undefined
-        }
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          badge={
+            showSkeleton
+              ? undefined
+              : {
+                  icon: <MessagesSquare size={20} />,
+                  count: filteredThreads.length,
+                }
+          }
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Person suchen…",
+          }}
+          // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
+          // fast leeren Zeile darunter.
+          filters={
+            chatEnabled
+              ? [
+                  {
+                    id: "unread",
+                    type: "dropdown",
+                    label: "Unterhaltungen filtern",
+                    value: onlyUnread ? "unread" : "all",
+                    onChange: (next) => setOnlyUnread(next === "unread"),
+                    options: [
+                      { value: "all", label: "Alle Unterhaltungen" },
+                      { value: "unread", label: "Nur ungelesen" },
+                    ],
+                  },
+                ]
+              : undefined
+          }
+        />
+      </PageIntro>
 
       {!chatEnabled ? (
         <EmptyState

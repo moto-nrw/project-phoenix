@@ -37,6 +37,8 @@ export function SectionCard({
   titleClassName,
   bodyClassName,
   className = "",
+  /** `visible` lässt Dropdowns aus der Kopfzeile über den Kartenrand ragen. */
+  overflow = "hidden",
   children,
   id,
 }: Readonly<{
@@ -58,6 +60,7 @@ export function SectionCard({
   /** Overrides the default `mt-4` spacing above the body. */
   bodyClassName?: string;
   className?: string;
+  overflow?: "hidden" | "visible";
   children?: ReactNode;
   id?: string;
 }>) {
@@ -69,7 +72,7 @@ export function SectionCard({
   return (
     <section
       id={id}
-      className={`moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className}`}
+      className={`moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className}`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">

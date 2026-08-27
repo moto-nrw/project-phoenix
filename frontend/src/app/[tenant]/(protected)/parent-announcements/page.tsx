@@ -623,31 +623,31 @@ function ParentAnnouncementsContent() {
             {copy.action}
           </Button>
         }
-      />
-
-      <PageHeaderWithSearch
-        title=""
-        badge={{
-          icon:
-            kind === "poll" ? (
-              <ListChecks className="h-5 w-5 text-gray-600" aria-hidden />
-            ) : (
-              <Megaphone className="h-5 w-5 text-gray-600" aria-hidden />
-            ),
-          count: filtered.length,
-        }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Titel suchen…",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setStatusFilter("all");
-        }}
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          badge={{
+            icon:
+              kind === "poll" ? (
+                <ListChecks className="h-5 w-5 text-gray-600" aria-hidden />
+              ) : (
+                <Megaphone className="h-5 w-5 text-gray-600" aria-hidden />
+              ),
+            count: filtered.length,
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Titel suchen…",
+          }}
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setStatusFilter("all");
+          }}
+        />
+      </PageIntro>
 
       {loadError && (
         <div>

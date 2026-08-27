@@ -33,7 +33,11 @@ export function DatabaseIndexSkeleton() {
       className="w-full"
     >
       {/* Kicker und Titel sind statisch, deshalb rendert die Kopfkarte sofort. */}
-      <PageIntro title="Datenverwaltung" className="mb-6" />
+      <PageIntro
+        title="Datenverwaltung"
+        description="Alle Stammdaten der Schule an einer Stelle."
+        className="mb-6"
+      />
       <div className="min-h-[60vh]">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }, (_, i) => (

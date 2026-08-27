@@ -1,7 +1,10 @@
 "use client";
 
 import { use } from "react";
-import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
+import {
+  REVIEW_QUEUE_DESCRIPTION,
+  RolloverReviewQueue,
+} from "~/components/enrollment/rollover-review-queue";
 import { BackButton } from "~/components/ui/back-button";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { PageIntro } from "~/components/ui/page-intro";
@@ -27,7 +30,11 @@ export default function RolloverReviewPage({ params }: PageProps) {
         <RolloverReviewQueue phaseID={id} />
       ) : (
         <>
-          <PageIntro kicker="Anmeldungen" title="Prüfliste" />
+          <PageIntro
+            kicker="Anmeldungen"
+            title="Prüfliste"
+            description={REVIEW_QUEUE_DESCRIPTION}
+          />
           <SkeletonRegion label="Prüfliste wird geladen">
             <ListSkeleton rows={5} avatar={false} />
           </SkeletonRegion>

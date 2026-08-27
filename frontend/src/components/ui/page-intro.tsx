@@ -42,6 +42,7 @@ export function PageIntro({
       description={description}
       actions={actions}
       leading={leading}
+      overflow="visible"
       headingLevel={1}
       titleClassName={
         prominent

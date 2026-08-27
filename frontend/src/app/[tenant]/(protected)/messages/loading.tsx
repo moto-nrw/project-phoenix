@@ -18,15 +18,16 @@ export default function MessagesLoading() {
         kicker="Eltern"
         title="Nachrichten"
         description="Unterhaltungen mit den Eltern, ein Verlauf je Kind."
-      />
-      <PageHeaderWithSearch
-        title=""
-        search={{
-          value: "",
-          onChange: () => {},
-          inputProps: { disabled: true },
-        }}
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          search={{
+            value: "",
+            onChange: () => {},
+            inputProps: { disabled: true },
+          }}
+        />
+      </PageIntro>
       <MessagesSkeleton />
     </div>
   );

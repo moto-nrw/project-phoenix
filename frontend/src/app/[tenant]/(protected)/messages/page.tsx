@@ -110,41 +110,41 @@ function MessagesInboxContent() {
             </Button>
           ) : undefined
         }
-      />
-
-      <PageHeaderWithSearch
-        title=""
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: (
-                  <MotoConceptIcon concept="parentConversations" size={20} />
-                ),
-                count: filteredThreads.length,
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Person oder Kind suchen…",
-        }}
-        // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
-        // fast leeren Zeile darunter.
-        filters={[
-          {
-            id: "unread",
-            type: "dropdown",
-            label: "Nachrichten filtern",
-            value: onlyUnread ? "unread" : "all",
-            onChange: (next) => setOnlyUnread(next === "unread"),
-            options: [
-              { value: "all", label: "Alle Nachrichten" },
-              { value: "unread", label: "Nur ungelesen" },
-            ],
-          },
-        ]}
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          badge={
+            showSkeleton
+              ? undefined
+              : {
+                  icon: (
+                    <MotoConceptIcon concept="parentConversations" size={20} />
+                  ),
+                  count: filteredThreads.length,
+                }
+          }
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Person oder Kind suchen…",
+          }}
+          // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
+          // fast leeren Zeile darunter.
+          filters={[
+            {
+              id: "unread",
+              type: "dropdown",
+              label: "Nachrichten filtern",
+              value: onlyUnread ? "unread" : "all",
+              onChange: (next) => setOnlyUnread(next === "unread"),
+              options: [
+                { value: "all", label: "Alle Nachrichten" },
+                { value: "unread", label: "Nur ungelesen" },
+              ],
+            },
+          ]}
+        />
+      </PageIntro>
 
       {showSkeleton ? (
         <MessagesSkeleton />

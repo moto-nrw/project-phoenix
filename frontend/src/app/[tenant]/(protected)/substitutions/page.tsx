@@ -590,26 +590,27 @@ function SubstitutionPageContent() {
           title="Gruppenzugriff"
           description="Wer darf vorübergehend auf welche Gruppe zugreifen."
           className="mb-6"
-        />
-        <PageHeaderWithSearch
-          title=""
-          badge={{
-            icon: <MotoConceptIcon concept="staff" size={20} />,
-            count: filteredTeachers.length,
-            label: "Fachkräfte",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Fachkraft suchen…",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setStatusFilter("all");
-          }}
-        />
+        >
+          <PageHeaderWithSearch
+            title=""
+            badge={{
+              icon: <MotoConceptIcon concept="staff" size={20} />,
+              count: filteredTeachers.length,
+              label: "Fachkräfte",
+            }}
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Fachkraft suchen…",
+            }}
+            filters={filterConfigs}
+            activeFilters={activeFilters}
+            onClearAllFilters={() => {
+              setSearchTerm("");
+              setStatusFilter("all");
+            }}
+          />
+        </PageIntro>
 
         {loadError && (
           <div className="mb-6">

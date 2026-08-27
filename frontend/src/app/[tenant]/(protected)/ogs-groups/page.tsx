@@ -851,7 +851,11 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <div className="w-full">
-        <PageIntro title="Meine Gruppe" className="mb-6" />
+        <PageIntro
+          title="Meine Gruppe"
+          description="Die Kinder Ihrer OGS-Gruppe und ihr aktueller Aufenthaltsort."
+          className="mb-6"
+        />
 
         <EmptyState
           icon={<MotoConceptIcon concept="groups" size={48} />}
@@ -1075,62 +1079,63 @@ function OGSGroupPageContent() {
               ) : null}
             </>
           }
-        />
-        {/* Page header, scrolls with the rest of the page (no sticky).
-            Active filters surface as a count badge on the filter pill (no
-            separate chips row); der mobile Gruppen-Umschalter bleibt hier. */}
-        <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
-          <PageHeaderWithSearch
-            // Der Titel steht in der Kopfkarte darüber.
-            title=""
-            primaryAction={
-              isBinaryMode ? (
-                <SchoolCheckinFab
-                  variant="inline"
-                  isActive={schoolCheckin.isActive}
-                  onToggle={schoolCheckin.toggleActive}
-                  successCount={schoolCheckin.successCount}
-                  pendingCount={schoolCheckin.pendingIds.size}
-                />
-              ) : undefined
-            }
-            activeFilterDisplay="count"
-            tabs={
-              allGroups.length > 1 && !isDesktop
-                ? {
-                    items: allGroups.map((group) => ({
-                      id: group.id,
-                      label: formatGroupLabelWithAttendance(group),
-                    })),
-                    activeTab: currentGroup?.id ?? "",
-                    onTabChange: (tabId) => {
-                      const group = allGroups.find((g) => g.id === tabId);
-                      if (group) {
-                        localStorage.setItem("sidebar-last-group", tabId);
-                        localStorage.setItem(
-                          "sidebar-last-group-name",
-                          group.name,
-                        );
-                        switchToGroup(tabId);
-                      }
-                    },
-                  }
-                : undefined
-            }
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Name suchen…",
-            }}
-            filters={filterConfigs}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setAttendanceFilter("all");
-              setSortMode("default");
-            }}
-          />
-        </div>
+        >
+          {/* Page header, scrolls with the rest of the page (no sticky).
+              Active filters surface as a count badge on the filter pill (no
+              separate chips row); der mobile Gruppen-Umschalter bleibt hier. */}
+          <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
+            <PageHeaderWithSearch
+              // Der Titel steht in der Kopfkarte darüber.
+              title=""
+              primaryAction={
+                isBinaryMode ? (
+                  <SchoolCheckinFab
+                    variant="inline"
+                    isActive={schoolCheckin.isActive}
+                    onToggle={schoolCheckin.toggleActive}
+                    successCount={schoolCheckin.successCount}
+                    pendingCount={schoolCheckin.pendingIds.size}
+                  />
+                ) : undefined
+              }
+              activeFilterDisplay="count"
+              tabs={
+                allGroups.length > 1 && !isDesktop
+                  ? {
+                      items: allGroups.map((group) => ({
+                        id: group.id,
+                        label: formatGroupLabelWithAttendance(group),
+                      })),
+                      activeTab: currentGroup?.id ?? "",
+                      onTabChange: (tabId) => {
+                        const group = allGroups.find((g) => g.id === tabId);
+                        if (group) {
+                          localStorage.setItem("sidebar-last-group", tabId);
+                          localStorage.setItem(
+                            "sidebar-last-group-name",
+                            group.name,
+                          );
+                          switchToGroup(tabId);
+                        }
+                      },
+                    }
+                  : undefined
+              }
+              search={{
+                value: searchTerm,
+                onChange: setSearchTerm,
+                placeholder: "Name suchen…",
+              }}
+              filters={filterConfigs}
+              activeFilters={activeFilters}
+              onClearAllFilters={() => {
+                setSearchTerm("");
+                setAttendanceFilter("all");
+                setSortMode("default");
+              }}
+            />
+          </div>
+        </PageIntro>
 
         {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
             hat sonst keinen Hinweis, warum die Liste leer bleibt. */}

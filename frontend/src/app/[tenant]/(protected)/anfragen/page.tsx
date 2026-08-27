@@ -348,7 +348,10 @@ export default function AnfragenPage() {
   if (!isReady) {
     return (
       <div className="w-full space-y-6">
-        <PageIntro title="Anfragen" />
+        <PageIntro
+          title="Anfragen"
+          description="Offene und entschiedene Anfragen an einer Stelle."
+        />
         <SkeletonRegion label="Anfragen werden geladen…">
           <ListSkeleton rows={4} avatar={false} />
         </SkeletonRegion>
@@ -377,54 +380,57 @@ export default function AnfragenPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
-          Karte, auf allen Breakpoints. Reiter, Suche, Filter und der
-          Ansichts-Umschalter bleiben in PageHeaderWithSearch; title="" blendet
-          dort nur die eigene (jetzt doppelte) Titelzeile aus. */}
+      {/* Kopfkarte wie in der Eltern-App: Titel und Erklärtext in EINER Karte,
+          auf allen Breakpoints. Reiter, Suche, Filter und der
+          Ansichts-Umschalter stehen IN dieser Karte, damit sie nicht als
+          zweite Zeile darunter liegen; title="" blendet die dort doppelte
+          Titelzeile aus. */}
       <PageIntro
         title="Anfragen"
+        description="Offene und entschiedene Anfragen an einer Stelle."
         actions={hasTabs ? undefined : viewSwitcher}
-      />
-      <PageHeaderWithSearch
-        title=""
-        tabs={
-          hasTabs
-            ? {
-                items: visibleTabs,
-                activeTab,
-                // Der Suchbegriff des einen Reiters passt nie zum anderen
-                // (Kind gegen Teammitglied), also beim Wechsel leeren.
-                onTabChange: (tabId) => {
-                  setSelectedTab(tabId as AnfragenTabId);
-                  setSearchTerm("");
-                },
-              }
-            : undefined
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: staffActive
-            ? "Teammitglied suchen..."
-            : "Kind suchen...",
-        }}
-        filters={
-          staffActive
-            ? staffFilterConfigs
-            : filterConfigs.length > 0
-              ? filterConfigs
+      >
+        <PageHeaderWithSearch
+          title=""
+          tabs={
+            hasTabs
+              ? {
+                  items: visibleTabs,
+                  activeTab,
+                  // Der Suchbegriff des einen Reiters passt nie zum anderen
+                  // (Kind gegen Teammitglied), also beim Wechsel leeren.
+                  onTabChange: (tabId) => {
+                    setSelectedTab(tabId as AnfragenTabId);
+                    setSearchTerm("");
+                  },
+                }
               : undefined
-        }
-        activeFilters={staffActive ? staffActiveFilters : activeFilters}
-        onClearAllFilters={clearAllFilters}
-        filterVariant="quiet"
-        activeFilterDisplay="count"
-        // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
-        // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
-        // jeder Breite dort — `actionButton` wandert auf Mobil in die
-        // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
-        tabsRowAction={hasTabs ? viewSwitcher : undefined}
-      />
+          }
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: staffActive
+              ? "Teammitglied suchen..."
+              : "Kind suchen...",
+          }}
+          filters={
+            staffActive
+              ? staffFilterConfigs
+              : filterConfigs.length > 0
+                ? filterConfigs
+                : undefined
+          }
+          activeFilters={staffActive ? staffActiveFilters : activeFilters}
+          onClearAllFilters={clearAllFilters}
+          filterVariant="quiet"
+          activeFilterDisplay="count"
+          // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
+          // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
+          // jeder Breite dort — `actionButton` wandert auf Mobil in die
+          // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
+          tabsRowAction={hasTabs ? viewSwitcher : undefined}
+        />
+      </PageIntro>
       {staffActive ? (
         <MitarbeitendeTab view={view} filters={staffFilters} />
       ) : (

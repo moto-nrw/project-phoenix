@@ -242,15 +242,12 @@ export default function AbsencesPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Zeitraum
+          rechts im Kopf, Such- und Filterzeile darunter in derselben Karte. */}
       <PageIntro
         title="Abwesenheiten"
         description="Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von heute an, zum Nachschlagen, ob für ein Kind schon etwas eingetragen ist."
-      />
-
-      <SectionCard
-        title="Eingetragene Abwesenheitstage"
-        action={
+        actions={
           <DateRangePicker
             value={range}
             onChange={setRange}
@@ -291,7 +288,9 @@ export default function AbsencesPage() {
             </span>
           )}
         </div>
+      </PageIntro>
 
+      <SectionCard title="Eingetragene Abwesenheitstage" bodyClassName="">
         {error !== null && (
           <div
             className={`mt-4 transition-opacity ${isValidating ? "opacity-60" : ""}`}

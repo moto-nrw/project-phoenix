@@ -89,7 +89,7 @@ interface Props {
   readonly variant?: "page" | "embedded";
 }
 
-const ROLLOVER_DESCRIPTION =
+export const ROLLOVER_DESCRIPTION =
   "Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue Phase übernommen. Eltern erhalten eine E-Mail mit den nächsten Schritten.";
 
 export function RolloverForm({

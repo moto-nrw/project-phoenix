@@ -2079,8 +2079,28 @@ export default function SlotListsPage() {
     <div className="w-full">
       {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
       <BackButton referrer="/database/exports" />
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-      <PageIntro kicker="Planung" title="Tageslisten" className="mb-6" />
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: das Datum der
+          Liste steht rechts im Kopf, damit die Karte nie nur den Titel
+          trägt. */}
+      <PageIntro
+        kicker="Planung"
+        title="Tageslisten"
+        className="mb-6"
+        actions={
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <span className="text-sm font-medium text-gray-700">Datum</span>
+            <DatePicker
+              value={parseISODate(dateISO)}
+              onChange={pickDate}
+              placeholder="Datum"
+              hideClearButton
+              minDate={pickerMinDate}
+              maxDate={pickerMaxDate}
+              className="min-w-0 flex-1 sm:flex-none"
+            />
+          </div>
+        }
+      />
 
       {/* Selection: source + date + data mode */}
       <section
@@ -2283,17 +2303,6 @@ export default function SlotListsPage() {
 
         {/* Compact controls row — no dead space, provenance pinned right */}
         <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Datum</span>
-            <DatePicker
-              value={parseISODate(dateISO)}
-              onChange={pickDate}
-              placeholder="Datum"
-              hideClearButton
-              minDate={pickerMinDate}
-              maxDate={pickerMaxDate}
-            />
-          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">
               Datenbasis

@@ -9,15 +9,16 @@ export default function RoomsLoading() {
     <div className="w-full">
       {/* Kicker, Titel und Erklärtext sind statisch und rendern deshalb
           sofort als echte Kopfkarte; nur das Raster skeletonisiert. */}
-      <PageIntro title="Räume" className="mb-6" />
-      <PageHeaderWithSearch
-        title=""
-        search={{
-          value: "",
-          onChange: () => {},
-          inputProps: { disabled: true },
-        }}
-      />
+      <PageIntro title="Räume" className="mb-6">
+        <PageHeaderWithSearch
+          title=""
+          search={{
+            value: "",
+            onChange: () => {},
+            inputProps: { disabled: true },
+          }}
+        />
+      </PageIntro>
       <RoomsGridSkeleton />
     </div>
   );

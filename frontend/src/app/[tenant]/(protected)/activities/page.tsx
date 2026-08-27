@@ -325,29 +325,30 @@ function ActivitiesPageContent() {
               Aktivität erstellen
             </Button>
           }
-        />
-        <div className="relative z-30">
-          <PageHeaderWithSearch
-            title=""
-            badge={{
-              icon: <MotoConceptIcon concept="activities" size={20} />,
-              count: filteredActivities.length,
-              label: "Aktivitäten",
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Aktivität suchen…",
-            }}
-            filters={filters}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setCategoryFilter("all");
-              setMyActivitiesFilter(false);
-            }}
-          />
-        </div>
+        >
+          <div className="relative z-30">
+            <PageHeaderWithSearch
+              title=""
+              badge={{
+                icon: <MotoConceptIcon concept="activities" size={20} />,
+                count: filteredActivities.length,
+                label: "Aktivitäten",
+              }}
+              search={{
+                value: searchTerm,
+                onChange: setSearchTerm,
+                placeholder: "Aktivität suchen…",
+              }}
+              filters={filters}
+              activeFilters={activeFilters}
+              onClearAllFilters={() => {
+                setSearchTerm("");
+                setCategoryFilter("all");
+                setMyActivitiesFilter(false);
+              }}
+            />
+          </div>
+        </PageIntro>
 
         {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button

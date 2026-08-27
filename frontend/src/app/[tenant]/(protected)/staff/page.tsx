@@ -76,22 +76,23 @@ function DocumentDirectory({
     // Zweig trägt die Kopfkarte.
     <div className="w-full">
       {!embedded && (
+        // Die Suchzeile steht IN der Kopfkarte, damit die Karte nie nur den
+        // Titel trägt und nicht zwei fast leere Zeilen übereinander liegen.
         <PageIntro
           title="Mitarbeiter"
           description="Die für Sie freigegebenen Personalunterlagen."
           className="mb-6"
-        />
-      )}
-      {!embedded && (
-        <PageHeaderWithSearch
-          // Der Titel steht in der Kopfkarte darüber.
-          title=""
-          search={{
-            value: search,
-            onChange: setSearch,
-            placeholder: "Person suchen…",
-          }}
-        />
+        >
+          <PageHeaderWithSearch
+            // Der Titel steht in der Kopfkarte darüber.
+            title=""
+            search={{
+              value: search,
+              onChange: setSearch,
+              placeholder: "Person suchen…",
+            }}
+          />
+        </PageIntro>
       )}
       {/* Der Erklärtext ist die description der Karte, die die Personenliste
           trägt. Eingebettet steht der Titel „Personalunterlagen“ schon auf dem
@@ -638,46 +639,47 @@ function StaffPageContent() {
             </div>
           </Link>
         ) : undefined}
+        {/* title="" versteckt die frühere Titelzeile; die Karte trägt den
+            Titel. Die Suchzeile steht IN der Karte, damit sie nicht als
+            zweite, fast leere Zeile darunter liegt. */}
+        <PageHeaderWithSearch
+          title=""
+          badge={
+            showSkeleton
+              ? undefined
+              : {
+                  icon: <MotoConceptIcon concept="staff" size={20} />,
+                  count:
+                    view === "accounts"
+                      ? accountRows.length
+                      : view === "documents"
+                        ? (documentDirectory?.length ?? 0)
+                        : filteredStaff.length,
+                }
+          }
+          search={
+            // Im Änderungsprotokoll filtert die Komponente selbst; ein
+            // wirkungsloses Suchfeld wäre irreführend.
+            view === "audit" || view === "documents"
+              ? undefined
+              : {
+                  value: searchTerm,
+                  onChange: setSearchTerm,
+                  placeholder: "Name suchen…",
+                }
+          }
+          filters={filterConfigs}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+            setLocationFilter("all");
+            setEmploymentFilter("all");
+            setSaldoPreset("all");
+            setCustomSaldoHours("");
+            setShowCustomSaldo(false);
+          }}
+        />
       </PageIntro>
-      {/* title="" versteckt die frühere Titelzeile; die Karte oben trägt den
-          Titel jetzt auf allen Breakpoints. */}
-      <PageHeaderWithSearch
-        title=""
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MotoConceptIcon concept="staff" size={20} />,
-                count:
-                  view === "accounts"
-                    ? accountRows.length
-                    : view === "documents"
-                      ? (documentDirectory?.length ?? 0)
-                      : filteredStaff.length,
-              }
-        }
-        search={
-          // Im Änderungsprotokoll filtert die Komponente selbst; ein
-          // wirkungsloses Suchfeld wäre irreführend.
-          view === "audit" || view === "documents"
-            ? undefined
-            : {
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: "Name suchen…",
-              }
-        }
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setLocationFilter("all");
-          setEmploymentFilter("all");
-          setSaldoPreset("all");
-          setCustomSaldoHours("");
-          setShowCustomSaldo(false);
-        }}
-      />
 
       {showSkeleton ? (
         <StaffCardsSkeleton />

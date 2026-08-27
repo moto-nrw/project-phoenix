@@ -33,17 +33,18 @@ export function ActivitiesSkeleton() {
             Aktivität erstellen
           </Button>
         }
-      />
-      <PageHeaderWithSearch
-        title=""
-        search={{
-          value: "",
-          onChange: () => {
-            /* Suche ist im Ladezustand inaktiv. */
-          },
-          inputProps: { disabled: true },
-        }}
-      />
+      >
+        <PageHeaderWithSearch
+          title=""
+          search={{
+            value: "",
+            onChange: () => {
+              /* Suche ist im Ladezustand inaktiv. */
+            },
+            inputProps: { disabled: true },
+          }}
+        />
+      </PageIntro>
       <div className="space-y-3">
         {[0, 1, 2, 3].map((item) => (
           <div

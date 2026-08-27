@@ -19,7 +19,6 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
 import { PageIntro } from "~/components/ui/page-intro";
-import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
@@ -446,13 +445,14 @@ export default function DayLogPage() {
 
   return (
     <div className="w-full">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-      <PageIntro title="Tagesauswertung" className="mb-6" />
-
-      <SectionCard
-        title="Anwesenheit pro Gruppe"
-        action={
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Tagesdatum
+          und Exporte stehen rechts im Kopf, damit die Karte nie nur den Titel
+          trägt. */}
+      <PageIntro
+        title="Tagesauswertung"
+        className="mb-6"
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
                 w-44 trigger, field-aligned popover panel. Once the sweep
                 lands, switch to ISODatePicker + controlSize="md". */}
@@ -470,7 +470,11 @@ export default function DayLogPage() {
             <div className="flex flex-wrap gap-2">{exportButtons()}</div>
           </div>
         }
-      >
+      />
+
+      {/* Inhaltskarte ohne eigenen Kopf: Titel, Datum und Exporte trägt die
+          Kopfkarte darüber, hier stehen nur Zahlen und Gruppen. */}
+      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         {exportError && (
           <div className="mb-4">
             <Alert type="error" message={exportError} />
@@ -530,7 +534,7 @@ export default function DayLogPage() {
             )}
           </>
         )}
-      </SectionCard>
+      </section>
 
       <Modal
         isOpen={openGroup !== null}

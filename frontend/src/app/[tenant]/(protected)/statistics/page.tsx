@@ -437,12 +437,12 @@ export default function StatisticsPage() {
 
   return (
     <div className="w-full space-y-6">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-      <PageIntro title="Statistik" />
-      <SectionCard
-        title="Anwesenheit und Räume im Zeitraum"
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Zeitraum,
+          Gruppenfilter und Exporte stehen rechts im Kopf, damit die Karte nie
+          nur den Titel trägt. */}
+      <PageIntro
+        title="Statistik"
         description="Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."
-        bodyClassName=""
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <DateRangePicker
@@ -469,172 +469,176 @@ export default function StatisticsPage() {
             </div>
           </div>
         }
-      >
-        {exportError && (
-          <div className="mt-4">
-            <Alert type="error" message={exportError} />
-          </div>
-        )}
+      />
+      {/* Inhaltskarte ohne eigenen Kopf: Titel, Zeitraum, Filter und Exporte
+          trägt die Kopfkarte darüber, hier führt der Umschalter die Karte an. */}
+      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+        <div className="space-y-4">
+          {exportError && (
+            <div>
+              <Alert type="error" message={exportError} />
+            </div>
+          )}
 
-        {loading && (
-          <div className="mt-4 space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
+          {loading && (
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-40 w-full" />
+            </div>
+          )}
 
-        {!loading && errorCode !== null && (
-          <EmptyState
-            className="mt-4"
-            title="Statistik nicht verfügbar"
-            description={ERROR_MESSAGES[errorCode]}
-          />
-        )}
+          {!loading && errorCode !== null && (
+            <EmptyState
+              title="Statistik nicht verfügbar"
+              description={ERROR_MESSAGES[errorCode]}
+            />
+          )}
 
-        {!loading && errorCode === null && data && (
-          <>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              <StatCard
-                variant="tile"
-                label="Betreuungstage"
-                value={data.care_days}
-              />
-              <StatCard
-                variant="tile"
-                label="Tage abgezogen"
-                value={data.excluded_days.total}
-              />
-              <StatCard
-                variant="tile"
-                label="Kinder"
-                value={data.totals.student_count}
-              />
-              <StatCard
-                variant="tile"
-                label="Quote gesamt"
-                value={formatRate(data.totals.attendance_rate)}
-              />
-              <StatCard
-                variant="tile"
-                label="Krank"
-                value={data.totals.sick_days}
-              />
-              <StatCard
-                variant="tile"
-                label="Entschuldigt"
-                value={data.totals.excused_days}
-              />
-              {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
+          {!loading && errorCode === null && data && (
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                <StatCard
+                  variant="tile"
+                  label="Betreuungstage"
+                  value={data.care_days}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Tage abgezogen"
+                  value={data.excluded_days.total}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Kinder"
+                  value={data.totals.student_count}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Quote gesamt"
+                  value={formatRate(data.totals.attendance_rate)}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Krank"
+                  value={data.totals.sick_days}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Entschuldigt"
+                  value={data.totals.excused_days}
+                />
+                {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
                   auf dem Schirm, der jemand nachgehen muss. */}
-              <StatCard
-                variant="tile"
-                label="Ohne Meldung"
-                value={data.totals.unexplained_days}
-                tone={data.totals.unexplained_days > 0 ? "red" : undefined}
-              />
-            </div>
-            {/* Umschalter und Zeitraum-Hinweis teilen sich eine Zeile.
+                <StatCard
+                  variant="tile"
+                  label="Ohne Meldung"
+                  value={data.totals.unexplained_days}
+                  tone={data.totals.unexplained_days > 0 ? "red" : undefined}
+                />
+              </div>
+              {/* Umschalter und Zeitraum-Hinweis teilen sich eine Zeile.
                 Mobile fills the line, desktop keeps the compact joined chip. */}
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <SegmentedControl
-                items={VIEW_ITEMS}
-                value={view}
-                onChange={setView}
-                variant="joined"
-                fullWidth={isMobile}
-                ariaLabel="Bereich wählen"
-              />
-              <p className="text-xs leading-5 text-gray-500 sm:text-right">
-                {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
-                {data.excluded_days.public_holidays} Feiertage,{" "}
-                {data.excluded_days.closing_days} Schließtage,{" "}
-                {data.excluded_days.holiday_periods} Ferientage
-              </p>
-            </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <SegmentedControl
+                  items={VIEW_ITEMS}
+                  value={view}
+                  onChange={setView}
+                  variant="joined"
+                  fullWidth={isMobile}
+                  ariaLabel="Bereich wählen"
+                />
+                <p className="text-xs leading-5 text-gray-500 sm:text-right">
+                  {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+                  {data.excluded_days.public_holidays} Feiertage,{" "}
+                  {data.excluded_days.closing_days} Schließtage,{" "}
+                  {data.excluded_days.holiday_periods} Ferientage
+                </p>
+              </div>
 
-            {/* Eigene Karte für den sichtbaren Unterabschnitt: der Hinweis ist
+              {/* Eigene Karte für den sichtbaren Unterabschnitt: der Hinweis ist
                 ihre description, die Exporte stehen in ihrer Titelzeile. */}
-            <SectionCard
-              title={sectionHeading.title}
-              description={sectionHeading.hint}
-              headingLevel={3}
-              className="mt-4 shadow-none"
-              actions={
-                view === "rooms" && !roomDataAllBeforeWindow ? (
-                  <div className="flex flex-wrap gap-2">
-                    {exportButtons("rooms")}
-                  </div>
-                ) : undefined
-              }
-            >
-              {view === "groups" && (
-                <DataTable
-                  columns={groupColumns}
-                  rows={data.groups}
-                  getRowKey={(row) => row.group_id}
-                  defaultSortKey="name"
-                  emptyState={
-                    <EmptyState
-                      title="Keine Kinder im Zeitraum"
-                      description="Für die gewählten Gruppen gibt es keine Kinder."
-                    />
-                  }
-                />
-              )}
-
-              {view === "students" && (
-                <DataTable
-                  columns={studentColumns}
-                  rows={data.students}
-                  getRowKey={(row) => row.student_id}
-                  defaultSortKey="name"
-                  pageSize={25}
-                  paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
-                  emptyState={
-                    <EmptyState
-                      title="Keine Kinder im Zeitraum"
-                      description="Für die gewählten Gruppen gibt es keine Kinder."
-                    />
-                  }
-                />
-              )}
-
-              {view === "rooms" &&
-                (roomDataAllBeforeWindow ? (
-                  <EmptyState
-                    title="Keine Raumdaten für diesen Zeitraum"
-                    description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
+              <SectionCard
+                title={sectionHeading.title}
+                description={sectionHeading.hint}
+                headingLevel={3}
+                className="shadow-none"
+                actions={
+                  view === "rooms" && !roomDataAllBeforeWindow ? (
+                    <div className="flex flex-wrap gap-2">
+                      {exportButtons("rooms")}
+                    </div>
+                  ) : undefined
+                }
+              >
+                {view === "groups" && (
+                  <DataTable
+                    columns={groupColumns}
+                    rows={data.groups}
+                    getRowKey={(row) => row.group_id}
+                    defaultSortKey="name"
+                    emptyState={
+                      <EmptyState
+                        title="Keine Kinder im Zeitraum"
+                        description="Für die gewählten Gruppen gibt es keine Kinder."
+                      />
+                    }
                   />
-                ) : (
-                  <>
-                    {roomDataStartsInsideWindow && (
-                      <div className="mb-3">
-                        <Alert
-                          type="info"
-                          message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
-                        />
-                      </div>
-                    )}
-                    <DataTable
-                      columns={roomColumns}
-                      rows={data.rooms}
-                      getRowKey={(row) => row.room_id}
-                      defaultSortKey="days"
-                      defaultSortDirection="desc"
-                      emptyState={
-                        <EmptyState
-                          title="Keine Räume"
-                          description="Es sind keine Räume angelegt."
-                        />
-                      }
+                )}
+
+                {view === "students" && (
+                  <DataTable
+                    columns={studentColumns}
+                    rows={data.students}
+                    getRowKey={(row) => row.student_id}
+                    defaultSortKey="name"
+                    pageSize={25}
+                    paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                    emptyState={
+                      <EmptyState
+                        title="Keine Kinder im Zeitraum"
+                        description="Für die gewählten Gruppen gibt es keine Kinder."
+                      />
+                    }
+                  />
+                )}
+
+                {view === "rooms" &&
+                  (roomDataAllBeforeWindow ? (
+                    <EmptyState
+                      title="Keine Raumdaten für diesen Zeitraum"
+                      description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
                     />
-                  </>
-                ))}
-            </SectionCard>
-          </>
-        )}
-      </SectionCard>
+                  ) : (
+                    <>
+                      {roomDataStartsInsideWindow && (
+                        <div className="mb-3">
+                          <Alert
+                            type="info"
+                            message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
+                          />
+                        </div>
+                      )}
+                      <DataTable
+                        columns={roomColumns}
+                        rows={data.rooms}
+                        getRowKey={(row) => row.room_id}
+                        defaultSortKey="days"
+                        defaultSortDirection="desc"
+                        emptyState={
+                          <EmptyState
+                            title="Keine Räume"
+                            description="Es sind keine Räume angelegt."
+                          />
+                        }
+                      />
+                    </>
+                  ))}
+              </SectionCard>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

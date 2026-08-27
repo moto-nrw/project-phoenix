@@ -69,9 +69,9 @@ export function StudentCardGridSkeleton({
 /**
  * Page-shell skeleton for the gate/Suspense states of the student-card
  * pages (ogs-groups, students/search): die echte Kopfkarte (Titel und
- * Kicker sind statisch, also muss sie nicht skelettieren), darunter ein
- * PageHeaderWithSearch-Platzhalter und das Kartenraster, damit das
- * Einwechseln des echten Inhalts keinen Layoutsprung erzeugt. Owns the
+ * Kicker sind statisch, also muss sie nicht skelettieren) mit dem
+ * PageHeaderWithSearch-Platzhalter darin, darunter das Kartenraster, damit
+ * das Einwechseln des echten Inhalts keinen Layoutsprung erzeugt. Owns the
  * single status role for the whole shell.
  */
 export function StudentCardPageSkeleton({
@@ -95,13 +95,15 @@ export function StudentCardPageSkeleton({
       data-testid={testId}
       className="w-full"
     >
+      {/* Die Suchzeile steht IN der Kopfkarte, wie im geladenen Zustand. */}
       <PageIntro
         kicker={kicker}
         title={title}
         description={description}
         className="mb-6"
-      />
-      <PageHeaderSkeleton actions={1} />
+      >
+        <PageHeaderSkeleton actions={1} />
+      </PageIntro>
       <StudentCardGrid count={6} />
     </div>
   );

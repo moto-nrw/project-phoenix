@@ -2,6 +2,7 @@
 
 import { CalendarPeriodsEditor } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
@@ -22,21 +23,30 @@ export default function CalendarPeriodsPage() {
   return (
     <div className="w-full space-y-6">
       {/* Titel, Erklärtext und Seitenaktionen trägt die Kopfkarte des
-          Editors (PageIntro), Schließtage die eigene Abschnittskarte. */}
+          Editors (PageIntro), Schließtage die eigene Abschnittskarte. Im
+          Ladezustand steht dieselbe Kopfkarte schon da, nur ohne die
+          Aktionen, die an den Modal-Zuständen des Editors hängen. */}
       {isReady ? (
         <>
           <CalendarPeriodsEditor />
           <ClosingDaysEditor />
         </>
       ) : (
-        <SkeletonRegion
-          label="Kalenderzeiträume werden geladen"
-          testId="loading"
-          className="w-full space-y-6"
-        >
-          <TableSkeleton rows={5} columns={3} />
-          <TableSkeleton rows={4} columns={3} />
-        </SkeletonRegion>
+        <>
+          <PageIntro
+            kicker="Planung"
+            title="Kalenderzeiträume"
+            description="Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan."
+          />
+          <SkeletonRegion
+            label="Kalenderzeiträume werden geladen"
+            testId="loading"
+            className="w-full space-y-6"
+          >
+            <TableSkeleton rows={5} columns={3} />
+            <TableSkeleton rows={4} columns={3} />
+          </SkeletonRegion>
+        </>
       )}
     </div>
   );
