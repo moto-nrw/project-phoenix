@@ -71,6 +71,34 @@ func TestPortalPayloadsPickTheSchoolDeepLink(t *testing.T) {
 	assert.Equal(t, "/school", deepLinkOf(t, wire))
 }
 
+func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	staffSub := testSub(1, 41, "https://fcm.googleapis.com/staff")
+	staffSub.AccountID = 42
+	schoolSub := testSub(2, 41, "https://fcm.googleapis.com/school")
+	schoolSub.AccountID = 42
+	schoolSub.Portal = iot.PushPortalSchool
+	channel := testChannel(&fakePushRepo{
+		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+	}, &fakeSender{})
+
+	unsupported, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypePickupUpcoming,
+		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{staffSub}, unsupported)
+
+	supported, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeStaffMessage,
+		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+	})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []*iot.PushSubscription{staffSub, schoolSub}, supported)
+}
+
 func deepLinkOf(t *testing.T, wire []byte) string {
 	t.Helper()
 	var payload map[string]any

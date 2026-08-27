@@ -341,9 +341,8 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 	return subs, nil
 }
 
-// FindForStaffAccounts returns the staff-portal subscriptions of the given
-// accounts in the current tenant. It is the addressing primitive for personal
-// notifications, where each recipient gets their own payload.
+// FindForStaffAccounts returns staff-portal subscriptions of the given
+// accounts in the current tenant.
 //
 // The eligibility rules are re-checked here, at delivery time, rather than
 // inherited from whoever assembled the recipient list: that list is built in an
@@ -353,14 +352,27 @@ func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, a
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
-	// Personal notifications reach every portal the person uses: a Lehrkraft
-	// registered through "moto schule" (#2208) gets them there, with the
-	// school deep link chosen at send time.
 	var subs []*iot.PushSubscription
-	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalStaff, iot.PushPortalSchool).
+	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalStaff).
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff account push subscriptions", Err: err}
+	}
+	return subs, nil
+}
+
+// FindForSchoolAccounts returns school-portal subscriptions of the named
+// accounts in the current tenant. Notification delivery invokes it only for
+// types explicitly offered in moto schule.
+func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	var subs []*iot.PushSubscription
+	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalSchool).
+		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find school push subscriptions", Err: err}
 	}
 	return subs, nil
 }

@@ -40,9 +40,11 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 
 	addressedEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/addressed-%d", suffix)
 	bystanderEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/bystander-%d", suffix)
+	schoolEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", suffix)
 
 	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalStaff, addressedEndpoint)))
 	require.NoError(t, repo.Upsert(ctx, newSubscription(t, bystander.ID, iotModels.PushPortalStaff, bystanderEndpoint)))
+	require.NoError(t, repo.Upsert(ctx, newSubscription(t, addressed.ID, iotModels.PushPortalSchool, schoolEndpoint)))
 
 	t.Run("returns only the addressed account's devices", func(t *testing.T) {
 		subs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
@@ -52,6 +54,18 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 			"the named recipient's device must be returned")
 		assert.Empty(t, subscriptionsForAccount(subs, bystander.ID),
 			"a personal notification must not reach a bystander")
+	})
+
+	t.Run("keeps school devices separate from staff devices", func(t *testing.T) {
+		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{addressed.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(staffSubs, addressedEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(staffSubs, schoolEndpoint))
+
+		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{addressed.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(schoolSubs, schoolEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(schoolSubs, addressedEndpoint))
 	})
 
 	t.Run("empty input returns nothing rather than everything", func(t *testing.T) {

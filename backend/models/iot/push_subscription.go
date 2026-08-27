@@ -152,6 +152,9 @@ type PushSubscriptionRepository interface {
 	// FindForTenantStaff, narrowed to named recipients — the addressing
 	// primitive for personal notifications.
 	FindForStaffAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
+	// FindForSchoolAccounts returns school-portal subscriptions for named
+	// accounts in the current tenant.
+	FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
 	// FindForTenantAdmins returns staff-portal subscriptions of accounts with
 	// effective admin scope in the current tenant.
 	FindForTenantAdmins(ctx context.Context) ([]*PushSubscription, error)

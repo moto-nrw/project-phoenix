@@ -118,6 +118,25 @@ func TestStaffScopeRoutesToNamedAccounts(t *testing.T) {
 	assert.Empty(t, bc.CallsByMethod("admin"))
 	assert.Empty(t, bc.CallsByMethod("group"))
 	assert.Empty(t, bc.CallsByMethod("guardian"))
+	assert.Empty(t, bc.CallsByMethod("school"), "a staff-only type must not wake moto schule")
+}
+
+func TestStaffMessageAlsoRoutesToSchoolPortal(t *testing.T) {
+	t.Parallel()
+
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+		notifications.NewSSEChannel(bc))
+	event := staffEvent(testTenantID, 11)
+	event.Type = notifications.TypeStaffMessage
+
+	require.NoError(t, dispatch(t, func(ctx context.Context) error {
+		return svc.Notify(ctx, event)
+	}))
+
+	calls := bc.CallsByMethod("school")
+	require.Len(t, calls, 1)
+	assert.Equal(t, []int64{11}, calls[0].AccountIDs)
 }
 
 // TestStaffAccountIDsAreSnapshotted pins that the recipient list survives the

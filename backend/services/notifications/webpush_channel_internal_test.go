@@ -33,6 +33,7 @@ type fakePushRepo struct {
 	deleteAttempts     []*iot.PushSubscription
 	keepExpired        bool
 	staffAccounts      map[int64][]*iot.PushSubscription
+	schoolAccounts     map[int64][]*iot.PushSubscription
 	staffAccountsAsked []int64
 	staffAccountsErr   error
 	deleteErr          error
@@ -581,6 +582,14 @@ func (f *fakePushRepo) FindForStaffAccounts(_ context.Context, accountIDs []int6
 	var out []*iot.PushSubscription
 	for _, accountID := range accountIDs {
 		out = append(out, f.staffAccounts[accountID]...)
+	}
+	return out, nil
+}
+
+func (f *fakePushRepo) FindForSchoolAccounts(_ context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	var out []*iot.PushSubscription
+	for _, accountID := range accountIDs {
+		out = append(out, f.schoolAccounts[accountID]...)
 	}
 	return out, nil
 }

@@ -101,7 +101,14 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 	case ScopeGroup:
 		return c.broadcaster.BroadcastToGroup(event.Audience.TenantID, event.Audience.ActiveGroupID, sseEvent)
 	case ScopeStaff:
-		return c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, staffAccountIDs(event.Audience), sseEvent)
+		accountIDs := staffAccountIDs(event.Audience)
+		if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
+			return err
+		}
+		if def, ok := GetType(event.Type); ok && OfferedInPortal(def, PortalSchool) {
+			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
+		}
+		return nil
 	default:
 		return fmt.Errorf("sse channel cannot route audience scope %q (tenant %s)",
 			event.Audience.Scope, strconv.FormatInt(event.Audience.TenantID, 10))

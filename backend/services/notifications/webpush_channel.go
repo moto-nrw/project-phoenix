@@ -121,7 +121,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 	// delays the request that produced the notification.
 	var subs []*iot.PushSubscription
 	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, err := c.resolveSubscriptions(txCtx, event.Audience)
+		resolved, err := c.resolveEventSubscriptions(txCtx, event)
 		if err != nil {
 			return err
 		}
@@ -153,7 +153,7 @@ func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) 
 	var subs []*iot.PushSubscription
 	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var resolveErr error
-		subs, resolveErr = c.resolveSubscriptions(txCtx, event.Audience)
+		subs, resolveErr = c.resolveEventSubscriptions(txCtx, event)
 		return resolveErr
 	})
 	if err != nil {
@@ -213,29 +213,46 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 
 	// Read under RLS, then commit before any network request — the same
 	// ordering Deliver keeps, for the same reason.
-	var subs []*iot.PushSubscription
+	var staffSubs, schoolSubs []*iot.PushSubscription
 	err := tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
 		if err != nil {
 			return err
 		}
-		subs = resolved
+		staffSubs = resolved
+		for _, event := range staffEvents {
+			if def, ok := GetType(event.Type); ok && OfferedInPortal(def, PortalSchool) {
+				resolved, err := c.repo.FindForSchoolAccounts(txCtx, recipients)
+				if err != nil {
+					return err
+				}
+				schoolSubs = resolved
+				break
+			}
+		}
 		return nil
 	})
-	if err != nil || len(subs) == 0 {
+	if err != nil || (len(staffSubs) == 0 && len(schoolSubs) == 0) {
 		return err
 	}
 
-	byAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
-	for _, sub := range subs {
-		byAccount[sub.AccountID] = append(byAccount[sub.AccountID], sub)
+	staffByAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
+	for _, sub := range staffSubs {
+		staffByAccount[sub.AccountID] = append(staffByAccount[sub.AccountID], sub)
+	}
+	schoolByAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
+	for _, sub := range schoolSubs {
+		schoolByAccount[sub.AccountID] = append(schoolByAccount[sub.AccountID], sub)
 	}
 
 	dispatchCtx := context.WithoutCancel(ctx)
 	for _, event := range staffEvents {
 		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
 		for _, accountID := range event.Audience.StaffAccountIDs {
-			targets = append(targets, byAccount[accountID]...)
+			targets = append(targets, staffByAccount[accountID]...)
+			if def, ok := GetType(event.Type); ok && OfferedInPortal(def, PortalSchool) {
+				targets = append(targets, schoolByAccount[accountID]...)
+			}
 		}
 		if len(targets) == 0 {
 			continue
@@ -314,6 +331,11 @@ func (p *portalPayloads) forSubscription(sub *iot.PushSubscription) ([]byte, err
 // device-to-group membership, and no producer targets groups with
 // push-worthy events yet. Documented follow-up in docs/notifications.md.
 func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audience) ([]*iot.PushSubscription, error) {
+	return c.resolveEventSubscriptions(ctx, Event{Audience: audience})
+}
+
+func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Event) ([]*iot.PushSubscription, error) {
+	audience := event.Audience
 	switch audience.Scope {
 	case ScopeTenant:
 		return c.repo.FindForTenantStaff(ctx)
@@ -329,7 +351,19 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 		// Eligibility is re-checked here rather than trusted from the recipient
 		// list: that list was assembled in an earlier transaction, and an
 		// account can be deactivated or unmapped from the school in between.
-		return c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
+		staffSubs, err := c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
+		if err != nil {
+			return nil, err
+		}
+		def, ok := GetType(event.Type)
+		if !ok || !OfferedInPortal(def, PortalSchool) {
+			return staffSubs, nil
+		}
+		schoolSubs, err := c.repo.FindForSchoolAccounts(ctx, staffAccountIDs(audience))
+		if err != nil {
+			return nil, err
+		}
+		return append(staffSubs, schoolSubs...), nil
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
