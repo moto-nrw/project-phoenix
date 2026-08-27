@@ -451,6 +451,9 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 	if !a.IsPublished() || !a.Active {
 		return 0, ErrNotPublished
 	}
+	if a.ExpiresAt != nil && !a.ExpiresAt.After(time.Now()) {
+		return 0, ErrNotPublished
+	}
 	if s.deliveries == nil || s.outbox == nil {
 		return 0, nil
 	}

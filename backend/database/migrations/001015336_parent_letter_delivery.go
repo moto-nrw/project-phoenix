@@ -198,9 +198,6 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE platform.email_delivery ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE platform.email_delivery FORCE ROW LEVEL SECURITY;
-
 		DO $$
 		BEGIN
 			IF NOT EXISTS (
@@ -217,7 +214,7 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 		END $$;
 	`)
 	if err != nil {
-		return fmt.Errorf("error enabling RLS on platform.email_delivery: %w", err)
+		return fmt.Errorf("error creating RLS policy on platform.email_delivery: %w", err)
 	}
 
 	// Request handlers write these rows inside the publish tenant tx and read them

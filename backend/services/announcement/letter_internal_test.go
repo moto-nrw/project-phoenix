@@ -686,6 +686,21 @@ func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
 	}
 }
 
+func TestResendFailedEmailsRefusesExpiredLetter(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-2 * time.Hour)
+	expired := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	a.ExpiresAt = &expired
+	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
+
+	if _, err := svc.ResendFailedEmails(context.Background(), 42); err != ErrNotPublished {
+		t.Fatalf("error = %v, want ErrNotPublished", err)
+	}
+}
+
 func TestResendFailedEmailsSkipsDeliveryClaimedByConcurrentRequest(t *testing.T) {
 	t.Parallel()
 
