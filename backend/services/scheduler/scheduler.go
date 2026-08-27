@@ -2019,6 +2019,17 @@ func (s *Scheduler) runAutoEndForTenant(ctx context.Context, tenantID int64) err
 	if err != nil {
 		return fmt.Errorf("auto-end tenant %d: %w", tenantID, err)
 	}
+	if result.Failed > 0 {
+		s.getLogger().Warn("timetable auto-end completed with failures",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("checked", result.Checked),
+			slog.Int("completed", result.Completed),
+			slog.Int("failed", result.Failed),
+			slog.Int("grace_minutes", graceMinutes),
+			slog.Int64("duration_ms", result.DurationMS),
+		)
+		return nil
+	}
 	if result.Completed > 0 || result.SkippedConcurrent > 0 {
 		s.getLogger().Info("timetable auto-end completed for tenant",
 			slog.Int64("tenant_id", tenantID),

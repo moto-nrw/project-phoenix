@@ -98,7 +98,7 @@ func TestAutoEnd_RunForTenant_TreatsConcurrentCompletionAsIdempotent(t *testing.
 	assert.Equal(t, []int64{301, 302}, completer.completedIDs)
 }
 
-func TestAutoEnd_RunForTenant_DoesNotHideCorruptActiveInstance(t *testing.T) {
+func TestAutoEnd_RunForTenant_ContinuesAfterFailedCompletion(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 20, 14, 15, 0, 0, timezone.Berlin)
@@ -107,14 +107,16 @@ func TestAutoEnd_RunForTenant_DoesNotHideCorruptActiveInstance(t *testing.T) {
 	}}
 	svc := NewAutoEndService(&autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
 		autoStartInstance(401, schedule.InstanceStatusActive, 13, 0, 14, 0),
-	}}, completer)
+		autoStartInstance(402, schedule.InstanceStatusActive, 13, 0, 14, 0),
+	}, findStatusByID: map[int64]string{401: schedule.InstanceStatusActive}}, completer)
 
 	result, err := svc.RunForTenant(context.Background(), now, 15*time.Minute)
 
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrInvalidInstanceTransition)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Completed)
 	assert.Equal(t, 1, result.Failed)
 	assert.Zero(t, result.SkippedConcurrent)
+	assert.Equal(t, []int64{401, 402}, completer.completedIDs)
 }
 
 type autoEndCompleter struct {

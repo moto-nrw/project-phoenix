@@ -8,6 +8,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/uptrace/bun"
 )
 
 // AutoEndService completes due active care-plan instances through the same
@@ -60,12 +61,29 @@ func (s *autoEndService) RunForTenant(ctx context.Context, now time.Time, grace 
 
 	for _, instance := range instances {
 		result.Checked++
-		if err := s.completeIfDue(ctx, instance, now, grace, result); err != nil {
-			return result, fmt.Errorf("auto-end instance %d: %w", instance.ID, err)
+		if err := s.completeIfDueIsolated(ctx, instance, now, grace, result); err != nil {
+			// A failed completion must not prevent other due instances from
+			// committing in this scheduler tick. The failure is retained in the
+			// result for the scheduler log and retried on the next tick.
+			continue
 		}
 	}
 
 	return result, nil
+}
+
+// completeIfDueIsolated rolls back only this completion when the scheduler is
+// already running in a tenant transaction. bun maps nested transactions to
+// savepoints, so a failed instance does not abort the surrounding tenant batch.
+func (s *autoEndService) completeIfDueIsolated(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time, grace time.Duration, result *AutoEndResult) error {
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok {
+		return s.completeIfDue(ctx, instance, now, grace, result)
+	}
+
+	return tx.RunInTx(ctx, nil, func(savepointCtx context.Context, savepoint bun.Tx) error {
+		return s.completeIfDue(modelBase.ContextWithTx(savepointCtx, &savepoint), instance, now, grace, result)
+	})
 }
 
 func (s *autoEndService) completeIfDue(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time, grace time.Duration, result *AutoEndResult) error {
@@ -94,6 +112,7 @@ func (s *autoEndService) completeIfDue(ctx context.Context, instance *scheduleMo
 					result.SkippedConcurrent++
 					return nil
 				}
+				result.Failed++
 				return fmt.Errorf("verify concurrent completion: %w", findErr)
 			}
 			if current == nil || current.Status != scheduleModel.InstanceStatusActive {
