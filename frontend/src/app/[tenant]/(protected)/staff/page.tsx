@@ -54,18 +54,6 @@ import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffCardsSkeleton } from "./page-skeleton";
 
-/**
- * Die gemeldeten Abwesenheitsarten. Bewusst OHNE "Abwesend": dieser Wert
- * bedeutet in `currentLocation` nur "heute nicht eingestempelt" und ist der
- * Standard für jede Person ohne Stempelung.
- */
-const REPORTED_ABSENCE_LOCATIONS = new Set([
-  "Krank",
-  "Urlaub",
-  "Fortbildung",
-  "Freizeitausgleich",
-]);
-
 function DocumentDirectory({
   entries,
   error,
@@ -603,21 +591,28 @@ function StaffPageContent() {
   // ohnehin lädt (Personalliste bzw. Zeitkonten-Tabelle).
   const staffSummary = (() => {
     if (canReadUsers) {
-      // "Abwesend" heißt in currentLocation nur "nicht eingestempelt" und ist
-      // deshalb KEINE gemeldete Abwesenheit — sonst zählte jede Person ohne
-      // Stempelung als abwesend. Gezählt werden nur die echten Arten.
-      const absent = staff.filter((member) =>
-        REPORTED_ABSENCE_LOCATIONS.has(member.currentLocation ?? "Abwesend"),
-      ).length;
-      const clockedIn = staff.filter((member) => {
+      // Dieselben Zustände wie die Badges auf den Karten: "Abwesend" ist der
+      // Standard für "nicht eingestempelt", gemeldete Arten (Krank, Urlaub …)
+      // tragen ihren eigenen Namen. So passt die Zeile zu dem, was man sieht.
+      const byLocation = new Map<string, number>();
+      let clockedIn = 0;
+      for (const member of staff) {
         const location = member.currentLocation ?? "Abwesend";
-        return (
-          location !== "Zuhause" &&
-          location !== "Abwesend" &&
-          !absenceLocations.has(location)
-        );
-      }).length;
-      return `${staff.length} ${staff.length === 1 ? "Person" : "Personen"} · ${absent} abwesend · ${clockedIn} eingestempelt`;
+        if (location === "Abwesend" || absenceLocations.has(location)) {
+          byLocation.set(location, (byLocation.get(location) ?? 0) + 1);
+        } else if (location !== "Zuhause") {
+          clockedIn += 1;
+        }
+      }
+      const parts = [
+        `${staff.length} ${staff.length === 1 ? "Person" : "Personen"}`,
+        `${clockedIn} anwesend`,
+        `${byLocation.get("Abwesend") ?? 0} abwesend`,
+      ];
+      for (const [location, count] of byLocation) {
+        if (location !== "Abwesend") parts.push(`${count} ${location}`);
+      }
+      return parts.join(" · ");
     }
     if (canManageTimeTracking) {
       const count = accounts?.rows.length ?? 0;
