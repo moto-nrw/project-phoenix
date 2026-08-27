@@ -132,7 +132,6 @@ var seedCoverageAllowlist = map[string]string{
 	"schedule.timeframes":                       "GAP: prod has 16 rows",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
-	"users.care_withdrawal_completions":       "requires a booking-authoritative rollout scenario",
 	"users.class_list_entries":                "not in prod yet (migration newer than the deployed image)",
 	"users.guardian_phone_numbers":            "GAP: prod has 3071 rows",
 	"users.guests":                            "empty in prod too",
@@ -140,8 +139,6 @@ var seedCoverageAllowlist = map[string]string{
 	"users.parent_announcement_options":       "empty in prod too",
 	"users.parent_announcement_reads":         "GAP: prod has 31 rows",
 	"users.parent_announcement_responses":     "empty in prod too",
-	"users.parent_announcement_targets":       "GAP: prod has 4 rows",
-	"users.parent_announcements":              "GAP: prod has 1 rows",
 	"users.parent_message_reads":              "GAP: prod has 352 rows",
 	"users.persons_guardians":                 "empty in prod too",
 	"users.profiles":                          "GAP: prod has 1 rows",
