@@ -7,7 +7,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 
 /** Kopfkarte der Seite. Der Titel ist statisch, deshalb rendert die Karte auch
  *  im Ladezustand sofort. */
-interface DatabasePageIntro {
+interface DatabasePageHead {
   title: string;
   description?: ReactNode;
   /** Seitenaktionen, zum Beispiel DatabaseCreateAction oder OverflowMenu. */
@@ -20,7 +20,7 @@ interface DatabasePageLayoutProps {
   /** Whether the auth session is loading */
   sessionLoading: boolean;
   /** Kopfkarte der Seite; entfällt nur bei Seiten ohne eigenen Kopf. */
-  intro?: DatabasePageIntro;
+  intro?: DatabasePageHead;
   /** Such- und Filterzeile der Liste. Sie steht im unteren Teil der Kopfkarte,
    *  damit Kopfkarte und Suchzeile nicht als zwei fast leere Zeilen
    *  übereinander liegen. */

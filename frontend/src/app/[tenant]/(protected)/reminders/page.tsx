@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
@@ -63,24 +64,21 @@ export default function RemindersPage() {
         const items = reminders.filter((r) => r.type === section.type);
         if (items.length === 0) return null;
         return (
-          <section
+          <SectionCard
             key={section.type}
-            className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm"
-          >
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-              <h2 className="text-base font-semibold text-gray-900">
-                {section.title}
-              </h2>
+            title={section.title}
+            actions={
               <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold text-gray-600">
                 {items.length}
               </span>
-            </div>
+            }
+          >
             <ul className="divide-y divide-gray-100">
               {items.map((reminder) => (
                 <ReminderRow key={reminderKey(reminder)} reminder={reminder} />
               ))}
             </ul>
-          </section>
+          </SectionCard>
         );
       })}
     </TenantPage>

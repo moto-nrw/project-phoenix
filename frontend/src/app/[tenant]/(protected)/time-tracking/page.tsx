@@ -19,6 +19,7 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   Drawer,
@@ -945,16 +946,15 @@ function ClockInCard({
   );
 
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm">
-      <div className="relative p-4 sm:p-6">
-        {/* Title + status badge */}
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Stempeluhr</h2>
-          {statusBadge && (
-            <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
-          )}
-        </div>
-
+    <SectionCard
+      title="Stempeluhr"
+      actions={
+        statusBadge ? (
+          <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
+        ) : undefined
+      }
+    >
+      <div className="relative">
         {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
             Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
             Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}
@@ -1252,7 +1252,7 @@ function ClockInCard({
           </div>
         )}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1901,10 +1901,10 @@ function OwnZeiterfassungSection({
   const todayLabel = viewMode === "month" ? "Diesen Monat" : "Diese Woche";
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Zeiterfassung</h2>
-        <div className="flex flex-wrap items-center gap-2">
+    <SectionCard
+      title="Zeiterfassung"
+      actions={
+        <>
           <ViewToggle value={viewMode} onChange={setViewMode} />
           {ownStaffId && (
             <StaffExportButton
@@ -1912,8 +1912,9 @@ function OwnZeiterfassungSection({
               yearStart={startOfYear(today)}
             />
           )}
-        </div>
-      </div>
+        </>
+      }
+    >
       <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
         <div className="hidden sm:block" />
         <div className="flex min-w-0 items-center justify-center gap-2">
@@ -2044,7 +2045,7 @@ function OwnZeiterfassungSection({
           />
         </>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -2153,7 +2154,10 @@ function WeekChart({
   );
 
   return (
-    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl border shadow-sm md:h-full md:min-h-0">
+    <SectionCard
+      className="flex min-h-[280px] flex-col overflow-hidden p-0 md:h-full md:min-h-0"
+      bodyClassName="flex min-h-0 flex-1 flex-col"
+    >
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
           <h2 className="text-base font-semibold text-gray-900">
@@ -2226,7 +2230,7 @@ function WeekChart({
           </BarChart>
         </ChartContainer>
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

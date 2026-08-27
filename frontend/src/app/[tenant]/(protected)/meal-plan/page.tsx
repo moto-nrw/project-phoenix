@@ -673,34 +673,36 @@ export default function MealPlanPage() {
         {/* Sticky save bar — only while there are unsaved changes. */}
         {canEdit && isDirty && !loading && !loadError && (
           <div className="sticky bottom-4 z-20">
-            <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-lg">
-              <span className="text-sm font-medium text-gray-700">
-                {changedDays.length}{" "}
-                {changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={discard}
-                  disabled={saving}
-                >
-                  Verwerfen
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={handleSave}
-                  disabled={saving}
-                  isLoading={saving}
-                  loadingText="Speichern…"
-                >
-                  Speichern
-                </Button>
+            <SectionCard className="shadow-lg" bodyClassName="">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium text-gray-700">
+                  {changedDays.length}{" "}
+                  {changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={discard}
+                    disabled={saving}
+                  >
+                    Verwerfen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={handleSave}
+                    disabled={saving}
+                    isLoading={saving}
+                    loadingText="Speichern…"
+                  >
+                    Speichern
+                  </Button>
+                </div>
               </div>
-            </div>
+            </SectionCard>
           </div>
         )}
       </TenantPage>

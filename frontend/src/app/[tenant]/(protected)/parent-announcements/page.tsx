@@ -22,6 +22,7 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -1702,7 +1703,7 @@ function AnnouncementCard({
   readonly onPublish: () => void;
 }) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <SectionCard className="overflow-hidden p-0" bodyClassName="">
       <button
         type="button"
         onClick={onOpen}
@@ -1761,7 +1762,7 @@ function AnnouncementCard({
           ariaLabel={`Aktionen für ${announcement.title}`}
         />
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

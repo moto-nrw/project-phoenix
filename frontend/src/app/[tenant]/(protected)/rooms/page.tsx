@@ -15,6 +15,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
@@ -78,13 +79,12 @@ function TransitAssignmentCard({
   readonly buttonRef: (node: HTMLButtonElement | null) => void;
 }) {
   return (
-    <button
-      type="button"
-      ref={buttonRef}
+    <TileCard
+      elementRef={buttonRef}
       onClick={onOpen}
-      aria-haspopup="dialog"
-      aria-controls="room-detail-panel"
-      className="group moto-content-surface moto-hover-elevated flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
+      ariaHasPopup="dialog"
+      ariaControls="room-detail-panel"
+      className="flex items-center justify-between gap-4"
     >
       <SectionHeader
         className="min-w-0 flex-1"
@@ -103,7 +103,7 @@ function TransitAssignmentCard({
           </span>
         }
       />
-    </button>
+    </TileCard>
   );
 }
 
@@ -567,10 +567,9 @@ function RoomsPageContent() {
               {filteredRooms.map((room) => {
                 const handleClick = () => handleSelectRoom(room);
                 return (
-                  <button
-                    type="button"
+                  <TileCard
                     key={room.id}
-                    ref={(node) => {
+                    elementRef={(node) => {
                       if (node) {
                         roomCardRefs.current.set(room.id, node);
                       } else {
@@ -578,14 +577,14 @@ function RoomsPageContent() {
                       }
                     }}
                     onClick={handleClick}
-                    aria-haspopup="dialog"
-                    aria-expanded={selectedRoomId === room.id}
-                    aria-controls={
+                    ariaHasPopup="dialog"
+                    ariaExpanded={selectedRoomId === room.id}
+                    ariaControls={
                       selectedRoomId === room.id
                         ? "room-detail-panel"
                         : undefined
                     }
-                    className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                    padding="none"
                   >
                     <div className="relative p-6 pb-5">
                       <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
@@ -688,7 +687,7 @@ function RoomsPageContent() {
                         <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                       </div>
                     </div>
-                  </button>
+                  </TileCard>
                 );
               })}
             </div>

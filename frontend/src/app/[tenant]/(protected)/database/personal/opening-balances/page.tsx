@@ -622,21 +622,20 @@ export default function OpeningBalanceImportPage() {
       />
 
       {previewStale && uploadedFile !== null && (
-        <section className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-600">
-            Stichtag oder Begründung wurden geändert. Die Vorschau muss mit den
-            neuen Angaben neu erstellt werden.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            disabled={!paramsComplete || isLoading}
-            onClick={() => void runPreview(uploadedFile)}
-          >
-            Vorschau erneut erstellen
-          </Button>
-        </section>
+        <SectionCard
+          description="Stichtag oder Begründung wurden geändert. Die Vorschau muss mit den neuen Angaben neu erstellt werden."
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={!paramsComplete || isLoading}
+              onClick={() => void runPreview(uploadedFile)}
+            >
+              Vorschau erneut erstellen
+            </Button>
+          }
+        />
       )}
 
       {/* Schritt 4: Vorschau */}

@@ -23,6 +23,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
@@ -112,9 +113,9 @@ function MetaLine({ parts }: Readonly<{ parts: (string | null)[] }>) {
 /** Gemeinsame Listenfläche: eine weiße Karte mit Trennlinien statt einzelner Karten. */
 function ListSurface({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
-      {children}
-    </ul>
+    <SectionCard className="overflow-hidden p-0" bodyClassName="">
+      <ul className="divide-y divide-gray-200">{children}</ul>
+    </SectionCard>
   );
 }
 
@@ -522,9 +523,9 @@ function SubstitutionPageContent() {
     // EmptyState mit seiner grossen zentrierten Überschrift gedacht ist.
     if (substitutions.length === 0) {
       return (
-        <div className="moto-content-surface rounded-2xl border p-4 text-sm text-gray-500">
-          {emptyText}
-        </div>
+        <SectionCard>
+          <p className="text-sm text-gray-500">{emptyText}</p>
+        </SectionCard>
       );
     }
 

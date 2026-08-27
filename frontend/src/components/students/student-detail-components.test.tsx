@@ -28,11 +28,15 @@ import {
   PersonIcon,
   ChevronDownIcon,
   WarningIcon,
-  StudentDetailHeader,
+  StudentHeaderAvatar,
+  StudentHeaderLocation,
+  StudentHeaderStats,
+  studentHeaderTitle,
   SupervisorsCard,
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "./student-detail-components";
+import { SectionCard } from "~/components/ui/section-card";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
@@ -118,7 +122,67 @@ describe("WarningIcon", () => {
 // StudentDetailHeader Tests
 // =============================================================================
 
-describe("StudentDetailHeader", () => {
+/**
+ * Der Kopf der Kindakte, so zusammengesetzt wie auf der Seite selbst: die
+ * Kopfkarte liefert `TenantPage`, die drei Bausteine kommen von hier. Die
+ * Attrappe ersetzt die frühere Wrapper-Komponente, die nur noch für Tests
+ * existierte.
+ */
+function StudentDetailHeader(
+  props: Readonly<{
+    student: ExtendedStudent;
+    myGroups: never[];
+    myGroupRooms: never[];
+    mySupervisedRooms: never[];
+    todayPickupPlannedTime?: string;
+    todayPickupActualTime?: string;
+    todayPickupNote?: string;
+    isPickupException?: boolean;
+    todayArrivalPlannedTime?: string;
+    todayArrivalActualTime?: string;
+    isArrivalException?: boolean;
+    isArrivalAbsent?: boolean;
+    todayArrivalNote?: string;
+    sickReason?: string;
+  }>,
+) {
+  return (
+    <SectionCard
+      headingLevel={1}
+      leading={<StudentHeaderAvatar student={props.student} />}
+      title={studentHeaderTitle(props.student)}
+      description={
+        <StudentHeaderStats
+          student={props.student}
+          todayPickupPlannedTime={props.todayPickupPlannedTime}
+          todayPickupActualTime={props.todayPickupActualTime}
+          todayPickupNote={props.todayPickupNote}
+          isPickupException={props.isPickupException}
+          todayArrivalPlannedTime={props.todayArrivalPlannedTime}
+          todayArrivalActualTime={props.todayArrivalActualTime}
+          isArrivalException={props.isArrivalException}
+          isArrivalAbsent={props.isArrivalAbsent}
+          todayArrivalNote={props.todayArrivalNote}
+          sickReason={props.sickReason}
+        />
+      }
+      actions={
+        <StudentHeaderLocation
+          student={props.student}
+          myGroups={props.myGroups}
+          myGroupRooms={props.myGroupRooms}
+          mySupervisedRooms={props.mySupervisedRooms}
+          todayArrivalPlannedTime={props.todayArrivalPlannedTime}
+          isArrivalException={props.isArrivalException}
+          isArrivalAbsent={props.isArrivalAbsent}
+          todayArrivalNote={props.todayArrivalNote}
+        />
+      }
+    />
+  );
+}
+
+describe("Kopf der Kindakte", () => {
   const mockStudent: ExtendedStudent = {
     id: "1",
     first_name: "Max",

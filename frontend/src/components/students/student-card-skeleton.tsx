@@ -2,10 +2,8 @@
 // Skeleton mirror of StudentCard, shared by the OGS groups and student
 // search pages so their loading state keeps the exact card-grid footprint.
 
-import type { ReactNode } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 
 /**
  * Mirrors StudentCard's surface (rounded-2xl border, p-6 pb-5) and header
@@ -67,9 +65,6 @@ export function StudentCardGridSkeleton({
   );
 }
 
-/** Stabile Vorgabe für die Statuszeile, damit sie nicht je Render neu entsteht. */
-const DEFAULT_DESCRIPTION = <Skeleton className="h-4 w-56" />;
-
 /**
  * Page-shell skeleton for the gate/Suspense states of the student-card
  * pages (ogs-groups, students/search): die echte Kopfkarte (Titel und
@@ -82,27 +77,23 @@ export function StudentCardPageSkeleton({
   label,
   testId,
   title,
-  description = DEFAULT_DESCRIPTION,
 }: Readonly<{
   label: string;
   testId: string;
   title: string;
-  /** Statuszeile unter dem Titel; ohne Angabe ein Skelett-Balken. */
-  description?: ReactNode;
 }>) {
   return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label={label}
-      data-testid={testId}
-      className="w-full"
+    // Das echte Gerüst mit dem echten Titel: nur Statuszeile und Karten
+    // skelettieren, damit beim Einwechseln nichts springt.
+    <TenantPage
+      title={title}
+      statsLoading
+      search={{ value: "", onChange: () => {} }}
+      testId={testId}
     >
-      {/* Die Suchzeile steht IN der Kopfkarte, wie im geladenen Zustand. */}
-      <PageIntro title={title} description={description} className="mb-6">
-        <PageHeaderSkeleton actions={1} />
-      </PageIntro>
-      <StudentCardGrid count={6} />
-    </div>
+      <div role="status" aria-busy="true" aria-label={label}>
+        <StudentCardGrid count={6} />
+      </div>
+    </TenantPage>
   );
 }

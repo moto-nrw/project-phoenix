@@ -21,7 +21,7 @@ Imports are always by direct file path: `import { Button } from "~/components/ui
 
 ## Page scaffolding — one shell, no per-page layout
 
-**RULE: Every page under `frontend/src/app/[tenant]/(protected)` renders `TenantPage` (`~/components/ui/tenant-page`) as its root. A page supplies data, never layout.** The only exemptions are `/dashboard`, `/profile` and `/emergency`.
+**RULE: Every page under `frontend/src/app/[tenant]/(protected)` renders `TenantPage` (`~/components/ui/tenant-page`) as its root. A page supplies data, never layout.** There are no exemptions — the dashboard, the profile page and the emergency list run through the same scaffold as every list. The exemption set in `tenant-page-scaffold.test.ts` is empty and may only be added to with reviewer approval recorded in the PR.
 
 `TenantPage` fixes the order of the parts so no page can decide it again:
 
@@ -39,7 +39,11 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8).
 
-**One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card, `SegmentedControl` only for a value choice (Monat/Woche, mode). Never a fourth variant.
+**One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. A value switcher built from `ui/Tabs` is a violation, not a style choice: the ratchet `ui-kit/no-tabs-as-value-switcher` fails on it.
+
+**One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons), `StatCard` for every figure (it has `icon`, `href`, `loading`), `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-handrolled-surface` fails a page that spells the surface out again.
+
+**Planning surfaces have no second head.** `PlanningContextBar` is the control band inside the head card (`searchSlot`), not a card of its own.
 
 The full conversion spec, including what to do when a page's head lives in a view component, is `frontend/src/components/ui/TENANT-PAGE-SPEC.md`.
 

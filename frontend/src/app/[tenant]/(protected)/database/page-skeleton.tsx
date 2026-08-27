@@ -1,7 +1,7 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
 function DatabaseCardSkeleton() {
   // Mirrors a database section card: icon block, count badge, title,
@@ -48,10 +48,7 @@ export function DatabaseIndexSkeleton() {
   return (
     <div className="w-full space-y-6">
       {/* Titel ist statisch, die Statuszeile kommt mit den Zahlen. */}
-      <PageIntro
-        title="Datenverwaltung"
-        description={<Skeleton className="h-4 w-48" />}
-      />
+      <TenantPageHeaderSkeleton />
       <DatabaseCardGridSkeleton />
     </div>
   );

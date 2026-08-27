@@ -2,6 +2,7 @@
 
 import { BackButton } from "~/components/ui/back-button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
 // Mirrors StudentDetailHeader (avatar + name + meta rows + location badge),
 // the checkout/checkin action-card row, the tab bar, and a Stammdaten-shaped
@@ -29,26 +30,8 @@ export function StudentDetailSkeleton({
         <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
       )}
 
-      {/* Spiegelt die Kopfkarte (PageIntro) des geladenen Zustands. */}
-      <div className="moto-content-surface mb-6 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-3 w-16 rounded" />
-              <Skeleton className="h-7 w-48 rounded" />
-              <Skeleton className="h-4 w-32 rounded" />
-            </div>
-          </div>
-          <div className="flex-shrink-0">
-            <Skeleton className="h-8 w-28 rounded-full" />
-          </div>
-        </div>
-        <div className="mt-4 space-y-2">
-          <Skeleton className="h-4 w-56 rounded" />
-          <Skeleton className="h-4 w-48 rounded" />
-        </div>
-      </div>
+      {/* Spiegelt die Kopfkarte des geladenen Zustands. */}
+      <TenantPageHeaderSkeleton leading />
 
       <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
         <Skeleton className="h-20 w-full rounded-2xl" />

@@ -1,31 +1,22 @@
 "use client";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StaffCardsSkeleton } from "./page-skeleton";
 
 export default function StaffLoading() {
   return (
-    <div className="w-full">
-      {/* Titel und Kicker sind statisch, also rendert die echte Kopfkarte
-          sofort; nur die Kartenliste darunter skelettiert. */}
-      <PageIntro
-        title="Mitarbeiter"
-        description={<Skeleton className="h-4 w-64" />}
-        className="mb-6"
-      >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          search={{
-            value: "",
-            onChange: () => {},
-            inputProps: { disabled: true },
-          }}
-        />
-      </PageIntro>
+    // Titel und Suchfeld sind fest und rendern sofort im echten Gerüst; nur
+    // die Statuszeile und die Kartenliste darunter skelettieren.
+    <TenantPage
+      title="Mitarbeiter"
+      statsLoading
+      search={{
+        value: "",
+        onChange: () => {},
+        placeholder: "Mitarbeiter suchen…",
+      }}
+    >
       <StaffCardsSkeleton />
-    </div>
+    </TenantPage>
   );
 }

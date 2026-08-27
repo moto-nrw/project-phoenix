@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -176,11 +177,7 @@ function MessagesInboxContent() {
 
               return (
                 <li key={thread.thread_id}>
-                  <button
-                    type="button"
-                    onClick={navigate}
-                    className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
-                  >
+                  <TileCard onClick={navigate}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -208,7 +205,7 @@ function MessagesInboxContent() {
                         </span>
                       )}
                     </div>
-                  </button>
+                  </TileCard>
                 </li>
               );
             })}

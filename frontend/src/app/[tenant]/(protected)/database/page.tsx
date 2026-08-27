@@ -5,8 +5,8 @@ import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -262,10 +262,11 @@ function DatabaseContent() {
               const concept = MOTO_CONCEPTS[section.concept];
 
               return (
-                <Link
+                <TileCard
                   key={section.id}
                   href={tenantPath(section.href)}
-                  className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+                  padding="none"
+                  className="min-h-[44px] touch-manipulation"
                 >
                   <div className="relative p-4 sm:p-6">
                     <div className="mb-4 flex items-start justify-between">
@@ -304,7 +305,7 @@ function DatabaseContent() {
                       />
                     </div>
                   </div>
-                </Link>
+                </TileCard>
               );
             })}
           </div>

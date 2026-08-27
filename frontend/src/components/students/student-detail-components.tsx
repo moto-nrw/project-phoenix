@@ -33,7 +33,6 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
-import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import {
   ParentVisibleBadge,
@@ -483,64 +482,6 @@ export function StudentHeaderStats({
         </>
       )}
     </span>
-  );
-}
-
-/**
- * Der Entitätskopf der Kindakte als eigenständige Kopfkarte.
- *
- * Die Kindakte selbst setzt diese Teile in `TenantPage` zusammen; diese
- * Komponente bleibt für Ansichten, die nur den Kopf brauchen.
- */
-export function StudentDetailHeader({
-  student,
-  myGroups,
-  myGroupRooms,
-  mySupervisedRooms,
-  todayPickupPlannedTime,
-  todayPickupActualTime,
-  todayPickupNote,
-  isPickupException,
-  todayArrivalPlannedTime,
-  todayArrivalActualTime,
-  isArrivalException,
-  isArrivalAbsent,
-  todayArrivalNote,
-  sickReason,
-}: Readonly<StudentHeaderProps>) {
-  return (
-    <PageIntro
-      className="mb-6"
-      leading={<StudentHeaderAvatar student={student} />}
-      title={studentHeaderTitle(student)}
-      description={
-        <StudentHeaderStats
-          student={student}
-          todayPickupPlannedTime={todayPickupPlannedTime}
-          todayPickupActualTime={todayPickupActualTime}
-          todayPickupNote={todayPickupNote}
-          isPickupException={isPickupException}
-          todayArrivalPlannedTime={todayArrivalPlannedTime}
-          todayArrivalActualTime={todayArrivalActualTime}
-          isArrivalException={isArrivalException}
-          isArrivalAbsent={isArrivalAbsent}
-          todayArrivalNote={todayArrivalNote}
-          sickReason={sickReason}
-        />
-      }
-      actions={
-        <StudentHeaderLocation
-          student={student}
-          myGroups={myGroups}
-          myGroupRooms={myGroupRooms}
-          mySupervisedRooms={mySupervisedRooms}
-          todayArrivalPlannedTime={todayArrivalPlannedTime}
-          isArrivalException={isArrivalException}
-          isArrivalAbsent={isArrivalAbsent}
-          todayArrivalNote={todayArrivalNote}
-        />
-      }
-    />
   );
 }
 

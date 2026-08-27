@@ -503,7 +503,7 @@ export default function StatisticsPage() {
     >
       {/* Inhaltskarte ohne eigenen Kopf: Titel, Zeitraum, Filter und Exporte
           trägt die Kopfkarte darüber, die Reiter stehen darüber. */}
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <SectionCard>
         <div className="space-y-4">
           {exportError && (
             <div>
@@ -642,7 +642,7 @@ export default function StatisticsPage() {
             </>
           )}
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { BackButton } from "~/components/ui/back-button";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ThreadSkeleton, ThreadComposerSkeleton } from "./page-skeleton";
 
@@ -14,10 +15,13 @@ export default function MessageThreadLoading() {
       <BackButton referrer="/messages" />
 
       <div className="flex min-h-[20rem] w-full flex-col overflow-hidden">
-        <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+        <SectionCard
+          className="flex min-h-0 flex-1 flex-col"
+          bodyClassName="flex min-h-0 flex-1 flex-col"
+        >
           <ThreadSkeleton />
           <ThreadComposerSkeleton />
-        </div>
+        </SectionCard>
       </div>
     </TenantPage>
   );

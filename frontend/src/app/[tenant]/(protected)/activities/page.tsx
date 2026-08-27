@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { Button } from "~/components/ui/button";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -343,23 +344,13 @@ function ActivitiesPageContent() {
         }
       >
         <div className="space-y-3">
-          {filteredActivities.map((activity, index) => {
+          {filteredActivities.map((activity) => {
             const handleClick = () => handleSelectActivity(activity);
             return (
-              <button
-                type="button"
-                key={activity.id}
-                onClick={handleClick}
-                className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
-                style={{
-                  animationName: "fadeInUp",
-                  animationDuration: "0.5s",
-                  animationTimingFunction: "ease-out",
-                  animationFillMode: "forwards",
-                  animationDelay: `${index * 0.05}s`,
-                  opacity: 0,
-                }}
-              >
+              // Ohne Einblend-Animation: die Kachel ist dieselbe wie in
+              // jeder anderen Liste, und eine Liste, die sich nacheinander
+              // aufbaut, hält beim Suchen nur auf.
+              <TileCard key={activity.id} onClick={handleClick} padding="none">
                 <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 
                 <div className="relative flex items-center justify-between p-5">
@@ -398,7 +389,7 @@ function ActivitiesPageContent() {
                     </span>
                   </div>
                 </div>
-              </button>
+              </TileCard>
             );
           })}
         </div>

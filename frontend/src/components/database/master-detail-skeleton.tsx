@@ -1,6 +1,7 @@
 "use client";
 
 import { MasterDetailLayout } from "./master-detail-layout";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 
 function ListRowSkeleton() {
@@ -12,20 +13,6 @@ function ListRowSkeleton() {
         <Skeleton className="h-3 w-1/2 rounded" />
       </div>
       <Skeleton className="h-4 w-4 shrink-0 rounded" />
-    </div>
-  );
-}
-
-// Mirrors the PageIntro head card every database page opens with:
-// title and description line inside one moto-content-surface card.
-function PageIntroSkeleton() {
-  return (
-    <div className="moto-content-surface mb-4 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-28 rounded" />
-        <Skeleton className="h-6 w-48 rounded" />
-        <Skeleton className="h-4 w-full max-w-md rounded" />
-      </div>
     </div>
   );
 }
@@ -45,7 +32,7 @@ export function MasterDetailSkeleton({
 }: Readonly<{
   rowCount?: number;
   label?: string;
-  /** Set to false when the page already renders its real PageIntro above. */
+  /** Set to false when the page already renders its real head card above. */
   intro?: boolean;
 }>) {
   return (
@@ -56,7 +43,7 @@ export function MasterDetailSkeleton({
       data-testid="master-detail-skeleton"
       className="flex w-full flex-col"
     >
-      {intro ? <PageIntroSkeleton /> : null}
+      {intro ? <TenantPageHeaderSkeleton /> : null}
       <div className="mb-4">
         <Skeleton className="h-10 w-full max-w-sm rounded-lg sm:max-w-md" />
       </div>

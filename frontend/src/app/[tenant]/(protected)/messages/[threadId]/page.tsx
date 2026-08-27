@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -303,7 +304,10 @@ function MessageThreadContent() {
         ref={containerRef}
         className="flex min-h-[20rem] w-full flex-col overflow-hidden"
       >
-        <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+        <SectionCard
+          className="flex min-h-0 flex-1 flex-col"
+          bodyClassName="flex min-h-0 flex-1 flex-col"
+        >
           {showSkeleton ? (
             <ThreadSkeleton />
           ) : (
@@ -388,7 +392,7 @@ function MessageThreadContent() {
               />
             )}
           </div>
-        </div>
+        </SectionCard>
       </div>
     </TenantPage>
   );

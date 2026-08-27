@@ -664,6 +664,106 @@ const noTenantKicker = {
   },
 };
 
+// ui-kit/no-handrolled-surface — eine Seite baut keine Kartenfläche mehr aus
+// einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
+// SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
+// StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
+// greift nur in Seitendateien des Tenant-Portals — Kit- und
+// Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
+const TENANT_PAGE_FILE_RE = /app\/\[tenant\]\/\(protected\)\/.*\/(page|loading)\.tsx$/;
+// Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
+// Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
+// (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
+const HANDROLLED_SURFACE_RE = /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
+
+const noHandrolledSurface = {
+  meta: {
+    docs: {
+      description:
+        "Disallow hand-rolled card surfaces in tenant page files; use the kit cards.",
+    },
+    messages: {
+      surface:
+        "Keine eigene Kartenfläche in einer Seite. SectionCard (Fläche), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+    },
+  },
+  create(context) {
+    const filename = (context.filename ?? context.getFilename?.() ?? "").replace(
+      /\\/g,
+      "/",
+    );
+    if (!TENANT_PAGE_FILE_RE.test(filename)) return {};
+    if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+
+    return {
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          HANDROLLED_SURFACE_RE.test(node.value)
+        ) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
+      TemplateElement(node) {
+        const raw = node.value?.cooked ?? node.value?.raw ?? "";
+        if (HANDROLLED_SURFACE_RE.test(raw)) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
+    };
+  },
+};
+
+// ui-kit/no-tabs-as-value-switcher — `ui/Tabs` ist Radix und schaltet
+// INHALTE; eine Wertauswahl (Woche/Monat, A/B, Umfang) gehört auf
+// SegmentedControl. Beides nebeneinander erzeugt zwei Bauarten für dieselbe
+// Geste, und die Radix-Variante schaltet auf mousedown, was Klick-Tests still
+// ins Leere laufen lässt.
+const VALUE_SWITCHER_LABELS = new Set([
+  "Woche",
+  "Monat",
+  "Tag",
+  "Halbjahr",
+  "Serien",
+  "Woche A",
+  "Woche B",
+  "Ganzer Tag",
+  "Dieser Block",
+]);
+
+const noTabsAsValueSwitcher = {
+  meta: {
+    docs: {
+      description:
+        "Disallow ui/Tabs for value choices; those belong on SegmentedControl.",
+    },
+    messages: {
+      valueSwitcher:
+        "Wertauswahl gehört auf SegmentedControl, nicht auf ui/Tabs (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+    },
+  },
+  create(context) {
+    const filename = (context.filename ?? context.getFilename?.() ?? "").replace(
+      /\\/g,
+      "/",
+    );
+    if (OTHER_PORTALS_RE.test(filename)) return {};
+    if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+
+    return {
+      JSXElement(node) {
+        const name = node.openingElement?.name?.name;
+        if (name !== "TabsTrigger") return;
+        const child = node.children?.find((c) => c.type === "JSXText");
+        const label = child?.value?.trim();
+        if (label && VALUE_SWITCHER_LABELS.has(label)) {
+          context.report({ node, messageId: "valueSwitcher" });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -671,5 +771,7 @@ export default {
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-rounded-3xl": noRounded3xl,
     "no-tenant-kicker": noTenantKicker,
+    "no-handrolled-surface": noHandrolledSurface,
+    "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
   },
 };

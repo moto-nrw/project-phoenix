@@ -1,10 +1,11 @@
 # Seitengerüst des Tenant-Portals — verbindlicher Umbau-Spec
 
 Ziel: JEDE Seite unter `frontend/src/app/[tenant]/(protected)` hat dasselbe
-Gerüst. Kein „ungefähr gleich", kein Sonderweg pro Seite.
+Gerüst. Kein „ungefähr gleich", kein Sonderweg pro Seite. Es gibt KEINE
+Ausnahmeseite mehr — Startseite, Profil und Notfallliste tragen dasselbe
+Gerüst wie jede Liste.
 
-Ausgenommen und NICHT anfassen: `/dashboard`, `/profile`, `/emergency`.
-Ebenfalls nicht anfassen: Eltern-Portal (`app/parents`, `components/parent`),
+Nicht anfassen: Eltern-Portal (`app/parents`, `components/parent`),
 Schul-Portal (`app/school`, `components/school`, `components/class-day`),
 Operator-Portal (`app/operator`, `components/operator`).
 
@@ -32,9 +33,10 @@ Wurzel jeder Seite ist `TenantPage` aus `~/components/ui/tenant-page`:
 
 Gerenderte Reihenfolge, fest, nicht verhandelbar:
 
-1. Kopfkarte: Titel + Aktionen rechts, darunter Statuszeile, darunter Suche und Filter
+1. Kopfkarte: Titel + Aktionen rechts, darunter Statuszeile, darunter Suche
+   und Filter (auf den Planungsflächen steht dort die `PlanningContextBar`)
 2. Reiter (horizontal, eine einzige Bauart)
-3. Inhalt im 24-px-Rhythmus
+3. Inhalt im 24-px-Rhythmus, jede Fläche darin aus dem Kit
 
 ## Regeln
 
@@ -58,11 +60,20 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    `return null`, kein freier Spinner, kein „Wird geladen…"-Fließtext, kein
    Fehler-Alert, der nur auf einem Breakpoint sichtbar ist.
 7. **Reiter**: Seitenreiter über `tabs`. `ui/Tabs` bleibt nur für Reiter
-   INNERHALB einer Karte, `SegmentedControl` nur für eine Wertauswahl
-   (Monat/Woche, Modus). Kein drittes Bauteil.
-8. **Karten** im Inhalt: `SectionCard` bzw. `moto-content-surface rounded-2xl
-border p-5 shadow-sm`. Kein `rounded-3xl`, kein `rounded-xl` als Karte,
-   keine handgerollte Kartenfläche.
+   INNERHALB einer Karte (Slide-over: Bearbeiten/Verlauf), `SegmentedControl`
+   für jede Wertauswahl — auch Monat/Woche/Tag, A/B-Woche, Exportzeitraum,
+   Listenfilter. Kein drittes Bauteil, und kein `ui/Tabs` als Umschalter für
+   einen Wert.
+8. **Karten** im Inhalt kommen aus dem Kit, nie aus einer eigenen
+   Klassenkette:
+   - `SectionCard` — Inhaltsfläche mit Kopf; OHNE `title` die reine Fläche
+     (das frühere `<section className="moto-content-surface …">`).
+   - `TileCard` — anklickbare Kachel (Kind, Raum, Mitarbeiter, Nachricht).
+     Mit `containsControls`, wenn die Kachel eigene Bedienelemente trägt.
+   - `StatCard` — jede Kennzahl, mit `icon`, `href` und `loading`.
+   - `TenantPageHeaderSkeleton` / `CardSkeleton` — Ladezustände.
+   Kein `rounded-3xl`, kein `rounded-xl` als Karte, keine handgerollte
+   Kartenfläche und keine zweite Kennzahl-Kachel.
 9. **Farben** nur über Kit-Komponenten oder `LOCATION_COLORS` /
    `moto-*`-Klassen. Keine generischen Tailwind-Hues für Marken-Semantik.
 10. **Texte**: Sie-Form, echte Umlaute, keine Gender-Doppelpunkte, `…` statt
@@ -75,6 +86,15 @@ border p-5 shadow-sm`. Kein `rounded-3xl`, kein `rounded-xl` als Karte,
     ein Test wegen einer FACHLICHEN Erwartung bricht: stehen lassen und im
     Bericht melden, nichts umschreiben.
 13. **Keine AI-Attribution** irgendwo (Code, Kommentare, Commits).
+
+## Planungsflächen
+
+Betreuungsplan, Dienstplan, Vertretung und Kalender haben keinen zweiten
+Kopf: `PlanningContextBar` ist keine Karte mehr, sondern das Bedienband IN
+der Kopfkarte (`TenantPage` Slot `searchSlot`) — dieselbe Stelle, an der eine
+Liste ihre Suche trägt. Der Ansichtsumschalter darin ist ein
+`SegmentedControl`, die Kontextzeile (Wochenleiste, Zeitraum, Lücken) bleibt
+die zweite Zeile des Bandes.
 
 ## Wenn der Kopf in einer View-Komponente steckt
 

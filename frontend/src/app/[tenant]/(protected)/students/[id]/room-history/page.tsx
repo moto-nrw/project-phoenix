@@ -22,7 +22,7 @@ import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -212,20 +212,81 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
       {/* Anwesenheit */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6">
-          <ConceptSectionHeader
-            className="mb-3"
-            title="Anwesenheit"
-            concept="present"
-            subtitle="Tägliche Aufenthaltsdauer in Stunden"
-          />
+      <SectionCard
+        title="Anwesenheit"
+        description="Tägliche Aufenthaltsdauer in Stunden"
+        leading={
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+            <MotoConceptIcon concept="present" size={20} />
+          </span>
+        }
+      >
+        <ChartContainer
+          config={durationChartConfig}
+          className="h-[180px] w-full sm:h-[200px]"
+        >
+          <BarChart
+            data={chartData}
+            margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
+            barCategoryGap="20%"
+          >
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              fontSize={11}
+              interval={0}
+              tick={renderDurationTick}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              fontSize={12}
+              tickFormatter={(v: number) => `${v}h`}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(label) => `Tag: ${label}`}
+                  formatter={renderDurationTooltipValue}
+                />
+              }
+            />
+            <Bar
+              dataKey="duration"
+              fill="var(--color-duration)"
+              radius={[6, 6, 6, 6]}
+            />
+          </BarChart>
+        </ChartContainer>
+      </SectionCard>
+
+      {/* Aktivität (Raumwechsel) */}
+      <SectionCard
+        title="Aktivität"
+        description="Raumwechsel pro Tag"
+        leading={
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+            <MotoConceptIcon concept="rooms" size={20} />
+          </span>
+        }
+      >
+        {activityChartData.length === 0 ? (
+          <div className="flex h-[180px] items-center justify-center sm:h-[200px]">
+            <p className="text-sm text-gray-400">
+              Keine Raumdetails verfügbar (Aufbewahrungsfrist überschritten).
+            </p>
+          </div>
+        ) : (
           <ChartContainer
-            config={durationChartConfig}
+            config={activityChartConfig}
             className="h-[180px] w-full sm:h-[200px]"
           >
             <BarChart
-              data={chartData}
+              data={activityChartData}
               margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
               barCategoryGap="20%"
             >
@@ -237,93 +298,32 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                 tickMargin={8}
                 fontSize={11}
                 interval={0}
-                tick={renderDurationTick}
+                tick={renderActivityTick}
               />
               <YAxis
                 tickLine={false}
                 axisLine={false}
                 tickMargin={4}
                 fontSize={12}
-                tickFormatter={(v: number) => `${v}h`}
+                allowDecimals={false}
               />
               <ChartTooltip
                 content={
                   <ChartTooltipContent
                     labelFormatter={(label) => `Tag: ${label}`}
-                    formatter={renderDurationTooltipValue}
+                    formatter={renderActivityTooltipValue}
                   />
                 }
               />
               <Bar
-                dataKey="duration"
-                fill="var(--color-duration)"
+                dataKey="visits"
+                fill="var(--color-visits)"
                 radius={[6, 6, 6, 6]}
               />
             </BarChart>
           </ChartContainer>
-        </div>
-      </div>
-
-      {/* Aktivität (Raumwechsel) */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6">
-          <ConceptSectionHeader
-            className="mb-3"
-            title="Aktivität"
-            concept="rooms"
-            subtitle="Raumwechsel pro Tag"
-          />
-          {activityChartData.length === 0 ? (
-            <div className="flex h-[180px] items-center justify-center sm:h-[200px]">
-              <p className="text-sm text-gray-400">
-                Keine Raumdetails verfügbar (Aufbewahrungsfrist überschritten).
-              </p>
-            </div>
-          ) : (
-            <ChartContainer
-              config={activityChartConfig}
-              className="h-[180px] w-full sm:h-[200px]"
-            >
-              <BarChart
-                data={activityChartData}
-                margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
-                barCategoryGap="20%"
-              >
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  fontSize={11}
-                  interval={0}
-                  tick={renderActivityTick}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={4}
-                  fontSize={12}
-                  allowDecimals={false}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      labelFormatter={(label) => `Tag: ${label}`}
-                      formatter={renderActivityTooltipValue}
-                    />
-                  }
-                />
-                <Bar
-                  dataKey="visits"
-                  fill="var(--color-visits)"
-                  radius={[6, 6, 6, 6]}
-                />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </div>
-      </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

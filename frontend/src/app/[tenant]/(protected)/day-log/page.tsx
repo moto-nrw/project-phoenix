@@ -19,6 +19,7 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   DAY_LOG_STATUS_COLORS,
@@ -488,7 +489,7 @@ export default function DayLogPage() {
     >
       {/* Inhaltskarte ohne eigenen Kopf: Titel, Datum und Exporte trägt die
           Kopfkarte darüber, hier stehen nur Zahlen und Gruppen. */}
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <SectionCard>
         {exportError && (
           <div className="mb-4">
             <Alert type="error" message={exportError} />
@@ -528,7 +529,7 @@ export default function DayLogPage() {
             )}
           </>
         )}
-      </section>
+      </SectionCard>
 
       <Modal
         isOpen={openGroup !== null}

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -849,29 +850,19 @@ function StaffPageContent() {
 
                     const canNavigateToStaff =
                       userIsAdmin || canAccessDocuments;
-                    const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
                     const navigateToStaff = () =>
                       router.push(
                         `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
                       );
 
                     return (
-                      <div
+                      <TileCard
                         key={staffMember.id}
-                        {...(canNavigateToStaff
-                          ? {
-                              role: "button" as const,
-                              tabIndex: 0,
-                              onClick: navigateToStaff,
-                              onKeyDown: (e: React.KeyboardEvent) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  navigateToStaff();
-                                }
-                              },
-                            }
-                          : {})}
-                        className={cardClassName}
+                        padding="none"
+                        containsControls
+                        onClick={
+                          canNavigateToStaff ? navigateToStaff : undefined
+                        }
                       >
                         <div className="relative p-4">
                           <div className="relative flex min-h-[104px] flex-col">
@@ -977,7 +968,7 @@ function StaffPageContent() {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </TileCard>
                     );
                   })}
                 </div>

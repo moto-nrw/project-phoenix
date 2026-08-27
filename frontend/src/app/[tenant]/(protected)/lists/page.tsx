@@ -2106,12 +2106,8 @@ export default function SlotListsPage() {
         </div>
       }
     >
-      {/* Selection: source + date + data mode */}
-      <section
-        aria-label="Listenauswahl"
-        className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
-      >
-        <h2 className="mb-3 text-base font-semibold text-gray-900">Quelle</h2>
+      {/* Auswahl: Quelle, Datum, Datenbasis */}
+      <SectionCard title="Quelle" bodyClassName="mt-3">
         <div className="grid auto-rows-fr grid-cols-2 gap-2.5 lg:grid-cols-3">
           {SELECTION_OPTIONS.map((option) => {
             const Icon = option.icon;
@@ -2349,7 +2345,7 @@ export default function SlotListsPage() {
             </p>
           ) : null}
         </div>
-      </section>
+      </SectionCard>
 
       {error ? <Alert type="error" message={error} /> : null}
 

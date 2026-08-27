@@ -43,7 +43,12 @@ export function SectionCard({
   id,
 }: Readonly<{
   kicker?: string;
-  title: string;
+  /**
+   * Ohne Titel rendert die Karte keinen Kopf und ist die reine Inhaltsfläche
+   * einer Seite. Genau dafür haben Seiten sich vorher `<section
+   * className="moto-content-surface …">` selbst gebaut.
+   */
+  title?: string;
   description?: ReactNode;
   icon?: LucideIcon;
   /** Existing icon tile or other leading visual for non-Lucide icon systems. */
@@ -69,70 +74,88 @@ export function SectionCard({
   const headerActions = actions ?? action;
   const hasBody = children != null && children !== false && children !== "";
   const showBody = hasBody && !(collapsible && collapsed);
+  const hasHeader =
+    title != null ||
+    kicker != null ||
+    description != null ||
+    leading != null ||
+    Icon != null ||
+    headerActions != null ||
+    collapsible;
 
   return (
     <section
       id={id}
       className={`moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className}`}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 gap-3">
-          {leading ??
-            (Icon && (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
-                <Icon className="h-5 w-5" aria-hidden="true" />
-              </span>
-            ))}
-          <div className="min-w-0">
-            {kicker && (
-              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                {kicker}
-              </p>
-            )}
-            <Heading
-              className={cn(
-                "text-base font-semibold text-balance text-gray-900",
-                kicker && "mt-1",
-                titleClassName,
+      {hasHeader && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 gap-3">
+            {leading ??
+              (Icon && (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+              ))}
+            <div className="min-w-0">
+              {kicker && (
+                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                  {kicker}
+                </p>
               )}
-            >
-              {title}
-            </Heading>
-            {description && (
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-                {description}
-              </p>
-            )}
+              {title != null && (
+                <Heading
+                  className={cn(
+                    "text-base font-semibold text-balance text-gray-900",
+                    kicker && "mt-1",
+                    titleClassName,
+                  )}
+                >
+                  {title}
+                </Heading>
+              )}
+              {description && (
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+                  {description}
+                </p>
+              )}
+            </div>
           </div>
+          {(headerActions != null || collapsible) && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {headerActions}
+              {collapsible && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={
+                    collapsed
+                      ? `${title ?? "Abschnitt"} ausklappen`
+                      : `${title ?? "Abschnitt"} einklappen`
+                  }
+                  aria-expanded={!collapsed}
+                  onClick={() => {
+                    const next = !collapsed;
+                    setCollapsed(next);
+                    onCollapsedChange?.(next);
+                  }}
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+                    aria-hidden="true"
+                  />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-        {(headerActions != null || collapsible) && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {headerActions}
-            {collapsible && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={
-                  collapsed ? `${title} ausklappen` : `${title} einklappen`
-                }
-                aria-expanded={!collapsed}
-                onClick={() => {
-                  const next = !collapsed;
-                  setCollapsed(next);
-                  onCollapsedChange?.(next);
-                }}
-              >
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-                  aria-hidden="true"
-                />
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-      {showBody && <div className={bodyClassName ?? "mt-4"}>{children}</div>}
+      )}
+      {showBody && (
+        <div className={hasHeader ? (bodyClassName ?? "mt-4") : undefined}>
+          {children}
+        </div>
+      )}
     </section>
   );
 }
