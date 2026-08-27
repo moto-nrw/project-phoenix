@@ -24,6 +24,7 @@ import {
   canPromptInstall,
   isAndroidDevice,
   isInstallationCompleted,
+  isSamsungInternet,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
@@ -89,6 +90,7 @@ export function PushNotificationSection({
     if (
       portal === "parent" &&
       isAndroidDevice(window.navigator) &&
+      !isSamsungInternet(window.navigator) &&
       !isStandaloneApp() &&
       !installationCompleted &&
       !installAccepted
