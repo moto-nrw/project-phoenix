@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
 import { schoolStaffMessagesApi } from "~/lib/school-staff-messages-api";
 import { SCHOOL_MESSAGES_ROUTE } from "~/lib/school-team-chat-links";
@@ -17,11 +18,16 @@ export { SCHOOL_MESSAGES_ROUTE };
  */
 export function useSchoolTeamChatPortal(): TeamChatPortal {
   const router = useRouter();
+  const { data: session } = useSession();
+  // Team-Chat uses useSWR directly (rather than the tenant-aware wrapper), so
+  // its scope must carry the authenticated school session itself. Otherwise a
+  // logout followed by a login at another school could render cached threads.
+  const cacheScope = `school:${session?.user.tenantId ?? "pending"}:${session?.user.id ?? "pending"}`;
   return useMemo(
     () => ({
       kind: "school",
       api: schoolStaffMessagesApi,
-      cacheScope: "school",
+      cacheScope,
       inboxHref: SCHOOL_MESSAGES_ROUTE,
       threadHref: (threadId) => `${SCHOOL_MESSAGES_ROUTE}/${threadId}`,
       navigate: (href) => router.push(schoolPath(href)),
@@ -32,6 +38,6 @@ export function useSchoolTeamChatPortal(): TeamChatPortal {
       recipientHint:
         "Sie schreiben an Personen der OGS Ihrer Schule. Die Nachricht kommt in deren Team-Chat an.",
     }),
-    [router],
+    [router, cacheScope],
   );
 }

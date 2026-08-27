@@ -365,6 +365,16 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.False(t, hasSubscriptionEndpoint(subs, endpoint))
 	})
 
+	t.Run("school endpoint deletion preserves a staff subscription", func(t *testing.T) {
+		staffEndpoint := endpoint + "/staff-kept"
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, staffEndpoint)))
+
+		require.NoError(t, repo.DeleteSchoolByEndpoint(ctx, account.ID, staffEndpoint))
+		subs, err := repo.FindForTenantStaff(ctx)
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(subs, staffEndpoint))
+	})
+
 	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {
 		raceEndpoint := endpoint + "/refresh-race"
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, raceEndpoint)))

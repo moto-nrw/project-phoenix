@@ -29,8 +29,9 @@ type captureService struct {
 
 type pushSubscriptionServiceStub struct {
 	notificationsService.PushSubscriptionService
-	subscribeErr   error
-	unsubscribeErr error
+	subscribeErr       error
+	unsubscribeErr     error
+	unsubscribedPortal *string
 }
 
 func (s pushSubscriptionServiceStub) Subscribe(context.Context, int64, notificationsService.PushSubscriptionInput) error {
@@ -38,6 +39,16 @@ func (s pushSubscriptionServiceStub) Subscribe(context.Context, int64, notificat
 }
 
 func (s pushSubscriptionServiceStub) Unsubscribe(context.Context, int64, string) error {
+	if s.unsubscribedPortal != nil {
+		*s.unsubscribedPortal = notificationsService.PortalStaff
+	}
+	return s.unsubscribeErr
+}
+
+func (s pushSubscriptionServiceStub) UnsubscribeSchool(context.Context, int64, string) error {
+	if s.unsubscribedPortal != nil {
+		*s.unsubscribedPortal = notificationsService.PortalSchool
+	}
 	return s.unsubscribeErr
 }
 
@@ -229,4 +240,25 @@ func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Contains(t, rec.Body.String(), "Push-Registrierung konnte nicht entfernt werden.")
 	assert.NotContains(t, rec.Body.String(), "internal detail")
+}
+
+func TestUnsubscribePushUsesSchoolPortalSubscription(t *testing.T) {
+	t.Parallel()
+
+	portal := ""
+	rs := &Resource{PushService: pushSubscriptionServiceStub{unsubscribedPortal: &portal}}
+	req := httptest.NewRequest(
+		http.MethodDelete,
+		"/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
+		nil,
+	)
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42})
+	ctx = context.WithValue(ctx, portalCtxKey{}, notificationsService.PortalSchool)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	rs.unsubscribePush(rec, req)
+
+	assert.Equal(t, http.StatusNoContent, rec.Code)
+	assert.Equal(t, notificationsService.PortalSchool, portal)
 }

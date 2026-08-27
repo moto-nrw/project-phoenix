@@ -67,6 +67,9 @@ export function TeamChatThread({
     () => api.fetchThread(threadID),
     {
       revalidateOnFocus: false,
+      // A changed scope belongs to another authenticated school session. Do
+      // not retain the preceding session's conversation during its request.
+      keepPreviousData: false,
       // "Die Schule hat den Chat ausgeschaltet" ist kein transienter Fehler:
       // SWR wuerde ihn sonst mit Backoff endlos wiederholen, und weil
       // isLoading als (!data && isValidating) definiert ist, bliebe die Seite

@@ -86,7 +86,13 @@ func (rs *Resource) unsubscribePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	if err := rs.PushService.Unsubscribe(r.Context(), int64(claims.ID), endpoint); err != nil {
+	var err error
+	if requestPortal(r) == notificationsService.PortalSchool {
+		err = rs.PushService.UnsubscribeSchool(r.Context(), int64(claims.ID), endpoint)
+	} else {
+		err = rs.PushService.Unsubscribe(r.Context(), int64(claims.ID), endpoint)
+	}
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("Push-Registrierung konnte nicht entfernt werden.", err))
 		return
 	}

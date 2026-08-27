@@ -50,7 +50,9 @@ export function TeamChatInbox({ portal }: { readonly portal: TeamChatPortal }) {
     () => api.fetchInbox({ onlyUnread }),
     {
       revalidateOnFocus: false,
-      keepPreviousData: true,
+      // A different cache scope means a different authenticated school
+      // session. Never render its predecessor's conversations while loading.
+      keepPreviousData: false,
       // "Ausgeschaltet" ist kein transienter Fehler; SWR soll ihn nicht mit
       // Backoff wiederholen.
       shouldRetryOnError: (err: unknown) => !isStaffMessagingDisabled(err),

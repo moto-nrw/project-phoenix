@@ -46,6 +46,9 @@ type PushSubscriptionService interface {
 	SubscribeSchool(ctx context.Context, accountID int64, input PushSubscriptionInput) error
 	// Unsubscribe removes a staff device registration for the current tenant.
 	Unsubscribe(ctx context.Context, accountID int64, endpoint string) error
+	// UnsubscribeSchool removes only a school-portal device registration for
+	// the current tenant.
+	UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error
 	// SubscribeParent registers a guardian device for every school the account
 	// is actively linked to. Pending-enrollment-only schools are excluded until
 	// the account has an active guardian mapping there. Rebinding replaces every
@@ -121,6 +124,10 @@ func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID
 
 func (s *pushSubscriptionService) Unsubscribe(ctx context.Context, accountID int64, endpoint string) error {
 	return s.repo.DeleteByEndpoint(ctx, accountID, endpoint)
+}
+
+func (s *pushSubscriptionService) UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error {
+	return s.repo.DeleteSchoolByEndpoint(ctx, accountID, endpoint)
 }
 
 func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID int64, input PushSubscriptionInput) error {

@@ -106,6 +106,25 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accou
 	return nil
 }
 
+// DeleteSchoolByEndpoint removes the caller's school-portal subscription for
+// the current tenant without affecting a tenant-portal registration that uses
+// the same browser endpoint.
+func (r *PushSubscriptionRepository) DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	query := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*iot.PushSubscription)(nil)).
+		ModelTableExpr(tablePushSubscriptions).
+		Where("account_id = ?", accountID).
+		Where("endpoint = ?", endpoint).
+		Where("portal = ?", iot.PushPortalSchool)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete school push subscription", Err: err}
+	}
+	return nil
+}
+
 // DeleteExpiredIfUnchanged removes an expired subscription only while it still
 // matches the snapshot sent to the push service. A concurrent refresh or
 // account rebind changes at least one predicate and preserves the current row.
