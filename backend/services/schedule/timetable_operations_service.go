@@ -63,6 +63,10 @@ type OperationArrivalService interface {
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 }
 
+type OperationPickupService interface {
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error)
+}
+
 type TimetableOperationsService interface {
 	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
 	// ActiveSessions lists the given day's running instances with their plan
@@ -114,6 +118,7 @@ type TimetableOperationsDependencies struct {
 	ActivityGroupRepo  activitiesModel.GroupRepository
 	ActiveService      OperationActiveService
 	ArrivalService     OperationArrivalService
+	PickupService      OperationPickupService
 	CareDayService     CareDayService
 	SupervisorRepo     activeModel.GroupSupervisorRepository
 	VisitRepo          activeModel.VisitRepository
@@ -154,6 +159,7 @@ type OperationPlannedInstance struct {
 	IsSubstitute      bool                      `json:"is_substitute"`
 	IsAbsent          bool                      `json:"is_absent"`
 	RosterPreview     []OperationRosterRow      `json:"roster_preview,omitempty"`
+	PickupTimesLoaded bool                      `json:"pickup_times_loaded"`
 	Warnings          []InstanceConflictWarning `json:"warnings"`
 	CanStart          bool                      `json:"can_start"`
 	StartAvailableAt  string                    `json:"start_available_at"`
@@ -172,8 +178,9 @@ type OperationActiveSession struct {
 }
 
 type OperationRoster struct {
-	Instance OperationRosterInstance `json:"instance"`
-	Rows     []OperationRosterRow    `json:"rows"`
+	Instance          OperationRosterInstance `json:"instance"`
+	Rows              []OperationRosterRow    `json:"rows"`
+	PickupTimesLoaded bool                    `json:"pickup_times_loaded"`
 	// MovedFrom is set only on check-in responses that auto-moved the child
 	// out of another running session (#2386). It carries the origin's display
 	// name; an empty string means the move happened but no name resolved.
@@ -210,6 +217,7 @@ type OperationRosterRow struct {
 	CheckedInAt      *string                  `json:"checked_in_at,omitempty"`
 	CheckedOutAt     *string                  `json:"checked_out_at,omitempty"`
 	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
+	PickupTime       *string                  `json:"pickup_time"`
 	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
 	// ParallelPresentIn names the other running instance where this child is
 	// currently recorded present (#2265). Set only on rosters of active
@@ -251,7 +259,7 @@ type timetableOperationsService struct {
 func NewTimetableOperationsService(deps TimetableOperationsDependencies) TimetableOperationsService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActivityGroupRepo == nil ||
-		deps.ActiveService == nil || deps.ArrivalService == nil || deps.CareDayService == nil || deps.SupervisorRepo == nil ||
+		deps.ActiveService == nil || deps.ArrivalService == nil || deps.PickupService == nil || deps.CareDayService == nil || deps.SupervisorRepo == nil ||
 		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.Settings == nil || deps.DB == nil {
 		panic("schedule.NewTimetableOperationsService: required dependency is nil")
 	}
@@ -360,6 +368,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 				return nil, err
 			}
 			mapped.RosterPreview = roster.Rows
+			mapped.PickupTimesLoaded = roster.PickupTimesLoaded
 		}
 		out = append(out, mapped)
 	}
@@ -942,6 +951,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			return nil, err
 		}
 	}
+	pickupTimes, pickupTimesLoaded := s.rosterPickupTimes(ctx, inst, studentIDs)
 	parallelPresence, err := s.parallelPresenceByStudent(ctx, inst, studentIDs)
 	if err != nil {
 		return nil, err
@@ -952,6 +962,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			continue
 		}
 		row := s.mapRosterRow(inst, planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay)
+		row.PickupTime = formatRosterPickupTime(pickupTimes[planned.StudentID])
 		row.ParallelPresentIn = parallelPresence[planned.StudentID]
 		rows = append(rows, row)
 	}
@@ -963,6 +974,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			continue
 		}
 		row := s.mapRosterRow(inst, visit.StudentID, nil, visit, students, persons, groups, nil, careDay)
+		row.PickupTime = formatRosterPickupTime(pickupTimes[visit.StudentID])
 		row.ParallelPresentIn = parallelPresence[visit.StudentID]
 		rows = append(rows, row)
 	}
@@ -1008,8 +1020,38 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			CanComplete:         availability.CanComplete,
 			CompleteAvailableAt: availability.CompleteAvailableAt.Format(time.RFC3339),
 		},
-		Rows: rows,
+		Rows:              rows,
+		PickupTimesLoaded: pickupTimesLoaded,
 	}, nil
+}
+
+func (s *timetableOperationsService) rosterPickupTimes(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+	studentIDs []int64,
+) (map[int64]*EffectivePickupTime, bool) {
+	if len(studentIDs) == 0 {
+		return map[int64]*EffectivePickupTime{}, true
+	}
+	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, inst.Date)
+	if err != nil {
+		s.logger().WarnContext(
+			ctx,
+			"could not load pickup times for timetable roster",
+			slog.String("error", err.Error()),
+			slog.Int64("instance_id", inst.ID),
+		)
+		return map[int64]*EffectivePickupTime{}, false
+	}
+	return pickups, true
+}
+
+func formatRosterPickupTime(effective *EffectivePickupTime) *string {
+	if effective == nil || effective.PickupTime == nil {
+		return nil
+	}
+	formatted := effective.PickupTime.Format("15:04")
+	return &formatted
 }
 
 // ActiveSessions implements TimetableOperationsService. Purely descriptive

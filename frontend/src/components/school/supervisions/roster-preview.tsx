@@ -8,7 +8,9 @@
 // unmöglich. Rein zum Lesen: gebucht wird erst, wenn die Aufsicht läuft.
 
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { Alert } from "~/components/ui/alert";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 
@@ -26,13 +28,19 @@ function childLine(row: TimetableRosterRow): string {
 
 function ChildRow({
   row,
+  pickupTimesLoaded,
   onOpen,
 }: Readonly<{
   row: TimetableRosterRow;
+  pickupTimesLoaded?: boolean;
   onOpen: (row: TimetableRosterRow) => void;
 }>) {
   const absence = row.substatus ? ABSENCE_LABELS[row.substatus] : null;
   const detail = childLine(row);
+  const pickupTimeLabel = rosterPickupTimeLabel(
+    row.pickupTime,
+    pickupTimesLoaded,
+  );
 
   return (
     <li>
@@ -50,6 +58,11 @@ function ChildRow({
               {detail}
             </span>
           ) : null}
+          {pickupTimeLabel === null ? null : (
+            <span className="mt-0.5 block text-xs font-medium text-gray-700">
+              Gehzeit: {pickupTimeLabel}
+            </span>
+          )}
         </span>
         {absence ? (
           <StatusDotBadge label={absence} color={LOCATION_COLORS.EXCUSED} />
@@ -63,11 +76,13 @@ function Section({
   title,
   rows,
   hint,
+  pickupTimesLoaded,
   onOpen,
 }: Readonly<{
   title: string;
   rows: TimetableRosterRow[];
   hint?: string;
+  pickupTimesLoaded?: boolean;
   onOpen: (row: TimetableRosterRow) => void;
 }>) {
   if (rows.length === 0) return null;
@@ -81,7 +96,12 @@ function Section({
       </div>
       <ul>
         {rows.map((row) => (
-          <ChildRow key={row.studentId} row={row} onOpen={onOpen} />
+          <ChildRow
+            key={row.studentId}
+            row={row}
+            pickupTimesLoaded={pickupTimesLoaded}
+            onOpen={onOpen}
+          />
         ))}
       </ul>
     </section>
@@ -96,9 +116,11 @@ function Section({
  */
 export function SupervisionRosterPreview({
   rows,
+  pickupTimesLoaded,
   onOpenStudent,
 }: Readonly<{
   rows: readonly TimetableRosterRow[];
+  pickupTimesLoaded?: boolean;
   onOpenStudent: (row: TimetableRosterRow) => void;
 }>) {
   const expected = rows.filter(
@@ -112,16 +134,25 @@ export function SupervisionRosterPreview({
 
   return (
     <div className="space-y-4">
+      {pickupTimesLoaded === false ? (
+        <Alert
+          type="warning"
+          announce="polite"
+          message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+        />
+      ) : null}
       <Section
         title="Diese Kinder werden erwartet"
         hint="Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht, wer es abholen darf und wen Sie im Notfall anrufen."
         rows={expected}
+        pickupTimesLoaded={pickupTimesLoaded}
         onOpen={onOpenStudent}
       />
       <Section
         title="Heute nicht eingeplant"
         hint="Diese Kinder sind heute nicht für die Betreuung gebucht. Kommen sie trotzdem, können Sie sie nach dem Start eintragen."
         rows={notScheduled}
+        pickupTimesLoaded={pickupTimesLoaded}
         onOpen={onOpenStudent}
       />
     </div>

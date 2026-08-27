@@ -81,6 +81,7 @@ interface WirePlannedInstance {
   can_start?: boolean;
   start_available_at?: string;
   start_expires_at?: string;
+  pickup_times_loaded?: boolean;
   roster_preview?: WireRosterRow[];
 }
 
@@ -98,6 +99,7 @@ interface WireRosterRow {
   note?: string | null;
   checked_in_at?: string | null;
   visit_entry_time?: string | null;
+  pickup_time?: string | null;
   warnings?: WireRosterWarning[];
   care_day_status?: CareDayStatus;
 }
@@ -257,6 +259,7 @@ interface ActiveSupervisionDashboardResponse {
     canStart: boolean;
     startAvailableAt: string;
     startExpiresAt: string;
+    pickupTimesLoaded?: boolean;
     rosterPreview: Array<{
       studentId: string;
       studentName: string;
@@ -271,6 +274,7 @@ interface ActiveSupervisionDashboardResponse {
       note: string | null;
       checkedInAt: string | null;
       visitEntryTime: string | null;
+      pickupTime?: string | null;
     }>;
   }>;
   // Folded-in sections of the selected session (#2096) — replace the former
@@ -394,6 +398,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       canStart: i.can_start ?? false,
       startAvailableAt: i.start_available_at ?? "",
       startExpiresAt: i.start_expires_at ?? "",
+      pickupTimesLoaded: i.pickup_times_loaded,
       rosterPreview: (i.roster_preview ?? []).map((row) => ({
         studentId: row.student_id.toString(),
         studentName: row.student_name,
@@ -408,6 +413,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         note: row.note ?? null,
         checkedInAt: row.checked_in_at ?? null,
         visitEntryTime: row.visit_entry_time ?? null,
+        pickupTime: row.pickup_time,
         careDayStatus: row.care_day_status ?? "unknown",
         warnings: (row.warnings ?? []).map((warning) => ({
           kind: warning.kind,

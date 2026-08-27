@@ -976,6 +976,12 @@ func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context,
 	return nil, nil
 }
 
+type stubOpPickupService struct{}
+
+func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*scheduleSvc.EffectivePickupTime, error) {
+	return nil, nil
+}
+
 // stubOpCareDayService reports no care-plan verdicts, i.e. "unknown" for every
 // child — the rosters and counts below therefore behave exactly as they did
 // before the care-day derivation (#1747) existed.
@@ -1002,6 +1008,7 @@ func newRealSpontaneousOpsService(db *bun.DB, instanceSvc scheduleSvc.InstanceSe
 		ActivityGroupRepo:  &fakeOperationActivityGroupRepo{},
 		ActiveService:      stubOpActiveService{},
 		ArrivalService:     stubOpArrivalService{},
+		PickupService:      stubOpPickupService{},
 		CareDayService:     stubOpCareDayService{},
 		SupervisorRepo:     stubOpSupervisorRepo{},
 		VisitRepo:          stubOpVisitRepo{},

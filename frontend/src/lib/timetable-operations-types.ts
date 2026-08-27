@@ -25,6 +25,7 @@ export interface PlannedTimetableInstance {
   isSubstitute: boolean;
   isAbsent: boolean;
   rosterPreview: TimetableRosterRow[];
+  pickupTimesLoaded?: boolean;
   canStart?: boolean;
   startAvailableAt?: string;
   startExpiresAt?: string;
@@ -60,6 +61,8 @@ export interface TimetableRosterRow {
   checkedInAt: string | null;
   checkedOutAt?: string | null;
   visitEntryTime: string | null;
+  /** Effective pickup time for the roster's block date. */
+  pickupTime?: string | null;
   warnings: TimetableRosterWarning[];
   /**
    * Care-plan verdict for this child on the instance's date (#1747).
@@ -102,6 +105,8 @@ interface TimetableRosterWarning {
 export interface TimetableRoster {
   instance: TimetableRosterInstance;
   rows: TimetableRosterRow[];
+  /** False only when the bulk pickup lookup failed. */
+  pickupTimesLoaded?: boolean;
   /**
    * Set only on check-in responses that auto-moved the child out of another
    * running session (#2386). Carries the origin's display name; an empty
@@ -144,6 +149,7 @@ interface BackendPlannedTimetableInstance {
   is_substitute?: boolean;
   is_absent?: boolean;
   roster_preview?: BackendRosterRow[];
+  pickup_times_loaded?: boolean;
   can_start?: boolean;
   start_available_at?: string;
   start_expires_at?: string;
@@ -179,6 +185,7 @@ interface BackendRosterRow {
   checked_in_at?: string | null;
   checked_out_at?: string | null;
   visit_entry_time?: string | null;
+  pickup_time?: string | null;
   warnings?: BackendRosterWarning[];
   care_day_status?: TimetableRosterRow["careDayStatus"];
   parallel_present_in?: {
@@ -202,6 +209,7 @@ interface BackendRosterWarning {
 export interface BackendTimetableRoster {
   instance: BackendRosterInstance;
   rows: BackendRosterRow[];
+  pickup_times_loaded?: boolean;
   moved_from?: string | null;
 }
 
@@ -234,6 +242,9 @@ export function mapPlannedInstance(
     isSubstitute: raw.is_substitute ?? false,
     isAbsent: raw.is_absent ?? false,
     rosterPreview: (raw.roster_preview ?? []).map(mapRosterRow),
+    ...(raw.pickup_times_loaded === undefined
+      ? {}
+      : { pickupTimesLoaded: raw.pickup_times_loaded }),
     canStart: raw.can_start ?? false,
     startAvailableAt: raw.start_available_at ?? "",
     startExpiresAt: raw.start_expires_at ?? "",
@@ -256,6 +267,9 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
     checkedInAt: row.checked_in_at ?? null,
     checkedOutAt: row.checked_out_at ?? null,
     visitEntryTime: row.visit_entry_time ?? null,
+    ...(row.pickup_time === undefined
+      ? {}
+      : { pickupTime: row.pickup_time ?? null }),
     careDayStatus: row.care_day_status ?? "unknown",
     parallelPresentIn: row.parallel_present_in
       ? {
@@ -295,6 +309,9 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       completeAvailableAt: raw.instance.complete_available_at ?? "",
     },
     rows: raw.rows.map(mapRosterRow),
+    ...(raw.pickup_times_loaded === undefined
+      ? {}
+      : { pickupTimesLoaded: raw.pickup_times_loaded }),
     movedFrom: raw.moved_from ?? null,
   };
 }

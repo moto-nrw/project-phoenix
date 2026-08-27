@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -10,6 +11,7 @@ import {
   markOwnAttendanceMutation,
 } from "~/lib/sse-optimistic-mutations";
 import { useMinuteClock } from "~/lib/pickup-helpers";
+import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -212,6 +214,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
 interface TimetableRosterRowProps {
   readonly attendanceWebEnabled: boolean;
   readonly instanceIsSpontaneous: boolean;
+  readonly pickupTimesLoaded?: boolean;
   readonly row: TimetableRosterRow;
   readonly onAction: RosterRowActionsProps["onAction"];
   /**
@@ -225,10 +228,15 @@ interface TimetableRosterRowProps {
 function TimetableRosterStudentRow({
   attendanceWebEnabled,
   instanceIsSpontaneous,
+  pickupTimesLoaded,
   row,
   onAction,
   onOpenStudent,
 }: TimetableRosterRowProps) {
+  const pickupTimeLabel = rosterPickupTimeLabel(
+    row.pickupTime,
+    pickupTimesLoaded,
+  );
   const attendanceDetail = [
     row.substatus ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus] : null,
     row.note,
@@ -237,8 +245,8 @@ function TimetableRosterStudentRow({
     .join(" · ");
 
   return (
-    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1">
         {onOpenStudent ? (
           <button
             type="button"
@@ -255,6 +263,11 @@ function TimetableRosterStudentRow({
         <div className="mt-1 text-sm text-gray-500">
           {rosterStudentMeta(row, instanceIsSpontaneous)}
         </div>
+        {pickupTimeLabel === null ? null : (
+          <div className="mt-1 text-sm font-medium text-gray-700">
+            Gehzeit: {pickupTimeLabel}
+          </div>
+        )}
         {attendanceDetail ? (
           <div className="text-moto-amber-strong mt-1 text-sm">
             {attendanceDetail}
@@ -276,6 +289,7 @@ function TimetableRosterStudentRow({
 interface TimetableRosterSectionProps {
   readonly attendanceWebEnabled: boolean;
   readonly instanceIsSpontaneous: boolean;
+  readonly pickupTimesLoaded?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly rows: TimetableRosterRow[];
@@ -286,6 +300,7 @@ interface TimetableRosterSectionProps {
 function TimetableRosterSection({
   attendanceWebEnabled,
   instanceIsSpontaneous,
+  pickupTimesLoaded,
   onAction,
   onOpenStudent,
   rows,
@@ -306,6 +321,7 @@ function TimetableRosterSection({
           key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
           attendanceWebEnabled={attendanceWebEnabled}
           instanceIsSpontaneous={instanceIsSpontaneous}
+          pickupTimesLoaded={pickupTimesLoaded}
           row={row}
           onAction={onAction}
           onOpenStudent={onOpenStudent}
@@ -666,6 +682,7 @@ export function TimetableRosterContent({
   const sectionProps = {
     attendanceWebEnabled,
     instanceIsSpontaneous,
+    pickupTimesLoaded: roster.pickupTimesLoaded,
     onAction: onRosterAction,
     onOpenStudent,
     showTimetableCounts,
@@ -691,6 +708,13 @@ export function TimetableRosterContent({
         onComplete={onComplete}
         onConfirmExpected={onConfirmExpected}
       />
+      {roster.pickupTimesLoaded === false ? (
+        <Alert
+          type="warning"
+          announce="polite"
+          message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+        />
+      ) : null}
       {attendanceWebEnabled && canAddUnplanned ? (
         <AddUnplannedStudentForm
           key={roster.instance.id}

@@ -8,6 +8,58 @@ import {
 } from "./timetable-operations-types";
 
 describe("timetable operation mappers", () => {
+  it("keeps loaded pickup times distinct from a failed pickup lookup", () => {
+    const loaded = mapRoster({
+      instance: {
+        id: 119,
+        title: "Randstunde",
+        status: "planned",
+        room_id: 219,
+      },
+      pickup_times_loaded: true,
+      rows: [
+        {
+          student_id: 419,
+          student_name: "Mara Montag",
+          school_class: "1a",
+          group_name: "OGS Grün",
+          planned: true,
+          is_unplanned: false,
+          currently_present: false,
+          status: "expected",
+          pickup_time: "13:30",
+        },
+      ],
+    });
+    const failed = mapRoster({
+      instance: {
+        id: 118,
+        title: "Ganztag",
+        status: "active",
+        room_id: 218,
+      },
+      pickup_times_loaded: false,
+      rows: [
+        {
+          student_id: 418,
+          student_name: "Nora Nichtgeladen",
+          school_class: "2b",
+          group_name: "OGS Blau",
+          planned: true,
+          is_unplanned: false,
+          currently_present: false,
+          status: "expected",
+          pickup_time: null,
+        },
+      ],
+    });
+
+    expect(loaded.pickupTimesLoaded).toBe(true);
+    expect(loaded.rows[0]!.pickupTime).toBe("13:30");
+    expect(failed.pickupTimesLoaded).toBe(false);
+    expect(failed.rows[0]!.pickupTime).toBeNull();
+  });
+
   it("maps planned instances from backend snake_case into frontend camelCase", () => {
     const result = mapPlannedInstance({
       id: 120,
