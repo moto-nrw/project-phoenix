@@ -55,6 +55,8 @@ var schedulerPollingSettingKeys = []string{
 	configModel.KeyTimetableMaterializationWeeksAhead,
 	configModel.KeyTimetableEnabled,
 	configModel.KeyTimetableAutoStartPlanned,
+	configModel.KeyTimetableAutoEndEnabled,
+	configModel.KeyTimetableAutoEndGraceMinutes,
 	configModel.KeyTimetableOverdueThresholdMinutes,
 	configModel.KeyNotificationsDispatchEnabled,
 	configModel.KeyNotificationsOnDutyOnly,

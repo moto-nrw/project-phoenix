@@ -134,6 +134,7 @@ type Scheduler struct {
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
+	autoEnd                    scheduleSvc.AutoEndService
 	settings                   SettingsResolver
 	db                         *bun.DB
 	schoolRepo                 platform.SchoolRepository
@@ -368,6 +369,12 @@ func (s *Scheduler) SetAutoStartService(svc scheduleSvc.AutoStartService) {
 	s.autoStart = svc
 }
 
+// SetAutoEndService wires automatic completion of due active care-plan
+// instances. The task remains disabled when the service is absent.
+func (s *Scheduler) SetAutoEndService(svc scheduleSvc.AutoEndService) {
+	s.autoEnd = svc
+}
+
 // SetDB sets the database connection for tenant-aware operations.
 func (s *Scheduler) SetDB(db *bun.DB) {
 	s.db = db
@@ -584,6 +591,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule minute-polled automatic starts for planned instances.
 	s.scheduleAutoStartTask()
+
+	// Schedule minute-polled automatic completion for due active instances.
+	s.scheduleAutoEndTask()
 
 	// Schedule per-tenant activate-students tick (parent-enrollment PR 2)
 	s.scheduleActivateStudentsTask()
@@ -1958,6 +1968,68 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 		}
 		return nil
 	})
+}
+
+// --- Timetable auto-end tick ---
+
+func (s *Scheduler) scheduleAutoEndTask() {
+	if s.autoEnd == nil {
+		s.getLogger().Info("timetable auto-end tick not configured (missing service)")
+		return
+	}
+
+	s.registerTask("timetable-auto-end", "1m-poll", s.runAutoEndTaskPolling)
+}
+
+func (s *Scheduler) runAutoEndTaskPolling(task *ScheduledTask) {
+	s.runMinutePolling(task, "panic in timetable auto-end task",
+		"timetable auto-end tick using minute-polling",
+		s.checkAndRunAutoEnd)
+}
+
+func (s *Scheduler) checkAndRunAutoEnd(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "timetable-auto-end", func(tenantCtx context.Context, tenantID int64) error {
+		return s.runAutoEndForTenant(tenantCtx, tenantID)
+	})
+}
+
+func (s *Scheduler) runAutoEndForTenant(ctx context.Context, tenantID int64) error {
+	if !s.resolveBoolSetting(ctx, configModel.KeyTimetableEnabled, "", true) ||
+		!s.resolveBoolSetting(ctx, configModel.KeyTimetableAutoEndEnabled, "", false) {
+		return nil
+	}
+	graceMinutes := s.resolveIntSetting(ctx, configModel.KeyTimetableAutoEndGraceMinutes, "", 0)
+	result, err := s.autoEnd.RunForTenant(ctx, time.Now(), time.Duration(graceMinutes)*time.Minute)
+	if err != nil {
+		return fmt.Errorf("auto-end tenant %d: %w", tenantID, err)
+	}
+	if result.Completed > 0 || result.SkippedConcurrent > 0 {
+		s.getLogger().Info("timetable auto-end completed for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("checked", result.Checked),
+			slog.Int("completed", result.Completed),
+			slog.Int("skipped_concurrent", result.SkippedConcurrent),
+			slog.Int("grace_minutes", graceMinutes),
+			slog.Int64("duration_ms", result.DurationMS),
+		)
+	}
+	return nil
 }
 
 // --- Instance overdue tick (WP-B9) ---

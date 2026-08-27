@@ -70,6 +70,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.materialization_weekday",
 		"timetable.materialization_weeks_ahead",
 		"timetable.auto_start_planned",
+		"timetable.auto_end_enabled",
+		"timetable.auto_end_grace_minutes",
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
@@ -479,6 +481,8 @@ func TestTimetableSettings_Types(t *testing.T) {
 		{"timetable.materialization_weekday", config.FieldSelect},
 		{"timetable.materialization_weeks_ahead", config.FieldNumber},
 		{"timetable.auto_start_planned", config.FieldBoolean},
+		{"timetable.auto_end_enabled", config.FieldBoolean},
+		{"timetable.auto_end_grace_minutes", config.FieldNumber},
 		{"timetable.overdue_threshold_minutes", config.FieldNumber},
 		{"timetable.show_expected_children_count", config.FieldBoolean},
 		{"gdpr.timetable_retention_days", config.FieldNumber},
@@ -510,6 +514,19 @@ func TestTimetableSettings_Defaults(t *testing.T) {
 	require.NotNil(t, autoStartDef)
 	assert.Equal(t, false, autoStartDef.Default, "auto-start must default to false")
 
+	autoEndDef := config.GetDefinition("timetable.auto_end_enabled")
+	require.NotNil(t, autoEndDef)
+	assert.Equal(t, false, autoEndDef.Default, "auto-end must default to false")
+
+	graceDef := config.GetDefinition("timetable.auto_end_grace_minutes")
+	require.NotNil(t, graceDef)
+	assert.Equal(t, 0, graceDef.Default, "auto-end grace must default to zero minutes")
+	require.NotNil(t, graceDef.Validation)
+	require.NotNil(t, graceDef.Validation.Min)
+	assert.Equal(t, float64(0), *graceDef.Validation.Min)
+	require.NotNil(t, graceDef.Validation.Max)
+	assert.GreaterOrEqual(t, *graceDef.Validation.Max, float64(15))
+
 	// Weekday defaults to Friday (ISO 8601: 5) so the RFC's recommended
 	// "materialize Fri → next week ready Mon" cadence holds out of the box.
 	weekdayDef := config.GetDefinition("timetable.materialization_weekday")
@@ -532,12 +549,20 @@ func TestTimetableSettings_DependsOn(t *testing.T) {
 	topLevelGatedKeys := []string{
 		"timetable.materialization_enabled",
 		"timetable.auto_start_planned",
+		"timetable.auto_end_enabled",
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 		"gdpr.timetable_retention_days",
 		"timetable.day_start_time",
 		"timetable.day_end_time",
 	}
+
+	graceDef := config.GetDefinition("timetable.auto_end_grace_minutes")
+	require.NotNil(t, graceDef)
+	require.NotNil(t, graceDef.DependsOn)
+	assert.Equal(t, "timetable.auto_end_enabled", graceDef.DependsOn.Key)
+	assert.Equal(t, "eq", graceDef.DependsOn.Condition)
+	assert.Equal(t, true, graceDef.DependsOn.Value)
 	for _, key := range topLevelGatedKeys {
 		def := config.GetDefinition(key)
 		require.NotNilf(t, def, "setting %q should exist", key)
@@ -575,6 +600,8 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 		"timetable.materialization_weekday",
 		"timetable.materialization_weeks_ahead",
 		"timetable.auto_start_planned",
+		"timetable.auto_end_enabled",
+		"timetable.auto_end_grace_minutes",
 		"timetable.overdue_threshold_minutes",
 		"timetable.show_expected_children_count",
 	}
