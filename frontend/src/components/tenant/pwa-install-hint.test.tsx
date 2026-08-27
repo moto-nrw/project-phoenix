@@ -153,7 +153,7 @@ describe("createChromeIntentUrl", () => {
 
     expect(createChromeIntentUrl(pageUrl)).toBe(
       [
-        "intent://school-a.moto-app.de/profile?tab=push#notifications",
+        "intent://school-a.moto-app.de/profile?tab=push%23notifications",
         "#Intent;scheme=https;package=com.android.chrome;",
         `S.browser_fallback_url=${encodeURIComponent(pageUrl.href)};end`,
       ].join(""),

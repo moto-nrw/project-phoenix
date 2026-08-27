@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import { Download, EllipsisVertical, Share, X } from "lucide-react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { trackEvent } from "~/lib/analytics";
@@ -46,26 +47,25 @@ export function isStandaloneDisplay(win: Window): boolean {
   return nav.standalone === true;
 }
 
-function SamsungChromeInstructions({ pageUrl }: Readonly<{ pageUrl: URL }>) {
+export function SamsungChromeInstructions({
+  pageUrl,
+}: Readonly<{ pageUrl: URL }>) {
+  const t = useTranslations("pwaInstallHint");
   return (
     <>
-      <p className="mt-1">
-        Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto in
-        Chrome und melden Sie sich dort an.
-      </p>
+      <p className="mt-1">{t("samsungDescription")}</p>
       <p className="mt-2">
-        Wählen Sie danach im Chrome-Menü{" "}
-        <span className="font-medium">App installieren</span>.
+        {t("samsungStep")} <span className="font-medium">{t("install")}</span>.
       </p>
       <ButtonLink
         href={createChromeIntentUrl(pageUrl)}
         size="md"
         className="mt-3"
       >
-        In Chrome öffnen
+        {t("openInChrome")}
       </ButtonLink>
       <p className="mt-2 text-gray-600">
-        Klappt das nicht, öffnen Sie Chrome und rufen Sie {pageUrl.host} auf.
+        {t("samsungFallback", { host: pageUrl.host })}
       </p>
     </>
   );
@@ -98,6 +98,7 @@ function SamsungChromeInstructions({ pageUrl }: Readonly<{ pageUrl: URL }>) {
  * second visit, or after the user dismissed it.
  */
 export function PwaInstallHint() {
+  const t = useTranslations("pwaInstallHint");
   const [platform, setPlatform] = useState<InstallPlatform | null>(null);
 
   // Chrome may fire beforeinstallprompt before or after this mounts, so read
@@ -200,32 +201,26 @@ export function PwaInstallHint() {
             id="pwa-install-hint-title"
             className="font-semibold text-gray-900"
           >
-            moto als App nutzen
+            {t("title")}
           </h2>
           {platform === "samsung" ? (
             <SamsungChromeInstructions
               pageUrl={new URL(window.location.href)}
             />
           ) : showOneTapInstall ? (
-            <p className="mt-1">
-              Installieren Sie moto direkt aus dieser Ansicht. So öffnet sich
-              moto immer im Vollbild, ohne Browserleiste.
-            </p>
+            <p className="mt-1">{t("oneTapDescription")}</p>
           ) : platform === "ios" ? (
             <p className="mt-1">
-              Tippen Sie in Safari auf{" "}
-              <span className="font-medium">Teilen</span> und dann auf{" "}
-              <span className="font-medium">Zum Home-Bildschirm</span>. So
-              öffnet sich moto immer im Vollbild.
+              {t("iosBefore")} <span className="font-medium">{t("share")}</span>{" "}
+              {t("iosBetween")}{" "}
+              <span className="font-medium">{t("homeScreen")}</span>.
             </p>
           ) : (
             <p className="mt-1">
-              Öffnen Sie das Browser-Menü und tippen Sie auf{" "}
-              <span className="font-medium">App installieren</span> oder{" "}
-              <span className="font-medium">
-                Zum Startbildschirm hinzufügen
-              </span>
-              . So öffnet sich moto immer im Vollbild.
+              {t("androidBefore")}{" "}
+              <span className="font-medium">{t("install")}</span>{" "}
+              {t("androidOr")}{" "}
+              <span className="font-medium">{t("addToHome")}</span>.
             </p>
           )}
           {showOneTapInstall && (
@@ -236,7 +231,7 @@ export function PwaInstallHint() {
               className="mt-3"
               onClick={install}
             >
-              App installieren
+              {t("install")}
             </Button>
           )}
         </div>
@@ -244,7 +239,7 @@ export function PwaInstallHint() {
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Hinweis schließen"
+          aria-label={t("close")}
           onClick={dismiss}
         >
           <X className="h-4 w-4" aria-hidden="true" />

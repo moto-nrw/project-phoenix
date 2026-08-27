@@ -215,13 +215,24 @@
     "languageTitle": "Sprache",
     "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird.",
     "appInstallTitle": "moto als App installieren",
-    "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome.",
-    "appInstallStepsLabel": "moto mit Chrome installieren",
-    "appInstallStep1": "Tippen Sie auf „In Chrome öffnen“.",
-    "appInstallStep2": "Melden Sie sich in Chrome an.",
-    "appInstallStep3": "Öffnen Sie das Chrome-Menü und wählen Sie „App installieren“.",
-    "appInstallFallback": "Klappt das nicht, öffnen Sie Chrome und rufen Sie {host} auf.",
-    "openInChrome": "In Chrome öffnen"
+    "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome."
+  },
+  "pwaInstallHint": {
+    "title": "moto als App nutzen",
+    "samsungDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto in Chrome und melden Sie sich dort an.",
+    "samsungStep": "Wählen Sie danach im Chrome-Menü",
+    "samsungFallback": "Klappt das nicht, öffnen Sie Chrome und rufen Sie {host} auf.",
+    "oneTapDescription": "Installieren Sie moto direkt aus dieser Ansicht. So öffnet sich moto immer im Vollbild, ohne Browserleiste.",
+    "iosBefore": "Tippen Sie in Safari auf",
+    "iosBetween": "und dann auf",
+    "androidBefore": "Öffnen Sie das Browser-Menü und tippen Sie auf",
+    "androidOr": "oder",
+    "share": "Teilen",
+    "homeScreen": "Zum Home-Bildschirm",
+    "install": "App installieren",
+    "addToHome": "Zum Startbildschirm hinzufügen",
+    "openInChrome": "In Chrome öffnen",
+    "close": "Hinweis schließen"
   },
   "notificationPreferences": {
     "title": "Benachrichtigungen",

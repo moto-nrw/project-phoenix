@@ -57,7 +57,7 @@ export function createChromeIntentUrl(url: URL): string {
     url.host,
     url.pathname,
     url.search,
-    url.hash,
+    encodeURIComponent(url.hash),
     "#Intent;scheme=",
     scheme,
     ";package=com.android.chrome;S.browser_fallback_url=",
@@ -136,6 +136,12 @@ function isCurrentProtectedParentPath(): boolean {
   );
 }
 
+function isCurrentParentSettingsPath(): boolean {
+  return (
+    window.location.pathname.replace(/^\/parents(?=\/|$)/, "") === "/settings"
+  );
+}
+
 // Never suppress Chrome unless the replacement card can actually render, or the
 // visitor is left with no install affordance at all.
 function canCaptureInstallPrompt(): boolean {
@@ -150,6 +156,13 @@ function canCaptureInstallPrompt(): boolean {
 
 function isCurrentInstallHost(): boolean {
   return isCurrentTenantInstallHost() || isCurrentParentInstallHost();
+}
+
+// Samsung Internet has a replacement only in the tenant-wide hint and the
+// parent settings section. On every other route leave its native prompt alone.
+function canSuppressSamsungInstallPrompt(): boolean {
+  if (isCurrentTenantInstallHost()) return canCaptureInstallPrompt();
+  return isCurrentParentInstallHost() && isCurrentParentSettingsPath();
 }
 
 /**
@@ -199,8 +212,8 @@ if (typeof window !== "undefined") {
     if (!isAndroidDevice(window.navigator)) {
       return;
     }
-    if (isSamsungInternet(window.navigator) && isCurrentInstallHost()) {
-      event.preventDefault();
+    if (isSamsungInternet(window.navigator)) {
+      if (canSuppressSamsungInstallPrompt()) event.preventDefault();
       return;
     }
     if (!canCaptureInstallPrompt()) return;

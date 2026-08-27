@@ -102,9 +102,7 @@ describe("instrumentation-client", () => {
 
   it.each([
     "https://school-a.moto-app.de/dashboard",
-    "https://school-a.moto-app.de/",
     "https://eltern.moto-app.de/settings",
-    "https://eltern.moto-app.de/login",
   ])(
     "suppresses Samsung Internet installation without caching its prompt on %s",
     async (url) => {
@@ -123,6 +121,26 @@ describe("instrumentation-client", () => {
       window.dispatchEvent(event);
 
       expect(event.defaultPrevented).toBe(true);
+      expect(canPromptInstall()).toBe(false);
+    },
+  );
+
+  it.each([
+    "https://school-a.moto-app.de/",
+    "https://eltern.moto-app.de/login",
+    "https://eltern.moto-app.de/children/42",
+  ])(
+    "leaves Samsung Internet's native prompt enabled without a replacement on %s",
+    async (url) => {
+      vi.stubGlobal("navigator", { userAgent: SAMSUNG_INTERNET_UA });
+      window.location.href = url;
+      await import("./instrumentation-client");
+      const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+      const event = new Event("beforeinstallprompt", { cancelable: true });
+
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
       expect(canPromptInstall()).toBe(false);
     },
   );
