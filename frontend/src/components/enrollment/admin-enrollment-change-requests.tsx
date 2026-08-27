@@ -207,14 +207,14 @@ export function AdminEnrollmentChangeRequestDetail({
           <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-6">
               <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                <h2 className="text-base font-semibold text-gray-900">
                   Anmeldung
-                </p>
+                </h2>
                 {request ? (
                   <>
-                    <h2 className="mt-1 text-base font-semibold text-gray-900">
+                    <p className="mt-1 text-sm font-semibold text-gray-900">
                       {request.guardian_first_name} {request.guardian_last_name}
-                    </h2>
+                    </p>
                     <dl className="mt-4 space-y-3 text-sm">
                       <InfoRow
                         icon={Mail}
@@ -246,9 +246,9 @@ export function AdminEnrollmentChangeRequestDetail({
 
               {data.origin === "parent" ? (
                 <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                  <h2 className="text-base font-semibold text-gray-900">
                     Rückfrage
-                  </p>
+                  </h2>
                   <div className="mt-3">
                     <Textarea
                       id="change-request-question"
@@ -275,9 +275,9 @@ export function AdminEnrollmentChangeRequestDetail({
 
               {data.origin === "parent" ? (
                 <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                  <h2 className="text-base font-semibold text-gray-900">
                     Entscheidung
-                  </p>
+                  </h2>
                   <div className="mt-3">
                     <Textarea
                       id="change-request-review-note"
@@ -341,10 +341,7 @@ function ChangeSummary({
   return (
     <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
       <div>
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Änderungen
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
+        <h2 className="text-base font-semibold text-gray-900">
           {request.origin === "admin"
             ? "Protokollierte OGS-Korrektur"
             : "Eingereichte Korrektur"}
@@ -384,12 +381,7 @@ function MessageThread({
   return (
     <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
       <div>
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Verlauf
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Nachrichten
-        </h2>
+        <h2 className="text-base font-semibold text-gray-900">Nachrichten</h2>
       </div>
       {messages.length === 0 ? (
         <EmptyState

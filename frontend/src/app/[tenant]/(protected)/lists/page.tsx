@@ -2111,9 +2111,7 @@ export default function SlotListsPage() {
         aria-label="Listenauswahl"
         className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
       >
-        <p className="text-moto-blue mb-2 text-xs font-semibold tracking-wide uppercase">
-          Quelle
-        </p>
+        <h2 className="mb-3 text-base font-semibold text-gray-900">Quelle</h2>
         <div className="grid auto-rows-fr grid-cols-2 gap-2.5 lg:grid-cols-3">
           {SELECTION_OPTIONS.map((option) => {
             const Icon = option.icon;
@@ -2216,7 +2214,7 @@ export default function SlotListsPage() {
         {isManualSlotSelection ? (
           <div className="mt-3 border-t border-gray-100 pt-3">
             <div className="mb-2 grid min-h-7 grid-cols-[auto_1fr_auto] items-center gap-2">
-              <span className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+              <span className="text-sm font-medium text-gray-700">
                 Enthaltene Angebote
               </span>
               <span className="min-w-0 truncate text-xs text-gray-500">

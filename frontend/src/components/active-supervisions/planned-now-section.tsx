@@ -86,12 +86,12 @@ export function PlannedNowSection({
       <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+            <h2 className="text-base font-semibold text-gray-900">
               Als Nächstes
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Keine geplante Betreuung in Sicht
             </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Keine geplante Betreuung in Sicht
+            </p>
           </div>
           <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
             <MotoConceptIcon concept="carePlan" size={18} />
@@ -148,10 +148,10 @@ export function PlannedNowSection({
             <MotoConceptIcon concept="carePlan" size={20} />
           </span>
           <span className="min-w-0">
-            <span className="text-moto-blue block text-xs font-semibold tracking-wide uppercase">
+            <span className="block text-base font-semibold text-gray-900">
               Als Nächstes
             </span>
-            <span className="block truncate text-base font-semibold text-gray-900">
+            <span className="mt-0.5 block truncate text-sm text-gray-600">
               {sortedPlanned[0]?.title}
             </span>
           </span>

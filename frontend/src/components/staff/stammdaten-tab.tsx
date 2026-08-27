@@ -438,10 +438,7 @@ export function StammdatenTab({
         <FinancialSection staffId={staffId} />
       ) : (
         <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-            Vertraulich
-          </p>
-          <h3 className="mt-1 text-base font-semibold text-gray-900">
+          <h3 className="text-base font-semibold text-gray-900">
             Bank &amp; Steuer
           </h3>
           <div className="mt-3 flex items-start gap-2 rounded-xl bg-gray-50 p-3">

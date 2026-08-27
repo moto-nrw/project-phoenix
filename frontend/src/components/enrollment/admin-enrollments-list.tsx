@@ -264,10 +264,7 @@ function ChangeRequestsOverview({
             <MotoConceptIcon concept="parentConversations" size={20} />
           </span>
           <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Änderungen
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
+            <h2 className="text-base font-semibold text-gray-900">
               Änderungsanfragen
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
@@ -408,10 +405,7 @@ function EnrollmentPhaseOverview({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Überblick
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Anmeldephasen und Eingänge
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
@@ -685,10 +679,7 @@ function EnrollmentSetupGuide({
               aria-hidden="true"
             />
             <span className="min-w-0">
-              <span className="text-moto-blue block text-xs font-semibold tracking-wide uppercase">
-                Einrichtung
-              </span>
-              <span className="mt-0.5 block text-base font-semibold text-gray-900">
+              <span className="block text-base font-semibold text-gray-900">
                 Online-Anmeldung eingerichtet
               </span>
               <span className="mt-0.5 block text-sm text-gray-500">
@@ -722,10 +713,7 @@ function EnrollmentSetupGuide({
               <div className="border-b border-gray-100 pb-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                      Einrichtung
-                    </p>
-                    <h2 className="mt-1 text-base font-semibold text-gray-900">
+                    <h2 className="text-base font-semibold text-gray-900">
                       {setupComplete
                         ? "Einrichtung abgeschlossen"
                         : "Online-Anmeldung vorbereiten"}
@@ -814,10 +802,7 @@ function EnrollmentSetupGuide({
             <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-4 sm:p-5 lg:border-t-0 lg:border-l">
               <div className="relative z-10 space-y-4">
                 <div>
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                    Startpunkt
-                  </p>
-                  <h3 className="mt-1 text-base font-semibold text-gray-900">
+                  <h3 className="text-base font-semibold text-gray-900">
                     {setupComplete
                       ? "Mit Anmeldephasen arbeiten"
                       : nextActionStep?.status === "blocked"

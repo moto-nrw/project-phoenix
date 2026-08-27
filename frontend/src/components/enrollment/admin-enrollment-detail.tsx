@@ -430,10 +430,7 @@ function EnrollmentSummary({
           <MotoConceptIcon concept="parents" size={16} />
         </span>
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Erziehungsberechtigte Person
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             {data.guardian_first_name} {data.guardian_last_name}
           </h2>
           <p className="mt-1 text-sm text-gray-600">
@@ -458,9 +455,9 @@ function EnrollmentSummary({
 
       {data.additional_guardians && data.additional_guardians.length > 0 && (
         <div className="mt-4 space-y-3">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+          <h3 className="text-base font-semibold text-gray-900">
             Weitere erziehungsberechtigte Personen
-          </p>
+          </h3>
           {data.additional_guardians.map((g: AdminRequestGuardian) => (
             <div
               key={g.id}

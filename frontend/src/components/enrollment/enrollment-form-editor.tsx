@@ -1017,10 +1017,7 @@ export function EnrollmentFormEditor({
             <section className="space-y-4">
               <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                    Zusatzfragen
-                  </p>
-                  <h2 className="mt-1 text-base font-semibold text-gray-900">
+                  <h2 className="text-base font-semibold text-gray-900">
                     Was Eltern zusätzlich beantworten sollen
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm text-gray-600">
@@ -1178,10 +1175,7 @@ function EnrollmentFormsOverview({
           <div className="space-y-6 p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                  Formularübersicht
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-gray-900">
                   Anmeldeformulare verwalten
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1455,10 +1449,7 @@ function OverviewGuide({
   return (
     <div className="sticky top-6 space-y-4">
       <div>
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Startpunkt
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
+        <h2 className="text-base font-semibold text-gray-900">
           Erst prüfen, dann erweitern
         </h2>
         <p className="mt-2 text-sm leading-6 text-gray-600">
@@ -1534,10 +1525,7 @@ function FormTemplateDetail({
             <div className="space-y-5 p-5 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                    Formular prüfen
-                  </p>
-                  <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                  <h2 className="text-xl font-semibold text-gray-900">
                     {schema.name}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1598,10 +1586,7 @@ function FormTemplateDetail({
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <div className="sticky top-6 space-y-4">
               <div>
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                  Nächster Schritt
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-gray-900">
                   {assignedPhases.length > 0
                     ? "In Anmeldephase verwendet"
                     : "In Anmeldephase verwenden"}
@@ -1907,10 +1892,7 @@ function UnsavedChangesDialog({
       isDismissDisabled={saving}
       footer={footer}
     >
-      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-        Ungespeicherte Änderungen
-      </p>
-      <p className="mt-2 text-sm leading-6 text-gray-600">
+      <p className="text-sm leading-6 text-gray-600">
         {isPreview
           ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
           : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
@@ -1927,10 +1909,7 @@ function UnsavedChangesDialog({
 function FormBuilderIntro() {
   return (
     <header>
-      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-        Formular-Konfigurator
-      </p>
-      <h2 className="mt-1 text-xl font-semibold text-gray-900">
+      <h2 className="text-xl font-semibold text-gray-900">
         Formularvorlage bearbeiten
       </h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
@@ -1994,10 +1973,7 @@ function BuilderTemplateSummary({
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Vorlage
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             {isCreating ? "Neue Formularvorlage" : name}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
@@ -2070,10 +2046,7 @@ function CoreFieldsSection({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Basisformular
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Pflichtstatus der Basisfelder
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
@@ -2395,10 +2368,7 @@ function LegalBlocksSection({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Zustimmungen
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Rechtstexte und Einwilligungen
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
@@ -2838,9 +2808,7 @@ function CoreFieldGroup({
   return (
     <div className="border-b border-gray-100 last:border-b-0">
       <div className="bg-gray-50/80 px-4 py-2">
-        <h3 className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          {title}
-        </h3>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
       </div>
       <ul className="divide-y divide-gray-100">
         {fields.map((field) => (
@@ -3173,7 +3141,7 @@ function FieldEditorRow({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                <p className="text-sm font-semibold text-gray-900">
                   {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
                 {isInfo ? (
@@ -3980,10 +3948,7 @@ function FormPreview({
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Vorschau
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold text-gray-900">
               Elternformular
             </h2>
@@ -4061,10 +4026,7 @@ function FormPreview({
 
       <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-4">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Online-Anmeldung
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900">
             {templateName.trim() || "Basisformular"}
           </h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">

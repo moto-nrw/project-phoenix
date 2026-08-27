@@ -2266,10 +2266,7 @@ function CareOfferingForm({
       className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Betreuungsangebot
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
+        <h2 className="text-base font-semibold text-gray-900">
           {editing
             ? "Betreuungsangebot bearbeiten"
             : "Neues Betreuungsangebot anlegen"}
@@ -2530,10 +2527,7 @@ function CloneOfferingForm({
       className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Duplizieren
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
+        <h2 className="text-base font-semibold text-gray-900">
           „{source.name}“ in eine Anmeldephase übernehmen
         </h2>
         <p className="mt-1 text-sm text-gray-600">

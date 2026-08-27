@@ -220,12 +220,7 @@ export function RolloverForm({
     >
       {variant === "embedded" ? (
         <header className="border-b border-gray-100 pb-4">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Anschlussphase
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
-            {title}
-          </h2>
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <p className="mt-1 text-sm text-gray-600">{ROLLOVER_DESCRIPTION}</p>
         </header>
       ) : null}

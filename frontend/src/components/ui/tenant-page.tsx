@@ -203,67 +203,69 @@ export function TenantPage({
         />
       )}
 
-      {/* Der Kopf steht auf der Seitenfläche, NICHT in einer Karte. Eine
-          Karte um Titel und Statuszeile ist ein 156 px hoher Rahmen um
-          90 px Inhalt — sie kostet Höhe und trägt nichts. Karten sind für
-          Inhalt da, der eine Fläche braucht. */}
-      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 items-center gap-3">
-          {leading}
-          <div className="min-w-0">
-            <h1
+      {/* Die Kopfkarte trägt Titel, Statuszeile, Aktionen und die Such- und
+          Filterzeile. Sie schließt eng um ihren Inhalt: 20 px Rand, 4 px
+          zwischen Titel und Statuszeile, 16 px vor der Suchzeile. Kein
+          reservierter Leerraum darunter — genau der war der tote Streifen. */}
+      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-3">
+            {leading}
+            <div className="min-w-0">
+              <h1
+                className={cn(
+                  "font-semibold tracking-tight text-balance text-gray-900",
+                  prominent
+                    ? "text-2xl leading-tight sm:text-[28px]"
+                    : "text-xl leading-tight sm:text-2xl",
+                )}
+              >
+                {title}
+              </h1>
+              {statusLine != null && (
+                <p className="mt-1 text-sm leading-5 text-gray-600">
+                  {statusLine}
+                </p>
+              )}
+            </div>
+          </div>
+          {actions && (
+            // Eine Bedienhöhe im Kopf. Ohne diese Klammer stehen dort 32,
+            // 36 und 40 px nebeneinander, je nachdem welches Kit-Bauteil
+            // eine Seite gerade greift.
+            <div
               className={cn(
-                "font-semibold tracking-tight text-balance text-gray-900",
-                prominent
-                  ? "text-2xl leading-tight sm:text-[28px]"
-                  : "text-xl leading-tight sm:text-2xl",
+                "flex shrink-0 flex-wrap items-center gap-2",
+                CONTROL_HEIGHT,
               )}
             >
-              {title}
-            </h1>
-            {statusLine != null && (
-              <p className="mt-1 text-sm leading-5 text-gray-600">
-                {statusLine}
-              </p>
-            )}
-          </div>
+              {actions}
+            </div>
+          )}
         </div>
-        {actions && (
-          // Eine Bedienhöhe im Kopf. Ohne diese Klammer stehen dort 32,
-          // 36 und 40 px nebeneinander, je nachdem welches Kit-Bauteil
-          // eine Seite gerade greift.
-          <div
-            className={cn(
-              "flex shrink-0 flex-wrap items-center gap-2",
-              CONTROL_HEIGHT,
+
+        {(searchSlot ?? hasSearchRow) && (
+          <div className={cn("mt-4", CONTROL_HEIGHT)}>
+            {searchSlot}
+            {!searchSlot && hasSearchRow && (
+              <PageHeaderWithSearch
+                // Der Titel steht in der Kopfkarte darüber.
+                embedded
+                title=""
+                search={search}
+                filters={filters as FilterConfig[] | undefined}
+                activeFilters={activeFilters as ActiveFilter[] | undefined}
+                onClearAllFilters={onClearAllFilters}
+                overflowMenu={overflowMenu as OverflowMenuItem[] | undefined}
+                badge={badge}
+              />
             )}
-          >
-            {actions}
           </div>
         )}
       </header>
 
-      {(searchSlot ?? hasSearchRow) && (
-        <div className={cn("mt-4", CONTROL_HEIGHT)}>
-          {searchSlot}
-          {!searchSlot && hasSearchRow && (
-            <PageHeaderWithSearch
-              // Der Titel steht im Seitenkopf darüber.
-              embedded
-              title=""
-              search={search}
-              filters={filters as FilterConfig[] | undefined}
-              activeFilters={activeFilters as ActiveFilter[] | undefined}
-              onClearAllFilters={onClearAllFilters}
-              overflowMenu={overflowMenu as OverflowMenuItem[] | undefined}
-              badge={badge}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Die Reiter gehören zum Kopf, nicht zum Inhalt: eng darüber, mit
-          echtem Abstand darunter. Vorher lagen 24 px darüber und 0 darunter,
+      {/* Die Reiter gehören zum Kopf, nicht zum Inhalt: eng darunter, mit
+          echtem Abstand zum Inhalt. Vorher lagen 24 px darüber und 0 darunter,
           der Inhalt klebte an der Trennlinie. */}
       {tabs && (
         <div className="mt-4">
