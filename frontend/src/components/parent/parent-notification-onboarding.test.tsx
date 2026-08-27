@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   verifyPushConfiguration: vi.fn(),
   isStandaloneApp: vi.fn(),
   isAndroidDevice: vi.fn(),
+  isSamsungInternet: vi.fn(),
   canPromptInstall: vi.fn(),
   isInstallationCompleted: vi.fn(),
   triggerInstallPrompt: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("~/lib/push-api", () => ({
 
 vi.mock("~/lib/pwa-install-prompt", () => ({
   isAndroidDevice: mocks.isAndroidDevice,
+  isSamsungInternet: mocks.isSamsungInternet,
   canPromptInstall: mocks.canPromptInstall,
   isInstallationCompleted: mocks.isInstallationCompleted,
   subscribeInstallPrompt: () => () => undefined,
@@ -61,6 +63,7 @@ describe("ParentNotificationOnboarding", () => {
     mocks.verifyPushConfiguration.mockResolvedValue(undefined);
     mocks.isStandaloneApp.mockReturnValue(false);
     mocks.isAndroidDevice.mockReturnValue(false);
+    mocks.isSamsungInternet.mockReturnValue(false);
     mocks.canPromptInstall.mockReturnValue(false);
     mocks.isInstallationCompleted.mockReturnValue(false);
     mocks.triggerInstallPrompt.mockResolvedValue("accepted");
@@ -130,6 +133,28 @@ describe("ParentNotificationOnboarding", () => {
         name: "Benachrichtigungen aktivieren",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("enables notifications directly in Samsung Internet without installing", async () => {
+    mocks.isAndroidDevice.mockReturnValue(true);
+    mocks.isSamsungInternet.mockReturnValue(true);
+    mocks.canPromptInstall.mockReturnValue(true);
+
+    renderOnboarding();
+
+    const enableButton = await screen.findByRole("button", {
+      name: "Benachrichtigungen aktivieren",
+    });
+    expect(
+      screen.queryByRole("button", { name: "App installieren" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(enableButton);
+
+    await waitFor(() => {
+      expect(mocks.subscribePush).toHaveBeenCalledWith("parent");
+      expect(mocks.triggerInstallPrompt).not.toHaveBeenCalled();
+    });
   });
 
   it("shows Android browser-menu instructions without a one-tap prompt", async () => {

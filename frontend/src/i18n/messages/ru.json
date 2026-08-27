@@ -213,7 +213,26 @@
     "title": "Настройки",
     "description": "Настройте язык и уведомления для своей учётной записи.",
     "languageTitle": "Язык",
-    "languageDescription": "Выберите язык интерфейса moto."
+    "languageDescription": "Выберите язык интерфейса moto.",
+    "appInstallTitle": "Установить moto как приложение",
+    "appInstallDescription": "Не устанавливайте moto через Samsung Internet. Откройте moto в Chrome."
+  },
+  "pwaInstallHint": {
+    "title": "Использовать moto как приложение",
+    "samsungDescription": "Не устанавливайте moto через Samsung Internet. Откройте moto в Chrome и войдите там.",
+    "samsungStep": "Затем выберите в меню Chrome",
+    "samsungFallback": "Если это не сработает, откройте Chrome и перейдите на {host}.",
+    "oneTapDescription": "Установите moto прямо с этой страницы. Затем moto всегда будет открываться во весь экран, без панели браузера.",
+    "iosBefore": "В Safari нажмите",
+    "iosBetween": "затем",
+    "androidBefore": "Откройте меню браузера и нажмите",
+    "androidOr": "или",
+    "share": "Поделиться",
+    "homeScreen": "На экран «Домой»",
+    "install": "Установить приложение",
+    "addToHome": "Добавить на главный экран",
+    "openInChrome": "Открыть в Chrome",
+    "close": "Закрыть подсказку"
   },
   "notificationPreferences": {
     "title": "Уведомления",

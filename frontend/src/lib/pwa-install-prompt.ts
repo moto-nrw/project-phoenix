@@ -40,6 +40,32 @@ export function isAndroidDevice(nav: Navigator): boolean {
   );
 }
 
+/** True for Samsung Internet, whose install prompt currently creates an old WebAPK. */
+export function isSamsungInternet(nav: Navigator): boolean {
+  return isAndroidDevice(nav) && /SamsungBrowser\//i.test(nav.userAgent);
+}
+
+/** Opens the same page in Chrome, with the normal URL as an Android fallback. */
+export function createChromeIntentUrl(url: URL): string {
+  const scheme = url.protocol.replace(":", "");
+  if (scheme !== "http" && scheme !== "https") {
+    throw new Error("Chrome intent URLs require an HTTP or HTTPS URL.");
+  }
+
+  return [
+    "intent://",
+    url.host,
+    url.pathname,
+    url.search,
+    url.hash,
+    "#Intent;scheme=",
+    scheme,
+    ";package=com.android.chrome;S.browser_fallback_url=",
+    encodeURIComponent(url.href),
+    ";end",
+  ].join("");
+}
+
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
 const subscribers = new Set<() => void>();
@@ -110,6 +136,12 @@ function isCurrentProtectedParentPath(): boolean {
   );
 }
 
+function isCurrentParentSettingsPath(): boolean {
+  return (
+    window.location.pathname.replace(/^\/parents(?=\/|$)/, "") === "/settings"
+  );
+}
+
 // Never suppress Chrome unless the replacement card can actually render, or the
 // visitor is left with no install affordance at all.
 function canCaptureInstallPrompt(): boolean {
@@ -124,6 +156,13 @@ function canCaptureInstallPrompt(): boolean {
 
 function isCurrentInstallHost(): boolean {
   return isCurrentTenantInstallHost() || isCurrentParentInstallHost();
+}
+
+// Samsung Internet has a replacement only in the tenant-wide hint and the
+// parent settings section. On every other route leave its native prompt alone.
+function canSuppressSamsungInstallPrompt(): boolean {
+  if (isCurrentTenantInstallHost()) return canCaptureInstallPrompt();
+  return isCurrentParentInstallHost() && isCurrentParentSettingsPath();
 }
 
 /**
@@ -171,6 +210,10 @@ export function dismissInstallHint(win: Window): void {
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
     if (!isAndroidDevice(window.navigator)) {
+      return;
+    }
+    if (isSamsungInternet(window.navigator)) {
+      if (canSuppressSamsungInstallPrompt()) event.preventDefault();
       return;
     }
     if (!canCaptureInstallPrompt()) return;
