@@ -2183,6 +2183,25 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/einstellungen.webp",
       },
       {
+        id: "einstellungen-terminende",
+        title: "Laufende Termine automatisch beenden",
+        icon: CircleStop,
+        summary:
+          "moto kann gestartete Termine nach der Endzeit beenden. Sie wählen den Puffer.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen. Zur Sektion `Betreuungsplan` scrollen.",
+          "`Laufende Termine automatisch beenden` einschalten.",
+          "Den `Puffer nach Endzeit` in ganzen Minuten eintragen.",
+          "Bei `0` endet der Termin direkt zur Endzeit. Bei `15` endet er 15 Minuten später.",
+          "Nur Termine aus dem Betreuungsplan werden beendet. Spontane Aktivitäten bleiben offen.",
+          "Nie gestartete Termine bleiben unter `Nicht gestartet` sichtbar.",
+          "Beendete Termine stehen unter `Beendete und abgelaufene Blöcke`.",
+        ],
+        screenshot:
+          "Sektion Betreuungsplan mit eingeschaltetem automatischem Terminende und dem Puffer nach Endzeit.",
+        image: "/help/screens/automatisches-terminende.webp",
+      },
+      {
         id: "einstellungen-angebotsabgleich-gehzeiten",
         title: "Angebotsabgleich für dauerhafte Gehzeiten einschalten",
         icon: Clock3,

@@ -9,6 +9,7 @@ const categoryLabelOverrides: Record<string, string> = {
   mfa: "Zwei-Faktor-Authentifizierung",
   pin: "PIN",
   aktivitaeten: "Aktivitäten",
+  stundenplan: "Betreuungsplan",
 };
 
 function displayCategoryLabel(category: SchemaCategory): string {

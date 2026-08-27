@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -82,6 +83,15 @@ func TestScheduler_SetAutoStartService(t *testing.T) {
 	autoStart := &fakeAutoStartService{}
 	s.SetAutoStartService(autoStart)
 	assert.Same(t, autoStart, s.autoStart)
+}
+
+func TestScheduler_SetAutoEndService(t *testing.T) {
+	t.Parallel()
+
+	s := &Scheduler{logger: slog.Default()}
+	autoEnd := &fakeAutoEndService{}
+	s.SetAutoEndService(autoEnd)
+	assert.Same(t, autoEnd, s.autoEnd)
 }
 
 // -----------------------------------------------------------------------------
@@ -562,6 +572,130 @@ func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 	svc.mu.Lock()
 	defer svc.mu.Unlock()
 	assert.Equal(t, 1, svc.calls, "enabled timetable + auto-start should run once in fallback mode")
+}
+
+// -----------------------------------------------------------------------------
+// timetable-auto-end — optional service, gated by tenant settings.
+// -----------------------------------------------------------------------------
+
+type fakeAutoEndService struct {
+	mu     sync.Mutex
+	calls  int
+	grace  time.Duration
+	err    error
+	result *scheduleSvc.AutoEndResult
+}
+
+func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*scheduleSvc.AutoEndResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	f.grace = grace
+	if f.result != nil {
+		return f.result, f.err
+	}
+	return &scheduleSvc.AutoEndResult{}, f.err
+}
+
+func TestScheduleAutoEndTask_MissingService(t *testing.T) {
+	t.Parallel()
+
+	s := &Scheduler{logger: slog.Default(), tasks: make(map[string]*ScheduledTask), done: make(chan struct{})}
+	s.scheduleAutoEndTask()
+	assert.Empty(t, s.tasks)
+}
+
+func TestScheduleAutoEndTask_Registers(t *testing.T) {
+	t.Parallel()
+
+	s := &Scheduler{
+		logger:  slog.Default(),
+		tasks:   make(map[string]*ScheduledTask),
+		done:    make(chan struct{}),
+		autoEnd: &fakeAutoEndService{},
+	}
+	s.scheduleAutoEndTask()
+
+	s.mu.RLock()
+	task, ok := s.tasks["timetable-auto-end"]
+	s.mu.RUnlock()
+	require.True(t, ok)
+	assert.Equal(t, "1m-poll", task.Schedule)
+
+	close(s.done)
+	s.wg.Wait()
+}
+
+func TestCheckAndRunAutoEnd_DefaultDisabled(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeAutoEndService{}
+	s := &Scheduler{autoEnd: svc, logger: slog.Default(), settings: &stubSettingsResolver{}}
+	s.checkAndRunAutoEnd(&ScheduledTask{Name: "timetable-auto-end"})
+
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	assert.Zero(t, svc.calls)
+}
+
+func TestCheckAndRunAutoEnd_PassesConfiguredGrace(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeAutoEndService{result: &scheduleSvc.AutoEndResult{Checked: 1, Completed: 1}}
+	s := &Scheduler{
+		autoEnd: svc,
+		logger:  slog.Default(),
+		settings: &stubSettingsResolver{
+			hasOverride: true,
+			boolVal:     true,
+			intVal:      15,
+		},
+	}
+	s.checkAndRunAutoEnd(&ScheduledTask{Name: "timetable-auto-end"})
+
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	assert.Equal(t, 1, svc.calls)
+	assert.Equal(t, 15*time.Minute, svc.grace)
+}
+
+func TestCheckAndRunAutoEnd_UsesEnabledTimetableDefault(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeAutoEndService{}
+	s := &Scheduler{
+		autoEnd: svc,
+		logger:  slog.Default(),
+		settings: &keyedBoolSettingsResolver{values: map[string]bool{
+			configModel.KeyTimetableAutoEndEnabled: true,
+		}},
+	}
+	s.checkAndRunAutoEnd(&ScheduledTask{Name: "timetable-auto-end"})
+
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	assert.Equal(t, 1, svc.calls)
+}
+
+type keyedBoolSettingsResolver struct {
+	values map[string]bool
+}
+
+func (s *keyedBoolSettingsResolver) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	_, ok := s.values[key]
+	return ok, nil
+}
+
+func (s *keyedBoolSettingsResolver) ResolveBool(_ context.Context, key string) (bool, error) {
+	return s.values[key], nil
+}
+
+func (*keyedBoolSettingsResolver) ResolveString(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (*keyedBoolSettingsResolver) ResolveInt(context.Context, string) (int, error) {
+	return 0, nil
 }
 
 // emitInstanceOverdue's broadcaster-failure branch: spy with fail=true so the

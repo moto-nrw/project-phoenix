@@ -125,6 +125,7 @@ type Factory struct {
 	StudentChangeLogCleanup  users.StudentChangeLogCleanupService
 	Instance                 schedule.InstanceService
 	AutoStart                schedule.AutoStartService
+	AutoEnd                  schedule.AutoEndService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	Birthdays                users.BirthdayService
@@ -1133,6 +1134,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:         repos.ActiveVisit,
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
+	autoEndService := schedule.NewAutoEndService(repos.ActivityInstance, instanceService)
 
 	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -2460,6 +2462,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentChangeLogCleanup:  studentChangeLogCleanupService,
 		Instance:                 instanceService,
 		AutoStart:                autoStartService,
+		AutoEnd:                  autoEndService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		Birthdays:                birthdayService,
