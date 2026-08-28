@@ -512,6 +512,45 @@ func TestInstance_UpdatePlannedKeepsDateAfterPeriodDeactivation(t *testing.T) {
 	assert.Equal(t, instance.Date, updated.Date)
 }
 
+func TestInstance_UpdatePlannedMovesSpontaneousOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedSpontaneousInstance(t, s, false)
+	targetDate := timezone.NewDate(2101, 4, 21)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:      targetDate,
+		StartTime: instance.StartTime,
+		EndTime:   instance.EndTime,
+		Title:     "Spontan verschoben",
+		RoomID:    s.roomID,
+	}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, targetDate, updated.Date)
+	assert.True(t, updated.IsSpontaneous)
+}
+
+func TestInstance_UpdatePlannedConvertsSpontaneousRejectsOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedSpontaneousInstance(t, s, false)
+	periodID := s.period.ID
+	_, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:             timezone.NewDate(2101, 4, 21),
+		StartTime:        instance.StartTime,
+		EndTime:          instance.EndTime,
+		Title:            "Als geplant verschieben",
+		RoomID:           s.roomID,
+		ActivityGroupID:  &s.tmplID,
+		CalendarPeriodID: &periodID,
+	}, nil)
+
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+}
+
 func TestInstance_CreateIdempotencyRetryReturnsStoredResultAfterPeriodDeactivation(t *testing.T) {
 	t.Parallel()
 
