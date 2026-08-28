@@ -776,15 +776,20 @@ func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) 
 	}
 }
 
-func TestCanonicalPolicyClassifiesTheEntireBackend(t *testing.T) {
+func TestCanonicalArchitectureRatchetMatchesCommittedBaseline(t *testing.T) {
 	t.Parallel()
 
 	output, err := runArchitecture(t, "check")
-	if err == nil {
-		t.Fatal("canonical check unexpectedly has no target-architecture violations")
+	if err != nil {
+		t.Fatalf("canonical architecture ratchet failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(output, "|imports.forbidden|") {
-		t.Fatalf("canonical check did not evaluate real import edges:\n%s", output)
+	if !strings.Contains(output, "backend architecture ratchet passed:") || !strings.Contains(output, "legacy violation(s) remain") {
+		t.Fatalf("canonical check did not report the shrinking ratchet result:\n%s", output)
+	}
+
+	output, err = runArchitecture(t, "check", "--baseline", "")
+	if err == nil || !strings.Contains(output, "|imports.forbidden|") {
+		t.Fatalf("canonical check did not evaluate real import edges: %v\n%s", err, output)
 	}
 	for _, forbidden := range []string{"|packages.unclassified|", "|packages.stale|", "|external.unclassified|", "|external.stale|", "|policy.rules-overlap|"} {
 		if strings.Contains(output, forbidden) {
@@ -799,6 +804,9 @@ func runArchitecture(t *testing.T, args ...string) (string, error) {
 
 func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ...string) (string, error) {
 	t.Helper()
+	if hasProjectWithoutBaseline(args) {
+		args = append(args, "--baseline", "")
+	}
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
 	command := exec.Command(filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
@@ -816,6 +824,19 @@ func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ..
 	}
 	output, err := command.CombinedOutput()
 	return string(output), err
+}
+
+func hasProjectWithoutBaseline(args []string) bool {
+	hasProject := false
+	for _, argument := range args {
+		switch {
+		case argument == "--project" || strings.HasPrefix(argument, "--project="):
+			hasProject = true
+		case argument == "--baseline" || strings.HasPrefix(argument, "--baseline="):
+			return false
+		}
+	}
+	return hasProject
 }
 
 func fixturePath(t *testing.T, parts ...string) string {
