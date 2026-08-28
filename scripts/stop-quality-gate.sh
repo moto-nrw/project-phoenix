@@ -123,13 +123,24 @@ $out"
     fi
 }
 
-if [[ "$go_changed" == 1 ]] && command -v go >/dev/null 2>&1; then
-    run_check "go build ./..." backend go build ./...
-    run_check "go vet ./..." backend go vet ./...
+checks_complete=1
+if [[ "$go_changed" == 1 ]]; then
+    if command -v go >/dev/null 2>&1; then
+        run_check "go build ./..." backend go build ./...
+        run_check "go vet ./..." backend go vet ./...
+    else
+        checks_complete=0
+    fi
 fi
-if [[ "$frontend_changed" == 1 ]] && command -v pnpm >/dev/null 2>&1 && [[ -d frontend/node_modules ]]; then
-    run_check "pnpm run check" frontend pnpm run check
+if [[ "$frontend_changed" == 1 ]]; then
+    if command -v pnpm >/dev/null 2>&1 && [[ -d frontend/node_modules ]]; then
+        run_check "pnpm run check" frontend pnpm run check
+    else
+        checks_complete=0
+    fi
 fi
 
-printf 'clean %s' "$fingerprint" >"$cache_file" 2>/dev/null || true
+if [[ "$checks_complete" == 1 ]]; then
+    printf 'clean %s' "$fingerprint" >"$cache_file" 2>/dev/null || true
+fi
 exit 0

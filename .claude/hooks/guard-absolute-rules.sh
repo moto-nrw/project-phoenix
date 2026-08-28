@@ -46,14 +46,16 @@ case "$tool" in
         # unless that segment is plainly reading source text. This covers
         # wrapped clients (python/node/bash -c) without maintaining a
         # bypassable list of network binaries.
+        cmd_lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
         while IFS= read -r segment; do
             [[ -n "$segment" ]] || continue
             if printf '%s' "$segment" | grep -Eq 'moto-app\.de|moto\.nrw' &&
-                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(rg|grep|cat)([[:space:]]|$)'; then
+                { ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(rg|grep|cat)([[:space:]]|$)' ||
+                    printf '%s' "$segment" | grep -Eq '\$\(|`'; }; then
                 deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
             fi
         done <<EOF
-$(printf '%s' "$cmd" | tr ';|&' '\n')
+$(printf '%s' "$cmd_lower" | tr ';|&' '\n')
 EOF
 
         # Rule 2 (shell half): validate each shell segment. A SOPS file may
@@ -72,7 +74,8 @@ EOF
 
         # A redirection can overwrite a SOPS file even when the command
         # itself is on the read-only allowlist (for example `cat ... > file`).
-        if printf '%s' "$cmd" | grep -Eq '>>?[[:space:]]*[^[:space:];|&]*\.sops\.env'; then
+        if printf '%s' "$cmd" | grep -q '\.sops\.env' &&
+            printf '%s' "$cmd" | grep -Eq '(^|[[:space:];|&])[0-9]*>>?'; then
             deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
         fi
 
@@ -87,7 +90,7 @@ EOF
         # check. Scoped to the same pipeline segment as "git commit"; a
         # literal " -n " inside a commit message is an accepted false
         # positive.
-        if printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+commit[^|;&]*[[:space:]](--no-verify|-n)([[:space:]]|$)'; then
+        if printf '%s' "$cmd" | grep -Eq '(^|[|;&[:space:]])git([[:space:]]+[^|;&[:space:]]+)*[[:space:]]+commit[^|;&]*[[:space:]](--no-verify|-n)([[:space:]]|$)'; then
             deny "Blocked: git commit --no-verify / -n skips lefthook (incl. the sops encryption guard). Commit without it; if a hook misfires, fix the hook."
         fi
         ;;
