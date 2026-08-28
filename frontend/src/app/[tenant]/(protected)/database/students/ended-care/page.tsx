@@ -203,7 +203,10 @@ export default function EndedCarePage() {
       back
     >
       {contentEmpty ? (
-        <ForbiddenPage message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“." />
+        <ForbiddenPage
+          embedded
+          message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“."
+        />
       ) : (
         <SectionCard
           title="Kinder ohne Betreuung"

@@ -586,24 +586,22 @@ function RoomsPageContent() {
                     }
                     padding="none"
                   >
-                    <div className="relative p-6 pb-5">
-                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
-
-                      <div className="relative flex min-h-[156px] flex-col">
+                    <div className="relative p-4 sm:p-5">
+                      <div className="relative flex min-h-[120px] flex-col">
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
+                              <h3 className="truncate text-base font-bold text-gray-900">
                                 {room.name}
                               </h3>
                               <ChevronRight
-                                className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
+                                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
                                 aria-hidden="true"
                               />
                             </div>
                             {(room.building !== undefined ||
                               room.floor !== undefined) && (
-                              <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-300 md:group-hover:text-gray-600">
+                              <p className="mt-0.5 truncate text-xs text-gray-500">
                                 {room.building &&
                                   room.floor !== undefined &&
                                   `${room.building} · ${formatFloor(room.floor)}`}

@@ -75,7 +75,10 @@ export default function GradeTransitionsPage() {
             onSummaryChange={handleSummaryChange}
           />
         ) : (
-          <ForbiddenPage message="Sie verfügen nicht über die notwendigen Berechtigungen, um Jahrgangswechsel anzusehen." />
+          <ForbiddenPage
+            embedded
+            message="Sie haben nicht die nötige Berechtigung, um Jahrgangswechsel anzusehen."
+          />
         )}
       </div>
     </TenantPage>

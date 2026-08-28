@@ -4,13 +4,15 @@ import "@testing-library/jest-dom/vitest";
 import { ForbiddenPage } from "./forbidden-page";
 
 describe("ForbiddenPage", () => {
-  it("renders with default title and message", () => {
+  it("traegt als ganze Seite denselben Kopf wie jede andere Seite", () => {
     render(<ForbiddenPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Kein Zugriff" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Sie verfügen nicht über die notwendigen Berechtigungen, um diese Seite aufzurufen.",
+        "Sie haben nicht die nötige Berechtigung für diese Seite. Ihre Leitung kann sie in den Einstellungen freischalten.",
       ),
     ).toBeInTheDocument();
   });
@@ -18,7 +20,9 @@ describe("ForbiddenPage", () => {
   it("renders with custom title", () => {
     render(<ForbiddenPage title="Keine Berechtigung" />);
 
-    expect(screen.getByText("Keine Berechtigung")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Keine Berechtigung" }),
+    ).toBeInTheDocument();
   });
 
   it("renders with custom message", () => {
@@ -31,11 +35,18 @@ describe("ForbiddenPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders warning icon", () => {
+  it("zeigt die Sperre ruhig, nicht als roten Alarm", () => {
     const { container } = render(<ForbiddenPage />);
 
-    const svg = container.querySelector("svg");
-    expect(svg).toBeInTheDocument();
-    expect(svg).toHaveClass("text-moto-red");
+    // Kein Zugriff ist ein Zustand, kein Fehler: Schlosssymbol in Grau
+    // statt Warndreieck in Signalrot.
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(container.querySelector(".text-moto-red")).toBeNull();
+  });
+
+  it("laesst den Seitenkopf weg, wenn die Seite ihn schon hat", () => {
+    render(<ForbiddenPage embedded />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
   });
 });

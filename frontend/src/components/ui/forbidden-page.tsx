@@ -1,37 +1,48 @@
 "use client";
 
+import { LockKeyIcon } from "@phosphor-icons/react";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+
 interface ForbiddenPageProps {
   readonly title?: string;
   readonly message?: string;
+  /**
+   * Die Seite bringt ihren eigenen Kopf schon mit und zeigt die Sperre nur für
+   * einen Bereich. Ohne das Kennzeichen rendert die Sperre die ganze Seite,
+   * inklusive Kopf — sonst begann eine gesperrte Seite als einziger Ort der
+   * App ohne Titel und ohne Ortsangabe.
+   */
+  readonly embedded?: boolean;
 }
 
+/**
+ * Kein Zugriff ist ein Zustand, kein Fehler: die Person hat nichts falsch
+ * gemacht, ihr fehlt ein Recht. Deshalb der ruhige Leerzustand des Kits und
+ * kein roter Alarmkasten — und ein Satz dazu, wer das ändern kann.
+ */
 export function ForbiddenPage({
   title = "Kein Zugriff",
-  message = "Sie verfügen nicht über die notwendigen Berechtigungen, um diese Seite aufzurufen.",
+  message = "Sie haben nicht die nötige Berechtigung für diese Seite. Ihre Leitung kann sie in den Einstellungen freischalten.",
+  embedded = false,
 }: ForbiddenPageProps) {
+  const icon = <LockKeyIcon className="h-12 w-12" aria-hidden="true" />;
+
+  if (embedded) {
+    return <EmptyState icon={icon} title={title} description={message} />;
+  }
+
+  // Als ganze Seite trägt die Kopfkarte den Titel; der Rumpf wiederholt ihn
+  // nicht, sondern erklärt nur.
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="border-moto-red/20 bg-moto-red-soft rounded-2xl border p-6">
-        <div className="flex items-start gap-3">
-          <svg
-            className="text-moto-red mt-0.5 h-5 w-5 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-          <div>
-            <h3 className="text-moto-red-strong font-semibold">{title}</h3>
-            <p className="text-moto-red-strong mt-1 text-sm">{message}</p>
-          </div>
+    <TenantPage title={title}>
+      <SectionCard>
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <span className="text-gray-400">{icon}</span>
+          <p className="max-w-md text-sm leading-6 text-gray-500">{message}</p>
         </div>
-      </div>
-    </div>
+      </SectionCard>
+    </TenantPage>
   );
 }

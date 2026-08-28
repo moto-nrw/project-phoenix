@@ -351,13 +351,11 @@ function ActivitiesPageContent() {
               // jeder anderen Liste, und eine Liste, die sich nacheinander
               // aufbaut, hält beim Suchen nur auf.
               <TileCard key={activity.id} onClick={handleClick} padding="none">
-                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
-
                 <div className="relative flex items-center justify-between p-5">
                   {/* Left content */}
                   <div className="min-w-0 flex-1">
                     {/* Activity Name */}
-                    <h3 className="inline-block origin-left text-lg font-semibold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
+                    <h3 className="truncate text-base font-bold text-gray-900">
                       {activity.name}
                     </h3>
 

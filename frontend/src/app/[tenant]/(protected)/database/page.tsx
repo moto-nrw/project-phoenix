@@ -288,7 +288,7 @@ function DatabaseContent() {
                       </span>
                     </div>
 
-                    <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                    <h3 className="mb-2 text-base font-bold text-gray-900">
                       {section.title}
                     </h3>
                     <p className="mb-4 line-clamp-2 text-sm text-gray-600">

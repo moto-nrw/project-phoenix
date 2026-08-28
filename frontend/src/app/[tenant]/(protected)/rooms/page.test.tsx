@@ -530,7 +530,7 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Kapazität: 25 Plätze")).toBeInTheDocument();
   });
 
-  it("displays click hint on all room cards", () => {
+  it("traegt keine Tipp-Hinweiszeile mehr auf den Raumkacheln", () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: mockRooms,
       isLoading: false,
@@ -539,8 +539,9 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    const hints = screen.getAllByText("Tippen für mehr Infos");
-    expect(hints).toHaveLength(2);
+    // Die Zeile stand auf jeder Kachel, war am Rechner falsch („Tippen") und
+    // sagte nichts, was die Kachel nicht schon zeigt.
+    expect(screen.queryByText("Tippen für mehr Infos")).not.toBeInTheDocument();
   });
 
   it("displays singular 'Kind' when only one student", () => {
