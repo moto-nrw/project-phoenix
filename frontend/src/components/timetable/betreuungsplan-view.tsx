@@ -1511,13 +1511,15 @@ function TimetablesContent() {
         )}
       </PlanningContextBar>
 
-      {periodLoadError ? (
+      {periodLoadError && (
         <Alert
           type="error"
           title="Planungszeiträume konnten nicht geladen werden"
           message="Bitte laden Sie die Seite neu."
         />
-      ) : showEmptyPeriodState ? (
+      )}
+
+      {showEmptyPeriodState ? (
         <div className={`${timetableSurface} p-10 text-center`}>
           <MotoConceptIcon
             concept="closingDays"

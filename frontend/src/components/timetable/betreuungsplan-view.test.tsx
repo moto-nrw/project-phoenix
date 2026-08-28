@@ -1906,14 +1906,15 @@ describe("BetreuungsplanView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt bei einem Fehler der Planungszeiträume keinen leeren Zeitraum", () => {
+  it("zeigt bei einem Fehler der Planungszeiträume weiterhin geladene Termine", () => {
     setupSWR({ periodsState: "error" });
     render(<BetreuungsplanView />);
 
     expect(
       screen.getByText("Planungszeiträume konnten nicht geladen werden"),
     ).toBeVisible();
-    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(screen.getByText("add-instance")).toBeDisabled();
     expect(
       screen.queryByText("Noch kein Planungszeitraum"),
     ).not.toBeInTheDocument();
