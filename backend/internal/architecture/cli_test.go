@@ -1,6 +1,7 @@
 package architecture_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -256,6 +257,129 @@ func TestCheckCoversAllowedAndForbiddenVerticalEdges(t *testing.T) {
 	}
 	if !strings.Contains(output, "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target") {
 		t.Fatalf("forbidden vertical edge was not reported:\n%s", output)
+	}
+}
+
+func TestDiagramWritesDeterministicPolicyAndMigrationProjections(t *testing.T) {
+	t.Parallel()
+
+	outputDirectory := t.TempDir()
+	output, err := runArchitecture(t,
+		"diagram",
+		"--project", fixturePath(t, "projection"),
+		"--policy", fixturePath(t, "projection", "policy.json"),
+		"--baseline", fixturePath(t, "projection", "legacy.jsonl"),
+		"--output", outputDirectory,
+	)
+	if err != nil {
+		t.Fatalf("diagram failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, outputDirectory) {
+		t.Fatalf("diagram did not print its temporary output directory: %s", output)
+	}
+
+	for _, name := range []string{"target.svg", "migration.svg"} {
+		assertValidSVGFile(t, filepath.Join(outputDirectory, name))
+	}
+	for _, name := range []string{"architecture.json", "go-arch-lint.yml"} {
+		if contents := readFile(t, filepath.Join(outputDirectory, name)); contents == "" {
+			t.Fatalf("%s is empty", name)
+		}
+	}
+	var bundle struct {
+		Target    architecture.Projection `json:"target"`
+		Migration architecture.Projection `json:"migration"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(outputDirectory, "architecture.json"))), &bundle); err != nil {
+		t.Fatalf("decode architecture.json: %v", err)
+	}
+	if got := projectionEdgeSummaries(bundle.Migration); !slices.Equal(got, []string{"alpha->beta:allowed", "alpha->gamma:new", "beta->gamma:legacy"}) {
+		t.Fatalf("CLI migration statuses = %v", got)
+	}
+}
+
+func TestDependenciesWritesFocusedSVGJSONAndGodaQuery(t *testing.T) {
+	t.Parallel()
+
+	outputDirectory := t.TempDir()
+	output, err := runArchitecture(t,
+		"dependencies",
+		"--project", fixturePath(t, "projection"),
+		"--policy", fixturePath(t, "projection", "policy.json"),
+		"--baseline", fixturePath(t, "projection", "legacy.jsonl"),
+		"--focus", "module:beta",
+		"--output", outputDirectory,
+	)
+	if err != nil {
+		t.Fatalf("dependencies failed: %v\n%s", err, output)
+	}
+	assertValidSVGFile(t, filepath.Join(outputDirectory, "dependencies.svg"))
+	if query := readFile(t, filepath.Join(outputDirectory, "dependencies.goda")); !strings.Contains(query, "cgo_enabled=0(goarch=amd64(goos=linux") {
+		t.Fatalf("Goda query does not pin the policy build context: %s", query)
+	}
+	var projection architecture.Projection
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(outputDirectory, "dependencies.json"))), &projection); err != nil {
+		t.Fatalf("decode dependencies.json: %v", err)
+	}
+	if projection.Focus != "module:beta" {
+		t.Fatalf("focused machine projection has focus %q", projection.Focus)
+	}
+}
+
+func TestDependenciesRejectsUnknownAndAmbiguousFocus(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct{ focus, want string }{
+		{focus: "missing", want: "unknown focus"},
+		{focus: "beta", want: "ambiguous focus"},
+	} {
+		output, err := runArchitecture(t,
+			"dependencies",
+			"--project", fixturePath(t, "projection"),
+			"--policy", fixturePath(t, "projection", "policy.json"),
+			"--focus", tt.focus,
+			"--output", t.TempDir(),
+		)
+		if err == nil || !strings.Contains(output, tt.want) {
+			t.Errorf("focus %q error = %v, output = %s, want %q", tt.focus, err, output, tt.want)
+		}
+	}
+}
+
+func TestDiagramRejectsCommittedOutputLocations(t *testing.T) {
+	t.Parallel()
+
+	output, err := runArchitecture(t,
+		"diagram",
+		"--project", fixturePath(t, "projection"),
+		"--policy", fixturePath(t, "projection", "policy.json"),
+		"--output", fixturePath(t, "projection", "generated"),
+	)
+	if err == nil || !strings.Contains(output, "must be inside the system temporary directory") {
+		t.Fatalf("repository output was not rejected: %v\n%s", err, output)
+	}
+}
+
+func assertValidSVGFile(t *testing.T, path string) {
+	t.Helper()
+	assertValidSVG(t, []byte(readFile(t, path)))
+}
+
+func TestDiagramRejectsTemporarySymlinkOutsideTemporaryRoot(t *testing.T) {
+	t.Parallel()
+
+	link := filepath.Join(t.TempDir(), "outside")
+	if err := os.Symlink(fixturePath(t, "projection"), link); err != nil {
+		t.Fatalf("create output symlink: %v", err)
+	}
+	output, err := runArchitecture(t,
+		"diagram",
+		"--project", fixturePath(t, "projection"),
+		"--policy", fixturePath(t, "projection", "policy.json"),
+		"--output", link,
+	)
+	if err == nil || !strings.Contains(output, "must resolve inside the system temporary directory") {
+		t.Fatalf("symlink output outside temporary root was not rejected: %v\n%s", err, output)
 	}
 }
 

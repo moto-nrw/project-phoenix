@@ -23,6 +23,13 @@ scripts/backend-architecture.sh explain \
   --scope production \
   --source github.com/moto-nrw/project-phoenix/services/mealplan \
   --target github.com/moto-nrw/project-phoenix/models/mealplan
+scripts/backend-architecture.sh diagram
+scripts/backend-architecture.sh diagram \
+  --baseline architecture/legacy.jsonl
+scripts/backend-architecture.sh dependencies \
+  --focus module:meal-plan
+scripts/backend-architecture.sh dependencies \
+  --focus package:services/mealplan
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
@@ -62,6 +69,33 @@ The current backend still violates the target policy. `check --baseline` enables
 the exact shrinking-ratchet mechanics, but this slice intentionally does not
 commit or activate the production baseline. Until the CI cutover, CI runs
 `legacy-check` to keep the existing go-arch-lint gate active.
+
+## Generated projections
+
+`diagram` evaluates the real graph once and writes these files to a newly
+created system temporary directory:
+
+- `target.svg` contains only owners and production edges declared by the
+  target policy, including declared target modules that do not have packages
+  yet.
+- `migration.svg` condenses the current production graph by owner. Allowed
+  edges are gray, violations present in `--baseline` are orange-red, and new
+  violations are dashed red.
+- `architecture.json` contains both graphs plus exact violation keys and their
+  source/target owners, so follow-up tooling can group ratchet work by owner
+  and capability.
+- `go-arch-lint.yml` projects the target policy into go-arch-lint's coarser
+  owner-level model. It is an additional guard; the evaluator remains
+  authoritative for roles, scopes, semantic checks, and exact edges.
+
+`dependencies --focus ...` writes `dependencies.svg`, `dependencies.json`, and
+`dependencies.goda`. Prefix a focus with `module:` or `package:` when the same
+text names both. The generated Goda query pins `GOOS=linux`, `GOARCH=amd64`,
+and `CGO_ENABLED=0` from the policy. Unknown, ambiguous, and target-only modules
+without current packages fail with a concrete error.
+
+All files are generated artifacts. The default location and every accepted
+`--output` location are inside the system temp tree; do not commit them.
 
 ## Exact legacy ratchet
 

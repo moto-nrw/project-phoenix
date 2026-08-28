@@ -22,7 +22,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, or audit-issues")
+		return fmt.Errorf("command is required: check, explain, diagram, dependencies, or audit-issues")
 	}
 
 	switch args[0] {
@@ -32,8 +32,12 @@ func run(args []string) error {
 		return runExplain(args[1:])
 	case "audit-issues":
 		return runAuditIssues(args[1:])
+	case "diagram":
+		return runDiagram(args[1:])
+	case "dependencies":
+		return runDependencies(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, or audit-issues", args[0])
+		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, or audit-issues", args[0])
 	}
 }
 
