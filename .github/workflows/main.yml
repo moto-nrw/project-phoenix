@@ -37,6 +37,7 @@ jobs:
       run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
       run-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-backend-architecture: ${{ github.event_name == 'push' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.ci == 'true' }}
       full-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits and
@@ -70,7 +71,6 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/.golangci.yml'
-              - 'backend/.go-arch-lint.yml'
               - 'backend/architecture/**'
               - 'backend/internal/architecture/**'
               - 'backend/tools/go.mod'
@@ -79,6 +79,14 @@ jobs:
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/backend-architecture.sh'
+            backend-architecture:
+              - 'backend/**/*.go'
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/architecture/**'
+              - 'backend/internal/architecture/**'
+              - 'scripts/backend-architecture.sh'
+              - 'lefthook.yml'
             backend-lint-full:
               - 'backend/go.mod'
               - 'backend/go.sum'
@@ -127,6 +135,57 @@ jobs:
       run-backend: ${{ needs.detect-changes.outputs.run-backend-lint == 'true' }}
       full-backend: ${{ needs.detect-changes.outputs.full-backend-lint == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend-lint == 'true' }}
+
+  backend-architecture-ratchet:
+    name: Backend architecture ratchet
+    if: >-
+      github.event_name != 'pull_request'
+      || (github.event.pull_request.draft == false && needs.detect-changes.outputs.run-backend-architecture == 'true')
+    needs: detect-changes
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup Go with cache
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Check deterministic architecture ratchet
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CUTOVER_BASE_SHA: 1c66eb9233fb398b186420b4ffb36004a8a83c6c
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            if git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
+              scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
+            elif [[ "$BASE_SHA" == "$CUTOVER_BASE_SHA" ]]; then
+              # The baseline cannot exist in the base commit that introduces it.
+              # Restrict this one-time bootstrap to graph-neutral cutover files.
+              unexpected=$(git diff --name-only "$BASE_SHA"...HEAD -- backend | grep -Ev '^backend/(\.go-arch-lint\.yml|README\.md|architecture/(README\.md|legacy\.jsonl)|internal/architecture/cli_test\.go|tools/go\.(mod|sum))$' || true)
+              if [[ -n "$unexpected" ]]; then
+                echo "Unexpected backend changes in architecture-ratchet cutover:"
+                echo "$unexpected"
+                exit 1
+              fi
+              scripts/backend-architecture.sh check
+            else
+              echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
+              exit 1
+            fi
+          else
+            scripts/backend-architecture.sh check
+          fi
+      - name: Audit open migration issues
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/backend-architecture.sh audit-issues --api-url "$GITHUB_API_URL"
 
   test:
     permissions:
@@ -222,10 +281,10 @@ jobs:
     if: >-
       always()
       && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [lint, test, env-sync-check]
+    needs: [lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
     steps:
       - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
         with:
           jobs: ${{ toJSON(needs) }}
-          allowed-skips: lint, test
+          allowed-skips: lint, test, backend-architecture-ratchet
