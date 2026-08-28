@@ -1,13 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockToastSuccess, mockToastError, mockGetFeed, mockRotateFeed } =
-  vi.hoisted(() => ({
-    mockToastSuccess: vi.fn(),
-    mockToastError: vi.fn(),
-    mockGetFeed: vi.fn(),
-    mockRotateFeed: vi.fn(),
-  }));
+const {
+  mockToastSuccess,
+  mockToastError,
+  mockGetFeed,
+  mockRotateFeed,
+  mockGetStaffFeed,
+  mockRotateStaffFeed,
+} = vi.hoisted(() => ({
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  mockGetFeed: vi.fn(),
+  mockRotateFeed: vi.fn(),
+  mockGetStaffFeed: vi.fn(),
+  mockRotateStaffFeed: vi.fn(),
+}));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
@@ -21,10 +29,15 @@ vi.mock("~/lib/personal-calendar-api", async () => {
     ...actual,
     getParentCalendarFeed: mockGetFeed,
     rotateParentCalendarFeed: mockRotateFeed,
+    getStaffCalendarFeed: mockGetStaffFeed,
+    rotateStaffCalendarFeed: mockRotateStaffFeed,
   };
 });
 
-import { CalendarSubscribePanel } from "./calendar-subscribe-panel";
+import {
+  CalendarSubscribePanel,
+  StaffCalendarSubscribePanel,
+} from "./calendar-subscribe-panel";
 
 describe("CalendarSubscribePanel", () => {
   beforeEach(() => {
@@ -138,5 +151,42 @@ describe("CalendarSubscribePanel", () => {
       ).toBeInTheDocument(),
     );
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+});
+
+describe("StaffCalendarSubscribePanel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads the staff feed and explains that the subscription is read-only", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+    });
+
+    render(<StaffCalendarSubscribePanel />);
+
+    expect(screen.getByText(/Das Abo ist nur zum Lesen/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());
+    expect(
+      await screen.findByDisplayValue(
+        "https://school.test/api/calendar-feed/staff-token",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("states that creating a new link ends the previous subscription", async () => {
+    mockGetStaffFeed.mockResolvedValue({ url: "", webcal_url: "" });
+
+    render(<StaffCalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(/Ein neuer Link beendet das bisherige Abo/),
+    ).toBeInTheDocument();
+    expect(mockRotateStaffFeed).not.toHaveBeenCalled();
   });
 });

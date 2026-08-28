@@ -155,6 +155,7 @@ GET /api/birthdays/opt-out
 GET /api/calendar/appointments/{appointmentId}
 GET /api/calendar/appointments/{appointmentId}/ics
 GET /api/calendar/appointments/{appointmentId}/overview
+GET /api/calendar/feed
 GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-list-entries/
@@ -578,6 +579,7 @@ POST /api/birthdays/staff-export
 POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
+POST /api/calendar/feed/rotate
 POST /api/calendar/recipients/{recipientId}/response
 POST /api/class-list-entries/
 POST /api/class-list-entries/{id}/assign

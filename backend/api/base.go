@@ -243,7 +243,7 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	if httpMetrics != nil {
 		router.Use(httpMetrics.Middleware)
 	}
-	// Redact the parent calendar-feed token (the sole credential for the public
+	// Redact calendar-feed tokens (the sole credential for the public
 	// /public/calendar/{token} feed) from the per-request "path" attribute, and
 	// strip query-string values (staff-UI searches carry student names and
 	// e-mail addresses as query parameters, issue #2105) so neither lands in
@@ -973,9 +973,8 @@ func (a *API) registerTenantRoutes() {
 	})
 }
 
-// servePublicCalendarFeed serves the parent iCalendar subscription feed. There
-// is no auth — the token in the URL is the capability; the service resolves the
-// account by token and aggregates across the parent's tenants.
+// servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.
+// There is no auth — the token in the URL is the capability.
 func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	if a.Services.Calendar == nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -983,6 +982,9 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	token := chi.URLParam(r, "token")
 	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+	if errors.Is(err, calendarService.ErrNotFound) {
+		filename, content, err = a.Services.Calendar.StaffCalendarFeedByToken(r.Context(), token)
+	}
 	if err != nil {
 		if errors.Is(err, calendarService.ErrNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)

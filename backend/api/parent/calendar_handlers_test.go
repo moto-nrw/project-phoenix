@@ -106,6 +106,18 @@ func (f *fakeParentCalendarService) ParentCalendarFeedByToken(context.Context, s
 	return "", "", nil
 }
 
+func (f *fakeParentCalendarService) StaffCalendarFeedURL(context.Context) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) RotateStaffCalendarFeed(context.Context) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) StaffCalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+
 func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }

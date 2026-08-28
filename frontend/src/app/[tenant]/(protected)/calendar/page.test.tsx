@@ -158,6 +158,15 @@ describe("StaffCalendarPage", () => {
     vi.useRealTimers();
   });
 
+  it("shows the personal calendar subscription below the calendar", () => {
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Das Abo ist nur zum Lesen/)).toBeInTheDocument();
+  });
+
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
     // A recurring appointment opened from its THIRD weekly occurrence
     // (2026-01-19); the persisted series anchor is 2026-01-05.

@@ -123,6 +123,33 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 	return rows, nil
 }
 
+func (r *AppointmentRepository) ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*calModels.Appointment, error) {
+	var rows []*calModels.Appointment
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`(
+			("appointment".deleted_at IS NOT NULL AND "appointment".deleted_at >= ?)
+			OR ("appointment".cancelled_at IS NOT NULL AND "appointment".cancelled_at >= ?)
+		)`, since, since).
+		Where(`("appointment".organizer_staff_id = ? OR EXISTS (
+			SELECT 1
+			FROM calendar.appointment_recipients ar
+			WHERE ar.appointment_id = "appointment".id
+			  AND ar.tenant_id = "appointment".tenant_id
+			  AND ar.recipient_type = ?
+			  AND ar.staff_id = ?
+		))`, staffID, calModels.RecipientTypeStaff, staffID).
+		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list cancellation staff calendar tombstones: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
 	if len(guardianProfileIDs) == 0 || len(studentIDs) == 0 {
 		return []*calModels.Appointment{}, nil

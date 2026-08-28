@@ -403,6 +403,17 @@ type AccountTenantRepository interface {
 	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
 }
 
+type StaffCalendarFeedOwner struct {
+	AccountID int64 `bun:"account_id"`
+	TenantID  int64 `bun:"tenant_id"`
+}
+
+type StaffCalendarFeedTokenRepository interface {
+	FindOwnerByTokenHash(ctx context.Context, tokenHash string) (*StaffCalendarFeedOwner, error)
+	EnsureToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (string, error)
+	SetToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
+}
+
 // GuardianInvitationRepository defines operations for managing guardian invitations.
 type GuardianInvitationRepository interface {
 	// Create inserts a new guardian invitation

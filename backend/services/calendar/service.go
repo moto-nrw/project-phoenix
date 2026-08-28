@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -66,6 +67,9 @@ type Service interface {
 	ParentCalendarFeedURL(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
 	RotateParentCalendarFeed(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
 	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
+	StaffCalendarFeedURL(ctx context.Context) (httpsURL, webcalURL string, err error)
+	RotateStaffCalendarFeed(ctx context.Context) (httpsURL, webcalURL string, err error)
+	StaffCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
@@ -100,11 +104,14 @@ type Config struct {
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
-	Outbox      OutboxEnqueuer
-	SchoolRepo  platformModels.SchoolRepository
-	Settings    LogoResolver
-	AccountRepo FeedAccountRepo
-	ParentsURL  string
+	Outbox        OutboxEnqueuer
+	SchoolRepo    platformModels.SchoolRepository
+	Settings      LogoResolver
+	AccountRepo   FeedAccountRepo
+	StaffFeedRepo authModels.StaffCalendarFeedTokenRepository
+	PersonRepo    userModels.PersonRepository
+	ParentsURL    string
+	FrontendURL   string
 
 	// Notifier and Preferences drive the guardian push/in-app notification that
 	// accompanies the appointment e-mails (#1671). Both optional and both
@@ -130,32 +137,33 @@ func NewService(cfg Config) Service {
 }
 
 type Event struct {
-	ID               string  `json:"id"`
-	Source           string  `json:"source"`
-	AppointmentID    *string `json:"appointment_id,omitempty"`
-	OccurrenceDate   *string `json:"occurrence_date,omitempty"`
-	TimetableID      *string `json:"timetable_id,omitempty"`
-	StudentID        *string `json:"student_id,omitempty"`
-	StudentName      *string `json:"student_name,omitempty"`
-	TenantID         *string `json:"tenant_id,omitempty"`
-	SchoolName       *string `json:"school_name,omitempty"`
-	Title            string  `json:"title"`
-	Description      *string `json:"description,omitempty"`
-	Location         *string `json:"location,omitempty"`
-	StartDate        string  `json:"start_date"`
-	EndDate          string  `json:"end_date"`
-	StartTime        string  `json:"start_time"`
-	EndTime          string  `json:"end_time"`
-	AllDay           bool    `json:"all_day"`
-	Cancelled        bool    `json:"cancelled"`
-	Recurring        bool    `json:"recurring"`
-	DeliveryMode     *string `json:"delivery_mode,omitempty"`
-	ResponseStatus   *string `json:"response_status,omitempty"`
-	RecipientID      *string `json:"recipient_id,omitempty"`
-	OrganizerStaffID *string `json:"organizer_staff_id,omitempty"`
-	CanRespond       bool    `json:"can_respond"`
-	CanEdit          bool    `json:"can_edit"`
-	CanViewOverview  bool    `json:"can_view_overview"`
+	ID               string    `json:"id"`
+	Source           string    `json:"source"`
+	AppointmentID    *string   `json:"appointment_id,omitempty"`
+	OccurrenceDate   *string   `json:"occurrence_date,omitempty"`
+	TimetableID      *string   `json:"timetable_id,omitempty"`
+	StudentID        *string   `json:"student_id,omitempty"`
+	StudentName      *string   `json:"student_name,omitempty"`
+	TenantID         *string   `json:"tenant_id,omitempty"`
+	SchoolName       *string   `json:"school_name,omitempty"`
+	Title            string    `json:"title"`
+	Description      *string   `json:"description,omitempty"`
+	Location         *string   `json:"location,omitempty"`
+	StartDate        string    `json:"start_date"`
+	EndDate          string    `json:"end_date"`
+	StartTime        string    `json:"start_time"`
+	EndTime          string    `json:"end_time"`
+	AllDay           bool      `json:"all_day"`
+	Cancelled        bool      `json:"cancelled"`
+	Recurring        bool      `json:"recurring"`
+	DeliveryMode     *string   `json:"delivery_mode,omitempty"`
+	ResponseStatus   *string   `json:"response_status,omitempty"`
+	RecipientID      *string   `json:"recipient_id,omitempty"`
+	OrganizerStaffID *string   `json:"organizer_staff_id,omitempty"`
+	CanRespond       bool      `json:"can_respond"`
+	CanEdit          bool      `json:"can_edit"`
+	CanViewOverview  bool      `json:"can_view_overview"`
+	ModifiedAt       time.Time `json:"-"`
 }
 
 type AppointmentDetail struct {
@@ -683,46 +691,17 @@ func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int6
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
 		return err
 	}
-	// A subscribed external calendar (a parent's .ics subscription) only drops an
+	// A subscribed external calendar only drops an
 	// appointment when it re-receives the SAME UID with STATUS:CANCELLED at a
-	// higher SEQUENCE. Hard-deleting a feed-visible appointment makes it vanish
+	// higher SEQUENCE. Hard-deleting an appointment makes it vanish
 	// from the feed, which many clients keep rather than purge — the stale event
-	// then lingers in the parent's calendar forever. So a feed-visible appointment
-	// (one with guardian recipients) is SOFT-deleted: it disappears from every
+	// then lingers in the subscribed calendar forever. Every appointment can appear
+	// in its organizer's staff feed, so it is SOFT-deleted: it disappears from every
 	// interactive staff/parent calendar (those queries filter deleted_at IS NULL),
 	// yet the subscription feed re-exports it as a durable STATUS:CANCELLED
 	// tombstone (retained by deletion time, independent of the date lookback) with
 	// a bumped SEQUENCE so even long-offline subscribers eventually purge it.
-	// Purely staff-internal appointments never reach a subscription feed, so they
-	// are removed outright.
-	feedVisible, err := s.appointmentHasGuardianRecipients(ctx, appointment.ID)
-	if err != nil {
-		return err
-	}
-	if feedVisible {
-		return s.cfg.AppointmentRepo.SoftDelete(ctx, appointment.ID)
-	}
-	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
-	// overrides) are removed by ON DELETE CASCADE on the appointment FK.
-	return s.cfg.AppointmentRepo.Delete(ctx, appointment.ID)
-}
-
-// appointmentHasGuardianRecipients reports whether the appointment has any
-// materialized guardian-profile recipient — the marker that it can appear in a
-// parent's iCalendar subscription feed. Guardian-facing targets (a class, a
-// group, whole-school parents) are expanded into concrete guardian_profile
-// recipient rows at create/update time, so checking the recipients is sufficient.
-func (s *service) appointmentHasGuardianRecipients(ctx context.Context, appointmentID int64) (bool, error) {
-	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
-	if err != nil {
-		return false, err
-	}
-	for _, recipient := range recipients {
-		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile {
-			return true, nil
-		}
-	}
-	return false, nil
+	return s.cfg.AppointmentRepo.SoftDelete(ctx, appointment.ID)
 }
 
 func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
@@ -1316,31 +1295,45 @@ func (s *service) timetableRoomNames(ctx context.Context, roomIDs []int64) (map[
 	return names, nil
 }
 
-// collectStaffTimetableAssignments walks the window day by day and keeps the
-// first assignment per instance; cancelled instances drop out here, so their
-// rooms never reach the batch lookup.
+// collectStaffTimetableAssignments resolves the staff member's assignments and
+// their instances in two range queries. It keeps the first assignment per
+// instance; cancelled instances drop out here, so their rooms never reach the
+// batch lookup.
 func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date) ([]staffTimetableAssignment, error) {
-	collected := []staffTimetableAssignment{}
+	assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	instanceIDs := make([]int64, 0, len(assignments))
 	seen := make(map[int64]struct{})
-	for d := from; !d.After(to); d = d.AddDays(1) {
-		assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, d)
-		if err != nil {
-			return nil, err
+	for _, assignment := range assignments {
+		if _, ok := seen[assignment.InstanceID]; ok {
+			continue
 		}
-		for _, assignment := range assignments {
-			if _, ok := seen[assignment.InstanceID]; ok {
-				continue
-			}
-			seen[assignment.InstanceID] = struct{}{}
-			instance, err := s.cfg.ActivityInstanceRepo.FindByID(ctx, assignment.InstanceID)
-			if err != nil {
-				return nil, err
-			}
-			if instance.Status == scheduleModels.InstanceStatusCancelled {
-				continue
-			}
-			collected = append(collected, staffTimetableAssignment{instance: instance, assignment: assignment})
+		seen[assignment.InstanceID] = struct{}{}
+		instanceIDs = append(instanceIDs, assignment.InstanceID)
+	}
+	instances, err := s.cfg.ActivityInstanceRepo.FindByIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, err
+	}
+	instancesByID := make(map[int64]*scheduleModels.ActivityInstance, len(instances))
+	for _, instance := range instances {
+		instancesByID[instance.ID] = instance
+	}
+
+	collected := make([]staffTimetableAssignment, 0, len(instanceIDs))
+	seen = make(map[int64]struct{})
+	for _, assignment := range assignments {
+		if _, ok := seen[assignment.InstanceID]; ok {
+			continue
 		}
+		seen[assignment.InstanceID] = struct{}{}
+		instance := instancesByID[assignment.InstanceID]
+		if instance == nil || instance.Status == scheduleModels.InstanceStatusCancelled {
+			continue
+		}
+		collected = append(collected, staffTimetableAssignment{instance: instance, assignment: assignment})
 	}
 	return collected, nil
 }
@@ -1358,6 +1351,10 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 	for _, entry := range assigned {
 		instance := entry.instance
 		id := formatID(instance.ID)
+		modifiedAt := instance.UpdatedAt
+		if entry.assignment.UpdatedAt.After(modifiedAt) {
+			modifiedAt = entry.assignment.UpdatedAt
+		}
 		event := Event{
 			ID:          fmt.Sprintf("timetable:%d", instance.ID),
 			Source:      EventSourceTimetable,
@@ -1369,6 +1366,7 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 			StartTime:   formatClock(instance.StartTime),
 			EndTime:     formatClock(instance.EndTime),
 			AllDay:      false,
+			ModifiedAt:  modifiedAt,
 		}
 		// A room deleted between assignment and this read misses the map;
 		// Location then stays nil rather than becoming an empty string.
@@ -1429,14 +1427,15 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 			}
 		}
 		event := Event{
-			ID:        fmt.Sprintf("shift:%d", shift.ID),
-			Source:    EventSourceShift,
-			Title:     title,
-			StartDate: shift.Date.String(),
-			EndDate:   shift.Date.String(),
-			StartTime: formatClock(shift.StartTime),
-			EndTime:   formatClock(shift.EndTime),
-			AllDay:    false,
+			ID:         fmt.Sprintf("shift:%d", shift.ID),
+			Source:     EventSourceShift,
+			Title:      title,
+			StartDate:  shift.Date.String(),
+			EndDate:    shift.Date.String(),
+			StartTime:  formatClock(shift.StartTime),
+			EndTime:    formatClock(shift.EndTime),
+			AllDay:     false,
+			ModifiedAt: shift.UpdatedAt,
 		}
 		if shift.Notes != "" {
 			notes := shift.Notes
