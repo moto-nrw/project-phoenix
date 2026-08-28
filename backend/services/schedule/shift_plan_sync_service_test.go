@@ -115,7 +115,7 @@ func (e *sickCascadeEnv) clock(t *testing.T, hhmm string) time.Time {
 	parsed, err := time.Parse("15:04", hhmm)
 	require.NoError(t, err)
 	// time.Parse anchors at year 0, which Postgres rejects; WallClock re-anchors.
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 // createShift inserts a staff shift row directly (fixture path, no service

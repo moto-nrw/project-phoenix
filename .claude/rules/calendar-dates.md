@@ -33,7 +33,7 @@ math.
 | Date arithmetic | `d.AddDays(n)`, `a.DaysUntil(b)` (DST-exact), `d.Weekday()` | `AddDate`, `Sub().Hours()/24` |
 | Day boundaries as instants (TIMESTAMPTZ scans) | `d.BerlinMidnight()`, `d.EndOfDay()` (23:59:59 Berlin) | `timezone.EndOfDay(t)` on raw scanned values |
 | Actual instant (created_at, check_in_time) | `time.Time` (TIMESTAMPTZ) | — |
-| Clock time without date (TIME column) | `timezone.WallClock()` normalization | TIMESTAMPTZ |
+| Clock time without date (TIME column) | `timezone.NormalizeWallClock()` normalization | TIMESTAMPTZ |
 
 ## Need X → use Y (frontend)
 
@@ -95,7 +95,7 @@ zero-Date sentinel.
    (`backend/test/wall_clock_verification_test.go`) rejects
    `ActivityInstance.StartTime`/`EndTime` assignments derived from
    `time.Now()` or `timezone.Now()` unless they pass through
-   `timezone.WallClock()`. These fields map to PostgreSQL `TIME`; binding a
+   `timezone.NormalizeWallClock()`. These fields map to PostgreSQL `TIME`; binding a
    Berlin instant converts it to UTC and can reverse the clock interval around
    UTC midnight.
 
@@ -121,7 +121,7 @@ rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # 
 ## Scope boundary
 
 TIME WITHOUT TIME ZONE columns (wall-clock times like `11:30`) are a separate
-concern: normalize via `timezone.WallClock()` (see rule 11 in CLAUDE.md).
+concern: normalize via `timezone.NormalizeWallClock()` (see rule 11 in CLAUDE.md).
 `ActivityInstance` writes have a source ratchet; other TIME-backed models still
 rely on their repository/service normalization and code review. Instants
 (TIMESTAMPTZ) stay `time.Time` everywhere.

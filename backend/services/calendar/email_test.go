@@ -123,7 +123,7 @@ func TestAppointmentWhenText(t *testing.T) {
 	t.Parallel()
 
 	clock := func(h, m int) time.Time {
-		return timezone.WallClock(time.Date(2026, 1, 1, h, m, 0, 0, time.UTC))
+		return timezone.NormalizeWallClock(time.Date(2026, 1, 1, h, m, 0, 0, time.UTC))
 	}
 	timed := &calModels.Appointment{
 		StartDate: timezone.NewDate(2026, 4, 2),

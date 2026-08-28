@@ -18,7 +18,7 @@ func createTestDeviationEvent(t *testing.T, db *bun.DB, scope testpkg.TenantScop
 
 	parsed, err := time.Parse("15:04", startHHMM)
 	require.NoError(t, err)
-	start := timezone.WallClock(parsed)
+	start := timezone.NormalizeWallClock(parsed)
 
 	event := &auditModels.DeviationEvent{
 		ActivityGroupID: &activityGroupID,
@@ -126,8 +126,8 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staff.ID,
 		Date:      day,
-		StartTime: timezone.WallClock(time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)),
-		EndTime:   timezone.WallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC)),
+		StartTime: timezone.NormalizeWallClock(time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)),
+		EndTime:   timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC)),
 		CreatedBy: staff.ID,
 	}
 	shift.SetTenantID(scope.TenantID)

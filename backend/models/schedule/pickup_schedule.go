@@ -184,11 +184,11 @@ func (e *StudentPickupException) HasManualPartialAbsence() bool {
 // every writer that updates a loaded row must normalize first.
 func (e *StudentPickupException) NormalizeWallClockTimes() {
 	if e.PickupTime != nil {
-		clock := timezone.WallClock(*e.PickupTime)
+		clock := timezone.NormalizeWallClock(*e.PickupTime)
 		e.PickupTime = &clock
 	}
 	if e.ExcusedFrom != nil {
-		clock := timezone.WallClock(*e.ExcusedFrom)
+		clock := timezone.NormalizeWallClock(*e.ExcusedFrom)
 		e.ExcusedFrom = &clock
 	}
 }

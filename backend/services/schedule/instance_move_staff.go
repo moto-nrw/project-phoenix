@@ -351,8 +351,8 @@ func staffMoveSlot(inst *scheduleModel.ActivityInstance, prefix string) map[stri
 	return map[string]any{
 		prefix + "_instance_id": inst.ID,
 		prefix + "_title":       inst.Title,
-		prefix + "_start_time":  timezone.WallClock(inst.StartTime).Format("15:04"),
-		prefix + "_end_time":    timezone.WallClock(inst.EndTime).Format("15:04"),
+		prefix + "_start_time":  timezone.NormalizeWallClock(inst.StartTime).Format("15:04"),
+		prefix + "_end_time":    timezone.NormalizeWallClock(inst.EndTime).Format("15:04"),
 	}
 }
 

@@ -29,7 +29,7 @@ func coverageClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {

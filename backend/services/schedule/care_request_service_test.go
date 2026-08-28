@@ -162,7 +162,7 @@ type offeringProjectedPickupService struct {
 func (s offeringProjectedPickupService) GetStudentPickupSchedules(context.Context, int64) ([]*scheduleModels.StudentPickupSchedule, error) {
 	return []*scheduleModels.StudentPickupSchedule{{
 		StudentID: s.studentID, Weekday: s.weekday,
-		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC)),
+		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC)),
 		Source:     scheduleModels.PickupScheduleSourceCareOffering,
 	}}, nil
 }
@@ -293,7 +293,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 		&scheduleModels.StudentArrivalSchedule{
 			StudentID:       f.chain.StudentID,
 			Weekday:         3,
-			ExpectedArrival: timezone.WallClock(time.Date(1, 1, 1, 7, 30, 0, 0, time.UTC)),
+			ExpectedArrival: timezone.NormalizeWallClock(time.Date(1, 1, 1, 7, 30, 0, 0, time.UTC)),
 			CreatedBy:       f.staffID,
 		}))
 
@@ -450,14 +450,14 @@ func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int)
 		&scheduleModels.StudentArrivalSchedule{
 			StudentID:       f.chain.StudentID,
 			Weekday:         weekday,
-			ExpectedArrival: timezone.WallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
+			ExpectedArrival: timezone.NormalizeWallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
 			CreatedBy:       f.staffID,
 		}))
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx,
 		&scheduleModels.StudentPickupSchedule{
 			StudentID:  f.chain.StudentID,
 			Weekday:    weekday,
-			PickupTime: timezone.WallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+			PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 			CreatedBy:  f.staffID,
 		}))
 }

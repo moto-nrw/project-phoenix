@@ -380,7 +380,7 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateException(
 		// pickup override along with the excusal metadata.
 		switch {
 		case fields.Time != nil:
-			normalized := timezone.WallClock(*fields.Time)
+			normalized := timezone.NormalizeWallClock(*fields.Time)
 			if existingFields.Time == nil || !timezone.SameClockTime(*existingFields.Time, normalized) {
 				existingFields.TimeChanged = true
 			}
@@ -543,11 +543,11 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		fields.StudentID = studentID
 		fields.Date = date
 		if fields.Time != nil {
-			normalized := timezone.WallClock(*fields.Time)
+			normalized := timezone.NormalizeWallClock(*fields.Time)
 			fields.Time = &normalized
 		}
 		if fields.ExcusedFrom != nil {
-			normalized := timezone.WallClock(*fields.ExcusedFrom)
+			normalized := timezone.NormalizeWallClock(*fields.ExcusedFrom)
 			fields.ExcusedFrom = &normalized
 		}
 		if reason != nil {
@@ -564,7 +564,7 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 			// look like a real time edit. An identical wall-clock must leave
 			// ExcusedOwnsPickupTime intact: otherwise deleting the partial
 			// clears only excusal metadata and leaves a stale pickup override.
-			normalized := timezone.WallClock(*value)
+			normalized := timezone.NormalizeWallClock(*value)
 			if fields.Time == nil || !timezone.SameClockTime(*fields.Time, normalized) {
 				fields.TimeChanged = true
 			}

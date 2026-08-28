@@ -38,7 +38,7 @@ func overviewClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func TestOverviewHandler_StableWireContract(t *testing.T) {

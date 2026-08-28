@@ -225,7 +225,7 @@ func parseOptionalStartTime(raw *string) (*time.Time, error) {
 	if err != nil {
 		return nil, errors.New("start_time must be HH:MM")
 	}
-	wallClock := timezone.WallClock(parsed)
+	wallClock := timezone.NormalizeWallClock(parsed)
 	return &wallClock, nil
 }
 
@@ -233,7 +233,7 @@ func formatOptionalStartTime(value *time.Time) *string {
 	if value == nil {
 		return nil
 	}
-	formatted := timezone.WallClock(*value).Format("15:04")
+	formatted := timezone.NormalizeWallClock(*value).Format("15:04")
 	return &formatted
 }
 

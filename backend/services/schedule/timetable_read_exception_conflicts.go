@@ -523,8 +523,8 @@ func conflictForStudent(
 		// exception.start_time and the arrival columns are both TIME values but
 		// bun deserialises them with different year anchors. WallClock on both
 		// sides pins them to year 0001 UTC so the comparison is purely HH:MM:SS.
-		modifiedStart := timezone.WallClock(*a.exception.StartTime)
-		arrivalNorm := timezone.WallClock(arrivalTime)
+		modifiedStart := timezone.NormalizeWallClock(*a.exception.StartTime)
+		arrivalNorm := timezone.NormalizeWallClock(arrivalTime)
 
 		// Only emit when arrival is strictly after the new start — equal means
 		// the student arrives exactly at the start, which is not a conflict.

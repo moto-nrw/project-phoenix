@@ -26,7 +26,7 @@ func wallClock(t *testing.T, hhmm string) time.Time {
 	} else if err != nil {
 		panic(err)
 	}
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func newProjectionWriteService(

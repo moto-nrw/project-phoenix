@@ -243,7 +243,7 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 		resp.PickupTime = &formatted
 	}
 	if e.ExcusedFrom != nil {
-		formatted := timezone.WallClock(*e.ExcusedFrom).Format("15:04")
+		formatted := timezone.NormalizeWallClock(*e.ExcusedFrom).Format("15:04")
 		resp.ExcusedFrom = &formatted
 	}
 	return resp

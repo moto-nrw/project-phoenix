@@ -670,8 +670,8 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
 			continue
 		}
-		plannedStart := timezone.WallClock(*entry.StartTime)
-		currentClock := timezone.WallClock(now.In(timezone.Berlin))
+		plannedStart := timezone.NormalizeWallClock(*entry.StartTime)
+		currentClock := timezone.NormalizeWallClock(now.In(timezone.Berlin))
 		if currentClock.Before(plannedStart) {
 			return &PlannedStartNotReachedError{
 				PlannedStartTime: plannedStart.Format("15:04"),
@@ -2993,7 +2993,7 @@ func parseScheduleStartTime(raw *string) (*time.Time, error) {
 	if err != nil {
 		return nil, scheduleValidationErrorf("start_time must be HH:MM")
 	}
-	wallClock := timezone.WallClock(parsed)
+	wallClock := timezone.NormalizeWallClock(parsed)
 	return &wallClock, nil
 }
 

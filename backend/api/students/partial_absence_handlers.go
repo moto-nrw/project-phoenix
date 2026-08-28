@@ -67,10 +67,10 @@ func mapPartialAbsenceToResponse(row *schedule.StudentPickupException) PartialAb
 		response.CreatedBy = *row.ExcusedCreatedBy
 	}
 	if row.ExcusedFrom != nil {
-		response.FromTime = timezone.WallClock(*row.ExcusedFrom).Format("15:04")
+		response.FromTime = timezone.NormalizeWallClock(*row.ExcusedFrom).Format("15:04")
 	}
 	if row.PickupTime != nil {
-		pickup := timezone.WallClock(*row.PickupTime).Format("15:04")
+		pickup := timezone.NormalizeWallClock(*row.PickupTime).Format("15:04")
 		response.PickupTime = &pickup
 	}
 	return response

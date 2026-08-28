@@ -1305,7 +1305,7 @@ func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct
 
 func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals map[int64]*EffectiveArrivalTime, inst *scheduleModel.ActivityInstance) {
 	slotStart := inst.StartTime.Format("15:04")
-	slotStartClock := timezone.WallClock(inst.StartTime)
+	slotStartClock := timezone.NormalizeWallClock(inst.StartTime)
 	for studentID, arrival := range arrivals {
 		if arrival == nil {
 			continue
@@ -1321,7 +1321,7 @@ func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals
 			})
 			continue
 		}
-		arrivalClock := timezone.WallClock(*arrival.ArrivalTime)
+		arrivalClock := timezone.NormalizeWallClock(*arrival.ArrivalTime)
 		if arrivalClock.After(slotStartClock) {
 			expectedArrival := arrival.ArrivalTime.Format("15:04")
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{

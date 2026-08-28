@@ -289,7 +289,7 @@ func careOfferingEffectiveTimesValid(
 			end = *exception.EndTime
 		}
 	}
-	return timezone.WallClock(end).After(timezone.WallClock(start))
+	return timezone.NormalizeWallClock(end).After(timezone.NormalizeWallClock(start))
 }
 
 // ValidateRoomDeletion rejects deletion only when the room participates in a

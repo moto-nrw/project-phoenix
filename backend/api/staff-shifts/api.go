@@ -244,8 +244,8 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		ID:            s.ID,
 		StaffID:       s.StaffID,
 		Date:          s.Date.String(),
-		StartTime:     timezone.WallClock(s.StartTime).Format("15:04"),
-		EndTime:       timezone.WallClock(s.EndTime).Format("15:04"),
+		StartTime:     timezone.NormalizeWallClock(s.StartTime).Format("15:04"),
+		EndTime:       timezone.NormalizeWallClock(s.EndTime).Format("15:04"),
 		BreakMinutes:  s.BreakMinutes,
 		ShiftTypeID:   s.ShiftTypeID,
 		Notes:         s.Notes,
@@ -287,7 +287,7 @@ func ParseShiftTimes(startStr, endStr string) (start, end time.Time, err error) 
 	if err != nil {
 		return time.Time{}, time.Time{}, errors.New("end_time must be HH:MM")
 	}
-	return timezone.WallClock(start), timezone.WallClock(end), nil
+	return timezone.NormalizeWallClock(start), timezone.NormalizeWallClock(end), nil
 }
 
 func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, error) {

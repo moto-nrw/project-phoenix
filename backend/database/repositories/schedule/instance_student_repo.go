@@ -937,7 +937,7 @@ func (r *InstanceStudentRepository) FindPartialAbsenceBlocks(
 				)
 			)
 		ORDER BY instance.start_time ASC, instance.id ASC
-	`, tenant.FromContext(ctx), date, timezone.WallClock(from),
+	`, tenant.FromContext(ctx), date, timezone.NormalizeWallClock(from),
 		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted,
 		studentID, schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
 		studentID, studentID, string(users.StudentStatusAlumnus)).Scan(ctx, &rows)
