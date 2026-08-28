@@ -402,7 +402,7 @@ export function VacationRequestModal({
               modifiers={calendarModifiers}
               modifiersClassNames={{
                 requestedVacation:
-                  "[&>button]:!bg-[#F78C10]/10 [&>button]:!text-[#8A5600] [&>button]:!ring-1 [&>button]:!ring-[#F78C10]/30",
+                  "[&>button]:!bg-moto-orange/10 [&>button]:!text-moto-orange-strong [&>button]:!ring-moto-orange/30 [&>button]:!ring-1",
                 questionVacation:
                   "[&>button]:!bg-moto-purple/15 [&>button]:!text-moto-purple [&>button]:!ring-1 [&>button]:!ring-moto-purple/40",
                 approvedVacation:
@@ -413,7 +413,7 @@ export function VacationRequestModal({
           {blockingVacations.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-[#F78C10]/50" />
+                <span className="bg-moto-orange/50 h-2 w-2 rounded-full" />
                 Beantragt
               </span>
               <span className="inline-flex items-center gap-1">
@@ -490,7 +490,7 @@ export function VacationRequestModal({
           ))}
 
         {exceedsBalance && (
-          <div className="rounded-xl border border-[#F78C10]/20 bg-[#F78C10]/10 px-4 py-3 text-xs text-[#8A5600]">
+          <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-xs">
             <p className="font-medium">
               Dieser Antrag liegt {overBalanceDays}{" "}
               {overBalanceDays === 1 ? "Tag" : "Tage"} über deinem Resturlaub.

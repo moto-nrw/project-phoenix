@@ -57,8 +57,13 @@ import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-b
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
-import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import {
+  SlideOver,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { Alert } from "~/components/ui/alert";
@@ -766,15 +771,15 @@ export function PhasesEditor() {
   );
 
   return (
-    <TenantPage
-      title="Anmeldephasen"
-      // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
-      // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
-      // oder Übertragen wird die Aktion ausgeblendet).
-      stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
-      statsLoading={loading}
-      actions={
-        !editingId && !rolloverSource ? (
+    <>
+      <TenantPage
+        title="Anmeldephasen"
+        // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
+        // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
+        // oder Übertragen wird die Aktion ausgeblendet).
+        stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
+        statsLoading={loading}
+        actions={
           <Button
             type="button"
             variant="primary"
@@ -785,72 +790,62 @@ export function PhasesEditor() {
             <MotoConceptIcon concept="calendarPeriods" size={16} />
             Neue Anmeldephase
           </Button>
-        ) : undefined
-      }
-    >
-      <DesktopOnlyNotice />
-      <div className="hidden space-y-4 lg:block">
-        {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
+        }
+        loading={loading}
+        empty={
+          // Ein Speicherfehler steht als Alert über der Liste; er darf nicht
+          // hinter dem Leerzustand verschwinden.
+          !loading && phases.length === 0 && !error
+            ? {
+                title: "Noch keine Anmeldephase angelegt",
+                description:
+                  "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
+                icon: (
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                    <MotoConceptIcon concept="calendarPeriods" size={24} />
+                  </span>
+                ),
+                action: (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={startCreate}
+                    className="inline-flex items-center justify-center gap-2"
+                  >
+                    <MotoConceptIcon concept="calendarPeriods" size={16} />
+                    Erste Anmeldephase anlegen
+                  </Button>
+                ),
+              }
+            : null
+        }
+      >
+        <DesktopOnlyNotice />
+        <div className="hidden space-y-4 lg:block">
+          {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
             das gerade bearbeitete Formular nicht ersetzen. */}
-        {error ? <Alert type="error" message={error} /> : null}
-        <div className="grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
-            label="Anmeldephasen"
-            value={phases.length}
-          />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="careTimes" size={16} />}
-            label="Aktiv"
-            value={activePhaseCount}
-          />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
-            label="In Vorbereitung"
-            value={Math.max(phases.length - activePhaseCount, 0)}
-          />
-        </div>
+          {error ? <Alert type="error" message={error} /> : null}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <EnrollmentStatTile
+              leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
+              label="Anmeldephasen"
+              value={phases.length}
+            />
+            <EnrollmentStatTile
+              leading={<MotoConceptIcon concept="careTimes" size={16} />}
+              label="Aktiv"
+              value={activePhaseCount}
+            />
+            <EnrollmentStatTile
+              leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+              label="In Vorbereitung"
+              value={Math.max(phases.length - activePhaseCount, 0)}
+            />
+          </div>
 
-        {!loading && !editingId && !rolloverSource ? (
           <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
-        ) : null}
 
-        {rolloverSource && (
-          <RolloverForm
-            source={rolloverSource}
-            onCancel={() => setRolloverSource(null)}
-            onSuccess={handleRolloverSuccess}
-          />
-        )}
-
-        {editingId && draft && (
-          <PhaseForm
-            draft={draft}
-            setDraft={setDraft}
-            periods={periods}
-            schemas={latestSchemas}
-            schemaSource={schemaSource}
-            setSchemaSource={setSchemaSource}
-            editing={editingId !== "new"}
-            saving={saving}
-            highlightFormSection={highlightFormSection}
-            gradeLevelMax={gradeLevelMax}
-            onSubmit={handleSave}
-            onCancel={cancelEdit}
-          />
-        )}
-
-        {loading && !editingId && !rolloverSource ? (
-          <DataTable
-            columns={columns}
-            rows={[]}
-            isLoading
-            loadingRowCount={5}
-            getRowKey={(phase) => phase.id}
-          />
-        ) : phases.length === 0 && !editingId && !rolloverSource ? (
-          <EmptyPhasesState onCreate={startCreate} />
-        ) : phases.length > 0 && !editingId && !rolloverSource ? (
           <DataTable
             columns={columns}
             rows={phases}
@@ -858,8 +853,59 @@ export function PhasesEditor() {
             defaultSortKey="service_period"
             defaultSortDirection="desc"
           />
-        ) : null}
-      </div>
+        </div>
+      </TenantPage>
+
+      {/* Bearbeiten und Übertragen laufen neben der stehenden Liste: das
+          Formular ist zu breit für eine aufgeklappte Tabellenzeile, und die
+          Liste darf beim Bearbeiten nicht verschwinden. */}
+      <SlideOver
+        open={Boolean((editingId && draft) ?? rolloverSource)}
+        onOpenChange={(open) => {
+          if (open) return;
+          if (rolloverSource) {
+            setRolloverSource(null);
+            return;
+          }
+          cancelEdit();
+        }}
+      >
+        <SlideOverContent widthClass="sm:w-[760px]">
+          <SlideOverHeader>
+            <SlideOverTitle>
+              {rolloverSource
+                ? "Anmeldephase übertragen"
+                : editingId === "new"
+                  ? "Neue Anmeldephase"
+                  : "Anmeldephase bearbeiten"}
+            </SlideOverTitle>
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {rolloverSource ? (
+              <RolloverForm
+                source={rolloverSource}
+                onCancel={() => setRolloverSource(null)}
+                onSuccess={handleRolloverSuccess}
+              />
+            ) : editingId && draft ? (
+              <PhaseForm
+                draft={draft}
+                setDraft={setDraft}
+                periods={periods}
+                schemas={latestSchemas}
+                schemaSource={schemaSource}
+                setSchemaSource={setSchemaSource}
+                editing={editingId !== "new"}
+                saving={saving}
+                highlightFormSection={highlightFormSection}
+                gradeLevelMax={gradeLevelMax}
+                onSubmit={handleSave}
+                onCancel={cancelEdit}
+              />
+            ) : null}
+          </div>
+        </SlideOverContent>
+      </SlideOver>
 
       {deleteTarget && (
         <ConfirmDeleteModal
@@ -925,7 +971,7 @@ export function PhasesEditor() {
           error={impactError || deleteError}
         />
       )}
-    </TenantPage>
+    </>
   );
 }
 
@@ -943,34 +989,6 @@ interface PhaseFormProps {
   readonly gradeLevelMax: number | null;
   readonly onSubmit: (e: React.FormEvent) => void;
   readonly onCancel: () => void;
-}
-
-function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
-  return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
-      <EmptyState
-        icon={
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept="calendarPeriods" size={24} />
-          </span>
-        }
-        title="Noch keine Anmeldephase angelegt"
-        description="Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung."
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onCreate}
-            className="inline-flex items-center justify-center gap-2"
-          >
-            <MotoConceptIcon concept="calendarPeriods" size={16} />
-            Erste Anmeldephase anlegen
-          </Button>
-        }
-      />
-    </section>
-  );
 }
 
 function EnrollmentWindowCell({

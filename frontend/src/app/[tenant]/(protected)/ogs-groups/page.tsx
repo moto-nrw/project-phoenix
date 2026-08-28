@@ -14,7 +14,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { EmptyState } from "~/components/ui/empty-state";
+import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -875,20 +875,6 @@ function OGSGroupPageContent() {
     if (showSkeleton) {
       return <StudentCardGridSkeleton />;
     }
-    if (students.length === 0) {
-      return (
-        <EmptyState
-          className="mt-8"
-          icon={<MotoConceptIcon concept="children" size={48} />}
-          title={`Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`}
-          description={
-            allGroups.length > 1
-              ? "Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt. Wählen Sie eine andere Gruppe."
-              : "Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt."
-          }
-        />
-      );
-    }
     if (sortedStudents.length > 0) {
       return (
         <div>
@@ -1124,6 +1110,31 @@ function OGSGroupPageContent() {
         // Ladefehler stehen über der Liste, auf jeder Breite: der Desktop hat
         // sonst keinen Hinweis, warum die Liste leer bleibt.
         error={error}
+        // Der Leerzustand kommt aus dem Gerüst, nicht aus der Liste, und
+        // nennt den nächsten Schritt statt nur festzustellen, dass nichts da
+        // ist.
+        empty={
+          !showSkeleton && !error && students.length === 0
+            ? {
+                icon: <MotoConceptIcon concept="children" size={48} />,
+                title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
+                description:
+                  allGroups.length > 1
+                    ? "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche zu, oder wählen Sie oben eine andere Gruppe."
+                    : "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche dieser Gruppe zu.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => router.push("/students/search")}
+                  >
+                    Zur Kindersuche
+                  </Button>
+                ),
+              }
+            : null
+        }
       >
         {/* Mobile (<md) check-in mode trigger: inline pill at the top of
             the card list when OFF; switches to a sticky bottom bar above

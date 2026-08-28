@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -500,11 +500,12 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
 }
 
 /**
- * Tailwind gray-300. The "Erwartet" dot is the one roster state with no
- * standing in the location palette — it says "nothing has happened yet", so it
- * stays a light neutral rather than borrowing a status hue.
+ * The "Erwartet" dot is the one roster state with no standing in the location
+ * palette — it says "nothing has happened yet", so it takes the light neutral
+ * from the shared palette rather than borrowing a status hue. Never a raw hex:
+ * status and planning colours come from the tokens only.
  */
-const EXPECTED_DOT_COLOR = "#D1D5DB";
+const EXPECTED_DOT_COLOR = MOTO_COLOR_PALETTE.neutral.light;
 
 function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {

@@ -71,17 +71,50 @@ vi.mock("~/contexts/ToastContext", () => ({
   })),
 }));
 
+vi.mock("~/components/ui/confirm-delete-modal", () => ({
+  ConfirmDeleteModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
+}));
+
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
     intro,
     search,
+    error,
+    empty,
+    overlays,
   }: {
     children: ReactNode;
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
+    error?: string | null;
+    empty?: {
+      title: string;
+      description?: string;
+      icon?: ReactNode;
+      action?: ReactNode;
+    } | null;
+    overlays?: ReactNode;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
       {intro ? (
@@ -92,7 +125,17 @@ vi.mock("~/components/database/database-page-layout", () => ({
           {search}
         </div>
       ) : null}
-      {children}
+      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+      {error ? <div data-testid="page-error">{error}</div> : null}
+      {!error && empty ? (
+        <div data-testid="page-empty">
+          <p>{empty.title}</p>
+          {empty.description ? <p>{empty.description}</p> : null}
+          {empty.action}
+        </div>
+      ) : null}
+      {!error && !empty ? children : null}
+      {overlays}
     </div>
   ),
 }));
@@ -285,25 +328,6 @@ vi.mock("~/components/ui/modal", () => ({
           Close
         </button>
         {children}
-      </div>
-    ) : null,
-  ConfirmationModal: ({
-    isOpen,
-    onConfirm,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onConfirm?: () => void;
-    onClose?: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="confirmation-modal">
-        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
-          Confirm
-        </button>
-        <button type="button" data-testid="cancel-delete" onClick={onClose}>
-          Cancel
-        </button>
       </div>
     ) : null,
 }));

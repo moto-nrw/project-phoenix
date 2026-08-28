@@ -1,6 +1,6 @@
-// components/rooms/room-detail-modal.tsx
+// components/rooms/room-detail-panel.tsx
 //
-// Responsive wrapper that opens the room-detail view from /rooms without
+// Responsive panel that opens the room-detail view from /rooms without
 // navigating away from the card grid (#1374). Right-side slide-over on
 // desktop, vaul Drawer (bottom) on mobile , keeps the rooms grid
 // visible behind the panel so the user retains context while drilling
@@ -35,7 +35,7 @@ import { TransitStudentsSection } from "./transit-students-section";
 
 export const TRANSIT_ROOM_ID = "__transit__";
 
-interface RoomDetailModalProps {
+interface RoomDetailPanelProps {
   readonly roomId: string | null;
   readonly onClose: () => void;
 }
@@ -72,7 +72,7 @@ function TransitDetailContent({
   );
 }
 
-export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
+export function RoomDetailPanel({ roomId, onClose }: RoomDetailPanelProps) {
   const isMobile = useIsMobile();
   const { isModalOpen } = useModal();
   const open = roomId !== null;

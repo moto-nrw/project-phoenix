@@ -5,10 +5,6 @@ import { useSession } from "next-auth/react";
 
 import { EntryPointCard } from "~/components/help/guide-components";
 import { TenantPage } from "~/components/ui/tenant-page";
-import {
-  SkeletonRegion,
-  CardGridSkeleton,
-} from "~/components/ui/page-skeletons";
 import { hasPermission, hasRole } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -104,38 +100,33 @@ function ElternContent() {
       title="Eltern"
       stats={formatStatusDate()}
       statsLoading={showSkeleton}
+      // Laden und Leerstand kommen aus dem Gerüst, nicht aus einem eigenen
+      // Skelett im Inhalt.
+      loading={showSkeleton}
+      empty={
+        !showSkeleton && visibleCards.length === 0
+          ? {
+              title: "Für Sie ist hier noch nichts freigeschaltet",
+              description:
+                "Der Elternbereich wird von der Schulleitung freigeschaltet. Bitten Sie eine Person mit Administrationsrechten darum.",
+            }
+          : null
+      }
     >
-      {showSkeleton ? (
-        <ElternCardsSkeleton />
-      ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleCards.map((card) => (
-            <EntryPointCard
-              key={card.href}
-              href={tenantPath(card.href)}
-              title={card.title}
-              body={card.body}
-              concept={card.concept}
-              iconTone="blue"
-              points={card.points}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {visibleCards.map((card) => (
+          <EntryPointCard
+            key={card.href}
+            href={tenantPath(card.href)}
+            title={card.title}
+            body={card.body}
+            concept={card.concept}
+            iconTone="blue"
+            points={card.points}
+          />
+        ))}
+      </div>
     </TenantPage>
-  );
-}
-
-/**
- * Data-region skeleton: just the entry-point card grid. The real header
- * (TenantPage) renders immediately regardless of loading state — only this data-bound region
- * skeletonizes while the session/settings load.
- */
-function ElternCardsSkeleton() {
-  return (
-    <SkeletonRegion label="Elternbereich wird geladen…">
-      <CardGridSkeleton cards={4} rowsPerCard={2} />
-    </SkeletonRegion>
   );
 }
 
@@ -145,9 +136,7 @@ export default function ElternPage() {
       fallback={
         // Auch im Suspense-Fallback steht die Kopfkarte schon da: der Titel
         // ist statisch, nur das Kachelraster skelettiert.
-        <TenantPage title="Eltern" stats={formatStatusDate()}>
-          <ElternCardsSkeleton />
-        </TenantPage>
+        <TenantPage title="Eltern" stats={formatStatusDate()} loading />
       }
     >
       <ElternContent />

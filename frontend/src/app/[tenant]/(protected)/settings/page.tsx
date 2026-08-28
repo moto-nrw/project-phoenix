@@ -91,6 +91,12 @@ function SettingsContent() {
         label: "Einstellungsbereiche",
       }}
     >
+      {/* Bauart „Einstellungen": die einzige Flaeche, die automatisch
+          speichert. Das Verhalten steht einmal ruhig im Kopf der Flaeche und
+          nicht als Banner ueber jeder Karte. */}
+      <p className="text-sm leading-5 text-gray-500">
+        Änderungen werden sofort gespeichert.
+      </p>
       {settingsTabs.renderTab(activeTab)}
     </TenantPage>
   );

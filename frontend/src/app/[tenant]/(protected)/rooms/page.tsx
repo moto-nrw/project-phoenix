@@ -11,7 +11,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
+import { Button } from "~/components/ui/button";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -42,8 +42,8 @@ import { SectionHeader } from "~/components/ui/concept-section-header";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
-import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
-import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
+import { RoomDetailPanel } from "~/components/rooms/room-detail-panel";
+import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-panel";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import {
@@ -498,6 +498,42 @@ function RoomsPageContent() {
   // redirects on unauthenticated.
   const showSkeleton = status === "loading" || loading;
 
+  // Leerzustand kommt aus dem Gerüst (`empty`), nicht als handgebauter
+  // Block im Inhalt. Er bleibt aus, solange die Übergangsliste steht oder
+  // ein Raum im Panel offen ist: dann ist die Seite nicht leer.
+  const hasActiveFilters =
+    searchTerm !== "" || buildingFilter !== "all" || occupiedFilter !== "all";
+  const resetFilters = useCallback(() => {
+    setSearchTerm("");
+    setBuildingFilter("all");
+    setOccupiedFilter("all");
+  }, []);
+  const emptyState =
+    !showSkeleton &&
+    !showTransitAssignment &&
+    !selectedRoomId &&
+    !exportError &&
+    filteredRooms.length === 0
+      ? hasActiveFilters
+        ? {
+            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            title: "Keine Räume gefunden",
+            description:
+              "Zu Suche und Filtern passt kein Raum. Setzen Sie die Filter zurück, um alle Räume zu sehen.",
+            action: (
+              <Button type="button" size="md" onClick={resetFilters}>
+                Filter zurücksetzen
+              </Button>
+            ),
+          }
+        : {
+            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            title: "Keine Räume gefunden",
+            description:
+              "Für diese Schule ist noch kein Raum angelegt. Räume legen Sie in der Datenverwaltung an.",
+          }
+      : null;
+
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Raumliste.
   const roomSummary = (() => {
     const rooms = roomsData ?? [];
@@ -520,12 +556,9 @@ function RoomsPageContent() {
       }}
       filters={filterConfigs}
       activeFilters={activeFilters}
-      onClearAllFilters={() => {
-        setSearchTerm("");
-        setBuildingFilter("all");
-        setOccupiedFilter("all");
-      }}
+      onClearAllFilters={resetFilters}
       error={error}
+      empty={emptyState}
     >
       {exportError && <Alert type="error" message={exportError} />}
 
@@ -551,14 +584,6 @@ function RoomsPageContent() {
                   roomCardRefs.current.delete(TRANSIT_ROOM_ID);
                 }
               }}
-            />
-          ) : null}
-
-          {filteredRooms.length === 0 && !showTransitAssignment ? (
-            <EmptyState
-              icon={<MotoConceptIcon concept="rooms" size={48} />}
-              title="Keine Räume gefunden"
-              description="Versuchen Sie Ihre Suchkriterien anzupassen."
             />
           ) : null}
 
@@ -689,7 +714,7 @@ function RoomsPageContent() {
         </>
       )}
 
-      <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
+      <RoomDetailPanel roomId={selectedRoomId} onClose={handleCloseDetail} />
     </TenantPage>
   );
 }

@@ -14,12 +14,10 @@ import {
   UserMinus,
 } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
-import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -586,6 +584,100 @@ function StudentsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
+      error={errorMessage}
+      empty={
+        filteredStudents.length === 0
+          ? {
+              title:
+                searchTerm || groupFilter !== "all"
+                  ? "Keine Kinder gefunden"
+                  : "Keine Kinder vorhanden",
+              description:
+                searchTerm || groupFilter !== "all"
+                  ? // Ohne diesen Hinweis ist die leere Suche eine Sackgasse:
+                    // das Kind KANN es geben, es ist nur nicht mehr in
+                    // Betreuung (#2487).
+                    canDeleteStudents
+                    ? "Versuchen Sie andere Suchkriterien oder Filter. Kinder, deren Betreuung beendet ist, stehen im Menü oben rechts unter Beendete Betreuungen."
+                    : "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie das erste Kind an, um mit der Betreuung zu starten.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.children.icon}
+                  tone={MOTO_CONCEPTS.children.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm ||
+                groupFilter !== "all" ||
+                !canCreateStudents ? undefined : (
+                  <DatabaseCreateAction
+                    label="Kind"
+                    ariaLabel="Kind anlegen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <StudentCreateModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onCreate={handleCreateStudent}
+            // Same gate as POST /api/class-list-entries (users:create) — without
+            // the permission the modal must not offer the "Nur Klassenliste" mode.
+            onCreateListEntry={
+              canCreateStudents ? handleCreateListEntry : undefined
+            }
+            groups={allGroups}
+          />
+
+          {careExitIds ? (
+            <CareExitModal
+              isOpen
+              studentIds={careExitIds}
+              plannedLastCareDay={careExitPlannedDay ?? undefined}
+              onClose={() => {
+                setCareExitIds(null);
+                setCareExitPlannedDay(null);
+              }}
+              onFinished={async () => {
+                setCareExitIds(null);
+                setCareExitPlannedDay(null);
+                finishSelection();
+                handleSelect(null);
+                await tenantMutate("database-students-list");
+              }}
+            />
+          ) : null}
+
+          {resumeTarget ? (
+            <CareResumeModal
+              isOpen
+              studentId={String(resumeTarget.id)}
+              displayName={studentsConfig.list.item.title(resumeTarget)}
+              onClose={() => setResumeTarget(null)}
+              onResumed={async () => {
+                setResumeTarget(null);
+                await tenantMutate("database-students-list");
+              }}
+            />
+          ) : null}
+
+          {deleteTarget ? (
+            <StudentDeletionModal
+              isOpen
+              studentId={String(deleteTarget.id)}
+              displayName={studentsConfig.list.item.title(deleteTarget)}
+              onClose={() => setDeleteTarget(null)}
+              onDeleted={handleStudentDeleted}
+            />
+          ) : null}
+        </>
+      }
       className="flex w-full flex-col"
       intro={{
         title: "Kinder",
@@ -699,12 +791,6 @@ function StudentsPageContent() {
         />
       }
     >
-      {errorMessage ? (
-        <div className="mb-4">
-          <Alert type="error" message={errorMessage} />
-        </div>
-      ) : null}
-
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <StudentsMasterDetail
@@ -736,85 +822,6 @@ function StudentsPageContent() {
             }
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.children.icon}
-              tone={MOTO_CONCEPTS.children.tone}
-              size={48}
-            />
-          }
-          title={
-            searchTerm || groupFilter !== "all"
-              ? "Keine Kinder gefunden"
-              : "Keine Kinder vorhanden"
-          }
-          description={
-            searchTerm || groupFilter !== "all"
-              ? // Ohne diesen Hinweis ist die leere Suche eine Sackgasse: das
-                // Kind KANN es geben, es ist nur nicht mehr in Betreuung
-                // (#2487).
-                canDeleteStudents
-                ? "Versuchen Sie andere Suchkriterien oder Filter. Kinder, deren Betreuung beendet ist, stehen im Menü oben rechts unter Beendete Betreuungen."
-                : "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Kinder erstellt."
-          }
-        />
-      ) : null}
-
-      <StudentCreateModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateStudent}
-        // Same gate as POST /api/class-list-entries (users:create) — without
-        // the permission the modal must not offer the "Nur Klassenliste" mode.
-        onCreateListEntry={
-          canCreateStudents ? handleCreateListEntry : undefined
-        }
-        groups={allGroups}
-      />
-
-      {careExitIds ? (
-        <CareExitModal
-          isOpen
-          studentIds={careExitIds}
-          plannedLastCareDay={careExitPlannedDay ?? undefined}
-          onClose={() => {
-            setCareExitIds(null);
-            setCareExitPlannedDay(null);
-          }}
-          onFinished={async () => {
-            setCareExitIds(null);
-            setCareExitPlannedDay(null);
-            finishSelection();
-            handleSelect(null);
-            await tenantMutate("database-students-list");
-          }}
-        />
-      ) : null}
-
-      {resumeTarget ? (
-        <CareResumeModal
-          isOpen
-          studentId={String(resumeTarget.id)}
-          displayName={studentsConfig.list.item.title(resumeTarget)}
-          onClose={() => setResumeTarget(null)}
-          onResumed={async () => {
-            setResumeTarget(null);
-            await tenantMutate("database-students-list");
-          }}
-        />
-      ) : null}
-
-      {deleteTarget ? (
-        <StudentDeletionModal
-          isOpen
-          studentId={String(deleteTarget.id)}
-          displayName={studentsConfig.list.item.title(deleteTarget)}
-          onClose={() => setDeleteTarget(null)}
-          onDeleted={handleStudentDeleted}
-        />
       ) : null}
     </DatabasePageLayout>
   );

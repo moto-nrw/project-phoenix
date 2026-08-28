@@ -14,6 +14,7 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
@@ -543,10 +544,11 @@ export default function MealPlanPage() {
           }
         />
 
-        <div
-          className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-opacity duration-200 ${
+        <SectionCard
+          className={`transition-opacity duration-200 ${
             loading ? "opacity-50" : "opacity-100"
           }`}
+          bodyClassName=""
         >
           <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-x md:divide-y-0">
             {weekDates.map((date) => {
@@ -668,7 +670,7 @@ export default function MealPlanPage() {
               );
             })}
           </div>
-        </div>
+        </SectionCard>
 
         {/* Sticky save bar — only while there are unsaved changes. */}
         {canEdit && isDirty && !loading && !loadError && (
@@ -707,21 +709,22 @@ export default function MealPlanPage() {
         )}
       </TenantPage>
 
-      <ConfirmationModal
+      {/* Löschen läuft portalweit über dasselbe Bauteil. */}
+      <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={confirmRemove}
-        title="Gericht entfernen?"
-        confirmText="Entfernen"
-        cancelText="Abbrechen"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-      >
-        <p className="text-sm text-gray-600">
-          {deleteTarget
+        title="Gericht entfernen"
+        description={
+          deleteTarget
             ? `„${drafts[deleteTarget.date]?.[deleteTarget.idx]?.dish.trim() || "Dieses Gericht"}“ wird aus dem Plan entfernt. Die Änderung wird mit „Speichern“ übernommen.`
-            : ""}
-        </p>
-      </ConfirmationModal>
+            : ""
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
+        confirmLabel="Entfernen"
+        onConfirm={confirmRemove}
+        onClose={() => setDeleteTarget(null)}
+        loading={false}
+        error=""
+      />
 
       <ConfirmationModal
         isOpen={pendingOffset !== null}

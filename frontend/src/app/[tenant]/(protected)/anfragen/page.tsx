@@ -16,7 +16,6 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 import type {
   AggregatedRequestStatus,
   AggregatedRequestType,
@@ -437,12 +436,11 @@ export default function AnfragenPage() {
             }
           : undefined
       }
+      // Der Ladezustand kommt aus dem Gerüst, nicht aus einem eigenen Skelett
+      // im Inhalt.
+      loading={!isReady}
     >
-      {!isReady ? (
-        <SkeletonRegion label="Anfragen werden geladen…">
-          <ListSkeleton rows={4} avatar={false} />
-        </SkeletonRegion>
-      ) : staffActive ? (
+      {staffActive ? (
         <MitarbeitendeTab
           view={view}
           filters={staffFilters}

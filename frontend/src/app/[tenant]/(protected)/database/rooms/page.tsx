@@ -4,7 +4,6 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -13,7 +12,6 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -27,7 +25,7 @@ import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
@@ -354,6 +352,67 @@ function RoomsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
+      error={error}
+      empty={
+        filteredRooms.length === 0 && selectedRoom === null
+          ? {
+              title:
+                searchTerm || categoryFilter !== "all"
+                  ? "Keine Räume gefunden"
+                  : "Keine Räume vorhanden",
+              description:
+                searchTerm || categoryFilter !== "all"
+                  ? "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie den ersten Raum an, damit Gruppen einen Ort haben.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.rooms.icon}
+                  tone={MOTO_CONCEPTS.rooms.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm || categoryFilter !== "all" ? undefined : (
+                  <DatabaseCreateAction
+                    label="Raum"
+                    ariaLabel="Raum erstellen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Room>
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            mode="create"
+            config={roomsConfig}
+            onSubmit={handleCreateRoom}
+          />
+
+          {selectedRoom && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
+              title="Raum löschen?"
+              description={
+                <>
+                  Möchten Sie den Raum{" "}
+                  <span className="font-medium">{selectedRoom.name}</span>{" "}
+                  wirklich löschen? Diese Aktion kann nicht rückgängig gemacht
+                  werden.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={false}
+              error=""
+            />
+          )}
+        </>
+      }
       className="flex w-full flex-col"
       intro={{
         title: "Räume",
@@ -404,12 +463,6 @@ function RoomsPageContent() {
         />
       }
     >
-      {error && (
-        <div className="mb-6">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <RoomsMasterDetail
@@ -421,53 +474,7 @@ function RoomsPageContent() {
             onDeleteClick={handleDeleteClick}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.rooms.icon}
-              tone={MOTO_CONCEPTS.rooms.tone}
-              size={48}
-            />
-          }
-          title={
-            searchTerm || categoryFilter !== "all"
-              ? "Keine Räume gefunden"
-              : "Keine Räume vorhanden"
-          }
-          description={
-            searchTerm || categoryFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Räume erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Room>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={roomsConfig}
-        onSubmit={handleCreateRoom}
-      />
-
-      {selectedRoom && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
-          title="Raum löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie den Raum{" "}
-            <span className="font-medium">{selectedRoom.name}</span> wirklich
-            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
     </DatabasePageLayout>
   );
 }

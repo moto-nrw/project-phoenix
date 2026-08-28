@@ -32,7 +32,6 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
@@ -165,9 +164,8 @@ function DashboardContent() {
       prominent
       statsLoading={isLoading}
       stats={`${formatStatusDate()} · ${dashboardData?.studentsPresent ?? 0} Kinder anwesend · ${dashboardData?.studentsSick ?? 0} krank`}
+      error={error}
     >
-      {error && <Alert type="error" message={error} />}
-
       {canReadPhaseExpiryWarnings ? <PhaseExpiryWarnings /> : null}
 
       {/* Kennzahlen der Einrichtung */}

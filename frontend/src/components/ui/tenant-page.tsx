@@ -125,10 +125,42 @@ export interface TenantPageProps {
    * Fehlerzustand: ersetzt den Inhalt, die Kopfkarte bleibt stehen. Die
    * Objektform nimmt eine Aktion auf, damit ein „Erneut versuchen" nicht
    * ersatzlos verschwindet.
+   *
+   * `keepContent` stellt die Meldung ÜBER den Inhalt, statt ihn zu ersetzen.
+   * Das ist der Fall, wenn über denselben Kanal auch der Fehler einer
+   * Einzelaktion gemeldet wird („Kind konnte nicht hinzugefügt werden"):
+   * ersetzte die Meldung dort den Inhalt, wäre die Fläche nach dem ersten
+   * Fehlschlag nicht mehr bedienbar und ein zweiter Versuch unmöglich.
+   * Für einen fehlgeschlagenen Erstabruf bleibt die ersetzende Form richtig —
+   * dahinter steht kein Inhalt, den man stehen lassen könnte.
    */
-  readonly error?: string | { message: string; action?: ReactNode } | null;
-  /** Ladezustand: ersetzt den Inhalt durch Skelette. */
-  readonly loading?: boolean;
+  readonly error?:
+    | string
+    | { message: string; action?: ReactNode; keepContent?: boolean }
+    | null;
+  /**
+   * Ladezustand: ersetzt den Inhalt durch Skelette. `true` rendert das
+   * generische Kartenskelett; ein Knoten rendert stattdessen das
+   * Struktur-Skelett der Fläche (ein Plan-Raster lädt nicht wie eine
+   * Kartenliste). Die vorlesbare Ankündigung und die Rolle bleiben in beiden
+   * Fällen dieselben — deshalb kommt das Skelett hier herein und baut sich
+   * nicht daneben eine zweite Ladefläche.
+   */
+  readonly loading?: boolean | ReactNode;
+  /**
+   * Vorlesbare Ankündigung des Ladezustands. Ohne Angabe wird sie aus dem
+   * Titel gebildet („Kinder wird geladen…") — bei pluralen Titeln stimmt das
+   * Verb dann nicht, deshalb kann die Seite den Satz selbst setzen.
+   */
+  readonly loadingLabel?: string;
+  /**
+   * Dialoge, Slide-overs und andere Overlays der Seite. Sie gehören NICHT zu
+   * `children`: das Gerüst ersetzt den Inhalt in `loading`, `empty` und
+   * `error`, und ein Dialog, der als Kind steht, wird dabei mit ausgehängt —
+   * dann öffnet der Knopf im Leerzustand nichts. Was hier steht, bleibt in
+   * jedem Zustand gemountet.
+   */
+  readonly overlays?: ReactNode;
   /** Leerzustand: ersetzt den Inhalt, sobald nichts zu zeigen ist. */
   readonly empty?: {
     readonly title: string;
@@ -203,6 +235,8 @@ export function TenantPage({
   loading = false,
   empty,
   children,
+  loadingLabel,
+  overlays,
   testId,
 }: TenantPageProps) {
   const hasSearchRow =
@@ -314,13 +348,14 @@ export function TenantPage({
       <div className="mt-6 space-y-6">
         <TenantPageBody
           loading={loading}
-          loadingLabel={`${title} wird geladen…`}
+          loadingLabel={loadingLabel ?? `${title} wird geladen…`}
           error={error}
           empty={empty}
         >
           {children}
         </TenantPageBody>
       </div>
+      {overlays}
     </div>
   );
 }
@@ -417,31 +452,53 @@ function TenantPageBody({
   empty,
   children,
 }: Readonly<{
-  loading: boolean;
+  loading: boolean | ReactNode;
   /** Vorlesbarer Text des Ladezustands, aus dem Seitentitel gebildet. */
   loadingLabel: string;
   error?: TenantPageProps["error"];
   empty?: TenantPageProps["empty"];
   children?: ReactNode;
 }>) {
-  if (error) {
-    const { message, action } =
-      typeof error === "string" ? { message: error, action: undefined } : error;
-    return <Alert type="error" message={message} action={action} />;
+  const errorParts =
+    typeof error === "string" ? { message: error } : (error ?? undefined);
+  if (errorParts && !errorParts.keepContent) {
+    return (
+      <Alert
+        type="error"
+        message={errorParts.message}
+        action={errorParts.action}
+      />
+    );
   }
+  const errorBanner = errorParts ? (
+    <Alert
+      type="error"
+      message={errorParts.message}
+      action={errorParts.action}
+    />
+  ) : null;
   if (loading) {
     return (
-      <div
-        className="space-y-3"
-        role="status"
-        aria-busy="true"
-        aria-live="polite"
-        aria-label={loadingLabel}
-      >
-        <Skeleton className="h-24 w-full rounded-2xl" />
-        <Skeleton className="h-24 w-full rounded-2xl" />
-        <Skeleton className="h-24 w-full rounded-2xl" />
-      </div>
+      <>
+        {errorBanner}
+        <div
+          className={loading === true ? "space-y-3" : undefined}
+          role="status"
+          aria-busy="true"
+          aria-live="polite"
+          aria-label={loadingLabel}
+        >
+          {loading === true ? (
+            <>
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-24 w-full rounded-2xl" />
+            </>
+          ) : (
+            loading
+          )}
+        </div>
+      </>
     );
   }
   if (empty) {
@@ -450,15 +507,23 @@ function TenantPageBody({
     // und die Seite sieht leer statt aufgeräumt aus. Laden (Skelettkarten)
     // und Fehler (getönte Fläche) tragen ihre Fläche schon.
     return (
-      <SectionCard>
-        <EmptyState
-          title={empty.title}
-          description={empty.description}
-          icon={empty.icon}
-          action={empty.action}
-        />
-      </SectionCard>
+      <>
+        {errorBanner}
+        <SectionCard>
+          <EmptyState
+            title={empty.title}
+            description={empty.description}
+            icon={empty.icon}
+            action={empty.action}
+          />
+        </SectionCard>
+      </>
     );
   }
-  return <>{children}</>;
+  return (
+    <>
+      {errorBanner}
+      {children}
+    </>
+  );
 }

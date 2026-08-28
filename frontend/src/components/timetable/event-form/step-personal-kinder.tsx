@@ -804,27 +804,27 @@ export function StepPersonalKinder({
           {coverageWarnings.slice(0, 3).map((warning) => (
             <p
               key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
-              className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700"
+              className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700"
             >
               {warning.message}
             </p>
           ))}
           {coverageWarningCount > 3 && (
-            <details className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700">
-              <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-[#EAB308] focus-visible:outline-none">
+            <details className="border-moto-amber/20 bg-moto-amber/5 rounded-lg border px-3 py-2 text-sm text-gray-700">
+              <summary className="focus-visible:ring-moto-amber cursor-pointer font-medium focus-visible:ring-2 focus-visible:outline-none">
                 {coverageWarningCount - 3} weitere Lücken anzeigen
               </summary>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
                 {coverageWarnings.slice(3).map((warning) => (
                   <p
                     key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
-                    className="border-t border-[#EAB308]/20 pt-2 first:border-t-0 first:pt-0"
+                    className="border-moto-amber/20 border-t pt-2 first:border-t-0 first:pt-0"
                   >
                     {warning.message}
                   </p>
                 ))}
                 {coverageWarningCount > coverageWarnings.length && (
-                  <p className="border-t border-[#EAB308]/20 pt-2 font-medium">
+                  <p className="border-moto-amber/20 border-t pt-2 font-medium">
                     Es werden höchstens 100 Beispiele angezeigt.
                   </p>
                 )}

@@ -5,11 +5,15 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
-import { DataFieldSkeleton } from "~/components/ui/detail-modal-components";
+import {
+  DataField,
+  DataFieldSkeleton,
+  DataGrid,
+} from "~/components/ui/detail-modal-components";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate, todayISO } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -20,12 +24,23 @@ import {
   type StaffStammdaten,
 } from "~/lib/staff-api";
 import {
-  ArbeitsvertragEditModal,
-  FinancialEditModal,
-  KontaktEditModal,
-  PersonEditModal,
-  QualifikationenEditModal,
-} from "./stammdaten-section-modals";
+  ArbeitsvertragFields,
+  FinancialFields,
+  KontaktFields,
+  PersonFields,
+  PersonnelNumberFields,
+  QualifikationenFields,
+  buildDraft,
+  emptyToNull,
+  personnelNumberValid,
+  toArbeitsvertragPayload,
+  toKontaktPayload,
+  toPersonPayload,
+  toQualifikationenPayload,
+  weeklyHoursValid,
+  type FinancialDraft,
+  type StammdatenDraft,
+} from "./stammdaten-section-forms";
 
 // Stammdaten tab (#1417 Tranche 2b + #1423): the master-data home of one
 // staff member. Sections Person / Kontakt / Arbeitsvertrag / Qualifikationen
@@ -33,6 +48,12 @@ import {
 // edit), Abrechnung stays behind time_tracking:manage, and Bank & Steuer is
 // staff:financial only — the card renders a lock hint without it, and every
 // read of the stored values is access-logged server-side.
+//
+// Bearbeitet wird am Objekt (Bauart 2): EIN Bearbeiten-Zustand für den
+// ganzen Reiter, EIN Speichern unten, EINE Begründung. Die Gruppen bleiben
+// dabei sichtbar. Gespeichert wird pro Gruppe hintereinander, weil das
+// Backend je Gruppe einen eigenen Endpunkt hat; der Nutzer sieht einen
+// Vorgang, Fehler stehen gesammelt oben im Bearbeiten-Bereich.
 
 const logger = createLogger({ component: "StammdatenTab" });
 
@@ -42,67 +63,17 @@ const genderLabels: Record<string, string> = {
   diverse: "Divers",
 };
 
-type SectionModal =
-  | "person"
-  | "kontakt"
-  | "arbeitsvertrag"
-  | "qualifikationen"
-  | "payroll"
-  | null;
-
-function Field({
-  label,
+/** Ein Wert oder der Gedankenstrich für „nicht hinterlegt". */
+function Value({
   value,
-  mono,
   emptyText = "–",
 }: {
-  readonly label: string;
   readonly value: string | null | undefined;
-  readonly mono?: boolean;
   readonly emptyText?: string;
 }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
-      <dd
-        className={`mt-0.5 text-sm ${value ? "text-gray-800" : "text-gray-400"} ${mono ? "tabular-nums" : ""}`}
-      >
-        {value ?? emptyText}
-      </dd>
-    </div>
-  );
+  if (value) return <>{value}</>;
+  return <span className="font-normal text-gray-400">{emptyText}</span>;
 }
-
-function FieldGrid({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-      {children}
-    </dl>
-  );
-}
-
-function EditAction({
-  visible,
-  onClick,
-}: {
-  readonly visible: boolean;
-  readonly onClick: () => void;
-}) {
-  if (!visible) return null;
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="compact"
-      className="bg-white"
-      onClick={onClick}
-    >
-      Bearbeiten
-    </Button>
-  );
-}
-
-// --- main tab ---------------------------------------------------------------
 
 export function StammdatenTab({
   staffId,
@@ -119,7 +90,7 @@ export function StammdatenTab({
   readonly canEditSections?: boolean;
   readonly canViewFinancial?: boolean;
 }) {
-  const [openModal, setOpenModal] = useState<SectionModal>(null);
+  const berlinToday = useBerlinToday();
 
   const {
     data: personnelNumber,
@@ -139,6 +110,34 @@ export function StammdatenTab({
     mutate: mutateStammdaten,
   } = useSWRAuth(canViewSections ? `staff-stammdaten-${staffId}` : null, () =>
     staffStammdatenService.get(staffId),
+  );
+
+  // Die maskierten Werte werden nur mit staff:financial angefragt: ohne die
+  // Berechtigung bleibt der Schlüssel null und es geht keine Anfrage raus.
+  const {
+    data: financial,
+    error: financialError,
+    mutate: mutateFinancial,
+  } = useSWRAuth(
+    canViewFinancial ? `staff-stammdaten-financial-${staffId}` : null,
+    () => staffStammdatenService.getFinancial(staffId),
+  );
+
+  // Anzeigen-Zustand der Bankdaten (Lesemodus).
+  const [revealed, setRevealed] = useState<StaffFinancialPlain | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
+
+  // Bearbeiten-Zustand des ganzen Reiters.
+  const [draft, setDraft] = useState<StammdatenDraft | null>(null);
+  const [baseline, setBaseline] = useState<StammdatenDraft | null>(null);
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveErrors, setSaveErrors] = useState<readonly string[]>([]);
+  const [birthdayValid, setBirthdayValid] = useState(true);
+  const [financialLoading, setFinancialLoading] = useState(false);
+  const [financialLoadError, setFinancialLoadError] = useState<string | null>(
+    null,
   );
 
   if (canManagePayroll && payrollError) {
@@ -183,180 +182,446 @@ export function StammdatenTab({
     );
   }
 
-  const closeAndRefresh = (mutator: () => void) => {
-    setOpenModal(null);
-    mutator();
+  const today = todayISO();
+  const editing = draft !== null;
+  const sectionsEditable = canEditSections && Boolean(stammdaten);
+  const payrollEditable = canManagePayroll && !payrollLoading;
+  const financialEditable = canViewFinancial && !financialError;
+  const canStartEditing =
+    sectionsEditable || payrollEditable || financialEditable;
+
+  const patchDraft = (patch: Partial<StammdatenDraft>) =>
+    setDraft((current) => (current ? { ...current, ...patch } : current));
+
+  const patchFinancial = (patch: Partial<FinancialDraft>) =>
+    setDraft((current) =>
+      current?.financial
+        ? { ...current, financial: { ...current.financial, ...patch } }
+        : current,
+    );
+
+  const startEditing = () => {
+    const next = buildDraft(stammdaten, personnelNumber);
+    setDraft(next);
+    setBaseline(next);
+    setNote("");
+    setSaveErrors([]);
+    setBirthdayValid(true);
+    setFinancialLoadError(null);
   };
 
-  const today = todayISO();
+  const cancelEditing = () => {
+    setDraft(null);
+    setBaseline(null);
+    setNote("");
+    setSaveErrors([]);
+    setFinancialLoadError(null);
+  };
+
+  // Die Klartextwerte der Bankdaten werden erst auf ausdrückliche Anforderung
+  // geladen — jeder Abruf landet im Audit-Log, deshalb löst nicht schon der
+  // Wechsel in den Bearbeiten-Zustand ihn aus.
+  const loadFinancialForEditing = async () => {
+    setFinancialLoading(true);
+    setFinancialLoadError(null);
+    try {
+      const plain = await staffStammdatenService.revealFinancial(staffId);
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              financial: {
+                iban: plain.iban ?? "",
+                taxId: plain.taxId ?? "",
+                socialSecurityNumber: plain.socialSecurityNumber ?? "",
+              },
+            }
+          : current,
+      );
+      setBaseline((current) =>
+        current
+          ? {
+              ...current,
+              financial: {
+                iban: plain.iban ?? "",
+                taxId: plain.taxId ?? "",
+                socialSecurityNumber: plain.socialSecurityNumber ?? "",
+              },
+            }
+          : current,
+      );
+    } catch (err) {
+      logger.error("stammdaten_financial_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setFinancialLoadError(
+        "Die Bank- und Steuerdaten konnten nicht geladen werden.",
+      );
+    } finally {
+      setFinancialLoading(false);
+    }
+  };
+
+  const toggleReveal = async () => {
+    if (revealed) {
+      setRevealed(null);
+      return;
+    }
+    setRevealing(true);
+    setRevealError(null);
+    try {
+      const plain = await staffStammdatenService.revealFinancial(staffId);
+      setRevealed(plain);
+    } catch (err) {
+      logger.error("stammdaten_financial_reveal_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setRevealError(
+        "Die Werte konnten nicht angezeigt werden. Bitte erneut versuchen.",
+      );
+    } finally {
+      setRevealing(false);
+    }
+  };
+
+  const changed = (pick: (value: StammdatenDraft) => unknown) =>
+    draft !== null &&
+    baseline !== null &&
+    JSON.stringify(pick(draft)) !== JSON.stringify(pick(baseline));
+
+  const draftValid =
+    draft === null ||
+    ((!sectionsEditable ||
+      (draft.firstName.trim() !== "" &&
+        draft.lastName.trim() !== "" &&
+        birthdayValid &&
+        weeklyHoursValid(draft.weeklyHours) &&
+        draft.qualifikationen.every((row) => row.name.trim() !== ""))) &&
+      (!payrollEditable || personnelNumberValid(draft.personnelNumber)));
+
+  const handleSave = async () => {
+    if (!draft) return;
+    const reason = note.trim();
+    // Der Rückgabewert der einzelnen Dienste ist hier ohne Belang — gespeichert
+    // wird der Reiter als Ganzes, und die Fläche lädt danach ohnehin neu.
+    const steps: {
+      label: string;
+      event: string;
+      run: () => Promise<unknown>;
+    }[] = [];
+
+    if (sectionsEditable) {
+      if (changed((d) => toPersonPayload(d))) {
+        steps.push({
+          label: "Person",
+          event: "stammdaten_person_save_failed",
+          run: () =>
+            staffStammdatenService.updatePerson(
+              staffId,
+              toPersonPayload(draft),
+              reason,
+            ),
+        });
+      }
+      if (changed((d) => toKontaktPayload(d))) {
+        steps.push({
+          label: "Kontakt",
+          event: "stammdaten_kontakt_save_failed",
+          run: () =>
+            staffStammdatenService.updateKontakt(
+              staffId,
+              toKontaktPayload(draft),
+              reason,
+            ),
+        });
+      }
+      if (changed((d) => toArbeitsvertragPayload(d))) {
+        steps.push({
+          label: "Arbeitsvertrag",
+          event: "stammdaten_arbeitsvertrag_save_failed",
+          run: () =>
+            staffStammdatenService.updateArbeitsvertrag(
+              staffId,
+              toArbeitsvertragPayload(draft),
+              reason,
+            ),
+        });
+      }
+      if (changed((d) => toQualifikationenPayload(d))) {
+        steps.push({
+          label: "Qualifikationen",
+          event: "stammdaten_qualifikationen_save_failed",
+          run: () =>
+            staffStammdatenService.updateQualifikationen(
+              staffId,
+              toQualifikationenPayload(draft),
+              reason,
+            ),
+        });
+      }
+    }
+
+    if (payrollEditable && changed((d) => d.personnelNumber.trim())) {
+      steps.push({
+        label: "Personalnummer",
+        event: "stammdaten_payroll_save_failed",
+        run: () =>
+          staffPayrollNumberService.update(
+            staffId,
+            emptyToNull(draft.personnelNumber),
+            reason,
+          ),
+      });
+    }
+
+    if (financialEditable && draft.financial && changed((d) => d.financial)) {
+      const values = draft.financial;
+      steps.push({
+        label: "Bank & Steuer",
+        event: "stammdaten_financial_save_failed",
+        run: () =>
+          staffStammdatenService.updateFinancial(
+            staffId,
+            {
+              iban: emptyToNull(values.iban),
+              taxId: emptyToNull(values.taxId),
+              socialSecurityNumber: emptyToNull(values.socialSecurityNumber),
+            },
+            reason,
+          ),
+      });
+    }
+
+    if (steps.length === 0) {
+      cancelEditing();
+      return;
+    }
+
+    setSaving(true);
+    setSaveErrors([]);
+    const errors: string[] = [];
+    for (const step of steps) {
+      try {
+        await step.run();
+      } catch (err) {
+        logger.error(step.event, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        errors.push(
+          `${step.label}: ${err instanceof Error ? err.message : "Speichern fehlgeschlagen"}`,
+        );
+      }
+    }
+    setSaving(false);
+
+    void mutateStammdaten();
+    void mutatePayroll();
+    void mutateFinancial();
+    setRevealed(null);
+
+    if (errors.length > 0) {
+      setSaveErrors(errors);
+      return;
+    }
+    cancelEditing();
+  };
 
   return (
     <div className="space-y-5">
+      {canStartEditing && !editing && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="bg-white"
+            onClick={startEditing}
+          >
+            Bearbeiten
+          </Button>
+        </div>
+      )}
+
+      {editing && saveErrors.length > 0 && (
+        <Alert
+          type="error"
+          message={
+            saveErrors.length === 1
+              ? (saveErrors[0] ?? "Speichern fehlgeschlagen")
+              : `Nicht alles konnte gespeichert werden: ${saveErrors.join(" · ")}`
+          }
+        />
+      )}
+
       {canViewSections && (
         <>
-          <SectionCard
-            collapsible
-            title="Person"
-            action={
-              <EditAction
-                visible={canEditSections && Boolean(stammdaten)}
-                onClick={() => setOpenModal("person")}
+          <SectionCard collapsible title="Person">
+            {editing && draft && sectionsEditable ? (
+              <PersonFields
+                draft={draft}
+                onChange={patchDraft}
+                berlinToday={berlinToday}
+                onBirthdayValidityChange={setBirthdayValid}
               />
-            }
-          >
-            <FieldGrid>
-              {stammdaten ? (
-                <>
-                  <Field label="Vorname" value={stammdaten.person.firstName} />
-                  <Field label="Nachname" value={stammdaten.person.lastName} />
-                  <Field
-                    label="Geburtsdatum"
-                    value={
-                      stammdaten.person.birthday
-                        ? formatDate(stammdaten.person.birthday)
-                        : null
-                    }
-                  />
-                  <Field
-                    label="Geschlecht"
-                    value={
-                      stammdaten.person.gender
-                        ? (genderLabels[stammdaten.person.gender] ?? null)
-                        : null
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                </>
-              )}
-            </FieldGrid>
+            ) : (
+              <DataGrid>
+                {stammdaten ? (
+                  <>
+                    <DataField label="Vorname">
+                      <Value value={stammdaten.person.firstName} />
+                    </DataField>
+                    <DataField label="Nachname">
+                      <Value value={stammdaten.person.lastName} />
+                    </DataField>
+                    <DataField label="Geburtsdatum">
+                      <Value
+                        value={
+                          stammdaten.person.birthday
+                            ? formatDate(stammdaten.person.birthday)
+                            : null
+                        }
+                      />
+                    </DataField>
+                    <DataField label="Geschlecht">
+                      <Value
+                        value={
+                          stammdaten.person.gender
+                            ? (genderLabels[stammdaten.person.gender] ?? null)
+                            : null
+                        }
+                      />
+                    </DataField>
+                  </>
+                ) : (
+                  <>
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                  </>
+                )}
+              </DataGrid>
+            )}
           </SectionCard>
 
-          <SectionCard
-            collapsible
-            title="Kontakt"
-            action={
-              <EditAction
-                visible={canEditSections && Boolean(stammdaten)}
-                onClick={() => setOpenModal("kontakt")}
-              />
-            }
-          >
-            <FieldGrid>
-              {stammdaten ? (
-                <>
-                  <Field
-                    label="Adresse"
-                    value={formatAddress(stammdaten) ?? null}
-                  />
-                  <Field label="Telefon" value={stammdaten.kontakt.phone} />
-                  <Field label="E-Mail" value={stammdaten.kontakt.email} />
-                  <Field
-                    label="Notfallkontakt"
-                    value={formatEmergencyContact(stammdaten) ?? null}
-                  />
-                </>
-              ) : (
-                <>
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                </>
-              )}
-            </FieldGrid>
+          <SectionCard collapsible title="Kontakt">
+            {editing && draft && sectionsEditable ? (
+              <KontaktFields draft={draft} onChange={patchDraft} />
+            ) : (
+              <DataGrid>
+                {stammdaten ? (
+                  <>
+                    <DataField label="Adresse">
+                      <Value value={formatAddress(stammdaten) ?? null} />
+                    </DataField>
+                    <DataField label="Telefon">
+                      <Value value={stammdaten.kontakt.phone} />
+                    </DataField>
+                    <DataField label="E-Mail">
+                      <Value value={stammdaten.kontakt.email} />
+                    </DataField>
+                    <DataField label="Notfallkontakt">
+                      <Value
+                        value={formatEmergencyContact(stammdaten) ?? null}
+                      />
+                    </DataField>
+                  </>
+                ) : (
+                  <>
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                  </>
+                )}
+              </DataGrid>
+            )}
           </SectionCard>
 
-          <SectionCard
-            collapsible
-            title="Arbeitsvertrag"
-            action={
-              <EditAction
-                visible={canEditSections && Boolean(stammdaten)}
-                onClick={() => setOpenModal("arbeitsvertrag")}
-              />
-            }
-          >
-            <FieldGrid>
-              {stammdaten ? (
-                <>
-                  <Field
-                    label="Eintrittsdatum"
-                    value={
-                      stammdaten.arbeitsvertrag.entryDate
-                        ? formatDate(stammdaten.arbeitsvertrag.entryDate)
-                        : null
-                    }
-                  />
-                  <Field
-                    label="Beschäftigungstyp"
-                    value={
-                      stammdaten.arbeitsvertrag.employmentType
-                        ? (employmentTypeLabels[
-                            stammdaten.arbeitsvertrag.employmentType
-                          ] ?? stammdaten.arbeitsvertrag.employmentType)
-                        : null
-                    }
-                  />
-                  <Field
-                    label="Befristet bis"
-                    value={
-                      stammdaten.arbeitsvertrag.contractEndDate
-                        ? formatDate(stammdaten.arbeitsvertrag.contractEndDate)
-                        : "Unbefristet"
-                    }
-                  />
-                  <Field
-                    label="Probezeit bis"
-                    value={
-                      stammdaten.arbeitsvertrag.probationEndDate
-                        ? formatDate(stammdaten.arbeitsvertrag.probationEndDate)
-                        : null
-                    }
-                  />
-                  <Field
-                    label="Wochenstunden lt. Vertrag"
-                    value={
-                      stammdaten.arbeitsvertrag.weeklyHours != null
-                        ? `${stammdaten.arbeitsvertrag.weeklyHours.toLocaleString("de-DE")} Std.`
-                        : null
-                    }
-                    mono
-                  />
-                </>
-              ) : (
-                <>
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                  <DataFieldSkeleton />
-                </>
-              )}
-            </FieldGrid>
+          <SectionCard collapsible title="Arbeitsvertrag">
+            {editing && draft && sectionsEditable ? (
+              <ArbeitsvertragFields draft={draft} onChange={patchDraft} />
+            ) : (
+              <DataGrid>
+                {stammdaten ? (
+                  <>
+                    <DataField label="Eintrittsdatum">
+                      <Value
+                        value={
+                          stammdaten.arbeitsvertrag.entryDate
+                            ? formatDate(stammdaten.arbeitsvertrag.entryDate)
+                            : null
+                        }
+                      />
+                    </DataField>
+                    <DataField label="Beschäftigungstyp">
+                      <Value
+                        value={
+                          stammdaten.arbeitsvertrag.employmentType
+                            ? (employmentTypeLabels[
+                                stammdaten.arbeitsvertrag.employmentType
+                              ] ?? stammdaten.arbeitsvertrag.employmentType)
+                            : null
+                        }
+                      />
+                    </DataField>
+                    <DataField label="Befristet bis">
+                      <Value
+                        value={
+                          stammdaten.arbeitsvertrag.contractEndDate
+                            ? formatDate(
+                                stammdaten.arbeitsvertrag.contractEndDate,
+                              )
+                            : "Unbefristet"
+                        }
+                      />
+                    </DataField>
+                    <DataField label="Probezeit bis">
+                      <Value
+                        value={
+                          stammdaten.arbeitsvertrag.probationEndDate
+                            ? formatDate(
+                                stammdaten.arbeitsvertrag.probationEndDate,
+                              )
+                            : null
+                        }
+                      />
+                    </DataField>
+                    <DataField label="Wochenstunden lt. Vertrag" mono>
+                      <Value
+                        value={
+                          stammdaten.arbeitsvertrag.weeklyHours != null
+                            ? `${stammdaten.arbeitsvertrag.weeklyHours.toLocaleString("de-DE")} Std.`
+                            : null
+                        }
+                      />
+                    </DataField>
+                  </>
+                ) : (
+                  <>
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                    <DataFieldSkeleton />
+                  </>
+                )}
+              </DataGrid>
+            )}
           </SectionCard>
 
           <SectionCard
             collapsible
             title="Qualifikationen"
             description="Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, mit Ablaufdatum."
-            action={
-              <EditAction
-                visible={canEditSections && Boolean(stammdaten)}
-                onClick={() => setOpenModal("qualifikationen")}
-              />
-            }
           >
-            {!stammdaten ? (
-              <FieldGrid>
+            {editing && draft && sectionsEditable ? (
+              <QualifikationenFields draft={draft} onChange={patchDraft} />
+            ) : !stammdaten ? (
+              <DataGrid>
                 <DataFieldSkeleton />
                 <DataFieldSkeleton />
-              </FieldGrid>
+              </DataGrid>
             ) : stammdaten.qualifikationen.length === 0 ? (
               <p className="text-sm text-gray-400">
                 Keine Qualifikationen hinterlegt.
@@ -404,44 +669,142 @@ export function StammdatenTab({
           collapsible
           title="Personalnummer"
           description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen. Lohnarten und DATEV-Mandantendaten werden zentral unter „Abrechnung“ gepflegt."
-          actions={
-            <>
-              {canManagePayrollSettings ? (
-                <ButtonLink href="/payroll" variant="ghost" size="compact">
-                  Abrechnung
-                </ButtonLink>
-              ) : null}
-              <EditAction
-                visible={!payrollLoading}
-                onClick={() => setOpenModal("payroll")}
-              />
-            </>
+          action={
+            canManagePayrollSettings && !editing ? (
+              <ButtonLink href="/payroll" variant="ghost" size="compact">
+                Abrechnung
+              </ButtonLink>
+            ) : null
           }
         >
-          <FieldGrid>
-            {payrollLoading ? (
-              <DataFieldSkeleton />
-            ) : (
-              <Field
-                label="Personalnummer"
-                value={personnelNumber ?? null}
-                emptyText="Nicht gesetzt"
-                mono
-              />
-            )}
-          </FieldGrid>
+          {editing && draft && payrollEditable ? (
+            <PersonnelNumberFields draft={draft} onChange={patchDraft} />
+          ) : (
+            <DataGrid>
+              {payrollLoading ? (
+                <DataFieldSkeleton />
+              ) : (
+                <DataField label="Personalnummer" mono>
+                  <Value
+                    value={personnelNumber ?? null}
+                    emptyText="Nicht gesetzt"
+                  />
+                </DataField>
+              )}
+            </DataGrid>
+          )}
         </SectionCard>
       ) : null}
 
       {/* Bank & Steuer (#1423) */}
       {canViewFinancial ? (
-        <FinancialSection staffId={staffId} />
+        <SectionCard
+          collapsible
+          title="Bank & Steuer"
+          description="Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
+          action={
+            !editing && !financialError ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                className="bg-white"
+                onClick={() => void toggleReveal()}
+                disabled={revealing}
+              >
+                {revealed ? (
+                  <>
+                    <EyeOff className="mr-1 h-4 w-4" aria-hidden="true" />
+                    Verbergen
+                  </>
+                ) : (
+                  <>
+                    <Eye className="mr-1 h-4 w-4" aria-hidden="true" />
+                    Anzeigen
+                  </>
+                )}
+              </Button>
+            ) : null
+          }
+        >
+          {financialError ? (
+            <Alert
+              type="error"
+              message="Die Bank- und Steuerdaten konnten nicht geladen werden."
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  onClick={() => void mutateFinancial()}
+                >
+                  Erneut laden
+                </Button>
+              }
+            />
+          ) : editing && draft ? (
+            draft.financial ? (
+              <FinancialFields
+                values={draft.financial}
+                onChange={patchFinancial}
+              />
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Zum Ändern müssen die gespeicherten Werte geladen werden. Der
+                  Abruf wird im Audit-Log protokolliert.
+                </p>
+                {financialLoadError && (
+                  <Alert type="error" message={financialLoadError} />
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  isLoading={financialLoading}
+                  loadingText="Wird geladen…"
+                  onClick={() => void loadFinancialForEditing()}
+                >
+                  Werte zum Ändern laden
+                </Button>
+              </div>
+            )
+          ) : (
+            <DataGrid>
+              <DataField label="IBAN" mono>
+                <Value
+                  value={
+                    revealed ? revealed.iban : (financial?.ibanMasked ?? null)
+                  }
+                />
+              </DataField>
+              <DataField label="Steuer-ID" mono>
+                <Value
+                  value={
+                    revealed ? revealed.taxId : (financial?.taxIdMasked ?? null)
+                  }
+                />
+              </DataField>
+              <DataField label="SV-Nummer" mono>
+                <Value
+                  value={
+                    revealed
+                      ? revealed.socialSecurityNumber
+                      : (financial?.socialSecurityNumberMasked ?? null)
+                  }
+                />
+              </DataField>
+            </DataGrid>
+          )}
+          {revealError && !editing && (
+            <div className="mt-2">
+              <Alert type="error" message={revealError} />
+            </div>
+          )}
+        </SectionCard>
       ) : (
-        <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-gray-900">
-            Bank &amp; Steuer
-          </h3>
-          <div className="mt-3 flex items-start gap-2 rounded-xl bg-gray-50 p-3">
+        <SectionCard title="Bank & Steuer">
+          <div className="flex items-start gap-2 rounded-xl bg-gray-50 p-3">
             <Lock
               className="mt-0.5 h-4 w-4 shrink-0 text-gray-400"
               aria-hidden="true"
@@ -451,185 +814,44 @@ export function StammdatenTab({
               Berechtigung „Bank- &amp; Steuerdaten“ sichtbar.
             </p>
           </div>
-        </section>
+        </SectionCard>
       )}
 
-      {/* Modals */}
-      {openModal === "person" && stammdaten && (
-        <PersonEditModal
-          staffId={staffId}
-          person={stammdaten.person}
-          onClose={() => setOpenModal(null)}
-          onSaved={() => closeAndRefresh(() => void mutateStammdaten())}
-        />
-      )}
-      {openModal === "kontakt" && stammdaten && (
-        <KontaktEditModal
-          staffId={staffId}
-          kontakt={stammdaten.kontakt}
-          onClose={() => setOpenModal(null)}
-          onSaved={() => closeAndRefresh(() => void mutateStammdaten())}
-        />
-      )}
-      {openModal === "arbeitsvertrag" && stammdaten && (
-        <ArbeitsvertragEditModal
-          staffId={staffId}
-          vertrag={stammdaten.arbeitsvertrag}
-          onClose={() => setOpenModal(null)}
-          onSaved={() => closeAndRefresh(() => void mutateStammdaten())}
-        />
-      )}
-      {openModal === "qualifikationen" && stammdaten && (
-        <QualifikationenEditModal
-          staffId={staffId}
-          qualifikationen={stammdaten.qualifikationen}
-          onClose={() => setOpenModal(null)}
-          onSaved={() => closeAndRefresh(() => void mutateStammdaten())}
-        />
-      )}
-      {openModal === "payroll" && (
-        <PersonnelNumberModal
-          staffId={staffId}
-          current={personnelNumber ?? null}
-          onClose={() => setOpenModal(null)}
-          onSaved={() => closeAndRefresh(() => void mutatePayroll())}
-        />
-      )}
-    </div>
-  );
-}
-
-// --- Bank & Steuer (#1423) --------------------------------------------------
-//
-// Its own component so the masked-data request only ever exists for holders
-// of staff:financial — the section is simply not mounted otherwise.
-function FinancialSection({ staffId }: { readonly staffId: string }) {
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [revealed, setRevealed] = useState<StaffFinancialPlain | null>(null);
-  const [revealing, setRevealing] = useState(false);
-  const [revealError, setRevealError] = useState<string | null>(null);
-
-  const {
-    data: financial,
-    error: financialError,
-    mutate: mutateFinancial,
-  } = useSWRAuth(`staff-stammdaten-financial-${staffId}`, () =>
-    staffStammdatenService.getFinancial(staffId),
-  );
-
-  const toggleReveal = async () => {
-    if (revealed) {
-      setRevealed(null);
-      return;
-    }
-    setRevealing(true);
-    setRevealError(null);
-    try {
-      const plain = await staffStammdatenService.revealFinancial(staffId);
-      setRevealed(plain);
-    } catch (err) {
-      logger.error("stammdaten_financial_reveal_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setRevealError(
-        "Die Werte konnten nicht angezeigt werden. Bitte erneut versuchen.",
-      );
-    } finally {
-      setRevealing(false);
-    }
-  };
-
-  return (
-    <>
-      <SectionCard
-        collapsible
-        title="Bank & Steuer"
-        description="Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
-        action={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              className="bg-white"
-              onClick={() => void toggleReveal()}
-              disabled={revealing || Boolean(financialError)}
-            >
-              {revealed ? (
-                <>
-                  <EyeOff className="mr-1 h-4 w-4" aria-hidden="true" />
-                  Verbergen
-                </>
-              ) : (
-                <>
-                  <Eye className="mr-1 h-4 w-4" aria-hidden="true" />
-                  Anzeigen
-                </>
-              )}
-            </Button>
-            <EditAction
-              visible={!financialError}
-              onClick={() => setEditorOpen(true)}
+      {editing && draft && (
+        <SectionCard>
+          <div className="space-y-4">
+            <Input
+              controlSize="compact"
+              label="Begründung (optional)"
+              name="stammdaten-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Erscheint im Änderungsprotokoll"
             />
-          </>
-        }
-      >
-        {financialError ? (
-          <Alert
-            type="error"
-            message="Die Bank- und Steuerdaten konnten nicht geladen werden."
-            action={
+            <div className="flex justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
-                size="compact"
-                onClick={() => void mutateFinancial()}
+                size="md"
+                onClick={cancelEditing}
+                disabled={saving}
               >
-                Erneut laden
+                Abbrechen
               </Button>
-            }
-          />
-        ) : (
-          <FieldGrid>
-            <Field
-              label="IBAN"
-              value={revealed ? revealed.iban : (financial?.ibanMasked ?? null)}
-              mono
-            />
-            <Field
-              label="Steuer-ID"
-              value={
-                revealed ? revealed.taxId : (financial?.taxIdMasked ?? null)
-              }
-              mono
-            />
-            <Field
-              label="SV-Nummer"
-              value={
-                revealed
-                  ? revealed.socialSecurityNumber
-                  : (financial?.socialSecurityNumberMasked ?? null)
-              }
-              mono
-            />
-          </FieldGrid>
-        )}
-        {revealError && (
-          <p className="mt-2 text-sm text-[#FF3130]">{revealError}</p>
-        )}
-      </SectionCard>
-      {editorOpen && (
-        <FinancialEditModal
-          staffId={staffId}
-          onClose={() => setEditorOpen(false)}
-          onSaved={() => {
-            setEditorOpen(false);
-            setRevealed(null);
-            void mutateFinancial();
-          }}
-        />
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => void handleSave()}
+                disabled={saving || !draftValid}
+              >
+                {saving ? "Speichert…" : "Speichern"}
+              </Button>
+            </div>
+          </div>
+        </SectionCard>
       )}
-    </>
+    </div>
   );
 }
 
@@ -646,97 +868,4 @@ function formatEmergencyContact(
   const { emergencyContactName, emergencyContactPhone } = stammdaten.kontakt;
   const parts = [emergencyContactName, emergencyContactPhone].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : undefined;
-}
-
-// --- Personalnummer modal (#1417 Tranche 2b, unchanged behavior) ------------
-
-function PersonnelNumberModal({
-  staffId,
-  current,
-  onClose,
-  onSaved,
-}: {
-  readonly staffId: string;
-  readonly current: string | null;
-  readonly onClose: () => void;
-  readonly onSaved: () => void;
-}) {
-  const [value, setValue] = useState(current ?? "");
-  const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const trimmed = value.trim();
-  const valid = trimmed === "" || /^\d{1,9}$/.test(trimmed);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await staffPayrollNumberService.update(
-        staffId,
-        trimmed === "" ? null : trimmed,
-        note.trim(),
-      );
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal isOpen onClose={onClose} title="Personalnummer bearbeiten">
-      <div className="space-y-4">
-        <div>
-          <Input
-            id="personnel-number"
-            label="Personalnummer"
-            controlSize="compact"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="z. B. 1023"
-            inputMode="numeric"
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Nur Ziffern. Leer lassen, um die Nummer zu entfernen. Die Nummer
-            muss der Personalnummer im Lohnsystem entsprechen und ist pro Schule
-            eindeutig.
-          </p>
-          {!valid && (
-            <p className="text-moto-red mt-1 text-xs">
-              Nur Ziffern, höchstens 9 Stellen.
-            </p>
-          )}
-        </div>
-
-        <Input
-          id="personnel-number-note"
-          label="Begründung (optional)"
-          controlSize="compact"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="Erscheint im Änderungsprotokoll"
-        />
-
-        {error && <p className="text-moto-red text-sm">{error}</p>}
-
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
-            Abbrechen
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={handleSave}
-            disabled={saving || !valid || trimmed === (current ?? "").trim()}
-          >
-            {saving ? "Speichert…" : "Speichern"}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
 }

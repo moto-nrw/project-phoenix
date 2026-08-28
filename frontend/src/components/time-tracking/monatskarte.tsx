@@ -335,7 +335,7 @@ export function Monatskarte({
       </div>
 
       {summary.isClosed && summary.driftMinutes !== 0 && (
-        <div className="mt-3 rounded-xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-3 text-xs text-[#8A5600]">
+        <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong mt-3 rounded-xl border p-3 text-xs">
           <p className="font-semibold">
             Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
           </p>

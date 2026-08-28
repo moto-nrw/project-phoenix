@@ -533,10 +533,11 @@ describe("VertretungView", () => {
     setupSWR({ weekError: new Error("boom") });
     render(<VertretungView />);
 
-    expect(screen.getByTestId("vertretung-week-error")).toBeVisible();
+    // Der Ladefehler kommt aus dem TenantPage-Gerüst (`error`), nicht aus
+    // einer eigenen Fehlerfläche der Seite.
     expect(
-      screen.getByText("Vertretung konnte nicht geladen werden"),
-    ).toBeInTheDocument();
+      screen.getByText(/Vertretung konnte nicht geladen werden/),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Erneut versuchen" }),
     ).toBeInTheDocument();

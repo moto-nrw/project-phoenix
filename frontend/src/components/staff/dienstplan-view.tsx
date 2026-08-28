@@ -12,6 +12,7 @@ import { CalendarPeriodModal } from "~/components/timetable/calendar-period-moda
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
+import { DienstplanGridSkeleton } from "~/components/staff/dienstplan-skeleton";
 import {
   ShiftEditModal,
   type ShiftEditMode,
@@ -20,7 +21,6 @@ import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -46,8 +46,6 @@ import {
   formatWeekLabel,
 } from "~/lib/timetable-helpers";
 import { userContextService } from "~/lib/usercontext-api";
-
-import { DienstplanGridSkeleton } from "./dienstplan-skeleton";
 
 const logger = createLogger({ component: "DienstplanView" });
 
@@ -278,54 +276,49 @@ function DienstplanContent() {
 
   // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
   // Wochen- und Halbjahres-Zweig, damit ohne Staff beide Ansichten denselben
-  // Hinweis statt eines Rasters zeigen. Kein Artwork, kein Marketing-Ton.
-  const noStaffEmptyState = (
-    <EmptyState
-      title="Noch keine Mitarbeitenden angelegt"
-      description="Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im Dienstplan."
-      action={
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => router.push("/staff")}
-        >
-          Zu den Mitarbeitenden
-        </Button>
-      }
-    />
-  );
+  // Hinweis statt eines Rasters zeigen. Er kommt aus dem Gerüst (`empty`),
+  // nicht aus einer eigenen Karte im Inhalt.
+  const noStaffEmpty = {
+    title: "Noch keine Mitarbeitenden angelegt",
+    description:
+      "Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im Dienstplan.",
+    action: (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => router.push("/staff")}
+      >
+        Zu den Mitarbeitenden
+      </Button>
+    ),
+  };
 
-  // Inhaltsbereich als Zustandskaskade, damit die PlanningContextBar (oben)
-  // IMMER sichtbar bleibt — auch beim Daten-Laden und im Fehlerfall. Reihenfolge:
-  // Fehler → Laden → keine Mitarbeitenden → Ansicht. Fehler- und Ladezustand
-  // gelten für BEIDE Ansichten (K1/K2): ein fehlgeschlagener Staff-/Overview-Load
-  // darf im Halbjahr nicht mehr als Leerzustand erscheinen, und beim Laden zeigt
-  // der Inhaltsbereich das Grid-Skeleton statt die ganze Seite zu verwerfen.
-  let content: ReactNode;
-  if (scheduleError) {
-    content = (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="space-y-3">
-          <Alert
-            type="error"
-            message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
-          />
+  // Laden, Fehler und Leerzustand gehören dem Gerüst (Bauart 3 Regel 5): die
+  // Kopfkarte mit der Zeitnavigation bleibt stehen, der Inhaltsbereich wird
+  // ersetzt. Ein fehlgeschlagener Staff-/Overview-Load ist `error`, nie
+  // `empty` — auch nicht in der Halbjahres-Sicht.
+  const pageLoading = showSkeleton || scheduleLoading;
+  const pageError = scheduleError
+    ? {
+        message:
+          "Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden.",
+        action: (
           <Button type="button" variant="outline" size="md" onClick={retryLoad}>
             Erneut laden
           </Button>
-        </div>
-      </div>
-    );
-  } else if (showSkeleton || scheduleLoading) {
-    content = <DienstplanGridSkeleton />;
-  } else if (sortedStaff.length === 0) {
-    content = (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        {noStaffEmptyState}
-      </div>
-    );
-  } else if (view === "halbjahr") {
+        ),
+      }
+    : null;
+  const pageEmpty =
+    !pageError && !pageLoading && sortedStaff.length === 0
+      ? noStaffEmpty
+      : null;
+
+  // Der Inhalt wird nur gerendert, wenn das Gerüst ihn durchlässt — bei
+  // Laden, Fehler oder Leerzustand ersetzt `TenantPage` ihn vollständig.
+  let content: ReactNode;
+  if (view === "halbjahr") {
     // Halbjahres-Sicht (Personen × Kalenderwochen, docs/05 Abschnitt 3). Der
     // Leerzustand "Kein Planungszeitraum" lebt in der Grid-Komponente selbst.
     content = (
@@ -408,7 +401,12 @@ function DienstplanContent() {
     <TenantPage
       title="Dienstplan"
       stats={statusLine}
-      statsLoading={showSkeleton || scheduleLoading}
+      statsLoading={pageLoading}
+      // Struktur-Skelett statt der generischen Karten: ein Wochenraster lädt
+      // nicht wie eine Kartenliste.
+      loading={pageLoading ? <DienstplanGridSkeleton /> : false}
+      error={pageError}
+      empty={pageEmpty}
       actions={
         // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
         // zweizeilig um. EIN Button je Aktion mit ausgeblendetem Label statt

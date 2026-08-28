@@ -9,11 +9,6 @@ import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
-import {
-  SkeletonRegion,
-  PageHeaderSkeleton,
-  DetailSkeleton,
-} from "~/components/ui/page-skeletons";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
@@ -30,11 +25,12 @@ import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
 
+// Der Ladezustand kommt aus dem Seitengeruest, nicht aus einem eigenen
+// Skelett: dieselbe Kopfkarte und dieselben Platzhalterflaechen wie auf jeder
+// anderen Flaeche des Portals. Der Vorlesetext bildet `TenantPage` aus dem
+// Titel („Profil wird geladen…").
 const profileLoadingFallback = (
-  <SkeletonRegion label="Profil wird geladen…">
-    <PageHeaderSkeleton search={false} />
-    <DetailSkeleton sections={3} fieldsPerSection={3} />
-  </SkeletonRegion>
+  <TenantPage title="Profil" statsLoading loading />
 );
 
 function ProfileContent() {

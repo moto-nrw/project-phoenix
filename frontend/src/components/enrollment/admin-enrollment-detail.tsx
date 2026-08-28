@@ -8,7 +8,6 @@ import {
   Check,
   ClipboardList,
   ExternalLink,
-  type LucideIcon,
   Mail,
   Pencil,
   Phone,
@@ -52,6 +51,11 @@ import {
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -439,19 +443,15 @@ function EnrollmentSummary({
         </div>
       </div>
 
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <InfoItem icon={Mail} label="E-Mail" value={data.guardian_email} />
-        <InfoItem
-          icon={Phone}
-          label="Telefon"
-          value={data.guardian_phone ?? "Nicht gesetzt"}
-        />
-        <InfoItem
-          icon={CalendarClock}
-          label="Eingegangen"
-          value={submittedAt}
-        />
-      </dl>
+      <div className="mt-4">
+        <DataGrid>
+          <DataField label="E-Mail">{data.guardian_email}</DataField>
+          <DataField label="Telefon">
+            {data.guardian_phone ?? "Nicht gesetzt"}
+          </DataField>
+          <DataField label="Eingegangen">{submittedAt}</DataField>
+        </DataGrid>
+      </div>
 
       {data.additional_guardians && data.additional_guardians.length > 0 && (
         <div className="mt-4 space-y-3">
@@ -481,32 +481,6 @@ function EnrollmentSummary({
         </div>
       )}
     </section>
-  );
-}
-
-function InfoItem({
-  icon: Icon,
-  label,
-  mono,
-  value,
-}: Readonly<{
-  icon: LucideIcon;
-  label: string;
-  mono?: boolean;
-  value: string;
-}>) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
-      <dt className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase">
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
-      </dt>
-      <dd
-        className={`mt-1 text-sm text-gray-900 ${mono ? "font-mono break-all" : ""}`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }
 
@@ -685,22 +659,14 @@ function ReviewSidebar({
           <SidebarMetric label="Offen" value={childStats.open} />
           <SidebarMetric label="Bestätigt" value={childStats.approved} />
         </div>
-        <dl className="mt-4 space-y-3 text-sm">
-          <div>
-            <dt className="text-xs font-medium text-gray-500 uppercase">
-              Phase
-            </dt>
-            <dd className="mt-0.5 font-medium text-gray-900">
+        <div className="mt-4">
+          <DataGrid>
+            <DataField label="Phase">
               {data.phase_name || "Nicht zugeordnet"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-500 uppercase">
-              Eingegangen
-            </dt>
-            <dd className="mt-0.5 text-gray-900">{submittedAt}</dd>
-          </div>
-        </dl>
+            </DataField>
+            <DataField label="Eingegangen">{submittedAt}</DataField>
+          </DataGrid>
+        </div>
         <a
           href={statusHref}
           target="_blank"
@@ -978,11 +944,11 @@ export function RequestExtraSection({
       )}
 
       {hasCustom && (
-        <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zusatzfragen (Eltern)
-          </h3>
-          <dl className="mt-1.5 space-y-2 text-sm">
+        <InfoSection
+          title="Zusatzfragen (Eltern)"
+          icon={<MotoConceptIcon concept="parents" size={16} />}
+        >
+          <DataGrid>
             {guardianFields.map((f) => {
               const formatted = formatCustomValue(
                 request.custom_data?.[f.key],
@@ -990,16 +956,13 @@ export function RequestExtraSection({
               );
               if (formatted === null) return null;
               return (
-                <div key={f.key}>
-                  <dt className="text-xs font-medium text-gray-600">
-                    {f.label}
-                  </dt>
-                  <dd className="mt-0.5 text-gray-900">{formatted}</dd>
-                </div>
+                <DataField key={f.key} label={f.label}>
+                  {formatted}
+                </DataField>
               );
             })}
-          </dl>
-        </div>
+          </DataGrid>
+        </InfoSection>
       )}
     </section>
   );
@@ -2022,26 +1985,24 @@ export function ChildExtraFields({
   )?.trim();
   if (filled.length === 0 && !companionNote) return null;
   return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Zusätzliche Angaben zum Kind
-      </h4>
-      <dl className="mt-1.5 space-y-1.5 text-sm">
-        {filled.map(({ field, value }) => (
-          <div key={field.key}>
-            <dt className="text-xs font-medium text-gray-600">{field.label}</dt>
-            <dd className="mt-0.5 text-gray-900">{value}</dd>
-          </div>
-        ))}
-        {companionNote && (
-          <div key={DEPARTURE_COMPANION_KEY}>
-            <dt className="text-xs font-medium text-gray-600">
-              Mit welchem Kind?
-            </dt>
-            <dd className="mt-0.5 text-gray-900">{companionNote}</dd>
-          </div>
-        )}
-      </dl>
+    <div className="mt-3">
+      <InfoSection
+        title="Zusätzliche Angaben zum Kind"
+        icon={<MotoConceptIcon concept="children" size={16} />}
+      >
+        <DataGrid>
+          {filled.map(({ field, value }) => (
+            <DataField key={field.key} label={field.label}>
+              {value}
+            </DataField>
+          ))}
+          {companionNote && (
+            <DataField key={DEPARTURE_COMPANION_KEY} label="Mit welchem Kind?">
+              {companionNote}
+            </DataField>
+          )}
+        </DataGrid>
+      </InfoSection>
     </div>
   );
 }

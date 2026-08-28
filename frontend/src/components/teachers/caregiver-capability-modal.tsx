@@ -17,7 +17,7 @@ import {
   CaregiverCapabilityApiError,
   type CaregiverCapabilityState,
 } from "~/lib/caregiver-capability-api";
-import { CaregiverBlockerResolutionModal } from "~/components/teachers/caregiver-blocker-resolution-modal";
+import { CaregiverBlockerResolutionPanel } from "~/components/teachers/caregiver-blocker-resolution-panel";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 
@@ -75,7 +75,9 @@ export function CaregiverCapabilityModal({
   const [lastName, setLastName] = useState("");
   const [position, setPosition] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [resolutionOpen, setResolutionOpen] = useState(false);
+  // Zwei Schritte in EINEM Dialog: Übersicht und das Auflösen der offenen
+  // Zuordnungen. Ein zweiter Dialog darüber ist portalweit verboten.
+  const [step, setStep] = useState<"overview" | "resolve">("overview");
 
   const needsSchoolId = scope === "operator";
   const operatorSchoolId = scope === "operator" ? schoolId : undefined;
@@ -128,6 +130,7 @@ export function CaregiverCapabilityModal({
     if (!isOpen) {
       return;
     }
+    setStep("overview");
     void loadState();
   }, [isOpen, loadState]);
 
@@ -260,41 +263,60 @@ export function CaregiverCapabilityModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Betreuung verwalten: ${accountLabel}`}
+      title={
+        step === "resolve"
+          ? `Zuordnungen auflösen: ${accountLabel}`
+          : `Betreuung verwalten: ${accountLabel}`
+      }
       size="lg"
       footer={
-        <>
+        step === "resolve" ? (
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              setStep("overview");
+              void loadState();
+            }}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
           >
-            Schließen
+            Zurück zur Übersicht
           </button>
-          {canDisable ? (
+        ) : (
+          <>
             <button
               type="button"
-              onClick={() => void handleDisable()}
-              disabled={saving || loading || state?.disableBlocked}
-              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
-              Betreuung deaktivieren
+              Schließen
             </button>
-          ) : null}
-          {showEnableButton ? (
-            <button
-              type="button"
-              onClick={() => void handleEnable()}
-              disabled={saving || loading}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
-            </button>
-          ) : null}
-        </>
+            {canDisable ? (
+              <button
+                type="button"
+                onClick={() => void handleDisable()}
+                disabled={saving || loading || state?.disableBlocked}
+                className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Betreuung deaktivieren
+              </button>
+            ) : null}
+            {showEnableButton ? (
+              <button
+                type="button"
+                onClick={() => void handleEnable()}
+                disabled={saving || loading}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
+              </button>
+            ) : null}
+          </>
+        )
       }
     >
-      {loading ? (
+      {step === "resolve" && state ? (
+        <CaregiverBlockerResolutionPanel active state={state} />
+      ) : loading ? (
         <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
       ) : state ? (
         <div className="space-y-4">
@@ -400,22 +422,13 @@ export function CaregiverCapabilityModal({
               <div className="mt-3">
                 <button
                   type="button"
-                  onClick={() => setResolutionOpen(true)}
+                  onClick={() => setStep("resolve")}
                   className="border-moto-amber/40 bg-moto-amber/20 text-moto-amber-strong hover:bg-moto-amber/30 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
                 >
                   Zuordnungen auflösen
                 </button>
               </div>
             </InfoSection>
-          ) : null}
-
-          {state.isActiveCaregiver && state.disableBlocked ? (
-            <CaregiverBlockerResolutionModal
-              isOpen={resolutionOpen}
-              onClose={() => setResolutionOpen(false)}
-              state={state}
-              onResolved={() => void loadState()}
-            />
           ) : null}
 
           {/* Error display */}

@@ -242,7 +242,7 @@ function InfoDisplaysPageContent() {
     <>
       <TenantPage
         title="Info-Displays"
-        stats={`${total} ${total === 1 ? "Display" : "Displays"} Â· ${active} aktiv`}
+        stats={`${total} ${total === 1 ? "Display" : "Displays"} · ${active} aktiv`}
         statsLoading={listLoading}
         actions={
           canManage ? (
@@ -261,13 +261,39 @@ function InfoDisplaysPageContent() {
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
-          placeholder: "Display suchenâ¦",
+          placeholder: "Display suchen…",
         }}
         error={loadError || null}
         loading={listLoading}
+        empty={
+          !listLoading && !loadError && total === 0
+            ? {
+                title: "Noch keine Info-Displays",
+                description:
+                  "Ein Info-Display zeigt die Anwesenheit auf einem Fernseher oder Smartboard. Legen Sie eines an; den Link öffnen Sie danach im Browser des Geräts.",
+                action: canManage ? (
+                  <Button
+                    type="button"
+                    size="md"
+                    onClick={() => {
+                      setNameInput("");
+                      setCreateOpen(true);
+                    }}
+                  >
+                    Neues Display
+                  </Button>
+                ) : undefined,
+              }
+            : null
+        }
       >
         {error && <Alert type="error" message={error} />}
 
+        {/* Die Zeilen sind bewusst nicht anklickbar: zu einem Display gibt es
+            keine Objektansicht. Sein Link wird genau einmal gezeigt und laesst
+            sich nicht wieder aufrufen, alles Weitere steht im Kebab der Zeile.
+            Ohne `onRowClick` traegt die Zeile weder Zeiger noch Hover-Flaeche,
+            verspricht also auch nichts. */}
         <DataTable
           columns={columns}
           rows={filtered}
@@ -275,8 +301,8 @@ function InfoDisplaysPageContent() {
           defaultSortKey="name"
           emptyState={
             <EmptyState
-              title="Noch keine Info-Displays"
-              description="Erstellen Sie ein Display und Ã¶ffnen Sie den Link im Browser des Fernsehers oder Smartboards."
+              title="Kein Display gefunden"
+              description="Zu Ihrer Suche gibt es kein Display. Ändern Sie den Suchbegriff."
             />
           }
         />

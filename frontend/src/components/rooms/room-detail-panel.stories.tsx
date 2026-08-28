@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { RoomDetailModal, TRANSIT_ROOM_ID } from "./room-detail-modal";
+import { RoomDetailPanel, TRANSIT_ROOM_ID } from "./room-detail-panel";
 
 const meta = {
-  title: "components/rooms/RoomDetailModal",
-  component: RoomDetailModal,
+  title: "components/rooms/RoomDetailPanel",
+  component: RoomDetailPanel,
   args: {
     roomId: null,
     onClose: () => undefined,
   },
-} satisfies Meta<typeof RoomDetailModal>;
+} satisfies Meta<typeof RoomDetailPanel>;
 
 export default meta;
 

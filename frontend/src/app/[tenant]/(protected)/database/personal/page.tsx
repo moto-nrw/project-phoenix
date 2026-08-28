@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -14,7 +13,6 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -36,7 +34,8 @@ import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { Modal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -316,6 +315,118 @@ function TeachersPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
+      error={error}
+      empty={
+        filteredTeachers.length === 0
+          ? {
+              title: searchTerm
+                ? "Kein Personal gefunden"
+                : "Kein Personal vorhanden",
+              description: searchTerm
+                ? "Versuchen Sie andere Suchkriterien."
+                : "Laden Sie die erste Person ein, damit sie sich anmelden kann.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.staff.icon}
+                  tone={MOTO_CONCEPTS.staff.tone}
+                  size={48}
+                />
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          {canManageUsers ? (
+            <Modal
+              isOpen={showInviteModal}
+              onClose={handleCloseInviteModal}
+              title="Personal einladen"
+            >
+              <InvitationForm
+                existingPositions={existingPositions}
+                onCreated={() => {
+                  setInvitationRefreshKey(Date.now());
+                  setShowInviteModal(false);
+                }}
+              />
+            </Modal>
+          ) : null}
+
+          {selectedTeacher && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
+              title="Personal löschen?"
+              description={
+                <>
+                  Der Zugang wird deaktiviert und die Person aus allen Listen
+                  entfernt. Vorhandene Einträge wie Anwesenheiten und
+                  Zeiterfassung bleiben für die Historie erhalten. Die Person
+                  kann jederzeit erneut eingeladen werden.
+                </>
+              }
+              gate={{
+                mode: "textConfirm",
+                expected: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
+                inputId: "confirm-delete-staff-name",
+                label: "Tippen Sie zur Bestätigung den Namen der Person:",
+                preview: `${selectedTeacher.first_name} ${selectedTeacher.last_name}`,
+                placeholder: "Vorname Nachname",
+              }}
+              loading={savingTeacher}
+              error=""
+            />
+          )}
+
+          {selectedTeacher && (
+            <TeacherEditModal
+              isOpen={showEditModal}
+              onClose={handleCloseEditModal}
+              teacher={selectedTeacher}
+              onSave={handleEditTeacher}
+              loading={savingTeacher}
+              existingPositions={existingPositions}
+            />
+          )}
+
+          {selectedTeacher && (
+            <CaregiverCapabilityModal
+              isOpen={caregiverModalOpen}
+              onClose={() => setCaregiverModalOpen(false)}
+              scope="tenant"
+              accountId={selectedTeacher.account_id?.toString() ?? ""}
+              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+              onUpdated={async () => {
+                await tenantMutate("database-teachers-list");
+              }}
+            />
+          )}
+
+          {selectedTeacher?.account_id && accessToken && (
+            <MFAAdminOverrideModal
+              isOpen={mfaModalOpen}
+              onClose={() => setMfaModalOpen(false)}
+              bearerToken={accessToken}
+              accountId={selectedTeacher.account_id.toString()}
+              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+            />
+          )}
+
+          {selectedTeacher?.account_id && (
+            <RoleManagementModal
+              isOpen={roleModalOpen}
+              onClose={() => setRoleModalOpen(false)}
+              accountId={selectedTeacher.account_id.toString()}
+              accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+              onUpdated={async () => {
+                await tenantMutate("database-teachers-list");
+              }}
+            />
+          )}
+        </>
+      }
       className="flex w-full flex-col"
       intro={{
         title: "Personal",
@@ -393,12 +504,6 @@ function TeachersPageContent() {
         </div>
       </RoleGuard>
 
-      {error && (
-        <div className="mb-6">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <StaffMasterDetail
@@ -422,110 +527,7 @@ function TeachersPageContent() {
             }
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.staff.icon}
-              tone={MOTO_CONCEPTS.staff.tone}
-              size={48}
-            />
-          }
-          title={
-            searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie andere Suchkriterien."
-              : "Es wurde noch kein Personal erstellt."
-          }
-        />
       ) : null}
-
-      {canManageUsers ? (
-        <Modal
-          isOpen={showInviteModal}
-          onClose={handleCloseInviteModal}
-          title="Personal einladen"
-        >
-          <InvitationForm
-            existingPositions={existingPositions}
-            onCreated={() => {
-              setInvitationRefreshKey(Date.now());
-              setShowInviteModal(false);
-            }}
-          />
-        </Modal>
-      ) : null}
-
-      {selectedTeacher && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
-          title="Personal löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie das Personal{" "}
-            <span className="font-medium">
-              {selectedTeacher.first_name} {selectedTeacher.last_name}
-            </span>{" "}
-            wirklich löschen? Der Zugang wird deaktiviert und die Person aus
-            allen Listen entfernt. Vorhandene Einträge wie Anwesenheiten und
-            Zeiterfassung bleiben für die Historie erhalten. Die Person kann
-            jederzeit erneut eingeladen werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedTeacher && (
-        <TeacherEditModal
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          teacher={selectedTeacher}
-          onSave={handleEditTeacher}
-          loading={savingTeacher}
-          existingPositions={existingPositions}
-        />
-      )}
-
-      {selectedTeacher && (
-        <CaregiverCapabilityModal
-          isOpen={caregiverModalOpen}
-          onClose={() => setCaregiverModalOpen(false)}
-          scope="tenant"
-          accountId={selectedTeacher.account_id?.toString() ?? ""}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-          onUpdated={async () => {
-            await tenantMutate("database-teachers-list");
-          }}
-        />
-      )}
-
-      {selectedTeacher?.account_id && accessToken && (
-        <MFAAdminOverrideModal
-          isOpen={mfaModalOpen}
-          onClose={() => setMfaModalOpen(false)}
-          bearerToken={accessToken}
-          accountId={selectedTeacher.account_id.toString()}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-        />
-      )}
-
-      {selectedTeacher?.account_id && (
-        <RoleManagementModal
-          isOpen={roleModalOpen}
-          onClose={() => setRoleModalOpen(false)}
-          accountId={selectedTeacher.account_id.toString()}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-          onUpdated={async () => {
-            await tenantMutate("database-teachers-list");
-          }}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

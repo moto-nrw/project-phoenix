@@ -4,7 +4,6 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
@@ -24,7 +23,7 @@ import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RolePermissionManagementModal } from "@/components/auth/role-permission-management-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
@@ -53,7 +52,6 @@ function RolesPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [selectedRoleDetail, setSelectedRoleDetail] = useState<Role | null>(
     null,
@@ -210,8 +208,6 @@ function RolesPageContent() {
     };
   }, [selectedId, selectedRoleSummary, service]);
 
-  const handleEditClick = useCallback(() => setShowEditModal(true), []);
-  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
   const handleManagePermissions = useCallback(
     () => setShowPermissionModal(true),
     [],
@@ -259,7 +255,6 @@ function RolesPageContent() {
         await service.update(selectedRole.id, data);
         const refreshed = await service.getOne(selectedRole.id);
         setSelectedRoleDetail(refreshed);
-        setShowEditModal(false);
         toastSuccess(
           getDbOperationMessage(
             "update",
@@ -327,6 +322,79 @@ function RolesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
+      error={error}
+      empty={
+        filteredRoles.length === 0
+          ? {
+              title: searchTerm
+                ? "Keine Rollen gefunden"
+                : "Keine Rollen vorhanden",
+              description: searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Legen Sie die erste Rolle an, um Rechte zu vergeben.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.roles.icon}
+                  tone={MOTO_CONCEPTS.roles.tone}
+                  size={48}
+                />
+              ),
+              action: searchTerm ? undefined : (
+                <DatabaseCreateAction
+                  label="Rolle"
+                  ariaLabel="Rolle erstellen"
+                  onClick={() => setShowCreateModal(true)}
+                />
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <DatabaseFormModal<Role>
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            mode="create"
+            config={rolesConfig}
+            onSubmit={handleCreateRole}
+          />
+
+          {selectedRole && (
+            <ConfirmDeleteModal
+              isOpen={showDeleteConfirmModal}
+              onClose={handleDeleteCancel}
+              onConfirm={() => confirmDelete(() => void handleDeleteRole())}
+              title="Rolle löschen?"
+              description={
+                <>
+                  Möchten Sie die Rolle{" "}
+                  <span className="font-medium">
+                    {getRoleDisplayName(selectedRole.name)}
+                  </span>{" "}
+                  wirklich löschen? Alle Personen mit dieser Rolle verlieren
+                  ihre Berechtigungen.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              loading={detailLoading}
+              error=""
+            />
+          )}
+
+          {selectedRole && (
+            <RolePermissionManagementModal
+              isOpen={showPermissionModal}
+              onClose={() => setShowPermissionModal(false)}
+              role={selectedRole}
+              onUpdate={async () => {
+                await fetchRoles();
+                const refreshed = await service.getOne(selectedRole.id);
+                setSelectedRoleDetail(refreshed);
+              }}
+            />
+          )}
+        </>
+      }
       className="flex w-full flex-col"
       intro={{
         title: "Rollen",
@@ -367,12 +435,6 @@ function RolesPageContent() {
         />
       }
     >
-      {error && (
-        <div className="mb-6">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
       {unclassifiedCount > 0 && (
         <div className="mb-6">
           <Alert
@@ -395,82 +457,12 @@ function RolesPageContent() {
             selectedRole={selectedRole}
             detailLoading={detailLoading}
             onSelect={handleSelectRole}
-            onEditClick={handleEditClick}
+            onSaveRole={handleUpdateRole}
             onDeleteClick={handleDeleteClick}
             onManagePermissions={handleManagePermissions}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.roles.icon}
-              tone={MOTO_CONCEPTS.roles.tone}
-              size={48}
-            />
-          }
-          title={
-            searchTerm ? "Keine Rollen gefunden" : "Keine Rollen vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie einen anderen Suchbegriff."
-              : "Es wurden noch keine Rollen erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Role>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={rolesConfig}
-        onSubmit={handleCreateRole}
-      />
-
-      {selectedRole && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteRole())}
-          title="Rolle löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie die Rolle{" "}
-            <span className="font-medium">
-              {getRoleDisplayName(selectedRole.name)}
-            </span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedRole && (
-        <DatabaseFormModal<Role>
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          mode="edit"
-          config={rolesConfig}
-          initialData={selectedRole}
-          onSubmit={handleUpdateRole}
-        />
-      )}
-
-      {selectedRole && (
-        <RolePermissionManagementModal
-          isOpen={showPermissionModal}
-          onClose={() => setShowPermissionModal(false)}
-          role={selectedRole}
-          onUpdate={async () => {
-            await fetchRoles();
-            const refreshed = await service.getOne(selectedRole.id);
-            setSelectedRoleDetail(refreshed);
-          }}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

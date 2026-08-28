@@ -893,7 +893,9 @@ describe("PersonalInfoReadOnly", () => {
         onEditClick={onEditClick}
       />,
     );
-    expect(screen.getByTitle("Bearbeiten")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("calls onEditClick when edit button is clicked", () => {
@@ -905,7 +907,7 @@ describe("PersonalInfoReadOnly", () => {
         onEditClick={onEditClick}
       />,
     );
-    fireEvent.click(screen.getByTitle("Bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
 
@@ -976,7 +978,9 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
         onEditClick={vi.fn()}
       />,
     );
-    expect(screen.getByTitle("Bearbeiten")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("calls onEditClick when edit button is clicked", () => {
@@ -988,7 +992,7 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
         onEditClick={onEditClick}
       />,
     );
-    fireEvent.click(screen.getByTitle("Bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
 

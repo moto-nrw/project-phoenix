@@ -19,7 +19,6 @@ import {
 } from "~/lib/staff-messages-api";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { TeamChatSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "TeamChatInboxPage" });
 
@@ -199,57 +198,54 @@ function TeamChatInboxContent() {
             ]
           : undefined
       }
+      loading={showSkeleton}
       empty={emptyState}
     >
-      {showSkeleton ? (
-        <TeamChatSkeleton />
-      ) : (
-        <>
-          {loadFailed && !nothingToShow && (
-            // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
-            // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
-            // sein muss.
-            <Alert
-              type="error"
-              message="Die Unterhaltungen konnten nicht geladen werden."
-            />
-          )}
+      <>
+        {loadFailed && !nothingToShow && (
+          // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
+          // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
+          // sein muss.
+          <Alert
+            type="error"
+            message="Die Unterhaltungen konnten nicht geladen werden."
+          />
+        )}
 
-          <ul className="space-y-3">
-            {filteredThreads.map((thread) => (
-              <li key={thread.thread_id}>
-                <TileCard
-                  onClick={() => router.push(`/team-chat/${thread.thread_id}`)}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <h3 className="truncate text-base font-semibold text-gray-900">
-                          {thread.counterpart_name}
-                        </h3>
-                        <UnreadBadge count={thread.unread_count} tone="staff" />
-                      </div>
-                      {thread.last_message_body && (
-                        <p className="mt-1 truncate text-sm text-gray-600">
-                          {thread.last_message_mine && (
-                            <span className="text-gray-500">Sie: </span>
-                          )}
-                          {thread.last_message_body}
-                        </p>
-                      )}
+        <ul className="space-y-3">
+          {filteredThreads.map((thread) => (
+            <li key={thread.thread_id}>
+              <TileCard
+                onClick={() => router.push(`/team-chat/${thread.thread_id}`)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <h3 className="truncate text-base font-semibold text-gray-900">
+                        {thread.counterpart_name}
+                      </h3>
+                      <UnreadBadge count={thread.unread_count} tone="staff" />
                     </div>
-                    {thread.last_message_at && (
-                      <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                        {formatChatDateTime(thread.last_message_at)}
-                      </span>
+                    {thread.last_message_body && (
+                      <p className="mt-1 truncate text-sm text-gray-600">
+                        {thread.last_message_mine && (
+                          <span className="text-gray-500">Sie: </span>
+                        )}
+                        {thread.last_message_body}
+                      </p>
                     )}
                   </div>
-                </TileCard>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+                  {thread.last_message_at && (
+                    <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                      {formatChatDateTime(thread.last_message_at)}
+                    </span>
+                  )}
+                </div>
+              </TileCard>
+            </li>
+          ))}
+        </ul>
+      </>
 
       {composeOpen && chatEnabled && (
         <NewTeamMessageModal

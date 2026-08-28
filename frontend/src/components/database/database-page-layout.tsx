@@ -29,6 +29,24 @@ interface DatabasePageLayoutProps {
   children: ReactNode;
   /** Optional className for the content wrapper */
   className?: string;
+  /**
+   * Ladefehler der Seite. Er ersetzt den Inhalt im Gerüst; ein Fehler ist
+   * niemals ein Leerzustand (BAUARTEN-SPEC, Querregel „Zustände").
+   */
+  error?: string | null;
+  /**
+   * Dialoge der Seite (Anlegen, Löschen, Einladen). Sie stehen NEBEN dem
+   * Inhalt, nicht darin: der Leer- und der Fehlerzustand ersetzen den Inhalt,
+   * dürfen aber kein offenes Modal aushängen.
+   */
+  overlays?: ReactNode;
+  /** Leerzustand der Seite, wenn es nichts zu zeigen gibt. */
+  empty?: {
+    title: string;
+    description?: string;
+    icon?: ReactNode;
+    action?: ReactNode;
+  } | null;
 }
 
 /**
@@ -44,6 +62,9 @@ export function DatabasePageLayout({
   search,
   children,
   className,
+  error,
+  empty,
+  overlays,
 }: Readonly<DatabasePageLayoutProps>) {
   const isLoading = sessionLoading || loading;
 
@@ -58,19 +79,25 @@ export function DatabasePageLayout({
       <div className={className ?? "w-full"}>
         <MobileBackButton />
         {children}
+        {overlays}
       </div>
     );
   }
 
   return (
-    <TenantPage
-      title={intro.title}
-      stats={intro.description}
-      actions={intro.actions}
-      searchSlot={!isLoading && search ? search : undefined}
-      back
-    >
-      {isLoading ? <MasterDetailSkeleton intro={false} /> : children}
-    </TenantPage>
+    <>
+      <TenantPage
+        title={intro.title}
+        stats={intro.description}
+        actions={intro.actions}
+        searchSlot={!isLoading && search ? search : undefined}
+        error={error ?? null}
+        empty={!isLoading && !error ? (empty ?? null) : null}
+        back
+      >
+        {isLoading ? <MasterDetailSkeleton intro={false} /> : children}
+      </TenantPage>
+      {overlays}
+    </>
   );
 }

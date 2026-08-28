@@ -31,9 +31,9 @@ import { Printer } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
+import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -44,7 +44,7 @@ import {
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { PlanLegend } from "~/components/ui/plan-legend";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -67,7 +67,6 @@ import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-d
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
-import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
@@ -150,6 +149,11 @@ function viewToTab(view: TimetableView): ViewParam {
   return "woche";
 }
 
+// Die Legenden-Ableitung teilen sich Betreuungsplan und Vertretung, damit
+// beide Raster dieselben Farben mit denselben Wörtern erklären. Der Re-Export
+// hält den bestehenden Import-Pfad dieser Datei stabil.
+export { buildPlanningTrackLegend };
+
 // Dichte-Umschalter des Wochenrasters (reiner Component-State, nie in der URL).
 // Der Bedienknopf sitzt seit dem Chrome-Abbau als kleines Kebab-Menü in der
 // PlanningContextBar-Aktionszeile (nur in der Wochenansicht).
@@ -186,36 +190,6 @@ function schoolYearPeriodDefaults(anchor: Date): {
     startDate: `${startYear}-08-01`,
     endDate: `${endYear}-07-31`,
   };
-}
-
-export function buildPlanningTrackLegend(
-  instances: readonly EnrichedInstance[],
-): PlanLegendEntry[] {
-  const used = new Map<string, PlanLegendEntry & { sortOrder: number }>();
-  let hasUnassigned = false;
-  for (const instance of instances) {
-    if (!instance.planningTrackId || !instance.planningTrackName) {
-      hasUnassigned = true;
-      continue;
-    }
-    used.set(instance.planningTrackId, {
-      key: instance.planningTrackId,
-      label: instance.planningTrackName,
-      color: instance.planningTrackColor,
-      sortOrder: instance.planningTrackSortOrder ?? Number.MAX_SAFE_INTEGER,
-    });
-  }
-  const entries = [...used.values()]
-    .sort(
-      (left, right) =>
-        left.sortOrder - right.sortOrder ||
-        left.label.localeCompare(right.label, "de"),
-    )
-    .map(({ sortOrder: _sortOrder, ...entry }) => entry);
-  if (hasUnassigned) {
-    entries.push({ key: "unassigned", label: "Ohne Planungsspur" });
-  }
-  return entries;
 }
 
 function TimetablesContent() {
@@ -1308,6 +1282,9 @@ function TimetablesContent() {
   const statsLoading =
     showSkeleton ||
     (view === "series" ? templatesLoading : isInstanceDataLoading);
+  // Ladezustand des Inhalts: dieselbe Bedingung, die vorher je Ansicht ein
+  // eigenes Skelett einblendete — jetzt einmal an das Gerüst gereicht.
+  const contentLoading = statsLoading;
   const instanceCount = visibleInstances.length;
   const statusLine = [
     periodLabel.startsWith("KW ") ? periodLabel.split(" · ")[0]! : periodLabel,
@@ -1406,19 +1383,41 @@ function TimetablesContent() {
             )}
           </PlanningContextBar>
         }
-      >
-        {showEmptyPeriodState ? (
-          <div className={`${timetableSurface} px-6`}>
-            <EmptyState
-              icon={<MotoConceptIcon concept="closingDays" size={42} />}
-              title="Noch kein Planungszeitraum"
-              description={
-                canManageSchedules
-                  ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
-                  : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen."
+        // Bauart 3, Regel 5: Laden, Fehler und Leerzustand kommen aus dem
+        // Gerüst. Ein Ladefehler ist `error` — nie `empty` und nie ein leerer
+        // Plan, der so aussieht, als sei nichts geplant.
+        // Struktur-Skelett statt der generischen Karten: ein Wochen- bzw.
+        // Monatsraster lädt nicht wie eine Kartenliste.
+        loading={
+          contentLoading ? <TimetableContentSkeleton view={view} /> : false
+        }
+        error={
+          errorMessage && !data
+            ? {
+                message:
+                  "Betreuungsplan konnte nicht geladen werden. Die Termine konnten nicht abgerufen werden.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => void tenantMutate(swrKey)}
+                  >
+                    Erneut versuchen
+                  </Button>
+                ),
               }
-              action={
-                canManageSchedules ? (
+            : null
+        }
+        empty={
+          showEmptyPeriodState
+            ? {
+                icon: <MotoConceptIcon concept="closingDays" size={42} />,
+                title: "Noch kein Planungszeitraum",
+                description: canManageSchedules
+                  ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+                  : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen.",
+                action: canManageSchedules ? (
                   <Button
                     type="button"
                     variant="primary"
@@ -1427,116 +1426,94 @@ function TimetablesContent() {
                   >
                     Planungszeitraum anlegen
                   </Button>
-                ) : undefined
+                ) : undefined,
               }
+            : null
+        }
+      >
+        {canManageSchedules && shouldLoadInstances && (
+          <ConflictWarningsBanner
+            openConflicts={openConflicts}
+            hiddenConflicts={hiddenConflicts}
+            periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
+            onHide={handleHideConflict}
+            onHideAll={handleHideAllConflicts}
+            onUnhide={handleUnhideConflict}
+            onJump={handleJumpToConflict}
+            revealHidden={hiddenConflictsPanelOpen}
+            onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
+          />
+        )}
+
+        {shouldLoadInstances &&
+          !isInstanceDataLoading &&
+          planningTrackLegend.length > 0 && (
+            <PlanLegend
+              entries={planningTrackLegend}
+              aria-label="Planungsspuren im sichtbaren Betreuungsplan"
             />
-          </div>
-        ) : (
-          <>
-            {canManageSchedules && shouldLoadInstances && (
-              <ConflictWarningsBanner
-                openConflicts={openConflicts}
-                hiddenConflicts={hiddenConflicts}
-                periodLabel={
-                  view === "month" ? "in diesem Monat" : "diese Woche"
-                }
-                onHide={handleHideConflict}
-                onHideAll={handleHideAllConflicts}
-                onUnhide={handleUnhideConflict}
-                onJump={handleJumpToConflict}
-                revealHidden={hiddenConflictsPanelOpen}
-                onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
-              />
-            )}
+          )}
 
-            {shouldLoadInstances &&
-              !isInstanceDataLoading &&
-              planningTrackLegend.length > 0 && (
-                <PlanLegend
-                  entries={planningTrackLegend}
-                  aria-label="Planungsspuren im sichtbaren Betreuungsplan"
-                />
-              )}
+        {view === "month" && (
+          <MonthPlannerGrid
+            days={monthDays}
+            monthDate={visibleDate}
+            instances={visibleInstances}
+            todayISO={todayISO}
+            closingDays={closingDays}
+            onDayClick={openWeekForDay}
+            onInstanceClick={handleSelectInstance}
+          />
+        )}
 
-            {view === "month" &&
-              (showSkeleton || isInstanceDataLoading ? (
-                <TimetableContentSkeleton view="month" />
-              ) : (
-                <MonthPlannerGrid
-                  days={monthDays}
-                  monthDate={visibleDate}
-                  instances={visibleInstances}
-                  todayISO={todayISO}
-                  closingDays={closingDays}
-                  onDayClick={openWeekForDay}
-                  onInstanceClick={handleSelectInstance}
-                />
-              ))}
+        {view === "week" && (
+          <WeeklyCalendarGrid
+            weekDays={weekDays}
+            instances={visibleInstances}
+            selectedId={selectedInstanceId}
+            onInstanceClick={handleSelectInstance}
+            onSlotClick={canManageSchedules ? openQuickCreate : undefined}
+            gapInstanceIds={gapInstanceIds}
+            closingDays={closingDays}
+            todayISO={todayISO}
+            dayStartHour={dayStartHour}
+            dayEndHour={dayEndHour}
+            hourHeightPx={hourHeightPx}
+            showDayHeader
+            emptyState={
+              instances.length === 0 && !error
+                ? {
+                    title: weekHasFullPeriodCoverage
+                      ? "Diese Woche hat noch keine Termine"
+                      : "Diese Woche hat keinen Planungszeitraum",
+                    // Leseansicht (#2283): keine Handlungsaufforderung
+                    // an Leute, die nicht planen dürfen.
+                    description: canManageSchedules
+                      ? weekHasFullPeriodCoverage
+                        ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
+                        : "Lege zuerst einen aktiven Planungszeitraum an."
+                      : "Für diese Woche ist noch nichts geplant.",
+                  }
+                : undefined
+            }
+          />
+        )}
 
-            {view === "week" && (
-              <>
-                {showSkeleton || isInstanceDataLoading ? (
-                  <TimetableContentSkeleton view="week" />
-                ) : (
-                  <WeeklyCalendarGrid
-                    weekDays={weekDays}
-                    instances={visibleInstances}
-                    selectedId={selectedInstanceId}
-                    onInstanceClick={handleSelectInstance}
-                    onSlotClick={
-                      canManageSchedules ? openQuickCreate : undefined
-                    }
-                    gapInstanceIds={gapInstanceIds}
-                    closingDays={closingDays}
-                    todayISO={todayISO}
-                    dayStartHour={dayStartHour}
-                    dayEndHour={dayEndHour}
-                    hourHeightPx={hourHeightPx}
-                    showDayHeader
-                    emptyState={
-                      instances.length === 0 && !error
-                        ? {
-                            title: weekHasFullPeriodCoverage
-                              ? "Diese Woche hat noch keine Termine"
-                              : "Diese Woche hat keinen Planungszeitraum",
-                            // Leseansicht (#2283): keine Handlungsaufforderung
-                            // an Leute, die nicht planen dürfen.
-                            description: canManageSchedules
-                              ? weekHasFullPeriodCoverage
-                                ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                                : "Lege zuerst einen aktiven Planungszeitraum an."
-                              : "Für diese Woche ist noch nichts geplant.",
-                          }
-                        : undefined
-                    }
-                  />
-                )}
-              </>
-            )}
-
-            {view === "series" && (
-              <>
-                {showSkeleton || templatesLoading ? (
-                  <TimetableContentSkeleton view="series" />
-                ) : (
-                  <TemplateList
-                    templates={templates}
-                    canManage={canManageSchedules}
-                    onCreate={openSeriesCreate}
-                    onEdit={(template) => {
-                      setEditingInstance(null);
-                      setConvertingInstance(null);
-                      setEditingTemplate(template);
-                      setEventDefaultRepeat("weekly");
-                      setEventModalOpen(true);
-                    }}
-                    onApply={(template) => void handleApplyTemplate(template)}
-                    onArchive={setArchivingTemplate}
-                  />
-                )}
-              </>
-            )}
-          </>
+        {view === "series" && (
+          <TemplateList
+            templates={templates}
+            canManage={canManageSchedules}
+            onCreate={openSeriesCreate}
+            onEdit={(template) => {
+              setEditingInstance(null);
+              setConvertingInstance(null);
+              setEditingTemplate(template);
+              setEventDefaultRepeat("weekly");
+              setEventModalOpen(true);
+            }}
+            onApply={(template) => void handleApplyTemplate(template)}
+            onArchive={setArchivingTemplate}
+          />
         )}
       </TenantPage>
 

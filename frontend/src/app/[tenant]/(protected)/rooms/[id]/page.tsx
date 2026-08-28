@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 
-// Legacy deep-link target. The room-detail UI moved into a slide-over
-// on /rooms?room={id} (#1323 review), so any bookmark or external link
-// pointing at /rooms/{id} is forwarded to the canonical slide-over URL.
-// Server component → the redirect happens before any HTML is sent, so
-// the user never sees this URL in the bar.
+// Alter Direktlink. Die Raumansicht ist das Panel auf /rooms?room={id};
+// dieser Pfad leitet nur noch dorthin weiter, damit gespeicherte Links
+// und Lesezeichen weiter funktionieren. Server-Komponente: die
+// Weiterleitung passiert vor der ersten HTML-Zeile, die alte Adresse
+// steht nie in der Adresszeile.
 interface RoomDetailRedirectProps {
   params: Promise<{ id: string }>;
 }

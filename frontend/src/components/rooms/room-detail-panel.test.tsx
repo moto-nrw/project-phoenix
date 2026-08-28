@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RoomDetailModal } from "./room-detail-modal";
+import { RoomDetailPanel } from "./room-detail-panel";
 
 // ----------------------------------------------------------------------------
 // Mocks: every dependency below is stubbed so the test only exercises this
@@ -185,7 +185,7 @@ vi.mock("~/components/ui/drawer", () => ({
 // Tests
 // ----------------------------------------------------------------------------
 
-describe("RoomDetailModal", () => {
+describe("RoomDetailPanel", () => {
   beforeEach(() => {
     mockUseIsMobile.mockReset().mockReturnValue(false);
     mockUseModal.mockReset().mockReturnValue({
@@ -206,7 +206,7 @@ describe("RoomDetailModal", () => {
 
     it("renders the SlideOver with the loader body when a roomId is provided", () => {
       const onClose = vi.fn();
-      render(<RoomDetailModal roomId="42" onClose={onClose} />);
+      render(<RoomDetailPanel roomId="42" onClose={onClose} />);
 
       const shell = screen.getByTestId("slide-over-shell");
       expect(shell).toBeInTheDocument();
@@ -220,13 +220,13 @@ describe("RoomDetailModal", () => {
     });
 
     it("does not opt into background scaling on the right-side panel", () => {
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
       const lastCall = slideOverProps.mock.calls.at(-1);
       expect(lastCall?.[0].shouldScaleBackground).toBeUndefined();
     });
 
     it("renders no shell when roomId is null (closed deep-link state)", () => {
-      render(<RoomDetailModal roomId={null} onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId={null} onClose={vi.fn()} />);
       expect(screen.queryByTestId("slide-over-shell")).not.toBeInTheDocument();
       expect(
         screen.queryByTestId("room-detail-loader"),
@@ -237,21 +237,21 @@ describe("RoomDetailModal", () => {
 
     it("forwards onClose via onOpenChange(false)", () => {
       const onClose = vi.fn();
-      render(<RoomDetailModal roomId="42" onClose={onClose} />);
+      render(<RoomDetailPanel roomId="42" onClose={onClose} />);
       const lastCall = slideOverProps.mock.calls.at(-1);
       lastCall![0].onOpenChange(false);
       expect(onClose).toHaveBeenCalledTimes(1);
     });
 
     it("renders an explicit X close button with an aria-label on desktop", () => {
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
       const close = screen.getByTestId("slide-over-close");
       expect(close).toBeInTheDocument();
       expect(close.getAttribute("aria-label")).toBe("Raumdetails schließen");
     });
 
     it("renders transit content on desktop without fetching room details", () => {
-      render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="__transit__" onClose={vi.fn()} />);
 
       expect(
         screen.getByRole("heading", { name: "Unterwegs" }),
@@ -272,7 +272,7 @@ describe("RoomDetailModal", () => {
 
     it("renders the Drawer with direction=bottom and the loader when a roomId is provided", () => {
       const onClose = vi.fn();
-      render(<RoomDetailModal roomId="7" onClose={onClose} />);
+      render(<RoomDetailPanel roomId="7" onClose={onClose} />);
 
       const shell = screen.getByTestId("drawer-shell");
       expect(shell).toBeInTheDocument();
@@ -286,7 +286,7 @@ describe("RoomDetailModal", () => {
     });
 
     it("renders an explicit X close button on mobile too", () => {
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
       expect(screen.getByTestId("drawer-close")).toHaveAttribute(
         "aria-label",
         "Raumdetails schließen",
@@ -294,7 +294,7 @@ describe("RoomDetailModal", () => {
     });
 
     it("renders transit content on mobile without fetching room details", () => {
-      render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="__transit__" onClose={vi.fn()} />);
 
       expect(
         screen.getByRole("heading", { name: "Unterwegs" }),
@@ -308,13 +308,13 @@ describe("RoomDetailModal", () => {
     });
 
     it("keeps shouldScaleBackground on the bottom sheet (iOS-style scale animation)", () => {
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
       const lastCall = drawerProps.mock.calls.at(-1);
       expect(lastCall?.[0].shouldScaleBackground).toBe(true);
     });
 
     it("renders no shell when roomId is null", () => {
-      render(<RoomDetailModal roomId={null} onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId={null} onClose={vi.fn()} />);
       expect(screen.queryByTestId("drawer-shell")).not.toBeInTheDocument();
       expect(
         screen.queryByTestId("room-detail-loader"),
@@ -323,7 +323,7 @@ describe("RoomDetailModal", () => {
 
     it("calls onClose when the Drawer signals dismissal via onOpenChange(false)", () => {
       const onClose = vi.fn();
-      render(<RoomDetailModal roomId="42" onClose={onClose} />);
+      render(<RoomDetailPanel roomId="42" onClose={onClose} />);
 
       const lastDrawerCall = drawerProps.mock.calls.at(-1);
       expect(lastDrawerCall).toBeDefined();
@@ -333,7 +333,7 @@ describe("RoomDetailModal", () => {
 
     it("does NOT call onClose when onOpenChange(true) fires (Drawer opening)", () => {
       const onClose = vi.fn();
-      render(<RoomDetailModal roomId="42" onClose={onClose} />);
+      render(<RoomDetailPanel roomId="42" onClose={onClose} />);
 
       const lastDrawerCall = drawerProps.mock.calls.at(-1);
       lastDrawerCall![0].onOpenChange(true);
@@ -355,7 +355,7 @@ describe("RoomDetailModal", () => {
           closeModal: vi.fn(),
         });
 
-        render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+        render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
 
         const lastContentCall = isMobile
           ? drawerContentProps.mock.calls.at(-1)
@@ -379,7 +379,7 @@ describe("RoomDetailModal", () => {
         closeModal: vi.fn(),
       });
 
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
 
       const lastContentCall = slideOverContentProps.mock.calls.at(-1);
       const outsideEvent = { preventDefault: vi.fn() };
@@ -392,7 +392,7 @@ describe("RoomDetailModal", () => {
     });
 
     it("swallows outside-click and Escape while child selection is active", () => {
-      render(<RoomDetailModal roomId="42" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="42" onClose={vi.fn()} />);
       fireEvent.click(screen.getByTestId("activate-selection"));
 
       const lastContentCall = slideOverContentProps.mock.calls.at(-1);
@@ -406,7 +406,7 @@ describe("RoomDetailModal", () => {
     });
 
     it("swallows outside-click and Escape while transit selection is active", () => {
-      render(<RoomDetailModal roomId="__transit__" onClose={vi.fn()} />);
+      render(<RoomDetailPanel roomId="__transit__" onClose={vi.fn()} />);
       fireEvent.click(screen.getByTestId("activate-transit-selection"));
 
       const lastContentCall = slideOverContentProps.mock.calls.at(-1);

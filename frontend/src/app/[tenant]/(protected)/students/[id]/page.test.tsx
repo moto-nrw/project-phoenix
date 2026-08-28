@@ -198,19 +198,19 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
 }));
 
-// Mock PersonalInfoFormModal
+// Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
 vi.mock("~/components/students/personal-info-form-modal", () => ({
-  PersonalInfoFormModal: ({
-    isOpen,
-    onClose,
+  PersonalInfoEditPanel: ({
+    onCancel,
     student,
     onSave,
   }: {
-    isOpen: boolean;
-    onClose: () => void;
+    onCancel: () => void;
     student: { name: string };
     onSave: (student: { name: string }) => Promise<void>;
   }) => {
+    const isOpen = true;
+    const onClose = onCancel;
     const handleSave = async () => {
       try {
         await onSave(student);

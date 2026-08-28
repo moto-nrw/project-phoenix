@@ -6,12 +6,11 @@ import React, {
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import {
   type ChartConfig,
   ChartContainer,
@@ -20,11 +19,10 @@ import {
 } from "~/components/ui/chart";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
-import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
@@ -485,12 +483,9 @@ function DayCard({
 function HistoryTable({
   days,
   caps,
-  actions,
 }: {
   readonly days: AttendanceHistoryDay[];
   readonly caps: { attendanceDays: number; roomDetailDays: number };
-  /** Exporte des Protokolls, stehen in der Titelzeile der Karte. */
-  readonly actions?: ReactNode;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const todayKey = todayISO();
@@ -502,15 +497,9 @@ function HistoryTable({
       title="Anwesenheitsprotokoll"
       description={`Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
       leading={<ConceptIconTile concept="changeHistory" variant="section" />}
-      actions={actions}
       bodyClassName="mt-4 -mx-5 -mb-5"
     >
-      {days.length === 0 ? (
-        <EmptyState
-          title="Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar."
-          description="Sobald das Kind erfasst wird, erscheinen die Tage hier."
-        />
-      ) : (
+      {days.length === 0 ? null : (
         <>
           {/* Desktop table */}
           <div className="hidden md:block">
@@ -936,38 +925,51 @@ function StudentRoomHistoryPageContent() {
         statsLoading={loading}
         loading={loading}
         error={errorMessage}
+        // Herunterladen steht im Kebab der Kopfkarte, wie auf jeder anderen
+        // Werkzeugfläche -- keine eigene Knopfreihe je Format.
+        actions={
+          history && history.days.length > 0 ? (
+            <OverflowMenu
+              items={[
+                { kind: "header", label: "Herunterladen" },
+                ...EXPORT_FORMATS.map((format) => ({
+                  label:
+                    exporting === format
+                      ? "Wird exportiert…"
+                      : format.toUpperCase(),
+                  icon: <Download className="h-4 w-4" aria-hidden />,
+                  onClick: () => void downloadExport(format),
+                  disabled: exporting !== null,
+                })),
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          ) : undefined
+        }
+        // Eine ausgeschaltete Funktion ist ein Zustand, kein Fehler; ebenso ein
+        // Zeitraum ohne Eintrag. Beide nennen den nächsten Schritt.
+        empty={
+          errorCode === "feature_disabled"
+            ? {
+                title: "Anwesenheitsprotokoll ist ausgeschaltet",
+                description: ERROR_MESSAGES.feature_disabled,
+              }
+            : history && history.days.length === 0
+              ? {
+                  title:
+                    "Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar",
+                  description: `Letzte ${history.caps.attendanceDays} Tage · Raumdetails für ${history.caps.roomDetailDays} Tage. Sobald das Kind an- oder abgemeldet wird, erscheint der Tag hier.`,
+                }
+              : null
+        }
       >
-        {/* Feature disabled banner */}
-        {errorCode === "feature_disabled" && (
-          <Alert type="warning" message={ERROR_MESSAGES.feature_disabled} />
-        )}
-
-        {history && (
+        {history && history.days.length > 0 && (
           <>
             {exportError && <Alert type="error" message={exportError} />}
 
             <HistoryCharts days={history.days} />
 
-            {/* History table; die Exporte stehen in ihrer Titelzeile statt in
-                einer eigenen Button-Zeile darüber. */}
-            <HistoryTable
-              days={history.days}
-              caps={history.caps}
-              actions={EXPORT_FORMATS.map((format) => (
-                <Button
-                  key={format}
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={exporting !== null}
-                  onClick={() => void downloadExport(format)}
-                >
-                  {exporting === format
-                    ? "Wird exportiert…"
-                    : `${format.toUpperCase()} exportieren`}
-                </Button>
-              ))}
-            />
+            <HistoryTable days={history.days} caps={history.caps} />
           </>
         )}
       </TenantPage>

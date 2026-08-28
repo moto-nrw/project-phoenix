@@ -17,10 +17,6 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Avatar } from "~/components/ui/avatar";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
-import {
-  OverflowMenu,
-  type OverflowMenuEntry,
-} from "~/components/ui/page-header/OverflowMenu";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
@@ -167,18 +163,6 @@ export default function StaffDetailContent() {
     );
   }
 
-  // All actions are placeholders until their flows land; noop keeps the
-  // kit item shape (onClick is required) while disabled suppresses it anyway.
-  const noop = () => undefined;
-  const menuItems: readonly OverflowMenuEntry[] = [
-    { label: "PIN zurücksetzen", onClick: noop, disabled: true },
-    { label: "Passwort zurücksetzen", onClick: noop, disabled: true },
-    { label: "Abwesenheit eintragen", onClick: noop, disabled: true },
-    { kind: "separator" },
-    { label: "Deaktivieren", onClick: noop, disabled: true, destructive: true },
-    { label: "Löschen", onClick: noop, disabled: true, destructive: true },
-  ];
-
   const locationStatus = staff ? getStaffLocationStatus(staff) : null;
   const displayType = staff ? getStaffDisplayType(staff) : "";
   const employmentLabel = staff?.employmentType
@@ -273,7 +257,6 @@ export default function StaffDetailContent() {
               color={locationStatus.customBgColor}
             />
           ) : null}
-          <OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />
         </>
       }
       tabs={{

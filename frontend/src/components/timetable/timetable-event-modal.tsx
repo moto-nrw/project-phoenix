@@ -929,7 +929,7 @@ export function TimetableEventModal({
           confirmText="Trotzdem fortfahren"
           cancelText="Abbrechen"
           isConfirmLoading={submitting}
-          confirmButtonClass="bg-moto-orange hover:bg-[#d97908]"
+          confirmButtonClass="bg-moto-orange hover:bg-moto-orange-hover"
         >
           {lostEdits && (
             <div className="flex flex-col gap-3">
@@ -980,7 +980,7 @@ export function TimetableEventModal({
           title="Besetzung je Wochentag wird ersetzt"
           confirmText="Angebot als Quelle übernehmen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+          confirmButtonClass="bg-moto-orange hover:bg-moto-orange-hover"
         >
           <p className="text-sm leading-relaxed text-gray-600">
             Dieser Regeltermin hat je Wochentag unterschiedliches Personal. Mit

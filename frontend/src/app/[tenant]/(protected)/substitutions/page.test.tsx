@@ -265,6 +265,26 @@ const mockActiveSubstitutions = [
   },
 ];
 
+/**
+ * Zeilenaktionen liegen im Kebab der Zeile (Bauart 1): erst das Menü der
+ * Zeile öffnen, dann den Eintrag anklicken.
+ */
+function openAssignFor(name: RegExp) {
+  fireEvent.click(screen.getByRole("button", { name }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff geben" }));
+}
+
+function endFirstAccess() {
+  const triggers = screen.getAllByRole("button", {
+    name: /^Aktionen für /,
+  });
+  const rowTrigger = triggers.find((trigger) =>
+    /und /.test(trigger.getAttribute("aria-label") ?? ""),
+  );
+  fireEvent.click(rowTrigger!);
+  fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff beenden" }));
+}
+
 describe("SubstitutionsPage", () => {
   const mockPush = vi.fn();
   const mockMutateTeachers = vi.fn();
@@ -362,7 +382,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByLabelText("Fachkräfte werden geladen…"),
+        screen.getByLabelText("Gruppenzugriff wird geladen…"),
       ).toBeInTheDocument();
     });
 
@@ -453,8 +473,7 @@ describe("SubstitutionsPage", () => {
     it("opens assignment modal when clicking teacher card", async () => {
       render(<SubstitutionsPage />);
 
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -588,8 +607,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal by clicking teacher
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -600,8 +618,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -621,8 +638,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -641,8 +657,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -668,8 +683,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -694,8 +708,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -725,7 +738,7 @@ describe("SubstitutionsPage", () => {
     it("parses the complete custom duration and rejects fractions", async () => {
       render(<SubstitutionsPage />);
 
-      fireEvent.click(screen.getByRole("button", { name: /Anna Meyer/i }));
+      openAssignFor(/Anna Meyer/i);
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
       });
@@ -754,8 +767,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -788,8 +800,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Open modal
-      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
-      fireEvent.click(teacherCard);
+      openAssignFor(/Anna Meyer/i);
 
       await waitFor(() => {
         expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
@@ -812,11 +823,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Find end button in active substitutions section
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
+      endFirstAccess();
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -832,11 +839,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Click end button
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
+      endFirstAccess();
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -857,11 +860,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Click end button
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
+      endFirstAccess();
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -883,11 +882,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Click end button
-      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
-      const firstEndButton = endButtons[0];
-      if (firstEndButton) {
-        fireEvent.click(firstEndButton);
-      }
+      endFirstAccess();
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();

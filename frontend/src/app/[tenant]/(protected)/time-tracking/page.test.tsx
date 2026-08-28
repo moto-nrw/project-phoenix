@@ -739,7 +739,7 @@ describe("TimeTrackingPage", () => {
 
       render(<TimeTrackingPage />);
       expect(
-        screen.getByLabelText("Zeiterfassung wird geladen"),
+        screen.getByLabelText("Zeiterfassung wird geladen…"),
       ).toBeInTheDocument();
     });
 
@@ -1228,7 +1228,7 @@ describe("TimeTrackingPage", () => {
     it("shows KW heading with week number", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
-      const kwText = screen.getByText(/^KW \d+:/);
+      const kwText = screen.getByText(/^KW \d+ ·/);
       expect(kwText).toBeInTheDocument();
     });
 

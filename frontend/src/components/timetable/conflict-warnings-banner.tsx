@@ -212,8 +212,8 @@ export function ConflictWarningsBanner({
   return (
     <div className={`${timetableSurface} px-3 py-2`}>
       <div role="status" className="flex items-center gap-2.5">
-        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EAB308]/10">
-          <TriangleAlert className="h-3.5 w-3.5 text-[#EAB308]" aria-hidden />
+        <span className="bg-moto-amber/10 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full">
+          <TriangleAlert className="text-moto-amber h-3.5 w-3.5" aria-hidden />
         </span>
         <p className="min-w-0 flex-1 text-xs text-gray-600">
           <span className="font-semibold text-gray-900">

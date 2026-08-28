@@ -1794,8 +1794,10 @@ describe("StudentSearchPage", () => {
         expect(
           screen.getAllByText(/Sitzung ist abgelaufen/).length,
         ).toBeGreaterThan(0);
-        // Session errors still show generic "Fehler" heading
-        expect(screen.getByText("Fehler")).toBeInTheDocument();
+        // Der Ladefehler steht jetzt im Fehlerzustand des Seitengerüsts.
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          /Sitzung ist abgelaufen/,
+        );
       });
     });
 
@@ -1814,8 +1816,10 @@ describe("StudentSearchPage", () => {
         expect(
           screen.getAllByText(/Fehler beim Laden der Kinderdaten/).length,
         ).toBeGreaterThan(0);
-        // The error heading
-        expect(screen.getByText("Fehler")).toBeInTheDocument();
+        // Der Ladefehler steht jetzt im Fehlerzustand des Seitengerüsts.
+        expect(screen.getByTestId("alert-error")).toHaveTextContent(
+          /Fehler beim Laden der Kinderdaten/,
+        );
       });
     });
   });

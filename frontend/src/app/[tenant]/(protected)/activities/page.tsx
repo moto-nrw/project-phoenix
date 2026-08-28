@@ -32,7 +32,7 @@ import {
   useFloatingFabOffset,
 } from "~/lib/hooks/use-floating-fab-offset";
 import { redirect } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 const logger = createLogger({ component: "ActivitiesPage" });
@@ -343,49 +343,34 @@ function ActivitiesPageContent() {
             : null
         }
       >
-        <div className="space-y-3">
+        {/* Dasselbe Kachelraster wie Räume, Personal und Kinder: gleiche
+            Objektart, gleiche Darstellung an allen Breakpoints. */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filteredActivities.map((activity) => {
             const handleClick = () => handleSelectActivity(activity);
             return (
               // Ohne Einblend-Animation: die Kachel ist dieselbe wie in
               // jeder anderen Liste, und eine Liste, die sich nacheinander
               // aufbaut, hält beim Suchen nur auf.
-              <TileCard key={activity.id} onClick={handleClick} padding="none">
-                <div className="relative flex items-center justify-between p-5">
-                  {/* Left content */}
-                  <div className="min-w-0 flex-1">
-                    {/* Activity Name */}
-                    <h3 className="truncate text-base font-bold text-gray-900">
-                      {activity.name}
-                    </h3>
-
-                    {/* Meta info row */}
-                    <div className="mt-1 flex items-center gap-4">
-                      {/* Creator info */}
-                      <p className="text-sm text-gray-500">
-                        <span className="text-gray-400">Erstellt von:</span>{" "}
-                        {formatSupervisorList(activity.supervisors)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Right content - Edit button (available for all users) */}
-                  <div className="ml-4 flex items-center gap-3">
-                    {/* Desktop hint */}
-                    <span className="hidden text-xs text-gray-400 transition-colors group-hover:text-gray-600 lg:block">
-                      Bearbeiten
-                    </span>
-
-                    {/* Edit icon indicator (visual only - parent button handles click) */}
-                    <span className="relative" aria-hidden="true">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:group-hover:bg-gray-200">
-                        <Pencil
-                          className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </span>
-                  </div>
+              <TileCard
+                key={activity.id}
+                onClick={handleClick}
+                padding="none"
+                ariaLabel={`${activity.name} öffnen`}
+              >
+                {/* Kein Kebab: die einzige Aktion der Kachel ist das
+                    Öffnen, und das tut der Klick auf die Kachel schon.
+                    Löschen sitzt im Bearbeiten-Dialog. Ein Menü mit einem
+                    Eintrag, der dasselbe tut wie der Klick daneben, ist ein
+                    zweiter Weg zum selben Ziel — nicht eine Aktion mehr. */}
+                <div className="p-4 sm:p-5">
+                  <h3 className="truncate text-base font-bold text-gray-900">
+                    {activity.name}
+                  </h3>
+                  <p className="mt-1 truncate text-sm text-gray-500">
+                    <span className="text-gray-400">Erstellt von:</span>{" "}
+                    {formatSupervisorList(activity.supervisors)}
+                  </p>
                 </div>
               </TileCard>
             );

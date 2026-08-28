@@ -20,9 +20,11 @@ import {
   DateRangePicker,
 } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import type { FilterConfig } from "~/components/ui/page-header/types";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatCard } from "~/components/ui/stat-card";
@@ -99,25 +101,6 @@ export default function StatisticsPage() {
         .map((group) => ({ value: group.group_id, label: group.name }))
         .sort((a, b) => a.label.localeCompare(b.label, "de")),
     [availableGroups],
-  );
-
-  // Der Gruppenfilter gehört in die Filterzeile der Kopfkarte, nicht neben die
-  // Exporte: dieselbe Bauart wie auf jeder anderen Tenant-Seite.
-  const filterConfigs: FilterConfig[] = useMemo(
-    () => [
-      {
-        id: "groups",
-        label: "Gruppen",
-        type: "dropdown",
-        multiSelect: true,
-        value: groupIds,
-        onChange: (value) => setGroupIds(value as string[]),
-        options: [...groupOptions],
-        emptyLabel: "Alle Gruppen",
-        summaryLabel: (count) => `${count} Gruppen`,
-      },
-    ],
-    [groupIds, groupOptions],
   );
 
   const fromISO = range?.from ? toISODate(range.from) : null;
@@ -199,6 +182,42 @@ export default function StatisticsPage() {
     () => buildDefaultPresets(addDays(today, -365), today),
     [today],
   );
+
+  // Zeitnavigation der Bedienleiste: die Pfeile verschieben das gewählte
+  // Fenster um seine eigene Länge, "Letzte 30 Tage" stellt den Startzustand
+  // der Seite wieder her. Beides ändert nur den Zeitraum, sonst nichts.
+  const windowDays =
+    range?.from && range?.to
+      ? Math.round(
+          (range.to.getTime() - range.from.getTime()) / (24 * 60 * 60 * 1000),
+        ) + 1
+      : null;
+
+  const shiftWindow =
+    range?.from && range?.to && windowDays
+      ? (direction: number) => {
+          const from = range.from;
+          const to = range.to;
+          if (!from || !to) return;
+          let nextTo = addDays(to, direction * windowDays);
+          // Der Bericht endet nie in der Zukunft: beim Vorwärtsschieben rückt
+          // das Fenster höchstens bis heute, statt einen ungültigen Zeitraum
+          // anzufragen.
+          if (nextTo > today) nextTo = today;
+          const shift = Math.round(
+            (nextTo.getTime() - to.getTime()) / (24 * 60 * 60 * 1000),
+          );
+          if (shift === 0) return;
+          setRange({ from: addDays(from, shift), to: nextTo });
+        }
+      : null;
+
+  const canShiftForward = toISO !== null && toISO < todayISO;
+
+  const defaultFromISO = toISODate(addDays(today, -29));
+  const isOnDefaultWindow = fromISO === defaultFromISO && toISO === todayISO;
+
+  const resetWindow = () => setRange({ from: addDays(today, -29), to: today });
 
   const groupColumns: DataTableColumn<StatisticsGroupRow>[] = [
     {
@@ -458,11 +477,17 @@ export default function StatisticsPage() {
 
   // Statuszeile unter dem Titel: echter Zeitraum, gezählte Betreuungstage und
   // Kinder aus dem geladenen Bericht.
-  // Die Zahl der Kinder haengt am Gruppenfilter und steht deshalb als
-  // Plakette in der Filterzeile, nicht in der Statuszeile.
   const statusLine = data
-    ? `${formatDate(data.from)} bis ${formatDate(data.to)} · ${data.care_days} Betreuungstage`
+    ? `${formatDate(data.from)} bis ${formatDate(data.to)} · ${data.care_days} Betreuungstage · ${data.totals.student_count} Kinder`
     : formatStatusDate(todayISO);
+
+  // Fehlendes Recht ist ein Zustand, kein Fehler: eigener ruhiger Leerzustand
+  // statt einer roten Fehlermeldung (Querregel "Zustände").
+  if (errorCode === "forbidden") {
+    return (
+      <ForbiddenPage title="Statistik" message={ERROR_MESSAGES.forbidden} />
+    );
+  }
 
   return (
     <TenantPage
@@ -470,18 +495,7 @@ export default function StatisticsPage() {
       stats={statusLine}
       statsLoading={loading}
       loading={loading}
-      filters={filterConfigs}
-      badge={
-        data ? { count: data.totals.student_count, label: "Kinder" } : undefined
-      }
-      empty={
-        errorCode !== null
-          ? {
-              title: "Statistik nicht verfügbar",
-              description: ERROR_MESSAGES[errorCode],
-            }
-          : null
-      }
+      error={errorCode !== null ? ERROR_MESSAGES[errorCode] : null}
       tabs={{
         value: view,
         onChange: (next) => setView(next as StatisticsView),
@@ -489,22 +503,59 @@ export default function StatisticsPage() {
         label: "Bereich wählen",
       }}
       actions={
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          <DateRangePicker
-            value={range}
-            onChange={(next) => {
-              if (next?.from && next?.to) setRange(next);
-            }}
-            presets={presets}
-            toMax={today}
-            className="w-full sm:w-auto"
-            triggerClassName="w-full justify-center sm:w-auto sm:justify-start"
-          />
-          <OverflowMenu
-            items={exportMenuItems("attendance")}
-            ariaLabel="Weitere Aktionen"
-          />
-        </div>
+        <OverflowMenu
+          items={exportMenuItems("attendance")}
+          ariaLabel="Weitere Aktionen"
+        />
+      }
+      // Bauart 3, Regel 1: die Zeitnavigation sitzt im Bedienband der
+      // Kopfkarte, nicht als Bedienelement neben dem Titel. Der Zeitraum ist
+      // hier frei wählbar, deshalb steht der Bereichswähler an der Stelle des
+      // Wochenetiketts; die Pfeile schieben das gewählte Fenster um seine
+      // eigene Länge weiter.
+      searchSlot={
+        <PlanningContextBar
+          navigationSlot={
+            <DateRangePicker
+              value={range}
+              onChange={(next) => {
+                if (next?.from && next?.to) setRange(next);
+              }}
+              presets={presets}
+              toMax={today}
+              className="w-full md:w-auto"
+              triggerClassName="w-full justify-center md:w-auto md:justify-start"
+            />
+          }
+          onPrevious={shiftWindow ? () => shiftWindow(-1) : undefined}
+          onNext={
+            canShiftForward && shiftWindow ? () => shiftWindow(1) : undefined
+          }
+          previousLabel="Vorheriger Zeitraum"
+          nextLabel="Nächster Zeitraum"
+          onToday={isOnDefaultWindow ? undefined : resetWindow}
+          todayLabel="Letzte 30 Tage"
+          actions={
+            <MultiSelect
+              ariaLabel="Gruppen"
+              value={groupIds}
+              options={groupOptions}
+              onChange={setGroupIds}
+              placeholder="Alle Gruppen"
+              summaryLabel={(count) => `${count} Gruppen`}
+              className="w-full md:w-56"
+              triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+            />
+          }
+        >
+          {/* Kontextzeile: nur was NICHT schon in der Statuszeile steht.
+              Ohne Gruppenfilter bleibt sie still. */}
+          {groupIds.length > 0 && (
+            <span>
+              Gefiltert auf {groupIds.length} von {groupOptions.length} Gruppen
+            </span>
+          )}
+        </PlanningContextBar>
       }
     >
       {exportError && <Alert type="error" message={exportError} />}

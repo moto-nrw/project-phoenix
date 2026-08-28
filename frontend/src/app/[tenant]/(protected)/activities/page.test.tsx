@@ -268,7 +268,7 @@ describe("ActivitiesPage", () => {
     expect(screen.getByText("Schach")).toBeInTheDocument();
     expect(screen.getByText("Kunst")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Schach/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Schach öffnen" }));
 
     const modal = screen.getByTestId("activity-management-modal");
     expect(modal).toBeInTheDocument();
@@ -534,7 +534,7 @@ describe("ActivitiesPage modal interactions", () => {
     render(<ActivitiesPage />);
 
     // Open modal
-    fireEvent.click(screen.getByRole("button", { name: /Schach/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Schach öffnen" }));
     expect(screen.getByTestId("activity-management-modal")).toBeInTheDocument();
 
     // Trigger close (using the success button which internally closes)

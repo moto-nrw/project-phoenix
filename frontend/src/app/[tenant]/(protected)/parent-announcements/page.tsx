@@ -22,7 +22,6 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { SectionCard } from "~/components/ui/section-card";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -30,9 +29,13 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 import { FormModal } from "~/components/ui/form-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -588,123 +591,89 @@ function ParentAnnouncementsContent() {
   }
 
   return (
-    <TenantPage
-      title={copy.title}
-      stats={kindSummary}
-      statsLoading={isLoading && !announcements}
-      actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={openCreate}
-          aria-label={copy.ariaLabel}
-          className="gap-1.5"
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          {copy.action}
-        </Button>
-      }
-      search={{
-        value: searchTerm,
-        onChange: setSearchTerm,
-        placeholder: "Titel suchen…",
-      }}
-      filters={filterConfigs}
-      activeFilters={activeFilters}
-      onClearAllFilters={() => {
-        setSearchTerm("");
-        setStatusFilter("all");
-      }}
-      // Mitteilungen und Umfragen sind zwei Listen derselben Seite, also
-      // Seitenreiter — nicht ein Filter in der Suchzeile.
-      tabs={{
-        value: kind,
-        onChange: (value) => setKind(value as AnnouncementKind),
-        items: KIND_ITEMS.map((item) => ({
-          value: item.value,
-          label: item.label,
-          badge: kindCounts[item.value],
-        })),
-        label: "Mitteilungen oder Umfragen",
-      }}
-    >
-      {loadError && (
-        <Alert
-          type="error"
-          message="Elternmitteilungen konnten nicht geladen werden."
-        />
-      )}
-
-      {reminderNotice && <Alert type="success" message={reminderNotice} />}
-
-      {isLoading ? (
-        <>
-          {/* Mobile: skeleton cards, matching the real card list below. */}
-          <div className="md:hidden">
-            <SkeletonRegion
-              label={
-                kind === "poll"
-                  ? "Umfragen werden geladen…"
-                  : "Elternmitteilungen werden geladen…"
+    <>
+      <TenantPage
+        title={copy.title}
+        stats={kindSummary}
+        statsLoading={isLoading && !announcements}
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={openCreate}
+            aria-label={copy.ariaLabel}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            {copy.action}
+          </Button>
+        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Titel suchen…",
+        }}
+        filters={filterConfigs}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setSearchTerm("");
+          setStatusFilter("all");
+        }}
+        // Mitteilungen und Umfragen sind zwei Listen derselben Seite, also
+        // Seitenreiter — nicht ein Filter in der Suchzeile.
+        tabs={{
+          value: kind,
+          onChange: (value) => setKind(value as AnnouncementKind),
+          items: KIND_ITEMS.map((item) => ({
+            value: item.value,
+            label: item.label,
+            badge: kindCounts[item.value],
+          })),
+          label: "Mitteilungen oder Umfragen",
+        }}
+        loading={isLoading}
+        error={
+          loadError ? "Elternmitteilungen konnten nicht geladen werden." : null
+        }
+        empty={
+          !isLoading && filtered.length === 0
+            ? {
+                icon:
+                  kind === "poll" ? (
+                    <ListChecks className="h-12 w-12" aria-hidden />
+                  ) : (
+                    <Megaphone className="h-12 w-12" aria-hidden />
+                  ),
+                title: copy.emptyTitle,
+                description: copy.emptyBody,
+                action: (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={openCreate}
+                    aria-label={copy.ariaLabel}
+                    className="gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                    {copy.action}
+                  </Button>
+                ),
               }
-            >
-              <ListSkeleton rows={5} avatar={false} />
-            </SkeletonRegion>
-          </div>
-          <div className="hidden md:block">
-            <DataTable
-              columns={columns}
-              rows={[]}
-              isLoading
-              loadingRowCount={6}
-              getRowKey={(row) => row.id}
-              defaultSortKey="title"
-            />
-          </div>
-        </>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={
-            kind === "poll" ? (
-              <ListChecks className="h-12 w-12" aria-hidden />
-            ) : (
-              <Megaphone className="h-12 w-12" aria-hidden />
-            )
-          }
-          title={copy.emptyTitle}
-          description={copy.emptyBody}
+            : null
+        }
+      >
+        {reminderNotice && <Alert type="success" message={reminderNotice} />}
+
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          getRowKey={(row) => row.id}
+          defaultSortKey="title"
+          onRowClick={(row) => setDetailFor(row)}
         />
-      ) : (
-        <>
-          {/* Mobile: card list (the DataTable would only scroll sideways). */}
-          <ul className="space-y-3 md:hidden">
-            {filtered.map((row) => (
-              <li key={row.id}>
-                <AnnouncementCard
-                  announcement={row}
-                  pending={pendingActionId === row.id}
-                  menuItems={buildMenuItems(row)}
-                  onOpen={() => setDetailFor(row)}
-                  onPublish={() => {
-                    setPublishError("");
-                    setPublishTarget(row);
-                  }}
-                />
-              </li>
-            ))}
-          </ul>
-          <div className="hidden md:block">
-            <DataTable
-              columns={columns}
-              rows={filtered}
-              getRowKey={(row) => row.id}
-              defaultSortKey="title"
-              onRowClick={(row) => setDetailFor(row)}
-            />
-          </div>
-        </>
-      )}
+      </TenantPage>
 
       {isFormOpen && (
         <AnnouncementFormModal
@@ -836,7 +805,7 @@ function ParentAnnouncementsContent() {
           error={deleteError}
         />
       )}
-    </TenantPage>
+    </>
   );
 }
 
@@ -1688,84 +1657,6 @@ function TargetingStep({
   );
 }
 
-/** Mobile list card: same data as a table row, tap opens the detail view. */
-function AnnouncementCard({
-  announcement,
-  pending,
-  menuItems,
-  onOpen,
-  onPublish,
-}: {
-  readonly announcement: Announcement;
-  readonly pending: boolean;
-  readonly menuItems: OverflowMenuItem[];
-  readonly onOpen: () => void;
-  readonly onPublish: () => void;
-}) {
-  return (
-    <SectionCard className="overflow-hidden p-0" bodyClassName="">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="block w-full min-w-0 p-4 pb-3 text-left transition-colors active:bg-gray-50"
-      >
-        <div className="flex flex-wrap items-center gap-1.5">
-          <StatusPill status={announcement.status} />
-          {announcement.priority === "important" && (
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-              Wichtig
-            </span>
-          )}
-        </div>
-        <p className="mt-2 line-clamp-2 leading-snug font-semibold text-gray-900">
-          {announcement.title}
-        </p>
-        <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-600">
-          {announcement.body}
-        </p>
-        <p className="mt-2 text-xs text-gray-500">
-          {summarizeTargets(announcement.targets)}
-          {announcement.published_at
-            ? ` · ${formatDate(announcement.published_at)}`
-            : " · Entwurf"}
-          {announcement.expires_at &&
-            ` · bis ${formatBerlinDate(announcement.expires_at)}`}
-        </p>
-      </button>
-      <div className="flex items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/60 px-2 py-1.5">
-        {announcement.status === "draft" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            disabled={pending}
-            onClick={onPublish}
-            className="text-moto-green-vivid hover:text-moto-green-strong gap-1.5"
-          >
-            <Send className="size-4" aria-hidden />
-            Veröffentlichen
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={onOpen}
-            className="gap-1.5 text-gray-600"
-          >
-            <MotoConceptIcon concept="reports" size={16} />
-            Details
-          </Button>
-        )}
-        <OverflowMenu
-          items={menuItems}
-          ariaLabel={`Aktionen für ${announcement.title}`}
-        />
-      </div>
-    </SectionCard>
-  );
-}
-
 /** Chips describing the audience, with real names where the lookups know them. */
 function targetChips(
   targets: AnnouncementTarget[],
@@ -2239,6 +2130,8 @@ function DetailModal({
       widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
     >
       <div className="space-y-5">
+        {/* Identitätskopf: Titel trägt der Modalkopf, hier stehen Status und
+            Zeitpunkte des Objekts. */}
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill status={announcement.status} />
           {announcement.priority === "important" && (
@@ -2255,54 +2148,69 @@ function DetailModal({
           </span>
         </div>
 
-        <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
-          <LinkifiedText text={announcement.body} />
-        </p>
-
-        {announcement.link_url && (
-          <a
-            href={announcement.link_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-moto-blue hover:text-moto-blue-hover inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
-          >
-            <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">{announcement.link_url}</span>
-          </a>
-        )}
-
-        <div>
-          <h4 className="mb-1.5 text-sm font-semibold text-gray-900">
-            Zielgruppen
-          </h4>
-          <div className="flex flex-wrap gap-1.5">
-            {chips.map((chip) => (
-              <span
-                key={chip}
-                className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
-              >
-                {chip}
-              </span>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-gray-500">
-            {poll
-              ? RESPONSE_TYPE_LABEL[announcement.response_type]
-              : announcement.requires_acknowledgement
-                ? "Lesebestätigung erforderlich"
-                : "Keine Lesebestätigung erforderlich"}
-            {" · "}
-            {announcement.send_email
-              ? "E-Mail-Benachrichtigung aktiviert"
-              : "Keine E-Mail-Benachrichtigung"}
-            {poll && announcement.response_deadline && (
-              <>
-                {" "}
-                · Antwort bis {formatBerlinDate(announcement.response_deadline)}
-              </>
-            )}
+        <InfoSection
+          title={poll ? "Umfrage" : "Mitteilung"}
+          icon={
+            poll ? (
+              <ListChecks className="h-4 w-4 text-gray-500" aria-hidden />
+            ) : (
+              <Megaphone className="h-4 w-4 text-gray-500" aria-hidden />
+            )
+          }
+        >
+          <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
+            <LinkifiedText text={announcement.body} />
           </p>
-        </div>
+
+          {announcement.link_url && (
+            <a
+              href={announcement.link_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-moto-blue hover:text-moto-blue-hover mt-3 inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="truncate">{announcement.link_url}</span>
+            </a>
+          )}
+        </InfoSection>
+
+        <InfoSection
+          title="Zielgruppen und Zustellung"
+          icon={<Send className="h-4 w-4 text-gray-500" aria-hidden />}
+        >
+          <DataGrid>
+            <DataField label="Zielgruppen" fullWidth>
+              <span className="flex flex-wrap gap-1.5">
+                {chips.map((chip) => (
+                  <span
+                    key={chip}
+                    className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </span>
+            </DataField>
+            <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
+              {poll
+                ? RESPONSE_TYPE_LABEL[announcement.response_type]
+                : announcement.requires_acknowledgement
+                  ? "Erforderlich"
+                  : "Nicht erforderlich"}
+            </DataField>
+            <DataField label="E-Mail an die Eltern">
+              {announcement.send_email
+                ? "Wird versendet"
+                : "Wird nicht versendet"}
+            </DataField>
+            {poll && announcement.response_deadline && (
+              <DataField label="Antwort bis">
+                {formatBerlinDate(announcement.response_deadline)}
+              </DataField>
+            )}
+          </DataGrid>
+        </InfoSection>
 
         {poll && (
           <PollResultsPanel
@@ -2317,11 +2225,10 @@ function DetailModal({
             ticket waiting to happen. A DRAFT poll still shows the reach, which
             is the number staff check before publishing. */}
         {showReadStats && (
-          <div>
-            <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-              <BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />
-              {isPublished ? "Statistik" : "Aktuelle Reichweite"}
-            </h4>
+          <InfoSection
+            title={isPublished ? "Statistik" : "Aktuelle Reichweite"}
+            icon={<BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />}
+          >
             {error ? (
               <p className="text-moto-red-strong text-sm">{error}</p>
             ) : stats === null || recipients === null ? (
@@ -2356,7 +2263,7 @@ function DetailModal({
                 )}
               </>
             )}
-          </div>
+          </InfoSection>
         )}
       </div>
     </Modal>

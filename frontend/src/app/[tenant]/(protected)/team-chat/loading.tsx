@@ -1,17 +1,12 @@
 "use client";
 
 import { TenantPage } from "~/components/ui/tenant-page";
-import { TeamChatSkeleton } from "./page-skeleton";
 
 /**
- * Route-level loading UI: das Seitengerüst mit Titel rendert sofort, nur die
- * Statuszeile und die Liste skelettieren. Suche und Filter fehlen hier
- * bewusst, es gibt noch keinen Seitenzustand, den sie bedienen könnten.
+ * Route-level loading UI: das Seitengeruest mit Titel rendert sofort,
+ * Statuszeile und Liste kommen aus den Zustaenden des Geruests. Kein eigenes
+ * Seiten-Skelett mehr — die Ladeflaeche sieht ueberall im Portal gleich aus.
  */
 export default function TeamChatLoading() {
-  return (
-    <TenantPage title="Team-Chat" statsLoading>
-      <TeamChatSkeleton />
-    </TenantPage>
-  );
+  return <TenantPage title="Team-Chat" statsLoading loading />;
 }

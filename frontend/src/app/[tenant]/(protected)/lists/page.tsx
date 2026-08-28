@@ -27,10 +27,12 @@ import {
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
@@ -1041,6 +1043,20 @@ export default function SlotListsPage() {
     },
     [pickupCohort, replaceListUrl, resetFilters],
   );
+  // Tagesschritte der Bedienleiste. Sie schreiben denselben Weg wie die
+  // Datumsauswahl (pickDate) und respektieren dieselben Grenzen, die auch der
+  // Kalender kennt — ein Schritt über die Grenze wird gar nicht erst angeboten.
+  const stepDayISO = (deltaDays: number) => {
+    const next = parseISODate(dateISO);
+    next.setDate(next.getDate() + deltaDays);
+    return next;
+  };
+  const withinPickerRange = (date: Date) =>
+    (!pickerMinDate || date >= pickerMinDate) &&
+    (!pickerMaxDate || date <= pickerMaxDate);
+  const canGoPreviousDay = withinPickerRange(stepDayISO(-1));
+  const canGoNextDay = withinPickerRange(stepDayISO(1));
+
   const pickDate = useCallback(
     (date: Date | null) => {
       if (!date) return;
@@ -1056,6 +1072,8 @@ export default function SlotListsPage() {
     },
     [replaceListUrl, resetFilters],
   );
+  const stepDay = (deltaDays: number) => pickDate(stepDayISO(deltaDays));
+  const goToToday = () => pickDate(parseISODate(berlinTodayISO()));
   const toggleSlot = useCallback(
     (slotId: string) => {
       if (!selectableSlotIds.includes(slotId)) return;
@@ -2052,6 +2070,32 @@ export default function SlotListsPage() {
     return cols;
   }, [isPickupBased, source]);
 
+  // Drucken und Exportieren als EIN Menü im Kopf, unter derselben Überschrift
+  // wie in Dienstplan und Betreuungsplan. Gesperrt, solange keine Liste
+  // geladen ist — es gäbe nichts mitzunehmen.
+  const exportBlocked = isExporting || isLoading || !result;
+  const exportMenuItems: OverflowMenuEntry[] = [
+    { kind: "header", label: "Drucken oder exportieren" },
+    {
+      label: isExporting ? "Erstelle PDF…" : "Drucken",
+      icon: <Printer className="h-4 w-4" aria-hidden />,
+      onClick: () => void handleExport("pdf", "print"),
+      disabled: exportBlocked,
+    },
+    {
+      label: "PDF herunterladen",
+      icon: <Download className="h-4 w-4" aria-hidden />,
+      onClick: () => void handleExport("pdf", "download"),
+      disabled: exportBlocked,
+    },
+    {
+      label: "Excel herunterladen",
+      icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
+      onClick: () => void handleExport("xlsx", "download"),
+      disabled: exportBlocked,
+    },
+  ];
+
   if (timetableDisabled) {
     return (
       <PlanningDisabledState
@@ -2091,19 +2135,34 @@ export default function SlotListsPage() {
           : null
       }
       statsLoading={isLoading || !result}
+      // Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
+      // Kopfkarte, nicht als Knopfreihe in einer Inhaltskarte.
       actions={
-        <div className="flex w-full items-center gap-2 sm:w-auto">
-          <span className="text-sm font-medium text-gray-700">Datum</span>
-          <DatePicker
-            value={parseISODate(dateISO)}
-            onChange={pickDate}
-            placeholder="Datum"
-            hideClearButton
-            minDate={pickerMinDate}
-            maxDate={pickerMaxDate}
-            className="min-w-0 flex-1 sm:flex-none"
-          />
-        </div>
+        <OverflowMenu items={exportMenuItems} ariaLabel="Weitere Aktionen" />
+      }
+      // Bauart 3, Regel 1: die Tageswahl sitzt im Bedienband der Kopfkarte,
+      // an derselben Stelle wie die Zeitnavigation der Planungsflächen.
+      searchSlot={
+        <PlanningContextBar
+          navigationSlot={
+            <DatePicker
+              value={parseISODate(dateISO)}
+              onChange={pickDate}
+              placeholder="Datum"
+              hideClearButton
+              minDate={pickerMinDate}
+              maxDate={pickerMaxDate}
+              className="w-full min-w-0 md:w-auto"
+            />
+          }
+          onPrevious={canGoPreviousDay ? () => stepDay(-1) : undefined}
+          onNext={canGoNextDay ? () => stepDay(1) : undefined}
+          previousLabel="Vorheriger Tag"
+          nextLabel="Nächster Tag"
+          onToday={dateISO === berlinTodayISO() ? undefined : goToToday}
+        >
+          {result ? <span>Datenherkunft: {result.provenance}</span> : null}
+        </PlanningContextBar>
       }
     >
       {/* Auswahl: Quelle, Datum, Datenbasis */}
@@ -2299,7 +2358,8 @@ export default function SlotListsPage() {
           </div>
         ) : null}
 
-        {/* Compact controls row — no dead space, provenance pinned right */}
+        {/* Datenbasis. Die Datenherkunft steht in der Kontextzeile der
+            Kopfkarte, nicht ein zweites Mal hier. */}
         <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">
@@ -2339,60 +2399,14 @@ export default function SlotListsPage() {
               }}
             />
           </div>
-          {result ? (
-            <p className="text-xs leading-5 text-gray-500 sm:ml-auto sm:max-w-[18rem] sm:text-right">
-              Datenherkunft: {result.provenance}
-            </p>
-          ) : null}
         </div>
       </SectionCard>
 
       {error ? <Alert type="error" message={error} /> : null}
 
-      {/* Preview + export: die Exporte stehen in der Titelzeile der Karte,
-          nicht in einer eigenen Button-Zeile. */}
-      <SectionCard
-        title="Vorschau und Export"
-        actions={
-          <>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              isLoading={isExporting}
-              loadingText="Erstelle PDF…"
-              disabled={isExporting || isLoading || !result}
-              onClick={() => void handleExport("pdf", "print")}
-              className="gap-2"
-            >
-              <Printer className="h-4 w-4" aria-hidden />
-              Drucken
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={isExporting || isLoading || !result}
-              onClick={() => void handleExport("pdf", "download")}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              PDF herunterladen
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={isExporting || isLoading || !result}
-              onClick={() => void handleExport("xlsx", "download")}
-              className="gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" aria-hidden />
-              Excel
-            </Button>
-          </>
-        }
-      >
+      {/* Vorschau. Drucken und Exportieren liegen im Kebab der Kopfkarte,
+          wie auf jeder anderen Werkzeugfläche. */}
+      <SectionCard title="Vorschau">
         {/* Filter und Zähler teilen sich eine Zeile, statt zwei fast leere
             Zeilen übereinander zu stapeln. */}
         <div className="flex min-w-0 flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">

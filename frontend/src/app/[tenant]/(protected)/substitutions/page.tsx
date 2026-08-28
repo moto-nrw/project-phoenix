@@ -13,11 +13,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import {
-  SkeletonRegion,
-  PageHeaderSkeleton,
-  ListSkeleton,
-} from "~/components/ui/page-skeletons";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -170,17 +166,19 @@ function AccessRow({
         </p>
         <MetaLine parts={[`Zugriff für ${personName}`, until]} />
       </div>
-      <Button
-        type="button"
-        variant="outline_danger"
-        size="md"
-        onClick={onEnd}
-        disabled={disabled}
-        aria-label={`Zugriff von ${personName} auf ${groupName} beenden`}
-        className="w-full sm:w-auto"
-      >
-        Beenden
-      </Button>
+      {/* Zeilenaktionen stehen im Kebab der Zeile (Bauart 1 Regel 4), nicht
+          als eigene Schaltfläche neben jedem Eintrag. */}
+      <OverflowMenu
+        ariaLabel={`Aktionen für ${groupName} und ${personName}`}
+        items={[
+          {
+            label: "Zugriff beenden",
+            destructive: true,
+            disabled,
+            onClick: onEnd,
+          },
+        ]}
+      />
     </li>
   );
 }
@@ -429,7 +427,7 @@ function SubstitutionPageContent() {
   }, [searchTerm, statusFilter]);
 
   if (status === "loading") {
-    return <SubstitutionPageSkeleton />;
+    return <TenantPage title="Gruppenzugriff" loading testId="loading" />;
   }
 
   if (openCareGroupMode) {
@@ -450,14 +448,6 @@ function SubstitutionPageContent() {
   const longTermAccess = activeSubstitutions.filter((s) => !s.isTransfer);
 
   const renderTeacherList = () => {
-    if (isLoading) {
-      return (
-        <SkeletonRegion label="Fachkräfte werden geladen…">
-          <ListSkeleton rows={6} />
-        </SkeletonRegion>
-      );
-    }
-
     if (filteredTeachers.length === 0) {
       return (
         <EmptyState
@@ -495,16 +485,15 @@ function SubstitutionPageContent() {
                   />
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => openSubstitutionPopup(teacher)}
-                aria-label={`${name} Zugriff auf eine Gruppe geben`}
-                className="w-full sm:w-auto"
-              >
-                Zuweisen
-              </Button>
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${name}`}
+                items={[
+                  {
+                    label: "Zugriff geben",
+                    onClick: () => openSubstitutionPopup(teacher),
+                  },
+                ]}
+              />
             </li>
           );
         })}
@@ -617,6 +606,29 @@ function SubstitutionPageContent() {
           setStatusFilter("all");
         }}
         error={loadError}
+        loading={isLoading}
+        empty={
+          // Leerzustand als nächster Schritt (Bauart 1 Regel 8): ohne
+          // Mitarbeitende gibt es nichts zuzuweisen, also führt er dorthin.
+          !isLoading && !loadError && teachers.length === 0
+            ? {
+                icon: <MotoConceptIcon concept="staff" size={48} />,
+                title: "Noch keine Fachkräfte",
+                description:
+                  "Legen Sie Mitarbeitende an. Danach können Sie ihnen hier Zugriff auf eine Gruppe geben.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => router.push("/staff")}
+                  >
+                    Zu den Mitarbeitenden
+                  </Button>
+                ),
+              }
+            : null
+        }
       >
         {/* Die Trefferzahl steht bereits als Zähler im Seitenkopf, deshalb
             hier eine schlichte Überschrift ohne Zählpille. */}
@@ -796,19 +808,10 @@ function SubstitutionPageContent() {
   );
 }
 
-function SubstitutionPageSkeleton() {
-  return (
-    <SkeletonRegion label="Gruppenzugriff wird geladen">
-      <PageHeaderSkeleton />
-      <ListSkeleton rows={6} />
-    </SkeletonRegion>
-  );
-}
-
 export default function SubstitutionPage() {
   return (
     <RoleGuard variant="adminOnly">
-      <Suspense fallback={<SubstitutionPageSkeleton />}>
+      <Suspense fallback={<TenantPage title="Gruppenzugriff" loading />}>
         <SubstitutionPageContent />
       </Suspense>
     </RoleGuard>

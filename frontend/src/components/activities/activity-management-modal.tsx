@@ -18,10 +18,11 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import { InfoIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 
 const logger = createLogger({ component: "ActivityManagement" });
@@ -60,48 +61,6 @@ export function getDeleteErrorMessage(err: unknown): string {
     return "Sie haben keine Berechtigung, diese Aktivität zu löschen.";
   }
   return message;
-}
-
-// Helper component for delete confirmation footer
-function DeleteConfirmFooter({
-  isDeleting,
-  onCancel,
-  onDelete,
-}: Readonly<{
-  isDeleting: boolean;
-  onCancel: () => void;
-  onDelete: () => void;
-}>) {
-  return (
-    <div className="flex w-full items-center justify-end gap-3">
-      <Button
-        type="button"
-        variant="ghost"
-        size="md"
-        onClick={onCancel}
-        disabled={isDeleting}
-      >
-        Abbrechen
-      </Button>
-      <Button
-        type="button"
-        variant="danger"
-        size="md"
-        onClick={onDelete}
-        disabled={isDeleting}
-        className="min-w-[112px]"
-      >
-        {isDeleting ? (
-          <span className="flex items-center justify-center gap-2">
-            <SpinnerIcon />
-            Löschen...
-          </span>
-        ) : (
-          "Löschen"
-        )}
-      </Button>
-    </div>
-  );
 }
 
 // Helper component for normal footer with save/delete buttons
@@ -317,226 +276,219 @@ export function ActivityManagementModal({
     }
   };
 
-  const footer =
-    !readOnly && showDeleteConfirm ? (
-      <DeleteConfirmFooter
-        isDeleting={isDeleting}
-        onCancel={() => setShowDeleteConfirm(false)}
-        onDelete={handleDelete}
-      />
-    ) : (
-      <NormalFooter
-        readOnly={readOnly}
-        isSubmitting={isSubmitting}
-        isDeleting={isDeleting}
-        loading={loading}
-        onClose={onClose}
-        onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
-      />
-    );
+  const footer = (
+    <NormalFooter
+      readOnly={readOnly}
+      isSubmitting={isSubmitting}
+      isDeleting={isDeleting}
+      loading={loading}
+      onClose={onClose}
+      onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
+    />
+  );
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Aktivität: ${activity.name}`}
-      size="sm"
-      mobilePosition="center"
-      footer={footer}
-    >
-      {loading ? (
-        <ModalLoadingMessage message="Kategorien werden geladen..." />
-      ) : (
-        <form
-          id="activity-management-form"
-          onSubmit={handleSubmit}
-          className="space-y-4"
-        >
-          {/* Creator info - positioned at top */}
-          <div className="-mx-2 -mt-2 mb-4 border-b border-gray-100 px-2 pb-3 md:-mx-2 md:px-2">
-            <p className="text-sm text-gray-500">
-              Erstellt von:{" "}
-              {activity.supervisors &&
-              activity.supervisors.length > 0 &&
-              activity.supervisors[0]
-                ? (activity.supervisors[0].full_name ?? "Unbekannt")
-                : "Unbekannt"}
-            </p>
-          </div>
-
-          {error && <Alert type="error" message={error} />}
-
-          {/* Activity Name Card - Compact */}
-          <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
-            <div>
-              <label
-                htmlFor="name"
-                className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
-              >
-                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                  <span className="text-[10px] font-bold text-gray-700">1</span>
-                </div>
-                Aktivitätsname
-              </label>
-              <input
-                id="name"
-                name="name"
-                value={form.name}
-                onChange={handleInputChange}
-                placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
-                required
-                disabled={readOnly}
-                maxLength={255}
-              />
+    <>
+      <FormModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={`Aktivität: ${activity.name}`}
+        size="sm"
+        mobilePosition="center"
+        footer={footer}
+      >
+        {loading ? (
+          <ModalLoadingMessage message="Kategorien werden geladen..." />
+        ) : (
+          <form
+            id="activity-management-form"
+            onSubmit={handleSubmit}
+            className="space-y-4"
+          >
+            {/* Creator info - positioned at top */}
+            <div className="-mx-2 -mt-2 mb-4 border-b border-gray-100 px-2 pb-3 md:-mx-2 md:px-2">
+              <p className="text-sm text-gray-500">
+                Erstellt von:{" "}
+                {activity.supervisors &&
+                activity.supervisors.length > 0 &&
+                activity.supervisors[0]
+                  ? (activity.supervisors[0].full_name ?? "Unbekannt")
+                  : "Unbekannt"}
+              </p>
             </div>
-          </div>
 
-          {/* Category Card - Compact */}
-          <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
-            <div>
-              <label
-                id="category_id-label"
-                htmlFor="category_id"
-                className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
-              >
-                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                  <span className="text-[10px] font-bold text-gray-700">2</span>
-                </div>
-                Kategorie
-              </label>
-              <CustomSelect
-                id="category_id"
-                name="category_id"
-                ariaLabelledBy="category_id-label"
-                value={form.category_id}
-                onChange={(next) => {
-                  setForm((prev) => ({ ...prev, category_id: next }));
-                  setError(null);
-                }}
-                options={[
-                  { value: "", label: "Kategorie wählen..." },
-                  ...categories.map((category) => ({
-                    value: category.id,
-                    label: category.name,
-                  })),
-                ]}
-                placeholder="Kategorie wählen..."
-                required
-                disabled={readOnly}
-              />
-            </div>
-          </div>
+            {error && <Alert type="error" message={error} />}
 
-          {/* Participants Card - Compact */}
-          <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
-            <div>
-              <label
-                htmlFor="max_participants"
-                className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
-              >
-                <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                  <span className="text-[10px] font-bold text-gray-700">3</span>
-                </div>
-                Maximale Teilnehmerzahl
-              </label>
-              <div className="relative flex items-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const current = Number.parseInt(form.max_participants, 10);
-                    if (current > 1) {
-                      setForm((prev) => ({
-                        ...prev,
-                        max_participants: (current - 1).toString(),
-                      }));
-                    }
-                  }}
-                  className="focus:ring-moto-blue absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                  disabled={
-                    !form.max_participants ||
-                    Number.parseInt(form.max_participants, 10) <= 1 ||
-                    readOnly
-                  }
-                  aria-label="Teilnehmer reduzieren"
+            {/* Activity Name Card - Compact */}
+            <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+              <div>
+                <label
+                  htmlFor="name"
+                  className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
-                  <Minus
-                    className="h-5 w-5 md:h-4 md:w-4"
-                    strokeWidth={2.5}
-                    aria-hidden="true"
-                  />
-                </button>
-
+                  <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
+                    <span className="text-[10px] font-bold text-gray-700">
+                      1
+                    </span>
+                  </div>
+                  Aktivitätsname
+                </label>
                 <input
-                  id="max_participants"
-                  name="max_participants"
-                  type="number"
-                  value={form.max_participants}
+                  id="name"
+                  name="name"
+                  value={form.name}
                   onChange={handleInputChange}
-                  min="1"
-                  required={Boolean(form.max_participants)}
-                  className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  disabled={readOnly || !form.max_participants}
+                  placeholder="z.B. Hausaufgaben, Malen, Basteln..."
+                  className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                  required
+                  disabled={readOnly}
+                  maxLength={255}
                 />
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const current = Number.parseInt(form.max_participants, 10);
-                    if (Number.isFinite(current)) {
-                      setForm((prev) => ({
-                        ...prev,
-                        max_participants: (current + 1).toString(),
-                      }));
-                    }
-                  }}
-                  className="focus:ring-moto-blue absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                  disabled={readOnly || !form.max_participants}
-                  aria-label="Teilnehmer erhöhen"
-                >
-                  <Plus
-                    className="h-5 w-5 md:h-4 md:w-4"
-                    strokeWidth={2.5}
-                    aria-hidden="true"
-                  />
-                </button>
               </div>
-              <label
-                htmlFor="activity-no-participant-limit"
-                className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700"
-              >
-                <Checkbox
-                  id="activity-no-participant-limit"
-                  checked={!form.max_participants}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      max_participants: event.target.checked ? "" : "15",
-                    }))
-                  }
+            </div>
+
+            {/* Category Card - Compact */}
+            <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+              <div>
+                <label
+                  id="category_id-label"
+                  htmlFor="category_id"
+                  className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
+                >
+                  <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
+                    <span className="text-[10px] font-bold text-gray-700">
+                      2
+                    </span>
+                  </div>
+                  Kategorie
+                </label>
+                <CustomSelect
+                  id="category_id"
+                  name="category_id"
+                  ariaLabelledBy="category_id-label"
+                  value={form.category_id}
+                  onChange={(next) => {
+                    setForm((prev) => ({ ...prev, category_id: next }));
+                    setError(null);
+                  }}
+                  options={[
+                    { value: "", label: "Kategorie wählen..." },
+                    ...categories.map((category) => ({
+                      value: category.id,
+                      label: category.name,
+                    })),
+                  ]}
+                  placeholder="Kategorie wählen..."
+                  required
                   disabled={readOnly}
                 />
-                Keine Begrenzung
-              </label>
-            </div>
-          </div>
-
-          {/* Info Card / Delete Confirmation - Compact */}
-          {showDeleteConfirm ? (
-            <div className="border-moto-red/30 bg-moto-red-soft rounded-lg border p-3">
-              <div className="flex items-center gap-2">
-                <MotoDuotoneIcon
-                  icon={WarningCircleIcon}
-                  tone="red"
-                  size={14}
-                  className="flex-shrink-0"
-                />
-                <p className="text-moto-red-hover text-xs font-medium">
-                  Diese Aktivität wirklich löschen?
-                </p>
               </div>
             </div>
-          ) : (
+
+            {/* Participants Card - Compact */}
+            <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+              <div>
+                <label
+                  htmlFor="max_participants"
+                  className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
+                >
+                  <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
+                    <span className="text-[10px] font-bold text-gray-700">
+                      3
+                    </span>
+                  </div>
+                  Maximale Teilnehmerzahl
+                </label>
+                <div className="relative flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = Number.parseInt(
+                        form.max_participants,
+                        10,
+                      );
+                      if (current > 1) {
+                        setForm((prev) => ({
+                          ...prev,
+                          max_participants: (current - 1).toString(),
+                        }));
+                      }
+                    }}
+                    className="focus:ring-moto-blue absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
+                    disabled={
+                      !form.max_participants ||
+                      Number.parseInt(form.max_participants, 10) <= 1 ||
+                      readOnly
+                    }
+                    aria-label="Teilnehmer reduzieren"
+                  >
+                    <Minus
+                      className="h-5 w-5 md:h-4 md:w-4"
+                      strokeWidth={2.5}
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  <input
+                    id="max_participants"
+                    name="max_participants"
+                    type="number"
+                    value={form.max_participants}
+                    onChange={handleInputChange}
+                    min="1"
+                    required={Boolean(form.max_participants)}
+                    className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    disabled={readOnly || !form.max_participants}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = Number.parseInt(
+                        form.max_participants,
+                        10,
+                      );
+                      if (Number.isFinite(current)) {
+                        setForm((prev) => ({
+                          ...prev,
+                          max_participants: (current + 1).toString(),
+                        }));
+                      }
+                    }}
+                    className="focus:ring-moto-blue absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
+                    disabled={readOnly || !form.max_participants}
+                    aria-label="Teilnehmer erhöhen"
+                  >
+                    <Plus
+                      className="h-5 w-5 md:h-4 md:w-4"
+                      strokeWidth={2.5}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
+                <label
+                  htmlFor="activity-no-participant-limit"
+                  className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700"
+                >
+                  <Checkbox
+                    id="activity-no-participant-limit"
+                    checked={!form.max_participants}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        max_participants: event.target.checked ? "" : "15",
+                      }))
+                    }
+                    disabled={readOnly}
+                  />
+                  Keine Begrenzung
+                </label>
+              </div>
+            </div>
+
+            {/* Hinweiskarte. Die Löschabfrage läuft über das
+              `ConfirmDeleteModal`, nicht über einen Wechsel dieser Karte
+              und des Fußes (Bauart 2, Regel 6). */}
             <div className="rounded-lg border border-gray-200/30 bg-gray-50 p-3">
               <div className="flex items-center gap-2">
                 <MotoDuotoneIcon
@@ -552,10 +504,24 @@ export function ActivityManagementModal({
                 </p>
               </div>
             </div>
-          )}
-        </form>
-      )}
-    </FormModal>
+          </form>
+        )}
+      </FormModal>
+
+      {/* Portalweit dasselbe Löschmuster. Für eine Aktivität reicht die
+          zweistufige Rückfrage; die Texteingabe bleibt Fällen mit
+          Datenverlust vorbehalten. */}
+      <ConfirmDeleteModal
+        isOpen={!readOnly && showDeleteConfirm}
+        title="Aktivität löschen"
+        description={`Möchten Sie die Aktivität „${activity.name}“ wirklich löschen? Das lässt sich nicht rückgängig machen.`}
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
+        onClose={() => setShowDeleteConfirm(false)}
+        loading={isDeleting}
+        error=""
+      />
+    </>
   );
 }
 

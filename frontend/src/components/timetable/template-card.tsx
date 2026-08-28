@@ -19,7 +19,11 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
-import { timetableSurface } from "./timetable-style";
+import {
+  TIMETABLE_NEUTRAL_COLOR,
+  TIMETABLE_UNTYPED_EDGE_COLOR,
+  timetableSurface,
+} from "./timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface TemplateCardProps {
@@ -82,7 +86,10 @@ export function TemplateCard({
   onArchive,
   canManage = true,
 }: TemplateCardProps) {
-  const color = template.planningTrackColor ?? "#D1D5DB";
+  const color = template.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR;
+  // Schichtfarbe kommt aus den Tenant-Daten; fehlt sie, steht dort das
+  // neutrale Grau der Palette, nie eine erfundene Buntfarbe.
+  const shiftTypeColor = template.shiftTypeColor || TIMETABLE_NEUTRAL_COLOR;
   const activeWeekdays = new Set(template.schedules.map((s) => s.weekday));
   const timeRange = summarizeTimeRange(template);
   const targetSummary = summarizeTargets(template);
@@ -111,15 +118,15 @@ export function TemplateCard({
               <span
                 className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
                 style={{
-                  backgroundColor: `${template.shiftTypeColor || "#6B7280"}1A`,
-                  color: template.shiftTypeColor || "#6B7280",
+                  backgroundColor: `${shiftTypeColor}1A`,
+                  color: shiftTypeColor,
                 }}
                 title={`Schichtart: ${template.shiftTypeName}`}
               >
                 <span
                   className="h-2 w-2 rounded-full"
                   style={{
-                    backgroundColor: template.shiftTypeColor || "#6B7280",
+                    backgroundColor: shiftTypeColor,
                   }}
                   aria-hidden
                 />

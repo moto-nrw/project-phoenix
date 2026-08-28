@@ -9,11 +9,9 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
-import { EmptyState } from "~/components/ui/empty-state";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
@@ -237,6 +235,12 @@ export default function AbsencesPage() {
     statusFilter !== "all" ||
     effectiveGroupFilter !== "all";
 
+  const clearFilters = () => {
+    setQuery("");
+    setStatusFilter("all");
+    setGroupFilter("all");
+  };
+
   useEffect(() => {
     if (groupFilter !== effectiveGroupFilter) {
       setGroupFilter(effectiveGroupFilter);
@@ -274,6 +278,14 @@ export default function AbsencesPage() {
       } · ${formatDate(effectiveFromIso!)} bis ${formatDate(effectiveToIso!)}`
     );
 
+  const isEmpty =
+    error === null &&
+    !isLoading &&
+    entries !== null &&
+    entries.length === 0 &&
+    displayedPage === 1 &&
+    !hasMore;
+
   return (
     <TenantPage
       title="Abwesenheiten"
@@ -294,62 +306,67 @@ export default function AbsencesPage() {
         placeholder: "Nach Kind oder Klasse suchen…",
       }}
       filters={filterConfigs}
+      error={error}
+      empty={
+        isEmpty
+          ? hasActiveFilters
+            ? {
+                title: "Keine Abwesenheit gefunden",
+                description:
+                  "Zu Suche und Filtern passt kein Eintrag. Setzen Sie die Filter zurück, um alle Einträge zu sehen.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={clearFilters}
+                  >
+                    Filter zurücksetzen
+                  </Button>
+                ),
+              }
+            : {
+                title: "Keine Abwesenheit eingetragen",
+                description:
+                  "Im gewählten Zeitraum fehlt für alle Kinder ein Eintrag. Tragen Sie eine Krankmeldung beim Kind ein, oder wählen Sie oben einen anderen Zeitraum.",
+              }
+          : null
+      }
     >
       <SectionCard title="Eingetragene Abwesenheitstage" bodyClassName="">
-        {error !== null && (
-          <div
-            className={`mt-4 transition-opacity ${isValidating ? "opacity-60" : ""}`}
-            aria-busy={isValidating}
-          >
-            <Alert type="error" message={error} />
-          </div>
-        )}
-
-        {error === null && (
-          <div className="mt-4">
-            <DataTable
-              columns={COLUMNS}
-              rows={entries ?? []}
-              isLoading={isLoading && entries === null}
-              getRowKey={(row) => row.id}
-              onRowClick={(row) =>
-                router.push(`/students/${row.student_id}?from=/absences`)
-              }
-              emptyState={
-                <EmptyState
-                  title="Keine Abwesenheiten eingetragen"
-                  description={
-                    hasActiveFilters
-                      ? "Kein Eintrag passt zu den gewählten Filtern."
-                      : "Im gewählten Zeitraum ist für kein Kind eine Abwesenheit eingetragen."
-                  }
-                />
-              }
-            />
-            {entries && (displayedPage > 1 || hasMore) && (
-              <div className="mt-3 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={displayedPage === 1 || isValidating}
-                  onClick={() => setPage(Math.max(1, displayedPage - 1))}
-                >
-                  Zurück
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={!hasMore || isValidating}
-                  onClick={() => setPage(displayedPage + 1)}
-                >
-                  Weiter
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="mt-4">
+          <DataTable
+            columns={COLUMNS}
+            rows={entries ?? []}
+            isLoading={isLoading && entries === null}
+            getRowKey={(row) => row.id}
+            onRowClick={(row) =>
+              router.push(`/students/${row.student_id}?from=/absences`)
+            }
+          />
+          {entries && (displayedPage > 1 || hasMore) && (
+            <div className="mt-3 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={displayedPage === 1 || isValidating}
+                onClick={() => setPage(Math.max(1, displayedPage - 1))}
+              >
+                Zurück
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={!hasMore || isValidating}
+                onClick={() => setPage(displayedPage + 1)}
+              >
+                Weiter
+              </Button>
+            </div>
+          )}
+        </div>
       </SectionCard>
     </TenantPage>
   );

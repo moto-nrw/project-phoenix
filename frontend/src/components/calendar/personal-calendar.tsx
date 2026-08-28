@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
+import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -94,6 +95,28 @@ const sourceTone = {
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
 >;
+
+/**
+ * Der Kalender codiert die Herkunft eines Termins farbig. Bauart 3 Regel 3:
+ * jede farbcodierte Fläche trägt eine Legende.
+ */
+const calendarLegendEntries: readonly PlanLegendEntry[] = [
+  {
+    key: "source-appointment",
+    label: sourceTone.appointment.label,
+    color: sourceTone.appointment.bar,
+  },
+  {
+    key: "source-timetable",
+    label: sourceTone.timetable.label,
+    color: sourceTone.timetable.bar,
+  },
+  {
+    key: "source-shift",
+    label: sourceTone.shift.label,
+    color: sourceTone.shift.bar,
+  },
+];
 
 const responseLabel: Record<string, string> = {
   pending: "Offen",
@@ -351,7 +374,11 @@ const viewOptions = [
   { mode: "month", label: "Monat" },
 ] satisfies Array<{ mode: CalendarViewMode; label: string }>;
 
-function emptyLabel(viewMode: CalendarViewMode): string {
+/**
+ * Text des Leerzustands. Die Kalenderseite belegt damit `empty` der
+ * `TenantPage`, das Raster selbst nutzt ihn als Rückfall.
+ */
+export function calendarEmptyLabel(viewMode: CalendarViewMode): string {
   if (viewMode === "day") return "Keine Einträge an diesem Tag.";
   if (viewMode === "month") return "Keine Einträge in diesem Monat.";
   return "Keine Einträge in dieser Woche.";
@@ -518,6 +545,14 @@ export function PersonalCalendar({
           </div>
         ) : null}
       </div>
+
+      {visibleSortedEvents.length > 0 ? (
+        <PlanLegend
+          className="px-1"
+          entries={calendarLegendEntries}
+          aria-label="Legende Terminarten"
+        />
+      ) : null}
 
       <Modal
         isOpen={selectedEvent !== null}
@@ -1347,7 +1382,7 @@ function EmptyCalendarState({
 }: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <EmptyState title={emptyLabel(viewMode)} />
+      <EmptyState title={calendarEmptyLabel(viewMode)} />
     </div>
   );
 }

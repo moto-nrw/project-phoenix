@@ -64,17 +64,50 @@ vi.mock("~/contexts/ToastContext", () => ({
   })),
 }));
 
+vi.mock("~/components/ui/confirm-delete-modal", () => ({
+  ConfirmDeleteModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
+}));
+
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
     intro,
     search,
+    error,
+    empty,
+    overlays,
   }: {
     children: ReactNode;
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
+    error?: string | null;
+    empty?: {
+      title: string;
+      description?: string;
+      icon?: ReactNode;
+      action?: ReactNode;
+    } | null;
+    overlays?: ReactNode;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
       {intro ? (
@@ -85,7 +118,17 @@ vi.mock("~/components/database/database-page-layout", () => ({
           {search}
         </div>
       ) : null}
-      {children}
+      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+      {error ? <div data-testid="page-error">{error}</div> : null}
+      {!error && empty ? (
+        <div data-testid="page-empty">
+          <p>{empty.title}</p>
+          {empty.description ? <p>{empty.description}</p> : null}
+          {empty.action}
+        </div>
+      ) : null}
+      {!error && !empty ? children : null}
+      {overlays}
     </div>
   ),
 }));
@@ -147,35 +190,8 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
       setError(null);
       onClose();
     };
-    if (!isOpen) return null;
-    return isEdit ? (
-      <div data-testid="device-edit-modal">
-        {error ? <span data-testid="edit-error">{error}</span> : null}
-        <button
-          type="button"
-          data-testid="submit-edit"
-          onClick={() => submit({ name: "Updated Device" })}
-        >
-          Save
-        </button>
-        <button
-          type="button"
-          data-testid="submit-edit-duplicate"
-          onClick={() =>
-            submit({ name: "Updated Device", device_id: "duplicate-id" })
-          }
-        >
-          Save Duplicate
-        </button>
-        <button
-          type="button"
-          data-testid="close-edit-modal"
-          onClick={handleClose}
-        >
-          Close
-        </button>
-      </div>
-    ) : (
+    if (!isOpen || isEdit) return null;
+    return (
       <div data-testid="device-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
@@ -205,12 +221,15 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
 }));
 
 vi.mock("@/components/devices/devices-master-detail", () => ({
+  // Bearbeitet wird im Detailbereich (BAUARTEN-SPEC Bauart 2 Regel 3). Der
+  // Doppel steht fuer die eingebettete DatabaseForm: sie faengt die Ablehnung
+  // von onSaveDevice ab und zeigt die Meldung im Formular.
   DevicesMasterDetail: ({
     groupDefinitions,
     selectedId,
     selectedDevice,
     onSelect,
-    onEditClick,
+    onSaveDevice,
     onDeleteClick,
   }: {
     groupDefinitions: Array<{
@@ -226,84 +245,108 @@ vi.mock("@/components/devices/devices-master-detail", () => ({
       room_name?: string | null;
     } | null;
     onSelect: (id: string | null) => void;
-    onEditClick: () => void;
+    onSaveDevice: (data: {
+      name?: string;
+      device_id?: string;
+    }) => Promise<void>;
     onDeleteClick: () => void;
-  }) => (
-    <div data-testid="devices-master-detail">
-      {groupDefinitions.map((group) => (
-        <div key={group.id} data-testid={`group-${group.id}`}>
-          <span data-testid={`group-title-${group.id}`}>{group.title}</span>
-          {group.items.map((device) => (
+  }) => {
+    const [editing, setEditing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const submit = (data: { name?: string; device_id?: string }) => {
+      setError(null);
+      void onSaveDevice(data)
+        .then(() => setEditing(false))
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+    return (
+      <div data-testid="devices-master-detail">
+        {groupDefinitions.map((group) => (
+          <div key={group.id} data-testid={`group-${group.id}`}>
+            <span data-testid={`group-title-${group.id}`}>{group.title}</span>
+            {group.items.map((device) => (
+              <button
+                type="button"
+                key={device.id}
+                data-testid={`device-row-${device.id}`}
+                onClick={() => onSelect(device.id)}
+              >
+                {device.name ?? device.device_id}
+              </button>
+            ))}
+          </div>
+        ))}
+        {selectedId ? (
+          <div data-testid="device-detail-panel">
+            <span data-testid="detail-selected-id">{selectedId}</span>
+            <span data-testid="detail-device-name">
+              {selectedDevice?.name ?? selectedDevice?.device_id ?? "unbekannt"}
+            </span>
+            <span data-testid="detail-device-room">
+              {selectedDevice?.room_name ?? "kein-raum"}
+            </span>
+            {selectedDevice?.api_key ? (
+              <span data-testid="detail-api-key">{selectedDevice.api_key}</span>
+            ) : null}
             <button
               type="button"
-              key={device.id}
-              data-testid={`device-row-${device.id}`}
-              onClick={() => onSelect(device.id)}
+              data-testid="trigger-edit"
+              onClick={() => setEditing(true)}
             >
-              {device.name ?? device.device_id}
+              Edit
             </button>
-          ))}
-        </div>
-      ))}
-      {selectedId ? (
-        <div data-testid="device-detail-panel">
-          <span data-testid="detail-selected-id">{selectedId}</span>
-          <span data-testid="detail-device-name">
-            {selectedDevice?.name ?? selectedDevice?.device_id ?? "unbekannt"}
-          </span>
-          <span data-testid="detail-device-room">
-            {selectedDevice?.room_name ?? "kein-raum"}
-          </span>
-          {selectedDevice?.api_key ? (
-            <span data-testid="detail-api-key">{selectedDevice.api_key}</span>
-          ) : null}
-          <button
-            type="button"
-            data-testid="trigger-edit"
-            onClick={onEditClick}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-delete"
-            onClick={onDeleteClick}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-deselect"
-            onClick={() => onSelect(null)}
-          >
-            Close
-          </button>
-        </div>
-      ) : null}
-    </div>
-  ),
-}));
-
-vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({
-    isOpen,
-    onConfirm,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onConfirm?: () => void;
-    onClose?: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="confirmation-modal">
-        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
-          Confirm
-        </button>
-        <button type="button" data-testid="cancel-delete" onClick={onClose}>
-          Cancel
-        </button>
+            <button
+              type="button"
+              data-testid="trigger-delete"
+              onClick={onDeleteClick}
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              data-testid="trigger-deselect"
+              onClick={() => onSelect(null)}
+            >
+              Close
+            </button>
+            {editing ? (
+              <div data-testid="device-edit-form">
+                {error ? <span data-testid="edit-error">{error}</span> : null}
+                <button
+                  type="button"
+                  data-testid="submit-edit"
+                  onClick={() => submit({ name: "Updated Device" })}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  data-testid="submit-edit-duplicate"
+                  onClick={() =>
+                    submit({
+                      name: "Updated Device",
+                      device_id: "duplicate-id",
+                    })
+                  }
+                >
+                  Save Duplicate
+                </button>
+                <button
+                  type="button"
+                  data-testid="cancel-edit"
+                  onClick={() => setEditing(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-    ) : null,
+    );
+  },
 }));
 
 import { useSWRAuth } from "~/lib/swr";
@@ -484,7 +527,7 @@ describe("DevicesPage", () => {
     expect(mockGetOne).not.toHaveBeenCalled();
   });
 
-  it("opens the edit modal when the detail panel edit button is clicked", async () => {
+  it("opens the inline edit form when the detail panel edit button is clicked", async () => {
     setSelectedDevice("1");
 
     render(<DevicesPage />);
@@ -496,11 +539,11 @@ describe("DevicesPage", () => {
     fireEvent.click(screen.getByTestId("trigger-edit"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
   });
 
-  it("calls update service when saving the edit modal", async () => {
+  it("calls update service when saving the inline edit form", async () => {
     setSelectedDevice("1");
     mockUpdate.mockResolvedValueOnce({
       ...mockDevices[0],
@@ -526,7 +569,7 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -836,7 +879,7 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -856,7 +899,7 @@ describe("DevicesPage", () => {
     });
   });
 
-  it("propagates update failures so the edit modal stays open and no success toast fires", async () => {
+  it("propagates update failures so the inline edit form stays open and no success toast fires", async () => {
     setSelectedDevice("1");
     mockUpdate.mockRejectedValueOnce(new Error("backend exploded"));
 
@@ -868,7 +911,7 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -881,7 +924,7 @@ describe("DevicesPage", () => {
     });
     // Modal must remain mounted on failure (the page rethrows so the modal
     // can show its own error UI and let the user retry).
-    expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
@@ -901,7 +944,7 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit-duplicate"));
@@ -912,7 +955,7 @@ describe("DevicesPage", () => {
       );
     });
     // The modal must NOT close on a duplicate so the user can correct the ID.
-    expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
@@ -960,7 +1003,7 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -988,7 +1031,7 @@ describe("DevicesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit-duplicate"));
@@ -999,7 +1042,7 @@ describe("DevicesPage", () => {
       );
     });
     // Modal stays open so the user can correct the ID.
-    expect(screen.getByTestId("device-edit-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("device-edit-form")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 

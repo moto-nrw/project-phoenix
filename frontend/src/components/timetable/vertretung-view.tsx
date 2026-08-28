@@ -34,14 +34,20 @@
  * statt erfundener Null) überleben wörtlich.
  */
 
-import { CalendarRange } from "lucide-react";
+import { CalendarRange, Printer } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
+import { PlanLegend } from "~/components/ui/plan-legend";
 import {
   PlanningContextBar,
   PlanningDayChip,
@@ -57,8 +63,8 @@ import {
   type VertretungDayListMode,
 } from "~/components/timetable/vertretung-day-list";
 import { VertretungContentSkeleton } from "~/components/timetable/vertretung-skeleton";
+import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { VertretungWeekList } from "~/components/timetable/vertretung-week-list";
-import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -165,6 +171,11 @@ function VertretungContent() {
   // `schedules:manage`. Ohne canManage werden alle Editier-Kontrollen
   // ausgeblendet, Liste und Verlauf bleiben lesbar (Abschnitt 1/9).
   const canManageSchedules = hasPermission(session, "schedules:manage");
+  // Export der sichtbaren Woche: dieselbe Rechteprüfung wie im
+  // Betreuungsplan, denn es ist derselbe Export derselben Wochendaten.
+  const canExportBetreuungsplan =
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
   // Der Dienstplan-Hinweis über der Liste liest die Dienstplan-Übersicht. Deren
   // Endpunkt verlangt mehr Rechte als die Vertretung selbst
   // (Administrator + time_tracking:manage + schedules:read + users:read,
@@ -345,6 +356,14 @@ function VertretungContent() {
     () => instances.filter((inst) => inst.date === dayISO),
     [instances, dayISO],
   );
+  // Was das Raster gerade zeigt — Grundlage für Statuszeile und Legende.
+  const visibleInstances = isWeekView ? weekdayInstances : dayInstances;
+  // Bauart 3, Regel 3: das Raster färbt die Blöcke nach Planungsspur, also
+  // trägt die Fläche dieselbe Legende wie der Betreuungsplan.
+  const planningTrackLegend = useMemo(
+    () => buildPlanningTrackLegend(visibleInstances),
+    [visibleInstances],
+  );
   const staffOptions = useMemo(
     () => (staffData ?? []).map((s) => ({ id: s.id, name: s.name })),
     [staffData],
@@ -471,6 +490,9 @@ function VertretungContent() {
   // Sammel-Vertretung (#2284): Modalzustand ist lokal, kein URL-Parameter —
   // das URL-Vokabular bleibt bei d/view/block/verlauf.
   const [bulkOpen, setBulkOpen] = useState(false);
+  // Export-Dialog (Bauart 3, Regel 4): dieselbe Fläche wie im Betreuungsplan,
+  // deshalb auch derselbe lokale Zustand ohne URL-Parameter.
+  const [exportOpen, setExportOpen] = useState(false);
 
   const goToDay = useCallback(
     (iso: string) => updateUrlParams({ d: iso, block: null, verlauf: null }),
@@ -600,15 +622,31 @@ function VertretungContent() {
   // Wie im Dienstplan rendert die PlanningContextBar (Titel, Navigation)
   // trotzdem sofort; nur der Inhaltsbereich fällt auf das Skelett zurück.
   const showSkeleton = status === "loading" || settingsSchemaLoading;
+  // Erstes Laden der Woche gehört in denselben Zustand: der Inhalt kann noch
+  // nichts zeigen. Eine Revalidierung mit vorhandenen Daten nicht — die würde
+  // sonst bei jedem Wochenwechsel die ganze Fläche gegen ein Skelett tauschen.
+  const contentLoading = showSkeleton || (isLoading && data === undefined);
 
   if (!showSkeleton && timetableDisabled) {
     return <VertretungDisabledState />;
   }
 
+  // Kopf-Menü: derselbe Eintrag mit demselben Wortlaut wie im
+  // Betreuungsplan. Der Export liefert die Woche, die hier zu sehen ist —
+  // die interne Fassung nennt Ausfälle, Vertretungen und offene Lücken.
+  const menuItems: OverflowMenuEntry[] = canExportBetreuungsplan
+    ? [
+        {
+          label: "Drucken oder exportieren",
+          icon: <Printer className="h-4 w-4" aria-hidden />,
+          onClick: () => setExportOpen(true),
+        },
+      ]
+    : [];
+
   // Statuszeile der Kopfkarte: Zeitraum und die Zahlen der sichtbaren
   // Ansicht.
-  const scopeInstanceCount = (isWeekView ? weekdayInstances : dayInstances)
-    .length;
+  const scopeInstanceCount = visibleInstances.length;
   const statusLine = [
     // Die Tagesansicht zählt einen Tag, also nennt sie auch den Tag; die
     // Wochenansicht die Woche. Vom Wochenlabel steht hier nur der Kopf
@@ -628,26 +666,33 @@ function VertretungContent() {
         stats={statusLine}
         statsLoading={showSkeleton || isLoading}
         actions={
-          // Sammel-Vertretung (#2284): mehrtägige Abwesenheit + Ersatz in
-          // einem Schritt. Reine Mutation, daher nur mit schedules:manage.
-          canManageSchedules ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-              aria-label="Sammel-Vertretung eintragen"
-              onClick={() => setBulkOpen(true)}
-            >
-              <CalendarRange
-                className="h-4 w-4 shrink-0 sm:mr-1.5"
-                aria-hidden
-              />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Sammel-Vertretung
-              </span>
-            </Button>
-          ) : undefined
+          <>
+            {/* Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
+                Kopfkarte, mit demselben Wortlaut wie im Betreuungsplan. */}
+            {menuItems.length > 0 && (
+              <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
+            )}
+            {/* Sammel-Vertretung (#2284): mehrtägige Abwesenheit + Ersatz in
+                einem Schritt. Reine Mutation, daher nur mit schedules:manage. */}
+            {canManageSchedules ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+                aria-label="Sammel-Vertretung eintragen"
+                onClick={() => setBulkOpen(true)}
+              >
+                <CalendarRange
+                  className="h-4 w-4 shrink-0 sm:mr-1.5"
+                  aria-hidden
+                />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  Sammel-Vertretung
+                </span>
+              </Button>
+            ) : null}
+          </>
         }
         searchSlot={
           <PlanningContextBar
@@ -737,6 +782,28 @@ function VertretungContent() {
             />
           </PlanningContextBar>
         }
+        loading={contentLoading}
+        // Bauart 3, Regel 5: Laden und Fehler kommen aus dem Gerüst, nicht aus
+        // einer eigenen Fläche. Ein Ladefehler ist `error` — NIE ein leerer
+        // Plan und nie `empty` (Verhaltensvertrag).
+        error={
+          weekErrorMessage
+            ? {
+                message:
+                  "Vertretung konnte nicht geladen werden. Die Termine des Tages konnten nicht abgerufen werden.",
+                action: (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={retryAll}
+                  >
+                    Erneut versuchen
+                  </Button>
+                ),
+              }
+            : null
+        }
       >
         {staffErrorMessage && (
           <Alert
@@ -752,70 +819,54 @@ function VertretungContent() {
           dienstplanHref={dienstplanHref}
         />
 
-        {showSkeleton ? (
-          <VertretungContentSkeleton />
-        ) : weekErrorMessage ? (
-          // Fehlerfläche mit Retry — NIE ein leerer Plan (Verhaltensvertrag).
-          <div
-            data-testid="vertretung-week-error"
-            className={`${timetableSurface} space-y-3 p-4 sm:p-6`}
-          >
-            <Alert
-              type="error"
-              title="Vertretung konnte nicht geladen werden"
-              message="Die Termine des Tages konnten nicht abgerufen werden. Bitte erneut versuchen."
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={retryAll}
-            >
-              Erneut versuchen
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
-            {isWeekView ? (
-              // Die Wochenliste darf die Seite nicht länger machen als das
-              // Raster daneben. Ab lg trägt sie deshalb nichts zur Zeilenhöhe
-              // bei (absolut positioniert), füllt die vom Raster gesetzte Höhe
-              // und scrollt in sich — ohne die Rasterhöhe als Zahl zu kennen.
-              // Darunter (einspaltig, ohne Raster) fließt sie normal und
-              // scrollt mit der Seite.
-              <div className="lg:relative">
-                <div className="lg:absolute lg:inset-0">
-                  <VertretungWeekList
-                    weekDays={weekDays}
-                    instances={weekdayInstances}
-                    gaps={weekGaps}
-                    acknowledged={weekAcknowledged}
-                    gapsAvailableFrom={gapsAvailableFrom}
-                    staffNames={staffNames}
-                    mode={mode}
-                    onModeChange={setMode}
-                    canManage={canManageSchedules}
-                    onEdit={openEditor}
-                    onSelectDay={openDayView}
-                    todayISO={today}
-                    className="lg:h-full lg:overflow-hidden"
-                  />
-                </div>
+        {planningTrackLegend.length > 0 && (
+          <PlanLegend
+            entries={planningTrackLegend}
+            aria-label="Planungsspuren in der sichtbaren Vertretung"
+          />
+        )}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+          {isWeekView ? (
+            // Die Wochenliste darf die Seite nicht länger machen als das
+            // Raster daneben. Ab lg trägt sie deshalb nichts zur Zeilenhöhe
+            // bei (absolut positioniert), füllt die vom Raster gesetzte Höhe
+            // und scrollt in sich — ohne die Rasterhöhe als Zahl zu kennen.
+            // Darunter (einspaltig, ohne Raster) fließt sie normal und
+            // scrollt mit der Seite.
+            <div className="lg:relative">
+              <div className="lg:absolute lg:inset-0">
+                <VertretungWeekList
+                  weekDays={weekDays}
+                  instances={weekdayInstances}
+                  gaps={weekGaps}
+                  acknowledged={weekAcknowledged}
+                  gapsAvailableFrom={gapsAvailableFrom}
+                  staffNames={staffNames}
+                  mode={mode}
+                  onModeChange={setMode}
+                  canManage={canManageSchedules}
+                  onEdit={openEditor}
+                  onSelectDay={openDayView}
+                  todayISO={today}
+                  className="lg:h-full lg:overflow-hidden"
+                />
               </div>
-            ) : (
-              <VertretungDayList
-                instances={dayInstances}
-                gaps={dayGaps}
-                acknowledged={dayAcknowledged}
-                gapsAvailable={!gapsUnavailable}
-                staffNames={staffNames}
-                mode={mode}
-                onModeChange={setMode}
-                canManage={canManageSchedules}
-                onEdit={openEditor}
-              />
-            )}
-            {/* Das Raster läuft auch unterhalb lg mit, dort einspaltig unter der
+            </div>
+          ) : (
+            <VertretungDayList
+              instances={dayInstances}
+              gaps={dayGaps}
+              acknowledged={dayAcknowledged}
+              gapsAvailable={!gapsUnavailable}
+              staffNames={staffNames}
+              mode={mode}
+              onModeChange={setMode}
+              canManage={canManageSchedules}
+              onEdit={openEditor}
+            />
+          )}
+          {/* Das Raster läuft auch unterhalb lg mit, dort einspaltig unter der
               Liste: es war früher desktop-only, wodurch die Vertretung mobil
               weniger zeigte als am Rechner — anders als der Betreuungsplan, der
               dasselbe Raster auf demselben Gerät sehr wohl darstellt.
@@ -823,39 +874,59 @@ function VertretungContent() {
               (eigener Tagesstreifen, alle übrigen Spalten unter sm verborgen),
               deshalb braucht es hier keine zweite Umschaltmechanik. In der
               Wochenansicht bekommt es fünf Tagesspalten statt einer. */}
-            <div>
-              <WeeklyCalendarGrid
-                weekDays={isWeekView ? weekDays : [parseISODate(dayISO)]}
-                instances={isWeekView ? weekdayInstances : dayInstances}
-                selectedId={selectedInstanceId}
-                onInstanceClick={(inst) => openEditor(inst.id)}
-                gapInstanceIds={
-                  isWeekView ? weekGapInstanceIds : dayGapInstanceIds
-                }
-                todayISO={today}
-                dayStartHour={dayStartHour}
-                dayEndHour={dayEndHour}
-                hourHeightPx={HOUR_HEIGHT_PX}
-                emptyState={
-                  (isWeekView ? weekdayInstances : dayInstances).length > 0
-                    ? undefined
-                    : isLoading
-                      ? {
-                          title: "Lädt…",
-                          description: "Termine werden geladen.",
-                        }
-                      : {
-                          title: "Keine Termine",
-                          description: isWeekView
-                            ? "Für diese Woche sind keine Termine geplant."
-                            : "Für diesen Tag sind keine Termine geplant.",
-                        }
-                }
-              />
-            </div>
+          <div>
+            <WeeklyCalendarGrid
+              weekDays={isWeekView ? weekDays : [parseISODate(dayISO)]}
+              instances={isWeekView ? weekdayInstances : dayInstances}
+              selectedId={selectedInstanceId}
+              onInstanceClick={(inst) => openEditor(inst.id)}
+              // Bauart 3, Regel 2: dasselbe Raster, dasselbe
+              // Interaktionsversprechen. Auf der Vertretung gibt es keinen
+              // Anlege-Vorgang — sie arbeitet an Terminen, die es schon gibt.
+              // Deshalb bleibt die leere Fläche hier ohne `onSlotClick`, und
+              // WeeklyCalendarGrid rendert dann auch keine Anlege-Geste: kein
+              // Klickziel, kein Zeiger, kein Hover. Was nicht klickbar ist,
+              // sieht hier nicht klickbar aus. Angelegt wird im
+              // Betreuungsplan.
+              gapInstanceIds={
+                isWeekView ? weekGapInstanceIds : dayGapInstanceIds
+              }
+              todayISO={today}
+              dayStartHour={dayStartHour}
+              dayEndHour={dayEndHour}
+              hourHeightPx={HOUR_HEIGHT_PX}
+              emptyState={
+                (isWeekView ? weekdayInstances : dayInstances).length > 0
+                  ? undefined
+                  : isLoading
+                    ? {
+                        title: "Lädt…",
+                        description: "Termine werden geladen.",
+                      }
+                    : {
+                        title: "Keine Termine",
+                        description: isWeekView
+                          ? "Für diese Woche sind keine Termine geplant."
+                          : "Für diesen Tag sind keine Termine geplant.",
+                      }
+              }
+            />
           </div>
-        )}
+        </div>
       </TenantPage>
+
+      {/* Erst bei Bedarf gemountet, wie im Betreuungsplan: ein dauerhaft
+          eingehängter Dialog zöge seinen Kontext in jeden Test dieser Seite. */}
+      {canExportBetreuungsplan && exportOpen && (
+        <PlanExportModal
+          isOpen
+          plan="betreuungsplan"
+          weekDay={dayISO}
+          isWeekOnScreen={isWeekView}
+          canExportInternal={canManageSchedules}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       <BulkSubstitutionModal
         isOpen={bulkOpen}

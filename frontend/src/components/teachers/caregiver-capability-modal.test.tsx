@@ -141,17 +141,17 @@ vi.mock("~/components/ui/detail-modal-components", async () => {
 });
 
 vi.mock(
-  "~/components/teachers/caregiver-blocker-resolution-modal",
+  "~/components/teachers/caregiver-blocker-resolution-panel",
   async () => {
     const { createElement } = await import("react");
 
     return {
-      CaregiverBlockerResolutionModal: ({ isOpen }: { isOpen: boolean }) =>
-        isOpen
+      CaregiverBlockerResolutionPanel: ({ active }: { active: boolean }) =>
+        active
           ? createElement(
               "div",
-              { "data-testid": "resolution-modal" },
-              "Resolution modal",
+              { "data-testid": "resolution-panel" },
+              "Resolution panel",
             )
           : null,
     };
@@ -573,8 +573,16 @@ describe("CaregiverCapabilityModal", () => {
       expect(screen.getByText("Offene Zuordnungen")).toBeInTheDocument();
     });
 
+    // Kein Modal über dem Modal: derselbe Dialog wechselt in den Schritt
+    // „Zuordnungen auflösen" und zurück.
     fireEvent.click(screen.getByText("Zuordnungen auflösen"));
-    expect(screen.getByTestId("resolution-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("resolution-panel")).toBeInTheDocument();
+    expect(screen.queryByText("Offene Zuordnungen")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Zurück zur Übersicht"));
+    await waitFor(() => {
+      expect(screen.getByText("Offene Zuordnungen")).toBeInTheDocument();
+    });
   });
 
   it("surfaces blocker errors returned while disabling", async () => {

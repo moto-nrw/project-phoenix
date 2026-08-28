@@ -47,11 +47,22 @@ vi.mock("~/components/database/database-page-layout", () => ({
     loading,
     intro,
     search,
+    error,
+    empty,
+    overlays,
   }: {
     children: ReactNode;
     loading: boolean;
     intro?: { title: string; description?: ReactNode; actions?: ReactNode };
     search?: ReactNode;
+    error?: string | null;
+    empty?: {
+      title: string;
+      description?: string;
+      icon?: ReactNode;
+      action?: ReactNode;
+    } | null;
+    overlays?: ReactNode;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
       {intro ? (
@@ -62,7 +73,17 @@ vi.mock("~/components/database/database-page-layout", () => ({
           {search}
         </div>
       ) : null}
-      {children}
+      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+      {error ? <div data-testid="page-error">{error}</div> : null}
+      {!error && empty ? (
+        <div data-testid="page-empty">
+          <p>{empty.title}</p>
+          {empty.description ? <p>{empty.description}</p> : null}
+          {empty.action}
+        </div>
+      ) : null}
+      {!error && !empty ? children : null}
+      {overlays}
     </div>
   ),
 }));

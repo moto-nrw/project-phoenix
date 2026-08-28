@@ -666,7 +666,7 @@ export function SettingsField({
             </span>
           )}
           {!setting.writable && (
-            <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-xs text-yellow-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded px-1.5 py-0.5 text-xs">
               Nur Lesen
             </span>
           )}
@@ -680,16 +680,16 @@ export function SettingsField({
           </p>
         )}
         {legalTextWarning && (
-          <p className="mt-1 text-xs font-medium text-amber-700">
+          <p className="text-moto-amber-strong mt-1 text-xs font-medium">
             {legalTextWarning}
           </p>
         )}
         {legalTextStoredStatus && (
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
         {legalDocumentError && (
-          <p className="mt-1 text-xs font-medium text-red-600">
+          <p className="text-moto-red mt-1 text-xs font-medium">
             {legalDocumentError}
           </p>
         )}
@@ -823,7 +823,7 @@ export function SettingsField({
             </label>
           )}
           {legalActivationError && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-moto-red text-xs font-medium">
               {legalActivationError}
             </p>
           )}
@@ -904,7 +904,7 @@ export function SettingsField({
               )
             : !hasEnrollmentLegalTextContent(legalTextEditDraft)) ||
             legalTextEditError) && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-moto-red text-xs font-medium">
               {legalTextEditError ??
                 (setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
                   ? selectedAGBSourceError(legalTextEditMode)
@@ -1242,7 +1242,7 @@ function renderEnrollmentLegalTextEditor(
         className={`rounded-xl border p-3 text-sm leading-6 ${
           hasContent
             ? "border-gray-100 bg-gray-50 text-gray-700"
-            : "border-amber-200 bg-amber-50 text-amber-800"
+            : "border-moto-amber/30 bg-moto-amber-soft text-moto-amber-strong"
         }`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

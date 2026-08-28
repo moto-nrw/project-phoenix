@@ -8,7 +8,6 @@ import {
 } from "~/components/database/grade-transitions/grade-transitions-manager";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { hasPermission } from "~/lib/auth-utils";
 
@@ -60,16 +59,13 @@ export default function GradeTransitionsPage() {
       title="Jahrgangswechsel"
       stats={statusLine}
       statsLoading={statusLine === null}
+      loading={status === "loading"}
       back
     >
       <DesktopOnlyNotice description="Der Jahrgangswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
 
       <div className="hidden lg:block">
-        {status === "loading" ? (
-          <SkeletonRegion label="Jahrgangswechsel wird geladen">
-            <ListSkeleton rows={6} />
-          </SkeletonRegion>
-        ) : canRead ? (
+        {canRead ? (
           <GradeTransitionsManager
             permissions={permissions}
             onSummaryChange={handleSummaryChange}

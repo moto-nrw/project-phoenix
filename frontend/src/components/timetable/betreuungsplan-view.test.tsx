@@ -1383,7 +1383,11 @@ describe("BetreuungsplanView", () => {
     // only the calendar-grid content region skeletonizes (showSkeleton
     // pattern, mirrors staff/page.tsx and rooms/page.tsx).
     expect(screen.getByText("Betreuungsplan")).toBeVisible();
-    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
+    // eigenen Seiten-Skelett.
+    expect(
+      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+    ).toBeVisible();
     expect(
       screen.queryByTestId("timetable-page-skeleton"),
     ).not.toBeInTheDocument();
@@ -1405,7 +1409,11 @@ describe("BetreuungsplanView", () => {
 
     render(<BetreuungsplanView />);
 
-    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
+    // eigenen Seiten-Skelett.
+    expect(
+      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+    ).toBeVisible();
     expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
 
@@ -1527,7 +1535,11 @@ describe("BetreuungsplanView", () => {
     // while the settings schema (and therefore timetableDisabled) is
     // still unresolved.
     expect(screen.getByText("Betreuungsplan")).toBeVisible();
-    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
+    // eigenen Seiten-Skelett.
+    expect(
+      screen.getByRole("status", { name: "Betreuungsplan wird geladen…" }),
+    ).toBeVisible();
     expect(
       screen.queryByTestId("timetable-page-skeleton"),
     ).not.toBeInTheDocument();

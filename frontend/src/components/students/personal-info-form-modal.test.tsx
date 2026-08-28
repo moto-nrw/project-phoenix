@@ -368,7 +368,7 @@ describe("PersonalInfoFormModal", () => {
       const saveButton = screen.getByText("Speichern");
       fireEvent.click(saveButton);
 
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gespeichert…")).toBeInTheDocument();
 
       await waitFor(() => {
         expect(mockOnClose).toHaveBeenCalled();

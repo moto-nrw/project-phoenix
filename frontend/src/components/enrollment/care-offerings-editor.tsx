@@ -37,8 +37,15 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ToggleChip } from "~/components/ui/toggle-chip";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  SlideOver,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -432,6 +439,8 @@ export function CareOfferingsEditor({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   // Booking stats are display-only (#2186): the availability-rule editor uses
   // them to say how many existing bookings a rule would contradict. A failure
   // to load them must never block catalog editing, so it is logged and the
@@ -702,35 +711,30 @@ export function CareOfferingsEditor({
     }
   };
 
-  const handleDelete = useCallback(
-    async (offering: CareOffering) => {
-      if (
-        !globalThis.window.confirm(
-          `Betreuungsangebot „${offering.name}" wirklich löschen? Diese Aktion ist nicht umkehrbar.`,
-        )
-      ) {
-        return;
-      }
-      setDeletingId(offering.id);
-      setError(null);
-      try {
-        await deleteCareOffering(offering.id);
-        toast.success(`Betreuungsangebot „${offering.name}" gelöscht.`);
-        await loadAll();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Löschen fehlgeschlagen";
-        logger.error("care_offering_delete_failed", { error: message });
-        const hint =
-          "Wenn das Betreuungsangebot bereits in Anmeldungen verwendet wird, deaktiviere es stattdessen über Bearbeiten.";
-        setError(`${message}. ${hint}`);
-        toast.error(message);
-      } finally {
-        setDeletingId(null);
-      }
-    },
-    [loadAll, toast],
-  );
+  const handleDelete = useCallback(async () => {
+    const offering = deleteTarget;
+    if (!offering) return;
+    setDeletingId(offering.id);
+    setDeleteError("");
+    setError(null);
+    try {
+      await deleteCareOffering(offering.id);
+      toast.success(`Betreuungsangebot „${offering.name}" gelöscht.`);
+      setDeleteTarget(null);
+      await loadAll();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Löschen fehlgeschlagen";
+      logger.error("care_offering_delete_failed", { error: message });
+      const hint =
+        "Wenn das Betreuungsangebot bereits in Anmeldungen verwendet wird, deaktivieren Sie es stattdessen über Bearbeiten.";
+      setDeleteError(`${message}. ${hint}`);
+      setError(`${message}. ${hint}`);
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deleteTarget, loadAll, toast]);
 
   const handleClone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
@@ -858,12 +862,15 @@ export function CareOfferingsEditor({
               setEditingId(null);
               setError(null);
             }}
-            onDelete={() => void handleDelete(offering)}
+            onDelete={() => {
+              setDeleteError("");
+              setDeleteTarget(offering);
+            }}
           />
         ),
       },
     ],
-    [deletingId, gradeLevelMax, handleDelete, saving],
+    [deletingId, gradeLevelMax, saving],
   );
 
   return (
@@ -914,46 +921,68 @@ export function CareOfferingsEditor({
             onCreate={beginCreate}
           />
 
-          {cloneSource ? (
-            <CloneOfferingForm
-              source={cloneSource}
-              phases={phases}
-              selectedPhaseId={selectedPhaseId}
-              saving={saving}
-              onCancel={cancelFocusMode}
-              onClone={handleClone}
-            />
-          ) : null}
+          {/* Anlegen, Bearbeiten und Duplizieren laufen neben der stehenden
+              Liste: das Formular ist zu breit für eine aufgeklappte
+              Tabellenzeile, und der Katalog darf dabei nicht verschwinden. */}
+          <SlideOver
+            open={Boolean(draft ?? cloneSource)}
+            onOpenChange={(open) => {
+              if (!open) cancelFocusMode();
+            }}
+          >
+            <SlideOverContent widthClass="sm:w-[760px]">
+              <SlideOverHeader>
+                <SlideOverTitle>
+                  {cloneSource
+                    ? "Betreuungsangebot duplizieren"
+                    : editingId === "new"
+                      ? "Neues Betreuungsangebot"
+                      : "Betreuungsangebot bearbeiten"}
+                </SlideOverTitle>
+              </SlideOverHeader>
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {cloneSource ? (
+                  <CloneOfferingForm
+                    source={cloneSource}
+                    phases={phases}
+                    selectedPhaseId={selectedPhaseId}
+                    saving={saving}
+                    onCancel={cancelFocusMode}
+                    onClone={handleClone}
+                  />
+                ) : draft ? (
+                  <CareOfferingForm
+                    draft={draft}
+                    editing={editingId !== "new"}
+                    editingId={editingId}
+                    phases={phases}
+                    offerings={offerings}
+                    templates={templates}
+                    periods={periods}
+                    metadataStatus={metadataStatus}
+                    originalActivityGroupID={
+                      editingId && editingId !== "new"
+                        ? (offerings.find(
+                            (offering) => offering.id === editingId,
+                          )?.activity_group_id ?? null)
+                        : null
+                    }
+                    gradeLevelMax={gradeLevelMax}
+                    bookingStats={bookingStats}
+                    saving={saving}
+                    onChange={setDraft}
+                    onSubmit={handleSave}
+                    onCancel={cancelFocusMode}
+                    onTemplateUnlinked={() =>
+                      toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
+                    }
+                  />
+                ) : null}
+              </div>
+            </SlideOverContent>
+          </SlideOver>
 
-          {draft ? (
-            <CareOfferingForm
-              draft={draft}
-              editing={editingId !== "new"}
-              editingId={editingId}
-              phases={phases}
-              offerings={offerings}
-              templates={templates}
-              periods={periods}
-              metadataStatus={metadataStatus}
-              originalActivityGroupID={
-                editingId && editingId !== "new"
-                  ? (offerings.find((offering) => offering.id === editingId)
-                      ?.activity_group_id ?? null)
-                  : null
-              }
-              gradeLevelMax={gradeLevelMax}
-              bookingStats={bookingStats}
-              saving={saving}
-              onChange={setDraft}
-              onSubmit={handleSave}
-              onCancel={cancelFocusMode}
-              onTemplateUnlinked={() =>
-                toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
-              }
-            />
-          ) : null}
-
-          {!draft && !cloneSource && autoAddRules.length > 0 ? (
+          {autoAddRules.length > 0 ? (
             <SectionCard
               title="Mitbuchungs-Regeln"
               description="Jede Regel wirkt nur in die genannte Richtung. Ändern können Sie sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
@@ -967,12 +996,9 @@ export function CareOfferingsEditor({
             </SectionCard>
           ) : null}
 
-          {selectedPhaseId &&
-          offerings.length === 0 &&
-          !draft &&
-          !cloneSource ? (
+          {selectedPhaseId && offerings.length === 0 ? (
             <EmptyCareOfferingState onCreate={beginCreate} />
-          ) : offerings.length > 0 && !draft && !cloneSource ? (
+          ) : offerings.length > 0 ? (
             <DataTable
               columns={columns}
               rows={offerings}
@@ -983,6 +1009,30 @@ export function CareOfferingsEditor({
           ) : null}
         </>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={deleteTarget !== null}
+        title="Betreuungsangebot löschen"
+        description={
+          deleteTarget
+            ? `„${deleteTarget.name}" wird gelöscht. Das lässt sich nicht rückgängig machen.`
+            : ""
+        }
+        warningSlot={
+          <p className="text-sm text-gray-600">
+            Wird das Angebot bereits in Anmeldungen verwendet, deaktivieren Sie
+            es stattdessen über Bearbeiten.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
+        onClose={() => {
+          setDeleteTarget(null);
+          setDeleteError("");
+        }}
+        loading={deletingId !== null}
+        error={deleteError}
+      />
     </div>
   );
 }
@@ -2248,18 +2298,11 @@ function CareOfferingForm({
   );
 
   return (
-    <form
-      onSubmit={onSubmit}
-      noValidate
-      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
-    >
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* Der Titel steht im Kopf des Panels; hier bleibt nur der erklärende
+          Satz. */}
       <header className="border-b border-gray-100 pb-4">
-        <h2 className="text-base font-semibold text-gray-900">
-          {editing
-            ? "Betreuungsangebot bearbeiten"
-            : "Neues Betreuungsangebot anlegen"}
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-gray-600">
+        <p className="max-w-2xl text-sm text-gray-600">
           Legen Sie fest, was Eltern auswählen können, welche Tage möglich sind
           und ob Kapazität oder Zusatzleistungen angezeigt werden.
         </p>
@@ -2467,15 +2510,13 @@ function CloneOfferingForm({
         event.preventDefault();
         void onClone(targetPhaseId);
       }}
-      className="moto-content-surface space-y-4 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
+      className="space-y-4"
     >
       <header className="border-b border-gray-100 pb-4">
-        <h2 className="text-base font-semibold text-gray-900">
-          „{source.name}“ in eine Anmeldephase übernehmen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Wählen Sie die Zielphase. Danach entsteht dort ein eigenes
-          Betreuungsangebot, das Sie separat bearbeiten können.
+        <p className="text-sm text-gray-600">
+          „{source.name}“ wird in eine andere Anmeldephase übernommen. Wählen
+          Sie die Zielphase. Danach entsteht dort ein eigenes Betreuungsangebot,
+          das Sie separat bearbeiten können.
         </p>
       </header>
 

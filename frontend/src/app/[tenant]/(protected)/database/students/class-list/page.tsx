@@ -19,6 +19,7 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
@@ -496,6 +497,13 @@ export default function ClassListEntriesPage() {
       title="Klassenliste"
       stats={statusLine}
       statsLoading={isLoading && entries === undefined}
+      // Ein Ladefehler ist ein Fehlerzustand des Geruests, kein Kasten im
+      // Inhalt (BAUARTEN-SPEC, Querregel „Zustaende").
+      error={
+        loadError
+          ? "Die Klassenlisteneinträge konnten nicht geladen werden."
+          : null
+      }
       filters={filterConfigs}
       actions={
         canCreate ? (
@@ -521,15 +529,6 @@ export default function ClassListEntriesPage() {
         title="Kinder im Klassenverband"
         description="Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu."
       >
-        {loadError ? (
-          <div className="mb-4">
-            <Alert
-              type="error"
-              message="Die Klassenlisteneinträge konnten nicht geladen werden."
-            />
-          </div>
-        ) : null}
-
         {studentsError ? (
           <div className="mb-4">
             <Alert
@@ -678,28 +677,27 @@ export default function ClassListEntriesPage() {
         </div>
       </Modal>
 
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={modal?.kind === "delete"}
         onClose={closeModal}
         onConfirm={() => void confirmDelete()}
-        title="Eintrag löschen"
-        confirmText="Löschen"
-        isConfirmLoading={saving}
-      >
-        {modal?.kind === "delete" ? (
-          <div className="space-y-3">
-            {modalError ? <Alert type="error" message={modalError} /> : null}
-            <p className="text-sm text-gray-600">
+        title="Eintrag löschen?"
+        description={
+          modal?.kind === "delete" ? (
+            <>
               Soll der Eintrag{" "}
               <span className="font-medium text-gray-900">
                 {modal.entry.firstName} {modal.entry.lastName} (
                 {modal.entry.schoolClass})
               </span>{" "}
               gelöscht werden? Er verschwindet damit von allen Klassenlisten.
-            </p>
-          </div>
-        ) : null}
-      </ConfirmationModal>
+            </>
+          ) : null
+        }
+        gate={{ mode: "twoStep" }}
+        loading={saving}
+        error={modalError ?? ""}
+      />
 
       <ConfirmationModal
         isOpen={modal?.kind === "assign"}

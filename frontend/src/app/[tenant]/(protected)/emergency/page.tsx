@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Printer } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -44,17 +45,47 @@ export default function EmergencyPage() {
     handleExport("download").catch(() => undefined);
   }, [handleExport]);
 
+  // Begruendete Ausnahme zur Kopf-Aktion: im Notfall zaehlt ein Ziel, nicht
+  // die Dichte. Deshalb steht „Notfallliste drucken" als einzige sichtbare
+  // Aktion neben dem Titel, waehrend das PDF wie auf jeder anderen Flaeche im
+  // Kebab liegt. Zwei gleichrangige Knoepfe im Inhalt gibt es hier nicht mehr.
+  const menuItems = useMemo(
+    () => [
+      {
+        label: "PDF herunterladen",
+        icon: <Download className="h-4 w-4" aria-hidden />,
+        onClick: handleDownload,
+        disabled: isExporting,
+      },
+    ],
+    [handleDownload, isExporting],
+  );
+
   return (
     <TenantPage
       title="Notfallliste"
       stats={formatStatusDate()}
       loading={status === "loading"}
+      actions={
+        <>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            isLoading={isExporting}
+            loadingText="Erstelle PDF…"
+            onClick={handlePrint}
+            className="gap-2"
+          >
+            <Printer className="h-4 w-4" aria-hidden />
+            Notfallliste drucken
+          </Button>
+          <OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />
+        </>
+      }
     >
-      {/* Die beiden Knöpfe bleiben groß und mittig: im Notfall zählt das
-          Ziel, nicht die Dichte. Das Gerüst darüber ist dasselbe wie auf
-          jeder anderen Seite. */}
       <SectionCard
-        title="Liste jetzt erstellen"
+        title="Was auf der Liste steht"
         description={
           <>
             Druckbare Liste aller Kinder, die gerade anwesend sind. Sie enthält
@@ -73,32 +104,6 @@ export default function EmergencyPage() {
       >
         <div className="space-y-4">
           {error ? <Alert type="error" message={error} /> : null}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="xl"
-              isLoading={isExporting}
-              loadingText="Erstelle PDF…"
-              onClick={handlePrint}
-              className="h-14 gap-3"
-            >
-              <Printer className="h-5 w-5" aria-hidden />
-              Notfallliste drucken
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="xl"
-              disabled={isExporting}
-              onClick={handleDownload}
-              className="h-14 gap-3"
-            >
-              <Download className="h-5 w-5" aria-hidden />
-              PDF herunterladen
-            </Button>
-          </div>
 
           {healthInfoOnList ? (
             <p className="text-sm leading-6 text-gray-500">

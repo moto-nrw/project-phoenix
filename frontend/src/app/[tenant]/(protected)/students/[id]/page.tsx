@@ -44,7 +44,7 @@ import {
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
+import { PersonalInfoEditPanel } from "~/components/students/personal-info-form-modal";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
@@ -474,7 +474,7 @@ function StudentDetailPageContent() {
   });
 
   // Personal info modal state
-  const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false);
+  const [showPersonalInfoEdit, setShowPersonalInfoEdit] = useState(false);
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
@@ -1137,31 +1137,36 @@ function StudentDetailPageContent() {
         leading={<StudentHeaderAvatar student={student} />}
         title={studentHeaderTitle(student)}
         stats={
-          <StudentHeaderStats
-            student={student}
-            todayPickupPlannedTime={todayPickup.time}
-            todayPickupActualTime={student.actual_pickup_time}
-            todayPickupNote={todayPickup.note}
-            isPickupException={todayPickup.isException}
-            todayArrivalPlannedTime={todayArrival.time}
-            todayArrivalActualTime={student.actual_arrival_time}
-            isArrivalException={todayArrival.isException}
-            todayArrivalNote={todayArrival.note}
-            isArrivalAbsent={todayArrival.isAbsent}
-            sickReason={currentSickReason}
-          />
-        }
-        actions={
-          <StudentHeaderLocation
-            student={student}
-            myGroups={myGroups}
-            myGroupRooms={myGroupRooms}
-            mySupervisedRooms={mySupervisedRooms}
-            todayArrivalPlannedTime={todayArrival.time}
-            isArrivalException={todayArrival.isException}
-            todayArrivalNote={todayArrival.note}
-            isArrivalAbsent={todayArrival.isAbsent}
-          />
+          // Der Aufenthaltsort ist Status, keine Aktion: er steht in der
+          // Statuszeile des Identitätskopfes und nicht im Aktionsplatz, wo er
+          // wie eine Schaltfläche gelesen würde.
+          <span className="block">
+            <span className="mb-1 flex flex-wrap items-center gap-2">
+              <StudentHeaderLocation
+                student={student}
+                myGroups={myGroups}
+                myGroupRooms={myGroupRooms}
+                mySupervisedRooms={mySupervisedRooms}
+                todayArrivalPlannedTime={todayArrival.time}
+                isArrivalException={todayArrival.isException}
+                todayArrivalNote={todayArrival.note}
+                isArrivalAbsent={todayArrival.isAbsent}
+              />
+            </span>
+            <StudentHeaderStats
+              student={student}
+              todayPickupPlannedTime={todayPickup.time}
+              todayPickupActualTime={student.actual_pickup_time}
+              todayPickupNote={todayPickup.note}
+              isPickupException={todayPickup.isException}
+              todayArrivalPlannedTime={todayArrival.time}
+              todayArrivalActualTime={student.actual_arrival_time}
+              isArrivalException={todayArrival.isException}
+              todayArrivalNote={todayArrival.note}
+              isArrivalAbsent={todayArrival.isAbsent}
+              sickReason={currentSickReason}
+            />
+          </span>
         }
         searchSlot={
           <StudentQuickActions
@@ -1243,9 +1248,9 @@ function StudentDetailPageContent() {
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
             onVisibleDateRangeChange={ensureStatusDayRange}
-            showPersonalInfoModal={showPersonalInfoModal}
-            onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
-            onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
+            showPersonalInfoEdit={showPersonalInfoEdit}
+            onOpenPersonalInfoEdit={() => setShowPersonalInfoEdit(true)}
+            onClosePersonalInfoEdit={() => setShowPersonalInfoEdit(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshDataAndHistory}
           />
@@ -1632,9 +1637,9 @@ interface FullAccessViewProps {
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
   onVisibleDateRangeChange: (from: string, to: string) => void;
-  showPersonalInfoModal: boolean;
-  onOpenPersonalInfoModal: () => void;
-  onClosePersonalInfoModal: () => void;
+  showPersonalInfoEdit: boolean;
+  onOpenPersonalInfoEdit: () => void;
+  onClosePersonalInfoEdit: () => void;
   onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
 }
@@ -1653,9 +1658,9 @@ function FullAccessView({
   statusDays,
   onDeleteStatusDay,
   onVisibleDateRangeChange,
-  showPersonalInfoModal,
-  onOpenPersonalInfoModal,
-  onClosePersonalInfoModal,
+  showPersonalInfoEdit,
+  onOpenPersonalInfoEdit,
+  onClosePersonalInfoEdit,
   onSavePersonal,
   onRefreshData,
 }: Readonly<FullAccessViewProps>) {
@@ -1711,12 +1716,22 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        <PersonalInfoReadOnly
-          student={student}
-          enrollmentExtraGroups={enrollmentExtraGroups}
-          showEditButton={hasWriteAccess}
-          onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
-        />
+        {/* Bearbeitet wird am Objekt: der Reiter wechselt in den
+            Bearbeiten-Zustand und zurück, kein Dialog über der Akte. */}
+        {hasWriteAccess && showPersonalInfoEdit ? (
+          <PersonalInfoEditPanel
+            student={student}
+            onSave={onSavePersonal}
+            onCancel={onClosePersonalInfoEdit}
+          />
+        ) : (
+          <PersonalInfoReadOnly
+            student={student}
+            enrollmentExtraGroups={enrollmentExtraGroups}
+            showEditButton={hasWriteAccess}
+            onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
+          />
+        )}
       </StudentTabPanel>
 
       <StudentTabPanel
@@ -1833,15 +1848,6 @@ function FullAccessView({
           onNavigate={(path) => historyRouter.push(path)}
         />
       </StudentTabPanel>
-
-      {hasWriteAccess && (
-        <PersonalInfoFormModal
-          isOpen={showPersonalInfoModal}
-          onClose={onClosePersonalInfoModal}
-          student={student}
-          onSave={onSavePersonal}
-        />
-      )}
     </>
   );
 }

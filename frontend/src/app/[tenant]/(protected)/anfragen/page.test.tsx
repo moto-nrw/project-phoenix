@@ -114,9 +114,9 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    expect(
-      screen.getByLabelText("Anfragen werden geladen…"),
-    ).toBeInTheDocument();
+    // Der Ladezustand kommt jetzt aus dem Gerüst; es beschriftet ihn mit dem
+    // Seitentitel.
+    expect(screen.getByLabelText("Anfragen wird geladen…")).toBeInTheDocument();
     expect(screen.queryByTestId("aggregated-list")).toBeNull();
   });
 

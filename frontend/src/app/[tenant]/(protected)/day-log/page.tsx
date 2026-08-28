@@ -18,7 +18,6 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { SectionCard } from "~/components/ui/section-card";
@@ -80,6 +79,13 @@ const MODAL_SECTION_TITLES: Record<DayLogStatus, string> = {
 };
 
 type ExportFormat = "pdf" | "xlsx";
+
+// Ladefehler gehören in den Fehlerzustand des Gerüsts. Ausgeschaltete Funktion
+// und fehlender Personaleintrag sind Zustände und werden als Leerzustand mit
+// dem nächsten Schritt gezeigt.
+function isLoadError(code: DayLogErrorCode): boolean {
+  return code === "unknown" || code === "invalid_request";
+}
 
 function counterFor(
   counters: DayLogGroup["counters"],
@@ -458,16 +464,30 @@ export default function DayLogPage() {
       stats={statusLine}
       statsLoading={loading}
       loading={loading}
+      // Ein Ladefehler ist `error`. Eine ausgeschaltete Funktion oder ein
+      // fehlender Personaleintrag ist dagegen ein Zustand, kein Fehler: er
+      // steht als Leerzustand mit dem nächsten Schritt.
+      error={
+        errorCode !== null && isLoadError(errorCode)
+          ? ERROR_MESSAGES[errorCode]
+          : null
+      }
       empty={
-        errorCode !== null
+        errorCode !== null && !isLoadError(errorCode)
           ? {
               title:
                 errorCode === "feature_disabled"
-                  ? "Anwesenheitsprotokoll deaktiviert"
-                  : "Tagesauswertung nicht verfügbar",
+                  ? "Anwesenheitsprotokoll ist ausgeschaltet"
+                  : "Noch keine Gruppen für Ihr Konto",
               description: ERROR_MESSAGES[errorCode],
             }
-          : null
+          : errorCode === null && data !== null && data.groups.length === 0
+            ? {
+                title: "Keine Gruppe für diesen Tag",
+                description:
+                  "Für den gewählten Tag ist keine Gruppe sichtbar. Legen Sie eine Gruppe an oder lassen Sie sich einer Gruppe zuordnen.",
+              }
+            : null
       }
       actions={
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
@@ -512,23 +532,15 @@ export default function DayLogPage() {
               ))}
             </div>
 
-            {data.groups.length === 0 ? (
-              <EmptyState
-                className="mt-4"
-                title="Keine Gruppen"
-                description="Für diesen Tag sind keine Gruppen sichtbar."
-              />
-            ) : (
-              <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                {data.groups.map((group) => (
-                  <GroupCard
-                    key={group.group_id}
-                    group={group}
-                    onOpen={() => setOpenGroupId(group.group_id)}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {data.groups.map((group) => (
+                <GroupCard
+                  key={group.group_id}
+                  group={group}
+                  onOpen={() => setOpenGroupId(group.group_id)}
+                />
+              ))}
+            </div>
           </>
         )}
       </SectionCard>

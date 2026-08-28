@@ -38,7 +38,7 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/origin-chip";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -215,12 +215,26 @@ interface StatusBadgeProps {
   status: InstanceStatus;
 }
 
+/** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
+const STATUS_BADGE_ON_COLOR = "#FFFFFF";
+
 function StatusBadge({ status }: StatusBadgeProps) {
+  // Alle vier Zeilen kommen aus derselben Quelle: die beiden Statusfarben aus
+  // LOCATION_COLORS, die neutralen Stufen aus der Palette — kein Hex-Literal
+  // neben einem Token in derselben Tabelle.
   const palette: Record<InstanceStatus, { bg: string; text: string }> = {
-    planned: { bg: "#F3F4F6", text: "#374151" },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
-    completed: { bg: "#E5E7EB", text: "#6B7280" },
-    cancelled: { bg: LOCATION_COLORS.DANGER, text: "#FFFFFF" },
+    planned: {
+      bg: MOTO_COLOR_PALETTE.neutral.soft,
+      text: MOTO_COLOR_PALETTE.neutral.strong,
+    },
+    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_COLOR },
+    // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
+    // aber die hellere Schrift: erledigt, nicht offen.
+    completed: {
+      bg: MOTO_COLOR_PALETTE.neutral.soft,
+      text: MOTO_COLOR_PALETTE.neutral.base,
+    },
+    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_COLOR },
   };
   const { bg, text } = palette[status];
   return (

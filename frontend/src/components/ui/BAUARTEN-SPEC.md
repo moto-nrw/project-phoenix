@@ -189,3 +189,88 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    Voraussetzung am Schalter.
 
 Die Ratsche einer Stufe wird mit der Stufe eingeführt, nicht danach.
+
+---
+
+# Teil 2 — Navigation und Wörter (Ziel-Zustand)
+
+Nachtrag vom 28.08.2026: Die Navigation ist Teil des Umbaus. Ziel ist, dass
+eine Sache genau einen Ort hat und die Seitenleiste in einem Blick lesbar ist.
+
+## Der Grundsatz
+
+**Ein Objekt, ein Ort.** „Datenverwaltung" wird aufgelöst. Sie war kein Ort,
+den eine OGS-Leitung im Kopf hat, sondern eine Beschreibung der Datenbank —
+und sie hat jede Entität verdoppelt: das Kind wohnte unter „Alle Kinder" UND
+unter „Datenverwaltung → Kinder", mit zwei Ansichten, zwei Bearbeiten-Wegen
+und ohne Querverweis.
+
+Verwaltung ist ab jetzt ein **Modus am Objekt**, kein zweiter Baum: die
+Stammdaten eines Kindes sind ein Reiter im Kind, sichtbar nach Recht. Wer das
+Recht nicht hat, sieht den Reiter nicht — nicht eine zweite Seite, die er
+nicht öffnen kann.
+
+## Die Seitenleiste
+
+Neun Bereiche plus drei Einträge am Fuß. Reihenfolge fest:
+
+1. **Start**
+2. **Kinder** — Sammlung, Objekt, Reiter „Abwesenheiten"; Stammdaten als
+   Reiter im Kind
+3. **Mitarbeitende** — Sammlung, Objekt; Stammdaten, Dokumente, Abwesenheiten
+   als Reiter in der Person
+4. **Räume** — Sammlung, Objekt, Reiter „Aufsicht heute"
+5. **Aktivitäten** — Sammlung, Objekt
+6. **Planung** — Betreuungsplan · Dienstplan · Vertretung · Tageslisten ·
+   Zeiträume · Mein Kalender
+7. **Eltern** — Nachrichten · Mitteilungen · Konto-Anfragen · Essensplan ·
+   Anmeldungen
+8. **Team** — Team-Chat · Dateien
+9. **Auswertung** — Statistik · Zeiterfassung · Abrechnung · Tagesauswertung
+
+Am Fuß: **Notfall** · **Hilfe** · **Einstellungen**. In den Einstellungen
+wohnen die Register, die reine Konfiguration sind und kein Tagesgeschäft:
+Gruppen, Rollen, Berechtigungen, Geräte, Info-Displays, Exporte,
+Jahrgangswechsel.
+
+Was damit verschwindet: der Bereich „Datenverwaltung", der Doppeleintrag
+„Anfragen" neben „Konto-Anfragen", der Einzeleintrag „Gruppenzugriff" (er
+wird ein Reiter bei den Mitarbeitenden), und die dynamisch eingehängten
+Gruppen- und Raum-Kinder in der Seitenleiste — eine Navigation, die mit den
+Daten wächst, ist keine Navigation mehr.
+
+## Die Wörter
+
+Ein Begriff, ein Wort, überall gleich: Seitenleiste, Brotkrume, Seitentitel,
+Knopf, Hilfe, E-Mail. Verbindlich:
+
+| Statt | Ab jetzt |
+|---|---|
+| „Home" / „Startseite" / „Suchen" | **Start** |
+| „Alle Kinder" / „Kindersuche" / „Kinder" | **Kinder** |
+| „Mitarbeiter" / „Personal" / „Lehrkräfte" | **Mitarbeitende** |
+| „Gruppenzugriff" | **Vertretungszugriff** (Reiter bei Mitarbeitende) |
+| „Betreuungsangebote" | **Angebote** (im Bereich Anmeldungen) |
+| „Tagesauswertung" | **Tagesbericht** |
+| „Mein Kalender" | **Kalender** |
+
+Zwei sichtbare Namen teilen keinen Wortstamm ohne sichtbare Abgrenzung.
+Der Wortstamm „Betreuungs-" darf nur noch EINMAL als Navigationsname
+vorkommen (Betreuungsplan).
+
+## Farbe in der Navigation
+
+Die Seitenleiste ist einfarbig. Heute tragen die Einträge elf verschiedene
+Akzentfarben, die nichts bedeuten — und entwerten damit das Rot, das „krank"
+heißt. Der aktive Eintrag wird durch Fläche und Schriftschnitt markiert, nicht
+durch eine eigene Farbe je Bereich. Farbe bleibt ausschließlich Status.
+
+## Nichts darf ins Leere laufen
+
+Jede alte Route bleibt als Weiterleitung erhalten. Schulen haben Lesezeichen,
+und die Hilfe-Anleitung nennt Pfade. Eine Weiterleitung wird nicht später
+aufgeräumt, sie gehört zum Umbau.
+
+Die Hilfe-Anleitung (`components/help/guide-data.ts`) und ihre Screenshots
+werden im selben Zug nachgezogen — jeder Schritt, der einen Pfad oder einen
+Namen nennt, den dieser Umbau ändert.

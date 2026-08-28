@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
 import {
+  calendarEmptyLabel,
   CalendarOverviewList,
   PersonalCalendar,
   PersonalCalendarChrome,
@@ -664,12 +665,6 @@ export default function StaffCalendarPage() {
       referenceDate={referenceDate}
       viewMode={viewMode}
       showWeekend={showWeekend}
-      loading={isLoading}
-      error={
-        calendarError
-          ? errorMessage(calendarError, "Kalender konnte nicht geladen werden.")
-          : null
-      }
       onShowOverview={handleShowOverview}
       onRespond={handleRespond}
       respondingRecipientId={respondingRecipientId}
@@ -690,61 +685,97 @@ export default function StaffCalendarPage() {
       ? undefined
       : `${eventCount} ${eventCount === 1 ? "Termin" : "Termine"}`;
 
+  // Laden, Fehler und Leerzustand gehören dem Gerüst (Bauart 3 Regel 5). Sie
+  // gelten nur für den Kalender-Reiter — der Betreuungsplan-Reiter bringt
+  // seine eigenen Zustände mit.
+  const onCalendarTab = activeTab === "meine";
+  const calendarLoading = onCalendarTab && isLoading;
+  const calendarErrorState =
+    onCalendarTab && calendarError
+      ? errorMessage(calendarError, "Kalender konnte nicht geladen werden.")
+      : null;
+  const calendarEmpty =
+    onCalendarTab && !isLoading && !calendarError && eventCount === 0
+      ? {
+          title: calendarEmptyLabel(viewMode),
+          description: canManageCalendar
+            ? "Legen Sie einen Termin an oder wechseln Sie den Zeitraum."
+            : "Wechseln Sie den Zeitraum, um andere Termine zu sehen.",
+          action: canManageCalendar ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="gap-1.5"
+              onClick={handleCreate}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Neuer Termin
+            </Button>
+          ) : undefined,
+        }
+      : null;
+
   return (
-    <TenantPage
-      title="Mein Kalender"
-      stats={activeTab === "meine" ? statusLine : undefined}
-      statsLoading={activeTab === "meine" && isLoading}
-      actions={
-        canManageCalendar && activeTab === "meine" ? (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="gap-1.5"
-            onClick={handleCreate}
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            Neuer Termin
-          </Button>
-        ) : undefined
-      }
-      searchSlot={
-        activeTab === "meine" ? (
-          <PersonalCalendarChrome
-            events={calendarEvents}
-            referenceDate={referenceDate}
-            viewMode={viewMode}
-            showWeekend={showWeekend}
-            onShowWeekendChange={setShowWeekend}
-            onDateChange={setReferenceDate}
-            onViewModeChange={setViewMode}
-          />
-        ) : undefined
-      }
-      tabs={
-        showSchoolPlanTab
-          ? {
-              value: activeTab,
-              onChange: (next) => setActiveTab(next as CalendarTab),
-              items: [
-                { value: "meine", label: "Meine Termine" },
-                { value: "schule", label: "Betreuungsplan" },
-              ],
-              label: "Kalenderbereiche",
-            }
-          : undefined
-      }
-    >
-      {showSchoolPlanTab && activeTab === "schule" ? (
-        // BetreuungsplanView liest Search-Params (d/view/block) und
-        // braucht deshalb eine Suspense-Grenze.
-        <Suspense fallback={null}>
-          <SchoolPlanReadView />
-        </Suspense>
-      ) : (
-        personalCalendar
-      )}
+    <>
+      <TenantPage
+        title="Mein Kalender"
+        stats={onCalendarTab ? statusLine : undefined}
+        statsLoading={calendarLoading}
+        loading={calendarLoading}
+        error={calendarErrorState}
+        empty={calendarEmpty}
+        actions={
+          canManageCalendar && onCalendarTab ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="gap-1.5"
+              onClick={handleCreate}
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Neuer Termin
+            </Button>
+          ) : undefined
+        }
+        searchSlot={
+          onCalendarTab ? (
+            <PersonalCalendarChrome
+              events={calendarEvents}
+              referenceDate={referenceDate}
+              viewMode={viewMode}
+              showWeekend={showWeekend}
+              onShowWeekendChange={setShowWeekend}
+              onDateChange={setReferenceDate}
+              onViewModeChange={setViewMode}
+            />
+          ) : undefined
+        }
+        tabs={
+          showSchoolPlanTab
+            ? {
+                value: activeTab,
+                onChange: (next) => setActiveTab(next as CalendarTab),
+                items: [
+                  { value: "meine", label: "Meine Termine" },
+                  { value: "schule", label: "Betreuungsplan" },
+                ],
+                label: "Kalenderbereiche",
+              }
+            : undefined
+        }
+      >
+        {showSchoolPlanTab && activeTab === "schule" ? (
+          // BetreuungsplanView liest Search-Params (d/view/block) und
+          // braucht deshalb eine Suspense-Grenze.
+          <Suspense fallback={null}>
+            <SchoolPlanReadView />
+          </Suspense>
+        ) : (
+          personalCalendar
+        )}
+      </TenantPage>
 
       <Modal
         isOpen={formOpen && canManageCalendar}
@@ -1204,6 +1235,6 @@ export default function StaffCalendarPage() {
           </div>
         ) : null}
       </Modal>
-    </TenantPage>
+    </>
   );
 }

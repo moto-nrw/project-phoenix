@@ -3,11 +3,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatCount } from "~/lib/format-utils";
-import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -168,6 +166,26 @@ function PermissionsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
+      error={error}
+      empty={
+        filteredPermissions.length === 0 && selectedPermission === null
+          ? {
+              title: searchTerm
+                ? "Keine Berechtigungen gefunden"
+                : "Keine Berechtigungen vorhanden",
+              description: searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Berechtigungen legt das System an. Bitte wenden Sie sich an moto.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.permissions.icon}
+                  tone={MOTO_CONCEPTS.permissions.tone}
+                  size={48}
+                />
+              ),
+            }
+          : null
+      }
       className="flex w-full flex-col"
       intro={{
         title: "Berechtigungen",
@@ -200,12 +218,6 @@ function PermissionsPageContent() {
         />
       }
     >
-      {error && (
-        <div className="mb-6">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <PermissionsMasterDetail
@@ -215,26 +227,6 @@ function PermissionsPageContent() {
             onSelect={handleSelectPermission}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.permissions.icon}
-              tone={MOTO_CONCEPTS.permissions.tone}
-              size={48}
-            />
-          }
-          title={
-            searchTerm
-              ? "Keine Berechtigungen gefunden"
-              : "Keine Berechtigungen vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie einen anderen Suchbegriff."
-              : "Es wurden noch keine Berechtigungen erstellt."
-          }
-        />
       ) : null}
     </DatabasePageLayout>
   );

@@ -922,7 +922,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
   });
 
   it("renders content for non-admin users", async () => {
@@ -934,7 +936,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihnen fehlt eine Berechtigung"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
@@ -962,7 +966,9 @@ describe("RoleGuard integration", () => {
     render(<MeinRaumPage />);
 
     // Admin with rooms should pass the gate and render content
-    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihnen fehlt eine Berechtigung"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
@@ -988,7 +994,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihnen fehlt eine Berechtigung"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
@@ -1022,7 +1030,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihnen fehlt eine Berechtigung"),
+    ).toBeInTheDocument();
   });
 
   it("shows loading state while supervision is loading for admin", async () => {

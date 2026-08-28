@@ -24,6 +24,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   OverflowMenu,
@@ -211,6 +212,18 @@ export function FilesPage() {
                 description: canManage
                   ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
                   : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier.",
+                // Der Leerzustand ist der naechste Schritt, nicht nur eine
+                // Feststellung: die Aktion, die ihn beendet, steht darin.
+                action: canManage ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => setFolderModal({ open: true, folder: null })}
+                  >
+                    Neuer Ordner
+                  </Button>
+                ) : undefined,
               }
             : null
         }
@@ -274,7 +287,7 @@ export function FilesPage() {
             </aside>
 
             {selected && (
-              <section className="moto-content-surface flex min-h-0 flex-col rounded-2xl border p-5 shadow-sm">
+              <SectionCard className="flex min-h-0 flex-col">
                 <FolderFilesPanel
                   key={selected.id}
                   folder={selected}
@@ -289,7 +302,7 @@ export function FilesPage() {
                   }}
                   onFilesChanged={() => void mutateFolders()}
                 />
-              </section>
+              </SectionCard>
             )}
           </div>
         </div>

@@ -8,13 +8,12 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { AlertTriangle, CalendarRange, Download, Search } from "lucide-react";
+import { CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -2827,6 +2826,44 @@ function SearchPageContent() {
         filterVariant="quiet"
         filterSections={filterSections}
         onClearAllFilters={clearAllFilters}
+        // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
+        // sind dagegen ein Zustand, kein Fehler, und stehen als Leerzustand.
+        error={errorMessage && errorType !== "permission" ? errorMessage : null}
+        empty={
+          errorMessage && errorType === "permission"
+            ? {
+                title: "Keine Berechtigung",
+                description: errorMessage,
+              }
+            : !errorMessage &&
+                hasFetchedOnce &&
+                !isInitializing &&
+                !isAuthError &&
+                !isDateTransition &&
+                filteredStudents.length === 0
+              ? {
+                  icon: (
+                    <Search
+                      className="h-12 w-12 text-gray-400"
+                      aria-hidden="true"
+                    />
+                  ),
+                  title: "Keine Kinder gefunden",
+                  description:
+                    "Zu Suche und Filtern passt kein Kind. Setzen Sie die Filter zurück, um alle Kinder zu sehen.",
+                  action: (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={clearAllFilters}
+                    >
+                      Filter zurücksetzen
+                    </Button>
+                  ),
+                }
+              : null
+        }
       >
         <div>
           {/* Planning-date context banner (#1939). The day chooser itself lives in
@@ -2863,14 +2900,6 @@ function SearchPageContent() {
                 type="warning"
                 message={`Es werden nur die ersten ${students.length} von ${truncatedTotal} Kindern geladen. Anzahl, Gruppierung und Export beziehen sich allein auf diese Kinder; bitte die Filter enger setzen.`}
               />
-            </div>
-          )}
-
-          {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
-          hat sonst keinen Hinweis, warum die Liste leer bleibt. */}
-          {errorMessage && (
-            <div className="mb-4">
-              <Alert type="error" message={errorMessage} />
             </div>
           )}
 
@@ -2939,40 +2968,8 @@ function SearchPageContent() {
               ) {
                 return <StudentCardGridSkeleton />;
               }
-              if (errorMessage) {
-                return (
-                  <EmptyState
-                    icon={
-                      <AlertTriangle
-                        className="text-moto-red h-12 w-12"
-                        aria-hidden="true"
-                      />
-                    }
-                    // Fix P3: Use errorType instead of substring matching
-                    title={
-                      errorType === "permission"
-                        ? "Keine Berechtigung"
-                        : "Fehler"
-                    }
-                    description={errorMessage}
-                  />
-                );
-              }
-              // Fix P2: Only show empty state if we've fetched at least once
-              if (filteredStudents.length === 0 && hasFetchedOnce) {
-                return (
-                  <EmptyState
-                    icon={
-                      <Search
-                        className="h-12 w-12 text-gray-400"
-                        aria-hidden="true"
-                      />
-                    }
-                    title="Keine Kinder gefunden"
-                    description="Passen Sie Ihre Suchkriterien an."
-                  />
-                );
-              }
+              // Fehler und Leerzustand liegen im Gerüst (`error`/`empty`)
+              // und ersetzen den Inhalt dort.
               // Preserve the URL-rehydrating filters in the back-link so stepping
               // from the search page → child → back returns to the same operational
               // view. Free-text search intentionally remains transient.

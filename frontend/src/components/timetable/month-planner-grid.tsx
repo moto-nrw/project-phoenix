@@ -13,7 +13,10 @@ import {
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
-import { timetableSurface } from "./timetable-style";
+import {
+  TIMETABLE_UNTYPED_EDGE_COLOR,
+  timetableSurface,
+} from "./timetable-style";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -109,7 +112,7 @@ export function MonthPlannerGrid({
                     </span>
                   )}
                   {conflicts > 0 && (
-                    <AlertTriangle className="h-3.5 w-3.5 text-[#EAB308]" />
+                    <AlertTriangle className="text-moto-amber h-3.5 w-3.5" />
                   )}
                 </div>
 
@@ -151,7 +154,8 @@ export function MonthPlannerGrid({
                           style={{
                             borderLeftColor: isCancelled
                               ? MOTO_COLOR_PALETTE.red.base
-                              : (inst.planningTrackColor ?? "#D1D5DB"),
+                              : (inst.planningTrackColor ??
+                                TIMETABLE_UNTYPED_EDGE_COLOR),
                           }}
                         >
                           <span
@@ -159,7 +163,8 @@ export function MonthPlannerGrid({
                             style={{
                               backgroundColor: isCancelled
                                 ? MOTO_COLOR_PALETTE.red.base
-                                : (inst.planningTrackColor ?? "#D1D5DB"),
+                                : (inst.planningTrackColor ??
+                                  TIMETABLE_UNTYPED_EDGE_COLOR),
                             }}
                             aria-hidden
                           />
@@ -187,7 +192,7 @@ export function MonthPlannerGrid({
                           )}
                           {hasConflict && (
                             <AlertTriangle
-                              className="h-3 w-3 shrink-0 text-[#EAB308]"
+                              className="text-moto-amber h-3 w-3 shrink-0"
                               aria-label={`${inst.conflictWarnings.length} Konflikte`}
                             />
                           )}

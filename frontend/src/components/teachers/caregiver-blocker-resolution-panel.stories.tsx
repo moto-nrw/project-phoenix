@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { fn } from "storybook/test";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { CaregiverCapabilityState } from "~/lib/caregiver-capability-api";
-import { CaregiverBlockerResolutionModal } from "./caregiver-blocker-resolution-modal";
+import { CaregiverBlockerResolutionPanel } from "./caregiver-blocker-resolution-panel";
 
 const baseState: CaregiverCapabilityState = {
   accountId: "1",
@@ -60,9 +59,9 @@ const withBlockersState: CaregiverCapabilityState = {
   ],
 };
 
-const meta: Meta<typeof CaregiverBlockerResolutionModal> = {
-  title: "teachers/CaregiverBlockerResolutionModal",
-  component: CaregiverBlockerResolutionModal,
+const meta: Meta<typeof CaregiverBlockerResolutionPanel> = {
+  title: "teachers/CaregiverBlockerResolutionPanel",
+  component: CaregiverBlockerResolutionPanel,
   decorators: [
     (Story) => (
       <ToastProvider>
@@ -71,15 +70,13 @@ const meta: Meta<typeof CaregiverBlockerResolutionModal> = {
     ),
   ],
   args: {
-    isOpen: true,
-    onClose: fn(),
-    onResolved: fn(),
+    active: true,
     state: baseState,
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof CaregiverBlockerResolutionModal>;
+type Story = StoryObj<typeof CaregiverBlockerResolutionPanel>;
 
 export const Resolved: Story = {
   args: {

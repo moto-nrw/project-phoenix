@@ -13,12 +13,9 @@ import { redirect } from "next/navigation";
 import { hasPermission } from "~/lib/auth-utils";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import {
-  SkeletonRegion,
-  CardSkeleton,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
+import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -108,7 +105,6 @@ import {
   formatDuration,
   formatTime,
   getWeekDays,
-  getWeekNumber,
   balanceSessionEnd,
   calculateNetMinutes,
   indexWorkSessionMinutesByBerlinDate,
@@ -116,6 +112,7 @@ import {
 } from "~/lib/time-tracking-helpers";
 import { useAbsenceTypeSelect } from "~/components/staff/use-absence-type-select";
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
+import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
@@ -1608,6 +1605,9 @@ function OwnZeiterfassungSection({
   ownStaffId,
   schedule,
   onEditDay,
+  viewMode,
+  weekAnchor,
+  monthAnchor,
 }: {
   readonly ownStaffId: string | null;
   readonly schedule: import("~/lib/staff-api").StaffSchedule | null;
@@ -1616,6 +1616,11 @@ function OwnZeiterfassungSection({
     session: WorkSessionHistory | null,
     absence: StaffAbsence | null,
   ) => void;
+  /** Zeitfenster und Auflösung kommen aus der Bedienleiste der Kopfkarte
+   *  (Bauart 3, Regel 1) — die Fläche navigiert nicht mehr selbst. */
+  readonly viewMode: ViewMode;
+  readonly weekAnchor: Date;
+  readonly monthAnchor: Date;
 }) {
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // section stays mounted all day, and `new Date()` frozen at mount would keep
@@ -1624,19 +1629,6 @@ function OwnZeiterfassungSection({
   // (#1842). The backend derives its month from timezone.TodayDate().
   const todayISO = useBerlinToday();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
-  const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    const d = parseISODate(berlinTodayISO());
-    const day = (d.getDay() + 6) % 7; // Mon = 0
-    d.setDate(d.getDate() - day);
-    return d;
-  });
-  const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
-    const d = parseISODate(berlinTodayISO());
-    d.setDate(1);
-    return d;
-  });
-
   const visibleFrom = useMemo(() => {
     if (viewMode === "month") {
       return new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
@@ -1828,162 +1820,8 @@ function OwnZeiterfassungSection({
     onEditDay(date, session, absence);
   };
 
-  const handlePrev = () => {
-    if (viewMode === "month") {
-      setMonthAnchor(
-        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
-      );
-    } else {
-      setWeekAnchor((prev) => {
-        const d = new Date(prev);
-        d.setDate(d.getDate() - 7);
-        return d;
-      });
-    }
-  };
-  const handleNext = () => {
-    if (viewMode === "month") {
-      setMonthAnchor(
-        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
-      );
-    } else {
-      setWeekAnchor((prev) => {
-        const d = new Date(prev);
-        d.setDate(d.getDate() + 7);
-        return d;
-      });
-    }
-  };
-  const handleToday = () => {
-    if (viewMode === "month") {
-      setMonthAnchor(new Date(today.getFullYear(), today.getMonth(), 1));
-    } else {
-      const d = new Date(today);
-      const day = (d.getDay() + 6) % 7;
-      d.setDate(d.getDate() - day);
-      d.setHours(0, 0, 0, 0);
-      setWeekAnchor(d);
-    }
-  };
-  const isOnCurrent = useMemo(() => {
-    if (viewMode === "month") {
-      return isCurrentMonth;
-    }
-    const cur = new Date(today);
-    const day = (cur.getDay() + 6) % 7;
-    cur.setDate(cur.getDate() - day);
-    cur.setHours(0, 0, 0, 0);
-    return cur.getTime() === weekAnchor.getTime();
-  }, [viewMode, isCurrentMonth, weekAnchor, today]);
-
-  const labelRange = useMemo(() => {
-    if (viewMode === "month") {
-      return monthAnchor.toLocaleDateString("de-DE", {
-        timeZone: "Europe/Berlin",
-        month: "long",
-        year: "numeric",
-      });
-    }
-    const weekNum = getWeekNumber(visibleFrom);
-    const start = visibleFrom.toLocaleDateString("de-DE", {
-      timeZone: "Europe/Berlin",
-      day: "numeric",
-      month: "short",
-    });
-    const end = visibleTo.toLocaleDateString("de-DE", {
-      timeZone: "Europe/Berlin",
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-    return `KW ${weekNum}: ${start} bis ${end}`;
-  }, [viewMode, monthAnchor, visibleFrom, visibleTo]);
-
-  const todayLabel = viewMode === "month" ? "Diesen Monat" : "Diese Woche";
-
   return (
-    <SectionCard
-      title="Zeiterfassung"
-      actions={
-        <>
-          <ViewToggle value={viewMode} onChange={setViewMode} />
-          {ownStaffId && (
-            <StaffExportButton
-              staffId={ownStaffId}
-              yearStart={startOfYear(today)}
-            />
-          )}
-        </>
-      }
-    >
-      <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
-        <div className="hidden sm:block" />
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handlePrev}
-            aria-label={
-              viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
-            }
-            className="!rounded-full"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </Button>
-          <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
-            {labelRange}
-          </h3>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={handleNext}
-            aria-label={
-              viewMode === "month" ? "Nächster Monat" : "Nächste Woche"
-            }
-            className="!rounded-full"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Button>
-        </div>
-        <div className="flex justify-center sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={handleToday}
-            disabled={isOnCurrent}
-            className="!rounded-full shadow-none disabled:opacity-40"
-          >
-            {todayLabel}
-          </Button>
-        </div>
-      </div>
+    <SectionCard title="Zeiterfassung">
       {viewMode === "month" && (
         <div className="mb-4">
           <Monatskarte
@@ -2057,7 +1895,12 @@ const weekChartConfig = {
     label: "Arbeitszeit",
     color: MOTO_COLOR_PALETTE.timeTracking.base,
   },
-  breakMinutes: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
+  // Pause ist die stille Nebenmenge des Balkens: Neutralgrau aus der Palette,
+  // kein roher Hexwert (Querregel Farbe).
+  breakMinutes: {
+    label: "Pause",
+    color: MOTO_COLOR_PALETTE.neutral.light,
+  },
 } satisfies ChartConfig;
 
 function WeekChart({
@@ -3302,6 +3145,94 @@ function TimeTrackingContent() {
   // anymore (the table owns its own range state). Kept as a constant so the
   // chart's data window stays anchored at "now".
   const weekOffset = 0;
+
+  // Zeitnavigation der Seite (Bauart 3, Regel 1). Sie sitzt in der Kopfkarte
+  // und steuert die Zeiterfassungs-Fläche darunter; die Fläche selbst trägt
+  // keine Pfeilknöpfe mehr.
+  const navToday = useMemo(() => parseISODate(todayISO), [todayISO]);
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
+    const d = parseISODate(berlinTodayISO());
+    const day = (d.getDay() + 6) % 7; // Mon = 0
+    d.setDate(d.getDate() - day);
+    return d;
+  });
+  const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
+    const d = parseISODate(berlinTodayISO());
+    d.setDate(1);
+    return d;
+  });
+
+  const goToPreviousRange = useCallback(() => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() - 7);
+        return d;
+      });
+    }
+  }, [viewMode]);
+
+  const goToNextRange = useCallback(() => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() + 7);
+        return d;
+      });
+    }
+  }, [viewMode]);
+
+  const goToCurrentRange = useCallback(() => {
+    if (viewMode === "month") {
+      setMonthAnchor(new Date(navToday.getFullYear(), navToday.getMonth(), 1));
+    } else {
+      const d = new Date(navToday);
+      const day = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - day);
+      d.setHours(0, 0, 0, 0);
+      setWeekAnchor(d);
+    }
+  }, [viewMode, navToday]);
+
+  const isOnCurrentRange = useMemo(() => {
+    if (viewMode === "month") {
+      return (
+        monthAnchor.getFullYear() === navToday.getFullYear() &&
+        monthAnchor.getMonth() === navToday.getMonth()
+      );
+    }
+    const cur = new Date(navToday);
+    const day = (cur.getDay() + 6) % 7;
+    cur.setDate(cur.getDate() - day);
+    cur.setHours(0, 0, 0, 0);
+    return cur.getTime() === weekAnchor.getTime();
+  }, [viewMode, monthAnchor, weekAnchor, navToday]);
+
+  // Dasselbe Wochenetikett wie in Dienstplan, Vertretung und Betreuungsplan
+  // ("KW 31 · 27.07.–31.07.2026"). Die eigene Schreibweise
+  // ("KW 31: 27. Juli bis 31. Juli 2026") hat der Dienstplan verworfen, weil
+  // vier Flächen dieselbe Woche verschieden schrieben.
+  const rangeLabel = useMemo(() => {
+    if (viewMode === "month") {
+      return monthAnchor.toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
+        month: "long",
+        year: "numeric",
+      });
+    }
+    const end = new Date(weekAnchor);
+    end.setDate(end.getDate() + 6);
+    return formatWeekLabel(weekAnchor, end);
+  }, [viewMode, monthAnchor, weekAnchor]);
   const [editModal, setEditModal] = useState<{
     date: Date;
     session: WorkSessionHistory | null;
@@ -3842,10 +3773,6 @@ function TimeTrackingContent() {
     [mutateAbsences, refreshTableData, toast],
   );
 
-  if (authStatus === "loading") {
-    return <TimeTrackingPageSkeleton />;
-  }
-
   // Statuszeile aus denselben server-gerechneten Zahlen wie die
   // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält das
   // Gerüst ein Skelett an der Stelle.
@@ -3856,12 +3783,41 @@ function TimeTrackingContent() {
     <TenantPage
       title="Zeiterfassung"
       statsLoading={metricsPending}
+      // Laden kommt aus dem Gerüst (Bauart 3, Regel 5) — kein eigenes
+      // Seiten-Skelett neben den Zuständen der TenantPage.
+      loading={authStatus === "loading"}
       stats={
         metricsPending
           ? undefined
           : `Diese Woche ${formatDuration(ownMetrics.week!.ist)} von ${formatDuration(
               ownMetrics.week!.soll,
             )} · Saldo ${formatSignedDuration(ownMetrics.accountBalanceMinutes!)}`
+      }
+      // Bauart 3, Regel 4: Exportieren steht im Kebab der Kopfkarte, nicht
+      // mitten in einer Inhaltskarte.
+      actions={
+        ownStaffId ? (
+          <StaffExportButton
+            staffId={ownStaffId}
+            yearStart={startOfYear(parseISODate(todayISO))}
+          />
+        ) : undefined
+      }
+      // Bauart 3, Regel 1: eine Zeitnavigation im Bedienband der Kopfkarte,
+      // dieselbe wie in Dienstplan, Vertretung und Betreuungsplan.
+      searchSlot={
+        <PlanningContextBar
+          dateLabel={rangeLabel}
+          onPrevious={goToPreviousRange}
+          onNext={goToNextRange}
+          previousLabel={
+            viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
+          }
+          nextLabel={viewMode === "month" ? "Nächster Monat" : "Nächste Woche"}
+          onToday={isOnCurrentRange ? undefined : goToCurrentRange}
+          todayLabel={viewMode === "month" ? "Dieser Monat" : "Diese Woche"}
+          viewSwitcher={<ViewToggle value={viewMode} onChange={setViewMode} />}
+        />
       }
     >
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
@@ -3899,6 +3855,9 @@ function TimeTrackingContent() {
       <OwnZeiterfassungSection
         ownStaffId={ownStaffId}
         schedule={ownSchedule ?? null}
+        viewMode={viewMode}
+        weekAnchor={weekAnchor}
+        monthAnchor={monthAnchor}
         onEditDay={(date, session, absence) =>
           setEditModal({ date, session, absence })
         }
@@ -4052,25 +4011,10 @@ function TimeTrackingContent() {
 
 // ─── Page Export ───────────────────────────────────────────────────────────────
 
+/** Ladezustand der Seite: der eingebaute Zustand des Gerüsts, kein eigenes
+ *  Skelett daneben (Bauart 3, Regel 5). */
 function TimeTrackingPageSkeleton() {
-  return (
-    // Gerüst und Titel stehen sofort, nur die Datenbereiche skeletonisieren.
-    // Bewusst der seitenspezifische Aufbau statt der generischen Balken des
-    // Gerüsts: die Seite besteht aus vier verschieden hohen Blöcken.
-    <TenantPage title="Zeiterfassung" statsLoading>
-      <SkeletonRegion label="Zeiterfassung wird geladen">
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-            <CardSkeleton rows={4} />
-            <CardSkeleton rows={4} />
-          </div>
-          <CardSkeleton rows={2} />
-          <CardSkeleton rows={2} />
-          <TableSkeleton rows={7} columns={5} />
-        </div>
-      </SkeletonRegion>
-    </TenantPage>
-  );
+  return <TenantPage title="Zeiterfassung" statsLoading loading />;
 }
 
 export default function TimeTrackingPage() {

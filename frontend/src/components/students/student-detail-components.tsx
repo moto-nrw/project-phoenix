@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
@@ -23,7 +24,9 @@ import {
 } from "~/lib/student-helpers";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
-import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   companionDisplayName,
   fetchStudentCompanions,
@@ -784,205 +787,170 @@ export function PersonalInfoReadOnly({
   const addressDisplay = formatStudentAddress(student);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
-            <PersonIcon />
-          </div>
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            <span className="sm:hidden">Persönliche Infos</span>
-            <span className="hidden sm:inline">Persönliche Informationen</span>
-          </h2>
+    <SectionCard
+      title="Persönliche Informationen"
+      leading={
+        <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
+          <PersonIcon />
         </div>
-        {showEditButton && onEditClick ? (
+      }
+      action={
+        showEditButton && onEditClick ? (
           <Button
             type="button"
-            variant="ghost"
-            size="compact"
+            variant="outline"
+            size="md"
             onClick={onEditClick}
-            title="Bearbeiten"
           >
             Bearbeiten
           </Button>
         ) : (
           <ViewOnlyBadge />
-        )}
-      </div>
+        )
+      }
+    >
       <ParentVisibilityLegend className="mb-4" />
-      <div className="space-y-3">
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Vollständiger Name"
-              hint={PARENT_VISIBLE_HINTS.name}
+      {/* Feldgitter aus dem Kit (`DataGrid`/`DataField`), kein eigenes
+          Feldraster: dieselbe Anatomie wie in jeder anderen Objektansicht. */}
+      <DataGrid>
+        <DataField label="Vollständiger Name">
+          <ParentVisibleValue hint={PARENT_VISIBLE_HINTS.name}>
+            {student.name}
+          </ParentVisibleValue>
+        </DataField>
+        <DataField label="Klasse">
+          <ParentVisibleValue hint={PARENT_VISIBLE_HINTS.schoolClass}>
+            {student.school_class}
+          </ParentVisibleValue>
+        </DataField>
+        <DataField label="Gruppe">
+          {student.group_name ?? "Nicht zugewiesen"}
+        </DataField>
+        <DataField label="Geburtsdatum">
+          <ParentVisibleValue hint={PARENT_VISIBLE_HINTS.birthday}>
+            {birthdayDisplay}
+          </ParentVisibleValue>
+        </DataField>
+        {addressDisplay && (
+          <DataField label="Adresse" fullWidth>
+            {addressDisplay}
+          </DataField>
+        )}
+        <DataField label="Erlaubte Heimwege" fullWidth>
+          <span className="flex items-start gap-1.5">
+            <span className="min-w-0 flex-1">
+              <AllowedDepartureModesDisplay
+                value={
+                  student.allowed_departure_modes ??
+                  allowedDepartureModesFromDeparture(
+                    student.departure_days ??
+                      departureDaysFromLegacy(
+                        student.bus_days,
+                        student.pickup_days,
+                      ),
+                  )
+                }
+              />
+            </span>
+            <ParentVisibleBadge compact hint={PARENT_VISIBLE_HINTS.departure} />
+            <FieldHistoryInfo
+              studentId={student.id}
+              fields={["departure_days", "pickup_status"]}
             />
-          }
-          value={student.name}
-        />
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Klasse"
-              hint={PARENT_VISIBLE_HINTS.schoolClass}
-            />
-          }
-          value={student.school_class}
-        />
-        <InfoItem
-          label="Gruppe"
-          value={student.group_name ?? "Nicht zugewiesen"}
-        />
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Geburtsdatum"
-              hint={PARENT_VISIBLE_HINTS.birthday}
-            />
-          }
-          value={birthdayDisplay}
-        />
-        {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
-        <InfoItem
-          label={
-            <ParentVisibleLabel
-              label="Erlaubte Heimwege"
-              hint={PARENT_VISIBLE_HINTS.departure}
-            />
-          }
-          value={
+          </span>
+        </DataField>
+        {companionsUnavailable && (
+          <DataField label="Geht mit" fullWidth>
+            <span className="text-sm text-gray-500">
+              Laufgemeinschaft konnte nicht geladen werden
+            </span>
+          </DataField>
+        )}
+        {!companionsUnavailable && companions.length > 0 && (
+          <DataField label="Geht mit" fullWidth>
+            <span className="space-y-0.5">
+              {companions.map((companion) => (
+                <span
+                  key={companion.companion_student_id}
+                  className="block text-sm"
+                >
+                  {companionDisplayName(companion)}
+                  <span className="text-gray-500">
+                    {" "}
+                    ({formatCompanionWeekdays(companion.weekdays)})
+                  </span>
+                </span>
+              ))}
+            </span>
+          </DataField>
+        )}
+        {student.departure_companion_note && (
+          <DataField label="Geht außerdem mit" fullWidth>
             <span className="flex items-start gap-1.5">
               <span className="min-w-0 flex-1">
-                <AllowedDepartureModesDisplay
-                  value={
-                    student.allowed_departure_modes ??
-                    allowedDepartureModesFromDeparture(
-                      student.departure_days ??
-                        departureDaysFromLegacy(
-                          student.bus_days,
-                          student.pickup_days,
-                        ),
-                    )
-                  }
-                />
+                {student.departure_companion_note}
               </span>
               <FieldHistoryInfo
                 studentId={student.id}
-                fields={["departure_days", "pickup_status"]}
+                fields={["departure_companion_note"]}
               />
             </span>
-          }
-        />
-        {companionsUnavailable && (
-          <InfoItem
-            label="Geht mit"
-            value={
-              <span className="text-sm text-gray-500">
-                Laufgemeinschaft konnte nicht geladen werden
-              </span>
-            }
-          />
-        )}
-        {!companionsUnavailable && companions.length > 0 && (
-          <InfoItem
-            label="Geht mit"
-            value={
-              <span className="space-y-0.5">
-                {companions.map((companion) => (
-                  <span
-                    key={companion.companion_student_id}
-                    className="block text-sm"
-                  >
-                    {companionDisplayName(companion)}
-                    <span className="text-gray-500">
-                      {" "}
-                      ({formatCompanionWeekdays(companion.weekdays)})
-                    </span>
-                  </span>
-                ))}
-              </span>
-            }
-          />
-        )}
-        {student.departure_companion_note && (
-          <InfoItem
-            label="Geht außerdem mit"
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">
-                  {student.departure_companion_note}
-                </span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["departure_companion_note"]}
-                />
-              </span>
-            }
-          />
+          </DataField>
         )}
         {student.health_info && (
-          <InfoItem
-            label={
-              <ParentVisibleLabel
-                label="Gesundheitsinformationen"
+          <DataField label="Gesundheitsinformationen" fullWidth>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">{student.health_info}</span>
+              <ParentVisibleBadge
+                compact
                 hint={PARENT_VISIBLE_HINTS.healthInfo}
               />
-            }
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">{student.health_info}</span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["health_info"]}
-                />
-              </span>
-            }
-          />
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["health_info"]}
+              />
+            </span>
+          </DataField>
         )}
         {student.supervisor_notes && (
-          <InfoItem
-            label="Betreuernotizen"
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">
-                  {student.supervisor_notes}
-                </span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["supervisor_notes"]}
-                />
-              </span>
-            }
-          />
+          <DataField label="Betreuernotizen" fullWidth>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">{student.supervisor_notes}</span>
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["supervisor_notes"]}
+              />
+            </span>
+          </DataField>
         )}
         {student.extra_info && (
-          <InfoItem
-            label="Elternnotizen"
-            value={
-              <span className="flex items-start gap-1.5">
-                <span className="min-w-0 flex-1">{student.extra_info}</span>
-                <FieldHistoryInfo
-                  studentId={student.id}
-                  fields={["extra_info"]}
-                />
-              </span>
-            }
-          />
+          <DataField label="Elternnotizen" fullWidth>
+            <span className="flex items-start gap-1.5">
+              <span className="min-w-0 flex-1">{student.extra_info}</span>
+              <FieldHistoryInfo
+                studentId={student.id}
+                fields={["extra_info"]}
+              />
+            </span>
+          </DataField>
         )}
         <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
-      </div>
-    </div>
+      </DataGrid>
+    </SectionCard>
   );
 }
 
-/** An InfoItem label carrying the "sichtbar für Eltern" marker (#2163). */
-function ParentVisibleLabel({
-  label,
+/**
+ * Wert eines Feldes, das auch das Eltern-Portal zeigt. Die Kennzeichnung sitzt
+ * am Wert, weil `DataField` nur einen Text als Beschriftung annimmt.
+ */
+function ParentVisibleValue({
   hint,
-}: Readonly<{ label: string; hint: string }>) {
+  children,
+}: Readonly<{ hint: string; children: ReactNode }>) {
   return (
     <span className="inline-flex items-center gap-1">
-      {label}
+      {children}
       <ParentVisibleBadge compact hint={hint} />
     </span>
   );
@@ -1014,11 +982,9 @@ function EnrollmentExtraInfoItems({
               ? `${group.phase_name} · ${field.label}`
               : field.label;
           return (
-            <InfoItem
-              key={`${group.request_id}-${field.key}`}
-              label={label}
-              value={value}
-            />
+            <DataField key={`${group.request_id}-${field.key}`} label={label}>
+              {value}
+            </DataField>
           );
         }),
       )}

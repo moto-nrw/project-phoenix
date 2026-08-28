@@ -21,6 +21,10 @@ import { setSettingValue } from "~/lib/settings-api";
 // this page is the hand-written panel over them, following the
 // personalization-tab precedent instead of the auto-generated settings tab.
 //
+// Bauart 4 (Einstellungen): die einzige Bauart, die automatisch speichert.
+// Das Verhalten steht als Satz in den Beschreibungen der beiden
+// Eingabekarten, damit es niemand raten muss.
+//
 // There are deliberately NO defaults: Lohnartnummern are mandant-specific,
 // and an invented preset would silently bill wrong. Empty is the honest
 // starting state; the later DATEV writers refuse to export while required
@@ -178,7 +182,7 @@ function LohnartenCard({
   return (
     <SectionCard
       title="Lohnarten"
-      description="Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1 bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die Einheit, die die Lohnart erwartet."
+      description="Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1 bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die Einheit, die die Lohnart erwartet. Änderungen werden sofort gespeichert."
     >
       <div className="overflow-x-auto">
         <table className="w-full min-w-[28rem] text-sm">
@@ -265,7 +269,7 @@ function DatevCard({
   return (
     <SectionCard
       title="DATEV-Mandant"
-      description="Kennzahlen für den Kopf der LODAS-Datei. Lohn und Gehalt benötigt sie nicht."
+      description="Kennzahlen für den Kopf der LODAS-Datei. Lohn und Gehalt benötigt sie nicht. Änderungen werden sofort gespeichert."
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <DatevNumberField
