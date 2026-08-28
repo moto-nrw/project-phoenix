@@ -13,15 +13,29 @@ Shared [Claude Code](https://claude.ai/code) configuration for this repo. Everyt
 │   ├── format-typescript.sh    #   prettier after TS edits
 │   ├── check-commit-message.sh #   conventional-commit validation
 │   ├── check-env-files.sh      #   env file security check on session start
+│   ├── guard-absolute-rules.sh #   PreToolUse guard: blocks moto-app.de/moto.nrw
+│   │                           #   requests, hand-edits of *.sops.env, DISABLE
+│   │                           #   ROW LEVEL SECURITY in migrations, and
+│   │                           #   git commit --no-verify
 │   ├── skill-reminder.sh       #   nudges active skill usage, area-aware
 │   └── subagent-reminder.sh
-│                               # (the Stop hook lives outside: it runs
-│                               #  ../scripts/quorum-rerequest.sh --stop-hook)
+│                               # (the Stop hooks live outside:
+│                               #  ../scripts/quorum-rerequest.sh --stop-hook and
+│                               #  ../scripts/stop-quality-gate.sh --stop-hook,
+│                               #  which runs go build/vet + pnpm run check on
+│                               #  changed areas at turn end; opt-out per clone:
+│                               #  touch .git/quality-gate-off or QUALITY_GATE_OFF=1)
 ├── scripts/                    # Helper scripts (context-monitor.py)
 ├── skills/                     # Project skills: settings, help-guide-sync,
 │   │                           #   env-docker-sync, creating-team-skills, find-skills
 └── rules/                      # Always-on + path-scoped guidance (see below)
 ```
+
+Codex mirrors all of this: `.codex/hooks.json` wires the same scripts (every
+`.codex/hooks/*.sh` is a symlink into `.claude/hooks/`). One known gap: Codex
+intercepts only the shell tool in PreToolUse, so the Edit/Write halves of
+`guard-absolute-rules.sh` (sops files, RLS in migrations) fire on the Claude
+side only; lefthook remains the backstop there.
 
 ## Skills are area-scoped
 

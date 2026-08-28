@@ -1055,6 +1055,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:  repos.ActivityGroup,
 		StaffRepo:          repos.Staff,
 		StudentRepo:        repos.Student,
+		CalendarPeriodRepo: repos.CalendarPeriod,
 		ActiveService:      activeService,
 		Materialization:    materializationService,
 		DeviationEventRepo: repos.DeviationEvent,

@@ -73,6 +73,10 @@ var (
 	// decision is made after the instance and day locks are held.
 	ErrInstanceWeekend = errors.New("timetable entries can only be scheduled from Monday to Friday")
 
+	// ErrInstanceOutsideActiveCalendarPeriod is returned when a planned
+	// instance would be created or moved outside every active calendar period.
+	ErrInstanceOutsideActiveCalendarPeriod = errors.New("instance date must lie within an active calendar period")
+
 	// ErrAmbiguousTemplateInstanceDelete is returned when a single-instance
 	// delete would need to persist a date-wide cancellation exception but the
 	// template has multiple materialized slots on that date. Handlers map this
@@ -308,20 +312,21 @@ type ReplanWeekResult struct {
 // InstanceServiceDependencies aggregates wiring. All repo fields are required;
 // Broadcaster is optional (nil → no SSE).
 type InstanceServiceDependencies struct {
-	InstanceRepo      scheduleModel.ActivityInstanceRepository
-	IdempotencyRepo   scheduleModel.InstanceIdempotencyRepository
-	InstanceStaffRepo scheduleModel.InstanceStaffRepository
-	InstanceStudents  scheduleModel.InstanceStudentRepository
-	ExceptionRepo     scheduleModel.ActivityExceptionRepository
-	ActiveGroupRepo   activeModel.GroupRepository
-	SupervisorRepo    activeModel.GroupSupervisorRepository
-	VisitRepo         activeModel.VisitRepository
-	RoomRepo          facilitiesModel.RoomRepository
-	ActivityGroupRepo activitiesModel.GroupRepository
-	StaffRepo         usersModel.StaffRepository
-	StudentRepo       usersModel.StudentRepository
-	ActiveService     ActiveSessionEnder
-	Materialization   MaterializationService
+	InstanceRepo       scheduleModel.ActivityInstanceRepository
+	IdempotencyRepo    scheduleModel.InstanceIdempotencyRepository
+	InstanceStaffRepo  scheduleModel.InstanceStaffRepository
+	InstanceStudents   scheduleModel.InstanceStudentRepository
+	ExceptionRepo      scheduleModel.ActivityExceptionRepository
+	ActiveGroupRepo    activeModel.GroupRepository
+	SupervisorRepo     activeModel.GroupSupervisorRepository
+	VisitRepo          activeModel.VisitRepository
+	RoomRepo           facilitiesModel.RoomRepository
+	ActivityGroupRepo  activitiesModel.GroupRepository
+	StaffRepo          usersModel.StaffRepository
+	StudentRepo        usersModel.StudentRepository
+	CalendarPeriodRepo scheduleModel.CalendarPeriodRepository
+	ActiveService      ActiveSessionEnder
+	Materialization    MaterializationService
 	// CareDayService decides which still-expected children may be stamped
 	// absent when an instance ends (#1747) — required.
 	CareDayService CareDayService
@@ -354,7 +359,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
-		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
+		deps.CalendarPeriodRepo == nil || deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
 		deps.RecoveryRepo == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
@@ -1519,6 +1524,20 @@ func (s *instanceService) createInTenantTransaction(
 	if err := s.lockRecurrenceThenGradeTransitions(ctx, "create instance"); err != nil {
 		return nil, err
 	}
+	if req.IdempotencyKey != nil {
+		existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
+		if err != nil {
+			return nil, &ScheduleError{Op: "create instance: reload idempotency key", Err: err}
+		}
+		if existing != nil {
+			return idempotentCreateResult(existing, idempotencyFingerprint)
+		}
+	}
+	if req.IsSpontaneous == nil || !*req.IsSpontaneous {
+		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
+			return nil, &ScheduleError{Op: "create instance: validate calendar period", Err: err}
+		}
+	}
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
@@ -1780,6 +1799,11 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if err := validateLegacyWeekendInstanceDate(instance.Date, req.Date); err != nil {
 		return nil, err
 	}
+	if req.CalendarPeriodID != nil || (instance.Date != req.Date && !instance.IsSpontaneous) {
+		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
+			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
+		}
+	}
 
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
 		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
@@ -1863,6 +1887,19 @@ func validateLegacyWeekendInstanceDate(existing, requested timezone.Date) error 
 		return nil
 	}
 	return ErrInstanceWeekend
+}
+
+func (s *instanceService) validateInstanceDateInActiveCalendarPeriod(ctx context.Context, date timezone.Date) error {
+	periods, err := s.deps.CalendarPeriodRepo.FindActiveByTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("find active calendar periods: %w", err)
+	}
+	for _, period := range periods {
+		if period.ContainsDay(date) {
+			return nil
+		}
+	}
+	return ErrInstanceOutsideActiveCalendarPeriod
 }
 
 // clearStaleAckIfStaffed clears a lingering "deliberately unstaffed"
