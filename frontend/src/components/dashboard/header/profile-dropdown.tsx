@@ -149,7 +149,7 @@ export function ProfileDropdownMenu({
   profileLabel,
 }: ProfileDropdownMenuProps) {
   // parentNav carries German values in the staff/operator shells (via
-  // ShellNavIntlProvider), so those portals render unchanged; only the parents
+  // ShellIntlProvider), so those portals render unchanged; only the parents
   // portal swaps in the localized catalog.
   const t = useTranslations("parentNav");
   const handleLogoutClick = (e: React.MouseEvent) => {
