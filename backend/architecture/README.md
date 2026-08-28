@@ -23,6 +23,13 @@ scripts/backend-architecture.sh explain \
   --scope production \
   --source github.com/moto-nrw/project-phoenix/services/mealplan \
   --target github.com/moto-nrw/project-phoenix/models/mealplan
+scripts/backend-architecture.sh diagram
+scripts/backend-architecture.sh diagram \
+  --baseline architecture/legacy.jsonl
+scripts/backend-architecture.sh dependencies \
+  --focus module:meal-plan
+scripts/backend-architecture.sh dependencies \
+  --focus package:services/mealplan
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
@@ -36,6 +43,18 @@ permissions cannot leak into test scopes. A finding uses this stable key:
 ```text
 scope|rule|source|target
 ```
+
+The key identifies the violation. Source locations are evidence and do not
+form part of that identity. Each location contains a project-relative Go file,
+line, and the affected import, function, method, or declaration. `check` prints
+all locations below the key. It sorts and deduplicates them, so the same source
+tree produces the same output on every host.
+
+Locations may change when code moves without changing the violation key. The
+exact JSONL baseline therefore keeps only `scope`, `rule`, `source`, `target`,
+and `issue`; it never stores locations. Generated JSON projections attach a
+`locations` array to each violation instead. This lets migration tooling group
+current evidence by the stable key without turning line changes into new debt.
 
 Production analysis also uses Go syntax and type information to enforce these
 semantic boundaries:
@@ -63,6 +82,34 @@ the exact shrinking-ratchet mechanics, but this slice intentionally does not
 commit or activate the production baseline. Until the CI cutover, CI runs
 `legacy-check` to keep the existing go-arch-lint gate active.
 
+## Generated projections
+
+`diagram` evaluates the real graph once and writes these files to a newly
+created system temporary directory:
+
+- `target.svg` contains only owners and production edges declared by the
+  target policy, including declared target modules that do not have packages
+  yet.
+- `migration.svg` condenses the current production graph by owner. Allowed
+  edges are gray, violations present in `--baseline` are orange-red, and new
+  violations are dashed red.
+- `architecture.json` uses projection schema version 2 and contains both
+  graphs plus exact violation keys, their
+  source/target owners, and sorted source locations, so follow-up tooling can
+  group ratchet work by owner and capability.
+- `go-arch-lint.yml` projects the target policy into go-arch-lint's coarser
+  owner-level model. It is an additional guard; the evaluator remains
+  authoritative for roles, scopes, semantic checks, and exact edges.
+
+`dependencies --focus ...` writes `dependencies.svg`, `dependencies.json`, and
+`dependencies.goda`. Prefix a focus with `module:` or `package:` when the same
+text names both. The generated Goda query pins `GOOS=linux`, `GOARCH=amd64`,
+and `CGO_ENABLED=0` from the policy. Unknown, ambiguous, and target-only modules
+without current packages fail with a concrete error.
+
+All files are generated artifacts. The default location and every accepted
+`--output` location are inside the system temp tree; do not commit them.
+
 ## Exact legacy ratchet
 
 The legacy baseline is canonical JSONL sorted by `scope|rule|source|target`.
@@ -73,7 +120,8 @@ Each record has exactly these fields in this order:
 ```
 
 The first four fields identify one exact violation. `issue` identifies its one
-open migration ticket. Wildcards, package-family patterns, blank lines,
+open migration ticket. Locations are non-identifying evidence and stay out of
+this file. Wildcards, package-family patterns, blank lines,
 duplicates, unsorted records, non-canonical JSON, and issue reassignment are
 errors. The normal command has no init, approve, update, or rebaseline mode.
 

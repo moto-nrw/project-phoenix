@@ -2025,6 +2025,10 @@
       "class": "standard"
     },
     {
+      "path": "encoding/xml",
+      "class": "standard"
+    },
+    {
       "path": "errors",
       "class": "standard"
     },

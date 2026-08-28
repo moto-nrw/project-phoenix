@@ -256,17 +256,23 @@ export function GraduatesModal({
                       key={entry.id}
                       className="flex items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0"
                     >
-                      {canDelete && (
-                        <Checkbox
-                          checked={selected.has(entry.studentId)}
-                          disabled={!isDeletable}
-                          onChange={() => toggle(entry.studentId)}
-                          aria-label={`${entry.personName} auswählen`}
-                        />
+                      {canDelete ? (
+                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 has-[:disabled]:cursor-not-allowed">
+                          <Checkbox
+                            checked={selected.has(entry.studentId)}
+                            disabled={!isDeletable}
+                            onChange={() => toggle(entry.studentId)}
+                            aria-label={`${entry.personName} auswählen`}
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                            {entry.personName}
+                          </span>
+                        </label>
+                      ) : (
+                        <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                          {entry.personName}
+                        </span>
                       )}
-                      <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
-                        {entry.personName}
-                      </span>
                       <span className="shrink-0 text-sm text-gray-500">
                         {entry.fromClass}
                       </span>
