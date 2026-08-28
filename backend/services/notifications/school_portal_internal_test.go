@@ -182,10 +182,12 @@ func TestSharedEndpointKeepsTheCurrentStaffRegistration(t *testing.T) {
 }
 
 // Two portals on one browser are two origins, so the same device holds two
-// different push endpoints. Endpoint deduplication cannot see that; the
-// User-Agent the rows were registered with can. One team-chat message must
-// reach the device once, through the portal it last registered in.
-func TestOneDeviceInBothPortalsIsPushedOnce(t *testing.T) {
+// different push endpoints. Nothing links the two rows to one machine, so both
+// are delivered, each through its own portal: the OGS registration gets the
+// tenant deep link, the school registration the moto-schule one. Collapsing
+// them by User-Agent would drop a second, genuinely separate device that
+// happens to report the same string.
+func TestBothPortalRegistrationsOfOneAccountAreDelivered(t *testing.T) {
 	t.Parallel()
 
 	const browser = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/605.1.15"
@@ -210,8 +212,8 @@ func TestOneDeviceInBothPortalsIsPushedOnce(t *testing.T) {
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{schoolSub}, resolved,
-		"the device is addressed through its current registration only")
+	assert.Equal(t, []*iot.PushSubscription{staffSub, schoolSub}, resolved,
+		"a shared User-Agent is not a device identity, so neither row is dropped")
 
 	db, mock := mockTenantTx(t)
 	channel.db = db
@@ -226,39 +228,16 @@ func TestOneDeviceInBothPortalsIsPushedOnce(t *testing.T) {
 	require.Eventually(t, func() bool {
 		sender.mu.Lock()
 		defer sender.mu.Unlock()
-		return len(sender.sent) == 1
+		return len(sender.sent) == 2
 	}, time.Second, 10*time.Millisecond)
 	sender.mu.Lock()
 	sent := append([]sentPush(nil), sender.sent...)
 	sender.mu.Unlock()
-	require.Len(t, sent, 1, "the batched path collapses the device too")
-	assert.Equal(t, "/school/nachrichten/7", deepLinkOf(t, sent[0].payload))
+	require.Len(t, sent, 2)
+	links := []string{deepLinkOf(t, sent[0].payload), deepLinkOf(t, sent[1].payload)}
+	assert.ElementsMatch(t, []string{"/team-chat/7", "/school/nachrichten/7"}, links,
+		"every registration keeps the deep link that resolves in its own portal")
 	assert.NoError(t, mock.ExpectationsWereMet())
-}
-
-// The collapse only ever drops the losing portal of one device. Two phones
-// registered in the same portal stay two recipients, and a device without a
-// stored User-Agent is left alone.
-func TestCrossPortalCollapseKeepsSeparateDevices(t *testing.T) {
-	t.Parallel()
-
-	const browser = "Mozilla/5.0 (Macintosh) Chrome/140.0"
-	phone := testSub(1, 41, "https://fcm.googleapis.com/phone")
-	phone.AccountID = 42
-	phone.UserAgent = browser
-	laptop := testSub(2, 41, "https://fcm.googleapis.com/laptop")
-	laptop.AccountID = 42
-	laptop.UserAgent = browser
-	other := testSub(3, 41, "https://fcm.googleapis.com/other-account")
-	other.AccountID = 43
-	other.Portal = iot.PushPortalSchool
-	other.UserAgent = browser
-	unknown := testSub(4, 41, "https://fcm.googleapis.com/unknown-device")
-	unknown.AccountID = 42
-	unknown.Portal = iot.PushPortalSchool
-
-	kept := collapseCrossPortalDevices([]*iot.PushSubscription{phone, laptop, other, unknown})
-	assert.Equal(t, []*iot.PushSubscription{phone, laptop, other, unknown}, kept)
 }
 
 func deepLinkOf(t *testing.T, wire []byte) string {

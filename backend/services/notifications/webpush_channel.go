@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -255,7 +254,7 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 				targets = append(targets, schoolByAccount[accountID]...)
 			}
 		}
-		targets = dedupeSubscriptionsPerDevice(targets)
+		targets = dedupeSubscriptionsByEndpoint(targets)
 		if len(targets) == 0 {
 			continue
 		}
@@ -360,7 +359,7 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 		if err != nil {
 			return nil, err
 		}
-		return dedupeSubscriptionsPerDevice(append(staffSubs, schoolSubs...)), nil
+		return dedupeSubscriptionsByEndpoint(append(staffSubs, schoolSubs...)), nil
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
@@ -370,12 +369,6 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 	default:
 		return nil, fmt.Errorf("unknown audience scope %q", audience.Scope)
 	}
-}
-
-// dedupeSubscriptionsPerDevice reduces a resolved audience to one push per
-// physical device: first one row per endpoint, then one portal per device.
-func dedupeSubscriptionsPerDevice(subs []*iot.PushSubscription) []*iot.PushSubscription {
-	return collapseCrossPortalDevices(dedupeSubscriptionsByEndpoint(subs))
 }
 
 // dedupeSubscriptionsByEndpoint keeps one subscription per push endpoint.
@@ -392,6 +385,16 @@ func dedupeSubscriptionsPerDevice(subs []*iot.PushSubscription) []*iot.PushSubsc
 // payload carries a deep link that resolves there. Preferring the OGS row
 // unconditionally would hand a school device a /team-chat/... link, which is
 // not a route in moto schule.
+//
+// Deduplication stops at the endpoint on purpose. A person registered in both
+// staff portals on one browser holds two service-worker registrations, one per
+// origin, and nothing the two share identifies the machine they run on: a push
+// endpoint is per origin, and so is any identifier the client could generate
+// and store. The User-Agent is not a substitute — two phones of the same model
+// on the same OS send the same string, so collapsing by it would silently drop
+// one of two real devices. A missing notification is the worse failure, so a
+// dual-role account that keeps both portals subscribed is notified in both and
+// can switch the notification off in the portal it does not use.
 func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubscription {
 	position := make(map[string]int, len(subs))
 	deduped := make([]*iot.PushSubscription, 0, len(subs))
@@ -412,60 +415,7 @@ func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubs
 	return deduped
 }
 
-// collapseCrossPortalDevices keeps one portal per device and account.
-//
-// Endpoint deduplication is not enough: the OGS portal and moto schule are
-// different origins, so the same browser holds a separate service-worker
-// registration — and therefore a different push endpoint — per portal. A
-// Lehrkraft who is also a Betreuungskraft would receive one team-chat message
-// twice on the one phone in front of her.
-//
-// The device identity we persist is the User-Agent the registration was made
-// with (iot.push_subscriptions.user_agent), so rows of one account sharing a
-// User-Agent are treated as one device. Of those, only the portal whose
-// registration was written last survives: that is the portal the person
-// actually opens, and its payload carries the deep link that resolves there.
-// Several devices registered in the SAME portal are never collapsed — the
-// filter only ever drops the losing portals of a device.
-//
-// A subscription without a User-Agent (older rows, non-browser clients) is
-// left alone: with no device identity there is nothing to collapse it into.
-func collapseCrossPortalDevices(subs []*iot.PushSubscription) []*iot.PushSubscription {
-	type deviceKey struct {
-		accountID int64
-		userAgent string
-	}
-	current := make(map[deviceKey]*iot.PushSubscription, len(subs))
-	for _, sub := range subs {
-		if sub == nil || strings.TrimSpace(sub.UserAgent) == "" {
-			continue
-		}
-		key := deviceKey{accountID: sub.AccountID, userAgent: sub.UserAgent}
-		winner, seen := current[key]
-		if !seen || newerRegistration(sub, winner) {
-			current[key] = sub
-		}
-	}
-
-	kept := make([]*iot.PushSubscription, 0, len(subs))
-	for _, sub := range subs {
-		if sub == nil {
-			continue
-		}
-		if strings.TrimSpace(sub.UserAgent) == "" {
-			kept = append(kept, sub)
-			continue
-		}
-		winner := current[deviceKey{accountID: sub.AccountID, userAgent: sub.UserAgent}]
-		if winner.Portal != sub.Portal {
-			continue
-		}
-		kept = append(kept, sub)
-	}
-	return kept
-}
-
-// newerRegistration orders two rows of one device by when they were last
+// newerRegistration orders two rows of one endpoint by when they were last
 // written. Rows stamped in the same transaction fall back to the row id, so
 // the surviving portal is stable across deliveries instead of following map
 // iteration order.
