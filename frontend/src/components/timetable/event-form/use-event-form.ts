@@ -368,6 +368,11 @@ export function useEventForm({
   // survives switching the repeat mode away and back within the same modal
   // session. null = no manual pick yet (defaults apply).
   const manualWeekPattern = useRef<1 | 2 | null>(null);
+  // React state is not visible to a second submit event until the next render.
+  // This ref closes that same-frame gap while `submitting` drives the UI.
+  const submitLock = useRef(false);
+  // Keep retries of this modal's manual create on the same server operation.
+  const createIdempotencyKey = useRef<string | null>(null);
   // Mirror of the last validateForm() result, readable synchronously right
   // after the call (the fieldErrors state only lands on the next render). The
   // wizard shell uses it to decide whether the CURRENT step is clean without
@@ -530,6 +535,8 @@ export function useEventForm({
     staffRosterTouched.current = false;
     listKindTouched.current = false;
     manualWeekPattern.current = null;
+    submitLock.current = false;
+    createIdempotencyKey.current = null;
     setForm(nextForm);
     initialFormSnapshot.current = nextForm;
     setValidationError(null);
@@ -2061,10 +2068,12 @@ export function useEventForm({
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (submitting) return;
+    if (submitLock.current) return;
     if (isEditingInstance && initialInstance?.status !== "planned") return;
     const parsed = validateForm();
     if (!parsed) return;
+    submitLock.current = true;
+    setSubmitting(true);
 
     // US-5 Dreifach-Frage: editing an instance that belongs to a series first
     // asks for the scope instead of writing immediately. Also when the user
@@ -2078,7 +2087,6 @@ export function useEventForm({
       selectedInstanceScope !== null
     ) {
       if (selectedInstanceScope === "single") {
-        setSubmitting(true);
         try {
           await checkCoverageBeforeSave(coverageProbes);
           const saved = await timetableService.update(
@@ -2091,15 +2099,21 @@ export function useEventForm({
         } catch (err) {
           handleScopeError("single", err);
         } finally {
+          submitLock.current = false;
           setSubmitting(false);
         }
         return;
       }
-      await handleScopeSelect(selectedInstanceScope, { roomId: parsed.roomId });
+      try {
+        await handleScopeSelect(selectedInstanceScope, {
+          roomId: parsed.roomId,
+        });
+      } finally {
+        submitLock.current = false;
+      }
       return;
     }
 
-    setSubmitting(true);
     try {
       await checkCoverageBeforeSave(coverageProbes);
       if (!isSeriesFlow) {
@@ -2109,7 +2123,10 @@ export function useEventForm({
         );
         const saved = initialInstance
           ? await timetableService.update(initialInstance.id, body)
-          : await timetableService.create(body);
+          : await timetableService.create(
+              body,
+              (createIdempotencyKey.current ??= crypto.randomUUID()),
+            );
         toastSuccess(
           initialInstance ? "Termin gespeichert" : "Termin angelegt",
         );
@@ -2258,6 +2275,7 @@ export function useEventForm({
       setValidationError(msg);
       toastError(msg);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };

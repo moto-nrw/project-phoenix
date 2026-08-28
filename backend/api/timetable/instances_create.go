@@ -80,6 +80,21 @@ type parsedCreateInstanceRequest struct {
 	endTime   time.Time
 }
 
+func createInstanceIdempotencyKey(r *http.Request) (*string, error) {
+	raw := r.Header.Get("Idempotency-Key")
+	if raw == "" {
+		return nil, nil
+	}
+	key := strings.TrimSpace(raw)
+	if key == "" {
+		return nil, errors.New("Idempotency-Key cannot be blank")
+	}
+	if len(key) > scheduleModel.ActivityInstanceIdempotencyKeyMaxLength {
+		return nil, errors.New("Idempotency-Key is too long")
+	}
+	return &key, nil
+}
+
 // Bind runs cheap presence checks. Format errors (date / time) bubble up
 // from the handler so the user sees a precise message ("invalid start_time
 // format, expected HH:MM") instead of a generic 400.
@@ -186,6 +201,11 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := parsed.req
+	idempotencyKey, err := createInstanceIdempotencyKey(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	listKind, err := normalizeInstanceListKind(req.ListKind)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -212,6 +232,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       req.StudentIDs,
 		CreatedByStaffID: createdByPtr,
+		IdempotencyKey:   idempotencyKey,
 		RequiredStaff:    normalizeRequiredStaff(req.RequiredStaff),
 	})
 	if err != nil {

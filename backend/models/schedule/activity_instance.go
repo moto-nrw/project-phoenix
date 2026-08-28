@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -20,8 +21,12 @@ const (
 	InstanceStatusCancelled = "cancelled"
 )
 
-// ActivityInstanceTitleMaxLength is the maximum length of the title field.
-const ActivityInstanceTitleMaxLength = 255
+const (
+	// ActivityInstanceTitleMaxLength is the maximum length of the title field.
+	ActivityInstanceTitleMaxLength = 255
+	// ActivityInstanceIdempotencyKeyMaxLength bounds client-generated create keys.
+	ActivityInstanceIdempotencyKeyMaxLength = 128
+)
 
 // ActivityInstance is the concrete materialized occurrence of a template on a
 // given date (or a spontaneous instance created without a template). It lives
@@ -63,6 +68,7 @@ type ActivityInstance struct {
 	// (Vertretungsplan, issue #1840).
 	CancelReason       *string         `bun:"cancel_reason" json:"cancel_reason,omitempty"`
 	Notes              *string         `bun:"notes" json:"notes,omitempty"`
+	IdempotencyKey     *string         `bun:"idempotency_key" json:"-"`
 	CreatedBy          *int64          `bun:"created_by" json:"created_by,omitempty"`
 	StartedBy          *int64          `bun:"started_by" json:"started_by,omitempty"`
 	StartedAt          *time.Time      `bun:"started_at" json:"started_at,omitempty"`
@@ -136,6 +142,14 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
 		return errors.New("required_staff cannot be negative")
+	}
+	if i.IdempotencyKey != nil {
+		if strings.TrimSpace(*i.IdempotencyKey) == "" {
+			return errors.New("idempotency_key cannot be blank")
+		}
+		if len(*i.IdempotencyKey) > ActivityInstanceIdempotencyKeyMaxLength {
+			return errors.New("idempotency_key is too long")
+		}
 	}
 	// Canonicalize a non-nil pointer to "" to NULL so it satisfies the DB's
 	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
@@ -284,4 +298,11 @@ type ActivityInstanceRepository interface {
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
 	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
+}
+
+// InstanceIdempotencyRepository owns the conflict-safe insert used by
+// client-request replay protection. Keeping it separate avoids forcing every
+// activity-instance reader or test fake to implement a create-only concern.
+type InstanceIdempotencyRepository interface {
+	CreateIdempotent(ctx context.Context, instance *ActivityInstance) (inserted bool, err error)
 }

@@ -108,6 +108,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broadcaster) scheduleSvc.InstanceService {
 	return scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
 		InstanceRepo:       s.repos.ActivityInstance,
+		IdempotencyRepo:    s.repos.InstanceIdempotency,
 		InstanceStaffRepo:  s.repos.InstanceStaff,
 		InstanceStudents:   s.repos.InstanceStudent,
 		ExceptionRepo:      s.repos.ActivityException,
@@ -1564,6 +1565,7 @@ func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) 
 	now := time.Date(2026, 4, 22, 8, 0, 0, 0, timezone.Berlin)
 	guarded := scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
 		InstanceRepo:       s.repos.ActivityInstance,
+		IdempotencyRepo:    s.repos.InstanceIdempotency,
 		InstanceStaffRepo:  s.repos.InstanceStaff,
 		InstanceStudents:   s.repos.InstanceStudent,
 		ExceptionRepo:      s.repos.ActivityException,

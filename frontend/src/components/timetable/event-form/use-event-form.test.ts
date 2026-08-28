@@ -50,6 +50,56 @@ describe("reconcileCategoryId", () => {
   });
 });
 
+describe("useEventForm submit locking", () => {
+  it("sends one request for two submit events before the next render", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    const create = vi
+      .spyOn(timetableService, "create")
+      .mockReturnValue(new Promise(() => undefined));
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        defaultStartTime: "12:00",
+        defaultEndTime: "13:00",
+        canCheckShiftCoverage: false,
+      }),
+    );
+    act(() => {
+      result.current.update("title", "Basteln");
+      result.current.update("roomId", "7");
+    });
+
+    const event = { preventDefault: vi.fn() } as unknown as Parameters<
+      typeof result.current.handleSubmit
+    >[0];
+    act(() => {
+      void result.current.handleSubmit(event);
+      void result.current.handleSubmit(event);
+    });
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(result.current.submitting).toBe(true);
+  });
+});
+
 describe("useEventForm offering source roster stash", () => {
   it("restores the manual roster when the source is cleared again", async () => {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);

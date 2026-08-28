@@ -180,12 +180,16 @@ class TimetableService {
    * enriched instance shape so the caller can splice it into the SWR
    * cache without a refetch.
    */
-  async create(body: CreateInstanceBody): Promise<EnrichedInstance> {
+  async create(
+    body: CreateInstanceBody,
+    idempotencyKey: string,
+  ): Promise<EnrichedInstance> {
     const response = await fetch("/api/timetable/instances", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        "Idempotency-Key": idempotencyKey,
       },
       credentials: "include",
       body: JSON.stringify(body),
