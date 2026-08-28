@@ -17,6 +17,7 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
+		w.Header().Set(middleware.RequestIDHeader, id.String())
 		ctx := context.WithValue(r.Context(), middleware.RequestIDKey, id.String())
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

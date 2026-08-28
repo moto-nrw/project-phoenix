@@ -24,3 +24,23 @@ func TestRequestIDMiddlewarePreservesChiContextContract(t *testing.T) {
 		t.Fatalf("GetReqID() = %q, want %q", got, requestValue)
 	}
 }
+
+func TestRequestIDMiddlewareSetsResponseHeaderBeforeHandler(t *testing.T) {
+	t.Parallel()
+
+	const requestValue = "edge-proxy/request-42"
+	handler := requestIDMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if got := w.Header().Get(middleware.RequestIDHeader); got != requestValue {
+			t.Errorf("response %s header = %q, want %q", middleware.RequestIDHeader, got, requestValue)
+		}
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set(middleware.RequestIDHeader, requestValue)
+	res := httptest.NewRecorder()
+
+	handler.ServeHTTP(res, req)
+
+	if got := res.Header().Get(middleware.RequestIDHeader); got != requestValue {
+		t.Errorf("response %s header = %q, want %q", middleware.RequestIDHeader, got, requestValue)
+	}
+}
