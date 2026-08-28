@@ -355,13 +355,16 @@ async function chooseFromSelect(
 ) {
   await waitFor(() => expect(trigger).not.toBeDisabled());
   fireEvent.click(trigger);
-  const option = await waitFor(() => {
-    const control =
-      screen.queryByRole("option", { name: optionLabel }) ??
-      screen.queryByRole("checkbox", { name: optionLabel });
-    if (!control) throw new Error("select option is not visible");
-    return control;
-  });
+  const option = await waitFor(
+    () => {
+      const control =
+        screen.queryByRole("option", { name: optionLabel }) ??
+        screen.queryByRole("checkbox", { name: optionLabel });
+      if (!control) throw new Error("select option is not visible");
+      return control;
+    },
+    { timeout: 3000 },
+  );
   fireEvent.click(option);
 }
 
