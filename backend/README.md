@@ -47,8 +47,10 @@ scripts/backend-architecture.sh dependencies /tmp/schedule.svg './services/sched
 ```
 
 `check` evaluates the strict target policy in `architecture/policy.json`,
-including production, internal-test, and external-test import scopes. It
-currently reports the existing target-policy violations. `legacy-check`
+including production, internal-test, and external-test import scopes plus
+table ownership, tenant-safe projections, public contract purity, direct
+database access, and legacy-composition references. It currently reports the
+existing target-policy violations. `legacy-check`
 validates every production Go package against `.go-arch-lint.yml`; it excludes
 `_test.go` files and fails when a package has no component. The diagram command
 writes the focused layer architecture to SVG. The dependencies command writes

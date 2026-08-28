@@ -1,0 +1,23 @@
+{
+  "schema_version": 2,
+  "policy_epoch": 1,
+  "module_path": "example.test/architecture-semantic-valid",
+  "shared_kernel_types": ["CorrelationID", "Date", "TenantID", "WallClock"],
+  "build": {"goos": "linux", "goarch": "amd64", "cgo_enabled": false},
+  "owners": [{"id": "alpha", "kind": "domain"}],
+  "roles": ["module-behavior-test", "module-internal-test", "postgres"],
+  "packages": [
+    {"path": "adapter", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"}
+  ],
+  "data_objects": [
+    {"name": "alpha.audit", "write_owner": "alpha"},
+    {"name": "alpha.records", "write_owner": "alpha"}
+  ],
+  "read_projections": [],
+  "legacy_composition": [],
+  "external_classes": ["orm-sql"],
+  "external_packages": [{"path": "github.com/uptrace/bun", "class": "orm-sql"}],
+  "rules": [
+    {"id": "postgres-uses-orm", "description": "Postgres adapters use the ORM.", "scopes": ["production"], "source_owner": "alpha", "source_role": "postgres", "target_class": "orm-sql"}
+  ]
+}

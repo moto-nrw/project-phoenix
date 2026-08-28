@@ -180,7 +180,8 @@ func autoStartInstance(id int64, status string, startHour, startMinute, endHour,
 }
 
 type autoStartInstanceRepo struct {
-	instances []*scheduleModel.ActivityInstance
+	instances      []*scheduleModel.ActivityInstance
+	findStatusByID map[int64]string
 }
 
 type autoStartRoomRepo struct {
@@ -210,7 +211,21 @@ func (r *autoStartInstanceRepo) Create(context.Context, *scheduleModel.ActivityI
 func (r *autoStartInstanceRepo) CreateTemplateBackedIfAbsent(context.Context, *scheduleModel.ActivityInstance) (bool, error) {
 	return false, nil
 }
-func (r *autoStartInstanceRepo) FindByID(context.Context, any) (*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByID(_ context.Context, rawID any) (*scheduleModel.ActivityInstance, error) {
+	id, ok := rawID.(int64)
+	if !ok {
+		return nil, nil
+	}
+	for _, instance := range r.instances {
+		if instance.ID != id {
+			continue
+		}
+		copy := *instance
+		if status, found := r.findStatusByID[id]; found {
+			copy.Status = status
+		}
+		return &copy, nil
+	}
 	return nil, nil
 }
 func (r *autoStartInstanceRepo) Update(context.Context, *scheduleModel.ActivityInstance) error {
@@ -220,7 +235,7 @@ func (r *autoStartInstanceRepo) Delete(context.Context, any) error {
 	return nil
 }
 func (r *autoStartInstanceRepo) List(context.Context, *base.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
-	return nil, nil
+	return r.instances, nil
 }
 func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return r.instances, nil
