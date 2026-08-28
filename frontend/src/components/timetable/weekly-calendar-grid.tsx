@@ -327,15 +327,18 @@ export function WeeklyCalendarGrid({
                     </span>
                   )}
                 </div>
-                {planningDisabled ? (
-                  <span className="text-[10px] font-medium text-gray-500">
-                    Nicht planbar
-                  </span>
-                ) : closingReason !== undefined ? (
+                {/* Der Schließtag-Grund („Ferien") schlägt das generische
+                    „Nicht planbar": ein Schließtag ist ohnehin nicht planbar,
+                    und der konkrete Grund darf nicht verschwinden. */}
+                {closingReason !== undefined ? (
                   <ClosingDayChip
                     reason={closingReason}
                     className="w-full justify-center text-center"
                   />
+                ) : planningDisabled ? (
+                  <span className="text-[10px] font-medium text-gray-500">
+                    Nicht planbar
+                  </span>
                 ) : null}
               </div>
             );

@@ -3,7 +3,10 @@ import type { FormEvent } from "react";
 
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
-import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import {
+  findPeriodForDate,
+  type CalendarPeriod,
+} from "~/lib/calendar-period-helpers";
 import {
   weekCycleSlotForDate,
   weekPatternForDate,
@@ -1227,12 +1230,7 @@ export function useEventForm({
         (!initialInstance.isSpontaneous &&
           form.date !== initialInstance.date)) &&
       planningPeriods !== undefined &&
-      !planningPeriods.some(
-        (period) =>
-          period.isActive &&
-          form.date >= period.startDate &&
-          form.date <= period.endDate,
-      )
+      findPeriodForDate(planningPeriods, form.date) === null
     ) {
       errors.date = "Wählen Sie ein Datum in einem Planungszeitraum.";
     }

@@ -1828,15 +1828,17 @@ describe("BetreuungsplanView", () => {
     {
       name: "ab Mittwoch abgedeckt",
       periods: [{ ...period, startDate: "2026-05-06" }],
-      title: "Einige Tage liegen außerhalb des Planungszeitraums",
-      description: "An diesen Tagen können Sie keine Termine planen.",
+      title: "Diese Woche hat noch keine Termine",
+      description:
+        "Einige Tage sind nicht planbar. An den anderen Tagen können Sie Termine planen.",
       disabledDates: "2026-05-04,2026-05-05",
     },
     {
       name: "bis Mittwoch abgedeckt",
       periods: [{ ...period, endDate: "2026-05-06" }],
-      title: "Einige Tage liegen außerhalb des Planungszeitraums",
-      description: "An diesen Tagen können Sie keine Termine planen.",
+      title: "Diese Woche hat noch keine Termine",
+      description:
+        "Einige Tage sind nicht planbar. An den anderen Tagen können Sie Termine planen.",
       disabledDates: "2026-05-07,2026-05-08",
     },
   ])(
@@ -1871,7 +1873,7 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
-      "An diesen Tagen können Sie keine Termine planen. Geplant wird von den Admins Ihrer Schule.",
+      "Für diese Woche ist noch nichts geplant. Geplant wird von den Admins Ihrer Schule.",
     );
   });
 

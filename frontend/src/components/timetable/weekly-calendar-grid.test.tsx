@@ -213,4 +213,25 @@ describe("WeeklyCalendarGrid planningDisabledDateISOs", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /mensa/i })).toBeVisible();
   });
+
+  it("keeps the closing-day reason visible on an uncovered day", () => {
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+        closingDays={new Map([["2026-05-05", "Ferien"]])}
+        planningDisabledDateISOs={new Set(["2026-05-05"])}
+      />,
+    );
+
+    // Kopfzeile UND Tagesspalte zeigen den konkreten Grund; das generische
+    // „Nicht planbar“ verdrängt ihn nicht mehr aus der Kopfzeile.
+    expect(screen.getAllByText("Schließtag · Ferien")).toHaveLength(2);
+  });
 });

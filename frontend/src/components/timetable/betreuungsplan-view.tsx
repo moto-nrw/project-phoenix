@@ -902,10 +902,10 @@ function TimetablesContent() {
     if (instances.length > 0 || error) return undefined;
     if (weekPeriodCoverage === "partial") {
       return {
-        title: "Einige Tage liegen außerhalb des Planungszeitraums",
+        title: "Diese Woche hat noch keine Termine",
         description: canManageSchedules
-          ? "An diesen Tagen können Sie keine Termine planen."
-          : "An diesen Tagen können Sie keine Termine planen. Geplant wird von den Admins Ihrer Schule.",
+          ? "Einige Tage sind nicht planbar. An den anderen Tagen können Sie Termine planen."
+          : "Für diese Woche ist noch nichts geplant. Geplant wird von den Admins Ihrer Schule.",
       };
     }
     if (weekPeriodCoverage === "full") {
