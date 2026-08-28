@@ -283,6 +283,23 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 // The mail carries the poll title and a portal link, never the question's
 // options — the answer belongs in the portal, where it is authenticated.
 func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*usersModels.AnnouncementPollReminderRecipient) ([]int64, error) {
+	intro := "für Ihr Kind fehlt noch eine Rückmeldung zu dieser Umfrage. Sie können sie im Eltern-Portal abgeben."
+	if a.ResponseDeadline != nil {
+		intro = fmt.Sprintf("für Ihr Kind fehlt noch eine Rückmeldung zu dieser Umfrage. Bitte antworten Sie bis zum %s im Eltern-Portal.",
+			a.ResponseDeadline.Format("02.01.2006"))
+	}
+	return s.enqueueReminderEmails(ctx, a, recipients, pollReminderEmailKicker, intro, s.parentsURL)
+}
+
+// enqueueReminderEmails is the shared reminder send used by both the poll and
+// the Elternbrief. Only the wording and the link differ between them; the
+// consent rule, the address dedupe and the outbox bookkeeping must not.
+func (s *service) enqueueReminderEmails(
+	ctx context.Context,
+	a *usersModels.ParentAnnouncement,
+	recipients []*usersModels.AnnouncementPollReminderRecipient,
+	kicker, intro, portalURL string,
+) ([]int64, error) {
 	if s.outbox == nil {
 		s.logger.Warn("poll reminder requested but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
@@ -323,12 +340,6 @@ func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
 	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
-	intro := "für Ihr Kind fehlt noch eine Rückmeldung zu dieser Umfrage. Sie können sie im Eltern-Portal abgeben."
-	if a.ResponseDeadline != nil {
-		intro = fmt.Sprintf("für Ihr Kind fehlt noch eine Rückmeldung zu dieser Umfrage. Bitte antworten Sie bis zum %s im Eltern-Portal.",
-			a.ResponseDeadline.Format("02.01.2006"))
-	}
-
 	queuedAccountIDs := make([]int64, 0, len(recipients))
 	seenEmails := make(map[string]struct{}, len(recipients))
 	for _, r := range recipients {
@@ -348,10 +359,10 @@ func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.
 				emailPayloadLastName:    r.LastName,
 				emailPayloadTitle:       a.Title,
 				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   s.parentsURL,
+				emailPayloadPortalURL:   portalURL,
 				emailPayloadLogoURL:     logoURL,
 				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      pollReminderEmailKicker,
+				emailPayloadKicker:      kicker,
 				emailPayloadIntro:       intro,
 			},
 			// Reminders have their own related type so cleanup can cancel pending
@@ -359,7 +370,7 @@ func (s *service) enqueuePollReminderEmails(ctx context.Context, a *usersModels.
 			RelatedEntityType: relatedEntityTypePollReminder,
 			RelatedEntityID:   a.ID,
 		}); err != nil {
-			return nil, fmt.Errorf("announcement: enqueue poll reminder e-mail: %w", err)
+			return nil, fmt.Errorf("announcement: enqueue reminder e-mail: %w", err)
 		}
 		queuedAccountIDs = append(queuedAccountIDs, r.AccountID)
 	}

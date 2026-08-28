@@ -119,16 +119,33 @@ function NewsCardMeta({
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
       <span className={typeClass}>{type}</span>
+      {isBindingLetter(item) && !item.acknowledged && (
+        <>
+          <span className="text-gray-300" aria-hidden="true">
+            ·
+          </span>
+          <span className="text-moto-amber-strong">{t("newsLetterBadge")}</span>
+        </>
+      )}
       {item.priority === "important" && (
         <>
           <span className="text-gray-300" aria-hidden="true">
             ·
           </span>
-          <span className="text-[#9A4F00]">{t("newsImportant")}</span>
+          <span className="text-moto-amber-strong">{t("newsImportant")}</span>
         </>
       )}
     </span>
   );
+}
+
+/**
+ * A binding Elternbrief (#2384): the same text also arrived by e-mail, and the
+ * confirmation in the portal is the one that counts. Older announcements have no
+ * delivery_mode at all, which correctly reads as "not a letter".
+ */
+function isBindingLetter(item: ParentAnnouncement): boolean {
+  return item.delivery_mode === "letter";
 }
 
 function NewsCardState({
@@ -606,7 +623,9 @@ function NewsActionContext({
           )}
         </div>
         <p className="mt-0.5 text-sm leading-6 text-gray-600">
-          {t("newsAcknowledgementHint")}
+          {isBindingLetter(item)
+            ? t("newsLetterBindingHint")
+            : t("newsAcknowledgementHint")}
         </p>
       </div>
     </div>

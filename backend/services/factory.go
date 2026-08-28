@@ -2201,6 +2201,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Outbox:      emailOutboxService,
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
+		Deliveries:  repos.EmailDelivery,
 		ParentsURL:  parentsURL,
 		Logger:      logger.With("service", "announcement"),
 	})

@@ -11,6 +11,8 @@ import (
 type ProjectionStatus string
 
 const (
+	// ProjectionSchemaVersion identifies projections that include source locations.
+	ProjectionSchemaVersion = 2
 	// ProjectionAllowed marks a dependency permitted by the target policy.
 	ProjectionAllowed ProjectionStatus = "allowed"
 	// ProjectionLegacy marks a violation recorded in the exact legacy baseline.
@@ -58,6 +60,7 @@ type ProjectionViolation struct {
 	SourcePackage string           `json:"source_package,omitempty"`
 	TargetPackage string           `json:"target_package,omitempty"`
 	Status        ProjectionStatus `json:"status"`
+	Locations     []Location       `json:"locations"`
 }
 
 // TargetProjection builds the policy-only target module graph.
@@ -154,7 +157,7 @@ func newOwnerProjection(kind string, policy *Policy, includeEmpty bool, includeO
 		nodes = append(nodes, ProjectionNode{ID: owner, Kind: kinds[owner], Packages: paths})
 	}
 	sort.Slice(nodes, func(i, j int) bool { return nodes[i].ID < nodes[j].ID })
-	return Projection{SchemaVersion: 1, Kind: kind, Build: policy.Build, Nodes: nodes, Edges: []ProjectionEdge{}, Violations: []ProjectionViolation{}}
+	return Projection{SchemaVersion: ProjectionSchemaVersion, Kind: kind, Build: policy.Build, Nodes: nodes, Edges: []ProjectionEdge{}, Violations: []ProjectionViolation{}}
 }
 
 func targetOwnerKind(kind string) bool {
@@ -436,7 +439,7 @@ func projectViolations(policy *Policy, violations []Violation, statuses map[stri
 			Key: violation.Key(), Rule: violation.Rule, Source: violation.Source, Target: violation.Target,
 			SourceOwner: sourceOwner, TargetOwner: targetOwner,
 			SourcePackage: policy.relativePackageForTarget(violation.Source), TargetPackage: policy.relativePackageForTarget(violation.Target),
-			Status: statuses[violation.Key()],
+			Status: statuses[violation.Key()], Locations: uniqueSortedLocations(violation.Locations),
 		})
 	}
 	return result
@@ -601,7 +604,7 @@ func incidentViolations(violations []ProjectionViolation, focus string, nodes []
 func packageProjection(policy *Policy, graph *Graph, baseline *LegacyManifest) Projection {
 	violations := Check(policy, graph)
 	statuses := violationStatuses(violations, baseline)
-	projection := Projection{SchemaVersion: 1, Kind: "dependencies", Build: policy.Build, Nodes: packageNodes(policy, graph), Violations: projectViolations(policy, violations, statuses)}
+	projection := Projection{SchemaVersion: ProjectionSchemaVersion, Kind: "dependencies", Build: policy.Build, Nodes: packageNodes(policy, graph), Violations: projectViolations(policy, violations, statuses)}
 	edges := make(map[string]*projectionEdgeBuilder)
 	packages := policy.packageMap()
 	external := policy.externalPackageMap()
