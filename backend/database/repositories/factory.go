@@ -89,6 +89,9 @@ type Factory struct {
 	StaffQualification userModels.StaffQualificationRepository
 	StaffFinancialData userModels.StaffFinancialDataRepository
 
+	// Guardian payment data (#2608)
+	GuardianFinancialData userModels.GuardianFinancialDataRepository
+
 	// Staff documents (#1424)
 	StaffDocument   userModels.StaffDocumentRepository
 	StudentDocument userModels.StudentDocumentRepository
@@ -197,6 +200,7 @@ type Factory struct {
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
+	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
 	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 	BookingConsistency           auditModels.BookingConsistencyRepository
@@ -322,6 +326,9 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffQualification: users.NewStaffQualificationRepository(db),
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
 
+		// Guardian payment data (#2608)
+		GuardianFinancialData: users.NewGuardianFinancialDataRepository(db),
+
 		// Staff documents (#1424)
 		StaffDocument:   users.NewStaffDocumentRepository(db),
 		StudentDocument: users.NewStudentDocumentRepository(db),
@@ -429,6 +436,7 @@ func NewFactory(db *bun.DB) *Factory {
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
+		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(db),
 		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 		BookingConsistency:           audit.NewBookingConsistencyRepository(db),

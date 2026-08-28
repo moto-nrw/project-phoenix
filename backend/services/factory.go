@@ -125,6 +125,7 @@ type Factory struct {
 	StudentChangeLogCleanup  users.StudentChangeLogCleanupService
 	Instance                 schedule.InstanceService
 	AutoStart                schedule.AutoStartService
+	AutoEnd                  schedule.AutoEndService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	Birthdays                users.BirthdayService
@@ -485,6 +486,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RoleRepo:                repos.Role,
 		StudentRepo:             repos.Student,
 		PersonRepo:              repos.Person,
+		GuardianFinancialRepo:   repos.GuardianFinancialData,
+		GuardianFinancialAudit:  repos.GuardianFinancialChange,
+		DataAccessLog:           repos.DataAccessLog,
 		Mailer:                  mailer,
 		Dispatcher:              dispatcher,
 		FrontendURL:             frontendURL,
@@ -1133,6 +1137,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:         repos.ActiveVisit,
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
+	autoEndService := schedule.NewAutoEndService(repos.ActivityInstance, instanceService)
 
 	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -1155,6 +1160,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveService:      activeService,
 		ArrivalService:     arrivalScheduleService,
+		PickupService:      pickupScheduleService,
 		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
 		VisitRepo:          repos.ActiveVisit,
@@ -1264,23 +1270,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:       repos.GuardianInvitation,
-		AccountRepo:          repos.Account,
-		AccountTenantRepo:    repos.AccountTenant,
-		AccountRoleRepo:      repos.AccountRole,
-		RoleRepo:             repos.Role,
-		PersonRepo:           repos.Person,
-		GuardianProfileRepo:  repos.GuardianProfile,
-		StudentGuardianRepo:  repos.StudentGuardian,
-		StudentRepo:          repos.Student,
-		SchoolRepo:           repos.School,
-		OutboxEnqueuer:       emailOutboxService,
-		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
-		SettingsResolver:     settingsService,
-		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:       invitationTokenExpiry,
-		DB:                   db,
-		Logger:               authLogger.With("flow", "guardian_invitation"),
+		InvitationRepo:         repos.GuardianInvitation,
+		AccountRepo:            repos.Account,
+		AccountTenantRepo:      repos.AccountTenant,
+		AccountRoleRepo:        repos.AccountRole,
+		RoleRepo:               repos.Role,
+		PersonRepo:             repos.Person,
+		GuardianProfileRepo:    repos.GuardianProfile,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		GuardianFinancialAudit: repos.GuardianFinancialChange,
+		StudentRepo:            repos.Student,
+		SchoolRepo:             repos.School,
+		OutboxEnqueuer:         emailOutboxService,
+		EnrollmentBackfiller:   repos.ParentEnrollmentRequest,
+		SettingsResolver:       settingsService,
+		FrontendURL:            parentsURL, // accept link goes to the parents portal, not the staff frontend
+		FallbackExpiry:         invitationTokenExpiry,
+		DB:                     db,
+		Logger:                 authLogger.With("flow", "guardian_invitation"),
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
@@ -1702,6 +1709,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:                repos.Staff,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
+		GuardianFinancialAudit:   repos.GuardianFinancialChange,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		PickupScheduleRepo:       repos.StudentPickupSchedule,
@@ -2461,6 +2469,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentChangeLogCleanup:  studentChangeLogCleanupService,
 		Instance:                 instanceService,
 		AutoStart:                autoStartService,
+		AutoEnd:                  autoEndService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		Birthdays:                birthdayService,

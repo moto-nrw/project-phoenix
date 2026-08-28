@@ -217,11 +217,13 @@ GET /api/guardians/
 GET /api/guardians/invitable
 GET /api/guardians/invitations/pending
 GET /api/guardians/invitations/pending-approval
+GET /api/guardians/payment-overview
 GET /api/guardians/search
 GET /api/guardians/students/{studentId}/guardians
 GET /api/guardians/without-account
 GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
+GET /api/guardians/{id}/payment
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
 GET /api/import/class-list-entries/template
@@ -614,10 +616,12 @@ POST /api/groups/{id}/transfer/
 POST /api/guardians/
 POST /api/guardians/invitations/{invitationId}/approve
 POST /api/guardians/invitations/{invitationId}/reject
+POST /api/guardians/payment-overview/export
 POST /api/guardians/students/{studentId}/guardians
 POST /api/guardians/students/{studentId}/guardians/batch
 POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
+POST /api/guardians/{id}/payment/reveal
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
 POST /api/import/class-list-entries/import
@@ -887,7 +891,9 @@ PUT /api/enrollment/schema/{id}
 PUT /api/files/folders/{folderId}
 PUT /api/groups/{id}
 PUT /api/guardians/relationships/{relationshipId}
+PUT /api/guardians/students/{studentId}/payer
 PUT /api/guardians/{id}
+PUT /api/guardians/{id}/payment
 PUT /api/guardians/{id}/phone-numbers/{phoneId}
 PUT /api/iot/*/{id}
 PUT /api/iot/session/{sessionId}/supervisors

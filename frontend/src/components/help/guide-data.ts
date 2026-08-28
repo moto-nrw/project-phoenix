@@ -17,6 +17,7 @@ import {
   FolderOpen,
   GraduationCap,
   KeyRound,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -663,6 +664,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
+          "Im Tab `Erziehungsberechtigte` steht unten der Block `Zahlungskonto`. Dort wählen Sie, wer für dieses Kind zahlt, und tragen die IBAN dieser Person ein. Sichtbar ist der Block nur mit der Berechtigung `Bankverbindungen`.",
           "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen – die Zeiten selbst bearbeiten Sie über `Zeiten bearbeiten` im Tab `Betreuungszeiten`.",
           "Tab `Betreuungszeiten`: die Ankunfts- und Abholzeiten des Kindes verwalten. Es gibt genau zwei Wege. Auf einer Tageskarte führt `Ausnahme eintragen` zu einer Änderung nur für diesen einen Tag; neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein `Grund`. Die Schaltfläche `Wochenplan` oben rechts öffnet die festen Zeiten aller Wochentage samt der Notizen, die jede Woche gelten. Ausnahmen bleiben bestehen, wenn der Wochenplan geändert wird; würde eine geleerte Zeit einen Eintrag entfernen, fragt die App vorher nach.",
           "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
@@ -692,6 +694,29 @@ export const appChapters: readonly GuideChapter[] = [
               "Dialog „Krankmeldung planen“: „Zeitraum“ wählen, Von- und Bis-Datum prüfen und die angezeigte Anzahl der Tage vor dem Speichern kontrollieren.",
           },
         ],
+      },
+      {
+        id: "bankverbindungen",
+        title: "Bankverbindungen",
+        icon: Landmark,
+        summary:
+          "Hinterlegen Sie je Kind, von welchem Konto der Beitrag eingezogen wird, und laden Sie alle Bankverbindungen als Liste herunter.",
+        steps: [
+          "Das Kind öffnen und in den Tab `Erziehungsberechtigte` wechseln.",
+          "Im Block `Zahlungskonto` unter `Wer zahlt für dieses Kind?` die Person auswählen. Zur Auswahl stehen nur die Erziehungsberechtigten dieses Kindes.",
+          "Auf `IBAN eintragen` klicken, die IBAN eingeben und speichern. moto prüft die IBAN und weist falsche Eingaben zurück.",
+          "Läuft das Konto auf einen anderen Namen, tragen Sie diesen unter `Anderer Kontoinhaber` ein. Sonst bleibt das Feld leer.",
+          "Später zeigt moto nur die letzten vier Ziffern. Mit `Anzeigen` sehen Sie die ganze IBAN.",
+          "Die gesammelte Liste finden Sie in der Seitenleiste unter `Eltern` -> `Bankverbindungen`. Mit `Ohne IBAN` sehen Sie nur die Kinder, bei denen noch etwas fehlt.",
+          "Format wählen (PDF, Excel oder Word) und auf `Herunterladen` klicken.",
+        ],
+        callout: {
+          title: "Geschwister nur einmal pflegen",
+          body: "Die IBAN gehört zur Person, nicht zum Kind. Tragen Sie bei einem zweiten Kind dieselbe Person als Zahlungskonto ein, gilt die IBAN dort automatisch mit. Sie müssen sie nur einmal eingeben.",
+          tone: "green",
+        },
+        screenshot:
+          "Block Zahlungskonto im Tab Erziehungsberechtigte sowie die Seite Bankverbindungen mit der Liste je Kind und den Export-Schaltflächen.",
       },
       {
         id: "eltern-konten-verbinden",
@@ -1142,6 +1167,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Voraussetzung: die Lehrkraft hat schon einen Zugang zu moto schule (siehe `Lehrkraft-Zugang mit Klassenansicht`).",
           "Im `Betreuungsplan` den Termin öffnen und die Lehrkraft als Person eintragen, wie jede andere Betreuungskraft auch. Eine eigene Rolle braucht sie dafür nicht.",
           "Die Lehrkraft findet den Termin am selben Tag in moto schule unter `Meine Aufsichten`. Sie startet die Aufsicht, hakt die Kinder ab und beendet sie am Ende.",
+          "In der Kinderliste steht die `Gehzeit` direkt an jedem Kind. Die Zeit gilt für das Datum der Aufsicht. Ohne Gehzeit steht dort `—`.",
           "Tippt sie in der Liste auf den Namen eines Kindes, sieht sie für dieses Kind die Abholzeit, den Heimweg, wer abholen darf und die Notfallkontakte. Jeder dieser Aufrufe wird im Zugriffsprotokoll vermerkt.",
           "Nehmen Sie die Einteilung wieder heraus, ist die Aufsicht für die Lehrkraft sofort weg. Sie sieht dann auch die Kinder dieser Aufsicht nicht mehr.",
         ],
@@ -1268,6 +1294,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Hat ein Regeltermin noch nicht begonnen, zeigt das Bearbeiten der Serie (Ansicht `Serien` -> `Bearbeiten`) in Schritt 1 zusätzlich das Feld `Serienbeginn` mit dem gespeicherten Startdatum. Dort ziehen Sie den Beginn auf ein früheres Datum vor, zum Beispiel vom 13.08. auf den 12.08. Neue Termine entstehen nur zwischen neuem und bisherigem Beginn an den gewählten Wochentagen; bereits geplante Termine bleiben unverändert. Das Datum darf nicht in der Vergangenheit liegen und muss im Planungszeitraum bleiben; ein späterer Beginn ist nicht möglich.",
           "Beim Löschen eines Serientermins wählen Sie zwischen `Nur diese Woche` und `Ab jetzt dauerhaft`; frühere Termine bleiben erhalten. Liegt der Termin in der Vergangenheit, entfällt die Auswahl und der Termin wird direkt gelöscht: Ein Regeltermin lässt sich nur ab heute beenden. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
           "Geplante Termine erscheinen schon vor ihrer Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes`. Die Schaltfläche zeigt die genaue Uhrzeit, ab der der Termin gestartet werden kann; den Vorlauf legen Admins unter `Einstellungen` -> `Betrieb` fest. In einer aktiven Aufsicht stehen Aktivität, Raum und vollständige Planzeit gemeinsam im Kopf.",
+          "Öffnen Sie die Anwesenheitsliste eines geplanten oder laufenden Termins. Jede Kinderzeile zeigt die `Gehzeit` für das Datum des Termins. Ohne Gehzeit steht dort `—`.",
+          "Kann moto die Gehzeiten nicht laden, zeigt die Liste einen Hinweis. Die Anwesenheitsliste bleibt verfügbar.",
           "`Beenden` zeigt vor der Bestätigung das Planende sowie Anzahl und Namen der noch anwesenden Kinder. Geplante Termine lassen sich standardmäßig erst ab Planende beenden; Admins können diese Grenze unter `Einstellungen` -> `Betrieb` abschalten. Nach dem Beenden kann die Person, die beendet hat, oder ein Admin die Aktivität fünf Minuten lang mit `Rückgängig` wieder öffnen.",
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
@@ -2229,6 +2257,25 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Sektion Indikatoren im Reiter Betrieb mit eingeschalteten Aktivitäts-Indikatoren und den Begriffen Mensa und Hausaufgaben.",
         image: "/help/screens/einstellungen.webp",
+      },
+      {
+        id: "einstellungen-terminende",
+        title: "Laufende Termine automatisch beenden",
+        icon: CircleStop,
+        summary:
+          "moto kann gestartete Termine nach der Endzeit beenden. Sie wählen den Puffer.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen. Zur Sektion `Betreuungsplan` scrollen.",
+          "`Laufende Termine automatisch beenden` einschalten.",
+          "Den `Puffer nach Endzeit` in ganzen Minuten eintragen.",
+          "Bei `0` endet der Termin direkt zur Endzeit. Bei `15` endet er 15 Minuten später.",
+          "Nur Termine aus dem Betreuungsplan werden beendet. Spontane Aktivitäten bleiben offen.",
+          "Nie gestartete Termine bleiben unter `Nicht gestartet` sichtbar.",
+          "Beendete Termine stehen unter `Beendete und abgelaufene Blöcke`.",
+        ],
+        screenshot:
+          "Sektion Betreuungsplan mit eingeschaltetem automatischem Terminende und dem Puffer nach Endzeit.",
+        image: "/help/screens/automatisches-terminende.webp",
       },
       {
         id: "einstellungen-angebotsabgleich-gehzeiten",

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -30,7 +31,7 @@ func TestCheckRejectsUnsupportedSchemaVersion(t *testing.T) {
 	if err == nil {
 		t.Fatalf("check unexpectedly succeeded:\n%s", output)
 	}
-	if !strings.Contains(output, "schema_version must be 1, got 2") {
+	if !strings.Contains(output, "schema_version must be 2, got 3") {
 		t.Fatalf("check error does not identify the unsupported schema:\n%s", output)
 	}
 }
@@ -70,6 +71,51 @@ func TestCheckRejectsDuplicatePackageClassification(t *testing.T) {
 	}
 	if !strings.Contains(output, `package "target" is classified more than once`) {
 		t.Fatalf("check error does not identify the duplicate classification:\n%s", output)
+	}
+}
+
+func TestCheckRejectsMissingOrConflictingTableOwners(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		policy  string
+		message string
+	}{
+		{name: "missing owner", policy: "missing-table-owner.json", message: `data object "fixture.records" has no write owner`},
+		{name: "conflicting owners", policy: "conflicting-table-owners.json", message: `data object "fixture.records" has conflicting write owners "source" and "target"`},
+	}
+
+	for _, tt := range tests {
+		tc := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			output, err := runArchitecture(t, "check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, tc.policy))
+			if err == nil {
+				t.Fatalf("check unexpectedly succeeded:\n%s", output)
+			}
+			if !strings.Contains(output, tc.message) {
+				t.Fatalf("check error does not contain %q:\n%s", tc.message, output)
+			}
+		})
+	}
+}
+
+func TestCheckRejectsInvalidReadProjection(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ policy, message string }{
+		{policy: "unsafe-read-projection.json", message: `read projection "fixture-view" must be explicitly tenant-safe`},
+		{policy: "invalid-read-projection-role.json", message: `read projection "fixture-view" package "target" must have role "adapter" or "postgres"`},
+	}
+	for _, tt := range tests {
+		output, err := runArchitecture(t, "check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, tt.policy))
+		if err == nil {
+			t.Fatalf("check unexpectedly succeeded:\n%s", output)
+		}
+		if !strings.Contains(output, tt.message) {
+			t.Fatalf("check error does not contain %q:\n%s", tt.message, output)
+		}
 	}
 }
 
@@ -213,6 +259,180 @@ func TestCheckCoversAllowedAndForbiddenVerticalEdges(t *testing.T) {
 	}
 }
 
+func TestCheckAllowsOwnedTableAccessThroughPostgresAdapter(t *testing.T) {
+	t.Parallel()
+
+	output, err := runArchitecture(t, "check", "--project", fixturePath(t, "semantic", "valid"), "--policy", fixturePath(t, "semantic", "valid", "policy.json"))
+	if err != nil {
+		t.Fatalf("owned table access failed: %v\n%s", err, output)
+	}
+}
+
+func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
+	t.Parallel()
+
+	output, err := runArchitecture(t, "check", "--project", fixturePath(t, "semantic", "invalid"), "--policy", fixturePath(t, "semantic", "invalid", "policy.json"))
+	if err == nil {
+		t.Fatalf("semantic violations unexpectedly succeeded:\n%s", output)
+	}
+
+	for _, want := range expectedSemanticViolationKeys() {
+		if !strings.Contains(output, want) {
+			t.Errorf("check did not report semantic violation %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "tables.foreign-read|example.test/architecture-semantic/projection|beta.records") {
+		t.Fatalf("tenant-safe projection read was rejected:\n%s", output)
+	}
+	if strings.Contains(output, "database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.MixedDB.Close") {
+		t.Fatalf("unrelated interface method was reported as database access:\n%s", output)
+	}
+}
+
+func expectedSemanticViolationKeys() []string {
+	return slices.Concat(
+		expectedTableViolationKeys(),
+		expectedContractViolationKeys(),
+		expectedDatabaseViolationKeys(),
+		expectedCompositionViolationKeys(),
+	)
+}
+
+func expectedTableViolationKeys() []string {
+	return []string{
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.comma_source",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.comma_table_expr",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.delete_source",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.fragment_records",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.joined_records",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.merge_source",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.records",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.qualified_records",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.table_expr_join",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.hidden_records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.merged_records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.truncated_records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.truncate_query_records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.later_truncated_records",
+		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.Exec",
+		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.ColumnExpr",
+		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.Join",
+		"production|tables.foreign-write|example.test/architecture-semantic/projection|beta.records",
+		"production|tables.unclassified|example.test/architecture-semantic/unknown|ghost.records",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.TableExpr",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.Where",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.ColumnExpr",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.OrderExpr",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.Exec",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.ExecContext",
+		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.fragment_records",
+		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
+		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
+	}
+}
+
+func expectedContractViolationKeys() []string {
+	return []string{
+		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Leaky",
+		"production|contracts.repository-type|example.test/architecture-semantic/public|public.Leaky",
+		"production|contracts.filter-map|example.test/architecture-semantic/public|public.Leaky",
+		"production|contracts.internal-model|example.test/architecture-semantic/public|public.Leaky",
+		"production|contracts.orm-tag|example.test/architecture-semantic/public|public.Leaky",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Get",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.New.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewRecursive.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewAnonymous.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewImported.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewShared.First.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewShared.Second.List",
+	}
+}
+
+func expectedDatabaseViolationKeys() []string {
+	return []string{
+		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
+		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.Begin",
+		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Conn.ExecContext",
+		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Stmt.Exec",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SelectDB.NewSelect",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SQLDB.ExecContext",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.PingDB.Ping",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.PingDB.PingContext",
+	}
+}
+
+func expectedCompositionViolationKeys() []string {
+	return []string{
+		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
+		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.NewFactory",
+	}
+}
+
+func TestPolicyRejectsLegacyReferencesOutsideCompositionPackages(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*architecture.Package){
+		"domain owner":     func(pkg *architecture.Package) { pkg.Owner = "alpha" },
+		"non-compose role": func(pkg *architecture.Package) { pkg.Role = "application" },
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+			if err != nil {
+				t.Fatalf("load policy: %v", err)
+			}
+			for i := range policy.Packages {
+				if policy.Packages[i].Path == "legacy" {
+					mutate(&policy.Packages[i])
+					break
+				}
+			}
+			if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition package "legacy" must have a composition owner and compose role`) {
+				t.Fatalf("legacy package outside composition was accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestPolicyRejectsLegacyPackageAliasesWithDuplicateSymbols(t *testing.T) {
+	t.Parallel()
+
+	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	policy.LegacyComposition = append(policy.LegacyComposition, architecture.LegacyReference{
+		Package: "/legacy",
+		Symbols: []string{"Factory"},
+	})
+	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition symbol "example.test/architecture-semantic/legacy.Factory" is declared more than once`) {
+		t.Fatalf("duplicate legacy symbol package aliases were accepted: %v", err)
+	}
+}
+
+func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) {
+	t.Parallel()
+
+	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	policy.ReadProjections = append(policy.ReadProjections, architecture.ReadProjection{
+		ID:          "duplicate-projection",
+		Package:     "/projection",
+		DataObjects: []string{"beta.records"},
+		TenantSafe:  true,
+	})
+	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `both grant package "/projection" access to data object "beta.records"`) {
+		t.Fatalf("projection package aliases were accepted: %v", err)
+	}
+}
+
 func TestCanonicalPolicyClassifiesTheEntireBackend(t *testing.T) {
 	t.Parallel()
 
@@ -231,11 +451,26 @@ func TestCanonicalPolicyClassifiesTheEntireBackend(t *testing.T) {
 }
 
 func runArchitecture(t *testing.T, args ...string) (string, error) {
+	return runArchitectureWithEnv(t, nil, args...)
+}
+
+func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ...string) (string, error) {
 	t.Helper()
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
 	command := exec.Command(filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
 	command.Dir = root
+	command.Env = os.Environ()
+	for key, value := range environment {
+		prefix := key + "="
+		filtered := command.Env[:0]
+		for _, variable := range command.Env {
+			if !strings.HasPrefix(variable, prefix) {
+				filtered = append(filtered, variable)
+			}
+		}
+		command.Env = append(filtered, prefix+value)
+	}
 	output, err := command.CombinedOutput()
 	return string(output), err
 }

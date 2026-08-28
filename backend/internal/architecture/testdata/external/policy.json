@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "policy_epoch": 1,
   "module_path": "example.test/architecture-external-app",
   "shared_kernel_types": [
@@ -33,6 +33,9 @@
       "external_test_role": "module-behavior-test"
     }
   ],
+  "data_objects": [],
+  "read_projections": [],
+  "legacy_composition": [],
   "external_classes": [],
   "external_packages": [],
   "rules": []

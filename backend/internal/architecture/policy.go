@@ -3,6 +3,7 @@ package architecture
 import (
 	"encoding/json"
 	"fmt"
+	"go/token"
 	"io"
 	"os"
 	"regexp"
@@ -18,10 +19,30 @@ type Policy struct {
 	Owners            []Owner           `json:"owners"`
 	Roles             []string          `json:"roles"`
 	Packages          []Package         `json:"packages"`
+	DataObjects       []DataObject      `json:"data_objects"`
+	ReadProjections   []ReadProjection  `json:"read_projections"`
+	LegacyComposition []LegacyReference `json:"legacy_composition"`
 	SharedKernelTypes []string          `json:"shared_kernel_types"`
 	ExternalClasses   []string          `json:"external_classes"`
 	ExternalPackages  []ExternalPackage `json:"external_packages"`
 	Rules             []Rule            `json:"rules"`
+}
+
+type DataObject struct {
+	Name       string `json:"name"`
+	WriteOwner string `json:"write_owner"`
+}
+
+type ReadProjection struct {
+	ID          string   `json:"id"`
+	Package     string   `json:"package"`
+	DataObjects []string `json:"data_objects"`
+	TenantSafe  bool     `json:"tenant_safe"`
+}
+
+type LegacyReference struct {
+	Package string   `json:"package"`
+	Symbols []string `json:"symbols"`
 }
 
 type Build struct {
@@ -87,8 +108,11 @@ func LoadPolicy(path string) (*Policy, error) {
 		return nil, fmt.Errorf("open policy: %w", err)
 	}
 	defer func() { _ = file.Close() }()
+	return DecodePolicy(file)
+}
 
-	decoder := json.NewDecoder(file)
+func DecodePolicy(reader io.Reader) (*Policy, error) {
+	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var policy Policy
 	if err := decoder.Decode(&policy); err != nil {
@@ -122,6 +146,16 @@ func (p *Policy) Validate() error {
 	if err := p.validatePackages(owners, roles); err != nil {
 		return err
 	}
+	dataObjects, err := p.validateDataObjects(owners)
+	if err != nil {
+		return err
+	}
+	if err := p.validateReadProjections(owners, dataObjects); err != nil {
+		return err
+	}
+	if err := p.validateLegacyComposition(owners); err != nil {
+		return err
+	}
 	if err := p.validateExternalPackages(classes); err != nil {
 		return err
 	}
@@ -129,8 +163,8 @@ func (p *Policy) Validate() error {
 }
 
 func (p *Policy) validateHeader() error {
-	if p.SchemaVersion != 1 {
-		return fmt.Errorf("schema_version must be 1, got %d", p.SchemaVersion)
+	if p.SchemaVersion != 2 {
+		return fmt.Errorf("schema_version must be 2, got %d", p.SchemaVersion)
 	}
 	if p.PolicyEpoch < 1 {
 		return fmt.Errorf("policy_epoch must be a positive integer")
@@ -147,8 +181,8 @@ func (p *Policy) validateHeader() error {
 	if p.Build.CGOEnabled == nil || *p.Build.CGOEnabled {
 		return fmt.Errorf("build.cgo_enabled must be explicitly false")
 	}
-	if p.Owners == nil || p.Roles == nil || p.Packages == nil || p.SharedKernelTypes == nil || p.ExternalClasses == nil || p.ExternalPackages == nil || p.Rules == nil {
-		return fmt.Errorf("owners, roles, packages, shared_kernel_types, external_classes, external_packages, and rules are required")
+	if p.Owners == nil || p.Roles == nil || p.Packages == nil || p.DataObjects == nil || p.ReadProjections == nil || p.LegacyComposition == nil || p.SharedKernelTypes == nil || p.ExternalClasses == nil || p.ExternalPackages == nil || p.Rules == nil {
+		return fmt.Errorf("owners, roles, packages, data_objects, read_projections, legacy_composition, shared_kernel_types, external_classes, external_packages, and rules are required")
 	}
 	if len(p.Owners) == 0 || len(p.Roles) == 0 || len(p.Packages) == 0 {
 		return fmt.Errorf("owners, roles, and packages must not be empty")
@@ -158,6 +192,120 @@ func (p *Policy) validateHeader() error {
 		return fmt.Errorf("shared_kernel_types must be exactly %v", wantKernel)
 	}
 	return nil
+}
+
+func (p *Policy) validateDataObjects(owners map[string]Owner) (map[string]DataObject, error) {
+	objects := make(map[string]DataObject, len(p.DataObjects))
+	for _, object := range p.DataObjects {
+		if !isDataObjectName(object.Name) {
+			return nil, fmt.Errorf("data object name %q must be schema-qualified", object.Name)
+		}
+		if object.WriteOwner == "" {
+			return nil, fmt.Errorf("data object %q has no write owner", object.Name)
+		}
+		if _, ok := owners[object.WriteOwner]; !ok {
+			return nil, fmt.Errorf("data object %q references unknown write owner %q", object.Name, object.WriteOwner)
+		}
+		if kind := owners[object.WriteOwner].Kind; kind != "domain" && kind != "platform" && kind != "migration" {
+			return nil, fmt.Errorf("data object %q write owner %q has non-owning kind %q", object.Name, object.WriteOwner, kind)
+		}
+		if previous, exists := objects[object.Name]; exists {
+			if previous.WriteOwner != object.WriteOwner {
+				return nil, fmt.Errorf("data object %q has conflicting write owners %q and %q", object.Name, previous.WriteOwner, object.WriteOwner)
+			}
+			return nil, fmt.Errorf("data object %q is declared more than once", object.Name)
+		}
+		objects[object.Name] = object
+	}
+	return objects, nil
+}
+
+func (p *Policy) validateReadProjections(owners map[string]Owner, objects map[string]DataObject) error {
+	seen := make(map[string]struct{}, len(p.ReadProjections))
+	seenGrants := make(map[string]string)
+	packages := p.packageMap()
+	for _, projection := range p.ReadProjections {
+		if !identifierPattern.MatchString(projection.ID) {
+			return fmt.Errorf("read projection id %q is invalid", projection.ID)
+		}
+		if _, exists := seen[projection.ID]; exists {
+			return fmt.Errorf("read projection %q is declared more than once", projection.ID)
+		}
+		seen[projection.ID] = struct{}{}
+		pkg, ok := packages[p.absolutePackage(projection.Package)]
+		if !ok {
+			return fmt.Errorf("read projection %q references unknown package %q", projection.ID, projection.Package)
+		}
+		if owners[pkg.Owner].Kind != "projection" {
+			return fmt.Errorf("read projection %q package %q is not owned by a projection", projection.ID, projection.Package)
+		}
+		if pkg.Role != "adapter" && pkg.Role != "postgres" {
+			return fmt.Errorf("read projection %q package %q must have role %q or %q", projection.ID, projection.Package, "adapter", "postgres")
+		}
+		if !projection.TenantSafe {
+			return fmt.Errorf("read projection %q must be explicitly tenant-safe", projection.ID)
+		}
+		if len(projection.DataObjects) == 0 {
+			return fmt.Errorf("read projection %q has no data objects", projection.ID)
+		}
+		if err := p.validateProjectionObjects(projection, objects, seenGrants); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Policy) validateProjectionObjects(projection ReadProjection, objects map[string]DataObject, seenGrants map[string]string) error {
+	projectionObjects := make(map[string]struct{}, len(projection.DataObjects))
+	for _, name := range projection.DataObjects {
+		if _, ok := objects[name]; !ok {
+			return fmt.Errorf("read projection %q references unknown data object %q", projection.ID, name)
+		}
+		if _, exists := projectionObjects[name]; exists {
+			return fmt.Errorf("read projection %q names data object %q more than once", projection.ID, name)
+		}
+		grant := p.absolutePackage(projection.Package) + "|" + name
+		if previous, exists := seenGrants[grant]; exists {
+			return fmt.Errorf("read projections %q and %q both grant package %q access to data object %q", previous, projection.ID, projection.Package, name)
+		}
+		seenGrants[grant] = projection.ID
+		projectionObjects[name] = struct{}{}
+	}
+	return nil
+}
+
+func (p *Policy) validateLegacyComposition(owners map[string]Owner) error {
+	packages := p.packageMap()
+	seen := make(map[string]struct{})
+	for _, legacy := range p.LegacyComposition {
+		packagePath := p.absolutePackage(legacy.Package)
+		pkg, ok := packages[packagePath]
+		if !ok {
+			return fmt.Errorf("legacy composition references unknown package %q", legacy.Package)
+		}
+		if owners[pkg.Owner].Kind != "composition" || pkg.Role != "compose" {
+			return fmt.Errorf("legacy composition package %q must have a composition owner and compose role", legacy.Package)
+		}
+		if len(legacy.Symbols) == 0 {
+			return fmt.Errorf("legacy composition package %q has no symbols", legacy.Package)
+		}
+		for _, symbol := range legacy.Symbols {
+			if !token.IsExported(symbol) {
+				return fmt.Errorf("legacy composition symbol %q.%s is not exported", legacy.Package, symbol)
+			}
+			key := packagePath + "." + symbol
+			if _, exists := seen[key]; exists {
+				return fmt.Errorf("legacy composition symbol %q is declared more than once", key)
+			}
+			seen[key] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func isDataObjectName(name string) bool {
+	parts := strings.Split(name, ".")
+	return len(parts) == 2 && identifierPattern.MatchString(parts[0]) && identifierPattern.MatchString(parts[1])
 }
 
 func (p *Policy) validateOwners() (map[string]Owner, error) {

@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -54,6 +55,14 @@ type GuardianServiceDependencies struct {
 	RoleRepo                authModels.RoleRepository
 	StudentRepo             users.StudentRepository
 	PersonRepo              users.PersonRepository
+
+	// Payment data (#2608). Kept as separate, narrow dependencies so the
+	// guardians:financial code path is the only one holding a reference to
+	// the bank rows. Both audit writers are mandatory for that path: it
+	// refuses to serve or change an IBAN when it cannot write the trail.
+	GuardianFinancialRepo  users.GuardianFinancialDataRepository
+	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
+	DataAccessLog          auditModels.DataAccessLogRepository
 
 	// Email dependencies
 	Mailer           email.Mailer
@@ -248,7 +257,13 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // guardian is still linked to any student — the handler turns that into a 409.
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
-func (s *GuardianService) DeleteGuardian(ctx context.Context, id int64) error {
+func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
+		return err
+	}
 	return s.GuardianProfileRepo.Delete(ctx, id)
 }
 
@@ -262,14 +277,31 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id int64) error {
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
 // in groups the caller may not supervise.
-func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error {
+func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
+		return err
 	}
 
 	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to load guardian links: %w", err)
+	}
+	studentIDs := make([]int64, 0, len(links))
+	for _, link := range links {
+		studentIDs = append(studentIDs, link.StudentID)
+	}
+	if _, err := s.StudentRepo.FindByIDsForUpdate(ctx, studentIDs); err != nil {
+		return fmt.Errorf("failed to lock guardian students: %w", err)
+	}
+	// Reload after acquiring the shared serialization points. A waiting payer
+	// assignment now commits before this read, so its final is_payer state is
+	// either audited below or cannot change until this delete commits.
+	links, err = s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to reload guardian links: %w", err)
 	}
 	currentLinkIDs := make([]int64, 0, len(links))
 	for _, link := range links {
@@ -279,11 +311,60 @@ func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 		return ErrGuardianDeletePreviewChanged
 	}
 	for _, link := range links {
+		if link.IsPayer {
+			if err := s.recordPayerChange(ctx, link.GuardianProfileID, link.StudentID, changedByAccountID, "true", "false"); err != nil {
+				return err
+			}
+		}
 		if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 			return fmt.Errorf("failed to remove guardian link %d: %w", link.ID, err)
 		}
 	}
 	return s.GuardianProfileRepo.Delete(ctx, id)
+}
+
+// auditGuardianFinancialDataDeletion records each stored payment value before
+// the guardian delete cascades to its financial-data row. The caller holds the
+// guardian profile lock and runs in the surrounding tenant transaction.
+func (s *GuardianService) auditGuardianFinancialDataDeletion(ctx context.Context, guardianProfileID, changedByAccountID int64) error {
+	if s.GuardianFinancialRepo == nil {
+		return fmt.Errorf("guardian financial repository is not wired; refusing unaudited deletion")
+	}
+	data, err := s.GuardianFinancialRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return err
+	}
+	if data == nil || !data.HasData() {
+		return nil
+	}
+	if s.GuardianFinancialAudit == nil {
+		return fmt.Errorf("guardian financial audit repository is not wired; refusing unaudited deletion")
+	}
+	if changedByAccountID <= 0 {
+		return fmt.Errorf("changed-by actor id is required")
+	}
+
+	changes := []stammdatenChange{}
+	if data.IBAN != nil && *data.IBAN != "" {
+		changes = append(changes, maskedChange(auditModels.GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
+	}
+	if data.AccountHolder != nil && *data.AccountHolder != "" {
+		changes = append(changes, maskedChange(auditModels.GuardianPaymentFieldAccountHolder,
+			maskAllPtr(data.AccountHolder), nil))
+	}
+	for _, change := range changes {
+		if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{
+			GuardianProfileID: guardianProfileID,
+			ChangedBy:         changedByAccountID,
+			FieldName:         change.field,
+			OldValue:          change.oldValue,
+			NewValue:          change.newValue,
+			Note:              "Erziehungsberechtigte Person gelöscht",
+		}); err != nil {
+			return fmt.Errorf("write guardian payment deletion audit: %w", err)
+		}
+	}
+	return nil
 }
 
 // GetGuardianDeleteImpact returns the exact current affected links and display
@@ -924,12 +1005,50 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 		relationship.EmergencyPriority = *req.EmergencyPriority
 	}
 
-	return s.StudentGuardianRepo.Update(ctx, relationship)
+	if err := relationship.Validate(); err != nil {
+		return err
+	}
+
+	// Column-limited on purpose: is_payer is owned by SetStudentPayer, which
+	// is gated on guardians:financial and writes an audit row. A whole-row
+	// update here would carry the is_payer value this request read back into
+	// the row, so a payer assigned in between (or removed in between) would be
+	// silently undone by an unrelated relationship edit — without the
+	// permission and without a trace.
+	updated, err := s.StudentGuardianRepo.UpdateColumns(ctx, relationship,
+		"relationship_type",
+		"guardian_role",
+		"permissions",
+		"is_primary",
+		"is_emergency_contact",
+		"can_pickup",
+		"pickup_notes",
+		"emergency_priority",
+	)
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return fmt.Errorf("relationship not found: %d", relationshipID)
+	}
+	return nil
 }
 
-// RemoveGuardianFromStudent removes a guardian from a student
-func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID int64) error {
-	// Find the relationship
+// RemoveGuardianFromStudent removes a guardian from a student.
+//
+// mayClearPayer says whether the caller holds guardians:financial. Unlinking
+// the child's payer clears the payer mark, which is a financial decision; a
+// caller without that permission gets ErrPayerRemovalRequiresFinancial and the
+// relationship stays intact. The check runs under the student lock so a payer
+// assigned concurrently cannot slip past it.
+func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+	// The student row serializes this deletion with SetStudentPayer, which
+	// takes the same lock before it reads a relationship's is_payer state.
+	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+		return err
+	}
+
+	// Find the relationship after acquiring the lock so IsPayer is current.
 	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return err
@@ -937,6 +1056,14 @@ func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, student
 
 	for _, rel := range relationships {
 		if rel.GuardianProfileID == guardianProfileID {
+			if rel.IsPayer {
+				if !mayClearPayer {
+					return ErrPayerRemovalRequiresFinancial
+				}
+				if err := s.recordPayerChange(ctx, rel.GuardianProfileID, rel.StudentID, changedByAccountID, "true", "false"); err != nil {
+					return err
+				}
+			}
 			return s.StudentGuardianRepo.Delete(ctx, rel.ID)
 		}
 	}
