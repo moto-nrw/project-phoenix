@@ -49,7 +49,7 @@
     },
     "init_hook": [
       "unset DEVELOPER_DIR",
-      "lefthook install --force > /dev/null 2>&1 || true",
+      "test -x \"$(git rev-parse --git-path hooks/pre-commit)\" && test -x \"$(git rev-parse --git-path hooks/pre-push)\" && test -x \"$(git rev-parse --git-path hooks/post-merge)\" || lefthook install",
       "which goimports > /dev/null 2>&1 || go install golang.org/x/tools/cmd/goimports@latest > /dev/null 2>&1",
       "which deadcode > /dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest > /dev/null 2>&1",
       "which agent-browser > /dev/null 2>&1 || (npm install -g agent-browser > /dev/null 2>&1 && agent-browser install > /dev/null 2>&1)",
