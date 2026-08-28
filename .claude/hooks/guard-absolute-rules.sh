@@ -47,10 +47,14 @@ case "$tool" in
         # wrapped clients (python/node/bash -c) without maintaining a
         # bypassable list of network binaries.
         cmd_lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(curl|wget|xh|httpie|https?|nc|ncat|wscat|fetch)([[:space:]]|$)' &&
+            printf '%s' "$cmd" | grep -Eq '\$[({[:alpha:]_]|<\(|`'; then
+            deny "Blocked: network commands with shell expansion may construct a production hostname. Use localhost; only a human may target production."
+        fi
         while IFS= read -r segment; do
             [[ -n "$segment" ]] || continue
             if printf '%s' "$segment" | grep -Eq 'moto-app\.de|moto\.nrw' &&
-                { ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(rg|grep|cat)([[:space:]]|$)' ||
+                { ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(rg|grep|cat|git[[:space:]]+grep)([[:space:]]|$)' ||
                     printf '%s' "$segment" | grep -Eq '\$\(|<\(|`'; }; then
                 deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
             fi
