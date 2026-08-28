@@ -271,13 +271,13 @@ func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, account
 	var rows []roleKindRow
 	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`auth.account_roles AS "ar"`).
-		ColumnExpr(`ar.account_id AS account_id`).
-		ColumnExpr(`COALESCE(bool_or(role.base_role = ? OR (role.is_system AND lower(btrim(role.name)) = ?)), false) AS is_admin`, authModels.BaseRoleAdmin, authModels.BaseRoleAdmin).
-		ColumnExpr(`COALESCE(bool_or(role.is_system AND lower(btrim(role.name)) = 'lehrkraft'), false) AS is_lehrkraft`).
-		Join(`JOIN auth.roles AS "role" ON role.id = ar.role_id`).
-		Where(`ar.tenant_id = ?`, tenant.FromContext(ctx)).
-		Where(`ar.account_id IN (?)`, bun.List(accountIDs)).
-		GroupExpr(`ar.account_id`).
+		ColumnExpr(`"ar".account_id AS account_id`).
+		ColumnExpr(`COALESCE(bool_or("role".base_role = ? OR ("role".is_system AND lower(btrim("role".name)) = ?)), false) AS is_admin`, authModels.BaseRoleAdmin, authModels.BaseRoleAdmin).
+		ColumnExpr(`COALESCE(bool_or("role".is_system AND lower(btrim("role".name)) = 'lehrkraft'), false) AS is_lehrkraft`).
+		Join(`JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
+		Where(`"ar".tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`"ar".account_id IN (?)`, bun.List(accountIDs)).
+		GroupExpr(`"ar".account_id`).
 		Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: err}

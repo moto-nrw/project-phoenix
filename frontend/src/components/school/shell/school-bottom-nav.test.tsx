@@ -42,6 +42,26 @@ describe("SchoolBottomNav", () => {
     expect(screen.queryByText("Klassenansicht")).not.toBeInTheDocument();
   });
 
+  // Mit dem Team-Chat (#2208) stehen vier Ziele in der Pille; die laengste
+  // Beschriftung passt dort erst ab 420 px. Auf schmaleren Geraeten blendet
+  // CSS sie aus, statt ein Ziel aus der Leiste zu schieben.
+  it("blendet die Beschriftung bei vier Zielen unterhalb von 420 px aus", () => {
+    mockPathname.value = "/aufsichten";
+    render(<SchoolBottomNav teamChat={{ unreadCount: 0, available: true }} />);
+
+    expect(screen.getByText("Meine Aufsichten")).toHaveClass(
+      "hidden",
+      "min-[420px]:inline",
+    );
+  });
+
+  it("beschriftet das aktive Ziel bei drei Zielen auf jeder Breite", () => {
+    mockPathname.value = "/aufsichten";
+    render(<SchoolBottomNav teamChat={teamChat} />);
+
+    expect(screen.getByText("Meine Aufsichten")).not.toHaveClass("hidden");
+  });
+
   it("verschwindet ab der Sidebar-Breite", () => {
     render(<SchoolBottomNav teamChat={teamChat} />);
 

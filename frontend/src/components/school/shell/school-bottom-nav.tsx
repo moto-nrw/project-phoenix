@@ -26,6 +26,13 @@ const SCHOOL_MOBILE_NAV = [...SCHOOL_PRIMARY_NAV, ...SCHOOL_SECONDARY_NAV];
  * die Zeile brauchte 447 px bei 324 px Platz, "Hilfe" lag komplett ausserhalb
  * des Bildschirms und "Meine Aufsichten" ragte über die Pille hinaus.
  *
+ * Mit dem Team-Chat (#2208) sind es vier Ziele, und die längste Beschriftung
+ * ("Meine Aufsichten") braucht dann rund 404 px Fensterbreite. Darunter — also
+ * auf jedem gängigen Telefon — zeigt die Leiste in dieser Besetzung nur die
+ * Icons; das aktive Ziel bleibt an seiner gefüllten Pille erkennbar, der Name
+ * steht weiter im aria-label. Bei drei Zielen bleibt die Beschriftung wie
+ * bisher immer sichtbar.
+ *
  * Kein "Mehr"-Menü und kein gleitender Indikator — dafür sind es zu wenige
  * Ziele. Ab 1024 px übernimmt die Seitennavigation; CSS blendet diese Leiste
  * dort schon beim ersten Paint aus.
@@ -36,6 +43,16 @@ export function SchoolBottomNav({
   readonly teamChat: SchoolTeamChatUnread;
 }) {
   const pathname = usePathname();
+  const items = SCHOOL_MOBILE_NAV.filter(
+    (item) => item.optional !== "teamChat" || teamChat.available === true,
+  );
+  // Ab dem vierten Ziel passt die längste Beschriftung erst ab 420 px in die
+  // Pille. Schmalere Geräte bekommen die Icon-Zeile, statt dass ein Ziel aus
+  // der Leiste geschoben wird.
+  const labelClass =
+    items.length > 3
+      ? "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline"
+      : "text-sm font-semibold whitespace-nowrap";
 
   return (
     <nav
@@ -54,10 +71,7 @@ export function SchoolBottomNav({
       <div className="relative px-4 pb-4">
         <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
           <ul className="flex items-center justify-around gap-1">
-            {SCHOOL_MOBILE_NAV.map((item) => {
-              if (item.optional === "teamChat" && teamChat.available !== true) {
-                return null;
-              }
+            {items.map((item) => {
               const active = isSchoolNavActive(item.href, pathname);
               return (
                 <li key={item.key}>
@@ -90,9 +104,7 @@ export function SchoolBottomNav({
                         )}
                     </span>
                     {active ? (
-                      <span className="text-sm font-semibold whitespace-nowrap">
-                        {item.label}
-                      </span>
+                      <span className={labelClass}>{item.label}</span>
                     ) : null}
                   </Link>
                 </li>
