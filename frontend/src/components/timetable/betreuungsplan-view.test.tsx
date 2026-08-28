@@ -1173,7 +1173,7 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByText("add-series")).toBeDisabled();
   });
 
-  it("normalisiert den Monats-Fallback vom Wochenende auf Montag", () => {
+  it("behält einen nur am Wochenende liegenden Zeitraum als deaktivierten Fallback bei", () => {
     setUrl("view=monat&d=2026-05-09");
     setupSWR({
       periods: [{ ...period, startDate: "2026-05-09", endDate: "2026-05-09" }],
@@ -1181,8 +1181,10 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(mockEventModalProps).toHaveBeenLastCalledWith(
-      expect.objectContaining({ defaultDate: "2026-05-11" }),
+      expect.objectContaining({ defaultDate: "2026-05-09" }),
     );
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
   });
 
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {

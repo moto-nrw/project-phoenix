@@ -1766,7 +1766,7 @@ function TimetablesContent() {
         defaultDate={
           quickPrefill
             ? nextWorkdayISO(quickPrefill.date)
-            : nextWorkdayISO(firstCoveredDateISO ?? dayISO)
+            : (firstCoveredDateISO ?? dayISO)
         }
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}

@@ -8,6 +8,7 @@
 package timetable
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -79,6 +80,10 @@ type parsedCreateInstanceRequest struct {
 	startTime time.Time
 	endTime   time.Time
 }
+
+var errInstanceDateOutsideActiveCalendarPeriod = errors.New(
+	"date must lie within an active calendar period",
+)
 
 func createInstanceIdempotencyKey(r *http.Request) (*string, error) {
 	raw := r.Header.Get("Idempotency-Key")
@@ -188,9 +193,25 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 	}, true
 }
 
+func (rs *Resource) validateInstanceDateInActiveCalendarPeriod(ctx context.Context, date timezone.Date) error {
+	if rs.CalendarPeriodService == nil {
+		return errors.New("calendar period service not wired")
+	}
+	periods, err := rs.CalendarPeriodService.GetActivePeriods(ctx)
+	if err != nil {
+		return fmt.Errorf("get active calendar periods: %w", err)
+	}
+	for _, period := range periods {
+		if period.ContainsDay(date) {
+			return nil
+		}
+	}
+	return errInstanceDateOutsideActiveCalendarPeriod
+}
+
 // createInstance handles POST /api/timetable/instances.
 func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
-	if rs.InstanceService == nil || rs.TimetableData == nil {
+	if rs.InstanceService == nil || rs.TimetableData == nil || rs.CalendarPeriodService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -198,6 +219,15 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 
 	parsed, ok := bindCreateInstanceRequest(w, r)
 	if !ok {
+		return
+	}
+	if err := rs.validateInstanceDateInActiveCalendarPeriod(r.Context(), parsed.date); err != nil {
+		if errors.Is(err, errInstanceDateOutsideActiveCalendarPeriod) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"load active calendar periods failed", err))
 		return
 	}
 	req := parsed.req

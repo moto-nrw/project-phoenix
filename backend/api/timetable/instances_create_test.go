@@ -56,7 +56,14 @@ func buildCreateSetup(t *testing.T) *createSetup {
 	}
 
 	mock := &mockInstanceService{}
+	periodStart := timezone.TodayDate().AddDays(-1)
+	periodEnd := timezone.TodayDate().AddDays(7)
 	res := NewResource(Dependencies{
+		CalendarPeriodService: &mockCalendarPeriodService{periods: []*scheduleModel.CalendarPeriod{{
+			StartDate: periodStart,
+			EndDate:   periodEnd,
+			IsActive:  true,
+		}}},
 		TimetableData:   testTimetableData(db),
 		InstanceService: mock,
 		DB:              db,
@@ -222,6 +229,27 @@ func TestCreateInstance_Validation(t *testing.T) {
 	}
 }
 
+func TestCreateInstance_RejectsDateOutsideActiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildCreateSetup(t)
+	defer s.cleanupFn()
+	router := createRouter(s.ctx, s.res)
+	outsidePeriod := nextTimetableWorkday().AddDays(7)
+
+	w := doCreate(t, router, map[string]any{
+		"date":       outsidePeriod.String(),
+		"start_time": "14:00",
+		"end_time":   "15:00",
+		"title":      "Außerhalb des Zeitraums",
+		"room_id":    s.roomID,
+	})
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "active calendar period")
+	assert.Nil(t, s.mock.lastCreate)
+}
+
 func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	t.Parallel()
 
@@ -287,6 +315,11 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	res := NewResource(Dependencies{
+		CalendarPeriodService: &mockCalendarPeriodService{periods: []*scheduleModel.CalendarPeriod{{
+			StartDate: timezone.TodayDate().AddDays(-1),
+			EndDate:   timezone.TodayDate().AddDays(7),
+			IsActive:  true,
+		}}},
 		TimetableData:   testTimetableData(db),
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
