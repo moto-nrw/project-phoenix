@@ -292,6 +292,8 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrGuardianNoticeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrGuardianNoticeDisabled):
