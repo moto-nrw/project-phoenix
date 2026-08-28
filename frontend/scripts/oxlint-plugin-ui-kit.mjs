@@ -12,6 +12,8 @@
 //                                     OverflowMenu from the kit
 //   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
 //                                     rounded-2xl (moto-content-surface)
+//   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
+//                                     label so its visible box is clickable
 //
 // The baselines below are SHRINK-ONLY: matches may be removed when a file is
 // migrated, but never added. Every existing utility is tracked by value and
@@ -647,11 +649,53 @@ const noRounded3xl = makeClassStringRule({
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md). The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
 });
 
+function jsxName(node) {
+  return node?.type === "JSXIdentifier" ? node.name : null;
+}
+
+function hasLabelAncestor(node) {
+  for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (
+      ancestor.type === "JSXElement" &&
+      jsxName(ancestor.openingElement.name) === "label"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const requireCheckboxLabel = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Require the shared Checkbox and its visible text to share one native label hit area.",
+    },
+    messages: {
+      missingLabel:
+        "Wrap Checkbox and its visible text in one <label>. A sibling label names the hidden input but leaves the visible box unclickable.",
+    },
+    schema: [],
+  },
+  create(context) {
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "Checkbox" || hasLabelAncestor(node)) {
+          return;
+        }
+        context.report({ node, messageId: "missingLabel" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-rounded-3xl": noRounded3xl,
+    "require-checkbox-label": requireCheckboxLabel,
   },
 };
