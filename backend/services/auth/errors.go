@@ -103,6 +103,12 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
+	// ErrCannotRemovePayerGuardian: the link carries the child's payer mark
+	// (#2608). Clearing it is a financial decision that needs
+	// guardians:financial; the parents portal never holds that, so the payer
+	// stays until the school reassigns the payment account. The sentence is
+	// German because the parents portal shows it verbatim.
+	ErrCannotRemovePayerGuardian = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
 	// ErrInviteSocialWorkerManaged: the invited email belongs to a contact
 	// linked to this child as a social worker. That is a school-managed
 	// professional contact — the invite flow must never turn it into a legal

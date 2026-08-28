@@ -23,7 +23,7 @@ import {
 const logger = createLogger({ component: "MasterDataReviewItem" });
 
 // German-only staff UI: the staff shell ships a minimal client message catalog
-// (parentNav only — see shell-nav-intl-provider.tsx), so this page hardcodes its
+// (shell namespaces only — see shell-intl-provider.tsx), so this page hardcodes its
 // German strings like the rest of the staff/admin surface instead of using
 // useTranslations, which would resolve to raw keys here.
 const EMPTY_VALUE = "—";

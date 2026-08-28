@@ -133,6 +133,10 @@ export interface GuardianWithRelationship extends Guardian {
   canPickup: boolean;
   pickupNotes?: string;
   emergencyPriority: number;
+  // Marks this guardian's bank account as the one charged for this child
+  // (#2608). Optional so older payloads and test fixtures stay valid;
+  // consumers default a missing value to false.
+  isPayer?: boolean;
   // Optional: present on data mapped from the backend (always set by
   // mapGuardianWithRelationshipResponse), but omittable in test fixtures and
   // older payloads. Consumers default a missing value to "none".
@@ -150,6 +154,7 @@ export interface BackendGuardianWithRelationship {
   can_pickup: boolean;
   pickup_notes?: string;
   emergency_priority: number;
+  is_payer?: boolean;
   account_status?: GuardianAccountStatus;
 }
 
@@ -305,6 +310,7 @@ export function mapGuardianWithRelationshipResponse(
     isPrimary: data.is_primary,
     isEmergencyContact: data.is_emergency_contact,
     canPickup: data.can_pickup,
+    isPayer: data.is_payer ?? false,
     pickupNotes: data.pickup_notes,
     emergencyPriority: data.emergency_priority,
     // Fall back to deriving from has_account if the backend omits the field

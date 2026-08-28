@@ -91,7 +91,18 @@ type mockSchulhofService struct {
 }
 type mockOperationsService struct {
 	scheduleService.TimetableOperationsService
+	plannedNowFn     func(scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error)
+	activeSessionsFn func() ([]scheduleService.OperationActiveSession, error)
 }
+
+func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, _ timezone.Date, _ time.Time, opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+	return m.plannedNowFn(opts)
+}
+
+func (m *mockOperationsService) ActiveSessions(_ context.Context, _ timezone.Date) ([]scheduleService.OperationActiveSession, error) {
+	return m.activeSessionsFn()
+}
+
 type mockPickupService struct {
 	scheduleService.PickupScheduleService
 	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error)

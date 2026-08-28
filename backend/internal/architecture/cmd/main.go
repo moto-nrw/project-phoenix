@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/architecture"
 )
@@ -18,7 +22,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check or explain")
+		return fmt.Errorf("command is required: check, explain, diagram, dependencies, or audit-issues")
 	}
 
 	switch args[0] {
@@ -26,8 +30,14 @@ func run(args []string) error {
 		return runCheck(args[1:])
 	case "explain":
 		return runExplain(args[1:])
+	case "audit-issues":
+		return runAuditIssues(args[1:])
+	case "diagram":
+		return runDiagram(args[1:])
+	case "dependencies":
+		return runDependencies(args[1:])
 	default:
-		return fmt.Errorf("unknown command %q: expected check or explain", args[0])
+		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, or audit-issues", args[0])
 	}
 }
 
@@ -56,27 +66,113 @@ func runExplain(args []string) error {
 }
 
 func runCheck(args []string) error {
+	options, err := parseCheckOptions(args)
+	if err != nil {
+		return err
+	}
+	policy, err := architecture.LoadPolicy(options.policy)
+	if err != nil {
+		return err
+	}
+	graph, err := architecture.LoadGraph(options.project, policy)
+	if err != nil {
+		return err
+	}
+	violations := architecture.Check(policy, graph)
+	if options.baseline == "" {
+		return architecture.FormatViolations(violations)
+	}
+	return runRatchet(options, policy, violations)
+}
+
+type checkOptions struct {
+	project, policy, baseline, baseRef string
+}
+
+func parseCheckOptions(args []string) (checkOptions, error) {
 	flags := flag.NewFlagSet("check", flag.ContinueOnError)
 	project := flags.String("project", ".", "Go project directory")
 	policyPath := flags.String("policy", filepath.Join("architecture", "policy.json"), "architecture policy")
+	baselinePath := flags.String("baseline", "", "exact legacy JSONL baseline")
+	baseRef := flags.String("base-ref", "", "immutable pull-request base commit SHA")
+	if err := flags.Parse(args); err != nil {
+		return checkOptions{}, err
+	}
+	if flags.NArg() != 0 {
+		return checkOptions{}, fmt.Errorf("check: unexpected arguments: %v", flags.Args())
+	}
+	if *baselinePath == "" && *baseRef != "" {
+		return checkOptions{}, fmt.Errorf("check: --base-ref requires --baseline")
+	}
+	absoluteProject, err := filepath.Abs(*project)
+	if err != nil {
+		return checkOptions{}, fmt.Errorf("resolve project path: %w", err)
+	}
+	return checkOptions{
+		project:  absoluteProject,
+		policy:   projectPath(absoluteProject, *policyPath),
+		baseline: projectPath(absoluteProject, *baselinePath),
+		baseRef:  *baseRef,
+	}, nil
+}
+
+func runRatchet(options checkOptions, policy *architecture.Policy, violations []architecture.Violation) error {
+	manifest, err := architecture.LoadLegacyManifest(options.baseline)
+	if err != nil {
+		return err
+	}
+	remaining, localErr := architecture.EnforceLegacyBaseline(violations, manifest)
+	var baseErr error
+	if options.baseRef != "" {
+		baseErr = compareWithBase(options, policy, manifest)
+	}
+	if err := errors.Join(localErr, baseErr); err != nil {
+		return fmt.Errorf("%w\nremaining legacy violations: %d", err, remaining)
+	}
+	fmt.Printf("backend architecture ratchet passed: %d legacy violation(s) remain\n", remaining)
+	return nil
+}
+
+func compareWithBase(options checkOptions, policy *architecture.Policy, manifest *architecture.LegacyManifest) error {
+	basePolicy, baseManifest, err := architecture.LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
+	if err != nil {
+		return err
+	}
+	return errors.Join(
+		architecture.ComparePolicyStrictness(basePolicy, policy),
+		architecture.CompareLegacyBaselines(manifest, baseManifest),
+	)
+}
+
+func runAuditIssues(args []string) error {
+	flags := flag.NewFlagSet("audit-issues", flag.ContinueOnError)
+	baselinePath := flags.String("baseline", "", "exact legacy JSONL baseline")
+	apiURL := flags.String("api-url", "", "GitHub API base URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 {
-		return fmt.Errorf("check: unexpected arguments: %v", flags.Args())
+	if flags.NArg() != 0 || *baselinePath == "" || *apiURL == "" {
+		return fmt.Errorf("audit-issues requires --baseline, --api-url, and no positional arguments")
 	}
+	manifest, err := architecture.LoadLegacyManifest(*baselinePath)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	result, err := architecture.AuditLegacyIssues(context.Background(), client, *apiURL, os.Getenv("GITHUB_TOKEN"), manifest)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s)\n", result.Issues, result.Entries)
+	return nil
+}
 
-	path := *policyPath
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(*project, path)
+func projectPath(project, path string) string {
+	if path == "" {
+		return ""
 	}
-	policy, err := architecture.LoadPolicy(path)
-	if err != nil {
-		return err
+	if filepath.IsAbs(path) {
+		return path
 	}
-	graph, err := architecture.LoadGraph(*project, policy)
-	if err != nil {
-		return err
-	}
-	return architecture.FormatViolations(architecture.Check(policy, graph))
+	return filepath.Join(project, path)
 }

@@ -28,16 +28,22 @@ type GuardianLinkedChild struct {
 type StudentGuardian struct {
 	base.Model `bun:"schema:users,table:students_guardians"`
 	base.TenantModel
-	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
-	GuardianProfileID  int64                  `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
-	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
-	GuardianRole       string                 `bun:"guardian_role,notnull,default:'custom'" json:"guardian_role"`
-	IsPrimary          bool                   `bun:"is_primary,notnull" json:"is_primary"`
-	IsEmergencyContact bool                   `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
-	CanPickup          bool                   `bun:"can_pickup,notnull" json:"can_pickup"`
-	PickupNotes        *string                `bun:"pickup_notes" json:"pickup_notes,omitempty"`
-	EmergencyPriority  int                    `bun:"emergency_priority,default:1" json:"emergency_priority"`
-	Permissions        map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
+	StudentID          int64   `bun:"student_id,notnull" json:"student_id"`
+	GuardianProfileID  int64   `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
+	RelationshipType   string  `bun:"relationship_type,notnull" json:"relationship_type"`
+	GuardianRole       string  `bun:"guardian_role,notnull,default:'custom'" json:"guardian_role"`
+	IsPrimary          bool    `bun:"is_primary,notnull" json:"is_primary"`
+	IsEmergencyContact bool    `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
+	CanPickup          bool    `bun:"can_pickup,notnull" json:"can_pickup"`
+	PickupNotes        *string `bun:"pickup_notes" json:"pickup_notes,omitempty"`
+	EmergencyPriority  int     `bun:"emergency_priority,default:1" json:"emergency_priority"`
+	// IsPayer marks this guardian's bank account as the one charged for this
+	// child (#2608). At most one relationship per child carries it, enforced
+	// by a partial unique index. Deliberately separate from IsPrimary: the
+	// primary contact and the person who pays are frequently not the same,
+	// and after a separation they are routinely not.
+	IsPayer     bool                   `bun:"is_payer,notnull" json:"is_payer"`
+	Permissions map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
 
 	// Relations not stored in the database
 	Student *Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`

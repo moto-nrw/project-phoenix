@@ -34,6 +34,23 @@ const (
 	// "Anzeigen"-toggle (#1423). StudentID stays NULL; metadata carries
 	// staff_id.
 	ResourceTypeStaffFinancialReveal = "staff_financial_reveal"
+	// ResourceTypeGuardianFinancialView records serving the MASKED bank
+	// details of one guardian (#2608). StudentID stays NULL; metadata carries
+	// guardian_profile_id.
+	ResourceTypeGuardianFinancialView = "guardian_financial_view"
+	// ResourceTypeGuardianFinancialReveal records serving the FULL (unmasked)
+	// IBAN of one guardian after the explicit "Anzeigen"-toggle (#2608).
+	// StudentID stays NULL; metadata carries guardian_profile_id.
+	ResourceTypeGuardianFinancialReveal = "guardian_financial_reveal"
+	// ResourceTypeGuardianPaymentOverview records serving the school-wide
+	// Bankverbindungen list (#2608) — one row per child with a payer, masked
+	// IBANs. StudentID stays NULL; metadata carries the row count.
+	ResourceTypeGuardianPaymentOverview = "guardian_payment_overview"
+	// ResourceTypeGuardianPaymentExport records a bulk export of the
+	// Bankverbindungen list (#2608) with UNMASKED IBANs — the most sensitive
+	// read the tenant offers. StudentID stays NULL; metadata carries the row
+	// count and the export format.
+	ResourceTypeGuardianPaymentExport = "guardian_payment_export"
 	// ResourceTypeStaffDocumentDownload records serving a sensitive staff
 	// document (#1424): AU-Bescheinigungen (Art. 9 health data) and
 	// Lohnabrechnungen. StudentID stays NULL; metadata carries staff_id,

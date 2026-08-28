@@ -37,10 +37,12 @@ const plannedInstance: PlannedTimetableInstance = {
       note: null,
       checkedInAt: null,
       visitEntryTime: null,
+      pickupTime: "15:20",
       warnings: [],
       careDayStatus: "unknown",
     },
   ],
+  pickupTimesLoaded: true,
   isOverdue: true,
 };
 
@@ -82,6 +84,7 @@ describe("PlannedNowSection", () => {
     expect(screen.getByText("Überfällig")).toBeInTheDocument();
     expect(screen.getAllByText("Erwartet").length).toBeGreaterThan(0);
     expect(screen.getByText("Mia Bauer")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: 15:20")).toBeInTheDocument();
 
     const startButton = screen.getByRole("button", { name: /Startet/i });
     expect(startButton).toBeDisabled();
@@ -96,6 +99,32 @@ describe("PlannedNowSection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Starten$/i }));
     expect(onStart).toHaveBeenCalledWith(plannedInstance);
+  });
+
+  it("distinguishes a pickup lookup error from a missing pickup time", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            pickupTimesLoaded: false,
+            rosterPreview: [
+              { ...plannedInstance.rosterPreview[0]!, pickupTime: null },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: Nicht geladen")).toBeInTheDocument();
+    expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
   });
 
   it("keeps an early activity visible but locks start until the backend boundary", () => {

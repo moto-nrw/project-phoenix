@@ -10,9 +10,11 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Operation names for AuthError wrapping (related-accounts flows).
@@ -102,6 +104,11 @@ type RevokeAccessRequest struct {
 	// ByParent is true for parents-portal removals. Parents may not remove the
 	// primary guardian; staff may remove anyone.
 	ByParent bool
+	// MayClearPayer says whether the actor holds guardians:financial. Unlinking
+	// the child's payer clears the payer mark (#2608); without the permission
+	// the removal is refused with ErrCannotRemovePayerGuardian and the link
+	// stays. The parents portal never sets this.
+	MayClearPayer bool
 }
 
 // InviteToStudent resolves an email against existing data and either links an
@@ -826,6 +833,16 @@ func (s *guardianInvitationService) resolveStudentName(ctx context.Context, stud
 // the primary guardian; staff may remove anyone. The account/profile and
 // sibling links are untouched.
 func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req RevokeAccessRequest) error {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := s.StudentRepo.FindByIDForUpdate(txCtx, req.StudentID); err != nil {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: err}
+		}
+		return s.revokeAccess(txCtx, req)
+	})
+}
+
+func (s *guardianInvitationService) revokeAccess(ctx context.Context, req RevokeAccessRequest) error {
 	if req.StudentID <= 0 || req.GuardianProfileID <= 0 {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("student and guardian profile IDs are required")}
 	}
@@ -846,6 +863,11 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 	}
 	if req.ByParent && link.IsPrimary {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemovePrimaryGuardian}
+	}
+	// Checked under the student lock taken by RevokeAccess, so a payer
+	// assigned concurrently cannot slip past.
+	if link.IsPayer && !req.MayClearPayer {
+		return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemovePayerGuardian}
 	}
 	deleteLink := true
 	if req.ByParent {
@@ -892,6 +914,22 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 			slog.Bool("by_parent", req.ByParent),
 		)
 		return nil
+	}
+	if link.IsPayer {
+		if s.GuardianFinancialAudit == nil || req.ActorAccountID <= 0 {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("refusing to remove payer without a financial audit")}
+		}
+		if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{
+			GuardianProfileID: link.GuardianProfileID,
+			StudentID:         &link.StudentID,
+			ChangedBy:         req.ActorAccountID,
+			FieldName:         auditModels.GuardianPaymentFieldIsPayer,
+			OldValue:          "true",
+			NewValue:          "false",
+			Note:              "Erziehungsberechtigte Person vom Kind entfernt",
+		}); err != nil {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("write payer removal audit: %w", err)}
+		}
 	}
 
 	if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
