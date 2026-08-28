@@ -13,36 +13,26 @@ case "${1:-}" in
     shift
     exec go run ./internal/architecture/cmd explain "$@"
     ;;
+  audit-issues)
+    shift
+    exec go run ./internal/architecture/cmd audit-issues "$@"
+    ;;
+  diagram)
+    shift
+    exec go run ./internal/architecture/cmd diagram "$@"
+    ;;
+  dependencies)
+    shift
+    exec go run ./internal/architecture/cmd dependencies "$@"
+    ;;
   legacy-check)
     go_arch_lint=$(go -C tools tool -n go-arch-lint)
     exec "$go_arch_lint" check \
       --project-path . \
       --arch-file .go-arch-lint.yml
     ;;
-  diagram)
-    output=${2:-/tmp/phoenix-backend-architecture.svg}
-    go_arch_lint=$(go -C tools tool -n go-arch-lint)
-    "$go_arch_lint" graph \
-      --project-path . \
-      --arch-file .go-arch-lint.yml \
-      --focus handlers \
-      --type flow \
-      --out "$output"
-    echo "$output"
-    ;;
-  dependencies)
-    command -v dot >/dev/null || {
-      echo "Graphviz is required; enter the Devbox shell first" >&2
-      exit 1
-    }
-    output=${2:-/tmp/phoenix-backend-dependencies.svg}
-    expression=${3:-'goos=linux(goarch=amd64(./...:module))'}
-    goda=$(go -C tools tool -n goda)
-    "$goda" graph "$expression" | dot -Tsvg -o "$output"
-    echo "$output"
-    ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path]|explain|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --baseline path --api-url url|legacy-check|diagram [--output dir]|dependencies --focus module-or-package [--output dir]}" >&2
     exit 2
     ;;
 esac

@@ -244,6 +244,19 @@ const (
 	FilesManage   = ResourceFiles + ":" + ActionManage
 )
 
+// Guardian payment permissions (#2608). guardians:financial gates the bank
+// details of a guardian (IBAN, Kontoinhaber), marking which guardian pays for
+// a child, and the Bankverbindungen export. Deliberately its own permission
+// rather than users:update: maintaining the guardian directory and handling
+// bank data are different jobs, and an IBAN list is the single most abusable
+// export the school holds. Catalog-only like staff:financial — admins match
+// via the admin:* wildcard, the school office can be granted it explicitly.
+const (
+	ResourceGuardians = "guardians"
+
+	GuardiansFinancial = ResourceGuardians + ":financial"
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"

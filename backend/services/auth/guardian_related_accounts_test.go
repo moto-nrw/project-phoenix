@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -226,6 +228,78 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.False(t, env.linkExists(t, student.ID, profile.ID), "staff removal must delete the link")
+}
+
+// TestRevokeAccess_PayerStaysWithoutFinancialPermission pins that revoking a
+// guardian's access never clears the child's payer mark on the side (#2608):
+// without MayClearPayer the link and the mark survive; with it the removal
+// leaves an is_payer true -> false audit row.
+func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
+	t.Parallel()
+
+	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
+		cfg.GuardianFinancialAudit = repositories.NewFactory(cfg.DB).GuardianFinancialChange
+	})
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Payer", "Guard", "3c")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "payer-guard")
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("audit.guardian_financial_changes").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.Ctx(t)
+	link := &users.StudentGuardian{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "parent",
+		IsPayer:           true,
+		EmergencyPriority: 1,
+	}
+	link.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+
+	actorID := env.inviterAccountID(t)
+
+	// Parent attempt (the parents portal never grants MayClearPayer) → refused.
+	err := env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		ActorAccountID:    actorID,
+		ByParent:          true,
+	})
+	require.ErrorIs(t, err, authService.ErrCannotRemovePayerGuardian)
+	assert.True(t, env.linkExists(t, student.ID, profile.ID), "link must survive a refused payer removal")
+	assert.True(t, env.fetchLink(t, student.ID, profile.ID).IsPayer, "payer mark must survive a refused removal")
+
+	// Staff without guardians:financial → refused the same way.
+	err = env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		ActorAccountID:    actorID,
+	})
+	require.ErrorIs(t, err, authService.ErrCannotRemovePayerGuardian)
+	assert.True(t, env.linkExists(t, student.ID, profile.ID))
+
+	// With the financial permission the link goes and the change is audited.
+	err = env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		ActorAccountID:    actorID,
+		MayClearPayer:     true,
+	})
+	require.NoError(t, err)
+	assert.False(t, env.linkExists(t, student.ID, profile.ID))
+	count, err := env.db.NewSelect().TableExpr(`audit.guardian_financial_changes AS "change"`).
+		Where(`"change".guardian_profile_id = ?`, profile.ID).
+		Where(`"change".student_id = ?`, student.ID).
+		Where(`"change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+		Where(`"change".new_value = ?`, "false").
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "clearing the payer on removal must be audited")
 }
 
 func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.T) {

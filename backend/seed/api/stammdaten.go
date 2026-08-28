@@ -48,6 +48,8 @@ type FixedResult struct {
 	StudentCount          int
 	SickStudentCount      int // Students marked as sick for demo badges
 	GuardianCount         int
+	PayerCount            int // Children with a guardian marked as payer (#2608)
+	GuardianIBANCount     int // Guardians with bank details stored (#2608)
 	PickupScheduleCount   int // Students with weekly pickup schedules seeded
 	ClassArrivalTimeCount int // Classes with seeded arrival times
 	ActivityCount         int
@@ -132,6 +134,11 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	// 8. Create guardians and link to students
 	if err := s.seedGuardians(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed guardians: %w", err)
+	}
+
+	// 8a. Store bank details on the paying guardian and mark who pays per child
+	if err := s.seedGuardianPayments(ctx, result); err != nil {
+		return nil, fmt.Errorf("failed to seed guardian payments: %w", err)
 	}
 
 	// 8b. Create weekly pickup schedules for students who are picked up
@@ -733,6 +740,97 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d guardians created and linked to students\n", result.GuardianCount)
+	}
+	return nil
+}
+
+// demoIBANBLZ is the Bundesbank test Bankleitzahl block used for the demo
+// IBANs. Demo data only — no such account exists.
+const demoIBANBLZ = "37040044"
+
+// demoIBAN builds a structurally valid German IBAN with a correct ISO 13616
+// mod-97 checksum, so seeded rows survive the same validation the UI applies.
+// Deterministic in index: reseeding a machine yields the same list.
+func demoIBAN(index int) string {
+	account := fmt.Sprintf("%010d", 5320130+index)
+	bban := demoIBANBLZ + account
+	// Rearranged form for the checksum: BBAN + country code + "00".
+	remainder := 0
+	for _, r := range bban + "DE00" {
+		switch {
+		case r >= '0' && r <= '9':
+			remainder = (remainder*10 + int(r-'0')) % 97
+		default:
+			remainder = (remainder*100 + int(r-'A') + 10) % 97
+		}
+	}
+	return fmt.Sprintf("DE%02d%s", 98-remainder, bban)
+}
+
+// seedGuardianPayments stores an IBAN on every primary guardian and marks that
+// guardian as the payer of their child (#2608).
+//
+// Two demo gaps are deliberate: every fourth child keeps its payer but gets no
+// IBAN, and every seventh child gets no payer at all. The Bankverbindungen
+// list exists to show exactly those gaps, and a demo where every row is
+// complete never shows what the screen is for.
+func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResult) error {
+	ibanIndex := 0
+	for _, guardian := range DemoGuardians {
+		if !guardian.IsPrimary {
+			continue
+		}
+		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
+		guardianID, ok := s.guardianIDs[guardianKey]
+		if !ok {
+			continue
+		}
+		studentID, ok := s.studentIDByIndex[guardian.StudentIndex]
+		if !ok {
+			continue
+		}
+
+		ibanIndex++
+		if guardian.StudentIndex%7 == 6 {
+			// No payer assigned: the child still has guardians, nobody was
+			// marked. This is the row the list flags as unassigned.
+			continue
+		}
+
+		payerPath := fmt.Sprintf("/api/guardians/students/%d/payer", studentID)
+		if _, err := s.client.Put(payerPath, map[string]any{
+			"guardian_id": fmt.Sprintf("%d", guardianID),
+		}); err != nil {
+			if s.verbose {
+				fmt.Printf("    Warning: failed to mark payer for student %d: %v\n", studentID, err)
+			}
+			continue
+		}
+		result.PayerCount++
+
+		if guardian.StudentIndex%4 == 3 {
+			// Payer known, bank details still missing.
+			continue
+		}
+
+		body := map[string]any{"iban": demoIBAN(ibanIndex)}
+		if guardian.StudentIndex%5 == 2 {
+			// A Kontoinhaber that differs from the guardian: the account runs
+			// on the partner's name.
+			body["account_holder"] = fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName+"-Berger")
+		}
+		paymentPath := fmt.Sprintf("/api/guardians/%d/payment", guardianID)
+		if _, err := s.client.Put(paymentPath, body); err != nil {
+			if s.verbose {
+				fmt.Printf("    Warning: failed to store bank details for guardian %s: %v\n", guardianKey, err)
+			}
+			continue
+		}
+		result.GuardianIBANCount++
+	}
+
+	if s.verbose {
+		fmt.Printf("  ✓ %d payers marked, %d bank details stored\n", result.PayerCount, result.GuardianIBANCount)
 	}
 	return nil
 }

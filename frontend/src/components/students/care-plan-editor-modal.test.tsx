@@ -281,6 +281,17 @@ describe("CarePlanEditorModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("toggles a care day when the visible checkbox is clicked", () => {
+    renderEditor({ date: null, arrivalDay: null, pickupDay: null });
+
+    const monday = screen.getByRole("checkbox", { name: "Montag" });
+    expect(monday).toBeChecked();
+
+    fireEvent.click(monday.nextElementSibling!);
+
+    expect(monday).not.toBeChecked();
+  });
+
   it("requires an explicit lasting exception when no offering matches", async () => {
     const onSubmitWeekly = vi
       .fn()

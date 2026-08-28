@@ -157,6 +157,18 @@ describe("GraduatesModal", () => {
     ).toBeDisabled();
   });
 
+  it("selects a child when the visible checkbox is clicked", async () => {
+    api.fetchTransitionHistory.mockResolvedValue([stillGone]);
+    renderModal();
+
+    const checkbox = await screen.findByRole("checkbox", {
+      name: /Alma Alumna auswählen/i,
+    });
+    fireEvent.click(checkbox.nextElementSibling!);
+
+    expect(checkbox).toBeChecked();
+  });
+
   it("purges the selected children and refreshes the list", async () => {
     api.fetchTransitionHistory
       .mockResolvedValueOnce([stillGone, broughtBack])

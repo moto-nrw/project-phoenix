@@ -7,11 +7,11 @@ import (
 )
 
 type Violation struct {
-	Scope  Scope
-	Rule   string
-	Source string
-	Target string
-	Detail string
+	Scope  Scope  `json:"scope"`
+	Rule   string `json:"rule"`
+	Source string `json:"source"`
+	Target string `json:"target"`
+	Detail string `json:"-"`
 }
 
 func (v Violation) Key() string {

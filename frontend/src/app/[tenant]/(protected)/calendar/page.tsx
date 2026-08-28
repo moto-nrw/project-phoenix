@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -286,7 +287,22 @@ const SchoolPlanReadView = dynamic(
   },
 );
 
-export default function StaffCalendarPage() {
+/**
+ * Ein Deeplink in den Betreuungsplan (`?view=tag&d=…&block=…`) muss auch den
+ * richtigen Tab öffnen — sonst landet ein geteilter Link (#2621) auf "Meine
+ * Termine" und der Zustand ist verloren. Der Betreuungsplan verwaltet seine
+ * Parameter über eine Allowlist (d/view/block) und würde einen eigenen
+ * Tab-Parameter beim nächsten Wechsel wieder abräumen; deshalb entscheidet
+ * die Anwesenheit genau dieser Parameter über den Starttab.
+ */
+function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
+  return ["d", "view", "block"].some((key) => params?.has(key) === true);
+}
+
+type CalendarTab = "meine" | "schule";
+
+function StaffCalendarPageInner() {
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { data: session } = useSession();
   const canManageCalendar = hasPermission(session, "calendar:manage");
@@ -295,6 +311,34 @@ export default function StaffCalendarPage() {
   // Admins behalten den vollwertigen Planungsbereich in der Sidebar.
   const showSchoolPlanTab =
     !isAdmin(session) && hasPermission(session, "schedules:read");
+  const schoolPlanSelected = hasSchoolPlanParams(searchParams);
+  const [activeTab, setActiveTab] = useState<CalendarTab>(() =>
+    schoolPlanSelected ? "schule" : "meine",
+  );
+
+  // Deeplinks and browser navigation change the query without remounting this
+  // page. Keep the visible tab aligned with the URL in both directions.
+  useEffect(() => {
+    setActiveTab(schoolPlanSelected ? "schule" : "meine");
+  }, [schoolPlanSelected]);
+
+  const handleCalendarTabChange = useCallback(
+    (value: string) => {
+      const nextTab = value as CalendarTab;
+      if (nextTab === "meine") {
+        const nextParams = new URLSearchParams(searchParams?.toString());
+        for (const key of ["d", "view", "block"]) nextParams.delete(key);
+        const query = nextParams.toString();
+        window.history.replaceState(
+          null,
+          "",
+          query ? `?${query}` : window.location.pathname,
+        );
+      }
+      setActiveTab(nextTab);
+    },
+    [searchParams],
+  );
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
@@ -673,9 +717,14 @@ export default function StaffCalendarPage() {
   return (
     <div className="w-full">
       {showSchoolPlanTab ? (
-        <Tabs defaultValue="meine">
+        <Tabs value={activeTab} onValueChange={handleCalendarTabChange}>
           <TabsList variant="line" className="mb-4">
-            <TabsTrigger value="meine">Meine Termine</TabsTrigger>
+            <TabsTrigger
+              value="meine"
+              onClick={() => handleCalendarTabChange("meine")}
+            >
+              Meine Termine
+            </TabsTrigger>
             <TabsTrigger value="schule">Betreuungsplan</TabsTrigger>
           </TabsList>
           <TabsContent value="meine">{personalCalendar}</TabsContent>
@@ -1150,5 +1199,14 @@ export default function StaffCalendarPage() {
         ) : null}
       </Modal>
     </div>
+  );
+}
+
+export default function StaffCalendarPage() {
+  // useSearchParams braucht eine Suspense-Grenze (Next.js 16).
+  return (
+    <Suspense fallback={null}>
+      <StaffCalendarPageInner />
+    </Suspense>
   );
 }
