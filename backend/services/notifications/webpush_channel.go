@@ -375,21 +375,32 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 // The same browser can be registered in the OGS portal and in moto schule
 // (#2208): the rows differ by portal, but the endpoint is the device the push
 // service delivers to, so sending both would show one person the same message
-// twice on one device. The first row wins and both callers list the staff
-// subscriptions first, so a device known to both portals receives the OGS
-// payload with its OGS deep link.
+// twice on one device.
+//
+// A push endpoint belongs to exactly one service worker on one origin, so at
+// most one of the two rows is the device's current registration and the other
+// one is a leftover from the portal it was last registered in. The most
+// recently written row wins (Upsert stamps updated_at on every re-subscribe):
+// that is the portal the device actually opens, and therefore the row whose
+// payload carries a deep link that resolves there. Preferring the OGS row
+// unconditionally would hand a school device a /team-chat/... link, which is
+// not a route in moto schule.
 func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubscription {
-	seen := make(map[string]struct{}, len(subs))
+	position := make(map[string]int, len(subs))
 	deduped := make([]*iot.PushSubscription, 0, len(subs))
 	for _, sub := range subs {
 		if sub == nil {
 			continue
 		}
-		if _, duplicate := seen[sub.Endpoint]; duplicate {
+		index, duplicate := position[sub.Endpoint]
+		if !duplicate {
+			position[sub.Endpoint] = len(deduped)
+			deduped = append(deduped, sub)
 			continue
 		}
-		seen[sub.Endpoint] = struct{}{}
-		deduped = append(deduped, sub)
+		if sub.UpdatedAt.After(deduped[index].UpdatedAt) {
+			deduped[index] = sub
+		}
 	}
 	return deduped
 }

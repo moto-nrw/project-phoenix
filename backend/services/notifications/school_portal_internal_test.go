@@ -102,16 +102,20 @@ func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
 
 // One browser can be registered in both staff portals: the rows differ by
 // portal, the endpoint does not. Sending both would put the same message on
-// the same device twice, so the OGS row wins and the school row is dropped.
+// the same device twice, so only the current registration survives — the most
+// recently written row — and its portal decides the deep link. Here the
+// device last registered in moto schule, so it must not be sent the OGS link.
 func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
 	t.Parallel()
 
 	const sharedEndpoint = "https://fcm.googleapis.com/shared"
 	staffSub := testSub(1, 41, sharedEndpoint)
 	staffSub.AccountID = 42
+	staffSub.UpdatedAt = time.Now().Add(-time.Hour)
 	schoolSub := testSub(2, 41, sharedEndpoint)
 	schoolSub.AccountID = 42
 	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.UpdatedAt = time.Now()
 	repo := &fakePushRepo{
 		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
 		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
@@ -124,8 +128,8 @@ func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
 		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*iot.PushSubscription{staffSub}, resolved,
-		"the shared endpoint is pushed to once, with the OGS deep link")
+	assert.Equal(t, []*iot.PushSubscription{schoolSub}, resolved,
+		"the shared endpoint is pushed to once, through its current registration")
 
 	db, mock := mockTenantTx(t)
 	channel.db = db
@@ -143,10 +147,38 @@ func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
 		return len(sender.sent) == 1
 	}, time.Second, 10*time.Millisecond)
 	sender.mu.Lock()
-	sent := len(sender.sent)
+	sent := append([]sentPush(nil), sender.sent...)
 	sender.mu.Unlock()
-	assert.Equal(t, 1, sent, "the batched path deduplicates the same endpoint too")
+	require.Len(t, sent, 1, "the batched path deduplicates the same endpoint too")
+	assert.Equal(t, "/school/nachrichten/7", deepLinkOf(t, sent[0].payload),
+		"the surviving school row carries the link that exists in moto schule")
 	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The reverse case: the device last registered in the OGS portal keeps the
+// OGS deep link.
+func TestSharedEndpointKeepsTheCurrentStaffRegistration(t *testing.T) {
+	t.Parallel()
+
+	const sharedEndpoint = "https://fcm.googleapis.com/shared"
+	staffSub := testSub(1, 41, sharedEndpoint)
+	staffSub.AccountID = 42
+	staffSub.UpdatedAt = time.Now()
+	schoolSub := testSub(2, 41, sharedEndpoint)
+	schoolSub.AccountID = 42
+	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.UpdatedAt = time.Now().Add(-time.Hour)
+	channel := testChannel(&fakePushRepo{
+		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+	}, &fakeSender{})
+
+	resolved, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeStaffMessage,
+		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{staffSub}, resolved)
 }
 
 func deepLinkOf(t *testing.T, wire []byte) string {
