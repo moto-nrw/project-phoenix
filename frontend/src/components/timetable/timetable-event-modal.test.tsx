@@ -1172,8 +1172,12 @@ describe("TimetableEventModal", () => {
     );
     await waitFor(() => expect(mockFetchStudents).toHaveBeenCalledTimes(2));
 
-    setOpen(false);
-    setOpen(true);
+    await act(async () => {
+      setOpen(false);
+    });
+    await act(async () => {
+      setOpen(true);
+    });
 
     await goToStep(3);
     expect(
