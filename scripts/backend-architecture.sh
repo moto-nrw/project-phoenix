@@ -14,7 +14,7 @@ run_with_default_baseline() {
     esac
   done
   if "$use_default"; then
-    set -- --baseline architecture/legacy.jsonl "$@"
+    set -- --baseline "$repo_root/backend/architecture/legacy.jsonl" "$@"
   fi
   exec go run ./internal/architecture/cmd "$command" "$@"
 }
