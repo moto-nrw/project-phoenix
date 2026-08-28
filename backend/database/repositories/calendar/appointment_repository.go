@@ -491,11 +491,11 @@ func (r *AppointmentRepository) SoftDelete(ctx context.Context, appointmentID in
 	return nil
 }
 
-func (r *AppointmentRepository) DeleteSoftDeletedBefore(ctx context.Context, before time.Time) (int, error) {
+func (r *AppointmentRepository) DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error) {
 	q := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*calModels.Appointment)(nil)).
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
-		Where(`"appointment".deleted_at < ?`, before)
+		Where(`COALESCE("appointment".deleted_at, "appointment".cancelled_at) < ?`, before)
 	if where, value, ok := base.TenantWhere(ctx, "appointment"); ok {
 		q = q.Where(where, value)
 	}

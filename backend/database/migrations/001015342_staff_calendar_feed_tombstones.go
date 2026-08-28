@@ -47,13 +47,6 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX idx_calendar_staff_feed_tombstones_lookup
 			ON calendar.staff_feed_tombstones (tenant_id, staff_id, cancelled_at);
 
-		ALTER TABLE calendar.staff_feed_tombstones ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE calendar.staff_feed_tombstones FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_calendar_staff_feed_tombstones
-			ON calendar.staff_feed_tombstones FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON calendar.staff_feed_tombstones TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE calendar.staff_feed_tombstones_id_seq TO phoenix_tenant;
 
@@ -62,8 +55,7 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 			p_staff_id BIGINT,
 			p_source TEXT,
 			p_source_id BIGINT,
-			p_title TEXT,
-			p_event_date calendar.staff_feed_tombstones.event_date%TYPE,
+			p_title TEXT, p_event_date DATE,
 			p_start_time TIME WITHOUT TIME ZONE,
 			p_end_time TIME WITHOUT TIME ZONE
 		) RETURNS VOID
@@ -129,6 +121,11 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 		DECLARE
 			assignment RECORD;
 		BEGIN
+			IF TG_OP = 'UPDATE'
+				AND (OLD.status = 'cancelled' OR NEW.status <> 'cancelled') THEN
+				RETURN NEW;
+			END IF;
+
 			FOR assignment IN
 				SELECT staff_id
 				FROM schedule.instance_staff
@@ -139,12 +136,15 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 					OLD.title, OLD.date, OLD.start_time, OLD.end_time
 				);
 			END LOOP;
-			RETURN OLD;
+			IF TG_OP = 'DELETE' THEN
+				RETURN OLD;
+			END IF;
+			RETURN NEW;
 		END;
 		$$;
 
 		CREATE TRIGGER capture_activity_instance_feed_tombstones
-			BEFORE DELETE ON schedule.activity_instances
+			BEFORE DELETE OR UPDATE OF status ON schedule.activity_instances
 			FOR EACH ROW EXECUTE FUNCTION calendar.capture_activity_instance_feed_tombstones();
 
 		CREATE OR REPLACE FUNCTION calendar.capture_staff_shift_feed_tombstone()
@@ -152,7 +152,9 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 		LANGUAGE plpgsql
 		AS $$
 		BEGIN
-			IF TG_OP = 'UPDATE' AND OLD.staff_id = NEW.staff_id THEN
+			IF TG_OP = 'UPDATE'
+				AND OLD.staff_id = NEW.staff_id
+				AND (OLD.cancelled OR NOT NEW.cancelled) THEN
 				RETURN NEW;
 			END IF;
 			PERFORM calendar.upsert_staff_feed_tombstone(
@@ -167,10 +169,13 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 		$$;
 
 		CREATE TRIGGER capture_staff_shift_feed_tombstone
-			BEFORE DELETE OR UPDATE OF staff_id ON schedule.staff_shifts
+			BEFORE DELETE OR UPDATE OF staff_id, cancelled ON schedule.staff_shifts
 			FOR EACH ROW EXECUTE FUNCTION calendar.capture_staff_shift_feed_tombstone();
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed adding staff calendar feed tombstones: %w", err)
+	}
+	if err := provisionTenantRLS(ctx, db, "calendar.staff_feed_tombstones"); err != nil {
+		return fmt.Errorf("failed provisioning staff calendar feed tombstone RLS: %w", err)
 	}
 	return nil
 }
@@ -184,7 +189,10 @@ func staffCalendarFeedTombstonesDown(ctx context.Context, db *bun.DB) error {
 		DROP FUNCTION IF EXISTS calendar.capture_staff_shift_feed_tombstone();
 		DROP FUNCTION IF EXISTS calendar.capture_activity_instance_feed_tombstones();
 		DROP FUNCTION IF EXISTS calendar.capture_instance_staff_feed_tombstone();
-		DROP FUNCTION IF EXISTS calendar.upsert_staff_feed_tombstone;
+		DROP FUNCTION IF EXISTS calendar.upsert_staff_feed_tombstone(
+			BIGINT, BIGINT, TEXT, BIGINT, TEXT, DATE,
+			TIME WITHOUT TIME ZONE, TIME WITHOUT TIME ZONE
+		);
 		DROP TABLE IF EXISTS calendar.staff_feed_tombstones;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping staff calendar feed tombstones: %w", err)

@@ -896,6 +896,58 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	assert.GreaterOrEqual(t, strings.Count(after, "STATUS:CANCELLED"), 2)
 }
 
+func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Alte Absage")
+	day := timezone.TodayDate().AddDays(-60)
+	room := testpkg.CreateTestRoom(t, db, "Alter Tombstone-Raum")
+	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "10:00",
+		EndHHMM:   "11:00",
+		Title:     "Altes Kreativangebot",
+	})
+	testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	shift := testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM: "12:00",
+		EndHHMM:   "14:00",
+	})
+
+	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	token := strings.TrimPrefix(staffURL, "https://moto.test/api/calendar-feed/")
+	_, before, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.NotContains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
+	assert.NotContains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
+
+	_, err = db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("status = ?", scheduleModels.InstanceStatusCancelled).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("id = ?", instance.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	shift.Cancelled = true
+	require.NoError(t, repos.StaffShift.Update(testpkg.Ctx(t), shift))
+
+	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, after, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
+	assert.Contains(t, after, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
+	assert.GreaterOrEqual(t, strings.Count(after, "STATUS:CANCELLED"), 2)
+}
+
 func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations(t *testing.T) {
 	t.Parallel()
 
@@ -974,6 +1026,23 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	})
 	require.NoError(t, err)
 	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, account.ID), detail.Appointment.ID))
+	cancelledDetail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Alter abgesagter Feed-Termin",
+		StartDate:    day.AddDays(1),
+		EndDate:      day.AddDays(1),
+		StartTime:    wallClock(11, 0),
+		EndTime:      wallClock(12, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{strings.ToLower(day.AddDays(1).Weekday().String())},
+			EndsOn:        &endsOn,
+		},
+	})
+	require.NoError(t, err)
+	_, err = service.CancelStaffAppointment(calendarContext(t, account.ID), cancelledDetail.Appointment.ID)
+	require.NoError(t, err)
 
 	room := testpkg.CreateTestRoom(t, db, "Cleanup-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{})
@@ -986,6 +1055,11 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 		Where("id = ?", detail.Appointment.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("calendar.appointments").
+		Set("cancelled_at = ?", expired).
+		Where("id = ?", cancelledDetail.Appointment.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
 	_, err = db.NewUpdate().Table("calendar.staff_feed_tombstones").
 		Set("cancelled_at = ?", expired).
 		Where("source = ?", calModels.EventSourceTimetable).
@@ -995,7 +1069,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 
 	deleted, err := service.CleanupExpiredFeedTombstones(testpkg.Ctx(t))
 	require.NoError(t, err)
-	assert.Equal(t, 2, deleted)
+	assert.Equal(t, 3, deleted)
 
 	checks := []struct {
 		table  string
@@ -1004,6 +1078,8 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	}{
 		{table: "calendar.appointments", column: "id", id: detail.Appointment.ID},
 		{table: "calendar.recurrence_rules", column: "appointment_id", id: detail.Appointment.ID},
+		{table: "calendar.appointments", column: "id", id: cancelledDetail.Appointment.ID},
+		{table: "calendar.recurrence_rules", column: "appointment_id", id: cancelledDetail.Appointment.ID},
 		{table: "calendar.staff_feed_tombstones", column: "source_id", id: instance.ID},
 	}
 	for _, check := range checks {
