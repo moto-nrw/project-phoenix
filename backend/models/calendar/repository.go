@@ -32,6 +32,8 @@ type AppointmentRepository interface {
 	SoftDelete(ctx context.Context, appointmentID int64) error
 	// ListVisible*/ListOrganized* return only live (deleted_at IS NULL) rows.
 	ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
+	// ListCancellationTombstonesForStaff combines organizer and recipient
+	// visibility with lifecycle cutoffs, which generic filters cannot express.
 	ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*Appointment, error)
 	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)
 	ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)

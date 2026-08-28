@@ -164,7 +164,9 @@ describe("StaffCalendarPage", () => {
     expect(
       screen.getByRole("heading", { name: "Kalender abonnieren" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Das Abo ist nur zum Lesen/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Änderungen daran erreichen moto nicht/),
+    ).toBeInTheDocument();
   });
 
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {

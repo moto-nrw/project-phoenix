@@ -167,7 +167,9 @@ describe("StaffCalendarSubscribePanel", () => {
 
     render(<StaffCalendarSubscribePanel />);
 
-    expect(screen.getByText(/Das Abo ist nur zum Lesen/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Änderungen daran erreichen moto nicht/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
 
     await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());

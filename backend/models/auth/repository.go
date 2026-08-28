@@ -409,9 +409,15 @@ type StaffCalendarFeedOwner struct {
 }
 
 type StaffCalendarFeedTokenRepository interface {
+	// FindOwnerByTokenHash resolves a cross-tenant capability token; generic
+	// tenant-scoped filters cannot perform this lookup before the tenant is known.
 	FindOwnerByTokenHash(ctx context.Context, tokenHash string) (*StaffCalendarFeedOwner, error)
+	// EnsureToken atomically creates the token once and returns the winning value
+	// when concurrent requests race; a generic update cannot express that contract.
 	EnsureToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (string, error)
-	SetToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
+	// RotateToken replaces the active mapping's capability token atomically; this
+	// domain operation is intentionally narrower than a generic per-field update.
+	RotateToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
 }
 
 // GuardianInvitationRepository defines operations for managing guardian invitations.

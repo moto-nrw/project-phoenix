@@ -123,6 +123,9 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 	return rows, nil
 }
 
+// ListCancellationTombstonesForStaff combines organizer and recipient
+// visibility with deletion and cancellation cutoffs; generic filters cannot
+// express the required OR and EXISTS clauses.
 func (r *AppointmentRepository) ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*calModels.Appointment, error) {
 	var rows []*calModels.Appointment
 	query := base.GetDB(ctx, r.DB).NewSelect().

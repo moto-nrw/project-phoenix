@@ -48,7 +48,7 @@ interface CalendarSubscribePanelViewProps {
 const staffCopy: CalendarSubscribeCopy = {
   title: "Kalender abonnieren",
   description:
-    "Übernehmen Sie Ihre moto-Termine in Ihren persönlichen Kalender. Neue Termine und Änderungen erscheinen dort automatisch. Das Abo ist nur zum Lesen. Änderungen dort wirken nicht auf moto zurück.",
+    "Das Abo zeigt Ihre moto-Termine automatisch, aber Änderungen daran erreichen moto nicht.",
   showLink: "Abo-Link anzeigen",
   createNew: "Neuen Abo-Link erstellen",
   subscribe: "Im Kalender abonnieren",

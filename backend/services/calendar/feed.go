@@ -139,7 +139,7 @@ func (s *service) RotateStaffCalendarFeed(ctx context.Context) (string, string, 
 	if err != nil {
 		return "", "", err
 	}
-	updated, err := s.cfg.StaffFeedRepo.SetToken(ctx, accountID, tenantID, feedTokenHash(token))
+	updated, err := s.cfg.StaffFeedRepo.RotateToken(ctx, accountID, tenantID, feedTokenHash(token))
 	if err != nil {
 		return "", "", err
 	}
