@@ -280,12 +280,14 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
     onInstanceClick,
     onSlotClick,
     gapInstanceIds,
+    emptyState,
   }: {
     weekDays: Date[];
     instances: Array<{ id: string; conflictWarnings: unknown[] }>;
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
+    emptyState?: { title: string; description: string };
   }) => (
     <div>
       <span data-testid="grid-week-days">{weekDays.length}</span>
@@ -298,6 +300,12 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
           0,
         )}
       </span>
+      {emptyState && (
+        <div data-testid="grid-empty-state">
+          <span>{emptyState.title}</span>
+          <span>{emptyState.description}</span>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => onInstanceClick(instances[0] ?? null)}
@@ -671,6 +679,7 @@ function setupSWR({
   phasesState = "ready" as "ready" | "loading" | "error",
   closingDaysLoading = false,
   conflictAcks = [] as string[],
+  instances = [instance],
 }: {
   periods?: Array<typeof period>;
   templates?: TimetableTemplate[];
@@ -684,6 +693,7 @@ function setupSWR({
   phasesState?: "ready" | "loading" | "error";
   closingDaysLoading?: boolean;
   conflictAcks?: string[];
+  instances?: (typeof instance)[];
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -744,7 +754,7 @@ function setupSWR({
     }
     if (key.startsWith("timetable-")) {
       return {
-        data: { from: "2026-05-04", to: "2026-05-10", instances: [instance] },
+        data: { from: "2026-05-04", to: "2026-05-10", instances },
         isLoading: false,
       };
     }
@@ -1072,6 +1082,30 @@ describe("BetreuungsplanView", () => {
 
     expect(screen.getByTestId("grid-week-days")).toHaveTextContent("1");
     expect(screen.getByText("Mittwoch, 06.05.2026")).toBeVisible();
+    expect(screen.getByTestId("conflicts-period")).toHaveTextContent(
+      "an diesem Tag",
+    );
+  });
+
+  it("formuliert die leeren Tageszustände für Planende in der Sie-Form", () => {
+    setUrl("view=tag&d=2026-05-06");
+    setupSWR({ instances: [] });
+    const { unmount } = render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+      "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an.",
+    );
+    unmount();
+
+    setupSWR({
+      instances: [],
+      periods: [{ ...period, endDate: "2026-05-05" }],
+    });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+      "Legen Sie zuerst einen aktiven Planungszeitraum an.",
+    );
   });
 
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {

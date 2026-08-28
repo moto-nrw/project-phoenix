@@ -371,6 +371,58 @@ describe("StaffCalendarPage", () => {
     );
   });
 
+  it("follows Plan-Parameter after client-side navigation", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    const { rerender } = render(<StaffCalendarPage />);
+
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams("view=tag&d=2026-08-24"),
+    );
+    rerender(<StaffCalendarPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
+
+    mockUseSearchParams.mockReturnValue(null);
+    rerender(<StaffCalendarPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Meine Termine" }),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
+  });
+
+  it("clears Plan-Parameter when switching to Meine Termine", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    window.history.replaceState(null, "", "?view=tag&d=2026-08-24");
+    mockUseSearchParams.mockImplementation(
+      () => new URLSearchParams(window.location.search),
+    );
+
+    render(<StaffCalendarPage />);
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Meine Termine" }));
+
+    expect(window.location.search).toBe("");
+    expect(screen.getByRole("tab", { name: "Meine Termine" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
   it("shows no tabs for admins", () => {
     mockUseSession.mockReturnValue({
       data: {

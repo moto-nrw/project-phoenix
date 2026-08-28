@@ -1486,7 +1486,13 @@ function TimetablesContent() {
             <ConflictWarningsBanner
               openConflicts={openConflicts}
               hiddenConflicts={hiddenConflicts}
-              periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
+              periodLabel={
+                view === "month"
+                  ? "in diesem Monat"
+                  : view === "day"
+                    ? "an diesem Tag"
+                    : "diese Woche"
+              }
               onHide={handleHideConflict}
               onHideAll={handleHideAllConflicts}
               onUnhide={handleUnhideConflict}
@@ -1557,8 +1563,8 @@ function TimetablesContent() {
                               // — stattdessen, wer den Tag plant.
                               canManageSchedules
                               ? dayHasPeriodCoverage
-                                ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                                : "Lege zuerst einen aktiven Planungszeitraum an."
+                                ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
+                                : "Legen Sie zuerst einen aktiven Planungszeitraum an."
                               : "Geplant wird von den Admins Ihrer Schule.",
                         }
                       : undefined

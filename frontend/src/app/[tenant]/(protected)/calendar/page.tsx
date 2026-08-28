@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Trash2 } from "lucide-react";
@@ -299,6 +299,8 @@ function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
   return ["d", "view", "block"].some((key) => params?.has(key) === true);
 }
 
+type CalendarTab = "meine" | "schule";
+
 function StaffCalendarPageInner() {
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -309,6 +311,34 @@ function StaffCalendarPageInner() {
   // Admins behalten den vollwertigen Planungsbereich in der Sidebar.
   const showSchoolPlanTab =
     !isAdmin(session) && hasPermission(session, "schedules:read");
+  const schoolPlanSelected = hasSchoolPlanParams(searchParams);
+  const [activeTab, setActiveTab] = useState<CalendarTab>(() =>
+    schoolPlanSelected ? "schule" : "meine",
+  );
+
+  // Deeplinks and browser navigation change the query without remounting this
+  // page. Keep the visible tab aligned with the URL in both directions.
+  useEffect(() => {
+    setActiveTab(schoolPlanSelected ? "schule" : "meine");
+  }, [schoolPlanSelected]);
+
+  const handleCalendarTabChange = useCallback(
+    (value: string) => {
+      const nextTab = value as CalendarTab;
+      if (nextTab === "meine") {
+        const nextParams = new URLSearchParams(searchParams?.toString());
+        for (const key of ["d", "view", "block"]) nextParams.delete(key);
+        const query = nextParams.toString();
+        window.history.replaceState(
+          null,
+          "",
+          query ? `?${query}` : window.location.pathname,
+        );
+      }
+      setActiveTab(nextTab);
+    },
+    [searchParams],
+  );
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
@@ -687,11 +717,14 @@ function StaffCalendarPageInner() {
   return (
     <div className="w-full">
       {showSchoolPlanTab ? (
-        <Tabs
-          defaultValue={hasSchoolPlanParams(searchParams) ? "schule" : "meine"}
-        >
+        <Tabs value={activeTab} onValueChange={handleCalendarTabChange}>
           <TabsList variant="line" className="mb-4">
-            <TabsTrigger value="meine">Meine Termine</TabsTrigger>
+            <TabsTrigger
+              value="meine"
+              onClick={() => handleCalendarTabChange("meine")}
+            >
+              Meine Termine
+            </TabsTrigger>
             <TabsTrigger value="schule">Betreuungsplan</TabsTrigger>
           </TabsList>
           <TabsContent value="meine">{personalCalendar}</TabsContent>
