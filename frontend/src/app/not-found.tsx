@@ -3,15 +3,7 @@ import { ButtonLink } from "~/components/ui/button";
 
 export default function NotFound() {
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-white px-4 py-16">
-      <div
-        aria-hidden="true"
-        className="bg-moto-green-soft pointer-events-none absolute -top-44 -left-36 size-[26rem] rounded-full"
-      />
-      <div
-        aria-hidden="true"
-        className="bg-moto-green-soft pointer-events-none absolute -right-28 -bottom-32 size-[19rem] rounded-full"
-      />
+    <main className="moto-dotted-background moto-dotted-background--fullscreen flex min-h-dvh flex-col items-center justify-center px-4 py-16">
       <div className="relative flex flex-col items-center text-center">
         <MotoBrand />
         <div aria-hidden="true" className="mt-8 flex items-center">
