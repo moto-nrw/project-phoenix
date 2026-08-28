@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -281,61 +282,81 @@ func (rs *Resource) deleteInstance(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-// renderInstanceLifecycleError maps service-layer sentinel errors to HTTP
+// conflictCode renders the error itself as a 409 carrying the given code.
+func conflictCode(code string) func(error) render.Renderer {
+	return func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, code)
+	}
+}
+
+// staticConflict renders a fixed message as a 409 carrying the given code,
+// hiding the raw error from the response.
+func staticConflict(message, code string) func(error) render.Renderer {
+	return func(error) render.Renderer {
+		return common.ErrorConflictWithCode(errors.New(message), code)
+	}
+}
+
+// instanceLifecycleErrorRules maps service-layer sentinel errors to HTTP
 // status codes. Unknown errors fall through to 500 to avoid leaking a
 // potentially wrong 4xx for a real database failure.
-func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrGuardianNoticeInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrGuardianNoticeDisabled):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "guardian_notice_disabled"))
-	case errors.Is(err, scheduleSvc.ErrInstanceMoved):
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("block was changed concurrently; reopen it and try again"),
-			"instance_moved",
-		))
-	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
-	case errors.Is(err, scheduleSvc.ErrInstanceStartTooEarly):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "start_too_early"))
-	case errors.Is(err, scheduleSvc.ErrInstanceStartExpired):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "start_window_expired"))
-	case errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "complete_too_early"))
-	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
-	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
-		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, scheduleSvc.ErrTimetableOperationConflict):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
-		errors.Is(err, activeSvc.ErrRoomCapacityExceeded):
-		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, scheduleSvc.ErrUnderstaffedAckStillStaffed):
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),
+var instanceLifecycleErrorRules = []common.ErrorRule{
+	{Target: scheduleSvc.ErrInstanceNotFound, Render: common.ErrorNotFound},
+	{
+		Match: func(err error) bool {
+			return errors.Is(err, scheduleSvc.ErrInvalidInstanceReference) ||
+				errors.Is(err, scheduleSvc.ErrInstanceWeekend) ||
+				errors.Is(err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod) ||
+				errors.Is(err, scheduleSvc.ErrGuardianNoticeInvalid)
+		},
+		Render: common.ErrorInvalidRequest,
+	},
+	{Target: scheduleSvc.ErrGuardianNoticeDisabled, Render: conflictCode("guardian_notice_disabled")},
+	{
+		Target: scheduleSvc.ErrInstanceMoved,
+		Render: staticConflict("block was changed concurrently; reopen it and try again", "instance_moved"),
+	},
+	{Target: scheduleSvc.ErrInvalidInstanceTransition, Render: conflictCode("invalid_transition")},
+	{Target: scheduleSvc.ErrInstanceStartTooEarly, Render: conflictCode("start_too_early")},
+	{Target: scheduleSvc.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
+	{Target: scheduleSvc.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
+	{Target: scheduleSvc.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
+	{Target: scheduleSvc.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
+	{
+		Match: func(err error) bool {
+			return errors.Is(err, scheduleSvc.ErrTimetableOperationConflict) ||
+				errors.Is(err, activeSvc.ErrStudentAlreadyActive) ||
+				errors.Is(err, activeSvc.ErrRoomConflict) ||
+				errors.Is(err, activeSvc.ErrRoomCapacityExceeded)
+		},
+		Render: common.ErrorConflict,
+	},
+	{
+		Target: scheduleSvc.ErrUnderstaffedAckStillStaffed,
+		Render: staticConflict(
+			"dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist",
 			"understaffed_still_staffed",
-		))
-	case errors.Is(err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete):
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),
+		),
+	},
+	{
+		Target: scheduleSvc.ErrAmbiguousTemplateInstanceDelete,
+		Render: staticConflict(
+			"dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat",
 			"ambiguous_template_instance_delete",
-		))
-	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("instance already exists for this template/date/start_time"),
-			"duplicate_instance",
-		))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServerWrap("instance lifecycle failed", err))
-	}
+		),
+	},
+	{
+		Match: func(err error) bool {
+			return base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique")
+		},
+		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
+	},
+}
+
+func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err error) {
+	common.RenderError(w, r, common.RenderWithRules(err, instanceLifecycleErrorRules, func(err error) render.Renderer {
+		return common.ErrorInternalServerWrap("instance lifecycle failed", err)
+	}))
 }
 
 // resolveStartedByStaffID is best-effort: if the JWT carries an account that

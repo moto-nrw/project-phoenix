@@ -177,15 +177,17 @@ vi.mock("~/components/timetable/timetable-add-menu", () => ({
   TimetableAddMenu: ({
     onAddInstance,
     onAddSeries,
+    disabled = false,
   }: {
     onAddInstance: () => void;
     onAddSeries: () => void;
+    disabled?: boolean;
   }) => (
     <div>
-      <button type="button" onClick={onAddInstance}>
+      <button type="button" onClick={onAddInstance} disabled={disabled}>
         add-instance
       </button>
-      <button type="button" onClick={onAddSeries}>
+      <button type="button" onClick={onAddSeries} disabled={disabled}>
         add-series
       </button>
     </div>
@@ -258,11 +260,18 @@ vi.mock("~/components/timetable/month-planner-grid", () => ({
   MonthPlannerGrid: ({
     onDayClick,
     onInstanceClick,
+    planningDisabledDateISOs,
   }: {
     onDayClick: (date: string) => void;
     onInstanceClick?: (instance: { id: string }) => void;
+    planningDisabledDateISOs?: ReadonlySet<string>;
   }) => (
     <div>
+      <span data-testid="month-disabled-dates">
+        {planningDisabledDateISOs
+          ? [...planningDisabledDateISOs].join(",")
+          : ""}
+      </span>
       <button type="button" onClick={() => onDayClick("2026-05-06")}>
         month-grid
       </button>
@@ -280,6 +289,7 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
     onInstanceClick,
     onSlotClick,
     gapInstanceIds,
+    planningDisabledDateISOs,
     emptyState,
   }: {
     weekDays: Date[];
@@ -287,12 +297,18 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
+    planningDisabledDateISOs?: ReadonlySet<string>;
     emptyState?: { title: string; description: string };
   }) => (
     <div>
       <span data-testid="grid-week-days">{weekDays.length}</span>
       <span data-testid="grid-gap-ids">
         {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
+      </span>
+      <span data-testid="grid-disabled-dates">
+        {planningDisabledDateISOs
+          ? [...planningDisabledDateISOs].join(",")
+          : ""}
       </span>
       <span data-testid="grid-conflict-count">
         {instances.reduce(
@@ -669,6 +685,7 @@ const gap: GapInstance = {
 
 function setupSWR({
   periods = [period],
+  periodsState = "ready" as "ready" | "loading" | "error",
   templates = [template],
   settingsSchema = null,
   settingsSchemaLoading = false,
@@ -682,6 +699,7 @@ function setupSWR({
   instances = [instance],
 }: {
   periods?: Array<typeof period>;
+  periodsState?: "ready" | "loading" | "error";
   templates?: TimetableTemplate[];
   settingsSchema?: unknown;
   settingsSchemaLoading?: boolean;
@@ -706,6 +724,10 @@ function setupSWR({
         : { data: settingsSchema, isLoading: false };
     }
     if (key === "database-calendar-periods-list") {
+      if (periodsState === "loading") return { isLoading: true };
+      if (periodsState === "error") {
+        return { error: new Error("Zeiträume kaputt"), isLoading: false };
+      }
       return { data: periods, isLoading: false };
     }
     if (key === "planning-closing-days") {
@@ -1106,6 +1128,98 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
       "Legen Sie zuerst einen aktiven Planungszeitraum an.",
     );
+  });
+
+  it("markiert einen Tag außerhalb des Planungszeitraums als nicht planbar", () => {
+    setUrl("view=tag&d=2026-05-06");
+    setupSWR({
+      instances: [],
+      periods: [{ ...period, endDate: "2026-05-05" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-disabled-dates")).toHaveTextContent(
+      "2026-05-06",
+    );
+  });
+
+  it("markiert Tage außerhalb des Planungszeitraums auch im Monat", () => {
+    setUrl("view=monat&d=2026-05-06");
+    setupSWR({
+      instances: [],
+      periods: [{ ...period, endDate: "2026-05-05" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("month-disabled-dates")).toHaveTextContent(
+      "2026-05-06",
+    );
+  });
+
+  it("wählt für den globalen Einmaltermin einen sichtbaren planbaren Tag", () => {
+    setUrl("view=woche&d=2026-05-06");
+    setupSWR({ periods: [{ ...period, startDate: "2026-05-07" }] });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeEnabled();
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-07" }),
+    );
+  });
+
+  it("wählt im Monat keinen planbaren Tag aus dem Vormonat", () => {
+    setUrl("view=monat&d=2026-05-06");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-04-27", endDate: "2026-05-04" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-01" }),
+    );
+  });
+
+  it("behält einen kurzen Zeitraum bis Freitag als Standarddatum bei", () => {
+    setUrl("view=woche&d=2026-05-04");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-05-08", endDate: "2026-05-08" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-08" }),
+    );
+  });
+
+  it("sperrt das Menü Neu ohne sichtbaren Planungszeitraum", () => {
+    setUrl("view=woche&d=2026-05-04");
+    setupSWR({ periods: [laterPeriod] });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
+  });
+
+  it("behält einen nur am Wochenende liegenden Zeitraum als deaktivierten Fallback bei", () => {
+    setUrl("view=monat&d=2026-05-09");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-05-09", endDate: "2026-05-09" }],
+    });
+    render(<BetreuungsplanView />);
+
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-09" }),
+    );
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
   });
 
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {
@@ -1695,6 +1809,74 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it.each([
+    {
+      name: "vollständig abgedeckt",
+      periods: [period],
+      title: "Diese Woche hat noch keine Termine",
+      description:
+        "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an.",
+      disabledDates: "",
+    },
+    {
+      name: "nicht abgedeckt",
+      periods: [laterPeriod],
+      title: "Diese Woche hat keinen Planungszeitraum",
+      description: "Legen Sie zuerst einen aktiven Planungszeitraum an.",
+      disabledDates: "2026-05-04,2026-05-05,2026-05-06,2026-05-07,2026-05-08",
+    },
+    {
+      name: "ab Mittwoch abgedeckt",
+      periods: [{ ...period, startDate: "2026-05-06" }],
+      title: "Diese Woche hat noch keine Termine",
+      description:
+        "Einige Tage sind nicht planbar. An den anderen Tagen können Sie Termine planen.",
+      disabledDates: "2026-05-04,2026-05-05",
+    },
+    {
+      name: "bis Mittwoch abgedeckt",
+      periods: [{ ...period, endDate: "2026-05-06" }],
+      title: "Diese Woche hat noch keine Termine",
+      description:
+        "Einige Tage sind nicht planbar. An den anderen Tagen können Sie Termine planen.",
+      disabledDates: "2026-05-07,2026-05-08",
+    },
+  ])(
+    "unterscheidet eine $name Woche im leeren Wochenzustand",
+    ({ periods, title, description, disabledDates }) => {
+      setUrl("view=woche&d=2026-05-04");
+      setupSWR({ periods, instances: [] });
+
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(title);
+      expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+        description,
+      );
+      expect(screen.getByTestId("grid-disabled-dates")).toHaveTextContent(
+        disabledDates,
+      );
+    },
+  );
+
+  it("erklärt eine teilweise abgedeckte Woche auch in der Leseansicht", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setUrl("view=woche&d=2026-05-04");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-05-06" }],
+      instances: [],
+    });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+      "Für diese Woche ist noch nichts geplant. Geplant wird von den Admins Ihrer Schule.",
+    );
+  });
+
   it("passes the closing-day loading state to the event modal", () => {
     // Der Termin-Editor öffnet sich nur noch für Planende (#2283); die
     // Schließtage lädt der Hook weiterhin über schedules:read.
@@ -1713,6 +1895,31 @@ describe("BetreuungsplanView", () => {
         closingDaysLoading: true,
       }),
     );
+  });
+
+  it("zeigt beim Laden der Planungszeiträume keinen unplanbaren Kalender", () => {
+    setupSWR({ periodsState: "loading" });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch kein Planungszeitraum"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt bei einem Fehler der Planungszeiträume weiterhin geladene Termine", () => {
+    setupSWR({ periodsState: "error" });
+    render(<BetreuungsplanView />);
+
+    expect(
+      screen.getByText("Planungszeiträume konnten nicht geladen werden"),
+    ).toBeVisible();
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(
+      screen.queryByText("Noch kein Planungszeitraum"),
+    ).not.toBeInTheDocument();
   });
 
   // --- Chrome-Abbau: Kalender als erstes Inhaltselement, kein Setup-Chrome ---
@@ -1748,5 +1955,21 @@ describe("BetreuungsplanView", () => {
       screen.getByRole("button", { name: "Planungszeitraum anlegen" }),
     );
     expect(screen.getByText("period-save")).toBeInTheDocument();
+  });
+
+  it("sperrt das Menü Neu ohne Planungszeitraum", () => {
+    setupSWR({ periods: [] });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
+  });
+
+  it("sperrt das Menü Neu bei ausschließlich inaktiven Planungszeiträumen", () => {
+    setupSWR({ periods: [{ ...period, isActive: false }] });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
   });
 });
