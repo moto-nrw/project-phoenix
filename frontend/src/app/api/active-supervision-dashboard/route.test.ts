@@ -179,6 +179,47 @@ describe("GET /api/active-supervision-dashboard", () => {
             end_time: "15:00",
           },
         ],
+        planned_now: [
+          {
+            id: 80,
+            title: "Lernzeit",
+            date: "2026-08-19",
+            start_time: "15:00",
+            end_time: "16:00",
+            room_id: 10,
+            status: "planned",
+            is_overdue: false,
+            minutes_until_start: 30,
+            expected_students_count: 2,
+            present_students_count: 0,
+            assigned_staff_ids: [5],
+            pickup_times_loaded: false,
+            roster_preview: [
+              {
+                student_id: 100,
+                student_name: "Kind Eins",
+                school_class: "1a",
+                group_name: "OGS A",
+                planned: true,
+                is_unplanned: false,
+                currently_present: false,
+                status: "expected",
+                pickup_time: "15:30",
+              },
+              {
+                student_id: 101,
+                student_name: "Kind Zwei",
+                school_class: "1a",
+                group_name: "OGS A",
+                planned: true,
+                is_unplanned: false,
+                currently_present: false,
+                status: "expected",
+                pickup_time: null,
+              },
+            ],
+          },
+        ],
         visits: [
           {
             student_id: "100",
@@ -250,6 +291,10 @@ describe("GET /api/active-supervision-dashboard", () => {
         } | null;
         capabilities?: { webSpontaneousActivitiesEnabled: boolean };
         activeSessions: Array<{ activeGroupId: string; title: string }>;
+        plannedNow: Array<{
+          pickupTimesLoaded: boolean;
+          rosterPreview: Array<{ pickupTime: string | null }>;
+        }>;
         trackingIndicators: {
           labels: string[];
           results: Record<string, boolean[]>;
@@ -299,6 +344,10 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(data.activeSessions[0]).toMatchObject({
       activeGroupId: "7",
       title: "Fußball",
+    });
+    expect(data.plannedNow[0]).toMatchObject({
+      pickupTimesLoaded: false,
+      rosterPreview: [{ pickupTime: "15:30" }, { pickupTime: null }],
     });
     expect(data.trackingIndicators).toEqual({
       labels: ["Hausaufgaben"],

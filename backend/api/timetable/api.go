@@ -323,6 +323,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/capabilities", rs.operationsCapabilities)
+			// Roster endpoints stay available to operational supervisors; their
+			// pickup-time fields are redacted without users:read.
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

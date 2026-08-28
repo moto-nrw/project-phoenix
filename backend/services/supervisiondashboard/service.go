@@ -502,6 +502,9 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	if err != nil {
 		return fmt.Errorf("load planned instances: %w", err)
 	}
+	if !authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx)) {
+		redactPlannedPickupTimes(planned)
+	}
 	if planned != nil {
 		projection.PlannedNow = planned
 	}
@@ -520,6 +523,16 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	}
 	projection.Capabilities = capabilities
 	return nil
+}
+
+func redactPlannedPickupTimes(instances []scheduleService.OperationPlannedInstance) {
+	for i := range instances {
+		instances[i].PickupTimesLoaded = false
+		instances[i].PickupTimesRedacted = true
+		for j := range instances[i].RosterPreview {
+			instances[i].RosterPreview[j].PickupTime = nil
+		}
+	}
 }
 
 func (s *service) resolveCapabilities(ctx context.Context) (Capabilities, error) {

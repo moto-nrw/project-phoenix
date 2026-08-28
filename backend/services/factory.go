@@ -1160,6 +1160,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveService:      activeService,
 		ArrivalService:     arrivalScheduleService,
+		PickupService:      pickupScheduleService,
 		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
 		VisitRepo:          repos.ActiveVisit,
