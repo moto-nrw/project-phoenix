@@ -45,7 +45,7 @@ cd "$project_root"
 git_dir=$(git rev-parse --git-dir 2>/dev/null) || soft_exit
 
 # Deliberate opt-outs.
-if [[ -n "${QUALITY_GATE_OFF:-}" ]]; then soft_exit; fi
+if [[ "${QUALITY_GATE_OFF:-}" == "1" ]]; then soft_exit; fi
 if [[ -f "$git_dir/quality-gate-off" ]]; then soft_exit; fi
 
 # stop_hook_active is true when the agent is already continuing because of a

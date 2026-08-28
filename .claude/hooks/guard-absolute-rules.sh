@@ -47,13 +47,13 @@ case "$tool" in
         # wrapped clients (python/node/bash -c) without maintaining a
         # bypassable list of network binaries.
         cmd_lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(bash|sh)[[:space:]]+[^-[:space:]][^[:space:]]*\.sh([[:space:]]|$)|(^|[|&;[:space:]])\./[^[:space:]]+'; then
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])((/[^[:space:]]*/)?(bash|sh|zsh)[[:space:]]+(-[^[:space:]]+[[:space:]]+)?[^-[:space:]][^[:space:]]*\.sh|\./[^[:space:]]+\.sh)([[:space:]]|$)'; then
             deny "Blocked: script execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
         fi
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(python([0-9.]*)?|node|go[[:space:]]+run)[[:space:]]+'; then
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(python([0-9.]*)?|node)[[:space:]]+'; then
             deny "Blocked: interpreter execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
         fi
-        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(eval|source|\.)([[:space:]]|$)'; then
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;])[[:space:]]*(eval|source|\.)[[:space:]]'; then
             deny "Blocked: dynamic shell execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
         fi
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(bash|sh)[[:space:]]+-c([[:space:]]|$)'; then
