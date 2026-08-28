@@ -1007,58 +1007,74 @@ func (a semanticAnalyzer) legacyReferenceViolation(pkg *packages.Package, identi
 
 func (a semanticAnalyzer) locateContractViolations(pkg *packages.Package, violations []Violation) ([]Violation, error) {
 	for index := range violations {
-		position, ok := contractDeclarationPosition(pkg, violations[index].Target)
+		positions, ok := contractDeclarationPositions(pkg, violations[index].Target)
 		if !ok {
 			return nil, fmt.Errorf("resolve semantic location for %s: declaration %q is unavailable", violations[index].Key(), violations[index].Target)
 		}
-		location, err := a.nodeLocation(pkg, position, violations[index].Target)
-		if err != nil {
-			return nil, fmt.Errorf("resolve semantic location for %s: %w", violations[index].Key(), err)
+		for _, position := range positions {
+			location, err := a.nodeLocation(pkg, position, violations[index].Target)
+			if err != nil {
+				return nil, fmt.Errorf("resolve semantic location for %s: %w", violations[index].Key(), err)
+			}
+			violations[index].Locations = append(violations[index].Locations, location)
 		}
-		violations[index].Locations = append(violations[index].Locations, location)
 	}
 	return violations, nil
 }
 
-func contractDeclarationPosition(pkg *packages.Package, target string) (token.Pos, bool) {
+type contractPositionCandidate struct {
+	position token.Pos
+	type_    types.Type
+}
+
+func contractDeclarationPositions(pkg *packages.Package, target string) ([]token.Pos, bool) {
 	qualifiedPrefix := path.Base(pkg.PkgPath) + "."
 	pathParts := strings.Split(strings.TrimPrefix(target, qualifiedPrefix), ".")
 	if len(pathParts) == 0 || pathParts[0] == target {
-		return token.NoPos, false
+		return nil, false
 	}
 	object := pkg.Types.Scope().Lookup(pathParts[0])
 	if object == nil || object.Pos() == token.NoPos {
-		return token.NoPos, false
+		return nil, false
 	}
-	position := object.Pos()
-	current := []types.Type{object.Type()}
+	current := []contractPositionCandidate{{position: object.Pos(), type_: object.Type()}}
 	for _, name := range pathParts[1:] {
-		var members []types.Object
-		var next []types.Type
+		var next []contractPositionCandidate
 		for _, candidate := range current {
-			candidates := []types.Type{candidate}
-			if signature, ok := candidate.(*types.Signature); ok {
+			candidates := []types.Type{candidate.type_}
+			if signature, ok := candidate.type_.(*types.Signature); ok {
 				candidates = contractResultTypes(signature.Results())
 			}
-			for _, candidate := range candidates {
-				member, _, _ := types.LookupFieldOrMethod(candidate, true, pkg.Types, name)
+			for _, resultType := range candidates {
+				member, _, _ := types.LookupFieldOrMethod(resultType, true, pkg.Types, name)
 				if member != nil {
-					members = append(members, member)
-					next = append(next, member.Type())
+					position := candidate.position
+					if member.Pkg() != nil && member.Pkg().Path() == pkg.PkgPath && member.Pos() != token.NoPos {
+						position = member.Pos()
+					}
+					next = append(next, contractPositionCandidate{position: position, type_: member.Type()})
 				}
 			}
 		}
-		if len(members) == 0 {
-			return position, true
-		}
-		sort.Slice(members, func(i, j int) bool { return members[i].Pos() < members[j].Pos() })
-		member := members[0]
-		if member.Pkg() != nil && member.Pkg().Path() == pkg.PkgPath && member.Pos() != token.NoPos {
-			position = member.Pos()
+		if len(next) == 0 {
+			return contractCandidatePositions(current), true
 		}
 		current = next
 	}
-	return position, true
+	return contractCandidatePositions(current), true
+}
+
+func contractCandidatePositions(candidates []contractPositionCandidate) []token.Pos {
+	positions := make(map[token.Pos]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		positions[candidate.position] = struct{}{}
+	}
+	result := make([]token.Pos, 0, len(positions))
+	for position := range positions {
+		result = append(result, position)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result
 }
 
 func contractResultTypes(results *types.Tuple) []types.Type {

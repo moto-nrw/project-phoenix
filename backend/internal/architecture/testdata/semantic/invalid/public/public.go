@@ -59,3 +59,13 @@ type laterFactoryResult struct{}
 func NewLater() (error, laterFactoryResult) { return nil, laterFactoryResult{} }
 
 func (laterFactoryResult) List() error { return nil }
+
+type firstResult struct{}
+
+func (firstResult) List() error { return nil }
+
+type secondResult struct{}
+
+func (secondResult) List() error { return nil }
+
+func NewMultiple() (firstResult, secondResult) { return firstResult{}, secondResult{} }
