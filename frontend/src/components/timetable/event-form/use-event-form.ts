@@ -229,7 +229,7 @@ export function useEventForm({
   weekFrom,
   weekTo,
   calendarPeriods,
-  planningPeriods = calendarPeriods,
+  planningPeriods,
   defaultCalendarPeriodId,
   initialInstance,
   initialSeries,
@@ -1224,6 +1224,7 @@ export function useEventForm({
     } else if (
       !isSeriesFlow &&
       initialInstance === null &&
+      planningPeriods !== undefined &&
       !planningPeriods.some(
         (period) =>
           form.date >= period.startDate && form.date <= period.endDate,

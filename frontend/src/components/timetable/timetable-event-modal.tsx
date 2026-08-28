@@ -145,7 +145,7 @@ export function TimetableEventModal({
   weekFrom,
   weekTo,
   calendarPeriods,
-  planningPeriods = calendarPeriods,
+  planningPeriods,
   defaultCalendarPeriodId,
   showPeriodField = false,
   initialInstance = null,
