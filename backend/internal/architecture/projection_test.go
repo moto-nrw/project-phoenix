@@ -199,6 +199,16 @@ func TestSVGAndMachineProjectionAreByteStable(t *testing.T) {
 	}
 }
 
+func TestSVGEdgesTerminateAtNodeBoundaries(t *testing.T) {
+	t.Parallel()
+
+	policy := loadProjectionPolicy(t)
+	svg := renderValidSVG(t, architecture.TargetProjection(policy))
+	if !bytes.Contains(svg, []byte(`d="M 265 116 L 335 116"`)) {
+		t.Fatalf("SVG dependency path does not terminate at node boundaries:\n%s", svg)
+	}
+}
+
 func TestDependenciesProjectionValidatesAndFiltersFocus(t *testing.T) {
 	t.Parallel()
 
@@ -289,6 +299,7 @@ func TestToolProjectionsComeFromPolicyAndBuildContext(t *testing.T) {
 	}
 
 	_, graph, _ := loadProjectionInputs(t)
+	policy.Packages = append(policy.Packages, architecture.Package{Path: "future", Owner: "alpha", Role: "domain"})
 	query, err := architecture.GodaQuery(policy, graph, "module:alpha")
 	if err != nil {
 		t.Fatalf("generate Goda query: %v", err)
@@ -302,6 +313,9 @@ func TestToolProjectionsComeFromPolicyAndBuildContext(t *testing.T) {
 		if !strings.Contains(query, want) {
 			t.Errorf("Goda query does not contain %q: %s", want, query)
 		}
+	}
+	if strings.Contains(query, policy.ModulePath+"/future") {
+		t.Fatalf("Goda query includes a package outside the current graph: %s", query)
 	}
 }
 

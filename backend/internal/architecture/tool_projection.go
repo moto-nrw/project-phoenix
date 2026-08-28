@@ -42,7 +42,7 @@ func GodaQuery(policy *Policy, graph *Graph, rawFocus string) (string, error) {
 	if focus.kind == "module" {
 		packages = nil
 		for _, pkg := range policy.Packages {
-			if pkg.Owner == focus.value {
+			if pkg.Owner == focus.value && graph.hasPackage(policy.absolutePackage(pkg.Path)) {
 				packages = append(packages, policy.absolutePackage(pkg.Path))
 			}
 		}

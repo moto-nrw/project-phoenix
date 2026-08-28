@@ -101,7 +101,22 @@ func svgEdgePath(source, target svgPoint, self bool, status ProjectionStatus) st
 		return fmt.Sprintf("M %.0f %.0f C %.0f %.0f %.0f %.0f %.0f %.0f", sx, source.y, sx+55, source.y-42, sx-55, source.y-42, sx, source.y)
 	}
 	tx, ty := target.x+svgNodeWidth/2+offset, target.y+svgNodeHeight/2
-	return fmt.Sprintf("M %.0f %.0f L %.0f %.0f", sx, sy, tx, ty)
+	start := svgNodeBoundary(source, svgPoint{x: tx, y: ty})
+	end := svgNodeBoundary(target, svgPoint{x: sx, y: sy})
+	return fmt.Sprintf("M %.0f %.0f L %.0f %.0f", start.x, start.y, end.x, end.y)
+}
+
+func svgNodeBoundary(node, toward svgPoint) svgPoint {
+	x, y := node.x+svgNodeWidth/2, node.y+svgNodeHeight/2
+	dx, dy := toward.x-x, toward.y-y
+	if dx == 0 {
+		return svgPoint{x: x, y: y + math.Copysign(svgNodeHeight/2, dy)}
+	}
+	if dy == 0 {
+		return svgPoint{x: x + math.Copysign(svgNodeWidth/2, dx), y: y}
+	}
+	scale := math.Min((svgNodeWidth/2)/math.Abs(dx), (svgNodeHeight/2)/math.Abs(dy))
+	return svgPoint{x: x + dx*scale, y: y + dy*scale}
 }
 
 func svgStatusOffset(status ProjectionStatus) float64 {

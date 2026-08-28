@@ -383,6 +383,31 @@ func TestDiagramRejectsTemporarySymlinkOutsideTemporaryRoot(t *testing.T) {
 	}
 }
 
+func TestDiagramRejectsExistingArtifactSymlink(t *testing.T) {
+	t.Parallel()
+
+	outputDirectory := t.TempDir()
+	target := filepath.Join(t.TempDir(), "target.svg")
+	if err := os.WriteFile(target, []byte("unchanged"), 0o600); err != nil {
+		t.Fatalf("write symlink target: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(outputDirectory, "target.svg")); err != nil {
+		t.Fatalf("create artifact symlink: %v", err)
+	}
+	output, err := runArchitecture(t,
+		"diagram",
+		"--project", fixturePath(t, "projection"),
+		"--policy", fixturePath(t, "projection", "policy.json"),
+		"--output", outputDirectory,
+	)
+	if err == nil || !strings.Contains(output, "write generated architecture artifact target.svg") {
+		t.Fatalf("artifact symlink was not rejected: %v\n%s", err, output)
+	}
+	if got := readFile(t, target); got != "unchanged" {
+		t.Fatalf("artifact symlink target was overwritten: %q", got)
+	}
+}
+
 func TestCheckAllowsOwnedTableAccessThroughPostgresAdapter(t *testing.T) {
 	t.Parallel()
 

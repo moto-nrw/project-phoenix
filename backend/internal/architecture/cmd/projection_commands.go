@@ -157,12 +157,24 @@ func writeProjectionArtifacts(output string, artifacts map[string][]byte) error 
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		if err := os.WriteFile(filepath.Join(directory, name), artifacts[name], 0o600); err != nil {
+		if err := writeProjectionArtifact(filepath.Join(directory, name), artifacts[name]); err != nil {
 			return fmt.Errorf("write generated architecture artifact %s: %w", name, err)
 		}
 	}
 	fmt.Println(directory)
 	return nil
+}
+
+func writeProjectionArtifact(path string, contents []byte) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(contents); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func prepareOutputDirectory(output string) (string, error) {
