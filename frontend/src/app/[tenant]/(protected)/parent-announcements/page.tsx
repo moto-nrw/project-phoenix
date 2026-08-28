@@ -2445,6 +2445,7 @@ function DetailModal({
           <LetterStatusPanel
             announcementId={announcement.id}
             canAct={announcement.status === "published"}
+            emailAudience={announcement.email_audience}
           />
         )}
 

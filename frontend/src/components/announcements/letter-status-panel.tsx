@@ -17,6 +17,7 @@ import {
   resendFailedEmails,
 } from "~/lib/parent-announcements-api";
 import type {
+  AnnouncementEmailAudience,
   LetterChild,
   LetterRecipient,
   LetterStatus,
@@ -81,10 +82,12 @@ function fullName(first: string, last: string): string {
 export function LetterStatusPanel({
   announcementId,
   canAct,
+  emailAudience,
 }: {
   readonly announcementId: string;
   /** Reminders and resends are only offered while the letter is live. */
   readonly canAct: boolean;
+  readonly emailAudience: AnnouncementEmailAudience;
 }) {
   const [status, setStatus] = useState<LetterStatus | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -242,13 +245,23 @@ export function LetterStatusPanel({
               aria-hidden
             />
             <span>
-              {s.without_email > 0 && s.without_portal > 0
-                ? "Bei manchen Bezugspersonen fehlen E-Mail-Adresse oder Portalzugang."
-                : s.without_email > 0
-                  ? "Bei manchen Bezugspersonen fehlt die E-Mail-Adresse."
-                  : "Bei manchen Bezugspersonen fehlt der Portalzugang."}{" "}
-              Tragen Sie die fehlenden Daten bei der Bezugsperson ein. Senden
-              Sie den Brief danach noch einmal.
+              {emailAudience === "all_contacts" ? (
+                s.without_email > 0 ? (
+                  "Bei manchen Bezugspersonen fehlt die E-Mail-Adresse. Bezugspersonen ohne Portalzugang erhalten den Brief per E-Mail."
+                ) : (
+                  "Bezugspersonen ohne Portalzugang erhalten den Brief per E-Mail."
+                )
+              ) : (
+                <>
+                  {s.without_email > 0 && s.without_portal > 0
+                    ? "Bei manchen Bezugspersonen fehlen E-Mail-Adresse oder Portalzugang."
+                    : s.without_email > 0
+                      ? "Bei manchen Bezugspersonen fehlt die E-Mail-Adresse."
+                      : "Bei manchen Bezugspersonen fehlt der Portalzugang."}{" "}
+                  Tragen Sie die fehlenden Daten bei der Bezugsperson ein.
+                  Senden Sie den Brief danach noch einmal.
+                </>
+              )}
             </span>
           </p>
         )}
