@@ -48,7 +48,7 @@ interface CalendarSubscribePanelViewProps {
 const staffCopy: CalendarSubscribeCopy = {
   title: "Kalender abonnieren",
   description:
-    "Das Abo zeigt Ihre moto-Termine automatisch, aber Änderungen daran erreichen moto nicht.",
+    "Abonnieren Sie Ihre Termine einmal im Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch. Sie müssen keinen Termin einzeln hinzufügen. Änderungen im Handy-Kalender erreichen moto nicht.",
   showLink: "Abo-Link anzeigen",
   createNew: "Neuen Abo-Link erstellen",
   subscribe: "Im Kalender abonnieren",

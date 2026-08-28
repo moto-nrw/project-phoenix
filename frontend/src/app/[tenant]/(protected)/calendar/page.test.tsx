@@ -165,7 +165,7 @@ describe("StaffCalendarPage", () => {
       screen.getByRole("heading", { name: "Kalender abonnieren" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Änderungen daran erreichen moto nicht/),
+      screen.getByText(/Neue, geänderte und abgesagte Termine/),
     ).toBeInTheDocument();
   });
 
