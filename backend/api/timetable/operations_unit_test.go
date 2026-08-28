@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -64,6 +65,27 @@ func TestOperationsPlannedNow(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, scheduleSvc.PlannedNowScopePast, service.lastPlannedOptions.Scope)
+}
+
+func TestOperationsRosterRoutesRequireStudentDataRead(t *testing.T) {
+	t.Parallel()
+
+	resource := NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
+	router := resource.Router()
+	claims := testutil.DefaultTestClaims()
+
+	for _, path := range []string{
+		"/operations/planned-now",
+		"/operations/instances/230/roster",
+		"/operations/active-groups/340/roster",
+	} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, path, nil)
+			response := testutil.ExecuteWithAuthPermissions(t, router, request, claims, []string{permissions.SchedulesRead})
+
+			assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
+		})
+	}
 }
 
 func testWorkdayNow() time.Time {

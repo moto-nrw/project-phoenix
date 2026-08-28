@@ -323,13 +323,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/capabilities", rs.operationsCapabilities)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			// The operation rosters expose children's pickup times as well as
+			// attendance data, so tenant callers need the student-data boundary.
+			// The school portal mounts its own assignment-bound routes with
+			// supervision:own instead (SchoolSupervisionRouter).
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/active-sessions", rs.operationsActiveSessions)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
 				Get("/instances/{id}/roster", rs.operationsRoster)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
 				Get("/active-groups/{id}/roster", rs.operationsRosterByActiveGroup)
 			// Operational mutations are available to normal supervisors with
 			// SchedulesRead; the service enforces assignment/admin access via
