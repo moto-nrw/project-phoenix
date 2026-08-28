@@ -50,7 +50,9 @@ scripts/backend-architecture.sh dependencies --focus package:services/schedule
 including production, internal-test, and external-test import scopes plus
 table ownership, tenant-safe projections, public contract purity, direct
 database access, and legacy-composition references. It currently reports the
-existing target-policy violations. `legacy-check`
+existing target-policy violations with project-relative file, line, and
+declaration evidence. The stable ratchet key does not include that evidence.
+`legacy-check`
 validates every production Go package against `.go-arch-lint.yml`; it excludes
 `_test.go` files and fails when a package has no component. `diagram` writes a
 temporary bundle containing the strict `target.svg`, the condensed current

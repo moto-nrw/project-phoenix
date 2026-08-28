@@ -118,6 +118,26 @@ func (m *mockRepo) AccountMatchesAnnouncement(ctx context.Context, tenantID, ann
 func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipient, error) {
 	return m.resolveEmailsFn(ctx, tenantID, announcementID)
 }
+
+// UnacknowledgedReminderRecipients satisfies the same interface extension.
+func (m *mockRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return nil, nil
+}
+
+// LetterChildStatuses satisfies the same interface extension. These tests never
+// drive an Elternbrief, so an empty result is correct rather than a stub that
+// could mask a wrong call path.
+func (m *mockRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+	return nil, nil
+}
+
+// ResolveDeliveryRecipients satisfies the interface extension from #2384. These
+// tests drive plain Mitteilungen, which never take the tracked delivery path, so
+// an empty result is the correct answer rather than a stub that could mask a
+// wrong path being taken.
+func (m *mockRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementDeliveryRecipient, error) {
+	return nil, nil
+}
 func (m *mockRepo) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	return m.schoolNameFn(ctx, tenantID)
 }

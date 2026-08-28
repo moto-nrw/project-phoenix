@@ -206,7 +206,7 @@ func formatLegacyMismatch(newViolations []Violation, stale []LegacyEntry) error 
 	if len(newViolations) > 0 {
 		lines = append(lines, fmt.Sprintf("new violations (%d):", len(newViolations)))
 		for _, violation := range newViolations {
-			lines = append(lines, "  "+violation.Key()+" -- "+violation.Detail)
+			lines = appendViolationLines(lines, "  ", violation)
 		}
 	}
 	if len(stale) > 0 {

@@ -44,6 +44,18 @@ permissions cannot leak into test scopes. A finding uses this stable key:
 scope|rule|source|target
 ```
 
+The key identifies the violation. Source locations are evidence and do not
+form part of that identity. Each location contains a project-relative Go file,
+line, and the affected import, function, method, or declaration. `check` prints
+all locations below the key. It sorts and deduplicates them, so the same source
+tree produces the same output on every host.
+
+Locations may change when code moves without changing the violation key. The
+exact JSONL baseline therefore keeps only `scope`, `rule`, `source`, `target`,
+and `issue`; it never stores locations. Generated JSON projections attach a
+`locations` array to each violation instead. This lets migration tooling group
+current evidence by the stable key without turning line changes into new debt.
+
 Production analysis also uses Go syntax and type information to enforce these
 semantic boundaries:
 
@@ -81,9 +93,10 @@ created system temporary directory:
 - `migration.svg` condenses the current production graph by owner. Allowed
   edges are gray, violations present in `--baseline` are orange-red, and new
   violations are dashed red.
-- `architecture.json` contains both graphs plus exact violation keys and their
-  source/target owners, so follow-up tooling can group ratchet work by owner
-  and capability.
+- `architecture.json` uses projection schema version 2 and contains both
+  graphs plus exact violation keys, their
+  source/target owners, and sorted source locations, so follow-up tooling can
+  group ratchet work by owner and capability.
 - `go-arch-lint.yml` projects the target policy into go-arch-lint's coarser
   owner-level model. It is an additional guard; the evaluator remains
   authoritative for roles, scopes, semantic checks, and exact edges.
@@ -107,7 +120,8 @@ Each record has exactly these fields in this order:
 ```
 
 The first four fields identify one exact violation. `issue` identifies its one
-open migration ticket. Wildcards, package-family patterns, blank lines,
+open migration ticket. Locations are non-identifying evidence and stay out of
+this file. Wildcards, package-family patterns, blank lines,
 duplicates, unsorted records, non-canonical JSON, and issue reassignment are
 errors. The normal command has no init, approve, update, or rebaseline mode.
 
