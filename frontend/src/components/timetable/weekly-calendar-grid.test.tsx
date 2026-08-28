@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -137,5 +137,80 @@ describe("WeeklyCalendarGrid showDayHeader", () => {
     expect(
       container.querySelector(".sm\\:max-h-\\[808px\\]"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("WeeklyCalendarGrid planningDisabledDateISOs", () => {
+  it("marks uncovered days and keeps only covered slots planable", () => {
+    const onSlotClick = vi.fn();
+
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[instance]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        onSlotClick={onSlotClick}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+        planningDisabledDateISOs={new Set(["2026-05-04", "2026-05-05"])}
+      />,
+    );
+
+    expect
+      .soft(screen.queryAllByText("Nicht planbar").length)
+      .toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getByText(
+        "Die markierten Tage liegen außerhalb des Planungszeitraums.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("Nicht planbar");
+    expect
+      .soft(
+        screen.queryByRole("button", {
+          name: "Neuen Termin anlegen: Mo 04.05., 09:00 Uhr",
+        }),
+      )
+      .not.toBeInTheDocument();
+    expect
+      .soft(screen.getAllByRole("button", { name: /Neuen Termin anlegen/ }))
+      .toHaveLength(24);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Neuen Termin anlegen: Mi 06.05., 14:00 Uhr",
+      }),
+    );
+    expect(onSlotClick).toHaveBeenCalledWith("2026-05-06", 14);
+    expect(screen.getByRole("button", { name: /mensa/i })).toBeVisible();
+  });
+
+  it("labels an uncovered single-day view and hides its slots", () => {
+    render(
+      <WeeklyCalendarGrid
+        weekDays={[weekDays[0]!]}
+        instances={[instance]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        onSlotClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+        planningDisabledDateISOs={new Set(["2026-05-04"])}
+      />,
+    );
+
+    expect(
+      screen.getByText("Dieser Tag liegt außerhalb des Planungszeitraums."),
+    ).toBeVisible();
+    expect(screen.getAllByText("Nicht planbar").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: /Neuen Termin anlegen/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /mensa/i })).toBeVisible();
   });
 });

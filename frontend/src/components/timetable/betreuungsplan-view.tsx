@@ -131,6 +131,7 @@ const CONFLICT_ACKS_SWR_KEY = "timetable-conflict-acks";
 const ALLOWED_URL_PARAMS = ["d", "view", "block"] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
+type PeriodCoverage = "none" | "partial" | "full";
 
 /**
  * Übersetzt den `view`-URL-Wert in den internen Ansichts-Typ. Ungültige Werte
@@ -653,16 +654,27 @@ function TimetablesContent() {
     () => uniqueAssignedPeriods(periodAssignments),
     [periodAssignments],
   );
+  const planningDisabledDateISOs = useMemo(
+    () =>
+      new Set(
+        periodAssignments
+          .filter((assignment) => assignment.period === null)
+          .map((assignment) => assignment.date),
+      ),
+    [periodAssignments],
+  );
   const weekPeriodAssignments = useMemo(
     () => mapPeriodsForDates(calendarPeriods, weekDayISOs),
     [calendarPeriods, weekDayISOs],
   );
-  const weekHasFullPeriodCoverage = useMemo(
-    () =>
-      weekPeriodAssignments.length > 0 &&
-      weekPeriodAssignments.every((assignment) => assignment.period !== null),
-    [weekPeriodAssignments],
-  );
+  const weekPeriodCoverage = useMemo<PeriodCoverage>(() => {
+    const coveredDayCount = weekPeriodAssignments.filter(
+      (assignment) => assignment.period !== null,
+    ).length;
+    if (coveredDayCount === 0) return "none";
+    if (coveredDayCount === weekPeriodAssignments.length) return "full";
+    return "partial";
+  }, [weekPeriodAssignments]);
   // Tagesansicht (#2621): der sichtbare Tag ist genau ein Datum, deshalb
   // reicht ein direkter Blick in die Zeitraum-Zuordnung — und der Schließtag
   // wird zum benennbaren Leerzustand statt zu einem stillen leeren Raster.
@@ -866,6 +878,31 @@ function TimetablesContent() {
     [visibleInstances, selectedInstanceId],
   );
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
+  const weekEmptyState = useMemo(() => {
+    if (instances.length > 0 || error) return undefined;
+    if (weekPeriodCoverage === "partial") {
+      return {
+        title: "Einige Tage liegen außerhalb des Planungszeitraums",
+        description: canManageSchedules
+          ? "An diesen Tagen können Sie keine Termine planen."
+          : "An diesen Tagen können Sie keine Termine planen. Geplant wird von den Admins Ihrer Schule.",
+      };
+    }
+    if (weekPeriodCoverage === "full") {
+      return {
+        title: "Diese Woche hat noch keine Termine",
+        description: canManageSchedules
+          ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
+          : "Für diese Woche ist noch nichts geplant.",
+      };
+    }
+    return {
+      title: "Diese Woche hat keinen Planungszeitraum",
+      description: canManageSchedules
+        ? "Legen Sie zuerst einen aktiven Planungszeitraum an."
+        : "Für diese Woche ist noch nichts geplant.",
+    };
+  }, [canManageSchedules, error, instances.length, weekPeriodCoverage]);
 
   // Bedarfsquellen-Zuordnung (06 §3.2), reine Funktion.
   const demandOrigin = useMemo(
@@ -1538,6 +1575,7 @@ function TimetablesContent() {
                   onInstanceClick={handleSelectInstance}
                   onSlotClick={canManageSchedules ? openQuickCreate : undefined}
                   gapInstanceIds={gapInstanceIds}
+                  planningDisabledDateISOs={planningDisabledDateISOs}
                   closingDays={closingDays}
                   todayISO={todayISO}
                   dayStartHour={dayStartHour}
@@ -1586,28 +1624,14 @@ function TimetablesContent() {
                   onInstanceClick={handleSelectInstance}
                   onSlotClick={canManageSchedules ? openQuickCreate : undefined}
                   gapInstanceIds={gapInstanceIds}
+                  planningDisabledDateISOs={planningDisabledDateISOs}
                   closingDays={closingDays}
                   todayISO={todayISO}
                   dayStartHour={dayStartHour}
                   dayEndHour={dayEndHour}
                   hourHeightPx={hourHeightPx}
                   showDayHeader
-                  emptyState={
-                    instances.length === 0 && !error
-                      ? {
-                          title: weekHasFullPeriodCoverage
-                            ? "Diese Woche hat noch keine Termine"
-                            : "Diese Woche hat keinen Planungszeitraum",
-                          // Leseansicht (#2283): keine Handlungsaufforderung
-                          // an Leute, die nicht planen dürfen.
-                          description: canManageSchedules
-                            ? weekHasFullPeriodCoverage
-                              ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                              : "Lege zuerst einen aktiven Planungszeitraum an."
-                            : "Für diese Woche ist noch nichts geplant.",
-                        }
-                      : undefined
-                  }
+                  emptyState={weekEmptyState}
                 />
               )}
             </>

@@ -280,6 +280,7 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
     onInstanceClick,
     onSlotClick,
     gapInstanceIds,
+    planningDisabledDateISOs,
     emptyState,
   }: {
     weekDays: Date[];
@@ -287,12 +288,18 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
+    planningDisabledDateISOs?: ReadonlySet<string>;
     emptyState?: { title: string; description: string };
   }) => (
     <div>
       <span data-testid="grid-week-days">{weekDays.length}</span>
       <span data-testid="grid-gap-ids">
         {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
+      </span>
+      <span data-testid="grid-disabled-dates">
+        {planningDisabledDateISOs
+          ? [...planningDisabledDateISOs].join(",")
+          : ""}
       </span>
       <span data-testid="grid-conflict-count">
         {instances.reduce(
@@ -1108,6 +1115,20 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("markiert einen Tag außerhalb des Planungszeitraums als nicht planbar", () => {
+    setUrl("view=tag&d=2026-05-06");
+    setupSWR({
+      instances: [],
+      periods: [{ ...period, endDate: "2026-05-05" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-disabled-dates")).toHaveTextContent(
+      "2026-05-06",
+    );
+  });
+
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {
     setUrl("view=tag&d=2026-05-08");
     const { unmount } = render(<BetreuungsplanView />);
@@ -1692,6 +1713,72 @@ describe("BetreuungsplanView", () => {
         defaultStartTime: undefined,
         defaultEndTime: undefined,
       }),
+    );
+  });
+
+  it.each([
+    {
+      name: "vollständig abgedeckt",
+      periods: [period],
+      title: "Diese Woche hat noch keine Termine",
+      description:
+        "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an.",
+      disabledDates: "",
+    },
+    {
+      name: "nicht abgedeckt",
+      periods: [laterPeriod],
+      title: "Diese Woche hat keinen Planungszeitraum",
+      description: "Legen Sie zuerst einen aktiven Planungszeitraum an.",
+      disabledDates: "2026-05-04,2026-05-05,2026-05-06,2026-05-07,2026-05-08",
+    },
+    {
+      name: "ab Mittwoch abgedeckt",
+      periods: [{ ...period, startDate: "2026-05-06" }],
+      title: "Einige Tage liegen außerhalb des Planungszeitraums",
+      description: "An diesen Tagen können Sie keine Termine planen.",
+      disabledDates: "2026-05-04,2026-05-05",
+    },
+    {
+      name: "bis Mittwoch abgedeckt",
+      periods: [{ ...period, endDate: "2026-05-06" }],
+      title: "Einige Tage liegen außerhalb des Planungszeitraums",
+      description: "An diesen Tagen können Sie keine Termine planen.",
+      disabledDates: "2026-05-07,2026-05-08",
+    },
+  ])(
+    "unterscheidet eine $name Woche im leeren Wochenzustand",
+    ({ periods, title, description, disabledDates }) => {
+      setUrl("view=woche&d=2026-05-04");
+      setupSWR({ periods, instances: [] });
+
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(title);
+      expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+        description,
+      );
+      expect(screen.getByTestId("grid-disabled-dates")).toHaveTextContent(
+        disabledDates,
+      );
+    },
+  );
+
+  it("erklärt eine teilweise abgedeckte Woche auch in der Leseansicht", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setUrl("view=woche&d=2026-05-04");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-05-06" }],
+      instances: [],
+    });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+      "An diesen Tagen können Sie keine Termine planen. Geplant wird von den Admins Ihrer Schule.",
     );
   });
 
