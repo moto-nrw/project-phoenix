@@ -1799,7 +1799,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if err := validateLegacyWeekendInstanceDate(instance.Date, req.Date); err != nil {
 		return nil, err
 	}
-	if instance.Date != req.Date && (!instance.IsSpontaneous || req.CalendarPeriodID != nil) {
+	if req.CalendarPeriodID != nil || (instance.Date != req.Date && !instance.IsSpontaneous) {
 		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
 			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
 		}

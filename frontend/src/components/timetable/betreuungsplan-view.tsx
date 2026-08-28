@@ -1583,6 +1583,7 @@ function TimetablesContent() {
                 instances={visibleInstances}
                 todayISO={todayISO}
                 closingDays={closingDays}
+                planningDisabledDateISOs={planningDisabledDateISOs}
                 onDayClick={openWeekForDay}
                 onInstanceClick={handleSelectInstance}
               />

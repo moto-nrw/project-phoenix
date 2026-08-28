@@ -260,11 +260,18 @@ vi.mock("~/components/timetable/month-planner-grid", () => ({
   MonthPlannerGrid: ({
     onDayClick,
     onInstanceClick,
+    planningDisabledDateISOs,
   }: {
     onDayClick: (date: string) => void;
     onInstanceClick?: (instance: { id: string }) => void;
+    planningDisabledDateISOs?: ReadonlySet<string>;
   }) => (
     <div>
+      <span data-testid="month-disabled-dates">
+        {planningDisabledDateISOs
+          ? [...planningDisabledDateISOs].join(",")
+          : ""}
+      </span>
       <button type="button" onClick={() => onDayClick("2026-05-06")}>
         month-grid
       </button>
@@ -1133,6 +1140,20 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("grid-disabled-dates")).toHaveTextContent(
+      "2026-05-06",
+    );
+  });
+
+  it("markiert Tage außerhalb des Planungszeitraums auch im Monat", () => {
+    setUrl("view=monat&d=2026-05-06");
+    setupSWR({
+      instances: [],
+      periods: [{ ...period, endDate: "2026-05-05" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("month-disabled-dates")).toHaveTextContent(
       "2026-05-06",
     );
   });

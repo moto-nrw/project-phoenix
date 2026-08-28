@@ -551,6 +551,29 @@ func TestInstance_UpdatePlannedConvertsSpontaneousRejectsOutsideActiveCalendarPe
 	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
 }
 
+func TestInstance_UpdatePlannedConvertsSpontaneousSameDateRejectsInactiveCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedSpontaneousInstance(t, s, false)
+	periodID := s.period.ID
+	s.period.IsActive = false
+	_, err := s.db.NewUpdate().Model(s.period).Column("is_active").WherePK().Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:             instance.Date,
+		StartTime:        instance.StartTime,
+		EndTime:          instance.EndTime,
+		Title:            "Als geplant behalten",
+		RoomID:           s.roomID,
+		ActivityGroupID:  &s.tmplID,
+		CalendarPeriodID: &periodID,
+	}, nil)
+
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+}
+
 func TestInstance_CreateIdempotencyRetryReturnsStoredResultAfterPeriodDeactivation(t *testing.T) {
 	t.Parallel()
 
