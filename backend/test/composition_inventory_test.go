@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -20,6 +21,7 @@ const compositionEvidenceCommit = "8dc3a9ca8ac7cb8edbfa3c17760d92c02751bc3e"
 var (
 	updateCompositionInventory = flag.Bool("update-composition-inventory", false, "rewrite discovered composition inventory entries")
 	compositionEvidenceRoot    = flag.String("composition-evidence-root", "", "optional fixed-commit backend root used only to capture immutable evidence")
+	compositionInventoryUpdate sync.Mutex
 )
 
 var expectedCompositionRoots = []compositionRoot{
@@ -134,8 +136,10 @@ var compositionConstructorTargets = func() map[string]struct{} {
 }()
 
 func TestCompositionInventory(t *testing.T) {
-	if !*updateCompositionInventory {
-		t.Parallel()
+	t.Parallel()
+	if *updateCompositionInventory {
+		compositionInventoryUpdate.Lock()
+		defer compositionInventoryUpdate.Unlock()
 	}
 
 	backendRoot, err := findBackendRoot()
@@ -255,6 +259,10 @@ func updateDiscoveredInventory(t *testing.T, manifestPath, backendRoot string, i
 
 func TestWorkerJobRegistryInventory(t *testing.T) {
 	t.Parallel()
+	if *updateCompositionInventory {
+		compositionInventoryUpdate.Lock()
+		defer compositionInventoryUpdate.Unlock()
+	}
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
