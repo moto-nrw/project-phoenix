@@ -75,7 +75,6 @@ func TestOperationsRosterRoutesRequireStudentDataRead(t *testing.T) {
 	claims := testutil.DefaultTestClaims()
 
 	for _, path := range []string{
-		"/operations/planned-now",
 		"/operations/instances/230/roster",
 		"/operations/active-groups/340/roster",
 	} {
@@ -84,6 +83,76 @@ func TestOperationsRosterRoutesRequireStudentDataRead(t *testing.T) {
 			response := testutil.ExecuteWithAuthPermissions(t, router, request, claims, []string{permissions.SchedulesRead})
 
 			assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
+		})
+	}
+}
+
+func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeOperationsService{planned: []scheduleSvc.OperationPlannedInstance{{ID: 220}}}
+	router := operationRouter(http.MethodGet, "/planned-now", NewResource(Dependencies{OperationsService: service}).operationsPlannedNow)
+	req := httptest.NewRequest(http.MethodGet, "/planned-now", nil)
+	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(req)
+	testutil.WithPermissions(permissions.SchedulesRead)(req)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, req)
+
+	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.False(t, service.lastPlannedOptions.IncludeRoster)
+
+	request := httptest.NewRequest(http.MethodGet, "/planned-now?include_roster=true", nil)
+	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+	testutil.WithPermissions(permissions.SchedulesRead)(request)
+	response = httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
+}
+
+func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testing.T) {
+	t.Parallel()
+
+	pickupTime := "15:00"
+	service := &fakeOperationsService{
+		roster:   &scheduleSvc.OperationRoster{Rows: []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}}},
+		patchRow: &scheduleSvc.OperationRosterRow{StudentID: 350, PickupTime: &pickupTime},
+	}
+	resource := NewResource(Dependencies{OperationsService: service})
+	cases := []struct {
+		method  string
+		path    string
+		body    any
+		handler http.HandlerFunc
+	}{
+		{http.MethodPost, "/instances/250/students/350/check-in", nil, resource.operationsCheckInStudent},
+		{http.MethodPost, "/instances/250/students/350/check-out", nil, resource.operationsCheckOutStudent},
+		{http.MethodPatch, "/instances/250/students/350/attendance", map[string]any{"status": "absent"}, resource.operationsPatchAttendance},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			router := operationRouter(tc.method, "/instances/{id}/students/{student_id}/"+lastPathSegment(tc.path), tc.handler)
+			body := bytes.NewReader(nil)
+			if tc.body != nil {
+				raw, err := json.Marshal(tc.body)
+				require.NoError(t, err)
+				body = bytes.NewReader(raw)
+			}
+			request := httptest.NewRequest(tc.method, tc.path, body)
+			if tc.body != nil {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithPermissions(permissions.SchedulesRead)(request)
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			assert.NotContains(t, response.Body.String(), pickupTime)
 		})
 	}
 }
@@ -1273,6 +1342,7 @@ func executeOperationRequest(tb testing.TB, router chi.Router, method, path stri
 		req.Header.Set("Content-Type", "application/json")
 	}
 	testutil.WithClaims(tb, testutil.AdminTestClaims(120))(req)
+	testutil.WithPermissions(permissions.UsersRead)(req)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 	return rr

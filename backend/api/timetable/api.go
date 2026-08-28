@@ -323,11 +323,9 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/capabilities", rs.operationsCapabilities)
-			// The operation rosters expose children's pickup times as well as
-			// attendance data, so tenant callers need the student-data boundary.
-			// The school portal mounts its own assignment-bound routes with
-			// supervision:own instead (SchoolSupervisionRouter).
-			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+			// Roster previews expose children's pickup times. The handler applies
+			// the extra users:read boundary only when include_roster is requested.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/active-sessions", rs.operationsActiveSessions)

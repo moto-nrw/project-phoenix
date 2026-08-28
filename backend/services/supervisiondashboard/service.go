@@ -497,7 +497,7 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	planned, err := s.deps.Operations.PlannedNow(ctx, int64(claims.ID), claims.IsAdmin, today, now, scheduleService.PlannedNowOptions{
 		HorizonMinutes: plannedNowHorizonMinutes,
 		Limit:          plannedNowLimit,
-		IncludeRoster:  true,
+		IncludeRoster:  authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx)),
 	})
 	if err != nil {
 		return fmt.Errorf("load planned instances: %w", err)

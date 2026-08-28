@@ -158,6 +158,29 @@ func TestLoadPlanningTimesProjectsPickupException(t *testing.T) {
 	assert.True(t, projection.PickupTimes[0].IsException)
 }
 
+func TestLoadScheduleSectionsOmitsRosterWithoutStudentRead(t *testing.T) {
+	t.Parallel()
+
+	operations := &mockOperationsService{
+		plannedNowFn: func(opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+			assert.False(t, opts.IncludeRoster)
+			return []scheduleService.OperationPlannedInstance{}, nil
+		},
+		activeSessionsFn: func() ([]scheduleService.OperationActiveSession, error) {
+			return []scheduleService.OperationActiveSession{}, nil
+		},
+	}
+	service := &service{deps: Dependencies{
+		Operations: operations,
+		Settings:   &configtest.Mock{},
+		Now:        func() time.Time { return time.Date(2026, time.August, 19, 12, 0, 0, 0, timezone.Berlin) },
+	}}
+	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 99})
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.SchedulesRead})
+
+	require.NoError(t, service.loadScheduleSections(ctx, emptyProjection()))
+}
+
 func TestServiceDefaults(t *testing.T) {
 	t.Parallel()
 

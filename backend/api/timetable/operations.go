@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -91,6 +92,10 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	}
 	opts, ok := parsePlannedNowOptions(w, r)
 	if !ok {
+		return
+	}
+	if opts.IncludeRoster && !canViewOperationPickupTimes(r.Context()) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("student data access is required for roster preview")))
 		return
 	}
 	today := timezone.TodayDate()
@@ -489,6 +494,9 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 		rs.renderOperationsError(w, r, err)
 		return
 	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
+	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked in to timetable instance")
 }
 
@@ -506,6 +514,9 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
+	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked out from timetable instance")
 }
@@ -538,7 +549,21 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 		rs.renderOperationsError(w, r, err)
 		return
 	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		result.PickupTime = nil
+	}
 	common.Respond(w, r, http.StatusOK, result, "Timetable attendance updated")
+}
+
+func canViewOperationPickupTimes(ctx context.Context) bool {
+	return authorize.IsAssignmentBoundPortal(ctx) ||
+		authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
+}
+
+func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
+	for i := range roster.Rows {
+		roster.Rows[i].PickupTime = nil
+	}
 }
 
 func (rs *Resource) withOperationInstance(w http.ResponseWriter, r *http.Request, fn func(int64) (any, error), message string) {
