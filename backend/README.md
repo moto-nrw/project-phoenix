@@ -40,7 +40,8 @@ Run these commands from the repository root:
 
 ```bash
 scripts/backend-architecture.sh check
-scripts/backend-architecture.sh legacy-check
+scripts/backend-architecture.sh audit-issues --api-url https://api.github.com
+scripts/backend-architecture.sh explain --scope production --source <package> --target <package>
 scripts/backend-architecture.sh diagram
 scripts/backend-architecture.sh dependencies --focus module:timetable-activities
 scripts/backend-architecture.sh dependencies --focus package:services/schedule
@@ -49,18 +50,17 @@ scripts/backend-architecture.sh dependencies --focus package:services/schedule
 `check` evaluates the strict target policy in `architecture/policy.json`,
 including production, internal-test, and external-test import scopes plus
 table ownership, tenant-safe projections, public contract purity, direct
-database access, and legacy-composition references. It currently reports the
-existing target-policy violations with project-relative file, line, and
-declaration evidence. The stable ratchet key does not include that evidence.
-`legacy-check`
-validates every production Go package against `.go-arch-lint.yml`; it excludes
-`_test.go` files and fails when a package has no component. `diagram` writes a
-temporary bundle containing the strict `target.svg`, the condensed current
-`migration.svg`, machine-readable `architecture.json`, and a policy-derived
-`go-arch-lint.yml`. `dependencies` writes `dependencies.svg`,
+database access, and legacy-composition references. The normal command requires
+exact equality with `architecture/legacy.jsonl`; each exact tuple names its one
+open migration issue. `audit-issues` checks those issue states separately from
+the deterministic graph result. `explain` names the rule for one edge.
+`diagram` writes a temporary bundle containing the strict `target.svg`, the
+condensed current `migration.svg`, machine-readable `architecture.json`, and a
+policy-derived `go-arch-lint.yml`. `dependencies` writes `dependencies.svg`,
 `dependencies.json`, and the matching policy-build-context Goda query for one
-exact module owner or package. Both commands print their temporary output
-directory; an explicit `--output` must also point inside the system temp tree.
+exact module owner or package. Both projection commands load the committed
+baseline, print their temporary output directory, and reject committed output
+locations.
 
 ## CLI Commands
 

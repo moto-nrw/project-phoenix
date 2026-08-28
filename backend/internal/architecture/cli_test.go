@@ -776,20 +776,15 @@ func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) 
 	}
 }
 
-func TestCanonicalPolicyClassifiesTheEntireBackend(t *testing.T) {
+func TestCanonicalArchitectureRatchetMatchesCommittedBaseline(t *testing.T) {
 	t.Parallel()
 
 	output, err := runArchitecture(t, "check")
-	if err == nil {
-		t.Fatal("canonical check unexpectedly has no target-architecture violations")
+	if err != nil {
+		t.Fatalf("canonical architecture ratchet failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(output, "|imports.forbidden|") {
-		t.Fatalf("canonical check did not evaluate real import edges:\n%s", output)
-	}
-	for _, forbidden := range []string{"|packages.unclassified|", "|packages.stale|", "|external.unclassified|", "|external.stale|", "|policy.rules-overlap|"} {
-		if strings.Contains(output, forbidden) {
-			t.Fatalf("canonical policy contains classification failure %q:\n%s", forbidden, output)
-		}
+	if !strings.Contains(output, "backend architecture ratchet passed:") || !strings.Contains(output, "legacy violation(s) remain") {
+		t.Fatalf("canonical check did not report the shrinking ratchet result:\n%s", output)
 	}
 }
 
