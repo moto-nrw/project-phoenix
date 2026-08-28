@@ -30,7 +30,7 @@ import (
 //
 // Use this helper instead of hand-copying the four statements into each new
 // migration; it keeps the policy shape and naming identical everywhere.
-func provisionTenantRLS(ctx context.Context, db *bun.DB, tables ...string) error {
+func provisionTenantRLS(ctx context.Context, db bun.IDB, tables ...string) error {
 	for _, table := range tables {
 		schema, name, ok := strings.Cut(table, ".")
 		if !ok {

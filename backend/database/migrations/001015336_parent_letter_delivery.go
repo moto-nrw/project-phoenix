@@ -197,24 +197,8 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating platform.email_delivery unique index: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, `
-		DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_policies
-				WHERE schemaname = 'platform'
-					AND tablename = 'email_delivery'
-					AND policyname = 'tenant_isolation_platform_email_delivery'
-			) THEN
-				CREATE POLICY tenant_isolation_platform_email_delivery ON platform.email_delivery
-					FOR ALL
-					USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-					WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-			END IF;
-		END $$;
-	`)
-	if err != nil {
-		return fmt.Errorf("error creating RLS policy on platform.email_delivery: %w", err)
+	if err := provisionTenantRLS(ctx, tx, "platform.email_delivery"); err != nil {
+		return err
 	}
 
 	// Request handlers write these rows inside the publish tenant tx and read them
