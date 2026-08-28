@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	pushSubscriptionsSchoolPortalVersion     = "1.15.337"
+	pushSubscriptionsSchoolPortalVersion     = "1.15.339"
 	pushSubscriptionsSchoolPortalDescription = "Allow 'school' as push subscription portal for moto schule (#2208)"
 )
 

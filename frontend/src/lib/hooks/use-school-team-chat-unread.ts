@@ -118,7 +118,11 @@ export function useSchoolTeamChatUnread(): SchoolTeamChatUnread {
     onError,
   });
 
-  refreshRef.current = refresh;
+  // Written after commit, not during render: render must stay pure, and the
+  // retry timer only ever fires after a commit.
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
 
   return {
     unreadCount,
