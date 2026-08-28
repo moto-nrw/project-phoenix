@@ -13,19 +13,13 @@ import (
 )
 
 func TestParentLetterDeliveryRLS(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	t.Cleanup(func() {
-		ctx := context.Background()
-		_, err := db.NewDelete().Table("platform.email_delivery").
-			Where("tenant_id IN (?, ?)", tenantA, tenantB).Exec(ctx)
-		require.NoError(t, err)
-		testpkg.CleanupTenantTestData(t, db, tenantA)
-		testpkg.CleanupTenantTestData(t, db, tenantB)
-	})
 
 	ctx := context.Background()
 	for _, tenantID := range []int64{tenantA, tenantB} {
