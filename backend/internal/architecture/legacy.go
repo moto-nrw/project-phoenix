@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"golang.org/x/mod/module"
 )
 
 type LegacyEntry struct {
@@ -131,8 +133,7 @@ func (e LegacyEntry) Validate() error {
 }
 
 func isCanonicalSourcePackage(source string) bool {
-	firstSlash := strings.IndexByte(source, '/')
-	return firstSlash > 0 && strings.Contains(source[:firstSlash], ".")
+	return module.CheckPath(source) == nil
 }
 
 func validateExactLegacyValue(label, value string) error {
