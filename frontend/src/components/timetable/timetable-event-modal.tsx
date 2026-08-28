@@ -103,6 +103,8 @@ interface TimetableEventModalProps {
   weekFrom?: string;
   weekTo?: string;
   calendarPeriods: CalendarPeriod[];
+  /** All loaded planning periods validate one-off appointment dates. */
+  planningPeriods?: CalendarPeriod[];
   defaultCalendarPeriodId?: string | null;
   showPeriodField?: boolean;
   initialInstance?: EnrichedInstance | null;
@@ -143,6 +145,7 @@ export function TimetableEventModal({
   weekFrom,
   weekTo,
   calendarPeriods,
+  planningPeriods = calendarPeriods,
   defaultCalendarPeriodId,
   showPeriodField = false,
   initialInstance = null,
@@ -277,6 +280,7 @@ export function TimetableEventModal({
     weekFrom,
     weekTo,
     calendarPeriods,
+    planningPeriods,
     defaultCalendarPeriodId,
     initialInstance,
     initialSeries,

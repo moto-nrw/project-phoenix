@@ -197,6 +197,7 @@ export interface UseEventFormParams {
   weekFrom?: string;
   weekTo?: string;
   calendarPeriods: CalendarPeriod[];
+  planningPeriods?: CalendarPeriod[];
   defaultCalendarPeriodId?: string | null;
   initialInstance: EnrichedInstance | null;
   initialSeries: TimetableTemplate | null;
@@ -228,6 +229,7 @@ export function useEventForm({
   weekFrom,
   weekTo,
   calendarPeriods,
+  planningPeriods = calendarPeriods,
   defaultCalendarPeriodId,
   initialInstance,
   initialSeries,
@@ -1219,6 +1221,15 @@ export function useEventForm({
     }
     if (form.date === "") {
       errors.date = "Bitte ein Datum auswählen.";
+    } else if (
+      !isSeriesFlow &&
+      initialInstance === null &&
+      !planningPeriods.some(
+        (period) =>
+          form.date >= period.startDate && form.date <= period.endDate,
+      )
+    ) {
+      errors.date = "Wählen Sie ein Datum in einem Planungszeitraum.";
     }
     if (form.startTime === "") {
       errors.startTime = "Bitte eine Startzeit angeben.";

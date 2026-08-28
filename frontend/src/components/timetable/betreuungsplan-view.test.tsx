@@ -177,17 +177,17 @@ vi.mock("~/components/timetable/timetable-add-menu", () => ({
   TimetableAddMenu: ({
     onAddInstance,
     onAddSeries,
-    instanceDisabled = false,
+    disabled = false,
   }: {
     onAddInstance: () => void;
     onAddSeries: () => void;
-    instanceDisabled?: boolean;
+    disabled?: boolean;
   }) => (
     <div>
-      <button type="button" onClick={onAddInstance} disabled={instanceDisabled}>
+      <button type="button" onClick={onAddInstance} disabled={disabled}>
         add-instance
       </button>
-      <button type="button" onClick={onAddSeries}>
+      <button type="button" onClick={onAddSeries} disabled={disabled}>
         add-series
       </button>
     </div>
@@ -1137,15 +1137,17 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  it("sperrt den globalen Einmaltermin außerhalb des Planungszeitraums", () => {
-    setUrl("view=tag&d=2026-05-06");
-    setupSWR({ periods: [{ ...period, endDate: "2026-05-05" }] });
+  it("wählt für den globalen Einmaltermin einen sichtbaren planbaren Tag", () => {
+    setUrl("view=woche&d=2026-05-06");
+    setupSWR({ periods: [{ ...period, startDate: "2026-05-07" }] });
 
     render(<BetreuungsplanView />);
 
-    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-instance")).toBeEnabled();
     fireEvent.click(screen.getByText("add-instance"));
-    expect(screen.queryByText("event-save")).not.toBeInTheDocument();
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-07" }),
+    );
   });
 
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {
@@ -1878,5 +1880,13 @@ describe("BetreuungsplanView", () => {
       screen.getByRole("button", { name: "Planungszeitraum anlegen" }),
     );
     expect(screen.getByText("period-save")).toBeInTheDocument();
+  });
+
+  it("sperrt das Menü Neu ohne Planungszeitraum", () => {
+    setupSWR({ periods: [] });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
   });
 });

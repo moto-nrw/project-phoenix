@@ -667,6 +667,9 @@ function TimetablesContent() {
     () => uniqueAssignedPeriods(periodAssignments),
     [periodAssignments],
   );
+  const firstCoveredDateISO = periodAssignments.find(
+    (assignment) => assignment.period !== null,
+  )?.date;
   const planningDisabledDateISOs = useMemo(
     () =>
       new Set(
@@ -1374,8 +1377,6 @@ function TimetablesContent() {
   // Berechtigung (403) bleibt es leer und der Hinweis führt zum Anlegen-Dialog.
   const showEmptyPeriodState = periodsReady && calendarPeriods.length === 0;
   const periodLoadError = periodsError !== undefined;
-  const canCreateInstanceAtVisibleDate =
-    periodsReady && findPeriodForDate(calendarPeriods, dayISO) !== null;
   return (
     <div className="flex flex-col gap-4">
       <PlanningContextBar
@@ -1469,8 +1470,7 @@ function TimetablesContent() {
               <TimetableAddMenu
                 onAddInstance={openEventCreate}
                 onAddSeries={openSeriesCreate}
-                instanceDisabled={!canCreateInstanceAtVisibleDate}
-                disabled={!periodsReady}
+                disabled={!periodsReady || calendarPeriods.length === 0}
               />
             ) : (
               <StatusBadge
@@ -1761,12 +1761,15 @@ function TimetablesContent() {
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
         }}
-        defaultDate={nextWorkdayISO(quickPrefill?.date ?? dayISO)}
+        defaultDate={nextWorkdayISO(
+          quickPrefill?.date ?? firstCoveredDateISO ?? dayISO,
+        )}
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
         weekTo={workweekToISO}
         calendarPeriods={modalCalendarPeriods}
+        planningPeriods={calendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}
         initialInstance={editingInstance}

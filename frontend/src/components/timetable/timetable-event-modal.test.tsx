@@ -516,6 +516,27 @@ describe("TimetableEventModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("rejects a one-off date outside every planning period", async () => {
+    renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-01-04" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie ein Datum in einem Planungszeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
   // #2032: Ein Termin darf auf einem Schließtag liegen, das Speichern fragt
   // aber einmal nach.
   const closingRanges = [
