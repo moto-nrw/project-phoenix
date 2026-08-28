@@ -84,6 +84,14 @@ function ElternContent() {
       show: canAnnounce && parentNewsEnabled,
     },
     {
+      href: "/eltern/bankverbindungen",
+      title: "Bankverbindungen",
+      body: "Übersicht, von welchem Konto der Beitrag je Kind eingezogen wird.",
+      concept: "payroll",
+      points: ["Ein Eintrag je Kind", "Als Liste herunterladen"],
+      show: hasPermission(session, "guardians:financial"),
+    },
+    {
       href: "/meal-plan",
       title: "Essensplan",
       body: "Den Speiseplan pflegen, den Eltern im Portal sehen.",

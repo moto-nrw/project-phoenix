@@ -255,3 +255,91 @@ describe("DataTable pagination", () => {
     ).toBeInTheDocument();
   });
 });
+
+// The stacked phone layout: same rows, same paging, one component. Columns
+// declare the role they play so a phone shows the values a narrow viewport
+// would otherwise push off screen.
+describe("DataTable stacked phone layout", () => {
+  interface PersonRow {
+    id: string;
+    name: string;
+    schoolClass: string;
+    iban: string;
+  }
+
+  const stackedColumns: DataTableColumn<PersonRow>[] = [
+    {
+      key: "name",
+      header: "Kind",
+      render: (row) => row.name,
+      sortValue: (row) => row.name,
+      stacked: "title",
+    },
+    {
+      key: "class",
+      header: "Klasse",
+      render: (row) => row.schoolClass,
+      stacked: "meta",
+    },
+    { key: "iban", header: "IBAN", render: (row) => row.iban },
+  ];
+
+  const people: PersonRow[] = [
+    { id: "1", name: "Mia", schoolClass: "1a", iban: "•••• 3000" },
+    { id: "2", name: "Lea", schoolClass: "2b", iban: "•••• 4000" },
+  ];
+
+  it("renders the field columns as labelled lines beside the table", () => {
+    render(
+      <DataTable
+        columns={stackedColumns}
+        rows={people}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+      />,
+    );
+
+    const stacked = screen.getByTestId("data-table-stacked");
+    expect(stacked).toHaveTextContent("Mia");
+    expect(stacked).toHaveTextContent("1a");
+    // The label comes from the column header, the value from its renderer.
+    expect(stacked).toHaveTextContent("IBAN");
+    expect(stacked).toHaveTextContent("•••• 3000");
+    expect(screen.getByTestId("data-table-table")).toBeInTheDocument();
+  });
+
+  it("shares paging with the table instead of counting its own rows", () => {
+    render(
+      <DataTable
+        columns={stackedColumns}
+        rows={people}
+        getRowKey={(row) => row.id}
+        pageSize={1}
+        stackedOnMobile
+      />,
+    );
+
+    const stacked = screen.getByTestId("data-table-stacked");
+    expect(stacked).not.toHaveTextContent("Lea");
+
+    fireEvent.click(
+      screen
+        .getAllByRole("button", { name: /Mehr laden \(1 von 2\)/ })
+        .filter((el) => stacked.contains(el))[0]!,
+    );
+
+    expect(stacked).toHaveTextContent("Lea");
+  });
+
+  it("renders the table alone when the phone layout is not requested", () => {
+    render(
+      <DataTable
+        columns={stackedColumns}
+        rows={people}
+        getRowKey={(row) => row.id}
+      />,
+    );
+
+    expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
+  });
+});
