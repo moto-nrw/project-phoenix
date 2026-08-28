@@ -31,8 +31,15 @@ export const { proxyGet, proxyPost, proxyPut, proxyPatch, proxyDelete } =
     del: createDeleteHandler,
     apiGet: <T>(endpoint: string, token: string) =>
       api.apiGet<T>(endpoint, token),
-    apiPost: <T, B = unknown>(endpoint: string, token: string, body?: B) =>
-      api.apiPost<T, B>(endpoint, token, body),
+    apiPost: <T, B = unknown>(
+      endpoint: string,
+      token: string,
+      body?: B,
+      idempotencyKey?: string,
+    ) =>
+      idempotencyKey
+        ? api.apiPost<T, B>(endpoint, token, body, idempotencyKey)
+        : api.apiPost<T, B>(endpoint, token, body),
     apiPut: <T, B = unknown>(endpoint: string, token: string, body?: B) =>
       api.apiPut<T, B>(endpoint, token, body),
     apiPatch: <T, B = unknown>(endpoint: string, token: string, body?: B) =>
