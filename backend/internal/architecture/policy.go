@@ -108,8 +108,11 @@ func LoadPolicy(path string) (*Policy, error) {
 		return nil, fmt.Errorf("open policy: %w", err)
 	}
 	defer func() { _ = file.Close() }()
+	return DecodePolicy(file)
+}
 
-	decoder := json.NewDecoder(file)
+func DecodePolicy(reader io.Reader) (*Policy, error) {
+	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var policy Policy
 	if err := decoder.Decode(&policy); err != nil {

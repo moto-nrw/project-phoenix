@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -61,17 +62,18 @@ const schoolLoginImageURLKey = "loginImageUrl"
 // misconfiguration — production wiring always sets it), enqueueEmail
 // logs a warning and skips the send.
 type GuardianInvitationServiceConfig struct {
-	InvitationRepo      authModels.GuardianInvitationRepository
-	AccountRepo         authModels.AccountRepository
-	AccountTenantRepo   authModels.AccountTenantRepository
-	AccountRoleRepo     authModels.AccountRoleRepository
-	RoleRepo            authModels.RoleRepository
-	PersonRepo          userModels.PersonRepository
-	GuardianProfileRepo userModels.GuardianProfileRepository
-	StudentGuardianRepo userModels.StudentGuardianRepository
-	StudentRepo         userModels.StudentRepository
-	SchoolRepo          platformModels.SchoolRepository
-	OutboxEnqueuer      platformModels.OutboxEnqueuer
+	InvitationRepo         authModels.GuardianInvitationRepository
+	AccountRepo            authModels.AccountRepository
+	AccountTenantRepo      authModels.AccountTenantRepository
+	AccountRoleRepo        authModels.AccountRoleRepository
+	RoleRepo               authModels.RoleRepository
+	PersonRepo             userModels.PersonRepository
+	GuardianProfileRepo    userModels.GuardianProfileRepository
+	StudentGuardianRepo    userModels.StudentGuardianRepository
+	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
+	StudentRepo            userModels.StudentRepository
+	SchoolRepo             platformModels.SchoolRepository
+	OutboxEnqueuer         platformModels.OutboxEnqueuer
 	// EnrollmentBackfiller stamps guardian_account_id onto every
 	// pre-account enrollment.requests row matching the guardian's
 	// email, so requests submitted before invite acceptance show up in

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -20,7 +21,10 @@ type Resource struct {
 	PersonService      guardianSvc.PersonService
 	EducationService   educationSvc.Service
 	UserContextService userContextSvc.UserContextService
-	db                 *bun.DB
+	// ListExportService renders the Bankverbindungen export (#2608). Assigned
+	// after construction like the other export-capable resources.
+	ListExportService *listexport.RendererService
+	db                *bun.DB
 }
 
 // NewResource creates a new guardians resource
@@ -103,6 +107,18 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/invitations/{invitationId}/reject", rs.rejectInvitation)
+
+		// Guardian payment data (#2608). The whole section sits behind
+		// guardians:financial, not users:update: an IBAN list is the single
+		// most abusable export the school holds, and the directory
+		// maintainers are not the school office. Reveal and export are POSTs
+		// because both are audited actions, not cacheable reads.
+		r.With(authorize.RequiresPermission(permissions.GuardiansFinancial), withTx).Get("/payment-overview", rs.listPaymentOverview)
+		r.With(authorize.RequiresPermission(permissions.GuardiansFinancial), withTx).Post("/payment-overview/export", rs.exportPaymentOverview)
+		r.With(authorize.RequiresPermission(permissions.GuardiansFinancial), withTx).Put("/students/{studentId}/payer", rs.setStudentPayer)
+		r.With(authorize.RequiresPermission(permissions.GuardiansFinancial), withTx).Get("/{id}/payment", rs.getGuardianPayment)
+		r.With(authorize.RequiresPermission(permissions.GuardiansFinancial), withTx).Put("/{id}/payment", rs.updateGuardianPayment)
+		r.With(authorize.RequiresPermission(permissions.GuardiansFinancial), withTx).Post("/{id}/payment/reveal", rs.revealGuardianPayment)
 
 		// Phone number management (nested under guardian)
 		r.Route("/{id}/phone-numbers", func(r chi.Router) {

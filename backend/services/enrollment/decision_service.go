@@ -398,6 +398,7 @@ type DecisionServiceConfig struct {
 	StaffRepo                users.StaffRepository
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
+	GuardianFinancialAudit   auditModels.GuardianFinancialChangeCreator
 	GuardianProfileRepo      users.GuardianProfileRepository
 	GuardianPhoneRepo        users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
 	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
@@ -1919,7 +1920,7 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		if err != nil {
 			return nil, err
 		}
-		resolved, err := s.reconcilePrimaryGuardianLink(ctx, guardianRequest, studentID, false)
+		resolved, err := s.reconcilePrimaryGuardianLink(ctx, guardianRequest, studentID, false, reviewedBy)
 		if err != nil {
 			return nil, err
 		}
@@ -2356,6 +2357,7 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	request *enrollmentModels.Request,
 	studentID int64,
 	pruneStalePrimary bool,
+	reviewedBy int64,
 ) (*users.GuardianProfile, error) {
 	guardian, _, err := s.resolveGuardianProfile(ctx, request)
 	if err != nil {
@@ -2383,6 +2385,18 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	}
 
 	if currentLink != nil {
+		payerTransferred := false
+		if pruneStalePrimary && primaryLink != nil && primaryLink.ID != currentLink.ID && primaryLink.IsPayer {
+			if err := s.recordPayerTransfer(ctx, primaryLink, currentLink.GuardianProfileID, reviewedBy); err != nil {
+				return nil, err
+			}
+			primaryLink.IsPayer = false
+			if err := s.StudentGuardianRepo.Update(ctx, primaryLink); err != nil {
+				return nil, fmt.Errorf("decision: clear stale payer link: %w", err)
+			}
+			currentLink.IsPayer = true
+			payerTransferred = true
+		}
 		currentLink.RelationshipType = "guardian"
 		currentLink.IsPrimary = true
 		currentLink.IsEmergencyContact = true
@@ -2395,6 +2409,11 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
 		}
 		if pruneStalePrimary && primaryLink != nil && primaryLink.ID != currentLink.ID {
+			if !payerTransferred {
+				if err := s.recordPayerRemoval(ctx, primaryLink, reviewedBy); err != nil {
+					return nil, err
+				}
+			}
 			if err := s.StudentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
 				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
 			}
@@ -2403,6 +2422,9 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	}
 
 	if pruneStalePrimary && primaryLink != nil {
+		if err := s.recordPayerTransfer(ctx, primaryLink, guardian.ID, reviewedBy); err != nil {
+			return nil, err
+		}
 		primaryLink.GuardianProfileID = guardian.ID
 		primaryLink.RelationshipType = "guardian"
 		primaryLink.IsPrimary = true
@@ -2441,6 +2463,7 @@ func (s *decisionService) reconcileApprovedChildGuardians(
 	request *enrollmentModels.Request,
 	studentID int64,
 	previousGuardians []*enrollmentModels.RequestGuardian,
+	reviewedBy int64,
 ) (map[int64]bool, error) {
 	currentProfileIDs := map[int64]bool{}
 	if s.RequestGuardianRepo == nil || s.StudentGuardianRepo == nil {
@@ -2471,13 +2494,57 @@ func (s *decisionService) reconcileApprovedChildGuardians(
 			previousProfileIDs[*row.GuardianProfileID] = true
 		}
 	}
-	if err := s.deleteRemovedStudentGuardianLinks(ctx, studentID, previousProfileIDs, currentProfileIDs); err != nil {
+	if err := s.deleteRemovedStudentGuardianLinks(ctx, studentID, previousProfileIDs, currentProfileIDs, reviewedBy); err != nil {
 		return currentProfileIDs, fmt.Errorf("decision: unlink removed additional guardians: %w", err)
 	}
 	return currentProfileIDs, nil
 }
 
-func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context, studentID int64, previous, keep map[int64]bool) error {
+func (s *decisionService) recordPayerRemoval(ctx context.Context, link *users.StudentGuardian, reviewedBy int64) error {
+	if link == nil || !link.IsPayer {
+		return nil
+	}
+	if s.GuardianFinancialAudit == nil || reviewedBy <= 0 {
+		return fmt.Errorf("decision: payer removal requires a financial audit actor")
+	}
+	studentID := link.StudentID
+	if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{
+		GuardianProfileID: link.GuardianProfileID,
+		StudentID:         &studentID,
+		ChangedBy:         reviewedBy,
+		FieldName:         auditModels.GuardianPaymentFieldIsPayer,
+		OldValue:          "true",
+		NewValue:          "false",
+		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
+	}); err != nil {
+		return fmt.Errorf("decision: write payer removal audit: %w", err)
+	}
+	return nil
+}
+
+// recordPayerTransfer records both sides before a relationship row is pointed
+// at another guardian. Keeping is_payer on the row would otherwise silently
+// turn the new guardian into the payer.
+func (s *decisionService) recordPayerTransfer(ctx context.Context, link *users.StudentGuardian, newGuardianProfileID, reviewedBy int64) error {
+	if link == nil || !link.IsPayer || link.GuardianProfileID == newGuardianProfileID {
+		return nil
+	}
+	if s.GuardianFinancialAudit == nil || reviewedBy <= 0 {
+		return fmt.Errorf("decision: payer transfer requires a financial audit actor")
+	}
+	studentID := link.StudentID
+	for _, change := range []auditModels.GuardianFinancialChange{
+		{GuardianProfileID: link.GuardianProfileID, StudentID: &studentID, ChangedBy: reviewedBy, FieldName: auditModels.GuardianPaymentFieldIsPayer, OldValue: "true", NewValue: "false", Note: "Zahlungskonto auf andere erziehungsberechtigte Person übertragen"},
+		{GuardianProfileID: newGuardianProfileID, StudentID: &studentID, ChangedBy: reviewedBy, FieldName: auditModels.GuardianPaymentFieldIsPayer, OldValue: "false", NewValue: "true", Note: "Zahlungskonto von anderer erziehungsberechtigter Person übernommen"},
+	} {
+		if err := s.GuardianFinancialAudit.Create(ctx, &change); err != nil {
+			return fmt.Errorf("decision: write payer transfer audit: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context, studentID int64, previous, keep map[int64]bool, reviewedBy int64) error {
 	if len(previous) == 0 || s.StudentGuardianRepo == nil {
 		return nil
 	}
@@ -2490,6 +2557,9 @@ func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context,
 			continue
 		}
 		if previous[link.GuardianProfileID] && !keep[link.GuardianProfileID] {
+			if err := s.recordPayerRemoval(ctx, link, reviewedBy); err != nil {
+				return err
+			}
 			if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 				return err
 			}
@@ -3929,7 +3999,7 @@ func (s *decisionService) applyTargetedFields(
 				newContactIDs = ids
 			}
 			if options.Replace {
-				if err := s.deleteRemovedStudentGuardianLinks(ctx, student.ID, oldContactIDs, mergeGuardianProfileKeepSets(newContactIDs, options.KeepGuardianProfileIDs)); err != nil {
+				if err := s.deleteRemovedStudentGuardianLinks(ctx, student.ID, oldContactIDs, mergeGuardianProfileKeepSets(newContactIDs, options.KeepGuardianProfileIDs), reviewedBy); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
 				}
 			}

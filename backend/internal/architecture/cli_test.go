@@ -451,11 +451,26 @@ func TestCanonicalPolicyClassifiesTheEntireBackend(t *testing.T) {
 }
 
 func runArchitecture(t *testing.T, args ...string) (string, error) {
+	return runArchitectureWithEnv(t, nil, args...)
+}
+
+func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ...string) (string, error) {
 	t.Helper()
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
 	command := exec.Command(filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
 	command.Dir = root
+	command.Env = os.Environ()
+	for key, value := range environment {
+		prefix := key + "="
+		filtered := command.Env[:0]
+		for _, variable := range command.Env {
+			if !strings.HasPrefix(variable, prefix) {
+				filtered = append(filtered, variable)
+			}
+		}
+		command.Env = append(filtered, prefix+value)
+	}
 	output, err := command.CombinedOutput()
 	return string(output), err
 }
