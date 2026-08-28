@@ -44,6 +44,13 @@ export function PushSubscriptionSync({
 }) {
   const { data: session, status } = useSession();
 
+  // Re-runs whenever the authenticated identity changes, not just on the
+  // status flip: a second tab can swap the account or the school underneath a
+  // mounted session, and a subscription still bound to the previous identity
+  // would keep delivering that account's notifications to this device (#2208).
+  const accountID = session?.user.id;
+  const tenantID = session?.user.tenantId;
+
   useEffect(() => {
     if (status !== "authenticated" || !isPushSupported()) return;
     syncExistingPushSubscription(portal).catch((err: unknown) => {
@@ -53,12 +60,12 @@ export function PushSubscriptionSync({
         error: err instanceof Error ? err.message : String(err),
       });
     });
-  }, [portal, status]);
+  }, [portal, status, accountID, tenantID]);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session?.user.id) return;
-    void reportStandaloneUsage(portal, session.user.id, session.user.tenantId);
-  }, [portal, session?.user.id, session?.user.tenantId, status]);
+    if (status !== "authenticated" || !accountID) return;
+    void reportStandaloneUsage(portal, accountID, tenantID);
+  }, [portal, accountID, tenantID, status]);
 
   return null;
 }
