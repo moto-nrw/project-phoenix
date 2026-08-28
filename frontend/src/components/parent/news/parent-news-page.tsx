@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -19,6 +20,10 @@ const logger = createLogger({ component: "ParentNewsPage" });
 export function ParentNewsPage() {
   const t = useTranslations("parentNews");
   const tDash = useTranslations("parentDashboard");
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedBrief = searchParams.get("brief");
   const [items, setItems] = useState<ParentAnnouncement[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -44,6 +49,12 @@ export function ParentNewsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (requestedBrief && items.some((item) => item.id === requestedBrief)) {
+      setOpenId(requestedBrief);
+    }
+  }, [items, requestedBrief]);
+
   const applyState = useCallback(
     (id: string, patch: Partial<ParentAnnouncement>) => {
       setItems((prev) =>
@@ -66,6 +77,17 @@ export function ParentNewsPage() {
   }, []);
 
   const openItem = items.find((item) => item.id === openId) ?? null;
+
+  const closeItem = useCallback(() => {
+    setOpenId(null);
+    if (!requestedBrief) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("brief");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [pathname, requestedBrief, router, searchParams]);
   const outstandingItems = items.filter(isOutstandingAnnouncement);
   const completedItems = items.filter(
     (item) => !isOutstandingAnnouncement(item),
@@ -137,7 +159,7 @@ export function ParentNewsPage() {
       {openItem && (
         <NewsDetailModal
           item={openItem}
-          onClose={() => setOpenId(null)}
+          onClose={closeItem}
           onUpdated={applyState}
           onStale={refetchOnStale}
         />

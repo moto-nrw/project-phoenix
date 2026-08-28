@@ -453,6 +453,23 @@ func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
 	assert.Equal(t, "SharedPass1!", fs.staffPassword)
 }
 
+func TestFullDemoWorkflowSeedsParentLetterAfterParentAccounts(t *testing.T) {
+	t.Parallel()
+
+	workflow := fullDemoWorkflow(&Seeder{})
+	parentAccounts, parentLetter := -1, -1
+	for i, step := range workflow.Steps {
+		switch step.(type) {
+		case parentEnrollmentSeedStep:
+			parentAccounts = i
+		case seedParentLetterStep:
+			parentLetter = i
+		}
+	}
+	require.GreaterOrEqual(t, parentAccounts, 0, "parent enrollment step missing")
+	require.Greater(t, parentLetter, parentAccounts, "parent letter must follow parent accounts")
+}
+
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	trace := &fullSeedAPITrace{}
