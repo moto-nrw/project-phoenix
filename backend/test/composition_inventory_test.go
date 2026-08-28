@@ -114,8 +114,29 @@ type compositionPolicy struct {
 	} `json:"data_objects"`
 }
 
+type compositionLegacyEvidenceCaller struct {
+	Key       string `json:"key"`
+	Locations []struct {
+		File        string `json:"file"`
+		Line        int    `json:"line"`
+		Declaration string `json:"declaration"`
+	} `json:"locations"`
+}
+
+var compositionConstructorTargets = func() map[string]struct{} {
+	targets := make(map[string]struct{})
+	for _, constructors := range compositionConstructors {
+		for _, target := range constructors {
+			targets[target] = struct{}{}
+		}
+	}
+	return targets
+}()
+
 func TestCompositionInventory(t *testing.T) {
-	t.Parallel()
+	if !*updateCompositionInventory {
+		t.Parallel()
+	}
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
@@ -157,6 +178,7 @@ func validateCompositionMetadata(t *testing.T, backendRoot string, inventory com
 	if len(inventory.LegacyCallers) == 0 || (missingEvidence && !capturingEvidence) {
 		t.Fatal("composition inventory must contain fixed and live caller inventories")
 	}
+	validateCompositionEvidence(t, inventory)
 	assertJSONEqual(t, "production composition roots", expectedCompositionRoots, inventory.ProductionRoots)
 	assertRootsExist(t, backendRoot, inventory.ProductionRoots)
 	actualTestRoots := discoverTestRoots(t, backendRoot, inventory.SmokeTests)
@@ -164,6 +186,56 @@ func validateCompositionMetadata(t *testing.T, backendRoot string, inventory com
 		assertJSONEqual(t, "test composition roots", inventory.TestRoots, actualTestRoots)
 	}
 	assertRootsExist(t, backendRoot, inventory.TestRoots)
+}
+
+func validateCompositionEvidence(t *testing.T, inventory compositionInventory) {
+	t.Helper()
+	if len(inventory.EvidenceLegacyCallers) != 0 {
+		decoder := json.NewDecoder(strings.NewReader(string(inventory.EvidenceLegacyCallers)))
+		decoder.DisallowUnknownFields()
+		var callers []compositionLegacyEvidenceCaller
+		if err := decoder.Decode(&callers); err != nil {
+			t.Fatalf("decode fixed-commit typed legacy caller evidence: %v", err)
+		}
+		if len(callers) == 0 {
+			t.Fatal("fixed-commit typed legacy caller evidence is empty")
+		}
+		for _, caller := range callers {
+			if !validCompositionLegacyEvidenceKey(caller.Key) || len(caller.Locations) == 0 {
+				t.Fatalf("invalid fixed-commit typed legacy caller evidence: %#v", caller)
+			}
+			for _, location := range caller.Locations {
+				if !validCompositionEvidenceLocation(location.File, location.Line, location.Declaration) {
+					t.Fatalf("invalid fixed-commit typed legacy caller location: %#v", location)
+				}
+			}
+		}
+	}
+	for _, caller := range inventory.EvidenceConstructorCalls {
+		if caller.Scope != "production" && caller.Scope != "test" {
+			t.Fatalf("invalid fixed-commit constructor caller scope: %#v", caller)
+		}
+		if _, ok := compositionConstructorTargets[caller.Target]; !ok || caller.File == "" || caller.Declaration == "" || len(caller.Lines) == 0 || caller.Tables == nil {
+			t.Fatalf("invalid fixed-commit constructor caller evidence: %#v", caller)
+		}
+		for _, line := range caller.Lines {
+			if !validCompositionEvidenceLocation(caller.File, line, caller.Declaration) {
+				t.Fatalf("invalid fixed-commit constructor caller location: %#v", caller)
+			}
+		}
+	}
+}
+
+func validCompositionLegacyEvidenceKey(key string) bool {
+	parts := strings.Split(key, "|")
+	return len(parts) == 4 &&
+		(parts[0] == "production" || parts[0] == "test") &&
+		parts[1] == "composition.legacy-reference" &&
+		parts[2] != "" && parts[3] != ""
+}
+
+func validCompositionEvidenceLocation(file string, line int, declaration string) bool {
+	return file != "" && filepath.IsLocal(file) && strings.HasSuffix(file, ".go") && line > 0 && declaration != ""
 }
 
 func updateDiscoveredInventory(t *testing.T, manifestPath, backendRoot string, inventory compositionInventory, calls []constructorCaller) {
