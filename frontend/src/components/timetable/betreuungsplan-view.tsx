@@ -33,6 +33,7 @@ import { CalendarPeriodModal } from "~/components/timetable/calendar-period-moda
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -645,7 +646,19 @@ function TimetablesContent() {
     () => new Map(students.map((item) => [item.id, item.name])),
     [students],
   );
-  const calendarPeriods = useMemo(() => periods ?? [], [periods]);
+  const periodsReady =
+    status === "authenticated" &&
+    !periodsLoading &&
+    !periodsError &&
+    periods !== undefined;
+  const periodsPending =
+    status === "authenticated" && !periodsError && !periodsReady;
+  // Eine fehlende Antwort ist kein leerer Zeitraum. Erst nach erfolgreichem
+  // Laden dürfen Abdeckung und nicht planbare Tage daraus abgeleitet werden.
+  const calendarPeriods = useMemo(
+    () => (periodsReady ? periods : []),
+    [periods, periodsReady],
+  );
   const periodAssignments = useMemo(
     () => mapPeriodsForDates(calendarPeriods, periodContextDayISOs),
     [calendarPeriods, periodContextDayISOs],
@@ -1272,7 +1285,8 @@ function TimetablesContent() {
   // permission-dependent toolbar bits (view switcher, export, "Neu") stay
   // hidden until they resolve (hasPermission(undefined, …) is false while
   // loading).
-  const showSkeleton = status === "loading" || settingsSchemaLoading;
+  const showSkeleton =
+    status === "loading" || settingsSchemaLoading || periodsPending;
 
   if (!showSkeleton && timetableDisabled) {
     return (
@@ -1358,9 +1372,10 @@ function TimetablesContent() {
   // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
   // Berechtigung (403) bleibt es leer und der Hinweis führt zum Anlegen-Dialog.
-  const showEmptyPeriodState =
-    !periodsLoading && periods !== undefined && calendarPeriods.length === 0;
-
+  const showEmptyPeriodState = periodsReady && calendarPeriods.length === 0;
+  const periodLoadError = periodsError !== undefined;
+  const canCreateInstanceAtVisibleDate =
+    periodsReady && findPeriodForDate(calendarPeriods, dayISO) !== null;
   return (
     <div className="flex flex-col gap-4">
       <PlanningContextBar
@@ -1454,6 +1469,8 @@ function TimetablesContent() {
               <TimetableAddMenu
                 onAddInstance={openEventCreate}
                 onAddSeries={openSeriesCreate}
+                instanceDisabled={!canCreateInstanceAtVisibleDate}
+                disabled={!periodsReady}
               />
             ) : (
               <StatusBadge
@@ -1465,7 +1482,7 @@ function TimetablesContent() {
           </>
         }
       >
-        {calendarPeriods.length > 0 && (
+        {periodsReady && calendarPeriods.length > 0 && (
           <PeriodSwitcherDropdown
             periods={calendarPeriods}
             weekDays={periodContextDays}
@@ -1490,7 +1507,13 @@ function TimetablesContent() {
         )}
       </PlanningContextBar>
 
-      {showEmptyPeriodState ? (
+      {periodLoadError ? (
+        <Alert
+          type="error"
+          title="Planungszeiträume konnten nicht geladen werden"
+          message="Bitte laden Sie die Seite neu."
+        />
+      ) : showEmptyPeriodState ? (
         <div className={`${timetableSurface} p-10 text-center`}>
           <MotoConceptIcon
             concept="closingDays"

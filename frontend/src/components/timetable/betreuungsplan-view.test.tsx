@@ -177,12 +177,14 @@ vi.mock("~/components/timetable/timetable-add-menu", () => ({
   TimetableAddMenu: ({
     onAddInstance,
     onAddSeries,
+    instanceDisabled = false,
   }: {
     onAddInstance: () => void;
     onAddSeries: () => void;
+    instanceDisabled?: boolean;
   }) => (
     <div>
-      <button type="button" onClick={onAddInstance}>
+      <button type="button" onClick={onAddInstance} disabled={instanceDisabled}>
         add-instance
       </button>
       <button type="button" onClick={onAddSeries}>
@@ -676,6 +678,7 @@ const gap: GapInstance = {
 
 function setupSWR({
   periods = [period],
+  periodsState = "ready" as "ready" | "loading" | "error",
   templates = [template],
   settingsSchema = null,
   settingsSchemaLoading = false,
@@ -689,6 +692,7 @@ function setupSWR({
   instances = [instance],
 }: {
   periods?: Array<typeof period>;
+  periodsState?: "ready" | "loading" | "error";
   templates?: TimetableTemplate[];
   settingsSchema?: unknown;
   settingsSchemaLoading?: boolean;
@@ -713,6 +717,10 @@ function setupSWR({
         : { data: settingsSchema, isLoading: false };
     }
     if (key === "database-calendar-periods-list") {
+      if (periodsState === "loading") return { isLoading: true };
+      if (periodsState === "error") {
+        return { error: new Error("Zeiträume kaputt"), isLoading: false };
+      }
       return { data: periods, isLoading: false };
     }
     if (key === "planning-closing-days") {
@@ -1127,6 +1135,17 @@ describe("BetreuungsplanView", () => {
     expect(screen.getByTestId("grid-disabled-dates")).toHaveTextContent(
       "2026-05-06",
     );
+  });
+
+  it("sperrt den globalen Einmaltermin außerhalb des Planungszeitraums", () => {
+    setUrl("view=tag&d=2026-05-06");
+    setupSWR({ periods: [{ ...period, endDate: "2026-05-05" }] });
+
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(screen.queryByText("event-save")).not.toBeInTheDocument();
   });
 
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {
@@ -1800,6 +1819,30 @@ describe("BetreuungsplanView", () => {
         closingDaysLoading: true,
       }),
     );
+  });
+
+  it("zeigt beim Laden der Planungszeiträume keinen unplanbaren Kalender", () => {
+    setupSWR({ periodsState: "loading" });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch kein Planungszeitraum"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("zeigt bei einem Fehler der Planungszeiträume keinen leeren Zeitraum", () => {
+    setupSWR({ periodsState: "error" });
+    render(<BetreuungsplanView />);
+
+    expect(
+      screen.getByText("Planungszeiträume konnten nicht geladen werden"),
+    ).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch kein Planungszeitraum"),
+    ).not.toBeInTheDocument();
   });
 
   // --- Chrome-Abbau: Kalender als erstes Inhaltselement, kein Setup-Chrome ---
