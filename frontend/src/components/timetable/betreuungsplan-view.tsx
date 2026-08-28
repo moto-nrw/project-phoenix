@@ -670,6 +670,8 @@ function TimetablesContent() {
   const firstCoveredDateISO = periodAssignments.find(
     (assignment) =>
       assignment.period !== null &&
+      (view !== "month" ||
+        assignment.date.slice(0, 7) === dayISO.slice(0, 7)) &&
       nextWorkdayISO(assignment.date) === assignment.date,
   )?.date;
   const planningDisabledDateISOs = useMemo(

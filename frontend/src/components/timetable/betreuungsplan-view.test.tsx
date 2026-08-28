@@ -1171,6 +1171,20 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("wählt im Monat keinen planbaren Tag aus dem Vormonat", () => {
+    setUrl("view=monat&d=2026-05-06");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-04-27", endDate: "2026-05-04" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-01" }),
+    );
+  });
+
   it("behält einen kurzen Zeitraum bis Freitag als Standarddatum bei", () => {
     setUrl("view=woche&d=2026-05-04");
     setupSWR({
