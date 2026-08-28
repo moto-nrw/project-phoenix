@@ -17,8 +17,19 @@ import (
 func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 	t.Parallel()
 
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	require.NoError(t, err)
+	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
+	require.NoError(t, err)
+	periodStart := today.AddDate(0, 0, 14)
+	for periodStart.Weekday() == time.Saturday || periodStart.Weekday() == time.Sunday {
+		periodStart = periodStart.AddDate(0, 0, 1)
+	}
+	periodEnd := periodStart.AddDate(0, 0, 6)
+
 	var createdStaffIDs []int64
 	var createdDate string
+	bootstrappedPeriods := false
 	deletedInstance := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -28,7 +39,21 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 			_, _ = fmt.Fprint(w, `"OK"`)
 		case r.URL.Path == "/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "test-jwt"})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/timetable/periods/bootstrap":
+			bootstrappedPeriods = true
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"created": true,
+					"periods": []map[string]any{{
+						"start_date": periodStart.Format("2006-01-02"),
+						"end_date":   periodEnd.Format("2006-01-02"),
+						"is_active":  true,
+					}},
+				},
+			})
 		case r.Method == http.MethodPost && r.URL.Path == "/api/timetable/instances":
+			require.True(t, bootstrappedPeriods, "calendar periods must be bootstrapped before creating the demo cancellation")
 			var body struct {
 				StaffIDs []int64 `json:"staff_ids"`
 				Date     string  `json:"date"`
@@ -67,14 +92,13 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 	require.NoError(t, seedapi.WriteSeedState(state, statePath))
 
 	require.NoError(t, RunFullDay(context.Background(), FullDayOptions{StatePath: statePath}))
+	require.True(t, bootstrappedPeriods)
 	require.Equal(t, []int64{10}, createdStaffIDs)
-	berlin, err := time.LoadLocation("Europe/Berlin")
-	require.NoError(t, err)
 	createdDay, err := time.ParseInLocation("2006-01-02", createdDate, berlin)
 	require.NoError(t, err)
-	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
-	require.NoError(t, err)
 	require.True(t, createdDay.After(today), "demo cancellation must be scheduled in the future")
+	require.False(t, createdDay.Before(periodStart), "demo cancellation must be inside the active calendar period")
+	require.False(t, createdDay.After(periodEnd), "demo cancellation must be inside the active calendar period")
 	require.NotContains(t, []time.Weekday{time.Saturday, time.Sunday}, createdDay.Weekday())
 	require.True(t, deletedInstance, "full-day simulation must delete the demo instance to retain a feed tombstone")
 }

@@ -171,9 +171,53 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("load Berlin timezone: %w", err)
 	}
-	date := time.Now().In(berlin).AddDate(0, 0, 1)
-	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDate(0, 0, 1)
+	periodResponse, err := rt.Client.Post("/api/timetable/periods/bootstrap", nil)
+	if err != nil {
+		return fmt.Errorf("bootstrap calendar periods for demo cancellation: %w", err)
+	}
+	var periodEnvelope struct {
+		Data struct {
+			Periods []struct {
+				StartDate string `json:"start_date"`
+				EndDate   string `json:"end_date"`
+				IsActive  bool   `json:"is_active"`
+			} `json:"periods"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(periodResponse, &periodEnvelope); err != nil {
+		return fmt.Errorf("decode calendar periods for demo cancellation: %w", err)
+	}
+	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
+	if err != nil {
+		return fmt.Errorf("normalize current date: %w", err)
+	}
+	var date time.Time
+	for _, period := range periodEnvelope.Data.Periods {
+		if !period.IsActive {
+			continue
+		}
+		start, startErr := time.ParseInLocation("2006-01-02", period.StartDate, berlin)
+		if startErr != nil {
+			return fmt.Errorf("decode calendar period start date for demo cancellation: %w", startErr)
+		}
+		end, endErr := time.ParseInLocation("2006-01-02", period.EndDate, berlin)
+		if endErr != nil {
+			return fmt.Errorf("decode calendar period end date for demo cancellation: %w", endErr)
+		}
+		candidate := today.AddDate(0, 0, 1)
+		if start.After(candidate) {
+			candidate = start
+		}
+		for candidate.Weekday() == time.Saturday || candidate.Weekday() == time.Sunday {
+			candidate = candidate.AddDate(0, 0, 1)
+		}
+		if candidate.After(end) || (!date.IsZero() && !candidate.Before(date)) {
+			continue
+		}
+		date = candidate
+	}
+	if date.IsZero() {
+		return fmt.Errorf("no future weekday in an active calendar period for demo cancellation")
 	}
 	body := map[string]any{
 		"date":       date.Format("2006-01-02"),
