@@ -52,13 +52,30 @@ func classificationLoosenings(base, candidate *Policy) []string {
 	for path, current := range candidate.packageMap() {
 		previous, exists := basePackages[path]
 		if !exists {
+			problems = append(problems, fmt.Sprintf("package %s was newly classified", path))
 			continue
 		}
 		if current.Owner != previous.Owner {
 			problems = append(problems, fmt.Sprintf("package %s changed owner from %s to %s", path, previous.Owner, current.Owner))
 		}
-		if semanticRoleLoosens(previous.Role, current.Role) {
-			problems = append(problems, fmt.Sprintf("package %s changed role from %s to %s and disables semantic checks", path, previous.Role, current.Role))
+		for _, roles := range []struct {
+			scope     string
+			base      string
+			candidate string
+		}{
+			{scope: "production", base: previous.Role, candidate: current.Role},
+			{scope: "internal_test", base: previous.InternalTestRole, candidate: current.InternalTestRole},
+			{scope: "external_test", base: previous.ExternalTestRole, candidate: current.ExternalTestRole},
+		} {
+			if semanticRoleLoosens(roles.base, roles.candidate) {
+				problems = append(problems, fmt.Sprintf("package %s changed %s role from %s to %s and disables semantic checks", path, roles.scope, roles.base, roles.candidate))
+			}
+		}
+	}
+	baseExternal := base.externalPackageMap()
+	for path, current := range candidate.externalPackageMap() {
+		if _, exists := baseExternal[path]; !exists {
+			problems = append(problems, fmt.Sprintf("external package %s was newly classified as %s", path, current.Class))
 		}
 	}
 	return problems

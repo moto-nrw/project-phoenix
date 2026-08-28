@@ -149,6 +149,46 @@ func TestCheckRejectsSemanticClassificationBypassWithoutChangingImports(t *testi
 	}
 }
 
+func TestCheckRejectsTestScopeClassificationBypass(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["roles"] = append(document["roles"].([]any), "migration")
+		for _, value := range document["packages"].([]any) {
+			pkg := value.(map[string]any)
+			if pkg["path"] == "source" {
+				pkg["internal_test_role"] = "migration"
+			}
+		}
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "changed internal_test role") {
+		t.Fatalf("test-scope classification bypass was accepted: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsNewPackageClassifications(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "new-package", "owner": "module", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+		document["external_classes"] = append(document["external_classes"].([]any), "stdlib")
+		document["external_packages"] = append(document["external_packages"].([]any), map[string]any{"path": "example.com/new", "class": "stdlib"})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "package example.test/architecture-fixture/new-package was newly classified") || !strings.Contains(output, "external package example.com/new was newly classified") {
+		t.Fatalf("new package classifications were accepted: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsOwnerReclassificationWithoutChangingImports(t *testing.T) {
 	t.Parallel()
 
@@ -271,6 +311,25 @@ func TestIssueAuditNetworkFailureDoesNotAffectDeterministicCheck(t *testing.T) {
 	output, err = runArchitecture(t, "check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, "vertical-forbidden.json"), "--baseline", manifest)
 	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
 		t.Fatalf("deterministic check changed after audit failure: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsNonCanonicalIssueURLs(t *testing.T) {
+	t.Parallel()
+
+	for _, issue := range []string{
+		"https://github.com/moto-nrw/project-phoenix/issues/2583/",
+		"https://user@github.com/moto-nrw/project-phoenix/issues/2583",
+		"https://github.com/moto-nrw/project-phoenix/pulls/2583",
+		"https://github.com/moto-nrw/project-phoenix/issues/02583",
+	} {
+		t.Run(issue, func(t *testing.T) {
+			manifest := strings.Replace(legacyRecord(2583), "https://github.com/moto-nrw/project-phoenix/issues/2583", issue, 1)
+			output, err := runArchitecture(t, "check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, "vertical-forbidden.json"), "--baseline", writeManifest(t, manifest))
+			if err == nil || !strings.Contains(output, "migration issue") {
+				t.Fatalf("non-canonical issue URL was accepted: %v\n%s", err, output)
+			}
+		})
 	}
 }
 

@@ -153,15 +153,15 @@ func ParseGitHubIssue(raw string) (GitHubIssue, error) {
 	if err != nil {
 		return GitHubIssue{}, fmt.Errorf("migration issue URL %q is invalid: %w", raw, err)
 	}
-	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	if parsed.Scheme != "https" || parsed.Host != "github.com" || len(parts) != 4 || parts[2] != "issues" || parsed.RawQuery != "" || parsed.Fragment != "" {
+	parts := strings.Split(parsed.Path, "/")
+	if parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil || len(parts) != 5 || parts[0] != "" || parts[3] != "issues" || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return GitHubIssue{}, fmt.Errorf("migration issue %q must be an exact https://github.com/<owner>/<repo>/issues/<number> URL", raw)
 	}
-	number, err := strconv.Atoi(parts[3])
-	if err != nil || number < 1 || parts[0] == "" || parts[1] == "" {
+	number, err := strconv.Atoi(parts[4])
+	if err != nil || number < 1 || parts[1] == "" || parts[2] == "" || raw != fmt.Sprintf("https://github.com/%s/%s/issues/%d", parts[1], parts[2], number) {
 		return GitHubIssue{}, fmt.Errorf("migration issue %q has an invalid issue number", raw)
 	}
-	return GitHubIssue{Owner: parts[0], Repo: parts[1], Number: number, URL: raw}, nil
+	return GitHubIssue{Owner: parts[1], Repo: parts[2], Number: number, URL: raw}, nil
 }
 
 func EnforceLegacyBaseline(violations []Violation, manifest *LegacyManifest) (int, error) {
