@@ -302,6 +302,9 @@ func (m *mockAuthService) IssueSchoolTokensForAuthenticatedAccount(context.Conte
 func (m *mockAuthService) SwitchSchool(context.Context, int64, string, string, string) (string, string, error) {
 	return "", "", nil
 }
+func (m *mockAuthService) HasSchoolPortalAccess(context.Context, int64, int64) (bool, error) {
+	return false, nil
+}
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
 	if m.registerFn != nil {
 		return m.registerFn(ctx, email, username, password, roleID, tenantID)

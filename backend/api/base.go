@@ -633,6 +633,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:                    db,
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.UserContext, db, logger.With("handler", "sse"))
+	api.SSE.SetSchoolAccess(api.Services.Auth)
 	api.Users = usersAPI.NewResource(api.Services.Users, db)
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)

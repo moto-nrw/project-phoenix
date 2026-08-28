@@ -932,3 +932,16 @@ func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountI
 
 	return hasPortalRole, firstPortalTenantID, nil
 }
+
+// HasSchoolPortalAccess reports whether the account STILL holds a school-portal
+// role at this school. It exists for surfaces that authenticate once and then
+// stay open for the whole token lifetime — today the school SSE stream (#2208),
+// which would otherwise keep waking a Lehrkraft whose role was revoked minutes
+// ago until her access token expires.
+//
+// Errors propagate for the same reason they do in hasSchoolPortalRoleAtTenant:
+// a database blip is not a revocation, and the caller decides how long it may
+// keep serving on the last successful answer.
+func (s *Service) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return s.hasSchoolPortalRoleAtTenant(ctx, accountID, tenantID)
+}
