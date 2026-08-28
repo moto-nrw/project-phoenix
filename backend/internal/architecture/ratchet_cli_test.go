@@ -114,11 +114,11 @@ func TestCheckRejectsModulePathChangeAgainstBase(t *testing.T) {
 func TestCheckReadsBasePolicyAtRequestedPathDespiteCandidateSymlink(t *testing.T) {
 	t.Parallel()
 
-	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	repo, _ := ratchetRepository(t, legacyRecord(2583))
 	writeFile(t, filepath.Join(repo, "architecture", "alternate-policy.json"), readFile(t, fixturePath(t, "vertical-allowed.json")))
 	runGit(t, repo, "add", "architecture/alternate-policy.json")
 	runGit(t, repo, "commit", "-qm", "add alternate policy")
-	baseRef = strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	baseRef := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 	policyPath := filepath.Join(repo, "architecture", "policy.json")
 	if err := os.Remove(policyPath); err != nil {
 		t.Fatalf("remove candidate policy: %v", err)
