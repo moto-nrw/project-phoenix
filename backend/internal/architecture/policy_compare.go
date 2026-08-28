@@ -6,10 +6,6 @@ import (
 	"strings"
 )
 
-func ComparePolicyStrictness(base, candidate *Policy) error {
-	return comparePolicyStrictness(base, candidate, nil)
-}
-
 // CompareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
 // in this candidate actually creates. Without this narrow exception the
