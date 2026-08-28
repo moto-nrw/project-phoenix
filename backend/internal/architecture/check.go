@@ -26,6 +26,13 @@ func (v Violation) Key() string {
 	return fmt.Sprintf("%s|%s|%s|%s", v.Scope, v.Rule, v.Source, v.Target)
 }
 
+func violationTargetsPackage(rule string) bool {
+	return strings.HasPrefix(rule, "packages.") ||
+		strings.HasPrefix(rule, "external.") ||
+		strings.HasPrefix(rule, "imports.") ||
+		rule == "policy.rules-overlap"
+}
+
 func Check(policy *Policy, graph *Graph) []Violation {
 	packages := policy.packageMap()
 	externalPackages := policy.externalPackageMap()
