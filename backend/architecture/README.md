@@ -17,7 +17,8 @@ scripts/backend-architecture.sh check \
   --baseline architecture/legacy.jsonl \
   --base-ref "$BASE_SHA"
 scripts/backend-architecture.sh audit-issues \
-  --baseline architecture/legacy.jsonl
+  --baseline architecture/legacy.jsonl \
+  --api-url "$GITHUB_API_URL"
 scripts/backend-architecture.sh explain \
   --scope production \
   --source github.com/moto-nrw/project-phoenix/services/mealplan \
@@ -84,6 +85,7 @@ keep their issue, and candidate policy, package classification, and ownership
 changes may not weaken the checks enforced by the base policy.
 
 `audit-issues` performs the network-dependent GitHub liveness check separately.
+It requires an explicit `--api-url`; `GITHUB_TOKEN` is optional for authenticated requests.
 It accepts `GITHUB_TOKEN` for authenticated requests. A GitHub or network error
 fails only this audit and cannot change the deterministic `check` result.
 

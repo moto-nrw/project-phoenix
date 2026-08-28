@@ -46,7 +46,7 @@ case "${1:-}" in
     echo "$output"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --baseline path|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --baseline path --api-url url|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
     exit 2
     ;;
 esac

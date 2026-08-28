@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/architecture"
 )
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
@@ -50,7 +52,7 @@ func TestCheckRejectsInvalidLegacyManifests(t *testing.T) {
 		{name: "wildcard", manifest: legacyRecordWithTarget(2583, "example.test/architecture-fixture/*"), want: "wildcard"},
 		{name: "layer-wide source", manifest: strings.Replace(legacyRecord(2583), "example.test/architecture-fixture/source", "services", 1), want: "not a package family or layer"},
 		{name: "duplicate", manifest: legacyRecord(2583) + legacyRecord(2583), want: "duplicate canonical key"},
-		{name: "unsorted", manifest: legacyRecordWithTarget(2583, "z") + legacyRecordWithTarget(2583, "a"), want: "sorted by canonical key"},
+		{name: "unsorted", manifest: legacyRecordWithTarget(2583, "example.test/z") + legacyRecordWithTarget(2583, "example.test/a"), want: "sorted by canonical key"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,6 +108,31 @@ func TestCheckRejectsModulePathChangeAgainstBase(t *testing.T) {
 	output, err := runRepositoryCheck(t, repo, baseRef)
 	if err == nil || !strings.Contains(output, "module_path changed from example.test/architecture-fixture to example.test/architecture-fixture/source") {
 		t.Fatalf("module path change was accepted: %v\n%s", err, output)
+	}
+}
+
+func TestCheckReadsBasePolicyAtRequestedPathDespiteCandidateSymlink(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	writeFile(t, filepath.Join(repo, "architecture", "alternate-policy.json"), readFile(t, fixturePath(t, "vertical-allowed.json")))
+	runGit(t, repo, "add", "architecture/alternate-policy.json")
+	runGit(t, repo, "commit", "-qm", "add alternate policy")
+	baseRef = strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	policyPath := filepath.Join(repo, "architecture", "policy.json")
+	if err := os.Remove(policyPath); err != nil {
+		t.Fatalf("remove candidate policy: %v", err)
+	}
+	if err := os.Symlink("alternate-policy.json", policyPath); err != nil {
+		t.Fatalf("symlink candidate policy: %v", err)
+	}
+
+	basePolicy, _, err := architecture.LoadBasePolicyAndManifest(repo, policyPath, filepath.Join(repo, "architecture", "legacy.jsonl"), baseRef)
+	if err != nil {
+		t.Fatalf("load base policy: %v", err)
+	}
+	if len(basePolicy.Rules) != 0 {
+		t.Fatalf("base policy followed candidate symlink: %#v", basePolicy.Rules)
 	}
 }
 
@@ -204,6 +231,25 @@ func TestCheckRejectsNewPackageClassifications(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsExternalDependencyReclassification(t *testing.T) {
+	t.Parallel()
+
+	basePolicy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["external_classes"] = []any{"restricted", "allowed"}
+		document["external_packages"] = []any{map[string]any{"path": "example.com/dormant", "class": "restricted"}}
+	})
+	repo, baseRef := ratchetRepositoryWithPolicy(t, legacyRecord(2583), basePolicy)
+	candidatePolicy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+		document["external_packages"].([]any)[0].(map[string]any)["class"] = "allowed"
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidatePolicy)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "external package example.com/dormant changed class from restricted to allowed") {
+		t.Fatalf("external dependency reclassification was accepted: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsOwnerReclassificationWithoutChangingImports(t *testing.T) {
 	t.Parallel()
 
@@ -278,6 +324,15 @@ func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 	output, err := runArchitecture(t, "audit-issues", "--baseline", manifest, "--api-url", server.URL)
 	if err == nil || !strings.Contains(output, "is closed") {
 		t.Fatalf("closed migration issue was accepted: %v\n%s", err, output)
+	}
+}
+
+func TestAuditIssuesRequiresAPIURL(t *testing.T) {
+	t.Parallel()
+
+	output, err := runArchitecture(t, "audit-issues", "--baseline", writeManifest(t, legacyRecord(2583)))
+	if err == nil || !strings.Contains(output, "requires --baseline, --api-url") {
+		t.Fatalf("audit accepted an implicit API URL: %v\n%s", err, output)
 	}
 }
 

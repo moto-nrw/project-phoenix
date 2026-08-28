@@ -21,11 +21,11 @@ func LoadBasePolicyAndManifest(project, policyPath, baselinePath, ref string) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	policyBlob, err := readGitBlob(root, sha, policyPath)
+	policyBlob, err := readGitBlob(root, project, sha, policyPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read base policy: %w", err)
 	}
-	baselineBlob, err := readGitBlob(root, sha, baselinePath)
+	baselineBlob, err := readGitBlob(root, project, sha, baselinePath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read base legacy baseline: %w", err)
 	}
@@ -51,8 +51,8 @@ func resolveBaseCommit(root, ref string) (string, error) {
 	return strings.TrimSpace(sha), nil
 }
 
-func readGitBlob(root, sha, candidatePath string) ([]byte, error) {
-	relative, err := repositoryRelativePath(root, candidatePath)
+func readGitBlob(root, project, sha, candidatePath string) ([]byte, error) {
+	relative, err := repositoryRelativePath(root, project, candidatePath)
 	if err != nil {
 		return nil, err
 	}
@@ -63,27 +63,38 @@ func readGitBlob(root, sha, candidatePath string) ([]byte, error) {
 	return output, nil
 }
 
-func repositoryRelativePath(root, candidatePath string) (string, error) {
-	root, err := filepath.EvalSymlinks(root)
+func repositoryRelativePath(root, project, candidatePath string) (string, error) {
+	project, err := filepath.Abs(project)
 	if err != nil {
-		return "", fmt.Errorf("resolve repository root %q: %w", root, err)
+		return "", fmt.Errorf("resolve project path %q: %w", project, err)
 	}
 	absolute := candidatePath
 	if !filepath.IsAbs(absolute) {
-		absolute = filepath.Join(root, absolute)
+		absolute = filepath.Join(project, absolute)
 	}
-	absolute, err = filepath.EvalSymlinks(filepath.Clean(absolute))
-	if err != nil {
-		return "", fmt.Errorf("resolve repository path %q: %w", candidatePath, err)
-	}
-	relative, err := filepath.Rel(root, absolute)
+	relative, err := filepath.Rel(project, filepath.Clean(absolute))
 	if err != nil {
 		return "", fmt.Errorf("resolve repository path %q: %w", candidatePath, err)
 	}
 	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q is outside repository %s", candidatePath, root)
+		return "", fmt.Errorf("path %q is outside project %s", candidatePath, project)
 	}
-	return relative, nil
+	physicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("resolve repository root %q: %w", root, err)
+	}
+	physicalProject, err := filepath.EvalSymlinks(project)
+	if err != nil {
+		return "", fmt.Errorf("resolve project path %q: %w", project, err)
+	}
+	projectRelative, err := filepath.Rel(physicalRoot, physicalProject)
+	if err != nil {
+		return "", fmt.Errorf("resolve project path %q: %w", project, err)
+	}
+	if projectRelative == ".." || strings.HasPrefix(projectRelative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("project %q is outside repository %s", project, root)
+	}
+	return filepath.Join(projectRelative, relative), nil
 }
 
 func gitOutput(dir string, args ...string) (string, error) {

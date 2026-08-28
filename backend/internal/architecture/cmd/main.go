@@ -143,12 +143,12 @@ func compareWithBase(options checkOptions, policy *architecture.Policy, manifest
 func runAuditIssues(args []string) error {
 	flags := flag.NewFlagSet("audit-issues", flag.ContinueOnError)
 	baselinePath := flags.String("baseline", "", "exact legacy JSONL baseline")
-	apiURL := flags.String("api-url", "https://api.github.com", "GitHub API base URL")
+	apiURL := flags.String("api-url", "", "GitHub API base URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *baselinePath == "" {
-		return fmt.Errorf("audit-issues requires --baseline and no positional arguments")
+	if flags.NArg() != 0 || *baselinePath == "" || *apiURL == "" {
+		return fmt.Errorf("audit-issues requires --baseline, --api-url, and no positional arguments")
 	}
 	manifest, err := architecture.LoadLegacyManifest(*baselinePath)
 	if err != nil {

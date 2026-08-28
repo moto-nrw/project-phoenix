@@ -120,18 +120,21 @@ func (e LegacyEntry) Validate() error {
 	if err := validateExactLegacyValue("source", e.Source); err != nil {
 		return err
 	}
-	if !isCanonicalSourcePackage(e.Source) {
+	if !isCanonicalPackage(e.Source) {
 		return fmt.Errorf("source %q must be an exact Go package path, not a package family or layer", e.Source)
 	}
 	if err := validateExactLegacyValue("target", e.Target); err != nil {
 		return err
 	}
+	if !isCanonicalPackage(e.Target) {
+		return fmt.Errorf("target %q must be an exact Go package path, not a package family or layer", e.Target)
+	}
 	_, err := ParseGitHubIssue(e.Issue)
 	return err
 }
 
-func isCanonicalSourcePackage(source string) bool {
-	modulePath, _, _ := strings.Cut(source, "/")
+func isCanonicalPackage(path string) bool {
+	modulePath, _, _ := strings.Cut(path, "/")
 	return strings.Contains(modulePath, ".")
 }
 

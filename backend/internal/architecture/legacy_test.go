@@ -16,3 +16,12 @@ func TestDecodeLegacyManifestAcceptsModuleRootSourcePackage(t *testing.T) {
 		t.Fatalf("loaded %d legacy entries, want 1", len(manifest.Entries))
 	}
 }
+
+func TestDecodeLegacyManifestRejectsNonPackageTarget(t *testing.T) {
+	t.Parallel()
+
+	_, err := DecodeLegacyManifest(strings.NewReader(`{"scope":"production","rule":"imports.forbidden","source":"example.com/source","target":"services","issue":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+	if err == nil || !strings.Contains(err.Error(), "target \"services\" must be an exact Go package path") {
+		t.Fatalf("non-package target was accepted: %v", err)
+	}
+}

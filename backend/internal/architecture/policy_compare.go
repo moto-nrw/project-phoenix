@@ -82,8 +82,11 @@ func classificationLoosenings(base, candidate *Policy) []string {
 	}
 	baseExternal := base.externalPackageMap()
 	for path, current := range candidate.externalPackageMap() {
-		if _, exists := baseExternal[path]; !exists {
+		previous, exists := baseExternal[path]
+		if !exists {
 			problems = append(problems, fmt.Sprintf("external package %s was newly classified as %s", path, current.Class))
+		} else if current.Class != previous.Class {
+			problems = append(problems, fmt.Sprintf("external package %s changed class from %s to %s", path, previous.Class, current.Class))
 		}
 	}
 	return problems
