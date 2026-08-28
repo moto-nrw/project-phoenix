@@ -2,10 +2,12 @@ package simulate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math/rand"
 	"slices"
+	"time"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
@@ -151,6 +153,56 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 }
 
 type recordAttendanceAction struct{}
+
+type seedStaffFeedTombstoneAction struct{}
+
+func (seedStaffFeedTombstoneAction) Name() string { return "seed staff feed tombstone" }
+
+func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
+	if len(rt.State.Accounts.Betreuer) == 0 {
+		return fmt.Errorf("no staff accounts in seed state")
+	}
+	roomNames := sortedStringKeys(rt.State.Rooms)
+	if len(roomNames) == 0 {
+		return fmt.Errorf("no rooms in seed state")
+	}
+
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return fmt.Errorf("load Berlin timezone: %w", err)
+	}
+	date := time.Now().In(berlin).AddDate(0, 0, 1)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDate(0, 0, 1)
+	}
+	body := map[string]any{
+		"date":       date.Format("2006-01-02"),
+		"start_time": "07:00",
+		"end_time":   "07:30",
+		"title":      "Abgesagter Demo-Termin",
+		"room_id":    rt.State.Rooms[roomNames[0]],
+		"staff_ids":  []int64{rt.State.Accounts.Betreuer[0].StaffID},
+	}
+	created, err := rt.Client.Post("/api/timetable/instances", body)
+	if err != nil {
+		return fmt.Errorf("create demo cancellation: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(created, &envelope); err != nil {
+		return fmt.Errorf("decode demo cancellation: %w", err)
+	}
+	if envelope.Data.ID <= 0 {
+		return fmt.Errorf("decode demo cancellation: response has no instance id")
+	}
+	if _, err := rt.Client.Delete(fmt.Sprintf("/api/timetable/instances/%d", envelope.Data.ID)); err != nil {
+		return fmt.Errorf("delete demo cancellation: %w", err)
+	}
+	return nil
+}
 
 func (recordAttendanceAction) Name() string { return "record attendance and checkins" }
 
@@ -352,6 +404,7 @@ func fullDayScenario(close bool) Scenario {
 		loginAdminAction{},
 		assignRFIDsAction{},
 		startSessionsAction{},
+		seedStaffFeedTombstoneAction{},
 		recordAttendanceAction{},
 		middayActivityAction{},
 	}
