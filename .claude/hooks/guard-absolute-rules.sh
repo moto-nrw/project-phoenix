@@ -47,6 +47,9 @@ case "$tool" in
         # wrapped clients (python/node/bash -c) without maintaining a
         # bypassable list of network binaries.
         cmd_lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(bash|sh)[[:space:]]+-c([[:space:]]|$)'; then
+            deny "Blocked: shell wrappers cannot be safely inspected by the absolute-rule guard. Run the command directly."
+        fi
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(curl|wget|xh|httpie|https?|nc|ncat|wscat|fetch)([[:space:]]|$)' &&
             printf '%s' "$cmd" | grep -Eq '\$[({[:alpha:]_]|<\(|`'; then
             deny "Blocked: network commands with shell expansion may construct a production hostname. Use localhost; only a human may target production."
@@ -87,14 +90,13 @@ EOF
 
         # A redirection can overwrite a SOPS file even when the command
         # itself is on the read-only allowlist (for example `cat ... > file`).
-        if printf '%s' "$cmd" | grep -q '\.sops\.env' &&
-            printf '%s' "$cmd" | grep -Eq '(^|[[:space:];|&])[0-9]*>>?'; then
+        if printf '%s' "$cmd" | grep -Eq '>>?[[:space:]]*[^[:space:];|&]*\.sops\.env'; then
             deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
         fi
 
         # Rule 3 (shell half): shell writers can create migrations too. The
         # dangerous SQL must be rejected before a command writes it there.
-        if printf '%s' "$cmd" | grep -Eq 'database/migrations([/[:space:]]|$)' &&
+        if printf '%s' "$cmd" | grep -Eq '(database/)?migrations([/[:space:]]|$)' &&
             printf '%s' "$cmd" | grep -Eiq 'DISABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY'; then
             deny "Blocked: migrations must not contain DISABLE ROW LEVEL SECURITY (CLAUDE.md rule 9 - the superuser connection bypasses RLS, disabling it is unnecessary and breaks tests)."
         fi
