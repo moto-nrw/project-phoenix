@@ -213,7 +213,26 @@
     "title": "Settings",
     "description": "Choose the language and notifications for your account.",
     "languageTitle": "Language",
-    "languageDescription": "Choose the language in which moto is displayed."
+    "languageDescription": "Choose the language in which moto is displayed.",
+    "appInstallTitle": "Install moto as an app",
+    "appInstallDescription": "Do not install moto through Samsung Internet. Open moto in Chrome instead."
+  },
+  "pwaInstallHint": {
+    "title": "Use moto as an app",
+    "samsungDescription": "Do not install moto through Samsung Internet. Open moto in Chrome and sign in there.",
+    "samsungStep": "Then select",
+    "samsungFallback": "If this does not work, open Chrome and go to {host}.",
+    "oneTapDescription": "Install moto directly from this page. moto will then always open full screen, without a browser bar.",
+    "iosBefore": "In Safari, tap",
+    "iosBetween": "then",
+    "androidBefore": "Open the browser menu and tap",
+    "androidOr": "or",
+    "share": "Share",
+    "homeScreen": "Add to Home Screen",
+    "install": "Install app",
+    "addToHome": "Add to Home screen",
+    "openInChrome": "Open in Chrome",
+    "close": "Close hint"
   },
   "notificationPreferences": {
     "title": "Notifications",

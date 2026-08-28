@@ -334,6 +334,8 @@ const (
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
+	KeyTimetableAutoEndEnabled            = "timetable.auto_end_enabled"
+	KeyTimetableAutoEndGraceMinutes       = "timetable.auto_end_grace_minutes"
 	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
 	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"

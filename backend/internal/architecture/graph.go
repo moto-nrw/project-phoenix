@@ -25,8 +25,9 @@ type Edge struct {
 }
 
 type Graph struct {
-	Packages []string
-	Edges    []Edge
+	Packages           []string
+	Edges              []Edge
+	SemanticViolations []Violation
 }
 
 type goListPackage struct {
@@ -41,7 +42,15 @@ func LoadGraph(project string, policy *Policy) (*Graph, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decodeGraph(output, policy.ModulePath)
+	graph, err := decodeGraph(output, policy.ModulePath)
+	if err != nil {
+		return nil, err
+	}
+	graph.SemanticViolations, err = analyzeSemantics(project, policy)
+	if err != nil {
+		return nil, err
+	}
+	return graph, nil
 }
 
 func runGoList(project string, build Build) ([]byte, error) {

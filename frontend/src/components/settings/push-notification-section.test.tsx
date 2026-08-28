@@ -15,6 +15,7 @@ const pushApi = vi.hoisted(() => ({
 const pwaInstall = vi.hoisted(() => ({
   canPromptInstall: vi.fn(),
   isAndroidDevice: vi.fn(),
+  isSamsungInternet: vi.fn(),
   isInstallationCompleted: vi.fn(),
   subscribeInstallPrompt: vi.fn(() => () => undefined),
   triggerInstallPrompt: vi.fn(),
@@ -42,6 +43,7 @@ describe("PushNotificationSection", () => {
     pushApi.verifyPushConfiguration.mockResolvedValue(undefined);
     pwaInstall.canPromptInstall.mockReturnValue(false);
     pwaInstall.isAndroidDevice.mockReturnValue(false);
+    pwaInstall.isSamsungInternet.mockReturnValue(false);
     pwaInstall.isInstallationCompleted.mockReturnValue(false);
     pwaInstall.triggerInstallPrompt.mockResolvedValue("accepted");
     notificationApi.sendTestNotification.mockResolvedValue(undefined);
@@ -113,6 +115,24 @@ describe("PushNotificationSection", () => {
         name: "Benachrichtigungen einschalten",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("allows parent users to enable push directly in Samsung Internet", async () => {
+    pwaInstall.isAndroidDevice.mockReturnValue(true);
+    pwaInstall.isSamsungInternet.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="parent" />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Benachrichtigungen einschalten",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "App installieren" }),
+    ).not.toBeInTheDocument();
+    expect(pwaInstall.triggerInstallPrompt).not.toHaveBeenCalled();
   });
 
   it("shows the Android browser-menu fallback when no prompt is available", async () => {
