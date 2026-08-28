@@ -344,8 +344,8 @@ func buildInstance(tenantID int64, title string, roomID int64, start time.Time) 
 	inst := &scheduleModels.ActivityInstance{
 		Date:      timezone.TodayDate(),
 		Title:     title,
-		StartTime: timezone.WallClock(start.In(timezone.Berlin)),
-		EndTime:   timezone.WallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
+		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
+		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
 		RoomID:    roomID,
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}

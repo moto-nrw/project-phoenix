@@ -101,8 +101,8 @@ func staffPoolResponseOf(pool *scheduleSvc.StaffPoolResult) StaffPoolResponse {
 		InstanceID:      pool.Instance.ID,
 		Title:           pool.Instance.Title,
 		Date:            pool.Instance.Date.String(),
-		StartTime:       timezone.WallClock(pool.Instance.StartTime).Format("15:04"),
-		EndTime:         timezone.WallClock(pool.Instance.EndTime).Format("15:04"),
+		StartTime:       timezone.NormalizeWallClock(pool.Instance.StartTime).Format("15:04"),
+		EndTime:         timezone.NormalizeWallClock(pool.Instance.EndTime).Format("15:04"),
 		DienstplanInUse: pool.DienstplanInUse,
 		Entries:         entries,
 	}

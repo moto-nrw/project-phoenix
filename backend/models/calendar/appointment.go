@@ -120,7 +120,7 @@ func (a *Appointment) Validate() error {
 	if a.EndDate.Before(a.StartDate) {
 		return errors.New("end_date must be on or after start_date")
 	}
-	if !a.AllDay && !timezone.WallClock(a.EndTime).After(timezone.WallClock(a.StartTime)) && a.StartDate == a.EndDate {
+	if !a.AllDay && !timezone.NormalizeWallClock(a.EndTime).After(timezone.NormalizeWallClock(a.StartTime)) && a.StartDate == a.EndDate {
 		return errors.New("end_time must be after start_time on same-day appointments")
 	}
 	switch a.DeliveryMode {

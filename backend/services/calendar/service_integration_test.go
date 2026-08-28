@@ -124,7 +124,7 @@ func calendarContext(tb testing.TB, accountID int64) context.Context {
 }
 
 func wallClock(h, m int) time.Time {
-	return timezone.WallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
+	return timezone.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
 }
 
 func eventDates(events []calendarSvc.Event, source string) []string {

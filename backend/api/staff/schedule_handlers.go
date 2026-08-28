@@ -204,7 +204,7 @@ func formatScheduleStartTime(value *time.Time) *string {
 	if value == nil {
 		return nil
 	}
-	formatted := timezone.WallClock(*value).Format("15:04")
+	formatted := timezone.NormalizeWallClock(*value).Format("15:04")
 	return &formatted
 }
 

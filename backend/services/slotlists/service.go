@@ -1927,7 +1927,7 @@ func (s *service) loadPickupAbsences(
 	}
 	for _, exc := range exceptions {
 		if exc != nil && exc.ExcusedFrom != nil {
-			partial[exc.StudentID] = timezone.WallClock(*exc.ExcusedFrom).Format(timeLayout)
+			partial[exc.StudentID] = timezone.NormalizeWallClock(*exc.ExcusedFrom).Format(timeLayout)
 		}
 	}
 	return statuses, partial, nil

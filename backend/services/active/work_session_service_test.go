@@ -776,7 +776,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 		t.Helper()
 		parsed, err := time.Parse("15:04", hhmm)
 		require.NoError(t, err)
-		wallClock := timezone.WallClock(parsed)
+		wallClock := timezone.NormalizeWallClock(parsed)
 		return &wallClock
 	}
 

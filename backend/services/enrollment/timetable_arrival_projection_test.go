@@ -185,7 +185,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	// Both days: the activity is moved to 10:00, before the 11:45 arrival.
 	room := testpkg.CreateTestRoom(t, env.db, "Konflikt-Raum")
 	activity := testpkg.CreateTestActivityGroup(t, env.db, "Konflikt-AG")
-	movedStart := timezone.WallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC))
+	movedStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC))
 	for _, date := range []timezone.Date{monday, thursday} {
 		instance := testpkg.CreateTestActivityInstance(t, env.db, date, room.ID, testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &activity.ID,

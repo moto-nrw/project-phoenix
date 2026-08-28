@@ -418,7 +418,7 @@ func (s *arrivalScheduleService) preserveInactiveBookingRows(
 		if row != nil && !incoming[row.Weekday] {
 			preserved := *row
 			if !preserved.ExpectedArrival.IsZero() {
-				preserved.ExpectedArrival = timezone.WallClock(preserved.ExpectedArrival)
+				preserved.ExpectedArrival = timezone.NormalizeWallClock(preserved.ExpectedArrival)
 			}
 			merged = append(merged, &preserved)
 		}

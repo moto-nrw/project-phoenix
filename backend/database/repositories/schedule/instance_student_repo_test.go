@@ -1927,7 +1927,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	require.NoError(t, err)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", suffix))
 	partial := testpkg.CreateTestPickupException(t, db, partiallyExcused.ID, soon, staff.ID, "13:00", "Termin")
-	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2003,7 +2003,7 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 		scheduleModels.AttendanceStatusExpected)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2060,7 +2060,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 		scheduleModels.AttendanceStatusAbsent)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2111,7 +2111,7 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 		scheduleModels.AttendanceStatusExpected)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2170,7 +2170,7 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 		scheduleModels.AttendanceStatusAbsent)
 
 	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
-	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
 	partial.ExcusedFrom = &from
 	partial.ExcusedCreatedBy = &staff.ID
 	partial.ExcusedOwnsPickupTime = true
@@ -2253,7 +2253,7 @@ func TestInstanceStudentRepository_FindPartialAbsenceBlocksIncludesUnmaterialize
 	require.NoError(t, err)
 	assert.Empty(t, blocks, "a row owned by another pickup exception is not actionable")
 
-	from := timezone.WallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC))
 	otherException.ExcusedFrom = &from
 	otherException.ExcusedAuto = true
 	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, otherException))

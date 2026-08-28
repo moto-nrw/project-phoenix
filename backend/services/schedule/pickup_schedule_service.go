@@ -499,7 +499,7 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 		}
 		row.Source = schedule.PickupScheduleSourceStaff
 		row.CareOfferingID = nil
-		row.PickupTime = timezone.WallClock(row.PickupTime)
+		row.PickupTime = timezone.NormalizeWallClock(row.PickupTime)
 		rowDate := weekStart.AddDays(row.Weekday - schedule.WeekdayMonday)
 		if !projection.AllowsPickupForDate(studentID, rowDate) {
 			continue
@@ -531,7 +531,7 @@ func pickupRowForRewrite(row *schedule.StudentPickupSchedule) *schedule.StudentP
 	return &schedule.StudentPickupSchedule{
 		StudentID:      row.StudentID,
 		Weekday:        row.Weekday,
-		PickupTime:     timezone.WallClock(row.PickupTime),
+		PickupTime:     timezone.NormalizeWallClock(row.PickupTime),
 		Notes:          row.Notes,
 		CreatedBy:      row.CreatedBy,
 		Source:         row.Source,

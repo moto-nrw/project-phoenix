@@ -292,8 +292,8 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		}
 	}
 
-	startTime := timezone.WallClock(series.StartTime)
-	endTime := timezone.WallClock(series.EndTime)
+	startTime := timezone.NormalizeWallClock(series.StartTime)
+	endTime := timezone.NormalizeWallClock(series.EndTime)
 
 	var candidates []*scheduleModels.StaffShift
 	var skipped []timezone.Date

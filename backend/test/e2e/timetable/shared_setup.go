@@ -253,7 +253,7 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 
 // createTimeframeWithTimes inserts a timeframe with explicit HH:MM times.
 // schedule.timeframes stores timezone-free SQL TIME values; the service layer
-// still normalises through timezone.WallClock() so driver-specific date
+// still normalises through timezone.NormalizeWallClock() so driver-specific date
 // anchors cannot affect comparisons.
 func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM string) *scheduleModels.Timeframe {
 	s.t.Helper()

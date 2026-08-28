@@ -27,7 +27,7 @@ func NewStaffShiftRepository(db *bun.DB) schedule.StaffShiftRepository {
 }
 
 // FindByID returns one shift with its TIME columns re-anchored via
-// timezone.WallClock. The embedded generic scan leaves the driver's year-0
+// timezone.NormalizeWallClock. The embedded generic scan leaves the driver's year-0
 // anchor on TIME columns; a whole-model update that preserves the stored
 // window would write that anchor back as an out-of-range timestamp
 // (SQLSTATE 22008 — exposed by the #1843 cascade's plain-cancel path, latent
@@ -45,8 +45,8 @@ func (r *StaffShiftRepository) FindByID(ctx context.Context, id any) (*schedule.
 // TIME columns so callers can compare and format the wall-clock values.
 func normalizeShiftWallClock(shifts []*schedule.StaffShift) {
 	for _, s := range shifts {
-		s.StartTime = timezone.WallClock(s.StartTime)
-		s.EndTime = timezone.WallClock(s.EndTime)
+		s.StartTime = timezone.NormalizeWallClock(s.StartTime)
+		s.EndTime = timezone.NormalizeWallClock(s.EndTime)
 	}
 }
 
