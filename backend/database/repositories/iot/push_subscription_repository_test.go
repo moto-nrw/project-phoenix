@@ -178,6 +178,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	createAccountTenantMapping(t, db, guardian.ID, testpkg.Tenant(t))
 	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
 	assignSystemRole(t, db, guardian.ID, testpkg.Tenant(t), authModels.BaseRoleGuardian)
+	// School-portal delivery additionally requires the lehrkraft system role.
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, testpkg.Tenant(t))
 
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%d", time.Now().UnixNano())
 

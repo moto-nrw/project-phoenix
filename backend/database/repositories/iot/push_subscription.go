@@ -27,6 +27,27 @@ const (
 			AND "staff_account_role".tenant_id = "push_subscription".tenant_id
 			AND LOWER("staff_role".name) <> ?
 	)`
+	// lehrkraftSystemRoleName is the school-portal role (#2207). Spelled here
+	// rather than imported so the repository stays free of a service import;
+	// it must match services/auth.IsLehrkraftSystemRole.
+	lehrkraftSystemRoleName = "lehrkraft"
+	// schoolPortalRoleFilter keeps school-portal delivery to accounts that
+	// still hold the lehrkraft SYSTEM role at this school — the predicate the
+	// school login itself requires. staffSubscriptionQuery only rules out
+	// guardian-only accounts, so without this an account whose lehrkraft role
+	// was revoked but which keeps any other staff role would go on receiving
+	// school-portal pushes. A tenant-scoped custom role that merely carries
+	// the label does not count, exactly as in the login and in
+	// StaffMessageReadRepository.StaffRoleKinds.
+	schoolPortalRoleFilter = `EXISTS (
+		SELECT 1
+		FROM auth.account_roles AS "school_account_role"
+		INNER JOIN auth.roles AS "school_role" ON "school_role".id = "school_account_role".role_id
+		WHERE "school_account_role".account_id = "push_subscription".account_id
+			AND "school_account_role".tenant_id = "push_subscription".tenant_id
+			AND "school_role".is_system
+			AND LOWER(BTRIM("school_role".name)) = ?
+	)`
 	guardianRoleFilter = `EXISTS (
 		SELECT 1
 		FROM auth.account_roles AS "guardian_account_role"
@@ -366,13 +387,18 @@ func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, a
 // FindForSchoolAccounts returns school-portal subscriptions of the named
 // accounts in the current tenant. Notification delivery invokes it only for
 // types explicitly offered in moto schule.
+//
+// Beyond the shared staff eligibility rules it requires the lehrkraft system
+// role at this school, so revoking that role stops school-portal pushes even
+// when the account keeps another staff role.
 func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
 	var subs []*iot.PushSubscription
 	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalSchool).
-		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
+		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs)).
+		Where(schoolPortalRoleFilter, lehrkraftSystemRoleName)
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find school push subscriptions", Err: err}
 	}
