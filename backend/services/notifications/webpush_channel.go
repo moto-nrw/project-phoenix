@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -254,7 +255,7 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 				targets = append(targets, schoolByAccount[accountID]...)
 			}
 		}
-		targets = dedupeSubscriptionsByEndpoint(targets)
+		targets = dedupeSubscriptionsPerDevice(targets)
 		if len(targets) == 0 {
 			continue
 		}
@@ -359,7 +360,7 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 		if err != nil {
 			return nil, err
 		}
-		return dedupeSubscriptionsByEndpoint(append(staffSubs, schoolSubs...)), nil
+		return dedupeSubscriptionsPerDevice(append(staffSubs, schoolSubs...)), nil
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
@@ -369,6 +370,12 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 	default:
 		return nil, fmt.Errorf("unknown audience scope %q", audience.Scope)
 	}
+}
+
+// dedupeSubscriptionsPerDevice reduces a resolved audience to one push per
+// physical device: first one row per endpoint, then one portal per device.
+func dedupeSubscriptionsPerDevice(subs []*iot.PushSubscription) []*iot.PushSubscription {
+	return collapseCrossPortalDevices(dedupeSubscriptionsByEndpoint(subs))
 }
 
 // dedupeSubscriptionsByEndpoint keeps one subscription per push endpoint.
@@ -398,11 +405,78 @@ func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubs
 			deduped = append(deduped, sub)
 			continue
 		}
-		if sub.UpdatedAt.After(deduped[index].UpdatedAt) {
+		if newerRegistration(sub, deduped[index]) {
 			deduped[index] = sub
 		}
 	}
 	return deduped
+}
+
+// collapseCrossPortalDevices keeps one portal per device and account.
+//
+// Endpoint deduplication is not enough: the OGS portal and moto schule are
+// different origins, so the same browser holds a separate service-worker
+// registration — and therefore a different push endpoint — per portal. A
+// Lehrkraft who is also a Betreuungskraft would receive one team-chat message
+// twice on the one phone in front of her.
+//
+// The device identity we persist is the User-Agent the registration was made
+// with (iot.push_subscriptions.user_agent), so rows of one account sharing a
+// User-Agent are treated as one device. Of those, only the portal whose
+// registration was written last survives: that is the portal the person
+// actually opens, and its payload carries the deep link that resolves there.
+// Several devices registered in the SAME portal are never collapsed — the
+// filter only ever drops the losing portals of a device.
+//
+// A subscription without a User-Agent (older rows, non-browser clients) is
+// left alone: with no device identity there is nothing to collapse it into.
+func collapseCrossPortalDevices(subs []*iot.PushSubscription) []*iot.PushSubscription {
+	type deviceKey struct {
+		accountID int64
+		userAgent string
+	}
+	current := make(map[deviceKey]*iot.PushSubscription, len(subs))
+	for _, sub := range subs {
+		if sub == nil || strings.TrimSpace(sub.UserAgent) == "" {
+			continue
+		}
+		key := deviceKey{accountID: sub.AccountID, userAgent: sub.UserAgent}
+		winner, seen := current[key]
+		if !seen || newerRegistration(sub, winner) {
+			current[key] = sub
+		}
+	}
+
+	kept := make([]*iot.PushSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if sub == nil {
+			continue
+		}
+		if strings.TrimSpace(sub.UserAgent) == "" {
+			kept = append(kept, sub)
+			continue
+		}
+		winner := current[deviceKey{accountID: sub.AccountID, userAgent: sub.UserAgent}]
+		if winner.Portal != sub.Portal {
+			continue
+		}
+		kept = append(kept, sub)
+	}
+	return kept
+}
+
+// newerRegistration orders two rows of one device by when they were last
+// written. Rows stamped in the same transaction fall back to the row id, so
+// the surviving portal is stable across deliveries instead of following map
+// iteration order.
+func newerRegistration(candidate, incumbent *iot.PushSubscription) bool {
+	if candidate.UpdatedAt.After(incumbent.UpdatedAt) {
+		return true
+	}
+	if incumbent.UpdatedAt.After(candidate.UpdatedAt) {
+		return false
+	}
+	return candidate.ID > incumbent.ID
 }
 
 // isSchoolPortalEvent keeps the school transport aligned with the catalogue.

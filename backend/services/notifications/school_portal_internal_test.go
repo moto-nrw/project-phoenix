@@ -181,6 +181,86 @@ func TestSharedEndpointKeepsTheCurrentStaffRegistration(t *testing.T) {
 	assert.Equal(t, []*iot.PushSubscription{staffSub}, resolved)
 }
 
+// Two portals on one browser are two origins, so the same device holds two
+// different push endpoints. Endpoint deduplication cannot see that; the
+// User-Agent the rows were registered with can. One team-chat message must
+// reach the device once, through the portal it last registered in.
+func TestOneDeviceInBothPortalsIsPushedOnce(t *testing.T) {
+	t.Parallel()
+
+	const browser = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0) Safari/605.1.15"
+	staffSub := testSub(1, 41, "https://fcm.googleapis.com/ogs-origin")
+	staffSub.AccountID = 42
+	staffSub.UserAgent = browser
+	staffSub.UpdatedAt = time.Now().Add(-time.Hour)
+	schoolSub := testSub(2, 41, "https://fcm.googleapis.com/school-origin")
+	schoolSub.AccountID = 42
+	schoolSub.Portal = iot.PushPortalSchool
+	schoolSub.UserAgent = browser
+	schoolSub.UpdatedAt = time.Now()
+
+	sender := &fakeSender{}
+	channel := testChannel(&fakePushRepo{
+		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+	}, sender)
+
+	resolved, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeStaffMessage,
+		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{schoolSub}, resolved,
+		"the device is addressed through its current registration only")
+
+	db, mock := mockTenantTx(t)
+	channel.db = db
+	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
+		Type:           TypeStaffMessage,
+		Audience:       Audience{TenantID: 41, Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+		Priority:       PriorityNormal,
+		Title:          "Neue Nachricht aus dem Team",
+		DeepLink:       "/team-chat/7",
+		SchoolDeepLink: "/school/nachrichten/7",
+	}}))
+	require.Eventually(t, func() bool {
+		sender.mu.Lock()
+		defer sender.mu.Unlock()
+		return len(sender.sent) == 1
+	}, time.Second, 10*time.Millisecond)
+	sender.mu.Lock()
+	sent := append([]sentPush(nil), sender.sent...)
+	sender.mu.Unlock()
+	require.Len(t, sent, 1, "the batched path collapses the device too")
+	assert.Equal(t, "/school/nachrichten/7", deepLinkOf(t, sent[0].payload))
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// The collapse only ever drops the losing portal of one device. Two phones
+// registered in the same portal stay two recipients, and a device without a
+// stored User-Agent is left alone.
+func TestCrossPortalCollapseKeepsSeparateDevices(t *testing.T) {
+	t.Parallel()
+
+	const browser = "Mozilla/5.0 (Macintosh) Chrome/140.0"
+	phone := testSub(1, 41, "https://fcm.googleapis.com/phone")
+	phone.AccountID = 42
+	phone.UserAgent = browser
+	laptop := testSub(2, 41, "https://fcm.googleapis.com/laptop")
+	laptop.AccountID = 42
+	laptop.UserAgent = browser
+	other := testSub(3, 41, "https://fcm.googleapis.com/other-account")
+	other.AccountID = 43
+	other.Portal = iot.PushPortalSchool
+	other.UserAgent = browser
+	unknown := testSub(4, 41, "https://fcm.googleapis.com/unknown-device")
+	unknown.AccountID = 42
+	unknown.Portal = iot.PushPortalSchool
+
+	kept := collapseCrossPortalDevices([]*iot.PushSubscription{phone, laptop, other, unknown})
+	assert.Equal(t, []*iot.PushSubscription{phone, laptop, other, unknown}, kept)
+}
+
 func deepLinkOf(t *testing.T, wire []byte) string {
 	t.Helper()
 	var payload map[string]any
