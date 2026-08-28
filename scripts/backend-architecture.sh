@@ -10,7 +10,7 @@ run_with_default_baseline() {
   local use_default=true
   for argument in "$@"; do
     case "$argument" in
-      --baseline|--baseline=*|--project|--project=*) use_default=false ;;
+      --baseline|--baseline=*) use_default=false ;;
     esac
   done
   if "$use_default"; then
