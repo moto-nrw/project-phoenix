@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/ical"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -57,33 +58,32 @@ func (s *service) ParentCalendarFeedURL(ctx context.Context, accountID int64) (s
 	if accountID <= 0 {
 		return "", "", fmt.Errorf("%w: account id is required", ErrForbidden)
 	}
-	account, err := s.cfg.AccountRepo.FindByID(ctx, accountID)
-	if err != nil {
-		return "", "", err
-	}
-	if account == nil {
-		return "", "", ErrNotFound
-	}
-	if account.CalendarFeedToken != nil && *account.CalendarFeedToken != "" {
-		// A feed already exists (only its hash is stored) — not re-displayable.
-		return "", "", nil
-	}
-	token, err := newFeedToken()
-	if err != nil {
-		return "", "", err
-	}
-	// Atomic first-writer-wins on the HASH: if two initial requests race, exactly
-	// one persists its hash. Only the caller whose hash won can show the matching
-	// raw URL; the loser can't reveal the winner's raw token, so it shows nothing.
-	persisted, err := s.cfg.AccountRepo.EnsureCalendarFeedToken(ctx, accountID, feedTokenHash(token))
-	if err != nil {
-		return "", "", err
-	}
-	if persisted != feedTokenHash(token) {
-		return "", "", nil
-	}
-	httpsURL, webcalURL := feedURLs(s.cfg.ParentsURL, token)
-	return httpsURL, webcalURL, nil
+	return s.coalesceFeedCreation(fmt.Sprintf("parent:%d", accountID), func() (string, string, error) {
+		account, err := s.cfg.AccountRepo.FindByID(ctx, accountID)
+		if err != nil {
+			return "", "", err
+		}
+		if account == nil {
+			return "", "", ErrNotFound
+		}
+		if account.CalendarFeedToken != nil && *account.CalendarFeedToken != "" {
+			// A feed already exists (only its hash is stored) — not re-displayable.
+			return "", "", nil
+		}
+		token, err := newFeedToken()
+		if err != nil {
+			return "", "", err
+		}
+		persisted, err := s.cfg.AccountRepo.EnsureCalendarFeedToken(ctx, accountID, feedTokenHash(token))
+		if err != nil {
+			return "", "", err
+		}
+		if persisted != feedTokenHash(token) {
+			return "", "", fmt.Errorf("%w: calendar feed was created concurrently", ErrConflict)
+		}
+		httpsURL, webcalURL := feedURLs(s.cfg.ParentsURL, token)
+		return httpsURL, webcalURL, nil
+	})
 }
 
 // RotateParentCalendarFeed issues a fresh token, invalidating the previous
@@ -108,26 +108,50 @@ func (s *service) RotateParentCalendarFeed(ctx context.Context, accountID int64)
 }
 
 func (s *service) StaffCalendarFeedURL(ctx context.Context) (string, string, error) {
-	accountID, tenantID, err := s.currentStaffFeedOwner(ctx)
+	claims := jwt.ClaimsFromCtx(ctx)
+	tenantID := tenant.FromContext(ctx)
+	return s.coalesceFeedCreation(fmt.Sprintf("staff:%d:%d", claims.ID, tenantID), func() (string, string, error) {
+		accountID, tenantID, err := s.currentStaffFeedOwner(ctx)
+		if err != nil {
+			return "", "", err
+		}
+		token, err := newFeedToken()
+		if err != nil {
+			return "", "", err
+		}
+		persisted, err := s.cfg.StaffFeedRepo.EnsureToken(ctx, accountID, tenantID, feedTokenHash(token))
+		if err != nil {
+			return "", "", err
+		}
+		if persisted == "" {
+			return "", "", ErrNotFound
+		}
+		if persisted != feedTokenHash(token) {
+			return "", "", nil
+		}
+		httpsURL, webcalURL := feedURLs(s.cfg.FrontendURL, token)
+		return httpsURL, webcalURL, nil
+	})
+}
+
+type feedCreationResult struct {
+	httpsURL  string
+	webcalURL string
+}
+
+// coalesceFeedCreation lets concurrent first-time requests share the one raw
+// token before only its irreversible hash remains. Later requests still run
+// normally and receive the intentional already-active response with empty URLs.
+func (s *service) coalesceFeedCreation(key string, create func() (string, string, error)) (string, string, error) {
+	value, err, _ := s.feedCreation.Do(key, func() (any, error) {
+		httpsURL, webcalURL, err := create()
+		return feedCreationResult{httpsURL: httpsURL, webcalURL: webcalURL}, err
+	})
 	if err != nil {
 		return "", "", err
 	}
-	token, err := newFeedToken()
-	if err != nil {
-		return "", "", err
-	}
-	persisted, err := s.cfg.StaffFeedRepo.EnsureToken(ctx, accountID, tenantID, feedTokenHash(token))
-	if err != nil {
-		return "", "", err
-	}
-	if persisted == "" {
-		return "", "", ErrNotFound
-	}
-	if persisted != feedTokenHash(token) {
-		return "", "", nil
-	}
-	httpsURL, webcalURL := feedURLs(s.cfg.FrontendURL, token)
-	return httpsURL, webcalURL, nil
+	result := value.(feedCreationResult)
+	return result.httpsURL, result.webcalURL, nil
 }
 
 func (s *service) RotateStaffCalendarFeed(ctx context.Context) (string, string, error) {

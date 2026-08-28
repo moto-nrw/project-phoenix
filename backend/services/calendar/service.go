@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -129,7 +130,8 @@ type Config struct {
 }
 
 type service struct {
-	cfg Config
+	cfg          Config
+	feedCreation singleflight.Group
 }
 
 func NewService(cfg Config) Service {

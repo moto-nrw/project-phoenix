@@ -189,6 +189,19 @@ func TestCalendarFeedURLReturnsURLs(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "webcal://parents.test/api/calendar-feed/abc")
 }
 
+func TestCalendarFeedURLReturnsConflictForConcurrentCreation(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentCalendarService{feedErr: calendarSvc.ErrConflict}
+	rs := &Resource{CalendarService: service}
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/feed", nil), 77)
+	w := httptest.NewRecorder()
+
+	rs.calendarFeedURL(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestRotateCalendarFeedPassesAccount(t *testing.T) {
 	t.Parallel()
 
