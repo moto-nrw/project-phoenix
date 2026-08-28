@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -215,20 +216,19 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 	// ordering Deliver keeps, for the same reason.
 	var staffSubs, schoolSubs []*iot.PushSubscription
 	err := tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
-		if err != nil {
-			return err
-		}
-		staffSubs = resolved
-		for _, event := range staffEvents {
-			if isSchoolPortalEvent(event.Type) {
-				resolved, err := c.repo.FindForSchoolAccounts(txCtx, recipients)
-				if err != nil {
-					return err
-				}
-				schoolSubs = resolved
-				break
+		if slices.ContainsFunc(staffEvents, deliversToStaffPortal) {
+			resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
+			if err != nil {
+				return err
 			}
+			staffSubs = resolved
+		}
+		if slices.ContainsFunc(staffEvents, deliversToSchoolPortal) {
+			resolved, err := c.repo.FindForSchoolAccounts(txCtx, recipients)
+			if err != nil {
+				return err
+			}
+			schoolSubs = resolved
 		}
 		return nil
 	})
@@ -248,9 +248,12 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 	dispatchCtx := context.WithoutCancel(ctx)
 	for _, event := range staffEvents {
 		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
+		toStaff, toSchool := deliversToStaffPortal(event), deliversToSchoolPortal(event)
 		for _, accountID := range event.Audience.StaffAccountIDs {
-			targets = append(targets, staffByAccount[accountID]...)
-			if isSchoolPortalEvent(event.Type) {
+			if toStaff {
+				targets = append(targets, staffByAccount[accountID]...)
+			}
+			if toSchool {
 				targets = append(targets, schoolByAccount[accountID]...)
 			}
 		}
@@ -348,18 +351,22 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 		// Eligibility is re-checked here rather than trusted from the recipient
 		// list: that list was assembled in an earlier transaction, and an
 		// account can be deactivated or unmapped from the school in between.
-		staffSubs, err := c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
-		if err != nil {
-			return nil, err
+		var subs []*iot.PushSubscription
+		if deliversToStaffPortal(event) {
+			staffSubs, err := c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
+			if err != nil {
+				return nil, err
+			}
+			subs = staffSubs
 		}
-		if !isSchoolPortalEvent(event.Type) {
-			return staffSubs, nil
+		if !deliversToSchoolPortal(event) {
+			return subs, nil
 		}
 		schoolSubs, err := c.repo.FindForSchoolAccounts(ctx, staffAccountIDs(audience))
 		if err != nil {
 			return nil, err
 		}
-		return dedupeSubscriptionsByEndpoint(append(staffSubs, schoolSubs...)), nil
+		return dedupeSubscriptionsByEndpoint(append(subs, schoolSubs...)), nil
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
@@ -429,14 +436,30 @@ func newerRegistration(candidate, incumbent *iot.PushSubscription) bool {
 	return candidate.ID > incumbent.ID
 }
 
-// isSchoolPortalEvent keeps the school transport aligned with the catalogue.
-// TypeTest is deliberately included: the settings page uses it to verify that
-// the currently signed-in school portal can receive both SSE and Web Push.
-func isSchoolPortalEvent(eventType string) bool {
-	if eventType == TypeTest {
-		return true
+// deliversToStaffPortal and deliversToSchoolPortal decide which of the two
+// staff-side portals an event reaches. For a catalogue type the catalogue
+// decides: every staff type reaches the OGS portal, and the school portal is
+// added for the types it offers.
+//
+// TypeTest is the exception. It carries no catalogue entry and exists to prove
+// one thing: that the portal the person is looking at receives notifications.
+// Fanning it out to both portals would answer a question nobody asked — a
+// Lehrkraft pressing "Testbenachrichtigung" in moto schule would also light up
+// her OGS devices, and an OGS admin would push a test into a portal she may
+// not even use. So the test stays in the portal that requested it
+// (Event.Portal, empty meaning the OGS portal).
+func deliversToStaffPortal(event Event) bool {
+	if event.Type == TypeTest {
+		return event.Portal != PortalSchool
 	}
-	def, ok := GetType(eventType)
+	return true
+}
+
+func deliversToSchoolPortal(event Event) bool {
+	if event.Type == TypeTest {
+		return event.Portal == PortalSchool
+	}
+	def, ok := GetType(event.Type)
 	return ok && OfferedInPortal(def, PortalSchool)
 }
 

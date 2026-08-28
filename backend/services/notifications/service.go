@@ -115,6 +115,13 @@ type Event struct {
 	// no place in moto schule"; a school device then opens the portal root.
 	SchoolDeepLink string
 	Data           map[string]string
+
+	// Portal names the portal that asked for the event. It is only consulted
+	// for TypeTest (#2208): the test notification proves the setup of the
+	// portal the person is standing in, so it must not fan out into the other
+	// staff portal. Empty means PortalStaff. Catalogue types ignore it — where
+	// they are delivered is decided by the catalogue, not by the producer.
+	Portal string
 }
 
 // ErrDisabled is returned by Notify when notifications.dispatch_enabled is

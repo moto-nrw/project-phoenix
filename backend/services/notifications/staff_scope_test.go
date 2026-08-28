@@ -139,22 +139,50 @@ func TestStaffMessageAlsoRoutesToSchoolPortal(t *testing.T) {
 	assert.Equal(t, []int64{11}, calls[0].AccountIDs)
 }
 
-func TestTestNotificationAlsoRoutesToSchoolPortal(t *testing.T) {
+// The test notification answers one question: does the portal I am looking at
+// receive notifications? Delivering it in both staff portals would answer a
+// question nobody asked, so it stays in the portal that requested it (#2208).
+func TestTestNotificationStaysInTheRequestingPortal(t *testing.T) {
 	t.Parallel()
 
-	bc := testpkg.NewRecordingBroadcaster()
-	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
-		notifications.NewSSEChannel(bc))
-	event := staffEvent(testTenantID, 11)
-	event.Type = notifications.TypeTest
+	t.Run("fired from moto schule it reaches only the school clients", func(t *testing.T) {
+		t.Parallel()
 
-	require.NoError(t, dispatch(t, func(ctx context.Context) error {
-		return svc.Notify(ctx, event)
-	}))
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+			notifications.NewSSEChannel(bc))
+		event := staffEvent(testTenantID, 11)
+		event.Type = notifications.TypeTest
+		event.Portal = notifications.PortalSchool
 
-	calls := bc.CallsByMethod("school")
-	require.Len(t, calls, 1)
-	assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+		require.NoError(t, dispatch(t, func(ctx context.Context) error {
+			return svc.Notify(ctx, event)
+		}))
+
+		calls := bc.CallsByMethod("school")
+		require.Len(t, calls, 1)
+		assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+		assert.Empty(t, bc.CallsByMethod("staff"), "the OGS devices were not asked to be tested")
+	})
+
+	t.Run("fired from the OGS portal it reaches only the staff clients", func(t *testing.T) {
+		t.Parallel()
+
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+			notifications.NewSSEChannel(bc))
+		event := staffEvent(testTenantID, 11)
+		event.Type = notifications.TypeTest
+
+		require.NoError(t, dispatch(t, func(ctx context.Context) error {
+			return svc.Notify(ctx, event)
+		}))
+
+		calls := bc.CallsByMethod("staff")
+		require.Len(t, calls, 1)
+		assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+		assert.Empty(t, bc.CallsByMethod("school"), "moto schule was not the portal under test")
+	})
 }
 
 // TestStaffAccountIDsAreSnapshotted pins that the recipient list survives the

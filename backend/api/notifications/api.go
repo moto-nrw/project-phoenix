@@ -141,6 +141,9 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 			Scope:           notificationsService.ScopeStaff,
 			StaffAccountIDs: []int64{*accountID},
 		},
+		// The test proves the setup of the portal the person is standing in,
+		// so it is delivered there and nowhere else (#2208).
+		Portal:   requestPortal(r),
 		Priority: notificationsService.PriorityNormal,
 		Title:    "Testbenachrichtigung",
 		Body:     "Die Benachrichtigungen sind korrekt eingerichtet.",

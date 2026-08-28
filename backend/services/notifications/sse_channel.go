@@ -102,10 +102,12 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		return c.broadcaster.BroadcastToGroup(event.Audience.TenantID, event.Audience.ActiveGroupID, sseEvent)
 	case ScopeStaff:
 		accountIDs := staffAccountIDs(event.Audience)
-		if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
-			return err
+		if deliversToStaffPortal(event) {
+			if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
+				return err
+			}
 		}
-		if isSchoolPortalEvent(event.Type) {
+		if deliversToSchoolPortal(event) {
 			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
 		}
 		return nil

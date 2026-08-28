@@ -100,6 +100,40 @@ func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
 	assert.ElementsMatch(t, []*iot.PushSubscription{staffSub, schoolSub}, supported)
 }
 
+// The same split holds for the devices: a test fired in moto schule reaches
+// the school registrations only, and one fired in the OGS portal the staff
+// registrations only.
+func TestTestPushStaysInTheRequestingPortal(t *testing.T) {
+	t.Parallel()
+
+	staffSub := testSub(1, 41, "https://fcm.googleapis.com/staff")
+	staffSub.AccountID = 42
+	schoolSub := testSub(2, 41, "https://fcm.googleapis.com/school")
+	schoolSub.AccountID = 42
+	schoolSub.Portal = iot.PushPortalSchool
+	channel := testChannel(&fakePushRepo{
+		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+	}, &fakeSender{})
+
+	audience := Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}}
+
+	fromSchool, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeTest,
+		Portal:   PortalSchool,
+		Audience: audience,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{schoolSub}, fromSchool)
+
+	fromStaff, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeTest,
+		Audience: audience,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{staffSub}, fromStaff)
+}
+
 // One browser can be registered in both staff portals: the rows differ by
 // portal, the endpoint does not. Sending both would put the same message on
 // the same device twice, so only the current registration survives — the most

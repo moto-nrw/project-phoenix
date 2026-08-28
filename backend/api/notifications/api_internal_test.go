@@ -83,6 +83,25 @@ func TestSendTestNotificationDispatchesOnlyToRequester(t *testing.T) {
 	assert.Equal(t, notificationsService.ScopeStaff, svc.gotEvent.Audience.Scope)
 	assert.Equal(t, []int64{73}, svc.gotEvent.Audience.StaffAccountIDs)
 	assert.NotEmpty(t, svc.gotEvent.Title)
+	assert.Equal(t, notificationsService.PortalStaff, svc.gotEvent.Portal)
+}
+
+// The test notification proves the setup of the portal it was fired from, so
+// a request through the school mount must not reach the OGS devices (#2208).
+func TestSendTestNotificationCarriesTheRequestingPortal(t *testing.T) {
+	t.Parallel()
+
+	svc := &captureService{}
+	rs := &Resource{NotificationsService: svc}
+
+	req := newTestRequest(41)
+	req = req.WithContext(context.WithValue(req.Context(), portalCtxKey{}, notificationsService.PortalSchool))
+
+	rec := httptest.NewRecorder()
+	rs.sendTestNotification(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, notificationsService.PortalSchool, svc.gotEvent.Portal)
 }
 
 func TestSendTestNotificationDisabledMapsToConflict(t *testing.T) {
