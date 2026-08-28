@@ -1621,6 +1621,7 @@
     "subscribe": "Subscribe in the calendar",
     "linkLabel": "Subscription link (to copy)",
     "copy": "Copy",
+    "copiedButton": "Copied",
     "copied": "Link copied.",
     "copyFailed": "Copying is not possible. Please select the link by hand.",
     "linkOnce": "For security reasons you only see this link now. Copy it into your calendar right away.",

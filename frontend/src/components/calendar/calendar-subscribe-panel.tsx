@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarDays, Copy, Link, RefreshCw } from "lucide-react";
+import { CalendarDays, Check, Copy, Link, RefreshCw } from "lucide-react";
 
 import { Button, ButtonLink } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import {
   getParentCalendarFeed,
   getStaffCalendarFeed,
@@ -25,6 +26,7 @@ interface CalendarSubscribeCopy {
   readonly regenerate: string;
   readonly linkLabel: string;
   readonly copy: string;
+  readonly copiedButton: string;
   readonly linkOnce: string;
   readonly howToTitle: string;
   readonly howToMac: string;
@@ -55,6 +57,7 @@ const staffCopy: CalendarSubscribeCopy = {
   regenerate: "Link neu erstellen",
   linkLabel: "Abo-Link",
   copy: "Link kopieren",
+  copiedButton: "Kopiert",
   linkOnce:
     "Sie sehen diesen Link nur jetzt. Kopieren Sie ihn direkt in Ihren Kalender. Ein neuer Link beendet das bisherige Abo.",
   howToTitle: "So geht es:",
@@ -92,6 +95,7 @@ export function CalendarSubscribePanel() {
     regenerate: t("regenerate"),
     linkLabel: t("linkLabel"),
     copy: t("copy"),
+    copiedButton: t("copiedButton"),
     linkOnce: t("linkOnce"),
     howToTitle: t("howToTitle"),
     howToMac: t("howToMac"),
@@ -136,6 +140,10 @@ function CalendarSubscribePanelView({
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { copied, copy: copyToClipboard } = useClipboardCopy(
+    "CalendarSubscribePanelView",
+    2000,
+  );
 
   const load = async () => {
     setLoading(true);
@@ -162,10 +170,9 @@ function CalendarSubscribePanelView({
   };
 
   const copyLink = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyToClipboard(text)) {
       toast.success(copy.copied);
-    } catch {
+    } else {
       toast.error(copy.copyFailed);
     }
   };
@@ -228,12 +235,16 @@ function CalendarSubscribePanelView({
                 <Button
                   type="button"
                   size="md"
-                  variant="outline"
-                  className="shrink-0"
+                  variant={copied ? "success" : "outline"}
+                  className="min-w-36 shrink-0"
                   onClick={() => copyLink(feed.url)}
                 >
-                  <Copy className="mr-2 size-4" aria-hidden />
-                  {copy.copy}
+                  {copied ? (
+                    <Check className="mr-2 size-4" aria-hidden />
+                  ) : (
+                    <Copy className="mr-2 size-4" aria-hidden />
+                  )}
+                  {copied ? copy.copiedButton : copy.copy}
                 </Button>
               </div>
               <p className="mt-1 text-xs leading-5 text-gray-500">

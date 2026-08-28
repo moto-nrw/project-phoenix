@@ -71,6 +71,32 @@ describe("CalendarSubscribePanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows a visible success state after copying the link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    mockGetFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/abc",
+      webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Kopieren$/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Kopiert$/ })).toHaveClass(
+        "bg-moto-green",
+      ),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      "https://parents.test/api/calendar-feed/abc",
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("Link kopiert.");
+  });
+
   it("passes the subscription URL to Apple Calendar on macOS", async () => {
     const userAgent = vi
       .spyOn(window.navigator, "userAgent", "get")

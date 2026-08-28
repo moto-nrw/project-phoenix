@@ -1621,6 +1621,7 @@
     "subscribe": "Abononi në kalendar",
     "linkLabel": "Lidhja e abonimit (për kopjim)",
     "copy": "Kopjo",
+    "copiedButton": "U kopjua",
     "copied": "Lidhja u kopjua.",
     "copyFailed": "Kopjimi nuk është i mundur. Ju lutemi shënoni lidhjen me dorë.",
     "linkOnce": "Për arsye sigurie e shihni këtë lidhje vetëm tani. Kopjojeni menjëherë në kalendarin tuaj.",

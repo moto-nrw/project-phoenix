@@ -1621,6 +1621,7 @@
     "subscribe": "Im Kalender abonnieren",
     "linkLabel": "Abo-Link (zum Kopieren)",
     "copy": "Kopieren",
+    "copiedButton": "Kopiert",
     "copied": "Link kopiert.",
     "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
     "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
