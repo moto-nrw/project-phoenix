@@ -50,6 +50,9 @@ case "$tool" in
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(bash|sh)[[:space:]]+[^-[:space:]][^[:space:]]*\.sh([[:space:]]|$)|(^|[|&;[:space:]])\./[^[:space:]]+'; then
             deny "Blocked: script execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
         fi
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(python([0-9.]*)?|node|go[[:space:]]+run)[[:space:]]+'; then
+            deny "Blocked: interpreter execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
+        fi
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(eval|source|\.)([[:space:]]|$)'; then
             deny "Blocked: dynamic shell execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
         fi
@@ -77,16 +80,16 @@ EOF
         # command from exempting later writers in an &&/pipe chain.
         while IFS= read -r segment; do
             [[ -n "$segment" ]] || continue
-            if printf '%s' "$segment" | grep -q '\.sops\.env' &&
+            if printf '%s' "$segment" | grep -Eq '\.sops[^[:alnum:]]*env' &&
                 printf '%s' "$segment" | grep -Eq '\$\(|<\(|`'; then
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
-            if printf '%s' "$segment" | grep -q '\.sops\.env' &&
+            if printf '%s' "$segment" | grep -Eq '\.sops[^[:alnum:]]*env' &&
                 printf '%s' "$segment" | grep -Eq '^[[:space:]]*git[[:space:]]+diff([[:space:]]|$)' &&
                 printf '%s' "$segment" | grep -Eq -- '--output(=|[[:space:]])'; then
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
-            if printf '%s' "$segment" | grep -q '\.sops\.env' &&
+            if printf '%s' "$segment" | grep -Eq '\.sops[^[:alnum:]]*env' &&
                 ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat|git[[:space:]]+(add|diff|show))([[:space:]]|$)'; then
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
@@ -105,6 +108,10 @@ EOF
         if printf '%s' "$cmd" | grep -Eq '(database/)?migrations([/[:space:]]|$)' &&
             printf '%s' "$cmd" | grep -Eiq 'DISABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY'; then
             deny "Blocked: migrations must not contain DISABLE ROW LEVEL SECURITY (CLAUDE.md rule 9 - the superuser connection bypasses RLS, disabling it is unnecessary and breaks tests)."
+        fi
+        if printf '%s' "$cmd" | grep -Eq '(^|[|&;[:space:]])(cp|mv|install)[[:space:]]+' &&
+            printf '%s' "$cmd" | grep -Eq '(database/)?migrations/'; then
+            deny "Blocked: copy or move operations into migrations cannot be safely inspected for DISABLE ROW LEVEL SECURITY."
         fi
 
         # Rule 4: --no-verify bypasses lefthook incl. the sops encryption
