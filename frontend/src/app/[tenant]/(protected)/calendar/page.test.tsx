@@ -54,7 +54,9 @@ vi.mock("next-auth/react", () => ({
 // für die Seiten-Tests genügt ein Platzhalter.
 // useSearchParams liefert außerhalb des App-Routers null; der Tab-Start hängt
 // an den Plan-Parametern (#2621), also wird der Hook hier steuerbar gemacht.
-const mockUseSearchParams = vi.fn<() => URLSearchParams | null>(() => null);
+const { mockUseSearchParams } = vi.hoisted(() => ({
+  mockUseSearchParams: vi.fn<() => URLSearchParams | null>(() => null),
+}));
 vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
   return { ...actual, useSearchParams: () => mockUseSearchParams() };
