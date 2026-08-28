@@ -47,6 +47,9 @@ case "$tool" in
         # wrapped clients (python/node/bash -c) without maintaining a
         # bypassable list of network binaries.
         cmd_lower=$(printf '%s' "$cmd" | tr '[:upper:]' '[:lower:]')
+        if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(bash|sh)[[:space:]]+[^-[:space:]][^[:space:]]*\.sh([[:space:]]|$)|(^|[|&;[:space:]])\./[^[:space:]]+'; then
+            deny "Blocked: script execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
+        fi
         if printf '%s' "$cmd_lower" | grep -Eq '(^|[|&;[:space:]])(eval|source|\.)([[:space:]]|$)'; then
             deny "Blocked: dynamic shell execution cannot be safely inspected by the absolute-rule guard. Run the command directly."
         fi
@@ -84,7 +87,7 @@ EOF
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
             if printf '%s' "$segment" | grep -q '\.sops\.env' &&
-                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat|git[[:space:]]+(diff|show))([[:space:]]|$)'; then
+                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat|git[[:space:]]+(add|diff|show))([[:space:]]|$)'; then
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
         done <<EOF
@@ -108,7 +111,7 @@ EOF
         # check. Scoped to the same pipeline segment as "git commit"; a
         # literal " -n " inside a commit message is an accepted false
         # positive.
-        if printf '%s' "$cmd" | grep -Eq '(^|[|;&[:space:]])git([[:space:]]+[^|;&[:space:]]+)*[[:space:]]+commit[^|;&]*[[:space:]](--no-verify|-n)([[:space:]]|$)'; then
+        if printf '%s' "$cmd" | grep -Eq '(^|[|;&[:space:]])([^[:space:];|&]*/)?git([[:space:]]+[^|;&[:space:]]+)*[[:space:]]+commit[^|;&]*[[:space:]](--no-verify|-n)([[:space:]]|$)'; then
             deny "Blocked: git commit --no-verify / -n skips lefthook (incl. the sops encryption guard). Commit without it; if a hook misfires, fix the hook."
         fi
         ;;
