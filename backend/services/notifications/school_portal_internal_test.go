@@ -6,10 +6,14 @@ import (
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The school portal (#2208) borrows from the staff catalogue: only types that
@@ -31,14 +35,65 @@ func TestSchoolPortalCatalogue(t *testing.T) {
 	assert.False(t, OfferedInPortal(pickup, PortalSchool), "supervision reminders never address a Lehrkraft")
 }
 
-func TestSubscribeSchoolRecordsSchoolPortal(t *testing.T) {
+// A school registration rebinds the browser endpoint: the school a Lehrkraft
+// left keeps neither its row nor its pushes, and both steps share one
+// transaction so a failure never leaves the device unregistered.
+func TestSubscribeSchoolRebindsTheEndpoint(t *testing.T) {
+	t.Parallel()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	repo := &recordingPushRepository{}
+	service := NewPushSubscriptionService(db, repo, nil, testVAPID(), nil)
+	ctx := tenant.WithTenantID(context.Background(), 41)
+
+	require.NoError(t, service.SubscribeSchool(ctx, 42, validPushInput()))
+	require.Len(t, repo.upserted, 1)
+	assert.Equal(t, iot.PushPortalSchool, repo.upserted[0].Portal)
+	assert.Equal(t, int64(41), repo.upserted[0].TenantID)
+	assert.Equal(t, validPushInput().Endpoint, repo.reboundEndpoint)
+	assert.Equal(t, []string{"clear-school", "upsert:41"}, repo.operations)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSubscribeSchoolReportsRebindFailures(t *testing.T) {
+	t.Parallel()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	repo := &recordingPushRepository{deleteSchoolErr: errPushRepository}
+	service := NewPushSubscriptionService(db, repo, nil, testVAPID(), nil)
+	ctx := tenant.WithTenantID(context.Background(), 41)
+
+	err = service.SubscribeSchool(ctx, 42, validPushInput())
+	require.ErrorIs(t, err, errPushRepository)
+	assert.ErrorContains(t, err, "clearing previous school push subscription bindings")
+	assert.Empty(t, repo.upserted)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Without a school on the context there is nothing to bind the device to;
+// registering it anyway would write a row no school ever reads.
+func TestSubscribeSchoolRequiresASchoolContext(t *testing.T) {
 	t.Parallel()
 	repo := &recordingPushRepository{}
 	service := NewPushSubscriptionService(nil, repo, nil, testVAPID(), nil)
 
-	require.NoError(t, service.SubscribeSchool(context.Background(), 42, validPushInput()))
-	require.Len(t, repo.upserted, 1)
-	assert.Equal(t, iot.PushPortalSchool, repo.upserted[0].Portal)
+	err := service.SubscribeSchool(context.Background(), 42, validPushInput())
+	require.EqualError(t, err, "school push subscription requires a school context")
+	assert.Empty(t, repo.upserted)
 }
 
 // A school device gets the school host's deep link; every other device the

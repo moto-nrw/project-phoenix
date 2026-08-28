@@ -31,6 +31,7 @@ type recordingPushRepository struct {
 	operations      []string
 	err             error
 	deleteParentErr error
+	deleteSchoolErr error
 	failAfter       int
 	deleteFailAfter int
 }
@@ -75,6 +76,12 @@ func (r *recordingPushRepository) DeleteParentByEndpoint(_ context.Context, endp
 	r.reboundEndpoint = endpoint
 	r.operations = append(r.operations, "clear")
 	return r.deleteParentErr
+}
+
+func (r *recordingPushRepository) DeleteSchoolByEndpointAcrossTenants(_ context.Context, endpoint string) error {
+	r.reboundEndpoint = endpoint
+	r.operations = append(r.operations, "clear-school")
+	return r.deleteSchoolErr
 }
 
 type accountTenantRepositoryStub struct {

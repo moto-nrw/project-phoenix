@@ -78,15 +78,17 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	defer cancel()
 
+	logger := rs.getLogger()
+
 	if rs.schoolAccess == nil {
-		slog.ErrorContext(ctx, "school SSE has no access checker wired")
+		logger.ErrorContext(ctx, "school SSE has no access checker wired")
 		http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
 	conn, statusCode := rs.setupSSEConnection(w)
 	if conn == nil {
-		slog.WarnContext(ctx, "school SSE streaming unsupported by client")
+		logger.WarnContext(ctx, "school SSE streaming unsupported by client")
 		http.Error(w, "Streaming unsupported", statusCode)
 		return
 	}
@@ -100,13 +102,13 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 
 	allowed, err := rs.schoolAccess.HasSchoolPortalAccess(ctx, accountID, tenantID)
 	if err != nil {
-		slog.ErrorContext(ctx, "school SSE failed to verify portal access",
+		logger.ErrorContext(ctx, "school SSE failed to verify portal access",
 			slog.String("error", err.Error()))
 		http.Error(w, "Failed to verify access", http.StatusInternalServerError)
 		return
 	}
 	if !allowed {
-		slog.WarnContext(ctx, "school SSE rejected: no school portal role",
+		logger.WarnContext(ctx, "school SSE rejected: no school portal role",
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID))
 		http.Error(w, "Forbidden", http.StatusForbidden)
@@ -118,7 +120,7 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 	conn.staffID = accountID // connection user id for logging only
 
 	if err := conn.sendConnectedEvent(&sseTopics{}); err != nil {
-		slog.ErrorContext(ctx, "school SSE failed to send connected event",
+		logger.ErrorContext(ctx, "school SSE failed to send connected event",
 			slog.String("error", err.Error()))
 		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
 		return
@@ -136,7 +138,7 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 		accountID:  accountID,
 		tenantID:   tenantID,
 		verifiedAt: time.Now(),
-		logger:     rs.getLogger(),
+		logger:     logger,
 	})
 }
 
@@ -165,14 +167,14 @@ func (g *schoolAccessGate) allow(ctx context.Context, now time.Time) bool {
 	allowed, err := g.checker.HasSchoolPortalAccess(ctx, g.accountID, g.tenantID)
 	if err != nil {
 		if age < schoolAccessGracePeriod {
-			g.logger.Warn("school SSE access re-check failed, serving on last result",
+			g.logger.WarnContext(ctx, "school SSE access re-check failed, serving on last result",
 				slog.String("error", err.Error()),
 				slog.Int64("account_id", g.accountID),
 				slog.Int64("tenant_id", g.tenantID),
 			)
 			return true
 		}
-		g.logger.Error("school SSE access re-check kept failing, closing stream",
+		g.logger.ErrorContext(ctx, "school SSE access re-check kept failing, closing stream",
 			slog.String("error", err.Error()),
 			slog.Int64("account_id", g.accountID),
 			slog.Int64("tenant_id", g.tenantID),
@@ -220,7 +222,7 @@ func schoolDeliver(ctx context.Context, gate *schoolAccessGate, write func() err
 		return false
 	}
 	if !gate.allow(ctx, time.Now()) {
-		slog.InfoContext(ctx, "school SSE closed: portal access no longer valid",
+		gate.logger.InfoContext(ctx, "school SSE closed: portal access no longer valid",
 			slog.Int64("account_id", gate.accountID),
 			slog.Int64("tenant_id", gate.tenantID),
 		)

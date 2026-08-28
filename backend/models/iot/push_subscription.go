@@ -110,6 +110,10 @@ type PushSubscriptionRepository interface {
 	// DeleteSchoolByEndpoint removes only a school-portal subscription for the
 	// caller in the current tenant.
 	DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteSchoolByEndpointAcrossTenants removes every school-portal binding
+	// for an endpoint across tenants (#2208). Callers must use an admin
+	// transaction; a browser holds at most one school registration.
+	DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error
 	// DeleteExpiredIfUnchanged removes a subscription only if its persisted
 	// ownership, key material, and update timestamp still match the sent snapshot.
 	DeleteExpiredIfUnchanged(ctx context.Context, sub *PushSubscription) (bool, error)

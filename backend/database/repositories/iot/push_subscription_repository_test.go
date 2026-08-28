@@ -307,6 +307,33 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.Empty(t, remaining)
 	})
 
+	t.Run("school endpoint cleanup spans tenants and leaves other portals alone", func(t *testing.T) {
+		otherSchool := createPushTestSchool(t, db)
+		otherSchoolCtx := tenant.WithTenantID(context.Background(), otherSchool.ID)
+		sharedEndpoint := endpoint + "/shared-school-device"
+
+		schoolHere := newSubscription(t, account.ID, iotModels.PushPortalSchool, sharedEndpoint)
+		schoolThere := newSubscription(t, account.ID, iotModels.PushPortalSchool, sharedEndpoint)
+		schoolThere.SetTenantID(otherSchool.ID)
+		staffHere := newSubscription(t, account.ID, iotModels.PushPortalStaff, sharedEndpoint)
+		require.NoError(t, repo.Upsert(ctx, schoolHere))
+		require.NoError(t, repo.Upsert(otherSchoolCtx, schoolThere))
+		require.NoError(t, repo.Upsert(ctx, staffHere))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteSchoolByEndpointAcrossTenants(adminCtx, sharedEndpoint)
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".endpoint = ?`, sharedEndpoint).
+			Scan(context.Background()))
+		require.Len(t, remaining, 1, "the OGS registration of the same browser survives")
+		assert.Equal(t, iotModels.PushPortalStaff, remaining[0].Portal)
+	})
+
 	t.Run("admin finder returns only admin-role accounts", func(t *testing.T) {
 		subs, err := repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)

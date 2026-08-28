@@ -148,6 +148,28 @@ func (r *PushSubscriptionRepository) DeleteSchoolByEndpoint(ctx context.Context,
 	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalSchool, "delete school push subscription")
 }
 
+// DeleteSchoolByEndpointAcrossTenants serializes rebinds, then removes every
+// school-portal binding for an endpoint across tenants and accounts. A school
+// session is pinned to exactly one school, so a browser holds at most one
+// school registration; without this, the row of the school a person left keeps
+// receiving her notifications. The caller must supply an admin transaction.
+func (r *PushSubscriptionRepository) DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error {
+	db := base.GetDB(ctx, r.DB)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
+		return &modelBase.DatabaseError{Op: "lock school push subscription endpoint", Err: err}
+	}
+	_, err := db.NewDelete().
+		Model((*iot.PushSubscription)(nil)).
+		ModelTableExpr(tablePushSubscriptions).
+		Where("endpoint = ?", endpoint).
+		Where(pushPortalFilter, iot.PushPortalSchool).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete school push subscriptions by endpoint", Err: err}
+	}
+	return nil
+}
+
 // DeleteExpiredIfUnchanged removes an expired subscription only while it still
 // matches the snapshot sent to the push service. A concurrent refresh or
 // account rebind changes at least one predicate and preserves the current row.
