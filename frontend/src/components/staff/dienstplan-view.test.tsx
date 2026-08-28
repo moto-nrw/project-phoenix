@@ -691,11 +691,10 @@ describe("DienstplanView", () => {
 
     render(<DienstplanView />);
 
-    expect(
-      screen.getByRole("button", {
-        name: "Dienstplan drucken oder exportieren",
-      }),
-    ).toBeInTheDocument();
+    // Die Aktion liegt im Menü neben dem Titel, nicht als zweiter Knopf
+    // daneben: neben dem Titel steht eine sichtbare Aktion.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(screen.getByText("Drucken oder exportieren")).toBeInTheDocument();
   });
 
   it("hides export without the permission to read staff names", () => {
@@ -709,9 +708,7 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(
-      screen.queryByRole("button", {
-        name: "Dienstplan drucken oder exportieren",
-      }),
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
   });
 

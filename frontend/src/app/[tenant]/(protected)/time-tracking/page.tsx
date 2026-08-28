@@ -170,19 +170,20 @@ function friendlyError(err: unknown, fallback: string): string {
   const code = match?.[1] ?? msg;
 
   const map: Record<string, string> = {
-    "already checked in": "Du bist bereits eingestempelt.",
-    "already checked out today": "Du hast heute bereits gearbeitet.",
+    "already checked in": "Sie sind bereits eingestempelt.",
+    "already checked out today": "Sie haben heute bereits gearbeitet.",
     "no active session found": "Kein aktiver Eintrag vorhanden.",
     "no session found for today": "Kein Eintrag für heute vorhanden.",
     "session not found": "Eintrag nicht gefunden.",
-    "can only update own sessions": "Du kannst nur eigene Einträge bearbeiten.",
+    "can only update own sessions":
+      "Sie können nur eigene Einträge bearbeiten.",
     "break already active": "Eine Pause läuft bereits.",
     "no active break found": "Keine aktive Pause vorhanden.",
     "absence not found": "Abwesenheit nicht gefunden.",
     "can only update own absences":
-      "Du kannst nur eigene Abwesenheiten bearbeiten.",
+      "Sie können nur eigene Abwesenheiten bearbeiten.",
     "can only delete own absences":
-      "Du kannst nur eigene Abwesenheiten löschen.",
+      "Sie können nur eigene Abwesenheiten löschen.",
     "invalid absence type": "Ungültiger Abwesenheitstyp.",
   };
 

@@ -23,6 +23,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -414,24 +415,6 @@ function DienstplanContent() {
         // zweier Breakpoint-Varianten — das `aria-label` hält sie für
         // Screenreader und Tests unter demselben Namen auffindbar.
         <>
-          {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
-              Exportseite, weil der Export immer die Woche meint, die gerade
-              auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
-          {canExportPlan && (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              aria-label="Dienstplan drucken oder exportieren"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-              onClick={() => setExportOpen(true)}
-            >
-              <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Drucken
-              </span>
-            </Button>
-          )}
           <Button
             type="button"
             variant="primary"
@@ -446,6 +429,22 @@ function DienstplanContent() {
               Schichtarten verwalten
             </span>
           </Button>
+          {/* Drucken/Exportieren (#2079) meint immer die Woche, die gerade auf
+              dem Bildschirm steht -- deshalb hier und nicht auf der zentralen
+              Exportseite. Im Menü, weil neben dem Titel eine sichtbare Aktion
+              steht und nicht zwei. */}
+          {canExportPlan && (
+            <OverflowMenu
+              items={[
+                {
+                  label: "Drucken oder exportieren",
+                  icon: <Printer className="h-4 w-4" aria-hidden />,
+                  onClick: () => setExportOpen(true),
+                },
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          )}
         </>
       }
       searchSlot={

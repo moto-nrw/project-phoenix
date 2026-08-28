@@ -1267,6 +1267,23 @@ function TimetablesContent() {
         ]
       : [];
 
+  // Alles, was neben "Neu" noch erreichbar sein muss. Die Zeilenhöhe ist eine
+  // Feinjustage der Wochenansicht und erscheint nur dort; Drucken meint immer
+  // die Woche, die gerade zu sehen ist.
+  const menuItems: OverflowMenuEntry[] = [
+    ...(canManageSchedules && view === "week" ? densityMenuItems : []),
+    ...(canManageSchedules ? hiddenConflictsMenuItems : []),
+    ...(canManageSchedules && canExportBetreuungsplan
+      ? [
+          {
+            label: "Drucken oder exportieren",
+            icon: <Printer className="h-4 w-4" aria-hidden />,
+            onClick: () => setExportOpen(true),
+          },
+        ]
+      : []),
+  ];
+
   // Leerzustand (Kriterium 5): solange kein Planungszeitraum existiert, zeigt
   // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
@@ -1316,51 +1333,13 @@ function TimetablesContent() {
         statsLoading={statsLoading}
         actions={
           <>
-            {canManageSchedules && hiddenConflictsMenuItems.length > 0 ? (
-              // Mit ausgeblendeten Konflikten trägt das Menü den Wieder-
-              // einstieg und muss überall erreichbar sein (auch mobil und in
-              // der Monatsansicht); die Zeilenhöhe bleibt an die Wochenansicht
-              // gebunden.
-              <OverflowMenu
-                ariaLabel="Weitere Optionen"
-                items={[
-                  ...(view === "week" ? densityMenuItems : []),
-                  ...hiddenConflictsMenuItems,
-                ]}
-              />
-            ) : (
-              canManageSchedules &&
-              view === "week" && (
-                // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
-                // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
-                // war mit den drei Ansichts-Tabs und "Neu" zusammen breiter als
-                // die Kopfzeile — das Datum wurde dadurch auf null gequetscht.
-                <span className="hidden sm:contents">
-                  <OverflowMenu
-                    ariaLabel="Zeilenhöhe"
-                    items={densityMenuItems}
-                  />
-                </span>
-              )
-            )}
-            {/* Drucken/Exportieren (#2079): gehört auf die Fläche, weil der
-                Export die Woche meint, die gerade zu sehen ist. Unter sm nur
-                das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
-                und "Neu". */}
-            {canManageSchedules && canExportBetreuungsplan && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                aria-label="Betreuungsplan drucken oder exportieren"
-                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-                onClick={() => setExportOpen(true)}
-              >
-                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  Drucken
-                </span>
-              </Button>
+            {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
+                Konflikte und Drucken lagen vorher in zwei Menüs und einem
+                eigenen Knopf, je nach Ansicht und Recht mal so, mal so.
+                Neben dem Titel steht damit eine sichtbare Aktion ("Neu") und
+                das Menü -- dieselbe Aufteilung wie auf jeder anderen Seite. */}
+            {menuItems.length > 0 && (
+              <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
             )}
             {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
                 das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
@@ -1373,7 +1352,7 @@ function TimetablesContent() {
               <StatusBadge
                 label="Nur ansehen"
                 tone="gray"
-                title="Du kannst den Betreuungsplan ansehen. Ändern können ihn nur Admins."
+                title="Sie können den Betreuungsplan ansehen. Ändern können ihn nur Admins."
               />
             )}
           </>

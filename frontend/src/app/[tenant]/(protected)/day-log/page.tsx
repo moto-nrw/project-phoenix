@@ -16,6 +16,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
@@ -398,8 +400,28 @@ export default function DayLogPage() {
     [dateISO],
   );
 
-  // Action trio in the Anmeldungen button idiom: Drucken as the dark primary,
-  // the downloads as quiet white bordered actions. All sit on white surfaces.
+  // Eine sichtbare Aktion neben dem Titel, alles Weitere im Menü: Drucken ist
+  // der tägliche Griff, PDF und Excel sind der seltene. Vorher standen alle
+  // drei nebeneinander und füllten die halbe Kopfzeile -- dieselbe Reihe, die
+  // die Statistik hatte.
+  const exportMenuItems = (groupId?: string): OverflowMenuEntry[] => [
+    { kind: "header", label: "Herunterladen" },
+    {
+      label:
+        exporting === `pdf-${groupId ?? "all"}` ? "Wird exportiert…" : "PDF",
+      icon: <Download className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport("pdf", groupId),
+      disabled: !data || exporting !== null,
+    },
+    {
+      label:
+        exporting === `xlsx-${groupId ?? "all"}` ? "Wird exportiert…" : "Excel",
+      icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport("xlsx", groupId),
+      disabled: !data || exporting !== null,
+    },
+  ];
+
   const exportButtons = (groupId?: string) => (
     <>
       <Button
@@ -415,30 +437,10 @@ export default function DayLogPage() {
           ? "Wird geöffnet…"
           : "Drucken"}
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("pdf", groupId)}
-      >
-        <Download className="h-4 w-4" aria-hidden />
-        {exporting === `pdf-${groupId ?? "all"}` ? "Wird exportiert…" : "PDF"}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("xlsx", groupId)}
-      >
-        <FileSpreadsheet className="h-4 w-4" aria-hidden />
-        {exporting === `xlsx-${groupId ?? "all"}`
-          ? "Wird exportiert…"
-          : "Excel"}
-      </Button>
+      <OverflowMenu
+        items={exportMenuItems(groupId)}
+        ariaLabel="Weitere Aktionen"
+      />
     </>
   );
 
