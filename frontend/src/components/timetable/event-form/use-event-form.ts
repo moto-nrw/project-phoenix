@@ -1223,11 +1223,13 @@ export function useEventForm({
       errors.date = "Bitte ein Datum auswählen.";
     } else if (
       !isSeriesFlow &&
-      initialInstance === null &&
+      (initialInstance === null || form.date !== initialInstance.date) &&
       planningPeriods !== undefined &&
       !planningPeriods.some(
         (period) =>
-          form.date >= period.startDate && form.date <= period.endDate,
+          period.isActive &&
+          form.date >= period.startDate &&
+          form.date <= period.endDate,
       )
     ) {
       errors.date = "Wählen Sie ein Datum in einem Planungszeitraum.";

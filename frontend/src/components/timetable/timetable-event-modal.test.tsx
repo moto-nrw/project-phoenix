@@ -538,6 +538,41 @@ describe("TimetableEventModal", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it("rejects a one-off date covered only by an inactive planning period", async () => {
+    renderModal({ planningPeriods: [{ ...periods[0]!, isActive: false }] });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie ein Datum in einem Planungszeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a changed one-off date outside every planning period", async () => {
+    renderModal({ initialInstance: savedInstance });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-01-04" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie ein Datum in einem Planungszeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   // #2032: Ein Termin darf auf einem Schließtag liegen, das Speichern fragt
   // aber einmal nach.
   const closingRanges = [

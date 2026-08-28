@@ -1150,6 +1150,20 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("behält einen kurzen Zeitraum bis Freitag als Standarddatum bei", () => {
+    setUrl("view=woche&d=2026-05-04");
+    setupSWR({
+      periods: [{ ...period, startDate: "2026-05-08", endDate: "2026-05-08" }],
+    });
+
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultDate: "2026-05-08" }),
+    );
+  });
+
   it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {
     setUrl("view=tag&d=2026-05-08");
     const { unmount } = render(<BetreuungsplanView />);
@@ -1884,6 +1898,14 @@ describe("BetreuungsplanView", () => {
 
   it("sperrt das Menü Neu ohne Planungszeitraum", () => {
     setupSWR({ periods: [] });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("add-instance")).toBeDisabled();
+    expect(screen.getByText("add-series")).toBeDisabled();
+  });
+
+  it("sperrt das Menü Neu bei ausschließlich inaktiven Planungszeiträumen", () => {
+    setupSWR({ periods: [{ ...period, isActive: false }] });
     render(<BetreuungsplanView />);
 
     expect(screen.getByText("add-instance")).toBeDisabled();

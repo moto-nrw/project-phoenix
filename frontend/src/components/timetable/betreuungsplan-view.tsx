@@ -668,8 +668,13 @@ function TimetablesContent() {
     [periodAssignments],
   );
   const firstCoveredDateISO = periodAssignments.find(
-    (assignment) => assignment.period !== null,
+    (assignment) =>
+      assignment.period !== null &&
+      nextWorkdayISO(assignment.date) === assignment.date,
   )?.date;
+  const hasActiveCalendarPeriod = calendarPeriods.some(
+    (period) => period.isActive,
+  );
   const planningDisabledDateISOs = useMemo(
     () =>
       new Set(
@@ -1470,7 +1475,7 @@ function TimetablesContent() {
               <TimetableAddMenu
                 onAddInstance={openEventCreate}
                 onAddSeries={openSeriesCreate}
-                disabled={!periodsReady || calendarPeriods.length === 0}
+                disabled={!periodsReady || !hasActiveCalendarPeriod}
               />
             ) : (
               <StatusBadge
@@ -1761,9 +1766,11 @@ function TimetablesContent() {
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
         }}
-        defaultDate={nextWorkdayISO(
-          quickPrefill?.date ?? firstCoveredDateISO ?? dayISO,
-        )}
+        defaultDate={
+          quickPrefill
+            ? nextWorkdayISO(quickPrefill.date)
+            : (firstCoveredDateISO ?? dayISO)
+        }
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
