@@ -51,7 +51,7 @@ case "$tool" in
             [[ -n "$segment" ]] || continue
             if printf '%s' "$segment" | grep -Eq 'moto-app\.de|moto\.nrw' &&
                 { ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(rg|grep|cat)([[:space:]]|$)' ||
-                    printf '%s' "$segment" | grep -Eq '\$\(|`'; }; then
+                    printf '%s' "$segment" | grep -Eq '\$\(|<\(|`'; }; then
                 deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
             fi
         done <<EOF
@@ -64,6 +64,10 @@ EOF
         # command from exempting later writers in an &&/pipe chain.
         while IFS= read -r segment; do
             [[ -n "$segment" ]] || continue
+            if printf '%s' "$segment" | grep -q '\.sops\.env' &&
+                printf '%s' "$segment" | grep -Eq '\$\(|<\(|`'; then
+                deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
+            fi
             if printf '%s' "$segment" | grep -q '\.sops\.env' &&
                 printf '%s' "$segment" | grep -Eq '^[[:space:]]*git[[:space:]]+diff([[:space:]]|$)' &&
                 printf '%s' "$segment" | grep -Eq -- '--output(=|[[:space:]])'; then
@@ -86,7 +90,7 @@ EOF
 
         # Rule 3 (shell half): shell writers can create migrations too. The
         # dangerous SQL must be rejected before a command writes it there.
-        if printf '%s' "$cmd" | grep -Eq 'database/migrations/' &&
+        if printf '%s' "$cmd" | grep -Eq 'database/migrations([/[:space:]]|$)' &&
             printf '%s' "$cmd" | grep -Eiq 'DISABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY'; then
             deny "Blocked: migrations must not contain DISABLE ROW LEVEL SECURITY (CLAUDE.md rule 9 - the superuser connection bypasses RLS, disabling it is unnecessary and breaks tests)."
         fi
@@ -102,7 +106,11 @@ EOF
     WebFetch)
         url=$(printf '%s' "$input" | jq -r '.tool_input.url // empty' 2>/dev/null) || exit 0
         url=$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')
-        if printf '%s' "$url" | grep -Eq '^[[:alpha:]][[:alnum:].+-]*://([[:alnum:]-]+\.)*moto-app\.de\.?([/:?&#]|$)|^[[:alpha:]][[:alnum:].+-]*://([[:alnum:]-]+\.)*moto\.nrw\.?([/:?&#]|$)'; then
+        authority=${url#*://}
+        authority=${authority%%[/?#]*}
+        host=${authority##*@}
+        host=${host%%:*}
+        if printf '%s' "$host" | grep -Eq '^([[:alnum:]-]+\.)*moto-app\.de\.?$|^([[:alnum:]-]+\.)*moto\.nrw\.?$'; then
             deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
         fi
         ;;
