@@ -94,6 +94,21 @@ func TestCheckRejectsPolicyLooseningAgainstBase(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsModulePathChangeAgainstBase(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["module_path"] = "example.test/architecture-fixture/source"
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "module_path changed from example.test/architecture-fixture to example.test/architecture-fixture/source") {
+		t.Fatalf("module path change was accepted: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsMutableBaseReference(t *testing.T) {
 	t.Parallel()
 

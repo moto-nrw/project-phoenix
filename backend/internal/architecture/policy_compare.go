@@ -7,7 +7,8 @@ import (
 )
 
 func ComparePolicyStrictness(base, candidate *Policy) error {
-	problems := append([]string{}, ownershipLoosenings(base, candidate)...)
+	problems := modulePathLoosenings(base, candidate)
+	problems = append(problems, ownershipLoosenings(base, candidate)...)
 	problems = append(problems, classificationLoosenings(base, candidate)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate)...)
 	problems = append(problems, compositionLoosenings(base, candidate)...)
@@ -18,6 +19,13 @@ func ComparePolicyStrictness(base, candidate *Policy) error {
 	}
 	sort.Strings(problems)
 	return fmt.Errorf("architecture policy loosening detected (%d):\n%s", len(problems), strings.Join(problems, "\n"))
+}
+
+func modulePathLoosenings(base, candidate *Policy) []string {
+	if candidate.ModulePath == base.ModulePath {
+		return nil
+	}
+	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
 }
 
 func ownershipLoosenings(base, candidate *Policy) []string {
