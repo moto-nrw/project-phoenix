@@ -261,10 +261,14 @@ export function TenantPage({
             // eine Seite gerade greift.
             <div
               className={cn(
-                // Unter sm eine eigene Zeile über die volle Breite: sonst
-                // hängen zwei Aktionen untereinander am rechten Rand und die
-                // Kopfkarte wächst um eine halbleere Zeile.
-                "flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto",
+                // Unter sm eine eigene Zeile über die volle Breite -- aber
+                // nur ab zwei Aktionen: sonst hängen sie untereinander am
+                // rechten Rand und die Kopfkarte wächst um eine halbleere
+                // Zeile. Eine einzelne Aktion (meist nur das Kebab-Menü)
+                // bleibt neben dem Titel stehen, statt sich eine eigene,
+                // fast leere Zeile darunter zu nehmen.
+                "flex shrink-0 flex-wrap items-center gap-2",
+                "max-sm:[&:has(>*:nth-child(2))]:w-full",
                 CONTROL_HEIGHT,
               )}
             >

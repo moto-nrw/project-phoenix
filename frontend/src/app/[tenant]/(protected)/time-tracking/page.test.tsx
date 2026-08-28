@@ -905,7 +905,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(mockToast.error).toHaveBeenCalledWith(
-          "Du bist bereits eingestempelt.",
+          "Sie sind bereits eingestempelt.",
         );
       });
     });
@@ -1794,7 +1794,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(mockToast.error).toHaveBeenCalledWith(
-          "Du hast heute bereits gearbeitet.",
+          "Sie haben heute bereits gearbeitet.",
         );
       });
     });
@@ -3790,7 +3790,7 @@ describe("TimeTrackingPage", () => {
             });
             await waitFor(() => {
               expect(mockToast.error).toHaveBeenCalledWith(
-                "Du kannst nur eigene Abwesenheiten löschen.",
+                "Sie können nur eigene Abwesenheiten löschen.",
               );
             });
           }
@@ -3857,7 +3857,7 @@ describe("TimeTrackingPage", () => {
 
         await waitFor(() => {
           expect(mockToast.error).toHaveBeenCalledWith(
-            "Du kannst nur eigene Abwesenheiten bearbeiten.",
+            "Sie können nur eigene Abwesenheiten bearbeiten.",
           );
         });
       }
@@ -4413,7 +4413,7 @@ describe("TimeTrackingPage", () => {
 
         await waitFor(() => {
           expect(mockToast.error).toHaveBeenCalledWith(
-            "Du kannst nur eigene Einträge bearbeiten.",
+            "Sie können nur eigene Einträge bearbeiten.",
           );
         });
       }

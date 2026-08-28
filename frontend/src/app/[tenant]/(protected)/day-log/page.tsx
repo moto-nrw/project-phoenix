@@ -51,7 +51,7 @@ const logger = createLogger({ component: "DayLogPage" });
 
 const ERROR_MESSAGES: Record<DayLogErrorCode, string> = {
   feature_disabled:
-    "Das Anwesenheitsprotokoll ist für diese Schule nicht aktiviert. Eine Administration kann es unter Einstellungen → Datenschutz einschalten.",
+    "Das Anwesenheitsprotokoll ist für Ihre Schule nicht eingeschaltet. Ihre Leitung kann es in den Einstellungen unter Datenschutz einschalten.",
   not_group_supervisor:
     "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
   no_permitted_groups:
