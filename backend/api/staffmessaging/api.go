@@ -40,17 +40,28 @@ func NewResource(svc *service.Service, db *bun.DB) *Resource {
 // not have.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
-
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-		r.With(withTx).Get("/", rs.listInbox)
-		r.With(withTx).Get("/unread-count", rs.unreadCount)
-		r.With(withTx).Get("/recipients", rs.listRecipients)
-		r.With(withTx).Post("/threads/open", rs.openThread)
-		r.With(withTx).Get("/threads/{threadID}", rs.getThread)
-		r.With(withTx).Post("/threads/{threadID}", rs.postMessage)
-	})
-
+	common.ProtectedTenantGroup(r, rs.db, rs.registerRoutes)
 	return r
+}
+
+// SchoolRouter is the school-portal mantle of the same surface (#2208):
+// identical handlers and authorization (participation + active staff row),
+// gated to school-scope tokens by ProtectedSchoolGroup. A Lehrkraft holds a
+// users.staff row (services/auth/school_identity.go), so the staffJoin that
+// decides who is addressable admits them without a special case.
+func (rs *Resource) SchoolRouter() chi.Router {
+	r := chi.NewRouter()
+	common.ProtectedSchoolGroup(r, rs.db, rs.registerRoutes)
+	return r
+}
+
+func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
+	r.With(withTx).Get("/", rs.listInbox)
+	r.With(withTx).Get("/unread-count", rs.unreadCount)
+	r.With(withTx).Get("/recipients", rs.listRecipients)
+	r.With(withTx).Post("/threads/open", rs.openThread)
+	r.With(withTx).Get("/threads/{threadID}", rs.getThread)
+	r.With(withTx).Post("/threads/{threadID}", rs.postMessage)
 }
 
 // ---------------------------------------------------------------------------
@@ -62,10 +73,12 @@ type InboxThreadResponse struct {
 	ThreadID             string `json:"thread_id"`
 	CounterpartAccountID string `json:"counterpart_account_id"`
 	CounterpartName      string `json:"counterpart_name"`
-	LastMessageAt        string `json:"last_message_at,omitempty"`
-	LastMessageBody      string `json:"last_message_body,omitempty"`
-	LastMessageMine      bool   `json:"last_message_mine"`
-	UnreadCount          int    `json:"unread_count"`
+	// CounterpartRoleKind: "lehrkraft" | "admin" | "staff" (#2208).
+	CounterpartRoleKind string `json:"counterpart_role_kind"`
+	LastMessageAt       string `json:"last_message_at,omitempty"`
+	LastMessageBody     string `json:"last_message_body,omitempty"`
+	LastMessageMine     bool   `json:"last_message_mine"`
+	UnreadCount         int    `json:"unread_count"`
 }
 
 // MessageResponse is one chat message.
@@ -82,6 +95,7 @@ type ThreadDetailResponse struct {
 	ThreadID             string            `json:"thread_id"`
 	CounterpartAccountID string            `json:"counterpart_account_id"`
 	CounterpartName      string            `json:"counterpart_name"`
+	CounterpartRoleKind  string            `json:"counterpart_role_kind"`
 	Messages             []MessageResponse `json:"messages"`
 }
 
@@ -89,6 +103,8 @@ type ThreadDetailResponse struct {
 type RecipientResponse struct {
 	AccountID string `json:"account_id"`
 	Name      string `json:"name"`
+	// RoleKind: "lehrkraft" | "admin" | "staff" (#2208).
+	RoleKind string `json:"role_kind"`
 }
 
 func toMessageResponses(messages []*usersModels.StaffMessage) []MessageResponse {
@@ -110,6 +126,7 @@ func toThreadDetail(d *service.ThreadDetail) ThreadDetailResponse {
 		ThreadID:             strconv.FormatInt(d.ThreadID, 10),
 		CounterpartAccountID: strconv.FormatInt(d.CounterpartAccountID, 10),
 		CounterpartName:      d.CounterpartName,
+		CounterpartRoleKind:  d.CounterpartRoleKind,
 		Messages:             toMessageResponses(d.Messages),
 	}
 }
@@ -132,6 +149,7 @@ func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
 			ThreadID:             strconv.FormatInt(row.ThreadID, 10),
 			CounterpartAccountID: strconv.FormatInt(row.CounterpartAccountID, 10),
 			CounterpartName:      row.CounterpartName,
+			CounterpartRoleKind:  row.CounterpartRoleKind,
 			LastMessageBody:      row.LastMessageBody,
 			UnreadCount:          row.UnreadCount,
 			LastMessageMine:      row.LastSenderAccountID != nil && *row.LastSenderAccountID == actor,
@@ -164,6 +182,7 @@ func (rs *Resource) listRecipients(w http.ResponseWriter, r *http.Request) {
 		out = append(out, RecipientResponse{
 			AccountID: strconv.FormatInt(row.AccountID, 10),
 			Name:      row.Name,
+			RoleKind:  row.RoleKind,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Recipients retrieved")

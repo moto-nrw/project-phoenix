@@ -15,13 +15,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/api/notifications"
 	"github.com/moto-nrw/project-phoenix/api/school"
+	"github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -53,10 +56,23 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 func newSchoolRouter(db *bun.DB, factory *services.Factory, mfa authService.MFAService) http.Handler {
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	timetableResource := newSchoolTimetableResource(db, factory)
+	staffMessagingResource := staffmessaging.NewResource(factory.StaffMessaging, db)
 	if mfa == nil {
-		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource).Router()
+		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource, staffMessagingResource, nil).Router()
 	}
-	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource).Router()
+	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource, staffMessagingResource, nil).Router()
+}
+
+// newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
+// the testutil helpers that want a chi.Router.
+func newSchoolChiRouter(db *bun.DB, factory *services.Factory) chi.Router {
+	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	return school.NewResource(
+		factory.Auth, factory.MFA, classDayResource,
+		newSchoolTimetableResource(db, factory),
+		staffmessaging.NewResource(factory.StaffMessaging, db),
+		notifications.NewResource(factory.Notifications, factory.PushSubscriptions, factory.NotificationPreferences, db),
+	).Router()
 }
 
 // newSchoolTimetableResource builds the timetable resource behind
@@ -68,6 +84,19 @@ func newSchoolTimetableResource(db *bun.DB, factory *services.Factory) *timetabl
 		SettingsService:   factory.Settings,
 		DB:                db,
 	})
+}
+
+// pushSubscriptionPortal reads back through which portal a device was
+// registered (#2208).
+func pushSubscriptionPortal(t *testing.T, db *bun.DB, tenantID int64, endpoint string) string {
+	t.Helper()
+	var portal string
+	require.NoError(t, db.NewSelect().
+		TableExpr("iot.push_subscriptions").
+		ColumnExpr("portal").
+		Where("endpoint = ?", endpoint).
+		Scan(testpkg.TenantContext(tenantID), &portal))
+	return portal
 }
 
 // registerLehrkraft creates an account at the tenant carrying the lehrkraft
@@ -97,7 +126,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory)).Router()
+	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory), staffmessaging.NewResource(factory.StaffMessaging, db), nil).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

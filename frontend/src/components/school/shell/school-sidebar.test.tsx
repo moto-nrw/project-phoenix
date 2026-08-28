@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SchoolSidebar } from "./school-sidebar";
 
+const teamChat = { unreadCount: 0, available: false } as const;
+
 const mockPathname = vi.hoisted(() => ({ value: "/" }));
 
 vi.mock("next/navigation", () => ({
@@ -15,7 +17,7 @@ vi.mock("~/lib/school-url", () => ({
 
 describe("SchoolSidebar", () => {
   it("führt genau die drei erreichbaren Ziele", () => {
-    render(<SchoolSidebar />);
+    render(<SchoolSidebar teamChat={teamChat} />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
     // Seit #2527 führt eine Lehrkraft auch ihre eigenen Aufsichten.
@@ -26,7 +28,7 @@ describe("SchoolSidebar", () => {
 
   it("markiert die Aufsichten auf ihrer Seite des Schul-Hosts (#2527)", () => {
     mockPathname.value = "/aufsichten";
-    render(<SchoolSidebar />);
+    render(<SchoolSidebar teamChat={teamChat} />);
 
     const item = document.querySelector(
       '[data-school-nav-item="supervisions"]',
@@ -40,7 +42,7 @@ describe("SchoolSidebar", () => {
 
   it("markiert die Klassenansicht auf der Startseite des Schul-Hosts", () => {
     mockPathname.value = "/";
-    render(<SchoolSidebar />);
+    render(<SchoolSidebar teamChat={teamChat} />);
 
     const item = document.querySelector('[data-school-nav-item="classDay"]');
     expect(item).toHaveAttribute("data-active", "true");
@@ -49,7 +51,7 @@ describe("SchoolSidebar", () => {
   });
 
   it("öffnet die Hilfe in einem neuen Tab, ohne /school-Präfix", () => {
-    render(<SchoolSidebar />);
+    render(<SchoolSidebar teamChat={teamChat} />);
 
     const help = document.querySelector('[data-school-nav-item="help"]');
     expect(help).toHaveAttribute("href", "/help");

@@ -38,7 +38,7 @@ func TestPushSubscriptionValidate(t *testing.T) {
 		{
 			name:    "invalid portal",
 			mutate:  func(sub *PushSubscription) { sub.Portal = "operator" },
-			wantErr: "portal must be 'staff' or 'parent'",
+			wantErr: "portal must be 'staff', 'parent' or 'school'",
 		},
 		{
 			name:    "blank endpoint",

@@ -891,3 +891,79 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	require.NoError(t, err)
 	assert.Zero(t, count, "the aborted mint must leave no refresh token behind")
 }
+
+func TestHasSchoolPortalAccess_RevocationGates(t *testing.T) {
+	t.Parallel()
+
+	// The school SSE stream authenticates once and then stays open for the
+	// whole token lifetime, so it asks this question every minute. It must
+	// answer on the same four facts a token mint gates on — anything less
+	// keeps waking a Lehrkraft whose access is already gone.
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+
+	tenantID, _ := newSchoolTenant(t, db)
+	_, accountID := createLehrkraftAccount(t, db, service, "school-sse-access", tenantID)
+
+	allowed, err := service.HasSchoolPortalAccess(context.Background(), accountID, tenantID)
+	require.NoError(t, err)
+	assert.True(t, allowed, "a live Lehrkraft keeps her stream")
+
+	t.Run("unknown account", func(t *testing.T) {
+		ok, checkErr := service.HasSchoolPortalAccess(context.Background(), missingAccountID, tenantID)
+		require.NoError(t, checkErr)
+		assert.False(t, ok)
+	})
+
+	t.Run("deactivated account", func(t *testing.T) {
+		setAccountActive(t, db, accountID, false)
+		defer setAccountActive(t, db, accountID, true)
+
+		ok, checkErr := service.HasSchoolPortalAccess(context.Background(), accountID, tenantID)
+		require.NoError(t, checkErr)
+		assert.False(t, ok)
+	})
+
+	t.Run("deactivated school", func(t *testing.T) {
+		setSchoolActive(t, db, tenantID, false)
+		defer setSchoolActive(t, db, tenantID, true)
+
+		ok, checkErr := service.HasSchoolPortalAccess(context.Background(), accountID, tenantID)
+		require.NoError(t, checkErr)
+		assert.False(t, ok)
+	})
+
+	t.Run("soft-deleted school", func(t *testing.T) {
+		_, execErr := db.Exec("UPDATE platform.schools SET deleted_at = NOW(), active = true WHERE id = ?", tenantID)
+		require.NoError(t, execErr)
+		defer func() {
+			_, restoreErr := db.Exec("UPDATE platform.schools SET deleted_at = NULL WHERE id = ?", tenantID)
+			require.NoError(t, restoreErr)
+		}()
+
+		ok, checkErr := service.HasSchoolPortalAccess(context.Background(), accountID, tenantID)
+		require.NoError(t, checkErr)
+		assert.False(t, ok)
+	})
+
+	t.Run("revoked membership", func(t *testing.T) {
+		setAccountTenantStatus(t, db, accountID, tenantID, "inactive")
+		defer setAccountTenantStatus(t, db, accountID, tenantID, "active")
+
+		ok, checkErr := service.HasSchoolPortalAccess(context.Background(), accountID, tenantID)
+		require.NoError(t, checkErr)
+		assert.False(t, ok)
+	})
+
+	t.Run("revoked portal role", func(t *testing.T) {
+		_, delErr := db.NewDelete().
+			Table("auth.account_roles").
+			Where("account_id = ?", accountID).
+			Exec(context.Background())
+		require.NoError(t, delErr)
+
+		ok, checkErr := service.HasSchoolPortalAccess(context.Background(), accountID, tenantID)
+		require.NoError(t, checkErr)
+		assert.False(t, ok)
+	})
+}

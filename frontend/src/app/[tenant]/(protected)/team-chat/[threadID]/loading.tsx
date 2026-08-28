@@ -1,6 +1,6 @@
 "use client";
 
-import { TeamThreadSkeleton } from "./page-skeleton";
+import { TeamThreadSkeleton } from "~/components/messaging/team-chat-skeletons";
 
 /** Route-level loading UI for one conversation. */
 export default function TeamThreadLoading() {

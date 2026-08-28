@@ -67,6 +67,9 @@ func (b *recordingGuardianBroadcaster) BroadcastParentMessage(int64, int64, real
 func (b *recordingGuardianBroadcaster) BroadcastToStaffAccounts(int64, []int64, realtime.Event) error {
 	return nil
 }
+func (b *recordingGuardianBroadcaster) BroadcastToSchoolAccounts(int64, []int64, realtime.Event) error {
+	return nil
+}
 
 // mockDB returns a bun DB backed by sqlmock, asserting at teardown that exactly
 // the expected statements ran.
