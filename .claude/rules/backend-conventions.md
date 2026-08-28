@@ -49,12 +49,14 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 
 `scripts/backend-architecture.sh check` evaluates the strict target policy in
 `backend/architecture/policy.json` against production, internal-test, and
-external-test imports. The target policy still reports legacy violations;
-issue #2583 owns its exact baseline and CI cutover.
-
-CI currently runs `scripts/backend-architecture.sh legacy-check`. That command
-keeps the existing production-only go-arch-lint gate in
-`backend/.go-arch-lint.yml`; `_test.go` imports remain outside that legacy gate.
+external-test imports plus the semantic ownership and contract rules. The
+normal command requires exact equality with the committed finite baseline in
+`backend/architecture/legacy.jsonl`; every tuple names its open migration
+issue. Pull requests compare with the policy and baseline at the event's full
+base-commit SHA and may only remove tuples. The required CI status is
+`Backend architecture ratchet`. Run the network-dependent issue liveness audit
+separately with
+`scripts/backend-architecture.sh audit-issues --api-url https://api.github.com`.
 
 ### Why
 
