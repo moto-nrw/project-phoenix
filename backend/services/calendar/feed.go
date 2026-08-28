@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/ical"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -108,13 +107,11 @@ func (s *service) RotateParentCalendarFeed(ctx context.Context, accountID int64)
 }
 
 func (s *service) StaffCalendarFeedURL(ctx context.Context) (string, string, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
-	tenantID := tenant.FromContext(ctx)
-	return s.coalesceFeedCreation(fmt.Sprintf("staff:%d:%d", claims.ID, tenantID), func() (string, string, error) {
-		accountID, tenantID, err := s.currentStaffFeedOwner(ctx)
-		if err != nil {
-			return "", "", err
-		}
+	accountID, tenantID, err := s.currentStaffFeedOwner(ctx)
+	if err != nil {
+		return "", "", err
+	}
+	return s.coalesceFeedCreation(fmt.Sprintf("staff:%d:%d", accountID, tenantID), func() (string, string, error) {
 		token, err := newFeedToken()
 		if err != nil {
 			return "", "", err
