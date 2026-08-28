@@ -9,6 +9,15 @@
             "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/check-commit-message.sh\"'"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/guard-absolute-rules.sh\"'"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -43,6 +52,10 @@
           {
             "type": "command",
             "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/scripts/quorum-rerequest.sh\" --stop-hook'"
+          },
+          {
+            "type": "command",
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/scripts/stop-quality-gate.sh\" --stop-hook'"
           }
         ]
       }
