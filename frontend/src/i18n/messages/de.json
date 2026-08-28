@@ -1652,10 +1652,5 @@
     "title": "Schule nicht gefunden",
     "description": "Unter dieser Adresse gibt es keine Schule. Bitte prüfen Sie die Adresse.",
     "back": "Zurück"
-  },
-  "featureDisabledPage": {
-    "title": "Diese Funktion ist ausgeschaltet",
-    "description": "Ihre Schule nutzt diese Funktion zurzeit nicht. Bei Fragen wenden Sie sich an Ihre Schulleitung.",
-    "home": "Zur Startseite"
   }
 }

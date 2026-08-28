@@ -393,10 +393,12 @@ mit Hinweis auf die Schulleitung als nächste Anlaufstelle). Die beiden
 „nicht gefunden"-Fälle sind technisch getrennt, damit nie der falsche Text
 erscheint. Unbekannte Pfade zeigen die Fehlerseite sichtbar an; ein stilles
 Umleiten zur Startseite ist verboten. Im Elternportal erscheint die
-Fehlerseite in den Portalsprachen; ihre Texte stehen wie alle Nutzertexte im
-Fehlerkatalog (Fehlerklasse: Fachliche Ablehnung bzw. Eingabe — der nächste
-Schritt ist „Adresse prüfen" oder „zur Startseite", nicht „später erneut
-versuchen"). Entschieden in #2624; das Design wird vor der Umsetzung in
+Fehlerseite in den Portalsprachen; die Texte der „nicht gefunden"-Varianten
+stehen im Nachrichtenkatalog (Fehlerklasse: Fachliche Ablehnung bzw. Eingabe
+— der nächste Schritt ist „Adresse prüfen" oder „zur Startseite", nicht
+„später erneut versuchen"). Die „Funktion ausgeschaltet"-Variante ist nur im
+Staff-Portal sichtbar und trägt ihren deutschen Text wie das übrige
+Staff-Portal direkt im Code. Entschieden in #2624; das Design wird vor der Umsetzung in
 pen.dev abgestimmt.
 
 ## Vorgangskennung
