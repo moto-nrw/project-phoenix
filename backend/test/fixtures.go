@@ -3120,6 +3120,21 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 	return row
 }
 
+// SetCalendarPeriodActive flips is_active on a fixture calendar period and
+// keeps the in-memory row in sync. Tests use it both to arm the active-period
+// invariant on a period from CreateTestCalendarPeriod (created inactive) and
+// to deactivate a period mid-test.
+func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.CalendarPeriod, active bool) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	period.IsActive = active
+	_, err := db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
+	require.NoError(tb, err, "Failed to set test calendar period active state")
+}
+
 // StaffShiftOpts controls optional fields for CreateTestStaffShift.
 type StaffShiftOpts struct {
 	StartHHMM   string // default "08:00"

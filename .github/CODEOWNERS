@@ -11,3 +11,9 @@
 /scripts/rollback-remote.sh @yungweng @moto-nrw/moto-vorstand
 /environments/ @yungweng @moto-nrw/moto-vorstand
 /backend/database/migrations/ @yungweng @moto-nrw/moto-vorstand
+
+# Agent configuration (hooks, skills, rules) executes locally for everyone
+# who trusts the repo - changes here need an explicit review.
+/.claude/ @yungweng
+/.codex/ @yungweng
+/.agents/ @yungweng

@@ -145,7 +145,9 @@ migration. It is pinned to evidence commit
 - every typed legacy-composition reference reported by this evaluator;
 - every call to `api.New`, `api.NewServer`, `repositories.NewFactory`,
   `services.NewFactory`, `scheduler.NewScheduler`, and `SetupAPITest` under the
-  affected production and test trees;
+  affected production and test trees (`api`, `cmd`, `services`,
+  `database/repositories`, and `test`); this is deliberately not a scan of
+  unrelated unit-test packages or migration tests;
 - each constructor caller's production/test-support scope, declaration, exact
   call lines, and concrete policy-owned tables; and
 - the route count, cold Serve-root construction time, registered jobs, and
