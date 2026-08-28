@@ -63,12 +63,25 @@ EOF
         while IFS= read -r segment; do
             [[ -n "$segment" ]] || continue
             if printf '%s' "$segment" | grep -q '\.sops\.env' &&
-                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat)([[:space:]]|$)'; then
+                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat|git[[:space:]]+(diff|show))([[:space:]]|$)'; then
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
         done <<EOF
 $(printf '%s' "$cmd" | tr ';|&' '\n')
 EOF
+
+        # A redirection can overwrite a SOPS file even when the command
+        # itself is on the read-only allowlist (for example `cat ... > file`).
+        if printf '%s' "$cmd" | grep -Eq '>>?[[:space:]]*[^[:space:];|&]*\.sops\.env'; then
+            deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
+        fi
+
+        # Rule 3 (shell half): shell writers can create migrations too. The
+        # dangerous SQL must be rejected before a command writes it there.
+        if printf '%s' "$cmd" | grep -Eq 'database/migrations/' &&
+            printf '%s' "$cmd" | grep -Eiq 'DISABLE[[:space:]]+ROW[[:space:]]+LEVEL[[:space:]]+SECURITY'; then
+            deny "Blocked: migrations must not contain DISABLE ROW LEVEL SECURITY (CLAUDE.md rule 9 - the superuser connection bypasses RLS, disabling it is unnecessary and breaks tests)."
+        fi
 
         # Rule 4: --no-verify bypasses lefthook incl. the sops encryption
         # check. Scoped to the same pipeline segment as "git commit"; a
@@ -80,7 +93,8 @@ EOF
         ;;
     WebFetch)
         url=$(printf '%s' "$input" | jq -r '.tool_input.url // empty' 2>/dev/null) || exit 0
-        if printf '%s' "$url" | grep -Eq '(^|[/:.])moto(-app)?\.de([/:?&#]|$)|(^|[/:.])moto\.nrw([/:?&#]|$)'; then
+        url=$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')
+        if printf '%s' "$url" | grep -Eq '(^|[/:])moto-app\.de\.?([/:?&#]|$)|(^|[/:])moto\.nrw\.?([/:?&#]|$)'; then
             deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
         fi
         ;;
