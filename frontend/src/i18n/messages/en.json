@@ -1641,5 +1641,21 @@
     "open": "Open",
     "openLabel": "Open, {count}",
     "completed": "Completed"
+  },
+  "notFoundPage": {
+    "title": "Page not found",
+    "description": "This page does not exist. The address may be wrong.",
+    "back": "Back",
+    "home": "Go to home page"
+  },
+  "tenantNotFoundPage": {
+    "title": "School not found",
+    "description": "There is no school at this address. Please check the address.",
+    "back": "Back"
+  },
+  "featureDisabledPage": {
+    "title": "This feature is switched off",
+    "description": "Your school does not use this feature at the moment. If you have questions, please contact your school management.",
+    "home": "Go to home page"
   }
 }

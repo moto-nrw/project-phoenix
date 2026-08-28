@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
+import { TenantNotFoundScreen } from "~/components/tenant/tenant-not-found-screen";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
@@ -88,49 +89,18 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
   };
 }
 
-export function bareTenantHost(currentHost: string): string {
-  const [hostname = "", port] = currentHost.split(":");
-  const portSuffix = port ? `:${port}` : "";
-
-  if (hostname === env.TENANT_DOMAIN) {
-    return currentHost;
-  }
-
-  if (hostname.endsWith(`.${env.TENANT_DOMAIN}`)) {
-    return `${env.TENANT_DOMAIN}${portSuffix}`;
-  }
-
-  return env.TENANT_DOMAIN;
-}
-
 function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
   if (!currentHost) return false;
   const hostname = currentHost.split(":")[0] ?? "";
   return hostname === `${subdomain}.${env.TENANT_DOMAIN}`;
 }
 
-async function redirectToTenantSelection(): Promise<never> {
-  const requestHeaders = await headers();
-  const currentHost =
-    requestHeaders.get("x-moto-original-host") ??
-    requestHeaders.get("x-forwarded-host") ??
-    requestHeaders.get("host");
-
-  if (!currentHost) {
-    throw new Error("Cannot redirect invalid tenant without a Host header");
-  }
-
-  const protocol =
-    requestHeaders.get("x-forwarded-proto") ??
-    (env.NODE_ENV === "production" ? "https" : "http");
-
-  redirect(`${protocol}://${bareTenantHost(currentHost)}/`);
-}
-
 /**
  * Layout for all tenant-scoped routes.
  * Validates the tenant slug via the backend and provides tenant context.
- * Returns 404 if the tenant slug is invalid.
+ * On a tenant subdomain that resolves to no school, renders the
+ * "Schule nicht gefunden" screen (#2624); invalid path slugs on the bare
+ * domain (scanner probes) still 404 via the app-wide not-found page.
  */
 export default async function TenantLayout({
   children,
@@ -141,24 +111,38 @@ export default async function TenantLayout({
 }) {
   const { tenant: tenantSlug } = await params;
 
+  const requestHeaders = await headers();
+  const currentHost =
+    requestHeaders.get("x-moto-original-host") ??
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host");
+  // The slug came from the host itself (subdomain routing), not from a
+  // URL path someone typed under a valid host. If it doesn't resolve, the
+  // honest answer is "diese Adresse hat keine Schule" — not a redirect and
+  // not the generic 404.
+  const onTenantSubdomain = isTenantSubdomainHost(currentHost, tenantSlug);
+
   // The dynamic segment also catches scanner probes such as
   // /wp-trackback.php. Reject values that cannot be tenant subdomains before
   // they consume the shared tenant-resolution cache or backend rate limit.
+  // notFound() from a layout renders the ROOT not-found boundary — the
+  // generic "Seite nicht gefunden" page — which is right for path probes.
   if (!isValidTenantSlug(tenantSlug) || RESERVED_SLUGS.has(tenantSlug)) {
+    if (onTenantSubdomain) {
+      return <TenantNotFoundScreen />;
+    }
     notFound();
   }
 
   const tenant = await fetchTenantInfo(tenantSlug);
 
   if (!tenant) {
-    await redirectToTenantSelection();
-    throw new Error("Tenant redirect did not complete");
+    // A well-formed slug with no school behind it — in subdomain AND path
+    // mode the honest answer is the visible "Schule nicht gefunden" screen.
+    // The silent redirect to the tenant selection is gone on purpose (#2624:
+    // stilles Umleiten zur Startseite ist verboten).
+    return <TenantNotFoundScreen />;
   }
-  const requestHeaders = await headers();
-  const currentHost =
-    requestHeaders.get("x-moto-original-host") ??
-    requestHeaders.get("x-forwarded-host") ??
-    requestHeaders.get("host");
   const routingMode = isTenantSubdomainHost(currentHost, tenant.subdomain)
     ? "subdomain"
     : "path";

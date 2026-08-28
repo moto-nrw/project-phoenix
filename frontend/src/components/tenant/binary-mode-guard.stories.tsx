@@ -40,11 +40,11 @@ export const DetailedModePassesThrough: Story = {
 };
 
 /**
- * Binary-mode tenant: the guard calls `notFound()`, which Next.js surfaces
- * as a thrown navigation signal. Storybook renders this as an error state,
- * which is the expected defense-in-depth behaviour for direct URL entry.
+ * Binary-mode tenant: the guard replaces the page with the
+ * "Diese Funktion ist ausgeschaltet" screen (#2624) — the expected
+ * defense-in-depth behaviour for direct URL entry.
  */
-export const BinaryModeTriggersNotFound: Story = {
+export const BinaryModeShowsFeatureDisabled: Story = {
   args: {
     children: <div>Geschützter Seiteninhalt</div>,
   },

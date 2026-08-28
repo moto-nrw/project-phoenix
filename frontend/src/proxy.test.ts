@@ -307,14 +307,15 @@ describe("proxy", () => {
       expect(redirect).toBeNull();
     });
 
-    it("redirects unknown paths like /dashboard to /", () => {
+    it("rewrites unknown paths like /dashboard into /operator so the 404 page renders (#2624)", () => {
       const res = proxy(
         makeRequest(`http://${OPERATOR_HOSTNAME}/dashboard`, OPERATOR_HOSTNAME),
       );
 
-      const redirect = res.headers.get("location");
-      expect(redirect).toContain(OPERATOR_HOSTNAME);
-      expect(new URL(redirect!).pathname).toBe("/");
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/operator/dashboard",
+      );
     });
   });
 
@@ -381,12 +382,29 @@ describe("proxy", () => {
       );
 
       // Without /meal-plan in the parents allowlist this path falls through to
-      // the "redirect to root" branch and the meal plan becomes unreachable
+      // the unknown-path branch and the meal plan becomes unreachable
       // from the desktop sidebar (which links to the clean /meal-plan).
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/parents/meal-plan",
       );
+    });
+
+    it("rewrites unknown paths into /parents (localized) so the 404 page renders (#2624)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/does-not-exist`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      // Unknown paths must never reach tenant or operator routes; the
+      // rewrite pins them under /parents where no route matches → 404.
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/parents/does-not-exist",
+      );
+      expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBe("1");
     });
   });
 
@@ -512,12 +530,15 @@ describe("proxy", () => {
       expect(res.status).toBe(404);
     });
 
-    it("redirects unknown paths like /dashboard to /", () => {
+    it("rewrites unknown paths like /dashboard into /school so the 404 page renders (#2624)", () => {
       const res = proxy(
         makeRequest(`http://${SCHOOL_HOSTNAME}/dashboard`, SCHOOL_HOSTNAME),
       );
 
-      expect(res.headers.get("location")).toContain(`${SCHOOL_HOSTNAME}/`);
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/dashboard",
+      );
     });
 
     it("redirects /school/* on other hosts to the school host", () => {

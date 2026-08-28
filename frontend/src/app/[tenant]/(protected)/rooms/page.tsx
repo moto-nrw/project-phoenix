@@ -721,9 +721,10 @@ function RoomsPageContent() {
   );
 }
 
-// Main component with Suspense wrapper + binary-mode 404 guard.
+// Main component with Suspense wrapper + binary-mode guard.
 // Binary-mode tenants don't track room occupancy, so the concepts this page
-// surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
+// surfaces don't apply. The guard shows the feature-disabled page for direct
+// URL entry.
 export default function RoomsPage() {
   return (
     <BinaryModeGuard>

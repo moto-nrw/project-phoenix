@@ -1641,5 +1641,21 @@
     "open": "Të hapura",
     "openLabel": "Të hapura, {count}",
     "completed": "Të përfunduara"
+  },
+  "notFoundPage": {
+    "title": "Faqja nuk u gjet",
+    "description": "Kjo faqe nuk ekziston. Ndoshta adresa është e gabuar.",
+    "back": "Kthehu",
+    "home": "Në faqen kryesore"
+  },
+  "tenantNotFoundPage": {
+    "title": "Shkolla nuk u gjet",
+    "description": "Në këtë adresë nuk ka shkollë. Ju lutemi kontrolloni adresën.",
+    "back": "Kthehu"
+  },
+  "featureDisabledPage": {
+    "title": "Ky funksion është i çaktivizuar",
+    "description": "Shkolla juaj nuk e përdor këtë funksion për momentin. Për pyetje drejtojuni drejtorisë së shkollës.",
+    "home": "Në faqen kryesore"
   }
 }

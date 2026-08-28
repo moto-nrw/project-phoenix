@@ -9,10 +9,10 @@ import { TenantProvider } from "~/lib/tenant-context";
 import { NfcModeGuard } from "./nfc-mode-guard";
 import type { TenantInfo } from "~/lib/tenant-api";
 
+// The FeatureDisabledPage inside the guard navigates via useTenantRouter,
+// which needs next/navigation's useRouter under jsdom.
 vi.mock("next/navigation", () => ({
-  notFound: () => {
-    throw new Error("NEXT_NOT_FOUND");
-  },
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
 }));
 
 function makeTenant(nfcEnabled: boolean): TenantInfo {
@@ -46,19 +46,18 @@ describe("NfcModeGuard", () => {
     expect(screen.getByText("nfc-content")).toBeInTheDocument();
   });
 
-  it("triggers notFound() when NFC is disabled", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("shows the feature-disabled page when NFC is disabled (#2624)", () => {
+    render(
+      <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
+        <NfcModeGuard>
+          <div>nfc-content</div>
+        </NfcModeGuard>
+      </TenantProvider>,
+    );
 
-    expect(() =>
-      render(
-        <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
-          <NfcModeGuard>
-            <div>nfc-content</div>
-          </NfcModeGuard>
-        </TenantProvider>,
-      ),
-    ).toThrow("NEXT_NOT_FOUND");
-
-    errorSpy.mockRestore();
+    expect(
+      screen.getByText("Diese Funktion ist ausgeschaltet"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("nfc-content")).not.toBeInTheDocument();
   });
 });
