@@ -1223,7 +1223,9 @@ export function useEventForm({
       errors.date = "Bitte ein Datum auswählen.";
     } else if (
       !isSeriesFlow &&
-      (initialInstance === null || form.date !== initialInstance.date) &&
+      (initialInstance === null ||
+        (!initialInstance.isSpontaneous &&
+          form.date !== initialInstance.date)) &&
       planningPeriods !== undefined &&
       !planningPeriods.some(
         (period) =>

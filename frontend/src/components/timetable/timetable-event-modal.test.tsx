@@ -573,6 +573,25 @@ describe("TimetableEventModal", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  it("moves a spontaneous appointment outside every planning period", async () => {
+    renderModal({
+      initialInstance: { ...savedInstance, isSpontaneous: true },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-01-04" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ date: "2027-01-04" }),
+      ),
+    );
+  });
+
   // #2032: Ein Termin darf auf einem Schließtag liegen, das Speichern fragt
   // aber einmal nach.
   const closingRanges = [
