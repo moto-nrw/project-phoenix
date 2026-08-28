@@ -405,7 +405,7 @@ func ownerViolationEndpoint(policy *Policy, violation Violation) (string, string
 		source = policy.classificationEndpoint(violation.Source)
 	}
 	target := policy.ownerForViolationTarget(violation.Target, source)
-	if isClassificationViolation(violation.Rule) || strings.HasPrefix(violation.Rule, "external.") || strings.HasPrefix(violation.Rule, "imports.") || violation.Rule == "policy.rules-overlap" {
+	if violationTargetsPackage(violation.Rule) {
 		target = policy.classificationEndpoint(violation.Target)
 	}
 	if target == "" {
@@ -425,10 +425,6 @@ func (p *Policy) classificationEndpoint(path string) string {
 		return "unclassified:" + strings.TrimPrefix(strings.TrimPrefix(path, p.ModulePath), "/")
 	}
 	return "external:" + path
-}
-
-func isClassificationViolation(rule string) bool {
-	return strings.HasPrefix(rule, "packages.")
 }
 
 func projectViolations(policy *Policy, violations []Violation, statuses map[string]ProjectionStatus) []ProjectionViolation {
