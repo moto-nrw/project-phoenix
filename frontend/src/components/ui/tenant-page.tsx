@@ -6,6 +6,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import type {
   ActiveFilter,
@@ -440,13 +441,19 @@ function TenantPageBody({
     );
   }
   if (empty) {
+    // Auf derselben Fläche wie der Inhalt, den sie ersetzt: sonst steht der
+    // Leerzustand als einziger Seitenzustand ohne Karte auf dem Hintergrund
+    // und die Seite sieht leer statt aufgeräumt aus. Laden (Skelettkarten)
+    // und Fehler (getönte Fläche) tragen ihre Fläche schon.
     return (
-      <EmptyState
-        title={empty.title}
-        description={empty.description}
-        icon={empty.icon}
-        action={empty.action}
-      />
+      <SectionCard>
+        <EmptyState
+          title={empty.title}
+          description={empty.description}
+          icon={empty.icon}
+          action={empty.action}
+        />
+      </SectionCard>
     );
   }
   return <>{children}</>;
