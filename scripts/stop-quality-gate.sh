@@ -73,8 +73,8 @@ while IFS= read -r line; do
     case "$path" in *" -> "*) path=${path##* -> } ;; esac
     case "$path" in
         backend/*.go) go_changed=1 ;;
-        backend/)
-            find "$path" -type f -name '*.go' -print -quit 2>/dev/null | grep -q . && go_changed=1
+        backend/*)
+            [[ -d "$path" ]] && find "$path" -type f -name '*.go' -print -quit 2>/dev/null | grep -q . && go_changed=1
             ;;
         frontend/* | frontend/) frontend_changed=1 ;;
     esac
