@@ -158,13 +158,17 @@ func TestLoadPlanningTimesProjectsPickupException(t *testing.T) {
 	assert.True(t, projection.PickupTimes[0].IsException)
 }
 
-func TestLoadScheduleSectionsOmitsRosterWithoutStudentRead(t *testing.T) {
+func TestLoadScheduleSectionsRedactsPickupTimesWithoutStudentRead(t *testing.T) {
 	t.Parallel()
 
+	pickupTime := "15:00"
 	operations := &mockOperationsService{
 		plannedNowFn: func(opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
-			assert.False(t, opts.IncludeRoster)
-			return []scheduleService.OperationPlannedInstance{}, nil
+			assert.True(t, opts.IncludeRoster)
+			return []scheduleService.OperationPlannedInstance{{
+				PickupTimesLoaded: true,
+				RosterPreview:     []scheduleService.OperationRosterRow{{PickupTime: &pickupTime}},
+			}}, nil
 		},
 		activeSessionsFn: func() ([]scheduleService.OperationActiveSession, error) {
 			return []scheduleService.OperationActiveSession{}, nil
@@ -177,8 +181,13 @@ func TestLoadScheduleSectionsOmitsRosterWithoutStudentRead(t *testing.T) {
 	}}
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 99})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.SchedulesRead})
+	projection := emptyProjection()
 
-	require.NoError(t, service.loadScheduleSections(ctx, emptyProjection()))
+	require.NoError(t, service.loadScheduleSections(ctx, projection))
+	require.Len(t, projection.PlannedNow, 1)
+	assert.False(t, projection.PlannedNow[0].PickupTimesLoaded)
+	assert.True(t, projection.PlannedNow[0].PickupTimesRedacted)
+	assert.Nil(t, projection.PlannedNow[0].RosterPreview[0].PickupTime)
 }
 
 func TestServiceDefaults(t *testing.T) {
