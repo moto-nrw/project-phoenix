@@ -108,6 +108,35 @@ func init() {
 	})
 
 	config.Register(config.Definition{
+		Key:             config.KeyTimetableAutoEndEnabled,
+		Label:           "Laufende Termine automatisch beenden",
+		Description:     "Beendet gestartete Termine aus dem Betreuungsplan nach Endzeit und Puffer. Spontane Aktivitäten bleiben offen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       34,
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableAutoEndGraceMinutes,
+		Label:           "Puffer nach Endzeit (Minuten)",
+		Description:     "moto wartet diese Minuten nach der eingetragenen Endzeit.",
+		Type:            config.FieldNumber,
+		Default:         0,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       35,
+		Validation:      config.Range(0, 120),
+		DependsOn:       config.DependsOnEq(config.KeyTimetableAutoEndEnabled, true),
+	})
+
+	config.Register(config.Definition{
 		Key:             config.KeyTimetableStartLeadMinutes,
 		Label:           "Aktivitäten vor Planbeginn starten (Minuten)",
 		Description:     "Legt fest, wie viele Minuten vor der geplanten Startzeit eine Aktivität gestartet werden kann.",
@@ -117,7 +146,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       34,
+		SortOrder:       36,
 		Validation:      config.Range(0, 120),
 		DependsOn:       timetableEnabledDependency,
 	})
@@ -132,7 +161,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       35,
+		SortOrder:       37,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -146,7 +175,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       36,
+		SortOrder:       38,
 		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})
@@ -161,7 +190,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       37,
+		SortOrder:       39,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -175,7 +204,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       38,
+		SortOrder:       40,
 		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})
@@ -218,7 +247,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       40,
+		SortOrder:       42,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -232,7 +261,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       41,
+		SortOrder:       43,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -248,7 +277,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       42,
+		SortOrder:       44,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -262,7 +291,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       43,
+		SortOrder:       45,
 		DependsOn:       timetableEnabledDependency,
 	})
 }

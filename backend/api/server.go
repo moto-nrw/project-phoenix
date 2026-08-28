@@ -115,6 +115,7 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.AutoStart != nil {
 		sched.SetAutoStartService(svc.AutoStart)
 	}
+	sched.SetAutoEndService(svc.AutoEnd)
 	// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
 	if svc.TimetableCleanup != nil {
 		sched.SetTimetableCleanup(svc.TimetableCleanup)
