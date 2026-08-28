@@ -37,6 +37,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -63,14 +64,15 @@ const (
 
 // SetupAPITest initializes test database and service factory for API tests.
 // Returns the shared package database pool and a service factory. Tests must
-// not close the pool — it is shared by every test in the binary.
-func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
+// not close the pool — it is shared by every test in the binary. The optional
+// statistics clock pins calendar-day semantics in time-dependent API tests.
+func SetupAPITest(t *testing.T, statisticsClocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), statisticsClocks...)
 	require.NoError(t, err, "Failed to create service factory")
 
 	return db, serviceFactory

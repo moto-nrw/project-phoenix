@@ -411,7 +411,7 @@
       "locations": [
         {
           "file": "api/testutil/helpers.go",
-          "line": 72,
+          "line": 74,
           "declaration": "SetupAPITest"
         }
       ]
@@ -421,7 +421,7 @@
       "locations": [
         {
           "file": "api/testutil/helpers.go",
-          "line": 67,
+          "line": 69,
           "declaration": "SetupAPITest"
         }
       ]
@@ -431,7 +431,7 @@
       "locations": [
         {
           "file": "api/testutil/helpers.go",
-          "line": 73,
+          "line": 75,
           "declaration": "SetupAPITest"
         }
       ]
@@ -18107,7 +18107,7 @@
       "declaration": "SetupAPITest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        72
+        74
       ],
       "tables": []
     },
@@ -18117,7 +18117,7 @@
       "declaration": "SetupAPITest",
       "target": "services.NewFactory",
       "lines": [
-        73
+        75
       ],
       "tables": []
     },
