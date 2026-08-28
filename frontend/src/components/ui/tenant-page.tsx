@@ -5,6 +5,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { Skeleton } from "~/components/ui/skeleton";
 import type {
   ActiveFilter,
@@ -85,6 +86,24 @@ export interface TenantPageProps {
     readonly count: number;
     readonly label?: string;
   };
+  /**
+   * Sammelt viele Filter hinter einer Schaltflaeche statt sie in die Zeile zu
+   * legen. Ab etwa drei Filtern ist das die richtige Wahl — eine Zeile, die
+   * umbricht, ist keine Zeile mehr. Mit `filterSections` bekommt die Flaeche
+   * dahinter Ueberschriften.
+   */
+  readonly filterVariant?: "default" | "quiet";
+  readonly filterSections?: PageHeaderWithSearchProps["filterSections"];
+  /** Ab welcher Breite die Filter wieder in der Zeile stehen duerfen. */
+  readonly desktopFiltersFrom?: PageHeaderWithSearchProps["desktopFiltersFrom"];
+  /** Aktive Filter als Zahl auf der Schaltflaeche statt als Chip-Reihe. */
+  readonly activeFilterDisplay?: PageHeaderWithSearchProps["activeFilterDisplay"];
+  /**
+   * Hauptaktion IN der Such- und Filterzeile statt in der Titelzeile. Nur fuer
+   * Aktionen, die zur Liste darunter gehoeren (An- und Abmelden).
+   */
+  readonly primaryAction?: ReactNode;
+
   /**
    * Fertige Such- und Filterzeile fuer Layout-Adapter (DatabasePageLayout),
    * die ihre PageHeaderWithSearch selbst konfigurieren. Seiten nutzen
@@ -172,6 +191,11 @@ export function TenantPage({
   onClearAllFilters,
   overflowMenu,
   badge,
+  filterVariant,
+  filterSections,
+  desktopFiltersFrom,
+  activeFilterDisplay,
+  primaryAction,
   searchSlot,
   tabs,
   error,
@@ -184,6 +208,7 @@ export function TenantPage({
     search !== undefined ||
     (filters?.length ?? 0) > 0 ||
     (overflowMenu?.length ?? 0) > 0 ||
+    primaryAction != null ||
     badge !== undefined;
 
   const statusLine = statsLoading ? (
@@ -261,6 +286,11 @@ export function TenantPage({
                 onClearAllFilters={onClearAllFilters}
                 overflowMenu={overflowMenu as OverflowMenuItem[] | undefined}
                 badge={badge}
+                filterVariant={filterVariant}
+                filterSections={filterSections}
+                desktopFiltersFrom={desktopFiltersFrom}
+                activeFilterDisplay={activeFilterDisplay}
+                primaryAction={primaryAction}
               />
             )}
           </div>

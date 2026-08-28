@@ -17,7 +17,6 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
@@ -2792,61 +2791,42 @@ function SearchPageContent() {
             />
           </>
         }
-        searchSlot={
-          // Adapter: diese Filterzeile braucht Bauteile, die TenantPage nicht
-          // durchreicht (primaryAction, filterSections, desktopFiltersFrom),
-          // deshalb konfiguriert die Seite PageHeaderWithSearch selbst.
-          //
-          // Der Kopf scrollt mit (nicht klebend). Aktive Filter erscheinen als
-          // Zahl auf der Filterschaltfläche. Der An-/Abmelde-Einstieg liegt auf
-          // Mobil und Tablet in einem schwebenden Knopf am unteren Rand, auf
-          // dem Desktop hier in der Zeile (primaryAction).
-          <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
-            <PageHeaderWithSearch
-              // Der Titel steht in der Kopfkarte darüber.
-              embedded
-              title=""
-              // Der Zähler ändert sich mit der Filterung und gehört deshalb in
-              // die Filterzeile, nicht in die Titelzeile.
-              badge={{
-                count: filteredStudents.length,
-                icon: <MotoConceptIcon concept="children" size={20} />,
-              }}
-              primaryAction={
-                checkinModeAvailable && !schoolCheckin.isActive ? (
-                  <SchoolCheckinFab
-                    variant="inline"
-                    isActive={schoolCheckin.isActive}
-                    onToggle={schoolCheckin.toggleActive}
-                    successCount={
-                      schoolCheckin.selectionActive
-                        ? selectedStudentsForBulk.length
-                        : schoolCheckin.successCount
-                    }
-                    pendingCount={schoolCheckin.pendingIds.size}
-                    disabled={schoolCheckin.isBulkRunning}
-                  />
-                ) : undefined
+        // Der Zähler ändert sich mit der Filterung und gehört deshalb in
+        // die Filterzeile, nicht in die Titelzeile.
+        badge={{
+          count: filteredStudents.length,
+          icon: <MotoConceptIcon concept="children" size={20} />,
+        }}
+        primaryAction={
+          checkinModeAvailable && !schoolCheckin.isActive ? (
+            <SchoolCheckinFab
+              variant="inline"
+              isActive={schoolCheckin.isActive}
+              onToggle={schoolCheckin.toggleActive}
+              successCount={
+                schoolCheckin.selectionActive
+                  ? selectedStudentsForBulk.length
+                  : schoolCheckin.successCount
               }
-              // 6 filters overflow the inline desktop row at iPad-class
-              // viewports. Switch to the mobile sheet pattern up to xl
-              // (1280px). Matches Stripe / Airbnb / Slack pattern for
-              // filter-heavy pages.
-              desktopFiltersFrom="xl"
-              search={{
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: "Name suchen…",
-              }}
-              filters={filterConfigs}
-              activeFilters={activeFilters}
-              activeFilterDisplay="count"
-              filterVariant="quiet"
-              filterSections={filterSections}
-              onClearAllFilters={clearAllFilters}
+              pendingCount={schoolCheckin.pendingIds.size}
+              disabled={schoolCheckin.isBulkRunning}
             />
-          </div>
+          ) : undefined
         }
+        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten;
+        // darunter sammelt die Filterschaltfläche sie hinter einer Fläche.
+        desktopFiltersFrom="xl"
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Name suchen…",
+        }}
+        filters={filterConfigs}
+        activeFilters={activeFilters}
+        activeFilterDisplay="count"
+        filterVariant="quiet"
+        filterSections={filterSections}
+        onClearAllFilters={clearAllFilters}
       >
         <div>
           {/* Planning-date context banner (#1939). The day chooser itself lives in
