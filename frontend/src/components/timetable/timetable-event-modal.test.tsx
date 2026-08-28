@@ -4711,6 +4711,7 @@ describe("TimetableEventModal", () => {
       weekFrom: "2026-05-04",
       weekTo: "2026-05-08",
       calendarPeriods: periods,
+      planningPeriods: periods,
       defaultCalendarPeriodId: "5",
       canCheckShiftCoverage: true,
       canManageCategories: true,

@@ -200,7 +200,13 @@ export interface UseEventFormParams {
   weekFrom?: string;
   weekTo?: string;
   calendarPeriods: CalendarPeriod[];
-  planningPeriods?: CalendarPeriod[];
+  /**
+   * Alle Planungszeiträume für die Datumsprüfung (aktive begrenzen planbare
+   * Einzeltermine), im Unterschied zu `calendarPeriods`, den Auswahloptionen
+   * des Serien-Zeitraum-Pickers. `null` schaltet die Prüfung bewusst ab, wenn
+   * der Aufrufer keinen Periodenkontext hat — nie stillschweigend weglassen.
+   */
+  planningPeriods: CalendarPeriod[] | null;
   defaultCalendarPeriodId?: string | null;
   initialInstance: EnrichedInstance | null;
   initialSeries: TimetableTemplate | null;
@@ -1229,7 +1235,7 @@ export function useEventForm({
       (initialInstance === null ||
         (!initialInstance.isSpontaneous &&
           form.date !== initialInstance.date)) &&
-      planningPeriods !== undefined &&
+      planningPeriods !== null &&
       findPeriodForDate(planningPeriods, form.date) === null
     ) {
       errors.date = "Wählen Sie ein Datum in einem Planungszeitraum.";

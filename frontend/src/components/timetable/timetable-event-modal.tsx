@@ -104,7 +104,12 @@ interface TimetableEventModalProps {
   weekTo?: string;
   calendarPeriods: CalendarPeriod[];
   /** All loaded planning periods validate one-off appointment dates. */
-  planningPeriods?: CalendarPeriod[];
+  /**
+   * Alle Planungszeiträume für die Datumsprüfung; `calendarPeriods` sind
+   * dagegen die Auswahloptionen des Serien-Zeitraum-Pickers. `null` schaltet
+   * die Prüfung bewusst ab — nie stillschweigend weglassen.
+   */
+  planningPeriods: CalendarPeriod[] | null;
   defaultCalendarPeriodId?: string | null;
   showPeriodField?: boolean;
   initialInstance?: EnrichedInstance | null;

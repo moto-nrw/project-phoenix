@@ -86,9 +86,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	templateRow := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("LC-Tmpl-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("LC-Period-%d", suffix),
 		timezone.NewDate(2000, 1, 1), timezone.NewDate(2100, 1, 1))
-	period.IsActive = true
-	_, err = db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
-	require.NoError(t, err)
+	testpkg.SetCalendarPeriodActive(t, db, period, true)
 
 	// Parent-fixture cleanup registered BEFORE any per-test child cleanups,
 	// so LIFO orders children → parents → db.Close.
@@ -496,9 +494,7 @@ func TestInstance_UpdatePlannedKeepsDateAfterPeriodDeactivation(t *testing.T) {
 
 	s := buildLifecycle(t)
 	instance := seedInstance(t, s, false, false)
-	s.period.IsActive = false
-	_, err := s.db.NewUpdate().Model(s.period).Column("is_active").WherePK().Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
 
 	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
 		Date:      instance.Date,
@@ -557,11 +553,9 @@ func TestInstance_UpdatePlannedConvertsSpontaneousSameDateRejectsInactiveCalenda
 	s := buildLifecycle(t)
 	instance := seedSpontaneousInstance(t, s, false)
 	periodID := s.period.ID
-	s.period.IsActive = false
-	_, err := s.db.NewUpdate().Model(s.period).Column("is_active").WherePK().Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
 
-	_, err = s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+	_, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
 		Date:             instance.Date,
 		StartTime:        instance.StartTime,
 		EndTime:          instance.EndTime,
@@ -590,9 +584,7 @@ func TestInstance_CreateIdempotencyRetryReturnsStoredResultAfterPeriodDeactivati
 	created, err := s.svc.Create(s.ctx, req)
 	require.NoError(t, err)
 
-	s.period.IsActive = false
-	_, err = s.db.NewUpdate().Model(s.period).Column("is_active").WherePK().Exec(s.ctx)
-	require.NoError(t, err)
+	testpkg.SetCalendarPeriodActive(t, s.db, s.period, false)
 
 	replayed, err := s.svc.Create(s.ctx, req)
 	require.NoError(t, err)

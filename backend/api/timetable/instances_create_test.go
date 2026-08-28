@@ -281,9 +281,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
 		timezone.TodayDate().AddDays(-1), timezone.TodayDate().AddDays(7))
-	period.IsActive = true
-	_, err := db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
-	require.NoError(t, err)
+	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
 			TableExpr("schedule.activity_instances").
