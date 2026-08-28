@@ -18201,7 +18201,7 @@
       "declaration": "TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        195
+        196
       ],
       "tables": []
     },
@@ -18211,7 +18211,7 @@
       "declaration": "TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        372
+        373
       ],
       "tables": []
     },
@@ -18221,7 +18221,7 @@
       "declaration": "TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        306
+        307
       ],
       "tables": []
     },
@@ -18231,7 +18231,7 @@
       "declaration": "TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        230
+        231
       ],
       "tables": []
     },
@@ -18251,7 +18251,7 @@
       "declaration": "TestCreateInstance_DuplicateTemplateBoundReturnsConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        286
+        293
       ],
       "tables": [
         "schedule.activity_instances"
@@ -18263,7 +18263,7 @@
       "declaration": "TestCreateInstance_DuplicateTemplateBoundReturnsConflict",
       "target": "services.NewFactory",
       "lines": [
-        287
+        294
       ],
       "tables": [
         "schedule.activity_instances"
@@ -30418,7 +30418,7 @@
       "declaration": "TestDetectStartConflicts_EmptyInstance_NoWarnings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2036
+        2197
       ],
       "tables": []
     },
@@ -30428,7 +30428,7 @@
       "declaration": "TestInstance_Cancel_FromActive_DoesNotTouchAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2011
+        2172
       ],
       "tables": []
     },
@@ -30438,7 +30438,7 @@
       "declaration": "TestInstance_Complete_MarksRemainingExpectedAsAbsent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1880
+        2041
       ],
       "tables": []
     },
@@ -30448,7 +30448,7 @@
       "declaration": "buildLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        66
+        67
       ],
       "tables": []
     },
@@ -30458,7 +30458,7 @@
       "declaration": "buildLifecycle",
       "target": "services.NewFactory",
       "lines": [
-        67
+        68
       ],
       "tables": []
     },

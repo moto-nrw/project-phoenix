@@ -313,6 +313,7 @@ function renderModal(
       weekFrom="2026-05-04"
       weekTo="2026-05-08"
       calendarPeriods={periods}
+      planningPeriods={periods}
       defaultCalendarPeriodId="5"
       canCheckShiftCoverage
       canManageCategories
@@ -514,6 +515,81 @@ describe("TimetableEventModal", () => {
       instance: savedInstance,
     });
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a one-off date outside every planning period", async () => {
+    renderModal();
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-01-04" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie ein Datum in einem Planungszeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a one-off date covered only by an inactive planning period", async () => {
+    renderModal({ planningPeriods: [{ ...periods[0]!, isActive: false }] });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    await chooseFromSelect(screen.getByLabelText("Raum*"), "Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie ein Datum in einem Planungszeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a changed one-off date outside every planning period", async () => {
+    renderModal({ initialInstance: savedInstance });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-01-04" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText(
+        "Wählen Sie ein Datum in einem Planungszeitraum.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("moves a spontaneous appointment outside every planning period", async () => {
+    renderModal({
+      initialInstance: { ...savedInstance, isSpontaneous: true },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    fireEvent.change(screen.getByLabelText("Datum*"), {
+      target: { value: "2027-01-04" },
+    });
+    await clickSave();
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ date: "2027-01-04" }),
+      ),
+    );
   });
 
   // #2032: Ein Termin darf auf einem Schließtag liegen, das Speichern fragt
@@ -4635,6 +4711,7 @@ describe("TimetableEventModal", () => {
       weekFrom: "2026-05-04",
       weekTo: "2026-05-08",
       calendarPeriods: periods,
+      planningPeriods: periods,
       defaultCalendarPeriodId: "5",
       canCheckShiftCoverage: true,
       canManageCategories: true,
