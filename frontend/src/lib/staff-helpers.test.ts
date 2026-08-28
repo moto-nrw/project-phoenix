@@ -333,7 +333,8 @@ describe("formatStaffNotes", () => {
       "This is a very long note that exceeds the default maximum length limit";
     const result = formatStaffNotes(longNotes, 30);
 
-    expect(result).toBe("This is a very long note th...");
+    // Ein Zeichen für die Auslassung, nicht drei Punkte.
+    expect(result).toBe("This is a very long note that…");
     expect(result?.length).toBe(30);
   });
 
@@ -341,7 +342,7 @@ describe("formatStaffNotes", () => {
     const notes = "Short note here";
     const result = formatStaffNotes(notes, 10);
 
-    expect(result).toBe("Short n...");
+    expect(result).toBe("Short not…");
   });
 
   it("does not truncate notes exactly at max length", () => {

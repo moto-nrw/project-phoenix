@@ -14,13 +14,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import {
   buildDefaultPresets,
   DateRangePicker,
 } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -244,7 +245,10 @@ export default function StatisticsPage() {
       render: (row) => (
         <span
           className={
-            row.unexplained_days > 0 ? "text-moto-red-strong" : undefined
+            // Offene Fälle brauchen Aufmerksamkeit, sie sind aber kein
+            // Fehler: Orange ist dafür die Farbe, Rot gehört Krank und
+            // echten Fehlern (siehe Farbtabelle im UI-Kit).
+            row.unexplained_days > 0 ? "text-moto-orange-strong" : undefined
           }
         >
           {row.unexplained_days}
@@ -319,7 +323,10 @@ export default function StatisticsPage() {
       render: (row) => (
         <span
           className={
-            row.unexplained_days > 0 ? "text-moto-red-strong" : undefined
+            // Offene Fälle brauchen Aufmerksamkeit, sie sind aber kein
+            // Fehler: Orange ist dafür die Farbe, Rot gehört Krank und
+            // echten Fehlern (siehe Farbtabelle im UI-Kit).
+            row.unexplained_days > 0 ? "text-moto-orange-strong" : undefined
           }
         >
           {row.unexplained_days}
@@ -397,34 +404,32 @@ export default function StatisticsPage() {
     },
   ];
 
-  // Export trio in the Anmeldungen button idiom: quiet white bordered
-  // actions. The child table and the room table are separate documents
-  // (different columns), so each section carries its own trio.
-  const exportButtons = (section: StatisticsExportSection) => {
-    const formats: {
-      format: StatisticsExportFormat;
-      label: string;
-      Icon: typeof Download;
-    }[] = [
-      { format: "pdf", label: "PDF", Icon: Download },
-      { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
-      { format: "docx", label: "Word", Icon: FileText },
-    ];
-    return formats.map(({ format, label, Icon }) => (
-      <Button
-        key={format}
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport(format, section)}
-      >
-        <Icon className="h-4 w-4" aria-hidden />
-        {exporting === `${section}-${format}` ? "Wird exportiert…" : label}
-      </Button>
-    ));
-  };
+  // Export liegt auf jeder anderen Seite im Kebab-Menü und nicht als
+  // Knopfreihe in der Titelzeile. Drei Formate ergaben dort drei Knöpfe, die
+  // allein die halbe Kopfzeile füllten. Kind- und Raumtabelle sind
+  // verschiedene Dokumente, deshalb bekommt jeder Bereich seinen eigenen
+  // Menüeintrag.
+  const exportMenuItems = (
+    section: StatisticsExportSection,
+  ): OverflowMenuEntry[] => [
+    { kind: "header", label: "Exportieren" },
+    ...(
+      [
+        { format: "pdf", label: "PDF", Icon: Download },
+        { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
+        { format: "docx", label: "Word", Icon: FileText },
+      ] as {
+        format: StatisticsExportFormat;
+        label: string;
+        Icon: typeof Download;
+      }[]
+    ).map(({ format, label, Icon }) => ({
+      label: exporting === `${section}-${format}` ? "Wird exportiert…" : label,
+      icon: <Icon className="h-4 w-4" aria-hidden />,
+      onClick: () => void downloadExport(format, section),
+      disabled: !data || exporting !== null,
+    })),
+  ];
 
   const roomDataStartsInsideWindow =
     data !== null && fromISO !== null && data.room_data_from > fromISO;
@@ -495,9 +500,10 @@ export default function StatisticsPage() {
             className="w-full sm:w-auto"
             triggerClassName="w-full justify-center sm:w-auto sm:justify-start"
           />
-          <div className="flex flex-wrap gap-2 sm:justify-end">
-            {exportButtons("attendance")}
-          </div>
+          <OverflowMenu
+            items={exportMenuItems("attendance")}
+            ariaLabel="Weitere Aktionen"
+          />
         </div>
       }
     >
@@ -546,7 +552,7 @@ export default function StatisticsPage() {
                   variant="tile"
                   label="Ohne Meldung"
                   value={data.totals.unexplained_days}
-                  tone={data.totals.unexplained_days > 0 ? "red" : undefined}
+                  tone={data.totals.unexplained_days > 0 ? "orange" : undefined}
                 />
               </div>
               <p className="text-xs leading-5 text-gray-500">
@@ -564,9 +570,10 @@ export default function StatisticsPage() {
             description={sectionHeading.hint}
             actions={
               view === "rooms" && !roomDataAllBeforeWindow ? (
-                <div className="flex flex-wrap gap-2">
-                  {exportButtons("rooms")}
-                </div>
+                <OverflowMenu
+                  items={exportMenuItems("rooms")}
+                  ariaLabel="Raumtabelle exportieren"
+                />
               ) : undefined
             }
           >
