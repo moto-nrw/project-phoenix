@@ -792,7 +792,7 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 
 	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
-	legacyWeekendRepo, ok := repo.(interface {
+	legacyWeekendRepo, ok := any(repo).(interface {
 		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
 	})
 	require.True(t, ok, "activity-instance repository must support legacy weekend cleanup")

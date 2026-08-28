@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SchoolBottomNav } from "./school-bottom-nav";
 
+const teamChat = { unreadCount: 0, available: false } as const;
+
 const mockPathname = vi.hoisted(() => ({ value: "/" }));
 
 vi.mock("next/navigation", () => ({
@@ -20,7 +22,7 @@ describe("SchoolBottomNav", () => {
   // aria-label.
   it("beschriftet das aktive Ziel und benennt die uebrigen fuer Screenreader", () => {
     mockPathname.value = "/";
-    render(<SchoolBottomNav />);
+    render(<SchoolBottomNav teamChat={teamChat} />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
     expect(screen.queryByText("Meine Aufsichten")).not.toBeInTheDocument();
@@ -34,14 +36,34 @@ describe("SchoolBottomNav", () => {
 
   it("verschiebt die Beschriftung mit dem aktiven Ziel", () => {
     mockPathname.value = "/aufsichten";
-    render(<SchoolBottomNav />);
+    render(<SchoolBottomNav teamChat={teamChat} />);
 
     expect(screen.getByText("Meine Aufsichten")).toBeInTheDocument();
     expect(screen.queryByText("Klassenansicht")).not.toBeInTheDocument();
   });
 
+  // Mit dem Team-Chat (#2208) stehen vier Ziele in der Pille; die laengste
+  // Beschriftung passt dort erst ab 420 px. Auf schmaleren Geraeten blendet
+  // CSS sie aus, statt ein Ziel aus der Leiste zu schieben.
+  it("blendet die Beschriftung bei vier Zielen unterhalb von 420 px aus", () => {
+    mockPathname.value = "/aufsichten";
+    render(<SchoolBottomNav teamChat={{ unreadCount: 0, available: true }} />);
+
+    expect(screen.getByText("Meine Aufsichten")).toHaveClass(
+      "hidden",
+      "min-[420px]:inline",
+    );
+  });
+
+  it("beschriftet das aktive Ziel bei drei Zielen auf jeder Breite", () => {
+    mockPathname.value = "/aufsichten";
+    render(<SchoolBottomNav teamChat={teamChat} />);
+
+    expect(screen.getByText("Meine Aufsichten")).not.toHaveClass("hidden");
+  });
+
   it("verschwindet ab der Sidebar-Breite", () => {
-    render(<SchoolBottomNav />);
+    render(<SchoolBottomNav teamChat={teamChat} />);
 
     expect(screen.getByRole("navigation")).toHaveClass("lg:hidden");
   });

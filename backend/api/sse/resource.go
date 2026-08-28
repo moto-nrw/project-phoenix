@@ -15,6 +15,9 @@ type Resource struct {
 	userCtx usercontext.UserContextService
 	db      *bun.DB
 	logger  *slog.Logger
+	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
+	// SetSchoolAccess; the school handler refuses to stream without it.
+	schoolAccess SchoolAccessChecker
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil

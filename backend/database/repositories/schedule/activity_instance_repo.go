@@ -30,7 +30,7 @@ type ActivityInstanceRepository struct {
 }
 
 // NewActivityInstanceRepository creates a new ActivityInstanceRepository.
-func NewActivityInstanceRepository(db *bun.DB) schedule.ActivityInstanceRepository {
+func NewActivityInstanceRepository(db *bun.DB) *ActivityInstanceRepository {
 	repo := base.NewRepository[*schedule.ActivityInstance](db, tableActivityInstances, "ActivityInstance")
 	repo.TenantScoped = true
 	return &ActivityInstanceRepository{
@@ -80,6 +80,35 @@ func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Co
 		}
 	}
 	return affected > 0, nil
+}
+
+// CreateIdempotent uses the request key as the only deduplication boundary.
+// Deliberately identical appointments with different keys remain separate.
+func (r *ActivityInstanceRepository) CreateIdempotent(ctx context.Context, i *schedule.ActivityInstance) (bool, error) {
+	if i == nil {
+		return false, errActivityInstanceNil
+	}
+	if i.IdempotencyKey == nil {
+		return false, errors.New("idempotency_key is required for idempotent insert")
+	}
+	if err := i.Validate(); err != nil {
+		return false, err
+	}
+	base.EnsureTenantID(ctx, i)
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(i).
+		ModelTableExpr(tableActivityInstances).
+		On("CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create idempotent", Err: err}
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create idempotent rows affected", Err: err}
+	}
+	return affected == 1, nil
 }
 
 // MarkCompleted updates only lifecycle columns. It intentionally avoids the

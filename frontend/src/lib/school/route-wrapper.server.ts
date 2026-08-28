@@ -98,7 +98,10 @@ function schoolApiPost<T, B = unknown>(
   return schoolServerFetch<T>(endpoint, token, { method: "POST", body });
 }
 
-function schoolApiDelete<T>(endpoint: string, token: string): Promise<T> {
+export function schoolApiDelete<T>(
+  endpoint: string,
+  token: string,
+): Promise<T> {
   return schoolServerFetch<T>(endpoint, token, { method: "DELETE" });
 }
 
@@ -212,7 +215,7 @@ function createSchoolPostHandler<T, B = unknown>(
   return createSchoolWithBodyHandler(handler);
 }
 
-function createSchoolDeleteHandler<T>(handler: NoBodyHandler<T>) {
+export function createSchoolDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createSchoolNoBodyHandler(handler, jsonResponse);
 }
 
@@ -235,16 +238,17 @@ function createSchoolPatchHandler<T, B = unknown>(
  * supervision surface (#2527) starts and completes blocks and writes
  * attendance; export more verbs as routes need them.
  */
-export const { proxyGet, proxyPost, proxyPatch } = makeProxyFactories({
-  get: createSchoolGetHandler,
-  post: createSchoolPostHandler,
-  put: createSchoolPutHandler,
-  patch: createSchoolPatchHandler,
-  del: createSchoolDeleteHandler,
-  apiGet: schoolApiGet,
-  apiPost: schoolApiPost,
-  apiPut: schoolApiPut,
-  apiPatch: schoolApiPatch,
-  apiDelete: schoolApiDelete,
-  fetcherUnwrapsData: true,
-});
+export const { proxyGet, proxyPost, proxyPut, proxyPatch, proxyDelete } =
+  makeProxyFactories({
+    get: createSchoolGetHandler,
+    post: createSchoolPostHandler,
+    put: createSchoolPutHandler,
+    patch: createSchoolPatchHandler,
+    del: createSchoolDeleteHandler,
+    apiGet: schoolApiGet,
+    apiPost: schoolApiPost,
+    apiPut: schoolApiPut,
+    apiPatch: schoolApiPatch,
+    apiDelete: schoolApiDelete,
+    fetcherUnwrapsData: true,
+  });

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -121,7 +122,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 	// delays the request that produced the notification.
 	var subs []*iot.PushSubscription
 	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, err := c.resolveSubscriptions(txCtx, event.Audience)
+		resolved, err := c.resolveEventSubscriptions(txCtx, event)
 		if err != nil {
 			return err
 		}
@@ -153,7 +154,7 @@ func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) 
 	var subs []*iot.PushSubscription
 	err = tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var resolveErr error
-		subs, resolveErr = c.resolveSubscriptions(txCtx, event.Audience)
+		subs, resolveErr = c.resolveEventSubscriptions(txCtx, event)
 		return resolveErr
 	})
 	if err != nil {
@@ -213,30 +214,50 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 
 	// Read under RLS, then commit before any network request — the same
 	// ordering Deliver keeps, for the same reason.
-	var subs []*iot.PushSubscription
+	var staffSubs, schoolSubs []*iot.PushSubscription
 	err := tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
-		if err != nil {
-			return err
+		if slices.ContainsFunc(staffEvents, deliversToStaffPortal) {
+			resolved, err := c.repo.FindForStaffAccounts(txCtx, recipients)
+			if err != nil {
+				return err
+			}
+			staffSubs = resolved
 		}
-		subs = resolved
+		if slices.ContainsFunc(staffEvents, deliversToSchoolPortal) {
+			resolved, err := c.repo.FindForSchoolAccounts(txCtx, recipients)
+			if err != nil {
+				return err
+			}
+			schoolSubs = resolved
+		}
 		return nil
 	})
-	if err != nil || len(subs) == 0 {
+	if err != nil || (len(staffSubs) == 0 && len(schoolSubs) == 0) {
 		return err
 	}
 
-	byAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
-	for _, sub := range subs {
-		byAccount[sub.AccountID] = append(byAccount[sub.AccountID], sub)
+	staffByAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
+	for _, sub := range staffSubs {
+		staffByAccount[sub.AccountID] = append(staffByAccount[sub.AccountID], sub)
+	}
+	schoolByAccount := make(map[int64][]*iot.PushSubscription, len(recipients))
+	for _, sub := range schoolSubs {
+		schoolByAccount[sub.AccountID] = append(schoolByAccount[sub.AccountID], sub)
 	}
 
 	dispatchCtx := context.WithoutCancel(ctx)
 	for _, event := range staffEvents {
 		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
+		toStaff, toSchool := deliversToStaffPortal(event), deliversToSchoolPortal(event)
 		for _, accountID := range event.Audience.StaffAccountIDs {
-			targets = append(targets, byAccount[accountID]...)
+			if toStaff {
+				targets = append(targets, staffByAccount[accountID]...)
+			}
+			if toSchool {
+				targets = append(targets, schoolByAccount[accountID]...)
+			}
 		}
+		targets = dedupeSubscriptionsByEndpoint(targets)
 		if len(targets) == 0 {
 			continue
 		}
@@ -276,11 +297,45 @@ func marshalPushPayload(event Event) ([]byte, error) {
 	return payload, nil
 }
 
+// schoolPushPayload renders the school-portal variant of the payload: the
+// same display-safe fields with the school host's deep link. A notification
+// without a place in moto schule opens the portal root.
+func schoolPushPayload(event Event) ([]byte, error) {
+	school := event
+	school.DeepLink = event.SchoolDeepLink
+	if school.DeepLink == "" {
+		school.DeepLink = "/school"
+	}
+	return marshalPushPayload(school)
+}
+
+// payloadForSubscription picks the portal-specific wire payload. Staff and
+// parent devices get the payload as marshalled; school devices (#2208) get
+// the school variant, rendered once per send batch.
+type portalPayloads struct {
+	event  Event
+	base   []byte
+	school []byte
+	err    error
+	once   sync.Once
+}
+
+func (p *portalPayloads) forSubscription(sub *iot.PushSubscription) ([]byte, error) {
+	if sub.Portal != iot.PushPortalSchool {
+		return p.base, nil
+	}
+	p.once.Do(func() {
+		p.school, p.err = schoolPushPayload(p.event)
+	})
+	return p.school, p.err
+}
+
 // resolveSubscriptions maps the audience scope to registered devices.
 // ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
 // device-to-group membership, and no producer targets groups with
 // push-worthy events yet. Documented follow-up in docs/notifications.md.
-func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audience) ([]*iot.PushSubscription, error) {
+func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Event) ([]*iot.PushSubscription, error) {
+	audience := event.Audience
 	switch audience.Scope {
 	case ScopeTenant:
 		return c.repo.FindForTenantStaff(ctx)
@@ -296,7 +351,22 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 		// Eligibility is re-checked here rather than trusted from the recipient
 		// list: that list was assembled in an earlier transaction, and an
 		// account can be deactivated or unmapped from the school in between.
-		return c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
+		var subs []*iot.PushSubscription
+		if deliversToStaffPortal(event) {
+			staffSubs, err := c.repo.FindForStaffAccounts(ctx, staffAccountIDs(audience))
+			if err != nil {
+				return nil, err
+			}
+			subs = staffSubs
+		}
+		if !deliversToSchoolPortal(event) {
+			return subs, nil
+		}
+		schoolSubs, err := c.repo.FindForSchoolAccounts(ctx, staffAccountIDs(audience))
+		if err != nil {
+			return nil, err
+		}
+		return dedupeSubscriptionsByEndpoint(append(subs, schoolSubs...)), nil
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
@@ -308,13 +378,108 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 	}
 }
 
+// dedupeSubscriptionsByEndpoint keeps one subscription per push endpoint.
+// The same browser can be registered in the OGS portal and in moto schule
+// (#2208): the rows differ by portal, but the endpoint is the device the push
+// service delivers to, so sending both would show one person the same message
+// twice on one device.
+//
+// A push endpoint belongs to exactly one service worker on one origin, so at
+// most one of the two rows is the device's current registration and the other
+// one is a leftover from the portal it was last registered in. The most
+// recently written row wins (Upsert stamps updated_at on every re-subscribe):
+// that is the portal the device actually opens, and therefore the row whose
+// payload carries a deep link that resolves there. Preferring the OGS row
+// unconditionally would hand a school device a /team-chat/... link, which is
+// not a route in moto schule.
+//
+// Deduplication stops at the endpoint on purpose. A person registered in both
+// staff portals on one browser holds two service-worker registrations, one per
+// origin, and nothing the two share identifies the machine they run on: a push
+// endpoint is per origin, and so is any identifier the client could generate
+// and store. The User-Agent is not a substitute — two phones of the same model
+// on the same OS send the same string, so collapsing by it would silently drop
+// one of two real devices. A missing notification is the worse failure, so a
+// dual-role account that keeps both portals subscribed is notified in both and
+// can switch the notification off in the portal it does not use.
+func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubscription {
+	position := make(map[string]int, len(subs))
+	deduped := make([]*iot.PushSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if sub == nil {
+			continue
+		}
+		index, duplicate := position[sub.Endpoint]
+		if !duplicate {
+			position[sub.Endpoint] = len(deduped)
+			deduped = append(deduped, sub)
+			continue
+		}
+		if newerRegistration(sub, deduped[index]) {
+			deduped[index] = sub
+		}
+	}
+	return deduped
+}
+
+// newerRegistration orders two rows of one endpoint by when they were last
+// written. Rows stamped in the same transaction fall back to the row id, so
+// the surviving portal is stable across deliveries instead of following map
+// iteration order.
+func newerRegistration(candidate, incumbent *iot.PushSubscription) bool {
+	if candidate.UpdatedAt.After(incumbent.UpdatedAt) {
+		return true
+	}
+	if incumbent.UpdatedAt.After(candidate.UpdatedAt) {
+		return false
+	}
+	return candidate.ID > incumbent.ID
+}
+
+// deliversToStaffPortal and deliversToSchoolPortal decide which of the two
+// staff-side portals an event reaches. For a catalogue type the catalogue
+// decides: every staff type reaches the OGS portal, and the school portal is
+// added for the types it offers.
+//
+// TypeTest is the exception. It carries no catalogue entry and exists to prove
+// one thing: that the portal the person is looking at receives notifications.
+// Fanning it out to both portals would answer a question nobody asked — a
+// Lehrkraft pressing "Testbenachrichtigung" in moto schule would also light up
+// her OGS devices, and an OGS admin would push a test into a portal she may
+// not even use. So the test stays in the portal that requested it
+// (Event.Portal, empty meaning the OGS portal).
+func deliversToStaffPortal(event Event) bool {
+	if event.Type == TypeTest {
+		return event.Portal != PortalSchool
+	}
+	return true
+}
+
+func deliversToSchoolPortal(event Event) bool {
+	if event.Type == TypeTest {
+		return event.Portal == PortalSchool
+	}
+	def, ok := GetType(event.Type)
+	return ok && OfferedInPortal(def, PortalSchool)
+}
+
 // sendAll pushes the payload to every subscription. Per-subscription errors
 // never abort the loop; 404/410 responses prune the dead subscription.
 func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
+	payloads := &portalPayloads{event: event, base: payload}
 	var wg sync.WaitGroup
 
 	for _, sub := range subs {
+		wire, err := payloads.forSubscription(sub)
+		if err != nil {
+			c.getLogger().Error("skipping web push with unusable school payload",
+				"notification_type", event.Type,
+				"tenant_id", event.Audience.TenantID,
+				"error", err.Error(),
+			)
+			continue
+		}
 		select {
 		case c.sendSlots <- struct{}{}:
 		case <-ctx.Done():
@@ -326,7 +491,7 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 		go func() {
 			defer wg.Done()
 			defer func() { <-c.sendSlots }()
-			c.sendOne(ctx, event, payload, sub, ttl, urgency)
+			c.sendOne(ctx, event, wire, sub, ttl, urgency)
 		}()
 	}
 	wg.Wait()
@@ -334,11 +499,19 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 
 func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) error {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
+	payloads := &portalPayloads{event: event, base: payload}
 	var wg sync.WaitGroup
 	var resultsMu sync.Mutex
 	var errs []error
 	succeeded := false
 	for _, sub := range subs {
+		wire, wireErr := payloads.forSubscription(sub)
+		if wireErr != nil {
+			resultsMu.Lock()
+			errs = append(errs, wireErr)
+			resultsMu.Unlock()
+			continue
+		}
 		select {
 		case c.sendSlots <- struct{}{}:
 		case <-ctx.Done():
@@ -356,7 +529,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 		go func(sub *iot.PushSubscription) {
 			defer wg.Done()
 			defer func() { <-c.sendSlots }()
-			if err := c.sendOneSynchronously(ctx, event, payload, sub, ttl, urgency); err != nil {
+			if err := c.sendOneSynchronously(ctx, event, wire, sub, ttl, urgency); err != nil {
 				resultsMu.Lock()
 				errs = append(errs, err)
 				resultsMu.Unlock()

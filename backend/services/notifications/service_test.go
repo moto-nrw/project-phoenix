@@ -243,6 +243,14 @@ func TestNotifyValidation(t *testing.T) {
 	backslashRelative.DeepLink = `/\evil.example/path`
 	assert.EqualError(t, svc.Notify(ctx, backslashRelative), "deep link must be an app-relative path")
 
+	externalSchoolLink := tenantEvent(41)
+	externalSchoolLink.SchoolDeepLink = "https://example.com/phish"
+	assert.EqualError(t, svc.Notify(ctx, externalSchoolLink), "school deep link must be an app-relative path")
+
+	protocolRelativeSchoolLink := tenantEvent(41)
+	protocolRelativeSchoolLink.SchoolDeepLink = "//example.com"
+	assert.EqualError(t, svc.Notify(ctx, protocolRelativeSchoolLink), "school deep link must be an app-relative path")
+
 	badPriority := tenantEvent(41)
 	badPriority.Priority = "urgent"
 	assert.Error(t, svc.Notify(ctx, badPriority))

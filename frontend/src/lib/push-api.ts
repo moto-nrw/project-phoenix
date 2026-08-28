@@ -8,7 +8,7 @@
  * so their service workers and push endpoints never collide.
  */
 
-export type PushPortal = "tenant" | "parent";
+export type PushPortal = "tenant" | "parent" | "school";
 
 class PushApiError extends Error {
   constructor(
@@ -26,9 +26,14 @@ export function isPushConfigurationMissing(error: unknown): boolean {
 }
 
 function basePath(portal: PushPortal): string {
-  return portal === "parent"
-    ? "/api/parent/me/push"
-    : "/api/notifications/push";
+  switch (portal) {
+    case "parent":
+      return "/api/parent/me/push";
+    case "school":
+      return "/api/school/notifications/push";
+    default:
+      return "/api/notifications/push";
+  }
 }
 
 /** True when this browser can register for Web Push at all. */

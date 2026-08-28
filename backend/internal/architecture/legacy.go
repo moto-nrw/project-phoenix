@@ -126,7 +126,7 @@ func (e LegacyEntry) Validate() error {
 	if err := validateExactLegacyValue("target", e.Target); err != nil {
 		return err
 	}
-	if !isCanonicalPackage(e.Target) {
+	if violationTargetsPackage(e.Rule) && !isCanonicalImportTarget(e.Target) {
 		return fmt.Errorf("target %q must be an exact Go package path, not a package family or layer", e.Target)
 	}
 	_, err := ParseGitHubIssue(e.Issue)
@@ -136,6 +136,18 @@ func (e LegacyEntry) Validate() error {
 func isCanonicalPackage(path string) bool {
 	modulePath, _, _ := strings.Cut(path, "/")
 	return strings.Contains(modulePath, ".")
+}
+
+func isCanonicalImportTarget(path string) bool {
+	if isCanonicalPackage(path) || strings.Contains(path, "/") {
+		return true
+	}
+	switch path {
+	case "api", "auth", "database", "internal", "models", "services", "test":
+		return false
+	default:
+		return true
+	}
 }
 
 func validateExactLegacyValue(label, value string) error {

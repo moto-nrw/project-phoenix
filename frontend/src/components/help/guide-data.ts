@@ -1057,10 +1057,10 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Team-Chat",
         icon: MessageSquare,
         summary:
-          "Nachrichten an einzelne Kolleginnen und Kollegen Ihrer Schule. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
+          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
         steps: [
           "`Team-Chat` in der Seitenleiste öffnen.",
-          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule.",
+          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule. Lehrkräfte sind mit `Lehrkraft` gekennzeichnet; sie lesen und antworten in ihrem Portal „moto schule“ unter `Nachrichten` (siehe `Lehrkraft schreibt Nachrichten`).",
           "Nachricht schreiben und mit `Senden` abschicken.",
           "Eine Zahl neben `Team-Chat` zeigt, wie viele Nachrichten Sie noch nicht gelesen haben. Sie verschwindet, sobald Sie die Unterhaltung öffnen.",
           "Über `Nur ungelesen` blenden Sie alles aus, was Sie schon gelesen haben.",
@@ -1178,6 +1178,30 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Ansicht Meine Aufsichten in moto schule mit einer eingeteilten Aufsicht und der Kinderliste darunter.",
+        printCompact: true,
+      },
+      {
+        id: "lehrkraft-nachrichten",
+        title: "Lehrkraft schreibt Nachrichten",
+        icon: MessageSquare,
+        summary:
+          "Gibt Lehrkräften in moto schule den kurzen Draht zur OGS: dieselbe Unterhaltung wie im `Team-Chat`, nur aus dem anderen Portal. Dazu gehört, was die Lehrkraft dort selbst einstellt.",
+        steps: [
+          "Voraussetzung: Ihre Schule hat den Team-Chat eingeschaltet (siehe `Team-Chat`). Solange er aus ist, erscheint `Nachrichten` in moto schule gar nicht erst.",
+          "Die Lehrkraft öffnet in moto schule `Nachrichten`. Dort stehen ihre Unterhaltungen mit der OGS.",
+          "Über `Neue Nachricht` wählt sie eine Person aus. Neben jedem Namen steht, um wen es sich handelt: `OGS-Leitung`, `OGS-Team` oder `Lehrkraft`. Eltern sehen von diesen Nachrichten nichts.",
+          "Eine Zahl neben `Nachrichten` zeigt, wie viele Nachrichten noch nicht gelesen sind. Sie verschwindet, sobald die Unterhaltung geöffnet ist.",
+          "Antworten aus der OGS erscheinen sofort, ohne die Seite neu zu laden. Ist die Lehrkraft gerade an anderer Stelle im Portal, erscheint ein kurzer Hinweis mit dem Weg zur Unterhaltung.",
+          "Im Menü hinter dem eigenen Namen liegt `Einstellungen`. Dort legt die Lehrkraft zuerst fest, worüber sie informiert werden möchte, und richtet danach das Gerät ein. Mit `Testbenachrichtigung senden` prüft sie, ob wirklich etwas ankommt.",
+          "Auf iPhone und iPad kommen Benachrichtigungen nur an, wenn moto schule vorher über `Zum Home-Bildschirm` hinzugefügt wurde. Die Anleitung dazu steht auf der Einstellungsseite.",
+        ],
+        callout: {
+          title: "Dieselbe Unterhaltung, zwei Portale",
+          body: "Ihr Team schreibt im OGS-Portal unter `Team-Chat`, die Lehrkraft in moto schule unter `Nachrichten`. Beide sehen denselben Verlauf. Nachrichten lassen sich nicht nachträglich ändern oder löschen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Nachrichten in moto schule mit der Liste der Unterhaltungen, dem Zähler in der Navigation und der Einstellungsseite für Benachrichtigungen.",
         printCompact: true,
       },
       {

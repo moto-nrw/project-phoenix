@@ -29,8 +29,9 @@ func (s *Service) notifyAfterCommit(ctx context.Context, thread *usersModels.Sta
 // would come back without the message and the badge would stay stale until the
 // next event.
 //
-// The fan-out addresses the thread's participants only (BroadcastToStaffAccounts),
-// which is why the event may carry its thread_id — see EventStaffMessage.
+// The fan-out addresses the thread's participants only. Staff and school
+// portal clients use separate indexes, so a chat refresh reaches both
+// immediately and never depends on notification consent or delivery hours.
 func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.StaffMessageThread, senderAccountID int64) {
 	if s.Broadcaster == nil {
 		return
@@ -51,6 +52,12 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 		event := realtime.NewStaffMessageEvent(senderAccountID, threadID)
 		if err := s.Broadcaster.BroadcastToStaffAccounts(tenantID, participants, event); err != nil {
 			s.Logger.Warn("staffmessaging: broadcast failed",
+				slog.Int64("thread_id", threadID),
+				slog.String("error", err.Error()),
+			)
+		}
+		if err := s.Broadcaster.BroadcastToSchoolAccounts(tenantID, participants, event); err != nil {
+			s.Logger.Warn("staffmessaging: school broadcast failed",
 				slog.Int64("thread_id", threadID),
 				slog.String("error", err.Error()),
 			)
@@ -127,7 +134,10 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		Title:    "Neue Nachricht aus dem Team",
 		Body:     "Jemand aus dem Team hat Ihnen geschrieben.",
 		DeepLink: fmt.Sprintf("/team-chat/%d", thread.ID),
-		Priority: notifications.PriorityNormal,
+		// The same conversation in "moto schule" (#2208); the school host
+		// strips the /school prefix itself.
+		SchoolDeepLink: fmt.Sprintf("/school/nachrichten/%d", thread.ID),
+		Priority:       notifications.PriorityNormal,
 		Audience: notifications.Audience{
 			TenantID:        thread.TenantID,
 			Scope:           notifications.ScopeStaff,

@@ -135,6 +135,7 @@ type Factory struct {
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
+	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
 	InstanceStudent           scheduleModels.InstanceStudentRepository
 	ActivityException         scheduleModels.ActivityExceptionRepository
@@ -281,6 +282,7 @@ type Factory struct {
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB) *Factory {
+	activityInstance := schedule.NewActivityInstanceRepository(db)
 	return &Factory{
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
@@ -372,7 +374,8 @@ func NewFactory(db *bun.DB) *Factory {
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ClosingDay:                schedule.NewClosingDayRepository(db),
-		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
+		ActivityInstance:          activityInstance,
+		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
 		InstanceStudent:           schedule.NewInstanceStudentRepository(db),
 		ActivityException:         schedule.NewActivityExceptionRepository(db),

@@ -40,6 +40,10 @@ func (c *captureBroadcaster) BroadcastToStaffAccounts(_ int64, _ []int64, _ real
 	return nil
 }
 
+func (c *captureBroadcaster) BroadcastToSchoolAccounts(_ int64, _ []int64, _ realtime.Event) error {
+	return nil
+}
+
 func (c *captureBroadcaster) BroadcastToAll(_ realtime.Event) error { return nil }
 
 // TestScheduleSettingsBroadcast_FiresAfterCommit pins the contract: the

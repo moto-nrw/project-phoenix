@@ -103,6 +103,7 @@ export class ApiResponseError extends Error {
 interface ServerFetchOptions {
   method: HttpMethod;
   body?: unknown;
+  idempotencyKey?: string;
   returnVoidOn204?: boolean;
 }
 
@@ -169,6 +170,9 @@ async function serverFetchWithRetry<T>(
         Authorization: `Bearer ${bearer}`,
         "Content-Type": "application/json",
         ...forwardHeaders,
+        ...(options.idempotencyKey && {
+          "Idempotency-Key": options.idempotencyKey,
+        }),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
       cache: "no-store", // Prevent Next.js from caching API responses
@@ -297,14 +301,20 @@ export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
  * @param endpoint API endpoint to request
  * @param token Authentication token
  * @param body Request body
+ * @param idempotencyKey Optional key that makes a retried create request safe
  * @returns Promise with the response data
  */
 export async function apiPost<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
+  idempotencyKey?: string,
 ): Promise<T> {
-  return serverFetchWithRetry<T>(endpoint, token, { method: "POST", body });
+  return serverFetchWithRetry<T>(endpoint, token, {
+    method: "POST",
+    body,
+    idempotencyKey,
+  });
 }
 
 /**
