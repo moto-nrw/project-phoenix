@@ -61,6 +61,7 @@ const completedRoster: TimetableRoster = {
     canComplete: false,
     completeAvailableAt: "",
   },
+  pickupTimesLoaded: true,
   rows: [
     {
       studentId: "student-1",
@@ -77,6 +78,7 @@ const completedRoster: TimetableRoster = {
       checkedInAt: "2026-08-16T12:50:00Z",
       checkedOutAt: "2026-08-16T14:25:00Z",
       visitEntryTime: null,
+      pickupTime: "14:30",
       warnings: [],
       careDayStatus: "scheduled",
       parallelPresentIn: null,
@@ -96,6 +98,7 @@ const completedRoster: TimetableRoster = {
       checkedInAt: null,
       checkedOutAt: null,
       visitEntryTime: null,
+      pickupTime: null,
       warnings: [],
       careDayStatus: "scheduled",
       parallelPresentIn: null,
@@ -186,6 +189,35 @@ describe("PastBlocksSection", () => {
     expect(rosterMock).toHaveBeenCalledWith("instance-1");
     expect(screen.getByText("Gegangen")).toBeInTheDocument();
     expect(screen.getByText("Nicht erschienen")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: 14:30")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+  });
+
+  it("distinguishes a failed pickup lookup from a missing pickup time", async () => {
+    plannedNowMock.mockResolvedValue([pastBlock({})]);
+    rosterMock.mockResolvedValue({
+      ...completedRoster,
+      pickupTimesLoaded: false,
+    });
+
+    render(<PastBlocksSection />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Beendete und abgelaufene Blöcke/ }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Aufsicht 2B")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kinder" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar.",
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("Gehzeit: Nicht geladen")).toHaveLength(2);
+    expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
   });
 
   it("shows the never-started hint instead of per-child statuses", async () => {

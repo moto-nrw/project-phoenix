@@ -304,6 +304,8 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	}
 	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
+	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
+	deps.pickupService.byStudent[527] = &EffectivePickupTime{Date: deps.instanceRepo.byDate[0].Date, PickupTime: &pickup}
 
 	result, err := deps.service.PlannedNow(context.Background(), 628, false, timezone.DateFromTime(now), now, PlannedNowOptions{
 		HorizonMinutes: 120,
@@ -316,6 +318,9 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	assert.Equal(t, int64(337), result[0].ID)
 	require.Len(t, result[0].RosterPreview, 1)
 	assert.Equal(t, "Lina Lang", result[0].RosterPreview[0].StudentName)
+	assert.True(t, result[0].PickupTimesLoaded)
+	require.NotNil(t, result[0].RosterPreview[0].PickupTime)
+	assert.Equal(t, "15:20", *result[0].RosterPreview[0].PickupTime)
 }
 
 // scope=past is the complement of the default window (#2335): completed
@@ -499,6 +504,74 @@ func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
 	assert.Equal(t, "12:45", flagged.ParallelPresentIn.StartTime)
 	assert.Equal(t, "13:45", flagged.ParallelPresentIn.EndTime)
 	assert.Nil(t, rowsByStudent[541].ParallelPresentIn)
+}
+
+func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(374)
+	activeGroupID := int64(274)
+	blockDate := timezone.NewDate(2026, time.May, 12)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 664, 489, 254, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.instanceRepo.byID[instanceID].Date = blockDate
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 548, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 549, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 550, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[548] = &usersModel.Student{PersonID: 490, SchoolClass: "1a"}
+	deps.students.byID[549] = &usersModel.Student{PersonID: 491, SchoolClass: "1a"}
+	deps.students.byID[550] = &usersModel.Student{PersonID: 492, SchoolClass: "1a"}
+	deps.personService.people[490] = &usersModel.Person{FirstName: "Wochenplan", LastName: "Kind"}
+	deps.personService.people[491] = &usersModel.Person{FirstName: "Tagesänderung", LastName: "Kind"}
+	deps.personService.people[492] = &usersModel.Person{FirstName: "Ohne", LastName: "Gehzeit"}
+	weekly := time.Date(1, time.January, 1, 15, 0, 0, 0, time.UTC)
+	override := time.Date(1, time.January, 1, 13, 30, 0, 0, time.UTC)
+	deps.pickupService.byStudent[548] = &EffectivePickupTime{Date: blockDate, PickupTime: &weekly}
+	deps.pickupService.byStudent[549] = &EffectivePickupTime{Date: blockDate, PickupTime: &override, IsException: true}
+	deps.pickupService.byStudent[550] = &EffectivePickupTime{Date: blockDate}
+
+	roster, err := deps.service.Roster(context.Background(), 664, false, instanceID)
+
+	require.NoError(t, err)
+	assert.True(t, roster.PickupTimesLoaded)
+	assert.Equal(t, 1, deps.pickupService.calls, "one roster must use one bulk pickup lookup")
+	assert.Equal(t, blockDate, deps.pickupService.date, "the block date, not today, selects the effective time")
+	assert.ElementsMatch(t, []int64{548, 549, 550}, deps.pickupService.studentIDs)
+	rowsByStudent := make(map[int64]OperationRosterRow, len(roster.Rows))
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	require.NotNil(t, rowsByStudent[548].PickupTime)
+	assert.Equal(t, "15:00", *rowsByStudent[548].PickupTime)
+	require.NotNil(t, rowsByStudent[549].PickupTime)
+	assert.Equal(t, "13:30", *rowsByStudent[549].PickupTime)
+	assert.Nil(t, rowsByStudent[550].PickupTime, "a successful lookup without a time stays an explicit empty value")
+}
+
+func TestTimetableOperationsRosterKeepsAttendanceUsableWhenPickupTimesFail(t *testing.T) {
+	t.Parallel()
+
+	instanceID := int64(375)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 665, 493, 255, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 275)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 551, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[551] = &usersModel.Student{PersonID: 494, SchoolClass: "2b"}
+	deps.personService.people[494] = &usersModel.Person{FirstName: "Nora", LastName: "Nutzbar"}
+	deps.pickupService.err = errors.New("pickup lookup failed")
+
+	roster, err := deps.service.Roster(context.Background(), 665, false, instanceID)
+
+	require.NoError(t, err, "pickup data must not take down attendance control")
+	assert.False(t, roster.PickupTimesLoaded)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, int64(551), roster.Rows[0].StudentID)
+	assert.Nil(t, roster.Rows[0].PickupTime)
 }
 
 func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *testing.T) {
@@ -1795,6 +1868,7 @@ type timetableOpsTestDeps struct {
 	activityGroups  *fakeOpsActivityGroupRepo
 	activeService   *fakeOpsActiveService
 	arrivalService  *fakeOpsArrivalService
+	pickupService   *fakeOpsPickupService
 	supervisors     *fakeOpsSupervisorRepo
 	visitRepo       *fakeOpsVisitRepo
 	students        *fakeOpsStudentRepo
@@ -1847,6 +1921,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}, targetsByGroup: map[int64][]*activitiesModel.GroupTarget{}},
 		activeService:   &fakeOpsActiveService{},
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*EffectiveArrivalTime{}},
+		pickupService:   &fakeOpsPickupService{byStudent: map[int64]*EffectivePickupTime{}},
 		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
 		visitRepo: &fakeOpsVisitRepo{
@@ -1871,6 +1946,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		ActiveService:      deps.activeService,
 		CareDayService:     deps.careDayService,
 		ArrivalService:     deps.arrivalService,
+		PickupService:      deps.pickupService,
 		SupervisorRepo:     deps.supervisors,
 		VisitRepo:          deps.visitRepo,
 		StudentRepo:        deps.students,
@@ -2112,6 +2188,32 @@ func (s *fakeOpsActiveService) EndVisit(_ context.Context, id int64) error {
 type fakeOpsArrivalService struct {
 	byStudent map[int64]*EffectiveArrivalTime
 	err       error
+}
+
+type fakeOpsPickupService struct {
+	byStudent  map[int64]*EffectivePickupTime
+	err        error
+	calls      int
+	studentIDs []int64
+	date       timezone.Date
+}
+
+func (s *fakeOpsPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error) {
+	s.calls++
+	s.studentIDs = append([]int64(nil), studentIDs...)
+	s.date = date
+	if s.err != nil {
+		return nil, s.err
+	}
+	out := make(map[int64]*EffectivePickupTime, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if pickup := s.byStudent[studentID]; pickup != nil {
+			out[studentID] = pickup
+			continue
+		}
+		out[studentID] = &EffectivePickupTime{Date: date}
+	}
+	return out, nil
 }
 
 func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error) {
