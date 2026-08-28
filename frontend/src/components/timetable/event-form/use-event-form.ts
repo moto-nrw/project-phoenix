@@ -2202,6 +2202,7 @@ export function useEventForm({
             result: lost,
             onConfirm: runSeriesEdit,
           });
+          submitLock.current = false;
           setSubmitting(false);
           return;
         }
@@ -2842,6 +2843,7 @@ export function useEventForm({
     } catch (err) {
       handleScopeError(pending.scope, err);
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
