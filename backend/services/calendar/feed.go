@@ -432,7 +432,7 @@ func staffCalendarClock(value string) (time.Time, error) {
 	if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
 		return time.Time{}, fmt.Errorf("invalid staff calendar clock %q", value)
 	}
-	return timezone.WallClock(time.Date(2000, time.January, 1, hour, minute, 0, 0, time.UTC)), nil
+	return timezone.NormalizeWallClock(time.Date(2000, time.January, 1, hour, minute, 0, 0, time.UTC)), nil
 }
 
 // ParentCalendarFeedByToken renders the subscription feed for the account that

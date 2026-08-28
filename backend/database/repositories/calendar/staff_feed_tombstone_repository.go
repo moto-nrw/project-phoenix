@@ -37,8 +37,8 @@ func (r *StaffFeedTombstoneRepository) ListForStaffSince(ctx context.Context, st
 		return nil, fmt.Errorf("list staff feed tombstones: %w", err)
 	}
 	for _, row := range rows {
-		row.StartTime = timezone.WallClock(row.StartTime)
-		row.EndTime = timezone.WallClock(row.EndTime)
+		row.StartTime = timezone.NormalizeWallClock(row.StartTime)
+		row.EndTime = timezone.NormalizeWallClock(row.EndTime)
 	}
 	return rows, nil
 }
