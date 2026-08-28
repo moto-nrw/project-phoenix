@@ -18,6 +18,8 @@ const SHELL_MESSAGES = {
   notificationPreferences: deMessages.notificationPreferences,
   pushNotifications: deMessages.pushNotifications,
   parentNotificationSetup: deMessages.parentNotificationSetup,
+  parentCalendarSubscribe: deMessages.parentCalendarSubscribe,
+  staffCalendarSubscribe: deMessages.staffCalendarSubscribe,
 };
 
 export function ShellIntlProvider({
