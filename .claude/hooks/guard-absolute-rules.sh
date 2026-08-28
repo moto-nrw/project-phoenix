@@ -65,6 +65,11 @@ EOF
         while IFS= read -r segment; do
             [[ -n "$segment" ]] || continue
             if printf '%s' "$segment" | grep -q '\.sops\.env' &&
+                printf '%s' "$segment" | grep -Eq '^[[:space:]]*git[[:space:]]+diff([[:space:]]|$)' &&
+                printf '%s' "$segment" | grep -Eq -- '--output(=|[[:space:]])'; then
+                deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
+            fi
+            if printf '%s' "$segment" | grep -q '\.sops\.env' &&
                 ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat|git[[:space:]]+(diff|show))([[:space:]]|$)'; then
                 deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
@@ -97,7 +102,7 @@ EOF
     WebFetch)
         url=$(printf '%s' "$input" | jq -r '.tool_input.url // empty' 2>/dev/null) || exit 0
         url=$(printf '%s' "$url" | tr '[:upper:]' '[:lower:]')
-        if printf '%s' "$url" | grep -Eq '(^|[/:])moto-app\.de\.?([/:?&#]|$)|(^|[/:])moto\.nrw\.?([/:?&#]|$)'; then
+        if printf '%s' "$url" | grep -Eq '^[[:alpha:]][[:alnum:].+-]*://([[:alnum:]-]+\.)*moto-app\.de\.?([/:?&#]|$)|^[[:alpha:]][[:alnum:].+-]*://([[:alnum:]-]+\.)*moto\.nrw\.?([/:?&#]|$)'; then
             deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
         fi
         ;;
