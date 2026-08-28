@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	activityInstanceIdempotencyVersion     = "1.15.337"
+	activityInstanceIdempotencyVersion     = "1.15.339"
 	activityInstanceIdempotencyDescription = "Add tenant-scoped idempotency keys for manual timetable instance creation (#2532)"
 )
 
@@ -23,7 +23,7 @@ func init() {
 }
 
 func activityInstanceIdempotencyUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.337: Adding activity-instance idempotency keys...")
+	fmt.Println("Migration 1.15.339: Adding activity-instance idempotency keys...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
@@ -43,7 +43,7 @@ func activityInstanceIdempotencyUp(ctx context.Context, db *bun.DB) error {
 }
 
 func activityInstanceIdempotencyDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.337: Removing activity-instance idempotency keys...")
+	fmt.Println("Rolling back migration 1.15.339: Removing activity-instance idempotency keys...")
 
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS schedule.uq_activity_instances_tenant_idempotency;
