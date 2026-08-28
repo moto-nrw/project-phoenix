@@ -680,10 +680,6 @@ function RoomsPageContent() {
                           )}
                         </div>
 
-                        <p className="md:group-hover:text-moto-blue mt-2 text-xs text-gray-400 transition-colors duration-150">
-                          Tippen für mehr Infos
-                        </p>
-
                         <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                       </div>
                     </div>

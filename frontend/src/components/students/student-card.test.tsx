@@ -46,8 +46,8 @@ describe("StudentCard", () => {
   it("renders student first and last name", () => {
     render(<StudentCard {...defaultProps} />);
 
-    expect(screen.getByText("Max")).toBeInTheDocument();
-    expect(screen.getByText("Mustermann")).toBeInTheDocument();
+    // Ein Name, eine Zeile — wie auf der Personal-Kachel.
+    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
   });
 
   it("renders location badge", () => {
@@ -69,14 +69,16 @@ describe("StudentCard", () => {
     render(<StudentCard {...defaultProps} />);
 
     expect(
-      screen.getByLabelText("Max Mustermann - Tippen für mehr Infos"),
+      screen.getByLabelText("Max Mustermann - Details öffnen"),
     ).toBeInTheDocument();
   });
 
-  it("renders click hint text", () => {
+  it("nennt das Ziel im Namen der Kachel statt in einer Hinweiszeile", () => {
     render(<StudentCard {...defaultProps} />);
 
-    expect(screen.getByText("Tippen für mehr Infos")).toBeInTheDocument();
+    // Die Hinweiszeile stand auf jeder der 116 Karten und war am Rechner
+    // ohnehin falsch („Tippen"). Das Ziel trägt jetzt das aria-label.
+    expect(screen.queryByText(/Tippen für mehr Infos/)).not.toBeInTheDocument();
   });
 
   it("renders extra content when provided", () => {
@@ -136,8 +138,10 @@ describe("StudentCard", () => {
         onCheckinClick={onCheckinClick}
       />,
     );
-    // Navigation hint copy.
-    expect(screen.getByText(/Tippen für mehr Infos/)).toBeInTheDocument();
+    // Navigation copy sits on the card's accessible name.
+    expect(
+      screen.getByLabelText("Max Mustermann - Details öffnen"),
+    ).toBeInTheDocument();
     // The default click goes to onClick, NOT onCheckinClick.
     fireEvent.click(screen.getByRole("button"));
     expect(onClick).toHaveBeenCalledTimes(1);

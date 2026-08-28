@@ -8,6 +8,7 @@ import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -863,6 +864,15 @@ function StaffPageContent() {
                         onClick={
                           canNavigateToStaff ? navigateToStaff : undefined
                         }
+                        ariaLabel={
+                          canNavigateToStaff
+                            ? `${staffMember.firstName} ${staffMember.lastName} - ${
+                                userIsAdmin
+                                  ? "Details öffnen"
+                                  : "Personalunterlagen öffnen"
+                              }`
+                            : undefined
+                        }
                       >
                         <div className="relative p-4">
                           <div className="relative flex min-h-[104px] flex-col">
@@ -889,18 +899,14 @@ function StaffPageContent() {
                               </div>
 
                               <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                                {/* Kein Glow, kein Pulsieren: 20 gleichzeitig
-                                leuchtende Badges sind Lärm, kein Status. */}
-                                <span
-                                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${locationStatus.badgeColor}`}
-                                  style={{
-                                    backgroundColor:
-                                      locationStatus.customBgColor,
-                                  }}
-                                >
-                                  <span className="h-1.5 w-1.5 rounded-full bg-white/80"></span>
-                                  {locationStatus.label}
-                                </span>
+                                {/* Dieselbe Pille wie beim Kind: helle Fläche,
+                                farbiger Punkt, dunkle Schrift. Vollflächige
+                                Badges in Signalfarbe waren auf einer Liste mit
+                                24 Personen eine Wand aus Rot. */}
+                                <StatusDotBadge
+                                  label={locationStatus.label}
+                                  color={locationStatus.customBgColor}
+                                />
                               </span>
                             </div>
 
@@ -944,7 +950,7 @@ function StaffPageContent() {
                                   {cardInfo.map((info) => (
                                     <span
                                       key={info}
-                                      className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+                                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700"
                                     >
                                       {info}
                                     </span>
@@ -953,19 +959,9 @@ function StaffPageContent() {
                               )}
 
                               {notes && (
-                                <p className="text-xs text-gray-500 italic transition-colors duration-300 md:group-hover:text-gray-600">
-                                  {notes}
-                                </p>
+                                <p className="text-xs text-gray-500">{notes}</p>
                               )}
                             </div>
-
-                            {canNavigateToStaff && (
-                              <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
-                                {userIsAdmin
-                                  ? "Tippen für mehr Infos"
-                                  : "Tippen für Personalunterlagen"}
-                              </p>
-                            )}
                           </div>
                         </div>
                       </TileCard>

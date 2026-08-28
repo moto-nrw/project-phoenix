@@ -1,76 +1,55 @@
 // Helper functions for staff data transformation and status determination
 
 import type { Staff } from "./staff-api";
-import { MOTO_COLOR_PALETTE } from "./location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {
   label: string;
-  badgeColor: string;
-  cardGradient: string;
+  /** Fläche der Pille — StatusDotBadge leitet Punkt und Schriftfarbe daraus ab. */
   customBgColor: string;
-  customShadow: string;
 }
 
-// Shared badge color used by all location statuses
-const BADGE_COLOR = "text-white backdrop-blur-sm";
-
-// Location color config: [cardGradient, customBgColor, rgbaValues]
-type LocationColorConfig = [string, string, string];
-
-const LOCATION_COLORS: Record<string, LocationColorConfig> = {
-  Abwesend: [
-    "from-moto-red-soft to-white",
-    MOTO_COLOR_PALETTE.red.base,
-    // Must track red.base (#DC2626); the retired #FF3130 left the card glow a
-    // visibly different red from the badge it sits under.
-    "220, 38, 38",
-  ],
-  Anwesend: [
-    "from-moto-green-soft to-white",
-    MOTO_COLOR_PALETTE.green.base,
-    "131, 205, 45",
-  ],
-  // Der Hex muss byte-gleich zu MOTO_COLOR_PALETTE.timeTracking.base bleiben,
-  // denn LOCATION_BADGE_TONES ist genau auf diesen Wert geschluesselt. Als
-  // Literal wuerde das Badge nach einer Palettenaenderung stumm auf den
-  // generischen Fallback zurueckfallen.
-  Homeoffice: [
-    "from-sky-50/80 to-sky-100/80",
-    MOTO_COLOR_PALETTE.timeTracking.base,
-    "14, 165, 233",
-  ],
+/**
+ * Statusfarben des Personals — dieselbe Sprache wie beim Kind.
+ *
+ * Vorher war sie genau umgekehrt: „Abwesend" trug das Rot von Krank/Fehler,
+ * „Krank" trug Grau. Auf einer Liste mit 24 Personen las sich der normale
+ * Feierabend damit wie ein Notfall. Jetzt gilt in beiden Listen:
+ * grün = da, grau = nicht da, rot = krank, lila = genehmigt abwesend.
+ */
+const STAFF_STATUS_COLORS: Record<string, string> = {
+  Anwesend: LOCATION_COLORS.GROUP_ROOM,
+  Abwesend: LOCATION_COLORS.HOME,
+  // Eigener Ton, weil Homeoffice weder Anwesenheit vor Ort noch Abwesenheit
+  // ist. Der Hex muss byte-gleich zu MOTO_COLOR_PALETTE.timeTracking.base
+  // bleiben, denn LOCATION_BADGE_TONES ist genau darauf geschlüsselt.
+  Homeoffice: MOTO_COLOR_PALETTE.timeTracking.base,
 };
 
-// Absence types all share the same gray styling
+// Absence types all share the "genehmigt abwesend" purple — dasselbe Lila,
+// das beim Kind „Entschuldigt" trägt.
 const ABSENCE_LOCATIONS = new Set([
   "Krank",
   "Urlaub",
   "Fortbildung",
   "Freizeitausgleich",
 ]);
-// Every label the badge can show BECAUSE of an absence — the gray set above
+// Every label the badge can show BECAUSE of an absence — the set above
 // plus "Abwesend", which is what an absence of type "other" resolves to (and
 // also what "not clocked in at all" resolves to, hence the second condition
 // below).
 const ABSENCE_BADGE_LABELS = new Set([...ABSENCE_LOCATIONS, "Abwesend"]);
-const ABSENCE_COLOR: LocationColorConfig = [
-  "from-gray-50/80 to-slate-100/80",
-  MOTO_COLOR_PALETTE.neutral.base,
-  "107, 114, 128",
-];
+
+function staffAbsenceColor(location: string): string {
+  return location === "Krank" ? LOCATION_COLORS.SICK : LOCATION_COLORS.EXCUSED;
+}
 
 function buildLocationStatus(
   label: string,
-  [cardGradient, customBgColor, rgba]: LocationColorConfig,
+  customBgColor: string,
 ): LocationStatus {
-  return {
-    label,
-    badgeColor: BADGE_COLOR,
-    cardGradient,
-    customBgColor,
-    customShadow: `0 8px 25px rgba(${rgba}, 0.4)`,
-  };
+  return { label, customBgColor };
 }
 
 // Get location status for a staff member based on their clock-in status
@@ -90,18 +69,17 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       : location;
 
   // Check direct matches first (Abwesend, Anwesend, Homeoffice)
-  const directMatch = LOCATION_COLORS[location];
+  const directMatch = STAFF_STATUS_COLORS[location];
   if (directMatch) {
     return buildLocationStatus(label, directMatch);
   }
 
-  // Absence types get gray styling.
   if (ABSENCE_LOCATIONS.has(location)) {
-    return buildLocationStatus(label, ABSENCE_COLOR);
+    return buildLocationStatus(label, staffAbsenceColor(location));
   }
 
   // Any other location (in a room, supervising) means they're present → green
-  return buildLocationStatus("Anwesend", LOCATION_COLORS.Anwesend!);
+  return buildLocationStatus("Anwesend", LOCATION_COLORS.GROUP_ROOM);
 }
 
 // Map auth role names to German display labels
@@ -171,7 +149,7 @@ export function formatStaffNotes(
     return trimmed;
   }
 
-  return trimmed.substring(0, maxLength - 3) + "...";
+  return trimmed.substring(0, maxLength - 1) + "…";
 }
 
 // Sort staff by supervision status and name

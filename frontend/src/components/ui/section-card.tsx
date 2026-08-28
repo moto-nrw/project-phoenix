@@ -30,6 +30,7 @@ export function SectionCard({
   leading,
   action,
   actions,
+  bare = false,
   collapsible = false,
   defaultCollapsed = false,
   onCollapsedChange,
@@ -56,6 +57,13 @@ export function SectionCard({
   /** Single header action. `actions` is the multi-element form. */
   action?: ReactNode;
   actions?: ReactNode;
+  /**
+   * Ohne eigene Kartenfläche, wenn der Inhalt selbst schon aus Karten besteht
+   * (eine Reihe `StatCard`, eine Liste `TileCard`). Sonst steht eine weiße
+   * Karte auf einer weißen Karte und beide Ränder werden schwach. Dieselbe
+   * Entscheidung trifft das Eltern-Portal mit `ParentSection bare`.
+   */
+  bare?: boolean;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
@@ -86,7 +94,11 @@ export function SectionCard({
   return (
     <section
       id={id}
-      className={`moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className}`}
+      className={
+        bare
+          ? cn("space-y-4", className)
+          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className}`
+      }
     >
       {hasHeader && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -152,7 +164,11 @@ export function SectionCard({
         </div>
       )}
       {showBody && (
-        <div className={hasHeader ? (bodyClassName ?? "mt-4") : undefined}>
+        <div
+          className={
+            hasHeader && !bare ? (bodyClassName ?? "mt-4") : bodyClassName
+          }
+        >
           {children}
         </div>
       )}

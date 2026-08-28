@@ -68,6 +68,12 @@ type StatCardProps = {
   readonly href?: string;
   /** Zeigt statt der Zahl ein Skelett. */
   readonly loading?: boolean;
+  /**
+   * Erklärung zur Zahl als Titel-Hinweis. Nur für Kennzahlen, deren
+   * Rechenweg jemand sonst falsch nachrechnet (Saldo-Veränderung). Kein
+   * Ersatz für `hint` — der ist sichtbar, dieser hier nicht.
+   */
+  readonly title?: string;
 };
 
 type StatTileProps = {
@@ -114,10 +120,12 @@ export function StatCard(props: StatCardProps | StatTileProps) {
     icon,
     href,
     loading = false,
+    title,
   } = props;
 
   const card = (
     <div
+      title={title}
       className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm sm:p-5 ${
         href
           ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
