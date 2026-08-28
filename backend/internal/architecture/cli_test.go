@@ -61,6 +61,22 @@ func TestCheckReportsUnclassifiedFirstPartyPackage(t *testing.T) {
 	if !strings.Contains(output, want) {
 		t.Fatalf("check did not report the unclassified package %q:\n%s", want, output)
 	}
+	if !strings.Contains(output, "  at target/target.go:1 (package target)") {
+		t.Fatalf("unclassified package has no source evidence:\n%s", output)
+	}
+}
+
+func TestProjectionIncludesUnclassifiedPackageLocation(t *testing.T) {
+	t.Parallel()
+
+	project := fixturePath(t, "valid")
+	policy := fixturePath(t, "unclassified-package.json")
+	bundle := loadDiagramBundle(t, project, policy)
+	key := "production|packages.unclassified|example.test/architecture-fixture/target|example.test/architecture-fixture/target"
+	want := []architecture.Location{{File: "target/target.go", Line: 1, Declaration: "package target"}}
+	if got := projectedViolation(t, bundle.Migration, key).Locations; !slices.Equal(got, want) {
+		t.Fatalf("projected package locations = %#v, want %#v", got, want)
+	}
 }
 
 func TestCheckRejectsDuplicatePackageClassification(t *testing.T) {
@@ -199,6 +215,38 @@ func TestCheckEvaluatesProductionInternalAndExternalTestsSeparately(t *testing.T
 	output, err := runArchitecture(t, "check", "--project", fixturePath(t, "scopes"), "--policy", fixturePath(t, "scopes", "policy.json"))
 	if err != nil {
 		t.Fatalf("scope-aware check failed: %v\n%s", err, output)
+	}
+}
+
+func TestCheckReportsEveryImportLocationInEachScope(t *testing.T) {
+	t.Parallel()
+
+	project := fixturePath(t, "scopes")
+	policy := forbiddenScopePolicy(t)
+	output := stableFailingCheck(t, "check", "--project", project, "--policy", policy)
+	assertContainsAll(t, output,
+		"production|imports.forbidden|example.test/architecture-scopes/source|example.test/architecture-scopes/production",
+		"  at source/another.go:3 (import example.test/architecture-scopes/production)",
+		"  at source/source.go:3 (import example.test/architecture-scopes/production)",
+		"internal_test|imports.forbidden|example.test/architecture-scopes/source|example.test/architecture-scopes/internal-target",
+		"  at source/another_test.go:6 (import example.test/architecture-scopes/internal-target)",
+		"  at source/source_test.go:6 (import example.test/architecture-scopes/internal-target)",
+		"external_test|imports.forbidden|example.test/architecture-scopes/source|example.test/architecture-scopes/external-target",
+		"  at source/another_external_test.go:6 (import example.test/architecture-scopes/external-target)",
+		"  at source/source_external_test.go:6 (import example.test/architecture-scopes/external-target)",
+	)
+	assertNoProjectPath(t, output, project)
+	bundle := loadDiagramBundle(t, project, policy)
+	if bundle.SchemaVersion != 2 || bundle.Migration.SchemaVersion != 2 {
+		t.Fatalf("location-aware projection schema versions = bundle %d, migration %d", bundle.SchemaVersion, bundle.Migration.SchemaVersion)
+	}
+	key := "production|imports.forbidden|example.test/architecture-scopes/source|example.test/architecture-scopes/production"
+	want := []architecture.Location{
+		{File: "source/another.go", Line: 3, Declaration: "import example.test/architecture-scopes/production"},
+		{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-scopes/production"},
+	}
+	if got := projectedViolation(t, bundle.Migration, key).Locations; !slices.Equal(got, want) {
+		t.Fatalf("projected import locations = %#v", got)
 	}
 }
 
@@ -435,6 +483,142 @@ func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 	}
 	if strings.Contains(output, "database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.MixedDB.Close") {
 		t.Fatalf("unrelated interface method was reported as database access:\n%s", output)
+	}
+}
+
+func TestCheckReportsDeterministicSemanticLocations(t *testing.T) {
+	t.Parallel()
+
+	project := fixturePath(t, "semantic", "invalid")
+	policy := fixturePath(t, "semantic", "invalid", "policy.json")
+	output := stableFailingCheck(t, "check", "--project", project, "--policy", policy)
+	assertContainsAll(t, output,
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.records",
+		"  at foreign/duplicate.go:6 (ReadAgain)",
+		"  at foreign/foreign.go:10 (ReadAndWrite)",
+		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun."+"DB.NewSelect",
+		"  at service/service.go:12 (Read)",
+		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Conn.ExecContext",
+		"  at service/service.go:34 (SQLAccess)",
+		"production|contracts.orm-tag|example.test/architecture-semantic/public|public.Leaky",
+		"  at public/public.go:10 (public.Leaky)",
+		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
+		"  at consumer/consumer.go:5 (Build)",
+	)
+	assertNoProjectPath(t, output, project)
+	bundle := loadDiagramBundle(t, project, policy)
+	for _, violation := range bundle.Migration.Violations {
+		if isSemanticRule(violation.Rule) && len(violation.Locations) == 0 {
+			t.Errorf("semantic violation %q has no machine-readable location", violation.Key)
+		}
+	}
+	key := "production|contracts.orm-tag|example.test/architecture-semantic/public|public.Leaky"
+	want := []architecture.Location{{File: "public/public.go", Line: 10, Declaration: "public.Leaky"}}
+	if got := projectedViolation(t, bundle.Migration, key).Locations; !slices.Equal(got, want) {
+		t.Fatalf("projected contract locations = %#v, want %#v", got, want)
+	}
+}
+
+func isSemanticRule(rule string) bool {
+	return strings.HasPrefix(rule, "tables.") || strings.HasPrefix(rule, "contracts.") ||
+		strings.HasPrefix(rule, "database.") || strings.HasPrefix(rule, "composition.")
+}
+
+type architectureBundle struct {
+	SchemaVersion int                     `json:"schema_version"`
+	Migration     architecture.Projection `json:"migration"`
+}
+
+func forbiddenScopePolicy(t *testing.T) string {
+	t.Helper()
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "scopes", "policy.json")), func(document map[string]any) {
+		var rules []any
+		for _, value := range document["rules"].([]any) {
+			rule := value.(map[string]any)
+			if !slices.Contains([]string{"production-edge", "internal-test-edge", "external-test-edge"}, rule["id"].(string)) {
+				rules = append(rules, rule)
+			}
+		}
+		document["rules"] = rules
+	})
+	path := filepath.Join(t.TempDir(), "policy.json")
+	writeFile(t, path, policy)
+	return path
+}
+
+func stableFailingCheck(t *testing.T, args ...string) string {
+	t.Helper()
+	first, err := runArchitecture(t, args...)
+	if err == nil {
+		t.Fatalf("architecture check unexpectedly succeeded:\n%s", first)
+	}
+	second, secondErr := runArchitecture(t, args...)
+	if secondErr == nil {
+		t.Fatalf("repeated architecture check unexpectedly succeeded:\n%s", second)
+	}
+	if first != second {
+		t.Fatalf("identical sources produced unstable output:\nFIRST:\n%s\nSECOND:\n%s", first, second)
+	}
+	return first
+}
+
+func assertContainsAll(t *testing.T, output string, expected ...string) {
+	t.Helper()
+	for _, want := range expected {
+		if !strings.Contains(output, want) {
+			t.Errorf("check output does not contain %q:\n%s", want, output)
+		}
+	}
+}
+
+func assertNoProjectPath(t *testing.T, output, project string) {
+	t.Helper()
+	if strings.Contains(output, project) {
+		t.Fatalf("check output contains an absolute project path:\n%s", output)
+	}
+}
+
+func loadDiagramBundle(t *testing.T, project, policy string) architectureBundle {
+	t.Helper()
+	outputDirectory := t.TempDir()
+	output, err := runArchitecture(t, "diagram", "--project", project, "--policy", policy, "--output", outputDirectory)
+	if err != nil {
+		t.Fatalf("diagram failed: %v\n%s", err, output)
+	}
+	var bundle architectureBundle
+	path := filepath.Join(outputDirectory, "architecture.json")
+	if err := json.Unmarshal([]byte(readFile(t, path)), &bundle); err != nil {
+		t.Fatalf("decode architecture.json: %v", err)
+	}
+	return bundle
+}
+
+func projectedViolation(t *testing.T, projection architecture.Projection, key string) architecture.ProjectionViolation {
+	t.Helper()
+	for _, violation := range projection.Violations {
+		if violation.Key == key {
+			return violation
+		}
+	}
+	t.Fatalf("machine projection omits violation %q", key)
+	return architecture.ProjectionViolation{}
+}
+
+func TestLineDirectivesDoNotReplacePhysicalSemanticLocations(t *testing.T) {
+	t.Parallel()
+
+	output, err := runArchitecture(t,
+		"check",
+		"--project", fixturePath(t, "unresolved-location"),
+		"--policy", fixturePath(t, "unresolved-location", "policy.json"),
+	)
+	if err == nil {
+		t.Fatalf("semantic violation unexpectedly succeeded:\n%s", output)
+	}
+	for _, want := range []string{"database.direct-access", "  at source/source.go:7 (Read)"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("physical semantic location does not contain %q:\n%s", want, output)
+		}
 	}
 }
 

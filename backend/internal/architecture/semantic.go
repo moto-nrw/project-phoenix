@@ -48,7 +48,7 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 	if err != nil {
 		return nil, err
 	}
-	analyzer := newSemanticAnalyzer(policy)
+	analyzer := newSemanticAnalyzer(policy, project)
 	if err := validateLoadedLegacySymbols(loaded, analyzer.legacySymbols); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,11 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 	var violations []Violation
 	for _, pkg := range loaded {
 		if isOwnPackage(policy.ModulePath, pkg.PkgPath) {
-			violations = append(violations, analyzer.analyzePackage(pkg)...)
+			packageViolations, err := analyzer.analyzePackage(pkg)
+			if err != nil {
+				return nil, err
+			}
+			violations = append(violations, packageViolations...)
 		}
 	}
 	return uniqueSortedViolations(violations), nil
@@ -81,9 +85,9 @@ func loadTypedPackages(project string, build Build) ([]*packages.Package, error)
 	return loaded, nil
 }
 
-func newSemanticAnalyzer(policy *Policy) semanticAnalyzer {
+func newSemanticAnalyzer(policy *Policy, project string) semanticAnalyzer {
 	analyzer := semanticAnalyzer{
-		policy:        policy,
+		project:       project,
 		packages:      policy.packageMap(),
 		dataObjects:   make(map[string]DataObject, len(policy.DataObjects)),
 		dataSchemas:   make(map[string]struct{}),
@@ -124,7 +128,7 @@ func populateSemanticPolicy(analyzer *semanticAnalyzer, policy *Policy) {
 }
 
 type semanticAnalyzer struct {
-	policy        *Policy
+	project       string
 	packages      map[string]Package
 	dataObjects   map[string]DataObject
 	dataSchemas   map[string]struct{}
@@ -132,41 +136,125 @@ type semanticAnalyzer struct {
 	legacySymbols map[string]map[string]struct{}
 }
 
-func (a semanticAnalyzer) analyzePackage(pkg *packages.Package) []Violation {
+func (a semanticAnalyzer) analyzePackage(pkg *packages.Package) ([]Violation, error) {
 	classification, classified := a.packages[pkg.PkgPath]
 	if !classified {
-		return nil
+		return nil, nil
 	}
 
 	var violations []Violation
 	for _, file := range pkg.Syntax {
-		violations = append(violations, a.analyzeFile(pkg, classification, file)...)
+		fileViolations, err := a.analyzeFile(pkg, classification, file)
+		if err != nil {
+			return nil, err
+		}
+		violations = append(violations, fileViolations...)
 	}
-	violations = append(violations, a.legacyReferenceViolations(pkg)...)
+	legacyViolations, err := a.legacyReferenceViolations(pkg)
+	if err != nil {
+		return nil, err
+	}
+	violations = append(violations, legacyViolations...)
 	if classification.Role == "public" || classification.Role == "contract" {
-		violations = append(violations, contractViolations(pkg)...)
+		contractFindings, err := a.locateContractViolations(pkg, contractViolations(pkg))
+		if err != nil {
+			return nil, err
+		}
+		violations = append(violations, contractFindings...)
 	}
-	return violations
+	return violations, nil
 }
 
-func (a semanticAnalyzer) analyzeFile(pkg *packages.Package, classification Package, file *ast.File) []Violation {
+func (a semanticAnalyzer) analyzeFile(pkg *packages.Package, classification Package, file *ast.File) ([]Violation, error) {
 	parents := astParents(file)
 	var violations []Violation
 	for _, decl := range file.Decls {
-		functionName := path.Base(pkg.PkgPath)
-		if function, ok := decl.(*ast.FuncDecl); ok {
-			functionName = function.Name.Name
-		}
+		declaration := declarationName(pkg.PkgPath, decl)
+		var locationErr error
 		ast.Inspect(decl, func(node ast.Node) bool {
+			if locationErr != nil {
+				return false
+			}
 			call, ok := node.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
-			violations = append(violations, a.callViolations(pkg, classification, functionName, call, parents)...)
+			callViolations := a.callViolations(pkg, classification, declaration, call, parents)
+			if len(callViolations) == 0 {
+				return true
+			}
+			location, err := a.nodeLocation(pkg, call.Pos(), declaration)
+			if err != nil {
+				locationErr = err
+				return false
+			}
+			violations = append(violations, attachLocation(callViolations, location)...)
 			return true
 		})
+		if locationErr != nil {
+			return nil, fmt.Errorf("resolve semantic location in %s: %w", pkg.PkgPath, locationErr)
+		}
+	}
+	return violations, nil
+}
+
+func declarationName(packagePath string, declaration ast.Decl) string {
+	switch typed := declaration.(type) {
+	case *ast.FuncDecl:
+		if typed.Recv == nil || len(typed.Recv.List) == 0 {
+			return typed.Name.Name
+		}
+		return receiverTypeName(typed.Recv.List[0].Type) + "." + typed.Name.Name
+	case *ast.GenDecl:
+		if names := declaredNames(typed); len(names) > 0 {
+			return typed.Tok.String() + " " + strings.Join(names, ", ")
+		}
+	}
+	return path.Base(packagePath)
+}
+
+func declaredNames(declaration *ast.GenDecl) []string {
+	var names []string
+	for _, specification := range declaration.Specs {
+		switch typed := specification.(type) {
+		case *ast.TypeSpec:
+			names = append(names, typed.Name.Name)
+		case *ast.ValueSpec:
+			for _, name := range typed.Names {
+				names = append(names, name.Name)
+			}
+		}
+	}
+	return names
+}
+
+func receiverTypeName(expression ast.Expr) string {
+	switch typed := expression.(type) {
+	case *ast.Ident:
+		return typed.Name
+	case *ast.StarExpr:
+		return receiverTypeName(typed.X)
+	case *ast.IndexExpr:
+		return receiverTypeName(typed.X)
+	case *ast.IndexListExpr:
+		return receiverTypeName(typed.X)
+	default:
+		return "method"
+	}
+}
+
+func attachLocation(violations []Violation, location Location) []Violation {
+	for index := range violations {
+		violations[index].Locations = append(violations[index].Locations, location)
 	}
 	return violations
+}
+
+func (a semanticAnalyzer) nodeLocation(pkg *packages.Package, position token.Pos, declaration string) (Location, error) {
+	if pkg.Fset == nil {
+		return Location{}, fmt.Errorf("go file set is unavailable")
+	}
+	return sourceLocation(a.project, pkg.Fset.PositionFor(position, false), declaration)
 }
 
 func astParents(root ast.Node) map[ast.Node]ast.Node {
@@ -857,25 +945,110 @@ func constantString(info *types.Info, expression ast.Expr) (string, bool) {
 	return constant.StringVal(typed.Value), true
 }
 
-func (a semanticAnalyzer) legacyReferenceViolations(pkg *packages.Package) []Violation {
+func (a semanticAnalyzer) legacyReferenceViolations(pkg *packages.Package) ([]Violation, error) {
 	var violations []Violation
-	for _, object := range pkg.TypesInfo.Uses {
-		if object == nil || object.Pkg() == nil || object.Pkg().Path() == pkg.PkgPath {
-			continue
+	for _, file := range pkg.Syntax {
+		for _, declaration := range file.Decls {
+			found, err := a.legacyReferencesInDeclaration(pkg, declaration)
+			if err != nil {
+				return nil, err
+			}
+			violations = append(violations, found...)
 		}
-		symbols, ok := a.legacySymbols[object.Pkg().Path()]
-		if !ok {
-			continue
-		}
-		if _, ok := symbols[object.Name()]; !ok {
-			continue
-		}
-		violations = append(violations, Violation{
-			Scope: ScopeProduction, Rule: "composition.legacy-reference", Source: pkg.PkgPath,
-			Target: object.Pkg().Path() + "." + object.Name(), Detail: "typed reference couples the package to legacy composition",
-		})
 	}
-	return violations
+	return violations, nil
+}
+
+func (a semanticAnalyzer) legacyReferencesInDeclaration(pkg *packages.Package, declaration ast.Decl) ([]Violation, error) {
+	var violations []Violation
+	var locationErr error
+	name := declarationName(pkg.PkgPath, declaration)
+	ast.Inspect(declaration, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		violation, found, err := a.legacyReferenceViolation(pkg, identifier, name)
+		if err != nil {
+			locationErr = err
+			return false
+		}
+		if found {
+			violations = append(violations, violation)
+		}
+		return true
+	})
+	if locationErr != nil {
+		return nil, fmt.Errorf("resolve semantic location in %s: %w", pkg.PkgPath, locationErr)
+	}
+	return violations, nil
+}
+
+func (a semanticAnalyzer) legacyReferenceViolation(pkg *packages.Package, identifier *ast.Ident, declaration string) (Violation, bool, error) {
+	object := pkg.TypesInfo.Uses[identifier]
+	if object == nil || object.Pkg() == nil || object.Pkg().Path() == pkg.PkgPath {
+		return Violation{}, false, nil
+	}
+	symbols, configured := a.legacySymbols[object.Pkg().Path()]
+	_, included := symbols[object.Name()]
+	if !configured || !included {
+		return Violation{}, false, nil
+	}
+	location, err := a.nodeLocation(pkg, identifier.Pos(), declaration)
+	if err != nil {
+		return Violation{}, false, err
+	}
+	return Violation{
+		Scope: ScopeProduction, Rule: "composition.legacy-reference", Source: pkg.PkgPath,
+		Target: object.Pkg().Path() + "." + object.Name(), Detail: "typed reference couples the package to legacy composition",
+		Locations: []Location{location},
+	}, true, nil
+}
+
+func (a semanticAnalyzer) locateContractViolations(pkg *packages.Package, violations []Violation) ([]Violation, error) {
+	for index := range violations {
+		position, ok := contractDeclarationPosition(pkg, violations[index].Target)
+		if !ok {
+			return nil, fmt.Errorf("resolve semantic location for %s: declaration %q is unavailable", violations[index].Key(), violations[index].Target)
+		}
+		location, err := a.nodeLocation(pkg, position, violations[index].Target)
+		if err != nil {
+			return nil, fmt.Errorf("resolve semantic location for %s: %w", violations[index].Key(), err)
+		}
+		violations[index].Locations = append(violations[index].Locations, location)
+	}
+	return violations, nil
+}
+
+func contractDeclarationPosition(pkg *packages.Package, target string) (token.Pos, bool) {
+	qualifiedPrefix := path.Base(pkg.PkgPath) + "."
+	pathParts := strings.Split(strings.TrimPrefix(target, qualifiedPrefix), ".")
+	if len(pathParts) == 0 || pathParts[0] == target {
+		return token.NoPos, false
+	}
+	object := pkg.Types.Scope().Lookup(pathParts[0])
+	if object == nil || object.Pos() == token.NoPos {
+		return token.NoPos, false
+	}
+	position := object.Pos()
+	current := object.Type()
+	for _, name := range pathParts[1:] {
+		if signature, ok := current.(*types.Signature); ok {
+			if signature.Results().Len() == 0 {
+				return position, true
+			}
+			current = signature.Results().At(0).Type()
+		}
+		member, _, _ := types.LookupFieldOrMethod(current, true, pkg.Types, name)
+		if member == nil {
+			return position, true
+		}
+		if member.Pkg() != nil && member.Pkg().Path() == pkg.PkgPath && member.Pos() != token.NoPos {
+			position = member.Pos()
+		}
+		current = member.Type()
+	}
+	return position, true
 }
 
 func validateLoadedLegacySymbols(loaded []*packages.Package, legacy map[string]map[string]struct{}) error {
