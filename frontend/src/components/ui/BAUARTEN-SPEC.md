@@ -274,3 +274,54 @@ aufgeräumt, sie gehört zum Umbau.
 Die Hilfe-Anleitung (`components/help/guide-data.ts`) und ihre Screenshots
 werden im selben Zug nachgezogen — jeder Schritt, der einen Pfad oder einen
 Namen nennt, den dieser Umbau ändert.
+
+---
+
+# Teil 3 — Ruhe: zwei Ebenen, eine Kopffläche
+
+Nachtrag vom 28.08.2026 nach der Sichtprüfung im Browser. Die Seiten waren
+regelkonform und wirkten trotzdem zusammengeschustert. Ursache waren nicht die
+Bauteile, sondern wie sie auf dem Grund lagen.
+
+## 1. Es gibt zwei Ebenen: Grund und Fläche
+
+Der gemusterte Hintergrund ist Grund. **Auf dem Grund steht kein Text.** Keine
+Überschrift, kein Erklärsatz, keine Zahl, keine Reiterzeile, kein
+Bedienelement. Alles davon sitzt auf einer Fläche aus dem Kit.
+
+Der häufigste Verstoß ist `SectionCard bare`: die Karte verzichtet auf ihre
+Fläche, und ihr Titel samt Zeitraumwahl schwebt danach auf dem Punktraster.
+`bare` ist nur zulässig, wenn der Abschnitt AUSSCHLIESSLICH andere Karten
+enthält und selbst weder Titel noch Text trägt.
+
+## 2. Die Kopfkarte ist eine geschlossene Fläche
+
+Titel, Statuszeile, Suche und Reiter gehören in EINE Karte, in dieser
+Reihenfolge. Die Reiter sind ihre letzte Zeile, abgesetzt durch eine
+Trennlinie über die volle Kartenbreite, mit Luft zur Unterkante. Die Karte
+bleibt unten gerundet und gerahmt — eine offene Kante hängt in der Luft,
+solange der Inhalt erst 24 px darunter beginnt.
+
+Verboten ist die frühere Bauart: eine Reiterzeile zwischen Kopf und Inhalt,
+frei auf dem Grund, mit einer Haarlinie, die im Nichts endet.
+
+**Der aktive Reiter ist eine Fläche, kein Unterstrich.** Ein Unterstrich
+existiert nur am aktiven Reiter; die Zeile richtet sich dann optisch an etwas
+aus, das den übrigen Reitern fehlt, und unter deren Text steht fast doppelt so
+viel Luft. Als gleich große Kästen (36 px, je 13 px Luft über und unter der
+Reihe) hängt der Abstand an nichts mehr. Es ist zugleich dieselbe Sprache wie
+in der Seitenleiste: aktiv ist Fläche und Schriftschnitt, nicht Farbe.
+
+## 3. Höchstens vier Seitenreiter
+
+Mehr Reiter sind eine Werkzeugleiste, keine Orientierung. Was täglich
+gebraucht wird, steht als Reiter; alles Seltene bündelt sich hinter EINEM
+Reiter mit Menü (`TenantPageTab.menu`), benannt nach dem, was es enthält —
+in der Regel „Verwaltung". Der gebündelte Reiter zeigt den Namen des offenen
+Untereintrags, damit man sieht, wo man ist.
+
+## 4. Farbe bleibt Status
+
+Unverändert gültig (Querregel Farbe). Ergänzend aus der Sichtprüfung: eine
+Kennzahl, die nur groß ist, ist kein Warnzustand. Orange und Rot an einer Zahl
+bedeuten, dass jemand handeln muss — sonst bleibt sie neutral.

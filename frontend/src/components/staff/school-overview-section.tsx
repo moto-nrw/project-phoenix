@@ -100,8 +100,10 @@ export function SchoolOverviewSection() {
   return (
     // Überschrift und Zeitraum stehen IN der Karte, wie in jedem anderen
     // Abschnitt; vorher schwebten sie über der Fläche.
+    // Nicht `bare`: sonst stehen Überschrift, Zeitraumwahl und der
+    // Stundenkonto-Streifen direkt auf dem gemusterten Grund. Es gibt zwei
+    // Ebenen — Grund und Fläche — und Text gehört auf eine Fläche.
     <SectionCard
-      bare
       title="Einrichtungs-Übersicht"
       actions={
         <SegmentedControl

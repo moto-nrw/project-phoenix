@@ -16,7 +16,7 @@ export default function SetupGuidePage() {
       chapters={setupChapters}
       activePath="ersteinrichtung"
       numbered
-      note="Fast alle diese Schritte erledigen Sie zentral unter `Datenverwaltung` in der Seitenleiste. Dort werden Personal, Räume, Gruppen, Aktivitäten und Kinder gepflegt."
+      note="Die Stammdaten stehen jeweils an ihrer Sammlung: `Kinder`, `Mitarbeitende`, `Räume` und `Aktivitäten` haben dafür den Reiter `Stammdaten`. Gruppen pflegen Sie unter `Einstellungen` im Reiter `Gruppen`."
     />
   );
 }

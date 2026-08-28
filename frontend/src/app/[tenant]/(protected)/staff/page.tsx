@@ -697,14 +697,24 @@ function StaffPageContent() {
     ? getTabsForCollection(STAFF_FLAT_PAGES.staff.href)
     : [];
 
-  const tabItems = [
-    ...(canReadUsers ? [{ value: "status", label: "Status" }] : []),
-    { value: "accounts", label: "Zeitkonten" },
+  // Was man selten braucht, steht gebündelt hinter „Verwaltung": Protokoll,
+  // Unterlagen, Stammdaten und Vertretungszugriff sind Verwaltungsflächen und
+  // gehören nicht gleichrangig neben die tägliche Ansicht. Sechs Reiter
+  // nebeneinander sind eine Werkzeugleiste, keine Orientierung.
+  const verwaltungItems = [
     { value: "audit", label: "Änderungsprotokoll" },
     ...(canAccessDocuments
       ? [{ value: "documents", label: "Personalunterlagen" }]
       : []),
     ...linkedTabs.map((tab) => ({ value: tab.href, label: tab.label })),
+  ];
+
+  const tabItems = [
+    ...(canReadUsers ? [{ value: "status", label: "Status" }] : []),
+    { value: "accounts", label: "Zeitkonten" },
+    ...(verwaltungItems.length > 0
+      ? [{ value: "verwaltung", label: "Verwaltung", menu: verwaltungItems }]
+      : []),
   ];
 
   return (

@@ -177,12 +177,13 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    const auditTab = screen.getByRole("tab", {
-      name: "Änderungsprotokoll",
-    });
-    fireEvent.pointerDown(auditTab, { button: 0, pointerType: "mouse" });
-    fireEvent.mouseDown(auditTab, { button: 0 });
-    fireEvent.click(auditTab);
+    // Das Änderungsprotokoll liegt seit der Bündelung hinter dem Reiter
+    // „Verwaltung"; erreichbar bleibt es unverändert — genau das prüft dieser
+    // Test, nicht die Stelle im Reiterband.
+    fireEvent.click(screen.getByRole("button", { name: "Verwaltung" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Änderungsprotokoll" }),
+    );
 
     expect(screen.getByTestId("staff-audit-log")).toBeInTheDocument();
     expect(
@@ -258,12 +259,10 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getDocumentDirectory).not.toHaveBeenCalled();
     expect(getTimeAccounts).toHaveBeenCalledTimes(1);
 
-    const documentsTab = screen.getByRole("tab", {
-      name: "Personalunterlagen",
-    });
-    fireEvent.pointerDown(documentsTab, { button: 0, pointerType: "mouse" });
-    fireEvent.mouseDown(documentsTab, { button: 0 });
-    fireEvent.click(documentsTab);
+    fireEvent.click(screen.getByRole("button", { name: "Verwaltung" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Personalunterlagen" }),
+    );
 
     expect(screen.getByText(/Wählen Sie eine Person/)).toBeInTheDocument();
     expect(getDocumentDirectory).toHaveBeenCalled();

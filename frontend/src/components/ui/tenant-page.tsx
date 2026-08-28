@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
@@ -51,6 +53,13 @@ export interface TenantPageTab {
    * Ohne `href` schaltet der Reiter wie bisher nur den Inhalt um.
    */
   readonly href?: string;
+  /**
+   * Untereinträge. Ein Reiter mit Menü bündelt Flächen, die man selten
+   * braucht (die Register einer Sammlung), damit sie nicht gleichrangig neben
+   * der täglichen Ansicht stehen. Sechs Reiter nebeneinander sind eine
+   * Werkzeugleiste, keine Orientierung.
+   */
+  readonly menu?: readonly TenantPageTab[];
 }
 
 export interface TenantPageProps {
@@ -276,7 +285,17 @@ export function TenantPage({
           Filterzeile. Sie schließt eng um ihren Inhalt: 20 px Rand, 4 px
           zwischen Titel und Statuszeile, 16 px vor der Suchzeile. Kein
           reservierter Leerraum darunter — genau der war der tote Streifen. */}
-      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      {/* Eine Fläche von Titel bis Reiter. Die Reiter lagen vorher frei auf
+          dem gemusterten Grund und sahen aus wie nachträglich dazwischen
+          geschoben; sie sind jetzt die letzte Zeile des Kopfes. Die Karte
+          bleibt dabei unten geschlossen und gerundet — der Inhalt beginnt
+          erst 24 px darunter, eine offene Kante hinge in der Luft. */}
+      <header
+        className={cn(
+          "moto-content-surface rounded-2xl border shadow-sm",
+          tabs ? "px-5 pt-5 pb-0" : "p-5",
+        )}
+      >
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 items-center gap-3">
             {leading}
@@ -343,18 +362,13 @@ export function TenantPage({
             )}
           </div>
         )}
+        {/* Kein eigener Außenabstand: den Abstand über der Trennlinie setzt
+            die Reiterzeile selbst, sonst stapeln sich zwei Werte und die
+            Zeile rutscht nach unten. */}
+        {tabs && <TenantPageTabs {...tabs} />}
       </header>
 
-      {/* Die Reiter gehören zum Kopf, nicht zum Inhalt: eng darunter, mit
-          echtem Abstand zum Inhalt. Vorher lagen 24 px darüber und 0 darunter,
-          der Inhalt klebte an der Trennlinie. */}
-      {tabs && (
-        <div className="mt-4">
-          <TenantPageTabs {...tabs} />
-        </div>
-      )}
-
-      <div className="mt-6 space-y-6">
+      <div className={cn("space-y-6", tabs ? "mt-6" : "mt-6")}>
         <TenantPageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `${title} wird geladen…`}
@@ -383,12 +397,14 @@ function TenantPageTabs({
   label = "Seitenbereiche",
 }: NonNullable<TenantPageProps["tabs"]>) {
   return (
-    <>
+    // Die Trennlinie braucht oben dieselbe Luft wie die Reiter unten,
+    // sonst klebt sie an der Suchzeile und die Zeile wirkt nach unten gerutscht.
+    <div className="-mx-5 mt-4">
       {/* Unter sm eine Auswahlliste: sieben Reiter nebeneinander wären auf
           einem Telefon eine Scrollleiste, in der die Hälfte der Bereiche
           unsichtbar bleibt. Dieselbe Bauart, andere Form — kein Sonderweg
           pro Seite. */}
-      <div className="sm:hidden">
+      <div className="border-t border-gray-200 px-5 pt-3 pb-3 sm:hidden">
         <label className="sr-only" htmlFor="tenant-page-tabs">
           {label}
         </label>
@@ -398,32 +414,46 @@ function TenantPageTabs({
           onChange={(event) => onChange(event.target.value)}
           className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 shadow-sm focus:ring-2 focus:outline-none"
         >
-          {items.map((item) => (
-            <option
-              key={item.value}
-              value={item.value}
-              disabled={item.disabled}
-            >
-              {item.badge !== undefined && item.badge > 0
-                ? `${item.label} (${item.badge})`
-                : item.label}
-            </option>
-          ))}
+          {items
+            .flatMap((item) => (item.menu ? [...item.menu] : [item]))
+            .map((item) => (
+              <option
+                key={item.value}
+                value={item.value}
+                disabled={item.disabled}
+              >
+                {item.badge !== undefined && item.badge > 0
+                  ? `${item.label} (${item.badge})`
+                  : item.label}
+              </option>
+            ))}
         </select>
       </div>
 
+      {/* Volle Kartenbreite: die Trennlinie über den Reitern läuft von Rand
+          zu Rand, sonst schwebt sie in der Polsterung. Die aktive Marke sitzt
+          auf der Unterkante der Karte, dort wo der Inhalt anschließt. */}
       <div
         role="tablist"
         aria-label={label}
-        className="-mb-px hidden gap-1 overflow-x-auto border-b border-gray-200 sm:flex"
+        className="hidden gap-1 overflow-x-auto border-t border-gray-200 px-5 pt-3 pb-3 sm:flex"
       >
         {items.map((item) => {
-          const active = item.value === value;
+          const active = item.menu
+            ? item.menu.some((entry) => entry.value === value)
+            : item.value === value;
+          // Der aktive Reiter ist eine Fläche, kein Unterstrich. Ein Strich
+          // an der Unterkante haben nur die aktiven Reiter, und die Zeile
+          // richtet sich dann optisch an etwas aus, das den meisten Reitern
+          // fehlt: unter dem Text der übrigen steht doppelt so viel Luft.
+          // Als gleich große Kästen hängt der Abstand an nichts mehr — und es
+          // ist dieselbe Sprache wie in der Seitenleiste: aktiv ist Fläche und
+          // Schriftschnitt, nicht Farbe.
           const tabClass = cn(
-            "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+            "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors",
             active
-              ? "border-moto-green text-gray-900"
-              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900",
+              ? "bg-gray-100 font-semibold text-gray-900"
+              : "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900",
             item.disabled && "cursor-not-allowed opacity-50",
           );
           const inner = (
@@ -436,6 +466,26 @@ function TenantPageTabs({
               )}
             </>
           );
+          if (item.menu && item.menu.length > 0) {
+            const openEntry = item.menu.find((entry) => entry.value === value);
+            return (
+              <OverflowMenu
+                key={item.value}
+                ariaLabel={item.label}
+                triggerClassName={tabClass}
+                triggerContent={
+                  <span className="flex items-center gap-1">
+                    {openEntry ? openEntry.label : item.label}
+                    <ChevronDown className="size-3.5" aria-hidden />
+                  </span>
+                }
+                items={item.menu.map((entry) => ({
+                  label: entry.label,
+                  onClick: () => onChange(entry.value),
+                }))}
+              />
+            );
+          }
           if (item.href && !item.disabled) {
             return (
               <Link
@@ -483,7 +533,7 @@ function TenantPageTabs({
           );
         })}
       </div>
-    </>
+    </div>
   );
 }
 

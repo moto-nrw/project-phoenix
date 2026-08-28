@@ -76,11 +76,11 @@ describe("HelpSearchInline", () => {
     expect(screen.getAllByRole("option")[0]).toHaveTextContent("Räume anlegen");
   });
 
-  it("matches multi-word queries token-by-token (Kind finden -> Alle Kinder)", () => {
+  it("matches multi-word queries token-by-token (Kind finden -> Kinder)", () => {
     render(<HelpSearchInline />);
     typeQuery("Kind finden");
     const firstOption = screen.getAllByRole("option")[0];
-    expect(firstOption).toHaveTextContent("Alle Kinder");
+    expect(firstOption).toHaveTextContent("Kinder");
     expect(firstOption?.closest("a")).toHaveAttribute(
       "href",
       "/help/features#kindersuche",
@@ -92,7 +92,7 @@ describe("HelpSearchInline", () => {
     typeQuery("kind");
     const option = screen
       .getAllByRole("option")
-      .find((o) => o.textContent?.includes("Alle Kinder"));
+      .find((o) => o.getAttribute("href")?.endsWith("#kindersuche"));
     expect(option).toBeDefined();
     const marks = option!.querySelectorAll("mark");
     // Every mark is the clean contiguous token "Kind" — both the title and the
@@ -168,8 +168,8 @@ describe("HelpSearchInline", () => {
     typeQuery("kind");
     const option = screen
       .getAllByRole("option")
-      .find((o) => o.textContent?.includes("Alle Kinder"));
-    // "Kind" appears in both the title ("Kindersuche") and the summary
+      .find((o) => o.getAttribute("href")?.endsWith("#kindersuche"));
+    // "Kind" appears in both the title ("Kinder") and the summary
     // ("…jedes Kind…"), so a summary-aware highlighter yields ≥2 marks.
     expect(option!.querySelectorAll("mark").length).toBeGreaterThanOrEqual(2);
   });
@@ -298,12 +298,12 @@ describe("HelpSearchInline", () => {
 
   it("coalesces overlapping highlight ranges into a single mark", () => {
     render(<HelpSearchInline />);
-    // "kind" (0–3) and "kinder" (0–5) both match "Kindersuche"; their ranges
+    // "kind" (0–3) and "kinder" (0–5) both match the "Kinder" card; their ranges
     // overlap and must merge into one clean <mark> rather than nested spans.
     typeQuery("kind kinder");
     const option = screen
       .getAllByRole("option")
-      .find((o) => o.textContent?.includes("Alle Kinder"));
+      .find((o) => o.getAttribute("href")?.endsWith("#kindersuche"));
     expect(option).toBeDefined();
     const marks = [...option!.querySelectorAll("mark")];
     expect(marks.some((m) => m.textContent === "Kinder")).toBe(true);
@@ -330,14 +330,14 @@ describe("useHelpSearch", () => {
     const { result } = renderHook(() => useHelpSearch());
     act(() => result.current.setQuery("Alle Kinder"));
     const top = result.current.hits[0];
-    expect(top?.record.title).toBe("Alle Kinder");
+    expect(top?.record.title).toBe("Kinder");
     expect(top?.summaryRanges).toBeDefined();
   });
 
   it("keeps the former Kindersuche name as a search alias", () => {
     const { result } = renderHook(() => useHelpSearch());
     act(() => result.current.setQuery("Kindersuche"));
-    expect(result.current.hits[0]?.record.title).toBe("Alle Kinder");
+    expect(result.current.hits[0]?.record.title).toBe("Kinder");
   });
 
   it("ranks the Wochenplan chapter first for Abholzeit (#2368)", () => {
