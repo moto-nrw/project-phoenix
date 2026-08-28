@@ -15,6 +15,13 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import {
+  SlideOver,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+  SlideOverCloseButton,
+} from "~/components/ui/slide-over";
+import {
   EnrollmentForm,
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form";
@@ -246,99 +253,111 @@ export function ManualApprovedEnrollmentModal({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Kind manuell über Anmeldung freigeben"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-5xl"
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
-          {phase.name}: Diese Eingabe nutzt dieselbe Vorlage, dieselben
-          Betreuungsangebote und dieselbe Freigabe-Logik wie die
-          Online-Anmeldung. Nach dem Absenden wird das Kind direkt bestätigt.
-        </p>
-        {loadError || configurationError ? (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-sm">
-            {loadError ?? configurationError}
+      <SlideOverContent widthClass="sm:w-[900px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              Kind manuell über Anmeldung freigeben
+            </SlideOverTitle>
           </div>
-        ) : null}
-        {statusUrl ? (
-          <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
-            <p className="text-moto-green-strong text-sm font-medium">
-              Die manuelle Anmeldung wurde angelegt und freigegeben.
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                aria-label="Statuslink der manuellen Anmeldung"
-                readOnly
-                value={statusUrl}
-                className="ring-moto-green/30 min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-inset"
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <p className="text-sm leading-6 text-gray-600">
+            {phase.name}: Diese Eingabe nutzt dieselbe Vorlage, dieselben
+            Betreuungsangebote und dieselbe Freigabe-Logik wie die
+            Online-Anmeldung. Nach dem Absenden wird das Kind direkt bestätigt.
+          </p>
+          {loadError || configurationError ? (
+            <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border px-3 py-2 text-sm">
+              {loadError ?? configurationError}
+            </div>
+          ) : null}
+          {statusUrl ? (
+            <div className="border-moto-green/30 bg-moto-green/10 rounded-xl border p-3">
+              <p className="text-moto-green-strong text-sm font-medium">
+                Die manuelle Anmeldung wurde angelegt und freigegeben.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  aria-label="Statuslink der manuellen Anmeldung"
+                  readOnly
+                  value={statusUrl}
+                  className="ring-moto-green/30 min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-inset"
+                />
+                <PublicLinkCopyButton
+                  url={statusUrl}
+                  componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
+                  label="Statuslink kopieren"
+                />
+              </div>
+            </div>
+          ) : null}
+          <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">
+                Interner Grund
+              </span>
+              <textarea
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                rows={3}
+                className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+                placeholder="z. B. verspätete Rückmeldung telefonisch bestätigt"
               />
-              <PublicLinkCopyButton
-                url={statusUrl}
-                componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
-                label="Statuslink kopieren"
-              />
+            </label>
+            <div className="space-y-3 text-sm text-gray-700">
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={externalConsentConfirmed}
+                  onChange={(event) =>
+                    setExternalConsentConfirmed(event.target.checked)
+                  }
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
+                />
+                <span>Einwilligung der Eltern liegt extern vor.</span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={sendNotification}
+                  onChange={(event) =>
+                    setSendNotification(event.target.checked)
+                  }
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
+                />
+                <span>Eltern per E-Mail benachrichtigen.</span>
+              </label>
             </div>
           </div>
-        ) : null}
-        <div className="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_16rem]">
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-gray-700">
-              Interner Grund
-            </span>
-            <textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              rows={3}
-              className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
-              placeholder="z. B. verspätete Rückmeldung telefonisch bestätigt"
+          {loading ? (
+            <p className="text-sm text-gray-500">
+              Formularvorlage wird geladen...
+            </p>
+          ) : prefetchedData && gradeLevelMax !== null ? (
+            <EnrollmentForm
+              phaseID={phase.id}
+              gradeLevelMax={gradeLevelMax}
+              onSubmitted={(url) => setStatusUrl(url)}
+              prefetchedData={prefetchedData}
+              submitter={submitter}
+              skipCaptcha
+              lockChildStructure
+              showBlockedOfferings
+              offeringBookingStats={bookingStats}
+              submitLabel="Kind anlegen und freigeben"
             />
-          </label>
-          <div className="space-y-3 text-sm text-gray-700">
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={externalConsentConfirmed}
-                onChange={(event) =>
-                  setExternalConsentConfirmed(event.target.checked)
-                }
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
-              />
-              <span>Einwilligung der Eltern liegt extern vor.</span>
-            </label>
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={sendNotification}
-                onChange={(event) => setSendNotification(event.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
-              />
-              <span>Eltern per E-Mail benachrichtigen.</span>
-            </label>
-          </div>
+          ) : null}
         </div>
-        {loading ? (
-          <p className="text-sm text-gray-500">
-            Formularvorlage wird geladen...
-          </p>
-        ) : prefetchedData && gradeLevelMax !== null ? (
-          <EnrollmentForm
-            phaseID={phase.id}
-            gradeLevelMax={gradeLevelMax}
-            onSubmitted={(url) => setStatusUrl(url)}
-            prefetchedData={prefetchedData}
-            submitter={submitter}
-            skipCaptcha
-            lockChildStructure
-            showBlockedOfferings
-            offeringBookingStats={bookingStats}
-            submitLabel="Kind anlegen und freigeben"
-          />
-        ) : null}
-      </div>
-    </Modal>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

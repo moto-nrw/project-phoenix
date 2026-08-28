@@ -15,6 +15,8 @@ const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => mockRedirect(url),
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/settings",
 }));
 
 // Die Statuszeile zählt die vom Standard abweichenden Einstellungen.

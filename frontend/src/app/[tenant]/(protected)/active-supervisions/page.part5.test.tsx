@@ -424,7 +424,7 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
+        screen.getByLabelText("Aufsicht heute wird geladen…"),
       ).toBeInTheDocument();
       expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
     });

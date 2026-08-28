@@ -4,7 +4,14 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
-import { FormModal } from "~/components/ui/form-modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
@@ -704,16 +711,25 @@ export function PersonalInfoFormModal({
   }
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={handleCancel}
-      title="Persönliche Infos"
-      size="lg"
-      mobilePosition="center"
-      footer={footer}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleCancel();
+      }}
     >
-      {fields}
-    </FormModal>
+      <SlideOverContent widthClass="sm:w-[720px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>Persönliche Infos</SlideOverTitle>
+          </div>
+          <SlideOverCloseButton aria-label="Fenster schließen" />
+        </SlideOverHeader>
+        <div className="flex-1 overflow-y-auto px-5 py-4">{fields}</div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

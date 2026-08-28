@@ -2233,8 +2233,10 @@ describe("PhasesEditor", () => {
       await screen.findByRole("menuitem", { name: "Manuelle Anmeldung" }),
     );
 
+    // Die manuelle Anmeldung laeuft seit der Dialog-Diaet als SlideOver; im
+    // Vaul-Mock traegt das Panel keine dialog-Rolle, deshalb der Titel.
     expect(
-      await screen.findByRole("dialog", {
+      await screen.findByRole("heading", {
         name: "Kind manuell über Anmeldung freigeben",
       }),
     ).toBeInTheDocument();

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -42,6 +43,14 @@ export interface TenantPageTab {
   /** Zahl rechts am Reiter, zum Beispiel offene Anfragen. */
   readonly badge?: number;
   readonly disabled?: boolean;
+  /**
+   * Zielpfad, wenn der Reiter auf eine eigene Seite führt (die Register einer
+   * Sammlung: „Kinder · Meine Gruppen · Stammdaten"). Dann rendert der Reiter
+   * ein echtes `<a>`, damit Mittelklick, „in neuem Tab öffnen" und die
+   * Tastatur funktionieren — ein Knopf mit `router.push` kann das nicht.
+   * Ohne `href` schaltet der Reiter wie bisher nur den Inhalt um.
+   */
+  readonly href?: string;
 }
 
 export interface TenantPageProps {
@@ -410,6 +419,55 @@ function TenantPageTabs({
       >
         {items.map((item) => {
           const active = item.value === value;
+          const tabClass = cn(
+            "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
+            active
+              ? "border-moto-green text-gray-900"
+              : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900",
+            item.disabled && "cursor-not-allowed opacity-50",
+          );
+          const inner = (
+            <>
+              {item.label}
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
+                  {item.badge}
+                </span>
+              )}
+            </>
+          );
+          if (item.href && !item.disabled) {
+            return (
+              <Link
+                key={item.value}
+                href={item.href}
+                role="tab"
+                aria-selected={active}
+                className={tabClass}
+                onClick={(event) => {
+                  // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
+                  // Dokument — die aktuelle Seite bleibt stehen, dort gibt es
+                  // nichts zu bewachen. Der schlichte Linksklick navigiert
+                  // dagegen weg und läuft deshalb weiter über `onChange`, das
+                  // den Wächter für ungespeicherte Änderungen befragt.
+                  if (
+                    event.defaultPrevented ||
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  onChange(item.value);
+                }}
+              >
+                {inner}
+              </Link>
+            );
+          }
           return (
             <button
               key={item.value}
@@ -418,20 +476,9 @@ function TenantPageTabs({
               aria-selected={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={cn(
-                "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors",
-                active
-                  ? "border-moto-green text-gray-900"
-                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900",
-                item.disabled && "cursor-not-allowed opacity-50",
-              )}
+              className={tabClass}
             >
-              {item.label}
-              {item.badge !== undefined && item.badge > 0 && (
-                <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
-                  {item.badge}
-                </span>
-              )}
+              {inner}
             </button>
           );
         })}

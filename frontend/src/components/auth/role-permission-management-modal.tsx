@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { ChevronRight, Check, Minus } from "lucide-react";
-import { FormModal } from "~/components/ui/form-modal";
+import {
+  SlideOver,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+  SlideOverFooter,
+  SlideOverCloseButton,
+} from "~/components/ui/slide-over";
 import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
@@ -231,16 +238,22 @@ export function RolePermissionManagementModal({
   );
 
   return (
-    <>
-      <FormModal
-        isOpen={isOpen}
-        onClose={onClose}
-        title={`Berechtigungen verwalten - ${getRoleDisplayName(role.name)}`}
-        size="xl"
-        mobilePosition="center"
-        footer={footer}
-      >
-        <div className="space-y-4 md:space-y-6">
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[760px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              {`Berechtigungen verwalten - ${getRoleDisplayName(role.name)}`}
+            </SlideOverTitle>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 md:space-y-6">
           {errorMessage && (
             <div ref={errorRef}>
               <Alert type="error" message={errorMessage} />
@@ -282,7 +295,7 @@ export function RolePermissionManagementModal({
           {loading ? (
             <div className="py-8 text-center text-gray-500">Laden...</div>
           ) : (
-            <div className="max-h-96 overflow-y-auto rounded-xl border border-gray-100 bg-white">
+            <div className="rounded-xl border border-gray-100 bg-white">
               {groupedPermissions.length === 0 ? (
                 <p className="py-8 text-center text-gray-500">
                   Keine Berechtigungen gefunden
@@ -389,8 +402,10 @@ export function RolePermissionManagementModal({
             </div>
           )}
         </div>
-      </FormModal>
-      {/* Warning alert intentionally disabled */}
-    </>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }

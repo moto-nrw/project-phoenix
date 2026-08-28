@@ -337,7 +337,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByText("Gruppenzugriff nicht verfügbar"),
+        screen.getByText("Vertretungszugriff nicht verfügbar"),
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Verfügbare pädagogische Fachkräfte"),
@@ -382,7 +382,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByLabelText("Gruppenzugriff wird geladen…"),
+        screen.getByLabelText("Vertretungszugriff wird geladen…"),
       ).toBeInTheDocument();
     });
 

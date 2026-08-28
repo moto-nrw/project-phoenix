@@ -848,7 +848,7 @@ function OGSGroupPageContent() {
   if (!showSkeleton && !hasAccess) {
     return (
       <TenantPage
-        title="Meine Gruppe"
+        title="Meine Gruppen"
         stats="Keine Gruppe zugeordnet"
         empty={{
           icon: <MotoConceptIcon concept="groups" size={48} />,
@@ -1027,7 +1027,7 @@ function OGSGroupPageContent() {
           Aktionen der An- und Abmelde-Modus, der Vertretungshinweis und das
           Kebab-Menü. */}
       <TenantPage
-        title="Meine Gruppe"
+        title="Meine Gruppen"
         stats={
           // Statuszeile aus den bereits geladenen Gruppendaten:
           // Gruppenname und Anwesenheit.
@@ -1135,6 +1135,39 @@ function OGSGroupPageContent() {
               }
             : null
         }
+        overlays={
+          <>
+            {/* Group Transfer Modal */}
+            <GroupTransferModal
+              isOpen={showTransferModal}
+              onClose={() => setShowTransferModal(false)}
+              group={
+                currentGroup
+                  ? {
+                      id: currentGroup.id,
+                      name: currentGroup.name,
+                      studentCount: currentGroup.student_count,
+                    }
+                  : null
+              }
+              availableUsers={
+                userContext?.currentStaff?.personId
+                  ? availableUsers.filter(
+                      (u) => u.personId !== userContext.currentStaff!.personId,
+                    )
+                  : availableUsers
+              }
+              onTransfer={handleTransferGroup}
+              existingTransfers={activeTransfers}
+              onCancelTransfer={handleCancelTransfer}
+              onRefreshTransfers={
+                currentGroup
+                  ? async () => checkActiveTransfers(currentGroup.id)
+                  : undefined
+              }
+            />
+          </>
+        }
       >
         {/* Mobile (<md) check-in mode trigger: inline pill at the top of
             the card list when OFF; switches to a sticky bottom bar above
@@ -1182,36 +1215,6 @@ function OGSGroupPageContent() {
           />
         </div>
       )}
-
-      {/* Group Transfer Modal */}
-      <GroupTransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        group={
-          currentGroup
-            ? {
-                id: currentGroup.id,
-                name: currentGroup.name,
-                studentCount: currentGroup.student_count,
-              }
-            : null
-        }
-        availableUsers={
-          userContext?.currentStaff?.personId
-            ? availableUsers.filter(
-                (u) => u.personId !== userContext.currentStaff!.personId,
-              )
-            : availableUsers
-        }
-        onTransfer={handleTransferGroup}
-        existingTransfers={activeTransfers}
-        onCancelTransfer={handleCancelTransfer}
-        onRefreshTransfers={
-          currentGroup
-            ? async () => checkActiveTransfers(currentGroup.id)
-            : undefined
-        }
-      />
     </>
   );
 }

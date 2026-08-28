@@ -22,7 +22,7 @@ export default function CareOfferingsPage() {
 
   return (
     <TenantPage
-      title="Betreuungsangebote"
+      title="Angebote"
       stats={
         summary
           ? `${summary.total} ${summary.total === 1 ? "Angebot" : "Angebote"} · ${summary.active} aktiv`
@@ -39,7 +39,7 @@ export default function CareOfferingsPage() {
         </div>
       ) : (
         <SkeletonRegion
-          label="Betreuungsangebote werden geladen"
+          label="Angebote werden geladen"
           className="hidden w-full lg:block"
         >
           <TableSkeleton rows={5} columns={4} />

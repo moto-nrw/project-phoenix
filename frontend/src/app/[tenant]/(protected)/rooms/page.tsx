@@ -13,6 +13,14 @@ import { useSearchParams } from "next/navigation";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { usePresenceMode } from "~/lib/tenant-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+import { useCollectionTabs } from "~/components/dashboard/use-collection-tabs";
+import {
+  getTabsForCollection,
+  STAFF_FLAT_PAGES,
+} from "~/lib/section-navigation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
@@ -108,7 +116,7 @@ function TransitAssignmentCard({
 }
 
 function RoomsPageContent() {
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -117,6 +125,31 @@ function RoomsPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
+
+  // Reiter der Sammlung: die laufende Aufsicht und die Stammdaten des Raums
+  // sind Reiter hier — vorher ein dynamisch wachsender Zweig in der
+  // Seitenleiste beziehungsweise ein zweiter Baum („Datenverwaltung").
+  const presenceMode = usePresenceMode();
+  const { overviewEnabled } = useOptionalSupervision();
+  const roomTabs = useMemo(() => {
+    const tabs = [];
+    if (
+      presenceMode !== "binary" &&
+      (isCaregiver(session) || overviewEnabled)
+    ) {
+      tabs.push({ href: "/active-supervisions", label: "Aufsicht heute" });
+    }
+    if (hasRole(session, "admin")) {
+      tabs.push(...getTabsForCollection(STAFF_FLAT_PAGES.rooms.href));
+    }
+    return tabs;
+  }, [session, presenceMode, overviewEnabled]);
+  const pageTabs = useCollectionTabs(
+    STAFF_FLAT_PAGES.rooms.href,
+    STAFF_FLAT_PAGES.rooms.label,
+    roomTabs,
+    "Bereiche der Räume",
+  );
 
   // ?room={id} drives the detail modal so deep links work and the back
   // button closes the overlay. Same convention as /database/* pages.
@@ -546,6 +579,7 @@ function RoomsPageContent() {
       title="Räume"
       stats={roomSummary}
       statsLoading={showSkeleton}
+      tabs={pageTabs}
       // Das Exportmenü ist eine Aktion der Seite und sitzt deshalb im Kopf,
       // damit es auch mobil erreichbar bleibt.
       actions={<OverflowMenu items={overflowItems} />}

@@ -6,7 +6,7 @@ export type PlanningPageHref =
   | "/vertretung"
   | "/lists"
   | "/calendar-periods"
-  | "/payroll";
+  | "/calendar";
 
 export interface PlanningSubPage {
   readonly href: PlanningPageHref;
@@ -14,6 +14,12 @@ export interface PlanningSubPage {
   readonly legacyPrefixes: readonly string[];
   readonly showInMobileNav: boolean;
   readonly nonAdminPermission?: string;
+  /**
+   * Die Seite hängt NICHT am Schalter timetable.enabled. Bisher stand diese
+   * Ausnahme als Pfad-Liste in Seitenleiste und mobiler Navigation, also
+   * zweimal — wer eine Seite ergänzte, traf meist nur eine Stelle.
+   */
+  readonly independentOfTimetable?: boolean;
 }
 
 /**
@@ -60,21 +66,26 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     showInMobileNav: true,
   },
   {
+    // „Kalenderzeiträume" neben „Mein Kalender" waren zwei Namen mit
+    // demselben Wortstamm für zwei verschiedene Dinge. Der Zeitraum heißt
+    // jetzt schlicht „Zeiträume".
     href: "/calendar-periods",
-    label: "Kalenderzeiträume",
+    label: "Zeiträume",
     legacyPrefixes: [],
     showInMobileNav: true,
+    independentOfTimetable: true,
   },
   {
-    // Abrechnung war ein eigener flacher Eintrag; sie gehört inhaltlich zur
-    // Planung (Lohnabrechnung aus Dienstplan und Zeiterfassung) und steht
-    // deshalb hier. Mobil hatte sie bisher keinen Eintrag; als Planungsseite
-    // bekommt sie einen, wie jede andere auch (siehe Regel oben).
-    href: "/payroll",
-    label: "Abrechnung",
+    // „Mein Kalender" hieß anders als der Bereich, in dem er steht, und war
+    // der einzige Planungseintrag außerhalb der Planung. Jetzt heißt er
+    // „Kalender" und steht hier. Er hängt an calendar:own, nicht an
+    // timetable.enabled.
+    href: "/calendar",
+    label: "Kalender",
     legacyPrefixes: [],
     showInMobileNav: true,
-    nonAdminPermission: "config:manage",
+    nonAdminPermission: "calendar:own",
+    independentOfTimetable: true,
   },
 ];
 
@@ -100,6 +111,16 @@ export function getActivePlanningSubPageHref(
 
 export function isPlanningPath(pathname: string): boolean {
   return getActivePlanningSubPageHref(pathname) !== null;
+}
+
+/**
+ * Bleibt die Seite auch bei ausgeschaltetem timetable.enabled stehen?
+ */
+export function isPlanningPageIndependentOfTimetable(href: string): boolean {
+  return (
+    PLANNING_SUB_PAGES.find((page) => page.href === href)
+      ?.independentOfTimetable === true
+  );
 }
 
 export function isPlanningPageHref(href: string): href is PlanningPageHref {

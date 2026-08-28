@@ -323,8 +323,8 @@ function SubstitutionPageContent() {
         selectedTeacher.id,
         new Date(),
         accessEndDate(substitutionDays),
-        "Gruppenzugriff",
-        `Gruppenzugriff für ${substitutionDays} Tag(e)`,
+        "Vertretungszugriff",
+        `Vertretungszugriff für ${substitutionDays} Tag(e)`,
       );
 
       await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
@@ -427,16 +427,16 @@ function SubstitutionPageContent() {
   }, [searchTerm, statusFilter]);
 
   if (status === "loading") {
-    return <TenantPage title="Gruppenzugriff" loading testId="loading" />;
+    return <TenantPage title="Vertretungszugriff" loading testId="loading" />;
   }
 
   if (openCareGroupMode) {
     return (
       <TenantPage
-        title="Gruppenzugriff"
+        title="Vertretungszugriff"
         empty={{
           icon: <MotoConceptIcon concept="staff" size={48} />,
-          title: "Gruppenzugriff nicht verfügbar",
+          title: "Vertretungszugriff nicht verfügbar",
           description:
             "Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen Gruppen“ kann in den Einstellungen geändert werden.",
         }}
@@ -584,234 +584,237 @@ function SubstitutionPageContent() {
   }`;
 
   return (
-    <>
-      <TenantPage
-        title="Gruppenzugriff"
-        stats={statusLine}
-        statsLoading={isLoading}
-        badge={{
-          icon: <MotoConceptIcon concept="staff" size={20} />,
-          count: filteredTeachers.length,
-          label: "Fachkräfte",
-        }}
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Fachkraft suchen…",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setStatusFilter("all");
-        }}
-        error={loadError}
-        loading={isLoading}
-        empty={
-          // Leerzustand als nächster Schritt (Bauart 1 Regel 8): ohne
-          // Mitarbeitende gibt es nichts zuzuweisen, also führt er dorthin.
-          !isLoading && !loadError && teachers.length === 0
-            ? {
-                icon: <MotoConceptIcon concept="staff" size={48} />,
-                title: "Noch keine Fachkräfte",
-                description:
-                  "Legen Sie Mitarbeitende an. Danach können Sie ihnen hier Zugriff auf eine Gruppe geben.",
-                action: (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => router.push("/staff")}
-                  >
-                    Zu den Mitarbeitenden
-                  </Button>
-                ),
-              }
-            : null
-        }
-      >
-        {/* Die Trefferzahl steht bereits als Zähler im Seitenkopf, deshalb
-            hier eine schlichte Überschrift ohne Zählpille. */}
-        <div>
-          <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4">
-            Verfügbare pädagogische Fachkräfte
-          </h2>
-          {renderTeacherList()}
-        </div>
+    <TenantPage
+      title="Vertretungszugriff"
+      stats={statusLine}
+      statsLoading={isLoading}
+      badge={{
+        icon: <MotoConceptIcon concept="staff" size={20} />,
+        count: filteredTeachers.length,
+        label: "Fachkräfte",
+      }}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Fachkraft suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSearchTerm("");
+        setStatusFilter("all");
+      }}
+      error={loadError}
+      loading={isLoading}
+      empty={
+        // Leerzustand als nächster Schritt (Bauart 1 Regel 8): ohne
+        // Mitarbeitende gibt es nichts zuzuweisen, also führt er dorthin.
+        !isLoading && !loadError && teachers.length === 0
+          ? {
+              icon: <MotoConceptIcon concept="staff" size={48} />,
+              title: "Noch keine Fachkräfte",
+              description:
+                "Legen Sie Mitarbeitende an. Danach können Sie ihnen hier Zugriff auf eine Gruppe geben.",
+              action: (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => router.push("/staff")}
+                >
+                  Zu den Mitarbeitenden
+                </Button>
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          <Modal
+            isOpen={showPopup}
+            onClose={closePopup}
+            title="Zugriff gewähren"
+            footer={assignFooter}
+            isDismissDisabled={isMutating}
+          >
+            <div className="space-y-6">
+              {mutationError ? (
+                <Alert type="error" message={mutationError} />
+              ) : null}
 
-        <section>
-          <SectionHeading
-            icon={<Clock className="h-5 w-5" />}
-            title="Tagesübergaben"
-            count={transfers.length}
-            hint="(enden heute 23:59)"
-          />
-          {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
-              steht bereits in der Überschrift. */}
-          {renderAccessSection(
-            transfers,
-            "Keine aktiven Tagesübergaben",
-            () => null,
-          )}
-        </section>
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {selectedTeacher ? formatTeacherName(selectedTeacher) : ""}
+                </span>{" "}
+                erhält zusätzlichen Zugriff auf die Kinder der gewählten Gruppe.
+                Die bestehenden Berechtigungen der Gruppe bleiben unverändert.
+              </p>
 
-        <section>
-          <SectionHeading
-            icon={<MotoConceptIcon concept="calendar" size={20} />}
-            title="Längerfristige Zugriffe"
-            count={longTermAccess.length}
-            hint="(mehrtägig)"
-          />
-          {renderAccessSection(
-            longTermAccess,
-            "Keine aktiven längerfristigen Zugriffe",
-            (substitution) =>
-              `bis ${substitution.endDate.toLocaleDateString("de-DE", {
-                timeZone: "Europe/Berlin",
-                day: "2-digit",
-                month: "2-digit",
-              })}`,
-          )}
-        </section>
-      </TenantPage>
-
-      <Modal
-        isOpen={showPopup}
-        onClose={closePopup}
-        title="Zugriff gewähren"
-        footer={assignFooter}
-        isDismissDisabled={isMutating}
-      >
-        <div className="space-y-6">
-          {mutationError ? (
-            <Alert type="error" message={mutationError} />
-          ) : null}
-
-          <p className="text-sm text-gray-600">
-            <span className="font-medium text-gray-900">
-              {selectedTeacher ? formatTeacherName(selectedTeacher) : ""}
-            </span>{" "}
-            erhält zusätzlichen Zugriff auf die Kinder der gewählten Gruppe. Die
-            bestehenden Berechtigungen der Gruppe bleiben unverändert.
-          </p>
-
-          <div>
-            <label
-              id="substitution-group-select-label"
-              htmlFor="substitution-group-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              OGS-Gruppe auswählen
-            </label>
-            <CustomSelect
-              id="substitution-group-select"
-              ariaLabelledBy="substitution-group-select-label"
-              value={selectedGroupId}
-              onChange={setSelectedGroupId}
-              placeholder="Gruppe auswählen…"
-              options={[
-                { value: "", label: "Gruppe auswählen…" },
-                ...groups.map((group) => ({
-                  value: group.id,
-                  label: group.name,
-                })),
-              ]}
-            />
-          </div>
-
-          <div>
-            <p
-              id="substitution-duration-label"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Dauer
-            </p>
-            <SegmentedControl
-              ariaLabel="Dauer"
-              value={durationPreset}
-              onChange={setDurationPreset}
-              items={DURATION_PRESETS.map((preset) => ({
-                value: preset.value,
-                label: preset.label,
-              }))}
-            />
-
-            {durationPreset === CUSTOM_DURATION ? (
-              <div className="mt-3 w-40">
-                <Input
-                  id="substitution-days-input"
-                  name="substitution-days-input"
-                  type="number"
-                  min={1}
-                  max={MAX_DURATION_DAYS}
-                  controlSize="compact"
-                  aria-label="Anzahl der Tage"
-                  value={customDays}
-                  onChange={(e) => {
-                    const parsed = Number(e.target.value);
-                    if (!Number.isInteger(parsed)) return;
-
-                    setCustomDays(
-                      Math.min(MAX_DURATION_DAYS, Math.max(1, parsed)),
-                    );
-                  }}
+              <div>
+                <label
+                  id="substitution-group-select-label"
+                  htmlFor="substitution-group-select"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  OGS-Gruppe auswählen
+                </label>
+                <CustomSelect
+                  id="substitution-group-select"
+                  ariaLabelledBy="substitution-group-select-label"
+                  value={selectedGroupId}
+                  onChange={setSelectedGroupId}
+                  placeholder="Gruppe auswählen…"
+                  options={[
+                    { value: "", label: "Gruppe auswählen…" },
+                    ...groups.map((group) => ({
+                      value: group.id,
+                      label: group.name,
+                    })),
+                  ]}
                 />
               </div>
-            ) : null}
 
-            <p className="mt-2 text-sm text-gray-500">
-              {substitutionDays === 1
-                ? "Zugriff nur für heute, endet um 23:59 Uhr."
-                : `Zugriff bis ${formatDate(toISODate(accessEndDate(substitutionDays)), true)}, 23:59 Uhr.`}
-            </p>
-          </div>
-        </div>
-      </Modal>
+              <div>
+                <p
+                  id="substitution-duration-label"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Dauer
+                </p>
+                <SegmentedControl
+                  ariaLabel="Dauer"
+                  value={durationPreset}
+                  onChange={setDurationPreset}
+                  items={DURATION_PRESETS.map((preset) => ({
+                    value: preset.value,
+                    label: preset.label,
+                  }))}
+                />
 
-      <ConfirmationModal
-        isOpen={showEndConfirmation}
-        onClose={() => {
-          setShowEndConfirmation(false);
-          setSubstitutionToEnd(null);
-          setMutationError(null);
-        }}
-        onConfirm={() => void confirmEndSubstitution()}
-        title="Zugriff beenden?"
-        confirmText="Beenden"
-        cancelText="Abbrechen"
-        isConfirmLoading={isMutating}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
-      >
-        {substitutionToEnd && (
-          <div className="space-y-4">
-            {mutationError ? (
-              <Alert type="error" message={mutationError} />
-            ) : null}
-            <p className="text-sm text-gray-600">
-              Möchten Sie den Zugriff wirklich beenden? Die Person sieht die
-              Kinder der Gruppe danach nicht mehr.
-            </p>
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">Gruppe:</span>{" "}
-                {substitutionToEnd.groupName}
-              </p>
-              <p className="mt-1 text-sm text-gray-600">
-                <span className="font-medium text-gray-900">Zugriff für:</span>{" "}
-                {substitutionToEnd.teacherName}
-              </p>
+                {durationPreset === CUSTOM_DURATION ? (
+                  <div className="mt-3 w-40">
+                    <Input
+                      id="substitution-days-input"
+                      name="substitution-days-input"
+                      type="number"
+                      min={1}
+                      max={MAX_DURATION_DAYS}
+                      controlSize="compact"
+                      aria-label="Anzahl der Tage"
+                      value={customDays}
+                      onChange={(e) => {
+                        const parsed = Number(e.target.value);
+                        if (!Number.isInteger(parsed)) return;
+
+                        setCustomDays(
+                          Math.min(MAX_DURATION_DAYS, Math.max(1, parsed)),
+                        );
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                <p className="mt-2 text-sm text-gray-500">
+                  {substitutionDays === 1
+                    ? "Zugriff nur für heute, endet um 23:59 Uhr."
+                    : `Zugriff bis ${formatDate(toISODate(accessEndDate(substitutionDays)), true)}, 23:59 Uhr.`}
+                </p>
+              </div>
             </div>
-          </div>
+          </Modal>
+
+          <ConfirmationModal
+            isOpen={showEndConfirmation}
+            onClose={() => {
+              setShowEndConfirmation(false);
+              setSubstitutionToEnd(null);
+              setMutationError(null);
+            }}
+            onConfirm={() => void confirmEndSubstitution()}
+            title="Zugriff beenden?"
+            confirmText="Beenden"
+            cancelText="Abbrechen"
+            isConfirmLoading={isMutating}
+            confirmButtonClass="bg-moto-red hover:bg-moto-red/90"
+          >
+            {substitutionToEnd && (
+              <div className="space-y-4">
+                {mutationError ? (
+                  <Alert type="error" message={mutationError} />
+                ) : null}
+                <p className="text-sm text-gray-600">
+                  Möchten Sie den Zugriff wirklich beenden? Die Person sieht die
+                  Kinder der Gruppe danach nicht mehr.
+                </p>
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium text-gray-900">Gruppe:</span>{" "}
+                    {substitutionToEnd.groupName}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    <span className="font-medium text-gray-900">
+                      Zugriff für:
+                    </span>{" "}
+                    {substitutionToEnd.teacherName}
+                  </p>
+                </div>
+              </div>
+            )}
+          </ConfirmationModal>
+        </>
+      }
+    >
+      {/* Die Trefferzahl steht bereits als Zähler im Seitenkopf, deshalb
+            hier eine schlichte Überschrift ohne Zählpille. */}
+      <div>
+        <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4">
+          Verfügbare pädagogische Fachkräfte
+        </h2>
+        {renderTeacherList()}
+      </div>
+
+      <section>
+        <SectionHeading
+          icon={<Clock className="h-5 w-5" />}
+          title="Tagesübergaben"
+          count={transfers.length}
+          hint="(enden heute 23:59)"
+        />
+        {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
+              steht bereits in der Überschrift. */}
+        {renderAccessSection(
+          transfers,
+          "Keine aktiven Tagesübergaben",
+          () => null,
         )}
-      </ConfirmationModal>
-    </>
+      </section>
+
+      <section>
+        <SectionHeading
+          icon={<MotoConceptIcon concept="calendar" size={20} />}
+          title="Längerfristige Zugriffe"
+          count={longTermAccess.length}
+          hint="(mehrtägig)"
+        />
+        {renderAccessSection(
+          longTermAccess,
+          "Keine aktiven längerfristigen Zugriffe",
+          (substitution) =>
+            `bis ${substitution.endDate.toLocaleDateString("de-DE", {
+              timeZone: "Europe/Berlin",
+              day: "2-digit",
+              month: "2-digit",
+            })}`,
+        )}
+      </section>
+    </TenantPage>
   );
 }
 
 export default function SubstitutionPage() {
   return (
     <RoleGuard variant="adminOnly">
-      <Suspense fallback={<TenantPage title="Gruppenzugriff" loading />}>
+      <Suspense fallback={<TenantPage title="Vertretungszugriff" loading />}>
         <SubstitutionPageContent />
       </Suspense>
     </RoleGuard>

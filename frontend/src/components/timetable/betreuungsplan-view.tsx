@@ -1302,221 +1302,8 @@ function TimetablesContent() {
         ]),
   ].join(" · ");
 
-  return (
+  const overlays = (
     <>
-      <TenantPage
-        title="Betreuungsplan"
-        stats={statusLine}
-        statsLoading={statsLoading}
-        actions={
-          <>
-            {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
-                Konflikte und Drucken lagen vorher in zwei Menüs und einem
-                eigenen Knopf, je nach Ansicht und Recht mal so, mal so.
-                Neben dem Titel steht damit eine sichtbare Aktion ("Neu") und
-                das Menü -- dieselbe Aufteilung wie auf jeder anderen Seite. */}
-            {menuItems.length > 0 && (
-              <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
-            )}
-            {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
-                das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
-            {canManageSchedules ? (
-              <TimetableAddMenu
-                onAddInstance={openEventCreate}
-                onAddSeries={openSeriesCreate}
-              />
-            ) : (
-              <StatusBadge
-                label="Nur ansehen"
-                tone="gray"
-                title="Sie können den Betreuungsplan ansehen. Ändern können ihn nur Admins."
-              />
-            )}
-          </>
-        }
-        searchSlot={
-          <PlanningContextBar
-            dateLabel={periodLabel}
-            onPrevious={view === "series" ? undefined : handlePrev}
-            onNext={view === "series" ? undefined : handleNext}
-            previousLabel="Zurück"
-            nextLabel="Weiter"
-            onToday={showTodayButton ? goToToday : undefined}
-            viewSwitcher={
-              // Leseansicht (#2283): nur die Woche — kein Umschalter.
-              canManageSchedules ? (
-                <SegmentedControl
-                  ariaLabel="Ansicht"
-                  value={viewToTab(view)}
-                  onChange={(next) => setViewParam(next as ViewParam)}
-                  items={[
-                    { value: "woche", label: "Woche" },
-                    { value: "monat", label: "Monat" },
-                    { value: "serien", label: "Serien" },
-                  ]}
-                />
-              ) : undefined
-            }
-          >
-            {calendarPeriods.length > 0 && (
-              <PeriodSwitcherDropdown
-                periods={calendarPeriods}
-                weekDays={periodContextDays}
-                view={view}
-                selectedPeriodId={focusedPeriodID}
-                isLoading={periodsLoading}
-                onCreate={openPeriodCreate}
-                onEdit={openPeriodEdit}
-                onSelect={jumpToPeriod}
-                canManage={canManageSchedules}
-              />
-            )}
-            {demandOriginChip}
-            {shouldLoadGaps && !gapsError && (
-              <GapJumpList
-                gaps={gaps}
-                state={gapsData === undefined ? "loading" : "ready"}
-                onJump={(gap) =>
-                  updateUrlParams({ d: gap.date, block: gap.instanceId })
-                }
-              />
-            )}
-          </PlanningContextBar>
-        }
-        // Bauart 3, Regel 5: Laden, Fehler und Leerzustand kommen aus dem
-        // Gerüst. Ein Ladefehler ist `error` — nie `empty` und nie ein leerer
-        // Plan, der so aussieht, als sei nichts geplant.
-        // Struktur-Skelett statt der generischen Karten: ein Wochen- bzw.
-        // Monatsraster lädt nicht wie eine Kartenliste.
-        loading={
-          contentLoading ? <TimetableContentSkeleton view={view} /> : false
-        }
-        error={
-          errorMessage && !data
-            ? {
-                message:
-                  "Betreuungsplan konnte nicht geladen werden. Die Termine konnten nicht abgerufen werden.",
-                action: (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => void tenantMutate(swrKey)}
-                  >
-                    Erneut versuchen
-                  </Button>
-                ),
-              }
-            : null
-        }
-        empty={
-          showEmptyPeriodState
-            ? {
-                icon: <MotoConceptIcon concept="closingDays" size={42} />,
-                title: "Noch kein Planungszeitraum",
-                description: canManageSchedules
-                  ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
-                  : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen.",
-                action: canManageSchedules ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={openPeriodCreate}
-                  >
-                    Planungszeitraum anlegen
-                  </Button>
-                ) : undefined,
-              }
-            : null
-        }
-      >
-        {canManageSchedules && shouldLoadInstances && (
-          <ConflictWarningsBanner
-            openConflicts={openConflicts}
-            hiddenConflicts={hiddenConflicts}
-            periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
-            onHide={handleHideConflict}
-            onHideAll={handleHideAllConflicts}
-            onUnhide={handleUnhideConflict}
-            onJump={handleJumpToConflict}
-            revealHidden={hiddenConflictsPanelOpen}
-            onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
-          />
-        )}
-
-        {shouldLoadInstances &&
-          !isInstanceDataLoading &&
-          planningTrackLegend.length > 0 && (
-            <PlanLegend
-              entries={planningTrackLegend}
-              aria-label="Planungsspuren im sichtbaren Betreuungsplan"
-            />
-          )}
-
-        {view === "month" && (
-          <MonthPlannerGrid
-            days={monthDays}
-            monthDate={visibleDate}
-            instances={visibleInstances}
-            todayISO={todayISO}
-            closingDays={closingDays}
-            onDayClick={openWeekForDay}
-            onInstanceClick={handleSelectInstance}
-          />
-        )}
-
-        {view === "week" && (
-          <WeeklyCalendarGrid
-            weekDays={weekDays}
-            instances={visibleInstances}
-            selectedId={selectedInstanceId}
-            onInstanceClick={handleSelectInstance}
-            onSlotClick={canManageSchedules ? openQuickCreate : undefined}
-            gapInstanceIds={gapInstanceIds}
-            closingDays={closingDays}
-            todayISO={todayISO}
-            dayStartHour={dayStartHour}
-            dayEndHour={dayEndHour}
-            hourHeightPx={hourHeightPx}
-            showDayHeader
-            emptyState={
-              instances.length === 0 && !error
-                ? {
-                    title: weekHasFullPeriodCoverage
-                      ? "Diese Woche hat noch keine Termine"
-                      : "Diese Woche hat keinen Planungszeitraum",
-                    // Leseansicht (#2283): keine Handlungsaufforderung
-                    // an Leute, die nicht planen dürfen.
-                    description: canManageSchedules
-                      ? weekHasFullPeriodCoverage
-                        ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                        : "Lege zuerst einen aktiven Planungszeitraum an."
-                      : "Für diese Woche ist noch nichts geplant.",
-                  }
-                : undefined
-            }
-          />
-        )}
-
-        {view === "series" && (
-          <TemplateList
-            templates={templates}
-            canManage={canManageSchedules}
-            onCreate={openSeriesCreate}
-            onEdit={(template) => {
-              setEditingInstance(null);
-              setConvertingInstance(null);
-              setEditingTemplate(template);
-              setEventDefaultRepeat("weekly");
-              setEventModalOpen(true);
-            }}
-            onApply={(template) => void handleApplyTemplate(template)}
-            onArchive={setArchivingTemplate}
-          />
-        )}
-      </TenantPage>
-
       <InstanceDetailModal
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
@@ -1684,6 +1471,222 @@ function TimetablesContent() {
         </p>
       </ConfirmationModal>
     </>
+  );
+
+  return (
+    <TenantPage
+      overlays={overlays}
+      title="Betreuungsplan"
+      stats={statusLine}
+      statsLoading={statsLoading}
+      actions={
+        <>
+          {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
+              Konflikte und Drucken lagen vorher in zwei Menüs und einem
+              eigenen Knopf, je nach Ansicht und Recht mal so, mal so.
+              Neben dem Titel steht damit eine sichtbare Aktion ("Neu") und
+              das Menü -- dieselbe Aufteilung wie auf jeder anderen Seite. */}
+          {menuItems.length > 0 && (
+            <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
+          )}
+          {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
+              das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
+          {canManageSchedules ? (
+            <TimetableAddMenu
+              onAddInstance={openEventCreate}
+              onAddSeries={openSeriesCreate}
+            />
+          ) : (
+            <StatusBadge
+              label="Nur ansehen"
+              tone="gray"
+              title="Sie können den Betreuungsplan ansehen. Ändern können ihn nur Admins."
+            />
+          )}
+        </>
+      }
+      searchSlot={
+        <PlanningContextBar
+          dateLabel={periodLabel}
+          onPrevious={view === "series" ? undefined : handlePrev}
+          onNext={view === "series" ? undefined : handleNext}
+          previousLabel="Zurück"
+          nextLabel="Weiter"
+          onToday={showTodayButton ? goToToday : undefined}
+          viewSwitcher={
+            // Leseansicht (#2283): nur die Woche — kein Umschalter.
+            canManageSchedules ? (
+              <SegmentedControl
+                ariaLabel="Ansicht"
+                value={viewToTab(view)}
+                onChange={(next) => setViewParam(next as ViewParam)}
+                items={[
+                  { value: "woche", label: "Woche" },
+                  { value: "monat", label: "Monat" },
+                  { value: "serien", label: "Serien" },
+                ]}
+              />
+            ) : undefined
+          }
+        >
+          {calendarPeriods.length > 0 && (
+            <PeriodSwitcherDropdown
+              periods={calendarPeriods}
+              weekDays={periodContextDays}
+              view={view}
+              selectedPeriodId={focusedPeriodID}
+              isLoading={periodsLoading}
+              onCreate={openPeriodCreate}
+              onEdit={openPeriodEdit}
+              onSelect={jumpToPeriod}
+              canManage={canManageSchedules}
+            />
+          )}
+          {demandOriginChip}
+          {shouldLoadGaps && !gapsError && (
+            <GapJumpList
+              gaps={gaps}
+              state={gapsData === undefined ? "loading" : "ready"}
+              onJump={(gap) =>
+                updateUrlParams({ d: gap.date, block: gap.instanceId })
+              }
+            />
+          )}
+        </PlanningContextBar>
+      }
+      // Bauart 3, Regel 5: Laden, Fehler und Leerzustand kommen aus dem
+      // Gerüst. Ein Ladefehler ist `error` — nie `empty` und nie ein leerer
+      // Plan, der so aussieht, als sei nichts geplant.
+      // Struktur-Skelett statt der generischen Karten: ein Wochen- bzw.
+      // Monatsraster lädt nicht wie eine Kartenliste.
+      loading={
+        contentLoading ? <TimetableContentSkeleton view={view} /> : false
+      }
+      error={
+        errorMessage && !data
+          ? {
+              message:
+                "Betreuungsplan konnte nicht geladen werden. Die Termine konnten nicht abgerufen werden.",
+              action: (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => void tenantMutate(swrKey)}
+                >
+                  Erneut versuchen
+                </Button>
+              ),
+            }
+          : null
+      }
+      empty={
+        showEmptyPeriodState
+          ? {
+              icon: <MotoConceptIcon concept="closingDays" size={42} />,
+              title: "Noch kein Planungszeitraum",
+              description: canManageSchedules
+                ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+                : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen.",
+              action: canManageSchedules ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={openPeriodCreate}
+                >
+                  Planungszeitraum anlegen
+                </Button>
+              ) : undefined,
+            }
+          : null
+      }
+    >
+      {canManageSchedules && shouldLoadInstances && (
+        <ConflictWarningsBanner
+          openConflicts={openConflicts}
+          hiddenConflicts={hiddenConflicts}
+          periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
+          onHide={handleHideConflict}
+          onHideAll={handleHideAllConflicts}
+          onUnhide={handleUnhideConflict}
+          onJump={handleJumpToConflict}
+          revealHidden={hiddenConflictsPanelOpen}
+          onDismissHiddenPanel={() => setHiddenConflictsPanelOpen(false)}
+        />
+      )}
+
+      {shouldLoadInstances &&
+        !isInstanceDataLoading &&
+        planningTrackLegend.length > 0 && (
+          <PlanLegend
+            entries={planningTrackLegend}
+            aria-label="Planungsspuren im sichtbaren Betreuungsplan"
+          />
+        )}
+
+      {view === "month" && (
+        <MonthPlannerGrid
+          days={monthDays}
+          monthDate={visibleDate}
+          instances={visibleInstances}
+          todayISO={todayISO}
+          closingDays={closingDays}
+          onDayClick={openWeekForDay}
+          onInstanceClick={handleSelectInstance}
+        />
+      )}
+
+      {view === "week" && (
+        <WeeklyCalendarGrid
+          weekDays={weekDays}
+          instances={visibleInstances}
+          selectedId={selectedInstanceId}
+          onInstanceClick={handleSelectInstance}
+          onSlotClick={canManageSchedules ? openQuickCreate : undefined}
+          gapInstanceIds={gapInstanceIds}
+          closingDays={closingDays}
+          todayISO={todayISO}
+          dayStartHour={dayStartHour}
+          dayEndHour={dayEndHour}
+          hourHeightPx={hourHeightPx}
+          showDayHeader
+          emptyState={
+            instances.length === 0 && !error
+              ? {
+                  title: weekHasFullPeriodCoverage
+                    ? "Diese Woche hat noch keine Termine"
+                    : "Diese Woche hat keinen Planungszeitraum",
+                  // Leseansicht (#2283): keine Handlungsaufforderung
+                  // an Leute, die nicht planen dürfen.
+                  description: canManageSchedules
+                    ? weekHasFullPeriodCoverage
+                      ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
+                      : "Lege zuerst einen aktiven Planungszeitraum an."
+                    : "Für diese Woche ist noch nichts geplant.",
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {view === "series" && (
+        <TemplateList
+          templates={templates}
+          canManage={canManageSchedules}
+          onCreate={openSeriesCreate}
+          onEdit={(template) => {
+            setEditingInstance(null);
+            setConvertingInstance(null);
+            setEditingTemplate(template);
+            setEventDefaultRepeat("weekly");
+            setEventModalOpen(true);
+          }}
+          onApply={(template) => void handleApplyTemplate(template)}
+          onArchive={setArchivingTemplate}
+        />
+      )}
+    </TenantPage>
   );
 }
 

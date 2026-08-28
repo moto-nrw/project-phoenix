@@ -12,8 +12,8 @@ import type { PageTypeInfo } from "./breadcrumb-utils";
 describe("breadcrumb-utils", () => {
   describe("getPageTitle", () => {
     describe("student pages", () => {
-      it("should return 'Alle Kinder' for /students/search", () => {
-        expect(getPageTitle("/students/search")).toBe("Alle Kinder");
+      it("should return 'Kinder' for /students/search", () => {
+        expect(getPageTitle("/students/search")).toBe("Kinder");
       });
 
       it("should return 'Kinder Details' for student detail page", () => {
@@ -42,70 +42,57 @@ describe("breadcrumb-utils", () => {
       });
     });
 
-    describe("database pages", () => {
-      it("should return 'Aktivitäten' for database activities page", () => {
-        expect(getPageTitle("/database/activities")).toBe("Aktivitäten");
+    describe("register pages", () => {
+      // Die Register sind Reiter an ihrer Fläche: der Titel ist der
+      // Reitername, die Fläche steht als erste Stufe in der Brotkrume.
+      it("titles the four record registers 'Stammdaten'", () => {
+        expect(getPageTitle("/database/students")).toBe("Stammdaten");
+        expect(getPageTitle("/database/personal")).toBe("Stammdaten");
+        expect(getPageTitle("/database/rooms")).toBe("Stammdaten");
+        expect(getPageTitle("/database/activities")).toBe("Stammdaten");
       });
 
-      it("should return 'Gruppen' for database groups page", () => {
+      it("titles the configuration registers by their tab name", () => {
         expect(getPageTitle("/database/groups")).toBe("Gruppen");
-      });
-
-      it("should return 'Kinder' for database students page", () => {
-        expect(getPageTitle("/database/students")).toBe("Kinder");
-      });
-
-      it("should return 'Personal' for database personal page", () => {
-        expect(getPageTitle("/database/personal")).toBe("Personal");
-      });
-
-      it("should return 'Räume' for database rooms page", () => {
-        expect(getPageTitle("/database/rooms")).toBe("Räume");
-      });
-
-      it("should return 'Rollen' for database roles page", () => {
         expect(getPageTitle("/database/roles")).toBe("Rollen");
-      });
-
-      it("should return 'Geräte' for database devices page", () => {
         expect(getPageTitle("/database/devices")).toBe("Geräte");
-      });
-
-      it("should return 'Berechtigungen' for database permissions page", () => {
         expect(getPageTitle("/database/permissions")).toBe("Berechtigungen");
+        expect(getPageTitle("/database/exports")).toBe("Exporte");
+        expect(getPageTitle("/database/grade-transitions")).toBe(
+          "Jahrgangswechsel",
+        );
       });
 
-      it("should return 'Datenverwaltung' for unknown database page", () => {
+      it("should return 'Stammdaten' for unknown database page", () => {
         // Unveränderte Regel: ein /database/*-Pfad ohne Katalogeintrag fällt
-        // auf den Sektionsnamen zurück, nie auf den Home-Fallback. Nur der
-        // Name selbst heißt jetzt "Datenverwaltung" statt "Datenbank".
-        expect(getPageTitle("/database/unknown")).toBe("Datenverwaltung");
+        // auf den Sektionsnamen zurück, nie auf den Home-Fallback.
+        expect(getPageTitle("/database/unknown")).toBe("Stammdaten");
       });
 
-      it("should return 'Datenverwaltung' for /database route", () => {
-        expect(getPageTitle("/database")).toBe("Datenverwaltung");
+      it("should return 'Stammdaten' for /database route", () => {
+        expect(getPageTitle("/database")).toBe("Stammdaten");
       });
     });
 
     describe("main routes", () => {
-      it("should return 'Home' for /dashboard", () => {
-        expect(getPageTitle("/dashboard")).toBe("Home");
+      it("should return 'Start' for /dashboard", () => {
+        expect(getPageTitle("/dashboard")).toBe("Start");
       });
 
       it("should return 'Home' for root path", () => {
         expect(getPageTitle("/")).toBe("Home");
       });
 
-      it("should return 'Meine Gruppe' for /ogs-groups", () => {
-        expect(getPageTitle("/ogs-groups")).toBe("Meine Gruppe");
+      it("should return 'Meine Gruppen' for /ogs-groups", () => {
+        expect(getPageTitle("/ogs-groups")).toBe("Meine Gruppen");
       });
 
-      it("should return 'Aktuelle Aufsicht' for /active-supervisions", () => {
-        expect(getPageTitle("/active-supervisions")).toBe("Aktuelle Aufsicht");
+      it("should return 'Aufsicht heute' for /active-supervisions", () => {
+        expect(getPageTitle("/active-supervisions")).toBe("Aufsicht heute");
       });
 
-      it("should return 'Mitarbeiter' for /staff", () => {
-        expect(getPageTitle("/staff")).toBe("Mitarbeiter");
+      it("should return 'Mitarbeitende' for /staff", () => {
+        expect(getPageTitle("/staff")).toBe("Mitarbeitende");
       });
 
       it("should return 'Dienstplan' for /staff/dienstplan", () => {
@@ -116,8 +103,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Gruppenzugriff' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Gruppenzugriff");
+      it("should return 'Vertretungszugriff' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Vertretungszugriff");
       });
 
       it("titles the three planning areas and their redirect frames", () => {
@@ -133,8 +120,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
-      it("should return 'Kalenderzeiträume' for /calendar-periods", () => {
-        expect(getPageTitle("/calendar-periods")).toBe("Kalenderzeiträume");
+      it("should return 'Zeiträume' for /calendar-periods", () => {
+        expect(getPageTitle("/calendar-periods")).toBe("Zeiträume");
       });
 
       it("should return 'Tageslisten' for /lists", () => {
@@ -148,8 +135,8 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should title the flat routes that previously fell through to 'Home'", () => {
-        expect(getPageTitle("/calendar")).toBe("Mein Kalender");
-        expect(getPageTitle("/day-log")).toBe("Tagesauswertung");
+        expect(getPageTitle("/calendar")).toBe("Kalender");
+        expect(getPageTitle("/day-log")).toBe("Tagesbericht");
         expect(getPageTitle("/info-displays")).toBe("Info-Displays");
       });
 
@@ -162,19 +149,19 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should return enrollment sub-page titles", () => {
-        expect(getPageTitle("/admin/enrollments")).toBe("Überblick");
+        expect(getPageTitle("/admin/enrollments")).toBe("Anmeldungen");
         expect(getPageTitle("/admin/enrollments/phases/phase-1")).toBe(
           "Anmeldephase",
         );
         expect(getPageTitle("/admin/enrollments/request-1")).toBe("Anmeldung");
         expect(getPageTitle("/enrollment-phases")).toBe("Anmeldephasen");
-        expect(getPageTitle("/care-offerings")).toBe("Betreuungsangebote");
+        expect(getPageTitle("/care-offerings")).toBe("Angebote");
         expect(getPageTitle("/enrollment-form")).toBe("Anmeldeformulare");
       });
 
       it("should return titles for staff admin request pages", () => {
         expect(getPageTitle("/admin/guardian-approvals")).toBe(
-          "Konto-Anfragen",
+          "Neue Elternkonten",
         );
         // Alt-Route der Freigabeansicht: nur noch ein Redirect-Frame auf
         // /anfragen (#2429); der Titel verhindert den "Home"-Blitzer.
@@ -257,23 +244,21 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getBreadcrumbLabel", () => {
-    it("should return 'Meine Gruppe' for /ogs-groups referrer", () => {
-      expect(getBreadcrumbLabel("/ogs-groups")).toBe("Meine Gruppe");
+    it("should return 'Meine Gruppen' for /ogs-groups referrer", () => {
+      expect(getBreadcrumbLabel("/ogs-groups")).toBe("Meine Gruppen");
     });
 
-    it("should return 'Meine Gruppe' for /ogs-groups sub-path referrer", () => {
-      expect(getBreadcrumbLabel("/ogs-groups/123")).toBe("Meine Gruppe");
+    it("should return 'Meine Gruppen' for /ogs-groups sub-path referrer", () => {
+      expect(getBreadcrumbLabel("/ogs-groups/123")).toBe("Meine Gruppen");
     });
 
-    it("should return 'Aktuelle Aufsicht' for /active-supervisions referrer", () => {
-      expect(getBreadcrumbLabel("/active-supervisions")).toBe(
-        "Aktuelle Aufsicht",
-      );
+    it("should return 'Aufsicht heute' for /active-supervisions referrer", () => {
+      expect(getBreadcrumbLabel("/active-supervisions")).toBe("Aufsicht heute");
     });
 
-    it("should return 'Aktuelle Aufsicht' for /active-supervisions sub-path referrer", () => {
+    it("should return 'Aufsicht heute' for /active-supervisions sub-path referrer", () => {
       expect(getBreadcrumbLabel("/active-supervisions/456")).toBe(
-        "Aktuelle Aufsicht",
+        "Aufsicht heute",
       );
     });
 
@@ -287,16 +272,16 @@ describe("breadcrumb-utils", () => {
       expect(getBreadcrumbLabel("/rooms?room=42")).toBe("Räume");
     });
 
-    it("should return 'Alle Kinder' for unknown referrer", () => {
-      expect(getBreadcrumbLabel("/students")).toBe("Alle Kinder");
+    it("should return 'Kinder' for unknown referrer", () => {
+      expect(getBreadcrumbLabel("/students")).toBe("Kinder");
     });
 
-    it("should return 'Alle Kinder' for empty referrer", () => {
-      expect(getBreadcrumbLabel("")).toBe("Alle Kinder");
+    it("should return 'Kinder' for empty referrer", () => {
+      expect(getBreadcrumbLabel("")).toBe("Kinder");
     });
 
-    it("should return 'Alle Kinder' for dashboard referrer", () => {
-      expect(getBreadcrumbLabel("/dashboard")).toBe("Alle Kinder");
+    it("should return 'Kinder' for dashboard referrer", () => {
+      expect(getBreadcrumbLabel("/dashboard")).toBe("Kinder");
     });
   });
 
@@ -327,16 +312,15 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getSectionBreadcrumb", () => {
-    describe("database pages", () => {
-      // Vorher über getPageTypeInfo().isDatabaseSubPage /
-      // .isDatabaseDeepPage geprüft; dieselbe Unterscheidung liegt jetzt in
-      // getSectionBreadcrumb (zweistufig vs. dreistufig).
-      it("should identify database sub-page", () => {
+    describe("register pages", () => {
+      // Die Register hängen als Reiter an ihrer Fläche: erste Stufe ist die
+      // Sammlung, zweite der Reitername.
+      it("should identify a register page", () => {
         const result = getSectionBreadcrumb("/database/students");
         expect(result).not.toBeNull();
-        expect(result?.sectionLabel).toBe("Datenverwaltung");
-        expect(result?.sectionHref).toBe("/database");
-        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.sectionLabel).toBe("Kinder");
+        expect(result?.sectionHref).toBe("/students/search");
+        expect(result?.pageLabel).toBe("Stammdaten");
         // Zweistufig: keine dritte Ebene, deshalb auch kein Link auf der
         // Mittelstufe.
         expect(result?.pageHref).toBeUndefined();
@@ -347,26 +331,26 @@ describe("breadcrumb-utils", () => {
         expect(getSectionBreadcrumb("/database")).toBeNull();
       });
 
-      it("should identify database deep page (4+ segments)", () => {
+      it("should identify a deep register page (4+ segments)", () => {
         const result = getSectionBreadcrumb("/database/students/123/edit");
-        expect(result?.sectionLabel).toBe("Datenverwaltung");
-        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.sectionLabel).toBe("Kinder");
+        expect(result?.pageLabel).toBe("Stammdaten");
         expect(result?.pageHref).toBe("/database/students");
         expect(result?.deepLabel).toBe("Bearbeiten");
       });
 
-      it("should correctly identify multiple database segments", () => {
+      it("should correctly identify multiple register segments", () => {
         const result = getSectionBreadcrumb("/database/students/create");
-        expect(result?.pageLabel).toBe("Kinder");
+        expect(result?.pageLabel).toBe("Stammdaten");
         expect(result?.pageHref).toBe("/database/students");
         expect(result?.deepLabel).toBe("Erstellen");
       });
 
       it("should build the three-level breadcrumb for /database/students/import", () => {
         expect(getSectionBreadcrumb("/database/students/import")).toEqual({
-          sectionLabel: "Datenverwaltung",
-          sectionHref: "/database",
-          pageLabel: "Kinder",
+          sectionLabel: "Kinder",
+          sectionHref: "/students/search",
+          pageLabel: "Stammdaten",
           pageHref: "/database/students",
           deepLabel: "Importieren",
         });
@@ -394,13 +378,13 @@ describe("breadcrumb-utils", () => {
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
-          "Kalenderzeiträume",
+          "Zeiträume",
         );
       });
 
-      it("should resolve /payroll to Planung › Abrechnung", () => {
+      it("should resolve /payroll to Auswertung › Abrechnung", () => {
         const result = getSectionBreadcrumb("/payroll");
-        expect(result?.sectionLabel).toBe("Planung");
+        expect(result?.sectionLabel).toBe("Auswertung");
         expect(result?.pageLabel).toBe("Abrechnung");
         expect(result?.sectionHref).toBeUndefined();
       });
@@ -447,7 +431,9 @@ describe("breadcrumb-utils", () => {
         expect(getSectionBreadcrumb("/admin/guardian-approvals")).toEqual({
           sectionLabel: "Eltern",
           sectionHref: "/eltern",
-          pageLabel: "Konto-Anfragen",
+          pageLabel: "Neue Elternkonten",
+          pageHref: undefined,
+          deepLabel: undefined,
         });
         // /admin/change-requests ist kein Eltern-Katalogeintrag mehr — nur
         // noch ein Redirect auf das Top-Level-Modul /anfragen (#2429).

@@ -16,10 +16,25 @@ vi.mock("vaul", async () => {
       Root: ({
         children,
         direction,
+        onOpenChange,
       }: {
         children: React.ReactNode;
         direction?: string;
-      }) => <div data-direction={direction}>{children}</div>,
+        onOpenChange?: (open: boolean) => void;
+      }) => (
+        <div data-direction={direction}>
+          {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund und
+              meldet das über onOpenChange. Das echte Vaul lässt sich in jsdom
+              nicht fahren, prüfbar ist aber das, was uns gehört: dass der
+              Rückruf beim Aufrufer ankommt. */}
+          <button
+            type="button"
+            data-testid="vaul-dismiss"
+            onClick={() => onOpenChange?.(false)}
+          />
+          {children}
+        </div>
+      ),
       Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
       Overlay: React.forwardRef<
         HTMLDivElement,
@@ -135,5 +150,22 @@ describe("SlideOver", () => {
         screen.getByLabelText("Entwurf").closest("[data-direction]"),
       ).toHaveAttribute("data-direction", "bottom");
     });
+  });
+
+  it("meldet ein Schließen durch Vaul (Escape, Klick auf den Hintergrund) an den Aufrufer", () => {
+    // Beim Wechsel von Modal auf Panel ist diese Zusicherung je Verbrauchsstelle
+    // entfallen, weil sie dort nicht mehr prüfbar war. Sie gehört ohnehin hierher:
+    // einmal für alle Panels statt einmal je Aufrufer.
+    const onOpenChange = vi.fn();
+
+    render(
+      <SlideOver open onOpenChange={onOpenChange}>
+        <SlideOverContent>Inhalt</SlideOverContent>
+      </SlideOver>,
+    );
+
+    fireEvent.click(screen.getByTestId("vaul-dismiss"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

@@ -13,7 +13,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -166,119 +175,133 @@ export function GraduatesModal({
 
   return (
     <>
-      <Modal
-        isOpen
-        onClose={onClose}
-        title={`Abgänge: Jahrgangswechsel ${transition.academicYear}`}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-        footer={
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-gray-500">
-              {selectedIds.length > 0
-                ? `${selectedIds.length} ausgewählt`
-                : `${deletable.length} von ${entries?.length ?? 0} noch löschbar`}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={onClose}
-              >
-                Schließen
-              </Button>
-              {canDelete && (
+      <SlideOver
+        open
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) onClose();
+        }}
+      >
+        <SlideOverContent widthClass="sm:w-[560px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>
+                {`Abgänge: Jahrgangswechsel ${transition.academicYear}`}
+              </SlideOverTitle>
+              <SlideOverDescription>
+                Kinder, die die OGS mit diesem Wechsel verlassen haben.
+              </SlideOverDescription>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <p className="text-sm text-gray-600">
+              Diese Kinder haben die OGS mit diesem Jahrgangswechsel verlassen.
+              Sie sind in der App ausgeblendet, ihre Daten aber noch vorhanden.
+              Über <span className="font-medium">Zurücksetzen</span> lassen sie
+              sich zurückholen, solange sie hier nicht endgültig gelöscht
+              wurden.
+            </p>
+
+            {entries === null && (
+              <SkeletonRegion label="Abgänge werden geladen">
+                <ListSkeleton rows={4} avatar={false} />
+              </SkeletonRegion>
+            )}
+
+            {loadFailed && (
+              <p className="text-moto-red rounded-lg border border-gray-200 p-4 text-sm">
+                Abgänge konnten nicht geladen werden. Bitte erneut versuchen.
+              </p>
+            )}
+
+            {entries !== null && !loadFailed && entries.length === 0 && (
+              <p className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
+                Dieser Jahrgangswechsel hatte keine Abgänge.
+              </p>
+            )}
+
+            {entries !== null && entries.length > 0 && (
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                {canDelete && deletable.length > 0 && (
+                  <label
+                    htmlFor="graduates-select-all"
+                    className="flex cursor-pointer items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5"
+                  >
+                    <Checkbox
+                      id="graduates-select-all"
+                      checked={
+                        selectedIds.length === deletable.length &&
+                        deletable.length > 0
+                      }
+                      onChange={toggleAll}
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Alle löschbaren auswählen
+                    </span>
+                  </label>
+                )}
+                <ul>
+                  {entries.map((entry) => {
+                    const isDeletable = entry.studentState === "alumnus";
+                    return (
+                      <li
+                        key={entry.id}
+                        className="flex items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0"
+                      >
+                        {canDelete && (
+                          <Checkbox
+                            checked={selected.has(entry.studentId)}
+                            disabled={!isDeletable}
+                            onChange={() => toggle(entry.studentId)}
+                            aria-label={`${entry.personName} auswählen`}
+                          />
+                        )}
+                        <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                          {entry.personName}
+                        </span>
+                        <span className="shrink-0 text-sm text-gray-500">
+                          {entry.fromClass}
+                        </span>
+                        <StateBadge state={entry.studentState} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+          <SlideOverFooter className="flex-row items-center justify-between gap-3">
+            <div className="flex w-full items-center justify-between gap-3">
+              <span className="text-sm text-gray-500">
+                {selectedIds.length > 0
+                  ? `${selectedIds.length} ausgewählt`
+                  : `${deletable.length} von ${entries?.length ?? 0} noch löschbar`}
+              </span>
+              <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="danger"
+                  variant="outline"
                   size="md"
-                  disabled={selectedIds.length === 0}
-                  onClick={() => setConfirmOpen(true)}
+                  onClick={onClose}
                 >
-                  Endgültig löschen
+                  Schließen
                 </Button>
-              )}
+                {canDelete && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    disabled={selectedIds.length === 0}
+                    onClick={() => setConfirmOpen(true)}
+                  >
+                    Endgültig löschen
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Diese Kinder haben die OGS mit diesem Jahrgangswechsel verlassen.
-            Sie sind in der App ausgeblendet, ihre Daten aber noch vorhanden.
-            Über <span className="font-medium">Zurücksetzen</span> lassen sie
-            sich zurückholen, solange sie hier nicht endgültig gelöscht wurden.
-          </p>
-
-          {entries === null && (
-            <SkeletonRegion label="Abgänge werden geladen">
-              <ListSkeleton rows={4} avatar={false} />
-            </SkeletonRegion>
-          )}
-
-          {loadFailed && (
-            <p className="text-moto-red rounded-lg border border-gray-200 p-4 text-sm">
-              Abgänge konnten nicht geladen werden. Bitte erneut versuchen.
-            </p>
-          )}
-
-          {entries !== null && !loadFailed && entries.length === 0 && (
-            <p className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
-              Dieser Jahrgangswechsel hatte keine Abgänge.
-            </p>
-          )}
-
-          {entries !== null && entries.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-gray-200">
-              {canDelete && deletable.length > 0 && (
-                <label
-                  htmlFor="graduates-select-all"
-                  className="flex cursor-pointer items-center gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2.5"
-                >
-                  <Checkbox
-                    id="graduates-select-all"
-                    checked={
-                      selectedIds.length === deletable.length &&
-                      deletable.length > 0
-                    }
-                    onChange={toggleAll}
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    Alle löschbaren auswählen
-                  </span>
-                </label>
-              )}
-              <ul>
-                {entries.map((entry) => {
-                  const isDeletable = entry.studentState === "alumnus";
-                  return (
-                    <li
-                      key={entry.id}
-                      className="flex items-center gap-3 border-b border-gray-100 px-4 py-2.5 last:border-b-0"
-                    >
-                      {canDelete && (
-                        <Checkbox
-                          checked={selected.has(entry.studentId)}
-                          disabled={!isDeletable}
-                          onChange={() => toggle(entry.studentId)}
-                          aria-label={`${entry.personName} auswählen`}
-                        />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
-                        {entry.personName}
-                      </span>
-                      <span className="shrink-0 text-sm text-gray-500">
-                        {entry.fromClass}
-                      </span>
-                      <StateBadge state={entry.studentState} />
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
-      </Modal>
+          </SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
 
       {confirmOpen && (
         <ConfirmationModal

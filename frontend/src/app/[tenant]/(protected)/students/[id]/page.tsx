@@ -1194,6 +1194,176 @@ function StudentDetailPageContent() {
           })),
           label: "Bereiche der Kindakte",
         }}
+        overlays={
+          <>
+            {/* Checkout Confirmation Modal */}
+            <ConfirmationModal
+              isOpen={showConfirmCheckout}
+              onClose={() => setShowConfirmCheckout(false)}
+              onConfirm={handleConfirmCheckout}
+              title="Kind abmelden"
+              confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
+              cancelText="Abbrechen"
+              isConfirmLoading={checkingOut}
+              confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+            >
+              <p>
+                Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
+              </p>
+            </ConfirmationModal>
+
+            {/* Checkin Confirmation Modal */}
+            <ConfirmationModal
+              isOpen={showConfirmCheckin}
+              onClose={() => setShowConfirmCheckin(false)}
+              onConfirm={handleConfirmCheckin}
+              title="Kind anmelden"
+              confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
+              cancelText="Abbrechen"
+              isConfirmLoading={checkingIn}
+              confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+            >
+              <p>
+                Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
+              </p>
+            </ConfirmationModal>
+
+            {/* Sick Report Confirmation Modal */}
+            <ConfirmationModal
+              isOpen={showConfirmSick}
+              onClose={() => {
+                setShowConfirmSick(false);
+                setSickReason("");
+              }}
+              onConfirm={handleConfirmSickToggle}
+              title={
+                student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"
+              }
+              confirmText={sickConfirmText}
+              cancelText="Abbrechen"
+              isConfirmLoading={sickLoading}
+              confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+            >
+              <p>
+                {student.sick ? (
+                  <>
+                    Möchten Sie die Krankmeldung für{" "}
+                    <strong>{student.name}</strong> für heute aufheben? Geplante
+                    Kranktage in der Zukunft bleiben bestehen.
+                  </>
+                ) : (
+                  <>
+                    Möchten Sie <strong>{student.name}</strong> als krank
+                    melden?
+                  </>
+                )}
+              </p>
+              {!student.sick && (
+                <div className="mt-4">
+                  <label
+                    htmlFor="sick-reason"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Grund (optional)
+                  </label>
+                  <textarea
+                    id="sick-reason"
+                    value={sickReason}
+                    onChange={(e) => setSickReason(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    placeholder="z. B. Fieber, beim Arzt"
+                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                  />
+                </div>
+              )}
+            </ConfirmationModal>
+
+            {/* Excused Confirmation Modal */}
+            <ConfirmationModal
+              isOpen={showConfirmExcused}
+              onClose={() => setShowConfirmExcused(false)}
+              onConfirm={handleConfirmExcusedToggle}
+              title={
+                isQuickExcused
+                  ? "Entschuldigung aufheben"
+                  : "Kind entschuldigen"
+              }
+              confirmText={excusedConfirmText}
+              cancelText="Abbrechen"
+              isConfirmLoading={excusedLoading}
+              confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+            >
+              <p>
+                {isQuickExcused ? (
+                  <>
+                    Möchten Sie die Entschuldigung für{" "}
+                    <strong>{student.name}</strong> für heute aufheben? Geplante
+                    Entschuldigungen in der Zukunft bleiben bestehen.
+                  </>
+                ) : (
+                  <>
+                    Möchten Sie <strong>{student.name}</strong> als entschuldigt
+                    markieren?
+                  </>
+                )}
+              </p>
+            </ConfirmationModal>
+
+            {/* Switch Dialog, shown when user clicks one flag but the other is set */}
+            <ConfirmationModal
+              isOpen={switchTarget !== null}
+              onClose={() => setSwitchTarget(null)}
+              onConfirm={handleConfirmSwitch}
+              title={
+                switchTarget === "sick"
+                  ? "Als krank melden?"
+                  : "Als entschuldigt markieren?"
+              }
+              confirmText={
+                switchLoading ? "Wird gewechselt…" : "Status wechseln"
+              }
+              cancelText="Abbrechen"
+              isConfirmLoading={switchLoading}
+              confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+            >
+              <p>
+                {switchTarget === "sick" ? (
+                  <>
+                    <strong>{student.name}</strong> ist aktuell als entschuldigt
+                    markiert. Stattdessen als krank melden? Die Entschuldigung
+                    wird dabei aufgehoben.
+                  </>
+                ) : (
+                  <>
+                    <strong>{student.name}</strong> ist aktuell als krank
+                    gemeldet. Stattdessen als entschuldigt markieren? Die
+                    Krankmeldung wird dabei aufgehoben.
+                  </>
+                )}
+              </p>
+            </ConfirmationModal>
+
+            <PlannedStatusDaysModal
+              isOpen={plannedStatusModal !== null}
+              status={plannedStatusModal ?? "sick"}
+              studentName={student.name}
+              isSubmitting={plannedStatusLoading}
+              existingDays={statusDays}
+              existingPartialAbsences={partialAbsences}
+              canPlanPartialExcusal={canPlanPartialExcusal}
+              deletingStatusDayId={deletingPlannedStatusDayId}
+              onClose={() => setPlannedStatusModal(null)}
+              loadExistingDays={loadPlannedStatusExistingDays}
+              loadPartialAbsences={loadPlannedPartialAbsences}
+              loadCarePlanDay={loadPlannedCarePlanDay}
+              onSubmit={handleCreatePlannedStatus}
+              onDeleteStatusDay={handleDeletePlannedStatus}
+              onSubmitPartialAbsence={handleSavePartialAbsence}
+              onDeletePartialAbsence={handleDeletePartialAbsence}
+            />
+          </>
+        }
       >
         {careWithdrawalLoadFailed ? (
           <div>
@@ -1267,166 +1437,6 @@ function StudentDetailPageContent() {
           />
         )}
       </TenantPage>
-
-      {/* Checkout Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmCheckout}
-        onClose={() => setShowConfirmCheckout(false)}
-        onConfirm={handleConfirmCheckout}
-        title="Kind abmelden"
-        confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
-        cancelText="Abbrechen"
-        isConfirmLoading={checkingOut}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
-        </p>
-      </ConfirmationModal>
-
-      {/* Checkin Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmCheckin}
-        onClose={() => setShowConfirmCheckin(false)}
-        onConfirm={handleConfirmCheckin}
-        title="Kind anmelden"
-        confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
-        cancelText="Abbrechen"
-        isConfirmLoading={checkingIn}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
-        </p>
-      </ConfirmationModal>
-
-      {/* Sick Report Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmSick}
-        onClose={() => {
-          setShowConfirmSick(false);
-          setSickReason("");
-        }}
-        onConfirm={handleConfirmSickToggle}
-        title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
-        confirmText={sickConfirmText}
-        cancelText="Abbrechen"
-        isConfirmLoading={sickLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          {student.sick ? (
-            <>
-              Möchten Sie die Krankmeldung für <strong>{student.name}</strong>{" "}
-              für heute aufheben? Geplante Kranktage in der Zukunft bleiben
-              bestehen.
-            </>
-          ) : (
-            <>
-              Möchten Sie <strong>{student.name}</strong> als krank melden?
-            </>
-          )}
-        </p>
-        {!student.sick && (
-          <div className="mt-4">
-            <label
-              htmlFor="sick-reason"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Grund (optional)
-            </label>
-            <textarea
-              id="sick-reason"
-              value={sickReason}
-              onChange={(e) => setSickReason(e.target.value)}
-              rows={2}
-              maxLength={2000}
-              placeholder="z. B. Fieber, beim Arzt"
-              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-            />
-          </div>
-        )}
-      </ConfirmationModal>
-
-      {/* Excused Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmExcused}
-        onClose={() => setShowConfirmExcused(false)}
-        onConfirm={handleConfirmExcusedToggle}
-        title={
-          isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
-        }
-        confirmText={excusedConfirmText}
-        cancelText="Abbrechen"
-        isConfirmLoading={excusedLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          {isQuickExcused ? (
-            <>
-              Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
-              für heute aufheben? Geplante Entschuldigungen in der Zukunft
-              bleiben bestehen.
-            </>
-          ) : (
-            <>
-              Möchten Sie <strong>{student.name}</strong> als entschuldigt
-              markieren?
-            </>
-          )}
-        </p>
-      </ConfirmationModal>
-
-      {/* Switch Dialog, shown when user clicks one flag but the other is set */}
-      <ConfirmationModal
-        isOpen={switchTarget !== null}
-        onClose={() => setSwitchTarget(null)}
-        onConfirm={handleConfirmSwitch}
-        title={
-          switchTarget === "sick"
-            ? "Als krank melden?"
-            : "Als entschuldigt markieren?"
-        }
-        confirmText={switchLoading ? "Wird gewechselt…" : "Status wechseln"}
-        cancelText="Abbrechen"
-        isConfirmLoading={switchLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          {switchTarget === "sick" ? (
-            <>
-              <strong>{student.name}</strong> ist aktuell als entschuldigt
-              markiert. Stattdessen als krank melden? Die Entschuldigung wird
-              dabei aufgehoben.
-            </>
-          ) : (
-            <>
-              <strong>{student.name}</strong> ist aktuell als krank gemeldet.
-              Stattdessen als entschuldigt markieren? Die Krankmeldung wird
-              dabei aufgehoben.
-            </>
-          )}
-        </p>
-      </ConfirmationModal>
-
-      <PlannedStatusDaysModal
-        isOpen={plannedStatusModal !== null}
-        status={plannedStatusModal ?? "sick"}
-        studentName={student.name}
-        isSubmitting={plannedStatusLoading}
-        existingDays={statusDays}
-        existingPartialAbsences={partialAbsences}
-        canPlanPartialExcusal={canPlanPartialExcusal}
-        deletingStatusDayId={deletingPlannedStatusDayId}
-        onClose={() => setPlannedStatusModal(null)}
-        loadExistingDays={loadPlannedStatusExistingDays}
-        loadPartialAbsences={loadPlannedPartialAbsences}
-        loadCarePlanDay={loadPlannedCarePlanDay}
-        onSubmit={handleCreatePlannedStatus}
-        onDeleteStatusDay={handleDeletePlannedStatus}
-        onSubmitPartialAbsence={handleSavePartialAbsence}
-        onDeletePartialAbsence={handleDeletePartialAbsence}
-      />
     </>
   );
 }

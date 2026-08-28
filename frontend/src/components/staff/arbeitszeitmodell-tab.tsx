@@ -6,7 +6,14 @@ import { useSWRConfig } from "swr";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import {
   CardGridSkeleton,
   SkeletonRegion,
@@ -603,41 +610,51 @@ function EditArbeitszeitmodellModal({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Arbeitszeitmodell bearbeiten"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      footer={footer}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <div className="space-y-5">
-        <ModeRadioGroup mode={mode} onChange={setMode} />
+      <SlideOverContent widthClass="sm:w-[760px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>Arbeitszeitmodell bearbeiten</SlideOverTitle>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <ModeRadioGroup mode={mode} onChange={setMode} />
 
-        {mode === "template" ? (
-          <TemplateSelector
-            templates={templates ?? []}
-            selectedId={selectedModelId}
-            onSelect={setSelectedModelId}
-          />
-        ) : (
-          <CustomEditor
-            rotationLength={rotationLength}
-            onRotationChange={setRotationLength}
-            activeWeekTab={activeWeekTab}
-            onActiveWeekTabChange={setActiveWeekTab}
-            entries={customEntries}
-            decimalHourInputs={decimalHourInputs}
-            invalidDecimalHourInputs={invalidDecimalHourInputs}
-            onDecimalHoursChange={updateDecimalHours}
-            onStartTimeChange={updateEntryStartTime}
-            totalForWeek={totalForWeek}
-            rotationTotal={rotationTotal}
-            saveAsTemplateName={saveAsTemplateName}
-            onSaveAsTemplateNameChange={setSaveAsTemplateName}
-          />
-        )}
-      </div>
-    </Modal>
+          {mode === "template" ? (
+            <TemplateSelector
+              templates={templates ?? []}
+              selectedId={selectedModelId}
+              onSelect={setSelectedModelId}
+            />
+          ) : (
+            <CustomEditor
+              rotationLength={rotationLength}
+              onRotationChange={setRotationLength}
+              activeWeekTab={activeWeekTab}
+              onActiveWeekTabChange={setActiveWeekTab}
+              entries={customEntries}
+              decimalHourInputs={decimalHourInputs}
+              invalidDecimalHourInputs={invalidDecimalHourInputs}
+              onDecimalHoursChange={updateDecimalHours}
+              onStartTimeChange={updateEntryStartTime}
+              totalForWeek={totalForWeek}
+              rotationTotal={rotationTotal}
+              saveAsTemplateName={saveAsTemplateName}
+              onSaveAsTemplateNameChange={setSaveAsTemplateName}
+            />
+          )}
+        </div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

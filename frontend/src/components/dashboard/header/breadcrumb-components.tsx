@@ -6,15 +6,8 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import {
-  ENROLLMENT_SECTION,
-  ENROLLMENT_SUB_PAGES,
-} from "~/lib/section-navigation";
+import { ENROLLMENT_SECTION, PARENT_SECTION } from "~/lib/section-navigation";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-
-// Die Hub-Seite der Anmeldungen ("Überblick") — erster Katalogeintrag, nicht
-// der Sektionsname. Beide stehen in der Breadcrumb übereinander.
-const ENROLLMENT_HUB_PAGE = ENROLLMENT_SUB_PAGES[0]!;
 
 /**
  * Chevron separator icon for breadcrumbs
@@ -257,21 +250,17 @@ export function EnrollmentBreadcrumb({
 
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
+      {/* Die Anmeldungen stehen im Bereich Eltern; die Brotkrume nennt ihn
+          zuerst, wie die Seitenleiste. */}
+      <BreadcrumbLink href={PARENT_SECTION.href}>
+        {PARENT_SECTION.label}
+      </BreadcrumbLink>
+      <BreadcrumbSeparator />
       <BreadcrumbLink href={ENROLLMENT_SECTION.href}>
         {ENROLLMENT_SECTION.label}
       </BreadcrumbLink>
       <BreadcrumbSeparator />
-      {nestedCurrent ? (
-        <>
-          <BreadcrumbLink href={ENROLLMENT_HUB_PAGE.href}>
-            {ENROLLMENT_HUB_PAGE.label}
-          </BreadcrumbLink>
-          <BreadcrumbSeparator />
-          <BreadcrumbCurrent>{nestedCurrent}</BreadcrumbCurrent>
-        </>
-      ) : (
-        <BreadcrumbCurrent>{current}</BreadcrumbCurrent>
-      )}
+      <BreadcrumbCurrent>{nestedCurrent ?? current}</BreadcrumbCurrent>
     </BreadcrumbNav>
   );
 }

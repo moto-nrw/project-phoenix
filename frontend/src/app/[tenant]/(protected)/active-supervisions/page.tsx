@@ -380,7 +380,7 @@ function MeinRaumPageContent() {
 
   return (
     <TenantPage
-      title="Aktuelle Aufsicht"
+      title="Aufsicht heute"
       stats={supervisionSummary}
       actions={releaseAction}
       search={{
@@ -405,28 +405,8 @@ function MeinRaumPageContent() {
             }
           : null
       }
-    >
-      {/* Fehler der Seite stehen als Alert oben im Inhalt und nicht im
-          `error`-Zustand des Geruests: hier meldet auch eine misslungene
-          Einzelaktion (Kind hinzufuegen, Aufsicht wechseln), und die Flaeche
-          darunter muss bedienbar bleiben, damit man es erneut versuchen kann. */}
-      {error && !hasNoAccess ? <Alert type="error" message={error} /> : null}
-      {showUnclaimedOnly ? (
+      overlays={
         <>
-          {reopenBanner}
-          {spontaneousStartBanner}
-          <EmptyRoomsView
-            onClaimed={refresh}
-            cachedActiveGroups={dashboard.cachedActiveGroups}
-            currentStaffId={currentStaffId}
-          />
-          {/* The day review must survive the empty state: after the last block
-              ends, supervisors land exactly here (#2335). */}
-          <PastBlocksSection />
-        </>
-      ) : (
-        <>
-          {reopenBanner}
           <ConfirmationModal
             isOpen={actions.showCompleteConfirmation}
             onClose={() => actions.setShowCompleteConfirmation(false)}
@@ -460,6 +440,39 @@ function MeinRaumPageContent() {
               ) : null}
             </div>
           </ConfirmationModal>
+          {/* Schulhof Release Supervision Modal */}
+          <ReleaseSupervisionModal
+            isOpen={schulhof.showReleaseModal}
+            onClose={() => schulhof.setShowReleaseModal(false)}
+            onConfirm={() =>
+              schulhof.handleReleaseSupervision().catch(() => undefined)
+            }
+            isConfirmLoading={schulhof.isReleasingSupervision}
+          />
+        </>
+      }
+    >
+      {/* Fehler der Seite stehen als Alert oben im Inhalt und nicht im
+          `error`-Zustand des Geruests: hier meldet auch eine misslungene
+          Einzelaktion (Kind hinzufuegen, Aufsicht wechseln), und die Flaeche
+          darunter muss bedienbar bleiben, damit man es erneut versuchen kann. */}
+      {error && !hasNoAccess ? <Alert type="error" message={error} /> : null}
+      {showUnclaimedOnly ? (
+        <>
+          {reopenBanner}
+          {spontaneousStartBanner}
+          <EmptyRoomsView
+            onClaimed={refresh}
+            cachedActiveGroups={dashboard.cachedActiveGroups}
+            currentStaffId={currentStaffId}
+          />
+          {/* The day review must survive the empty state: after the last block
+              ends, supervisors land exactly here (#2335). */}
+          <PastBlocksSection />
+        </>
+      ) : (
+        <>
+          {reopenBanner}
           {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
           <UnclaimedRooms
             onClaimed={refresh}
@@ -481,16 +494,6 @@ function MeinRaumPageContent() {
           />
 
           {spontaneousStartBanner}
-
-          {/* Schulhof Release Supervision Modal */}
-          <ReleaseSupervisionModal
-            isOpen={schulhof.showReleaseModal}
-            onClose={() => schulhof.setShowReleaseModal(false)}
-            onConfirm={() =>
-              schulhof.handleReleaseSupervision().catch(() => undefined)
-            }
-            isConfirmLoading={schulhof.isReleasingSupervision}
-          />
 
           {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
           {isSchulhofTabSelected &&
@@ -542,7 +545,7 @@ function ActiveSupervisionGate({
   const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
-    return <TenantPage title="Aktuelle Aufsicht" statsLoading loading />;
+    return <TenantPage title="Aufsicht heute" statsLoading loading />;
   }
 
   // Caregivers (user/teacher role) always have access
@@ -560,7 +563,7 @@ function ActiveSupervisionGate({
 
   // Fehlendes Recht ist ein Zustand der Seite, kein Fehler: dieselbe
   // Kopfkarte mit demselben Titel, darunter der ruhige Leerzustand.
-  return <ForbiddenPage title="Aktuelle Aufsicht" />;
+  return <ForbiddenPage title="Aufsicht heute" />;
 }
 
 // Main component with Suspense wrapper. BinaryModeGuard runs first so
@@ -570,7 +573,7 @@ export default function MeinRaumPage() {
   return (
     <BinaryModeGuard>
       <Suspense
-        fallback={<TenantPage title="Aktuelle Aufsicht" statsLoading loading />}
+        fallback={<TenantPage title="Aufsicht heute" statsLoading loading />}
       >
         <ActiveSupervisionGate>
           <SSEErrorBoundary>

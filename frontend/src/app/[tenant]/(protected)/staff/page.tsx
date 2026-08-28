@@ -35,6 +35,10 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
+import {
+  getTabsForCollection,
+  STAFF_FLAT_PAGES,
+} from "~/lib/section-navigation";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
@@ -138,7 +142,7 @@ function DocumentDirectory({
 
   return (
     <TenantPage
-      title="Mitarbeiter"
+      title="Personalunterlagen"
       stats={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
       search={{
         value: search,
@@ -642,8 +646,8 @@ function StaffPageContent() {
 
   // Leerzustand der Karten-Ansicht: Er nennt den nächsten Schritt, nicht nur
   // die Feststellung. Filtert die Suche alles weg, ist der nächste Schritt das
-  // Zurücksetzen; ist wirklich niemand angelegt, führt er in die
-  // Datenverwaltung, wo Mitarbeitende entstehen. Eine noch nicht geladene
+  // Zurücksetzen; ist wirklich niemand angelegt, führt er in die Stammdaten,
+  // wo Mitarbeitende entstehen. Eine noch nicht geladene
   // Liste (staffData === undefined) ist kein Leerzustand.
   const staffFilterActive = searchTerm !== "" || locationFilter !== "all";
   const statusEmptyState =
@@ -656,7 +660,7 @@ function StaffPageContent() {
           title: "Kein Personal gefunden",
           description: staffFilterActive
             ? "Zu dieser Suche gibt es keine Person. Setzen Sie die Suche zurück, um alle zu sehen."
-            : "Es ist noch niemand angelegt. Mitarbeitende legen Sie in der Datenverwaltung an.",
+            : "Es ist noch niemand angelegt. Mitarbeitende legen Sie im Reiter „Stammdaten“ an.",
           icon: <MotoConceptIcon concept="staff" size={48} />,
           action: staffFilterActive ? (
             <Button
@@ -686,6 +690,13 @@ function StaffPageContent() {
   // Seitenreiter: Status (Karten), Zeitkonten (Tabelle), Änderungsprotokoll
   // und Personalunterlagen beantworten verschiedene Fragen. Nur mit
   // time_tracking:manage gibt es überhaupt etwas zu wechseln.
+  // Register der aufgelösten Datenverwaltung: „Stammdaten" und
+  // „Vertretungszugriff" stehen als Reiter hier, nicht als eigener Zweig in
+  // der Seitenleiste. Sie führen auf ihre bestehenden Routen.
+  const linkedTabs = userIsAdmin
+    ? getTabsForCollection(STAFF_FLAT_PAGES.staff.href)
+    : [];
+
   const tabItems = [
     ...(canReadUsers ? [{ value: "status", label: "Status" }] : []),
     { value: "accounts", label: "Zeitkonten" },
@@ -693,11 +704,12 @@ function StaffPageContent() {
     ...(canAccessDocuments
       ? [{ value: "documents", label: "Personalunterlagen" }]
       : []),
+    ...linkedTabs.map((tab) => ({ value: tab.href, label: tab.label })),
   ];
 
   return (
     <TenantPage
-      title="Mitarbeiter"
+      title="Mitarbeitende"
       stats={staffSummary}
       statsLoading={showSkeleton}
       search={
@@ -722,13 +734,20 @@ function StaffPageContent() {
         setShowCustomSaldo(false);
       }}
       tabs={
-        canManageTimeTracking
+        canManageTimeTracking || linkedTabs.length > 0
           ? {
               value: view,
-              onChange: (value) =>
+              onChange: (value) => {
+                // Ein Reiter, der auf eine andere Route zeigt, navigiert
+                // dorthin; die übrigen schalten die Ansicht dieser Seite um.
+                if (value.startsWith("/")) {
+                  router.push(value);
+                  return;
+                }
                 setSelectedView(
                   value as "status" | "accounts" | "audit" | "documents",
-                ),
+                );
+              },
               items: tabItems,
             }
           : undefined
@@ -737,6 +756,46 @@ function StaffPageContent() {
       // in den Inhalt. Beides betrifft nur die Karten-Ansicht „Status".
       error={view === "status" ? error : null}
       empty={statusEmptyState}
+      overlays={
+        <>
+          {showCloseModal && (
+            <MonthCloseReasonModal
+              title={`Monat abschließen: ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
+              description={
+                <>
+                  <p>
+                    Der Abschluss friert den Saldo zum Monatsende für{" "}
+                    <strong>alle Mitarbeitenden</strong> ein. Spätere Monate
+                    rechnen ab dann mit diesem eingefrorenen Übertrag weiter.
+                  </p>
+                  <p>
+                    Werden danach noch Zeiten in diesem Monat geändert, bleibt
+                    der Übertrag stehen; die Abweichung wird auf der Monatskarte
+                    der Person angezeigt.
+                  </p>
+                  <p>
+                    Bereits abgeschlossene Konten bleiben unverändert; nur
+                    offene Konten werden eingefroren.
+                  </p>
+                </>
+              }
+              submitLabel="Monat abschließen"
+              successMessage="Monat abgeschlossen."
+              onSubmit={handleCloseMonth}
+              onClose={() => setShowCloseModal(false)}
+            />
+          )}
+
+          {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
+              komplett aus dem Backend. */}
+          <StaffTimeExportModal
+            isOpen={showExportModal}
+            onClose={() => setShowExportModal(false)}
+            year={accounts?.year ?? monthAnchor.year}
+            month={accounts?.month ?? monthAnchor.month}
+          />
+        </>
+      }
     >
       {/* Verweis auf die Anfragen (#2433): Urlaub, Krank und Fortbildung
           werden dort entschieden, nicht hier. */}
@@ -835,43 +894,6 @@ function StaffPageContent() {
               paginationResetKey={`${accountsKey ?? "inactive"}:${searchTerm}`}
             />
           )}
-
-          {showCloseModal && (
-            <MonthCloseReasonModal
-              title={`Monat abschließen: ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
-              description={
-                <>
-                  <p>
-                    Der Abschluss friert den Saldo zum Monatsende für{" "}
-                    <strong>alle Mitarbeitenden</strong> ein. Spätere Monate
-                    rechnen ab dann mit diesem eingefrorenen Übertrag weiter.
-                  </p>
-                  <p>
-                    Werden danach noch Zeiten in diesem Monat geändert, bleibt
-                    der Übertrag stehen; die Abweichung wird auf der Monatskarte
-                    der Person angezeigt.
-                  </p>
-                  <p>
-                    Bereits abgeschlossene Konten bleiben unverändert; nur
-                    offene Konten werden eingefroren.
-                  </p>
-                </>
-              }
-              submitLabel="Monat abschließen"
-              successMessage="Monat abgeschlossen."
-              onSubmit={handleCloseMonth}
-              onClose={() => setShowCloseModal(false)}
-            />
-          )}
-
-          {/* Cross-MA-Export (#1417 2b): Query-Bau im Dialog, Zahlen und Datei
-              komplett aus dem Backend. */}
-          <StaffTimeExportModal
-            isOpen={showExportModal}
-            onClose={() => setShowExportModal(false)}
-            year={accounts?.year ?? monthAnchor.year}
-            month={accounts?.month ?? monthAnchor.month}
-          />
 
           {/* Staff Grid */}
           {view === "status" && filteredStaff.length > 0 && (

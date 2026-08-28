@@ -7,7 +7,15 @@
 import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
@@ -141,13 +149,106 @@ export function TransitionPreviewModal({
 
   return (
     <>
-      <Modal
-        isOpen
-        onClose={onClose}
-        title={`Vorschau: Jahrgangswechsel ${transition.academicYear}`}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
-        footer={
-          <div className="flex justify-end gap-2">
+      <SlideOver
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <SlideOverContent widthClass="sm:w-[760px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>{`Vorschau: Jahrgangswechsel ${transition.academicYear}`}</SlideOverTitle>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {!preview && !loadError && (
+              <SkeletonRegion label="Vorschau wird geladen">
+                <ListSkeleton rows={4} avatar={false} />
+              </SkeletonRegion>
+            )}
+            {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
+
+            {preview && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-2xl font-semibold text-gray-900">
+                      {preview.totalStudents}
+                    </p>
+                    <p className="text-xs text-gray-500">Kinder gesamt</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-moto-green text-2xl font-semibold">
+                      {preview.toPromote}
+                    </p>
+                    <p className="text-xs text-gray-500">werden versetzt</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
+                    <p className="text-moto-red text-2xl font-semibold">
+                      {preview.toGraduate}
+                    </p>
+                    <p className="text-xs text-gray-500">Abgänge</p>
+                  </div>
+                </div>
+
+                <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+                  {preview.byMapping.map((m) => (
+                    <li
+                      key={m.fromClass}
+                      className="flex items-center justify-between p-3 text-sm"
+                    >
+                      <span className="font-medium text-gray-900">
+                        {m.fromClass}
+                        {" -> "}
+                        {m.toClass ?? "Abgang"}
+                      </span>
+                      <span className="text-gray-500">
+                        {m.studentCount}{" "}
+                        {m.studentCount === 1 ? "Kind" : "Kinder"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                {preview.toGraduate > 0 && (
+                  <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-3 text-sm text-gray-800">
+                    <p className="text-moto-red font-semibold">
+                      {preview.toGraduate}{" "}
+                      {preview.toGraduate === 1
+                        ? "Kind verlässt die OGS"
+                        : "Kinder verlassen die OGS"}
+                    </p>
+                    <p className="mt-1">
+                      Diese Kinder werden nach dem Anwenden in der App nicht
+                      mehr angezeigt. Über Zurücksetzen lässt sich das
+                      wiederherstellen.
+                    </p>
+                  </div>
+                )}
+
+                {preview.unmappedClasses.length > 0 && (
+                  <div className="border-moto-orange/30 bg-moto-orange/5 rounded-xl border p-3 text-sm text-gray-800">
+                    <p className="text-moto-orange font-semibold">
+                      Nicht berücksichtigte Klassen
+                    </p>
+                    <p className="mt-1">
+                      {preview.unmappedClasses
+                        .map((u) => `${u.className} (${u.studentCount})`)
+                        .join(", ")}{" "}
+                      bleiben unverändert.
+                    </p>
+                  </div>
+                )}
+
+                {applyError && (
+                  <p className="text-moto-red text-sm">{applyError}</p>
+                )}
+              </div>
+            )}
+          </div>
+          <SlideOverFooter className="flex-row justify-end gap-2">
             {canEdit ? (
               <Button
                 type="button"
@@ -177,92 +278,9 @@ export function TransitionPreviewModal({
                 Jahrgangswechsel anwenden
               </Button>
             )}
-          </div>
-        }
-      >
-        {!preview && !loadError && (
-          <SkeletonRegion label="Vorschau wird geladen">
-            <ListSkeleton rows={4} avatar={false} />
-          </SkeletonRegion>
-        )}
-        {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
-
-        {preview && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
-                <p className="text-2xl font-semibold text-gray-900">
-                  {preview.totalStudents}
-                </p>
-                <p className="text-xs text-gray-500">Kinder gesamt</p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
-                <p className="text-moto-green text-2xl font-semibold">
-                  {preview.toPromote}
-                </p>
-                <p className="text-xs text-gray-500">werden versetzt</p>
-              </div>
-              <div className="rounded-xl border border-gray-200 bg-white p-3 text-center shadow-sm">
-                <p className="text-moto-red text-2xl font-semibold">
-                  {preview.toGraduate}
-                </p>
-                <p className="text-xs text-gray-500">Abgänge</p>
-              </div>
-            </div>
-
-            <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
-              {preview.byMapping.map((m) => (
-                <li
-                  key={m.fromClass}
-                  className="flex items-center justify-between p-3 text-sm"
-                >
-                  <span className="font-medium text-gray-900">
-                    {m.fromClass}
-                    {" -> "}
-                    {m.toClass ?? "Abgang"}
-                  </span>
-                  <span className="text-gray-500">
-                    {m.studentCount} {m.studentCount === 1 ? "Kind" : "Kinder"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            {preview.toGraduate > 0 && (
-              <div className="border-moto-red/30 bg-moto-red/5 rounded-xl border p-3 text-sm text-gray-800">
-                <p className="text-moto-red font-semibold">
-                  {preview.toGraduate}{" "}
-                  {preview.toGraduate === 1
-                    ? "Kind verlässt die OGS"
-                    : "Kinder verlassen die OGS"}
-                </p>
-                <p className="mt-1">
-                  Diese Kinder werden nach dem Anwenden in der App nicht mehr
-                  angezeigt. Über Zurücksetzen lässt sich das wiederherstellen.
-                </p>
-              </div>
-            )}
-
-            {preview.unmappedClasses.length > 0 && (
-              <div className="border-moto-orange/30 bg-moto-orange/5 rounded-xl border p-3 text-sm text-gray-800">
-                <p className="text-moto-orange font-semibold">
-                  Nicht berücksichtigte Klassen
-                </p>
-                <p className="mt-1">
-                  {preview.unmappedClasses
-                    .map((u) => `${u.className} (${u.studentCount})`)
-                    .join(", ")}{" "}
-                  bleiben unverändert.
-                </p>
-              </div>
-            )}
-
-            {applyError && (
-              <p className="text-moto-red text-sm">{applyError}</p>
-            )}
-          </div>
-        )}
-      </Modal>
+          </SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
 
       <ConfirmationModal
         isOpen={confirmOpen && canApply}

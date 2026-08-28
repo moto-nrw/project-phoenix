@@ -72,7 +72,17 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
+import { hasRole } from "~/lib/auth-utils";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+import { useCollectionTabs } from "~/components/dashboard/use-collection-tabs";
+import {
+  getTabsForCollection,
+  STAFF_FLAT_PAGES,
+} from "~/lib/section-navigation";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
@@ -955,6 +965,28 @@ function SearchPageContent() {
     },
   });
   const searchParams = useSearchParams();
+
+  // Reiter der Sammlung: die Stammdaten des Kindes sind ein Reiter hier, kein
+  // zweiter Baum („Datenverwaltung"). „Meine Gruppen" hing bis zum
+  // Navigationsumbau als dynamische Liste in der Seitenleiste.
+  const openCareGroupMode = useOpenCareGroupMode();
+  const { hasGroups } = useOptionalSupervision();
+  const collectionTabs = useMemo(() => {
+    const tabs = [];
+    if (hasGroups && !openCareGroupMode) {
+      tabs.push({ href: "/ogs-groups", label: "Meine Gruppen" });
+    }
+    if (hasRole(session, "admin")) {
+      tabs.push(...getTabsForCollection(STAFF_FLAT_PAGES.studentSearch.href));
+    }
+    return tabs;
+  }, [session, hasGroups, openCareGroupMode]);
+  const pageTabs = useCollectionTabs(
+    STAFF_FLAT_PAGES.studentSearch.href,
+    STAFF_FLAT_PAGES.studentSearch.label,
+    collectionTabs,
+    "Bereiche der Kinder",
+  );
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const storageKey = useMemo(
     () => buildSearchFilterStorageKey(session?.user),
@@ -2764,9 +2796,10 @@ function SearchPageContent() {
       {/* Kopfkarte wie auf jeder Tenant-Seite: Titel, Statuszeile, Aktionen,
           darunter Suche und Filter. */}
       <TenantPage
-        title="Alle Kinder"
+        title="Kinder"
         stats={studentSummary}
         statsLoading={!hasFetchedOnce || isDateTransition}
+        tabs={pageTabs}
         actions={
           <>
             <OverflowMenu
@@ -2863,6 +2896,152 @@ function SearchPageContent() {
                   ),
                 }
               : null
+        }
+        overlays={
+          <>
+            {/* Checkout out of a room ends the running room visit, so it asks
+          first and names the room (#2220). Roomless states never reach
+          this dialog — they stay a single tap. */}
+            <ConfirmationModal
+              isOpen={pendingRoomCheckout !== null}
+              onClose={() => setPendingRoomCheckout(null)}
+              onConfirm={() => {
+                if (!pendingRoomCheckout) return;
+                void schoolCheckin.toggle(
+                  pendingRoomCheckout.studentId,
+                  "anwesend",
+                );
+                setPendingRoomCheckout(null);
+              }}
+              title="Aus der Betreuung abmelden?"
+              confirmText="Abmelden"
+              confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+            >
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {pendingRoomCheckout?.studentName}
+                </span>{" "}
+                ist gerade in{" "}
+                <span className="font-medium text-gray-900">
+                  {pendingRoomCheckout?.room}
+                </span>
+                . Beim Abmelden wird der laufende Raumbesuch beendet und das
+                Kind gilt für heute als gegangen.
+              </p>
+            </ConfirmationModal>
+
+            {/* Bulk checkout of a selection with children currently in rooms: one
+          confirmation for the whole batch (#2359), mirroring the single-tap
+          room dialog above. Confirming executes the snapshot the dialog
+          displays — not the live selection, which may have shifted while it
+          was open (review #2372). */}
+            <ConfirmationModal
+              isOpen={pendingBulkCheckout !== null}
+              onClose={() => setPendingBulkCheckout(null)}
+              onConfirm={() => {
+                if (!pendingBulkCheckout) return;
+                const snapshot = pendingBulkCheckout.students;
+                setPendingBulkCheckout(null);
+                void executeBulk("out", snapshot);
+              }}
+              title="Ausgewählte Kinder abmelden?"
+              confirmText="Abmelden"
+              confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+            >
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {pendingBulkCheckout?.students.length}
+                </span>{" "}
+                {pendingBulkCheckout?.students.length === 1
+                  ? "Kind ist"
+                  : "Kinder sind"}{" "}
+                ausgewählt,{" "}
+                <span className="font-medium text-gray-900">
+                  {pendingBulkCheckout?.roomCount}
+                </span>{" "}
+                davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"}{" "}
+                gerade in einem Raum. Beim Abmelden werden laufende Raumbesuche
+                beendet und die Kinder gelten für heute als gegangen.
+              </p>
+            </ConfirmationModal>
+
+            {/* Per-child failures of a bulk action, named (#2359). The successful
+          part of the batch is already applied at this point. The retry
+          button executes the dialog's OWN snapshot — the named children on
+          screen right here — not the selection bar's visible-rows view: a
+          scope change during the run keeps the failed students selected but
+          may hide their cards, and the promised one-tap retry must stay
+          reachable then (review #2372). Acting on the snapshot is not
+          sight-unseen (the dialog lists every child by name), and runBulk
+          executes exactly this snapshot — a scope change committing while
+          this dialog is open may clear the selection, and an intersected
+          retry would then be a silent no-op (review #2372). */}
+            <Modal
+              isOpen={bulkFailures !== null}
+              onClose={() => setBulkFailures(null)}
+              title={
+                bulkFailures?.action === "in"
+                  ? "Nicht alle Kinder angemeldet"
+                  : "Nicht alle Kinder abgemeldet"
+              }
+            >
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  {bulkFailures?.succeeded === 1
+                    ? "1 Kind wurde"
+                    : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
+                  {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}.
+                  Bei
+                  {bulkFailures?.students.length === 1
+                    ? " diesem Kind"
+                    : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
+                  hat es nicht geklappt:
+                </p>
+                <ul className="list-inside list-disc text-sm font-medium text-gray-900">
+                  {bulkFailures?.students.map((student) => (
+                    <li key={student.id}>{student.name}</li>
+                  ))}
+                </ul>
+                <p className="text-sm text-gray-600">
+                  Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führst
+                  du die Aktion für genau diese Kinder noch einmal aus, auch
+                  wenn ein geänderter Filter sie gerade ausblendet.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setBulkFailures(null)}
+                  >
+                    Schließen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => {
+                      if (!bulkFailures) return;
+                      const { action, students: failedStudents } = bulkFailures;
+                      setBulkFailures(null);
+                      void executeBulk(action, failedStudents);
+                    }}
+                  >
+                    Erneut versuchen
+                  </Button>
+                </div>
+              </div>
+            </Modal>
+
+            {isExportOpen && (
+              <StudentExportModal
+                isOpen={isExportOpen}
+                filters={exportFilters}
+                resultCount={filteredStudents.length}
+                onClose={() => setIsExportOpen(false)}
+              />
+            )}
+          </>
         }
       >
         <div>
@@ -3262,145 +3441,6 @@ function SearchPageContent() {
             disabled={schoolCheckin.isBulkRunning}
           />
         </div>
-      )}
-
-      {/* Checkout out of a room ends the running room visit, so it asks
-          first and names the room (#2220). Roomless states never reach
-          this dialog — they stay a single tap. */}
-      <ConfirmationModal
-        isOpen={pendingRoomCheckout !== null}
-        onClose={() => setPendingRoomCheckout(null)}
-        onConfirm={() => {
-          if (!pendingRoomCheckout) return;
-          void schoolCheckin.toggle(pendingRoomCheckout.studentId, "anwesend");
-          setPendingRoomCheckout(null);
-        }}
-        title="Aus der Betreuung abmelden?"
-        confirmText="Abmelden"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-      >
-        <p className="text-sm text-gray-600">
-          <span className="font-medium text-gray-900">
-            {pendingRoomCheckout?.studentName}
-          </span>{" "}
-          ist gerade in{" "}
-          <span className="font-medium text-gray-900">
-            {pendingRoomCheckout?.room}
-          </span>
-          . Beim Abmelden wird der laufende Raumbesuch beendet und das Kind gilt
-          für heute als gegangen.
-        </p>
-      </ConfirmationModal>
-
-      {/* Bulk checkout of a selection with children currently in rooms: one
-          confirmation for the whole batch (#2359), mirroring the single-tap
-          room dialog above. Confirming executes the snapshot the dialog
-          displays — not the live selection, which may have shifted while it
-          was open (review #2372). */}
-      <ConfirmationModal
-        isOpen={pendingBulkCheckout !== null}
-        onClose={() => setPendingBulkCheckout(null)}
-        onConfirm={() => {
-          if (!pendingBulkCheckout) return;
-          const snapshot = pendingBulkCheckout.students;
-          setPendingBulkCheckout(null);
-          void executeBulk("out", snapshot);
-        }}
-        title="Ausgewählte Kinder abmelden?"
-        confirmText="Abmelden"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-      >
-        <p className="text-sm text-gray-600">
-          <span className="font-medium text-gray-900">
-            {pendingBulkCheckout?.students.length}
-          </span>{" "}
-          {pendingBulkCheckout?.students.length === 1
-            ? "Kind ist"
-            : "Kinder sind"}{" "}
-          ausgewählt,{" "}
-          <span className="font-medium text-gray-900">
-            {pendingBulkCheckout?.roomCount}
-          </span>{" "}
-          davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"} gerade
-          in einem Raum. Beim Abmelden werden laufende Raumbesuche beendet und
-          die Kinder gelten für heute als gegangen.
-        </p>
-      </ConfirmationModal>
-
-      {/* Per-child failures of a bulk action, named (#2359). The successful
-          part of the batch is already applied at this point. The retry
-          button executes the dialog's OWN snapshot — the named children on
-          screen right here — not the selection bar's visible-rows view: a
-          scope change during the run keeps the failed students selected but
-          may hide their cards, and the promised one-tap retry must stay
-          reachable then (review #2372). Acting on the snapshot is not
-          sight-unseen (the dialog lists every child by name), and runBulk
-          executes exactly this snapshot — a scope change committing while
-          this dialog is open may clear the selection, and an intersected
-          retry would then be a silent no-op (review #2372). */}
-      <Modal
-        isOpen={bulkFailures !== null}
-        onClose={() => setBulkFailures(null)}
-        title={
-          bulkFailures?.action === "in"
-            ? "Nicht alle Kinder angemeldet"
-            : "Nicht alle Kinder abgemeldet"
-        }
-      >
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            {bulkFailures?.succeeded === 1
-              ? "1 Kind wurde"
-              : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
-            {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}. Bei
-            {bulkFailures?.students.length === 1
-              ? " diesem Kind"
-              : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
-            hat es nicht geklappt:
-          </p>
-          <ul className="list-inside list-disc text-sm font-medium text-gray-900">
-            {bulkFailures?.students.map((student) => (
-              <li key={student.id}>{student.name}</li>
-            ))}
-          </ul>
-          <p className="text-sm text-gray-600">
-            Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führst du
-            die Aktion für genau diese Kinder noch einmal aus, auch wenn ein
-            geänderter Filter sie gerade ausblendet.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={() => setBulkFailures(null)}
-            >
-              Schließen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => {
-                if (!bulkFailures) return;
-                const { action, students: failedStudents } = bulkFailures;
-                setBulkFailures(null);
-                void executeBulk(action, failedStudents);
-              }}
-            >
-              Erneut versuchen
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {isExportOpen && (
-        <StudentExportModal
-          isOpen={isExportOpen}
-          filters={exportFilters}
-          resultCount={filteredStudents.length}
-          onClose={() => setIsExportOpen(false)}
-        />
       )}
     </>
   );

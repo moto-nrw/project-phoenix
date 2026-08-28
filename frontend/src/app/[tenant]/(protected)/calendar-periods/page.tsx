@@ -26,7 +26,7 @@ export default function CalendarPeriodsPage() {
   // Solange die Rechteprüfung läuft, steht hier das Seitengerüst mit seinem
   // Ladezustand; die Zeiträume werden erst danach abgerufen.
   if (!isReady) {
-    return <TenantPage title="Kalenderzeiträume" loading testId="loading" />;
+    return <TenantPage title="Zeiträume" loading testId="loading" />;
   }
 
   return <CalendarPeriodsPageContent />;
@@ -43,7 +43,7 @@ function CalendarPeriodsPageContent() {
 
   return (
     <TenantPage
-      title="Kalenderzeiträume"
+      title="Zeiträume"
       stats={state.statusLine}
       statsLoading={state.loading}
       actions={<CalendarPeriodsActions state={state} />}

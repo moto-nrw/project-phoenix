@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * InstanceDetailModal — centered modal showing the full state of a
- * clicked instance plus lifecycle action buttons (#1956).
+ * InstanceDetailModal — Seitenpanel (SlideOver) mit dem vollen Zustand eines
+ * angeklickten Termins samt Aktionen (#1956). Auf dem Telefon fährt es als
+ * Blatt von unten ein; der Wochenplan dahinter bleibt sichtbar.
  *
  * Shows the operational state of one timetable instance: lifecycle,
  * assigned staff, children, attendance state, and admin corrections.
@@ -30,7 +31,15 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ChoiceModal } from "~/components/ui/choice-modal";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import {
   GuardianNoticeFields,
   guardianNoticeIncomplete,
@@ -912,185 +921,192 @@ export function InstanceDetailModal({
 
   return (
     <>
-      {/* Confirmation-/ChoiceModal teilen sich mit dem Detail-Modal denselben
-          fixen z-index. Solange eines offen ist, wird das Detail-Modal
-          ausgeblendet statt gestapelt (gleiches Muster wie
-          staff/shift-move-dialog.tsx). */}
-      <Modal
-        isOpen={pendingConfirm === null && !deleteScopeOpen && !suspended}
-        onClose={onClose}
-        title={instance.title}
-        closeLabel="Schließen"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
-        footer={footer}
+      {/* Confirmation-/ChoiceModal liegen auf derselben Ebene wie das Panel.
+          Solange eines offen ist, wird das Panel ausgeblendet statt
+          gestapelt (gleiches Muster wie staff/shift-move-dialog.tsx). */}
+      <SlideOver
+        open={pendingConfirm === null && !deleteScopeOpen && !suspended}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
       >
-        <div className="space-y-5">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={instance.status} />
-              {instance.isSpontaneous && (
-                <span
-                  className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
-                  title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                >
-                  Spontan gestartet
-                </span>
-              )}
-              <ActivityTypeBadge activityType={instance.activityType} />
+        <SlideOverContent widthClass="sm:w-[760px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>{instance.title}</SlideOverTitle>
             </div>
-            <p className="text-sm text-gray-500">
-              {germanFullDate(instance.date)} • {instance.startTime} –{" "}
-              {instance.endTime}
-            </p>
-            {instance.activityGroupId && (
-              <OriginChip
-                label={regelterminOriginLabel(instance)}
-                className="mt-1.5"
-              />
-            )}
-          </div>
-          {instance.conflictWarnings.length > 0 && (
-            <div className={timetableDangerPanel}>
-              <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
-                <TriangleAlert className="h-4 w-4" />
-                {instance.conflictWarnings.length} Konflikt(e)
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={instance.status} />
+                {instance.isSpontaneous && (
+                  <span
+                    className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                    title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+                  >
+                    Spontan gestartet
+                  </span>
+                )}
+                <ActivityTypeBadge activityType={instance.activityType} />
               </div>
-              <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
-                {instance.conflictWarnings.map((warning) => (
-                  <li key={warning.message}>• {warning.message}</li>
-                ))}
-              </ul>
+              <p className="text-sm text-gray-500">
+                {germanFullDate(instance.date)} • {instance.startTime} –{" "}
+                {instance.endTime}
+              </p>
+              {instance.activityGroupId && (
+                <OriginChip
+                  label={regelterminOriginLabel(instance)}
+                  className="mt-1.5"
+                />
+              )}
             </div>
-          )}
+            {instance.conflictWarnings.length > 0 && (
+              <div className={timetableDangerPanel}>
+                <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
+                  <TriangleAlert className="h-4 w-4" />
+                  {instance.conflictWarnings.length} Konflikt(e)
+                </div>
+                <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
+                  {instance.conflictWarnings.map((warning) => (
+                    <li key={warning.message}>• {warning.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          <StatsRow instance={instance} />
+            <StatsRow instance={instance} />
 
-          <Section title="Details">
-            <Row
-              icon={<MotoConceptIcon concept="careTimes" size={18} />}
-              label="Zeit"
-            >
-              {instance.startTime} – {instance.endTime}
-            </Row>
-            <Row
-              icon={<MotoConceptIcon concept="rooms" size={18} />}
-              label="Raum"
-            >
-              {instance.roomName || `Raum #${instance.roomId}`}
-            </Row>
-            <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
-              {instance.planningTrackName ?? "Keine Planungsspur"}
-            </Row>
-            <Row
-              icon={<MotoConceptIcon concept="staff" size={18} />}
-              label={`Personal (${instance.staffCount})`}
-            >
-              {instance.staffCount === 0
-                ? "Niemand zugeordnet"
-                : `${instance.staffCount - instance.absentStaffCount} aktiv${
-                    instance.absentStaffCount > 0
-                      ? `, ${instance.absentStaffCount} abwesend`
-                      : ""
-                  }`}
-            </Row>
-            {showTimetableCounts ? (
+            <Section title="Details">
               <Row
-                icon={<MotoConceptIcon concept="children" size={18} />}
-                label="Kinder"
+                icon={<MotoConceptIcon concept="careTimes" size={18} />}
+                label="Zeit"
               >
-                {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
-                eingetragen
-                {instance.presentStudentsCount > 0
-                  ? ` • ${instance.presentStudentsCount} anwesend`
-                  : ""}
-                {/* Names the gap between the assignment list and the care
+                {instance.startTime} – {instance.endTime}
+              </Row>
+              <Row
+                icon={<MotoConceptIcon concept="rooms" size={18} />}
+                label="Raum"
+              >
+                {instance.roomName || `Raum #${instance.roomId}`}
+              </Row>
+              <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
+                {instance.planningTrackName ?? "Keine Planungsspur"}
+              </Row>
+              <Row
+                icon={<MotoConceptIcon concept="staff" size={18} />}
+                label={`Personal (${instance.staffCount})`}
+              >
+                {instance.staffCount === 0
+                  ? "Niemand zugeordnet"
+                  : `${instance.staffCount - instance.absentStaffCount} aktiv${
+                      instance.absentStaffCount > 0
+                        ? `, ${instance.absentStaffCount} abwesend`
+                        : ""
+                    }`}
+              </Row>
+              {showTimetableCounts ? (
+                <Row
+                  icon={<MotoConceptIcon concept="children" size={18} />}
+                  label="Kinder"
+                >
+                  {instance.expectedStudentsCount +
+                    instance.presentStudentsCount}{" "}
+                  eingetragen
+                  {instance.presentStudentsCount > 0
+                    ? ` • ${instance.presentStudentsCount} anwesend`
+                    : ""}
+                  {/* Names the gap between the assignment list and the care
                       plan (#1747) instead of leaving a smaller number
                       unexplained. */}
-                {instance.notScheduledStudentsCount > 0
-                  ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
-                  : ""}
-              </Row>
-            ) : null}
-            {instance.seriesNotes && (
-              <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
-                <span className="whitespace-pre-line">
-                  {instance.seriesNotes}
-                </span>
-              </Row>
-            )}
-            {instance.notes && (
-              <Row
-                icon={<StickyNote className="h-4 w-4" />}
-                label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
-              >
-                <span className="whitespace-pre-line">{instance.notes}</span>
-              </Row>
-            )}
-          </Section>
+                  {instance.notScheduledStudentsCount > 0
+                    ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
+                    : ""}
+                </Row>
+              ) : null}
+              {instance.seriesNotes && (
+                <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
+                  <span className="whitespace-pre-line">
+                    {instance.seriesNotes}
+                  </span>
+                </Row>
+              )}
+              {instance.notes && (
+                <Row
+                  icon={<StickyNote className="h-4 w-4" />}
+                  label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
+                >
+                  <span className="whitespace-pre-line">{instance.notes}</span>
+                </Row>
+              )}
+            </Section>
 
-          {fetchParticipantNames ? (
-            <ParticipantNamesLoader instanceId={instance.id}>
-              {(names) => {
-                const visibleStudents = students.filter((student) =>
-                  names.studentNames.has(student.studentId),
-                );
-                const visibleGroupedStudents = {
-                  expected: groupedStudents.expected.filter((student) =>
+            {fetchParticipantNames ? (
+              <ParticipantNamesLoader instanceId={instance.id}>
+                {(names) => {
+                  const visibleStudents = students.filter((student) =>
                     names.studentNames.has(student.studentId),
-                  ),
-                  notScheduled: groupedStudents.notScheduled.filter((student) =>
-                    names.studentNames.has(student.studentId),
-                  ),
-                  present: groupedStudents.present.filter((student) =>
-                    names.studentNames.has(student.studentId),
-                  ),
-                  absent: groupedStudents.absent.filter((student) =>
-                    names.studentNames.has(student.studentId),
-                  ),
-                };
+                  );
+                  const visibleGroupedStudents = {
+                    expected: groupedStudents.expected.filter((student) =>
+                      names.studentNames.has(student.studentId),
+                    ),
+                    notScheduled: groupedStudents.notScheduled.filter(
+                      (student) => names.studentNames.has(student.studentId),
+                    ),
+                    present: groupedStudents.present.filter((student) =>
+                      names.studentNames.has(student.studentId),
+                    ),
+                    absent: groupedStudents.absent.filter((student) =>
+                      names.studentNames.has(student.studentId),
+                    ),
+                  };
 
-                return (
-                  <>
-                    <AssignedStaffSection
-                      instance={instance}
-                      staffNames={names.staffNames}
-                      onOpenPool={poolAvailable ? onOpenPool : undefined}
-                      canManageStaffPool={canManageStaffPool}
-                    />
-                    <InstanceStudentsSection
-                      groupedStudents={visibleGroupedStudents}
-                      handleAttendancePatch={handleAttendancePatch}
-                      instance={instance}
-                      onAttendancePatch={attendancePatch}
-                      pendingStudentId={pendingStudentId}
-                      studentNames={names.studentNames}
-                      students={visibleStudents}
-                    />
-                  </>
-                );
-              }}
-            </ParticipantNamesLoader>
-          ) : (
-            <>
-              <AssignedStaffSection
-                instance={instance}
-                staffNames={staffNames}
-                onOpenPool={poolAvailable ? onOpenPool : undefined}
-                canManageStaffPool={canManageStaffPool}
-              />
-              <InstanceStudentsSection
-                groupedStudents={groupedStudents}
-                handleAttendancePatch={handleAttendancePatch}
-                instance={instance}
-                onAttendancePatch={attendancePatch}
-                pendingStudentId={pendingStudentId}
-                studentNames={studentNames}
-                students={students}
-              />
-            </>
-          )}
-        </div>
-      </Modal>
+                  return (
+                    <>
+                      <AssignedStaffSection
+                        instance={instance}
+                        staffNames={names.staffNames}
+                        onOpenPool={poolAvailable ? onOpenPool : undefined}
+                        canManageStaffPool={canManageStaffPool}
+                      />
+                      <InstanceStudentsSection
+                        groupedStudents={visibleGroupedStudents}
+                        handleAttendancePatch={handleAttendancePatch}
+                        instance={instance}
+                        onAttendancePatch={attendancePatch}
+                        pendingStudentId={pendingStudentId}
+                        studentNames={names.studentNames}
+                        students={visibleStudents}
+                      />
+                    </>
+                  );
+                }}
+              </ParticipantNamesLoader>
+            ) : (
+              <>
+                <AssignedStaffSection
+                  instance={instance}
+                  staffNames={staffNames}
+                  onOpenPool={poolAvailable ? onOpenPool : undefined}
+                  canManageStaffPool={canManageStaffPool}
+                />
+                <InstanceStudentsSection
+                  groupedStudents={groupedStudents}
+                  handleAttendancePatch={handleAttendancePatch}
+                  instance={instance}
+                  onAttendancePatch={attendancePatch}
+                  pendingStudentId={pendingStudentId}
+                  studentNames={studentNames}
+                  students={students}
+                />
+              </>
+            )}
+          </div>
+          <SlideOverFooter>{footer}</SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
       {pendingConfirm && (
         <ConfirmationModal
           isOpen

@@ -9,6 +9,78 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import useSWR from "swr";
 
+// Vaul (SlideOver) rendert in jsdom nichts: das Detailpanel bliebe im Test
+// leer. Wie in components/ui/slide-over.test.tsx, plus ein Close-Knopf, der
+// wie das Original das Panel schliesst.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+  const CloseContext = React.createContext<() => void>(() => undefined);
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+        onOpenChange,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+        onOpenChange?: (open: boolean) => void;
+      }) => {
+        // Der Rückruf wird gemerkt statt bei jedem Rendern neu gebaut: ein
+        // frisch konstruierter Context-Wert rendert alle Verbraucher erneut
+        // (oxlint react/jsx-no-constructed-context-values).
+        const close = React.useCallback(
+          () => onOpenChange?.(false),
+          [onOpenChange],
+        );
+        return open === false ? null : (
+          <CloseContext.Provider value={close}>
+            <div>{children}</div>
+          </CloseContext.Provider>
+        );
+      },
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >(({ onClick, ...props }, ref) => {
+        const close = React.useContext(CloseContext);
+        return (
+          <button
+            ref={ref}
+            {...props}
+            onClick={(event) => {
+              onClick?.(event);
+              close();
+            }}
+          />
+        );
+      }),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
+
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: { user: { token: "test-token" } },
@@ -950,7 +1022,7 @@ describe("InstanceDetailModal", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("Raum #3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
-    // Das Kit-Modal ruft onClose erst nach der Exit-Animation (250ms) auf.
+    // Das Panel meldet den Schliessvorgang über onOpenChange.
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
 
     rerender(

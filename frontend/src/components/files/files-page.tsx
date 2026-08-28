@@ -197,144 +197,141 @@ export function FilesPage() {
   );
 
   return (
-    <>
-      <TenantPage
-        title="Dateien"
-        stats={filesStatusLine(folders)}
-        statsLoading={isLoading}
-        loading={isLoading}
-        error={error ? "Die Dateiablage konnte nicht geladen werden." : null}
-        empty={
-          !isLoading && !error && folders.length === 0
-            ? {
-                icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
-                title: "Noch keine Ordner",
-                description: canManage
-                  ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
-                  : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier.",
-                // Der Leerzustand ist der naechste Schritt, nicht nur eine
-                // Feststellung: die Aktion, die ihn beendet, steht darin.
-                action: canManage ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => setFolderModal({ open: true, folder: null })}
-                  >
-                    Neuer Ordner
-                  </Button>
-                ) : undefined,
-              }
-            : null
-        }
-        actions={
-          canManage ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => setFolderModal({ open: true, folder: null })}
+    <TenantPage
+      title="Dateien"
+      stats={filesStatusLine(folders)}
+      statsLoading={isLoading}
+      loading={isLoading}
+      error={error ? "Die Dateiablage konnte nicht geladen werden." : null}
+      empty={
+        !isLoading && !error && folders.length === 0
+          ? {
+              icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
+              title: "Noch keine Ordner",
+              description: canManage
+                ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
+                : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier.",
+              // Der Leerzustand ist der naechste Schritt, nicht nur eine
+              // Feststellung: die Aktion, die ihn beendet, steht darin.
+              action: canManage ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => setFolderModal({ open: true, folder: null })}
+                >
+                  Neuer Ordner
+                </Button>
+              ) : undefined,
+            }
+          : null
+      }
+      actions={
+        canManage ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setFolderModal({ open: true, folder: null })}
+          >
+            Neuer Ordner
+          </Button>
+        ) : undefined
+      }
+      overlays={
+        <>
+          <FolderModal
+            isOpen={folderModal.open}
+            initial={folderModal.folder}
+            onClose={() => setFolderModal({ open: false, folder: null })}
+            onSaved={() => void mutateFolders()}
+          />
+
+          <ConfirmDeleteModal
+            isOpen={deleteFolderTarget !== null}
+            title="Ordner löschen"
+            description={
+              <>
+                Der Ordner{" "}
+                <span className="font-medium">{deleteFolderTarget?.name}</span>{" "}
+                und alle {deleteFolderTarget?.fileCount ?? 0} Dateien darin
+                werden endgültig gelöscht.
+              </>
+            }
+            gate={{ mode: "twoStep" }}
+            onConfirm={handleDeleteFolder}
+            onClose={() => {
+              if (!deletingFolder) setDeleteFolderTarget(null);
+            }}
+            loading={deletingFolder}
+            error={deleteFolderError}
+          />
+        </>
+      }
+    >
+      <div className="flex min-h-[28rem] flex-col gap-4">
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+          {/* Folder list: a panel on desktop, a select on small screens */}
+          <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
+            <label
+              htmlFor="dateien-ordner"
+              className="mb-1.5 block text-xs font-medium text-gray-600"
             >
-              Neuer Ordner
-            </Button>
-          ) : undefined
-        }
-      >
-        <div className="flex min-h-[28rem] flex-col gap-4">
-          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            {/* Folder list: a panel on desktop, a select on small screens */}
-            <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
-              <label
-                htmlFor="dateien-ordner"
-                className="mb-1.5 block text-xs font-medium text-gray-600"
-              >
-                Ordner
-              </label>
-              <CustomSelect
-                id="dateien-ordner"
-                value={selected?.id ?? ""}
-                options={folders.map((folder) => ({
-                  value: folder.id,
-                  label: `${folder.name} (${folder.fileCount})`,
-                }))}
-                onChange={(value) => setSelectedId(value)}
-                triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
-              />
-            </div>
-            <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 shadow-sm lg:flex">
-              <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                Ordner
-              </p>
-              <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
-              {canManage && overview && overview.maxBytes > 0 && (
-                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                  <StatCard
-                    variant="tile"
-                    label="Belegter Speicherplatz"
-                    value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
-                  />
-                  <StatCard
-                    variant="tile"
-                    label="Team darf hochladen"
-                    value={
-                      overview.staffUploadEnabled
-                        ? "Ja"
-                        : "Nein (Einstellungen)"
-                    }
-                  />
-                </div>
-              )}
-            </aside>
-
-            {selected && (
-              <SectionCard className="flex min-h-0 flex-col">
-                <FolderFilesPanel
-                  key={selected.id}
-                  folder={selected}
-                  canManage={canManage}
-                  canUpload={canUpload}
-                  onEdit={() =>
-                    setFolderModal({ open: true, folder: selected })
-                  }
-                  onDelete={() => {
-                    setDeleteFolderError("");
-                    setDeleteFolderTarget(selected);
-                  }}
-                  onFilesChanged={() => void mutateFolders()}
-                />
-              </SectionCard>
-            )}
+              Ordner
+            </label>
+            <CustomSelect
+              id="dateien-ordner"
+              value={selected?.id ?? ""}
+              options={folders.map((folder) => ({
+                value: folder.id,
+                label: `${folder.name} (${folder.fileCount})`,
+              }))}
+              onChange={(value) => setSelectedId(value)}
+              triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+            />
           </div>
+          <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 shadow-sm lg:flex">
+            <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+              Ordner
+            </p>
+            <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
+            {canManage && overview && overview.maxBytes > 0 && (
+              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                <StatCard
+                  variant="tile"
+                  label="Belegter Speicherplatz"
+                  value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
+                />
+                <StatCard
+                  variant="tile"
+                  label="Team darf hochladen"
+                  value={
+                    overview.staffUploadEnabled ? "Ja" : "Nein (Einstellungen)"
+                  }
+                />
+              </div>
+            )}
+          </aside>
+
+          {selected && (
+            <SectionCard className="flex min-h-0 flex-col">
+              <FolderFilesPanel
+                key={selected.id}
+                folder={selected}
+                canManage={canManage}
+                canUpload={canUpload}
+                onEdit={() => setFolderModal({ open: true, folder: selected })}
+                onDelete={() => {
+                  setDeleteFolderError("");
+                  setDeleteFolderTarget(selected);
+                }}
+                onFilesChanged={() => void mutateFolders()}
+              />
+            </SectionCard>
+          )}
         </div>
-      </TenantPage>
-
-      <FolderModal
-        isOpen={folderModal.open}
-        initial={folderModal.folder}
-        onClose={() => setFolderModal({ open: false, folder: null })}
-        onSaved={() => void mutateFolders()}
-      />
-
-      <ConfirmDeleteModal
-        isOpen={deleteFolderTarget !== null}
-        title="Ordner löschen"
-        description={
-          <>
-            Der Ordner{" "}
-            <span className="font-medium">{deleteFolderTarget?.name}</span> und
-            alle {deleteFolderTarget?.fileCount ?? 0} Dateien darin werden
-            endgültig gelöscht.
-          </>
-        }
-        gate={{ mode: "twoStep" }}
-        onConfirm={handleDeleteFolder}
-        onClose={() => {
-          if (!deletingFolder) setDeleteFolderTarget(null);
-        }}
-        loading={deletingFolder}
-        error={deleteFolderError}
-      />
-    </>
+      </div>
+    </TenantPage>
   );
 }
 

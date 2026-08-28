@@ -18,7 +18,14 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
-import { FormModal } from "~/components/ui/form-modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -309,15 +316,184 @@ export function CalendarPeriodModal({
   };
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="md"
-      title={
-        persisted ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
-      }
-      footer={
-        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[560px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              {persisted
+                ? "Kalenderzeitraum bearbeiten"
+                : "Kalenderzeitraum anlegen"}
+            </SlideOverTitle>
+          </div>
+          <SlideOverCloseButton aria-label="Zeitraum schließen" />
+        </SlideOverHeader>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <form
+            id="calendar-period-form"
+            onSubmit={(e) => void handleSubmit(e)}
+            className="flex flex-col gap-4"
+          >
+            <Field label="Bezeichnung" htmlFor="name" required>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="z. B. Schuljahr 2025/2026"
+                maxLength={255}
+                controlSize="compact"
+                required
+                autoFocus
+              />
+            </Field>
+
+            <Field label="Art" htmlFor="period_type" required>
+              <CustomSelect
+                id="period_type"
+                ariaLabel="Art"
+                value={form.periodType}
+                options={PERIOD_TYPES.map((t) => ({
+                  value: t,
+                  label: PERIOD_TYPE_LABELS[t],
+                }))}
+                onChange={(next) => update("periodType", next as PeriodType)}
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Startdatum" htmlFor="start_date" required>
+                <ISODatePicker
+                  id="start_date"
+                  controlSize="md"
+                  value={form.startDate}
+                  onChange={(next) => update("startDate", next)}
+                  calendarLayout="popover"
+                />
+              </Field>
+              <Field label="Enddatum" htmlFor="end_date" required>
+                <ISODatePicker
+                  id="end_date"
+                  controlSize="md"
+                  value={form.endDate}
+                  onChange={(next) => update("endDate", next)}
+                  calendarLayout="popover"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
+                <Input
+                  id="cycle_length"
+                  type="number"
+                  min={1}
+                  max={4}
+                  value={form.weekCycleLength}
+                  controlSize="compact"
+                  onChange={(e) => update("weekCycleLength", e.target.value)}
+                />
+                <span className="text-xs font-normal text-gray-500">
+                  1 = jede Woche, 2 = alle 2 Wochen
+                </span>
+              </Field>
+              <Field
+                label="Startdatum der Wiederholung"
+                htmlFor="cycle_anchor"
+                required={cycleLength > 1}
+              >
+                <ISODatePicker
+                  id="cycle_anchor"
+                  controlSize="md"
+                  value={form.weekCycleAnchor}
+                  onChange={(next) => update("weekCycleAnchor", next)}
+                  disabled={cycleLength <= 1}
+                  calendarLayout="popover"
+                />
+              </Field>
+            </div>
+
+            <label
+              htmlFor="period_active"
+              className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50"
+            >
+              <Checkbox
+                id="period_active"
+                checked={form.isActive}
+                onChange={(e) => update("isActive", e.target.checked)}
+              />
+              {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
+              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
+              <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                <span className="font-semibold text-gray-700">
+                  Zeitraum im Plan verwenden
+                </span>
+                <span className="text-xs text-gray-500">
+                  Nur aktive Zeiträume legen Termine aus Regelterminen an
+                </span>
+              </span>
+            </label>
+
+            {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
+              <fieldset className="rounded-xl border border-gray-200 p-3">
+                <legend className="px-1 text-xs font-semibold text-gray-700">
+                  Verknüpfte Anmeldephasen
+                </legend>
+                <div className="flex flex-col">
+                  {phaseLink.phases.map((phase) => {
+                    const linked = phase.calendar_period_id === initial.id;
+                    const linkedElsewhere =
+                      !linked && !!phase.calendar_period_id;
+                    return (
+                      <label
+                        key={phase.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
+                      >
+                        <Checkbox
+                          checked={linked}
+                          disabled={togglingPhaseId !== null}
+                          onChange={(e) =>
+                            void handlePhaseToggle(phase, e.target.checked)
+                          }
+                        />
+                        <span className="min-w-0 flex-1 truncate text-gray-800">
+                          {phase.name}
+                        </span>
+                        {linkedElsewhere && (
+                          <span className="text-moto-orange shrink-0 text-xs">
+                            Mit anderem Zeitraum verknüpft
+                          </span>
+                        )}
+                        {!phase.is_active && (
+                          <span className="shrink-0 text-xs text-gray-400">
+                            Inaktiv
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            )}
+
+            {saveWarnings.map((warning) => (
+              <Alert
+                key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
+                type="warning"
+                message={warning.message}
+              />
+            ))}
+
+            {validationError && (
+              <Alert type="error" message={validationError} />
+            )}
+          </form>
+        </div>
+        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="w-full sm:w-auto">
             {isEdit && (
               <div className="flex max-w-sm flex-col gap-1">
@@ -385,165 +561,9 @@ export function CalendarPeriodModal({
               </Button>
             )}
           </div>
-        </div>
-      }
-    >
-      <form
-        id="calendar-period-form"
-        onSubmit={(e) => void handleSubmit(e)}
-        className="flex flex-col gap-4"
-      >
-        <Field label="Bezeichnung" htmlFor="name" required>
-          <Input
-            id="name"
-            value={form.name}
-            onChange={(e) => update("name", e.target.value)}
-            placeholder="z. B. Schuljahr 2025/2026"
-            maxLength={255}
-            controlSize="compact"
-            required
-            autoFocus
-          />
-        </Field>
-
-        <Field label="Art" htmlFor="period_type" required>
-          <CustomSelect
-            id="period_type"
-            ariaLabel="Art"
-            value={form.periodType}
-            options={PERIOD_TYPES.map((t) => ({
-              value: t,
-              label: PERIOD_TYPE_LABELS[t],
-            }))}
-            onChange={(next) => update("periodType", next as PeriodType)}
-          />
-        </Field>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Startdatum" htmlFor="start_date" required>
-            <ISODatePicker
-              id="start_date"
-              controlSize="md"
-              value={form.startDate}
-              onChange={(next) => update("startDate", next)}
-              calendarLayout="popover"
-            />
-          </Field>
-          <Field label="Enddatum" htmlFor="end_date" required>
-            <ISODatePicker
-              id="end_date"
-              controlSize="md"
-              value={form.endDate}
-              onChange={(next) => update("endDate", next)}
-              calendarLayout="popover"
-            />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
-            <Input
-              id="cycle_length"
-              type="number"
-              min={1}
-              max={4}
-              value={form.weekCycleLength}
-              controlSize="compact"
-              onChange={(e) => update("weekCycleLength", e.target.value)}
-            />
-            <span className="text-xs font-normal text-gray-500">
-              1 = jede Woche, 2 = alle 2 Wochen
-            </span>
-          </Field>
-          <Field
-            label="Startdatum der Wiederholung"
-            htmlFor="cycle_anchor"
-            required={cycleLength > 1}
-          >
-            <ISODatePicker
-              id="cycle_anchor"
-              controlSize="md"
-              value={form.weekCycleAnchor}
-              onChange={(next) => update("weekCycleAnchor", next)}
-              disabled={cycleLength <= 1}
-              calendarLayout="popover"
-            />
-          </Field>
-        </div>
-
-        <label
-          htmlFor="period_active"
-          className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50"
-        >
-          <Checkbox
-            id="period_active"
-            checked={form.isActive}
-            onChange={(e) => update("isActive", e.target.checked)}
-          />
-          {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
-              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
-          <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-            <span className="font-semibold text-gray-700">
-              Zeitraum im Plan verwenden
-            </span>
-            <span className="text-xs text-gray-500">
-              Nur aktive Zeiträume legen Termine aus Regelterminen an
-            </span>
-          </span>
-        </label>
-
-        {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
-          <fieldset className="rounded-xl border border-gray-200 p-3">
-            <legend className="px-1 text-xs font-semibold text-gray-700">
-              Verknüpfte Anmeldephasen
-            </legend>
-            <div className="flex flex-col">
-              {phaseLink.phases.map((phase) => {
-                const linked = phase.calendar_period_id === initial.id;
-                const linkedElsewhere = !linked && !!phase.calendar_period_id;
-                return (
-                  <label
-                    key={phase.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      checked={linked}
-                      disabled={togglingPhaseId !== null}
-                      onChange={(e) =>
-                        void handlePhaseToggle(phase, e.target.checked)
-                      }
-                    />
-                    <span className="min-w-0 flex-1 truncate text-gray-800">
-                      {phase.name}
-                    </span>
-                    {linkedElsewhere && (
-                      <span className="text-moto-orange shrink-0 text-xs">
-                        Mit anderem Zeitraum verknüpft
-                      </span>
-                    )}
-                    {!phase.is_active && (
-                      <span className="shrink-0 text-xs text-gray-400">
-                        Inaktiv
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
-        )}
-
-        {saveWarnings.map((warning) => (
-          <Alert
-            key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
-            type="warning"
-            message={warning.message}
-          />
-        ))}
-
-        {validationError && <Alert type="error" message={validationError} />}
-      </form>
-    </FormModal>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

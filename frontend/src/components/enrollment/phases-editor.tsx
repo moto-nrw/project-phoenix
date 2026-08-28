@@ -771,207 +771,211 @@ export function PhasesEditor() {
   );
 
   return (
-    <>
-      <TenantPage
-        title="Anmeldephasen"
-        // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
-        // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
-        // oder Übertragen wird die Aktion ausgeblendet).
-        stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
-        statsLoading={loading}
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={startCreate}
-            className="inline-flex shrink-0 items-center justify-center gap-2"
-          >
-            <MotoConceptIcon concept="calendarPeriods" size={16} />
-            Neue Anmeldephase
-          </Button>
-        }
-        loading={loading}
-        empty={
-          // Ein Speicherfehler steht als Alert über der Liste; er darf nicht
-          // hinter dem Leerzustand verschwinden.
-          !loading && phases.length === 0 && !error
-            ? {
-                title: "Noch keine Anmeldephase angelegt",
-                description:
-                  "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
-                icon: (
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                    <MotoConceptIcon concept="calendarPeriods" size={24} />
-                  </span>
-                ),
-                action: (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={startCreate}
-                    className="inline-flex items-center justify-center gap-2"
-                  >
-                    <MotoConceptIcon concept="calendarPeriods" size={16} />
-                    Erste Anmeldephase anlegen
-                  </Button>
-                ),
-              }
-            : null
-        }
-      >
-        <DesktopOnlyNotice />
-        <div className="hidden space-y-4 lg:block">
-          {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
-            das gerade bearbeitete Formular nicht ersetzen. */}
-          {error ? <Alert type="error" message={error} /> : null}
-          <div className="grid gap-2 sm:grid-cols-3">
-            <EnrollmentStatTile
-              leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
-              label="Anmeldephasen"
-              value={phases.length}
-            />
-            <EnrollmentStatTile
-              leading={<MotoConceptIcon concept="careTimes" size={16} />}
-              label="Aktiv"
-              value={activePhaseCount}
-            />
-            <EnrollmentStatTile
-              leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
-              label="In Vorbereitung"
-              value={Math.max(phases.length - activePhaseCount, 0)}
-            />
-          </div>
-
-          <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
-
-          <DataTable
-            columns={columns}
-            rows={phases}
-            getRowKey={(phase) => phase.id}
-            defaultSortKey="service_period"
-            defaultSortDirection="desc"
-          />
-        </div>
-      </TenantPage>
-
-      {/* Bearbeiten und Übertragen laufen neben der stehenden Liste: das
+    <TenantPage
+      title="Anmeldephasen"
+      // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
+      // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
+      // oder Übertragen wird die Aktion ausgeblendet).
+      stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
+      statsLoading={loading}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={startCreate}
+          className="inline-flex shrink-0 items-center justify-center gap-2"
+        >
+          <MotoConceptIcon concept="calendarPeriods" size={16} />
+          Neue Anmeldephase
+        </Button>
+      }
+      loading={loading}
+      empty={
+        // Ein Speicherfehler steht als Alert über der Liste; er darf nicht
+        // hinter dem Leerzustand verschwinden.
+        !loading && phases.length === 0 && !error
+          ? {
+              title: "Noch keine Anmeldephase angelegt",
+              description:
+                "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
+              icon: (
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                  <MotoConceptIcon concept="calendarPeriods" size={24} />
+                </span>
+              ),
+              action: (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={startCreate}
+                  className="inline-flex items-center justify-center gap-2"
+                >
+                  <MotoConceptIcon concept="calendarPeriods" size={16} />
+                  Erste Anmeldephase anlegen
+                </Button>
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          {/* Bearbeiten und Übertragen laufen neben der stehenden Liste: das
           Formular ist zu breit für eine aufgeklappte Tabellenzeile, und die
           Liste darf beim Bearbeiten nicht verschwinden. */}
-      <SlideOver
-        open={Boolean((editingId && draft) ?? rolloverSource)}
-        onOpenChange={(open) => {
-          if (open) return;
-          if (rolloverSource) {
-            setRolloverSource(null);
-            return;
-          }
-          cancelEdit();
-        }}
-      >
-        <SlideOverContent widthClass="sm:w-[760px]">
-          <SlideOverHeader>
-            <SlideOverTitle>
-              {rolloverSource
-                ? "Anmeldephase übertragen"
-                : editingId === "new"
-                  ? "Neue Anmeldephase"
-                  : "Anmeldephase bearbeiten"}
-            </SlideOverTitle>
-          </SlideOverHeader>
-          <div className="flex-1 overflow-y-auto px-5 py-4">
-            {rolloverSource ? (
-              <RolloverForm
-                source={rolloverSource}
-                onCancel={() => setRolloverSource(null)}
-                onSuccess={handleRolloverSuccess}
-              />
-            ) : editingId && draft ? (
-              <PhaseForm
-                draft={draft}
-                setDraft={setDraft}
-                periods={periods}
-                schemas={latestSchemas}
-                schemaSource={schemaSource}
-                setSchemaSource={setSchemaSource}
-                editing={editingId !== "new"}
-                saving={saving}
-                highlightFormSection={highlightFormSection}
-                gradeLevelMax={gradeLevelMax}
-                onSubmit={handleSave}
-                onCancel={cancelEdit}
-              />
-            ) : null}
-          </div>
-        </SlideOverContent>
-      </SlideOver>
-
-      {deleteTarget && (
-        <ConfirmDeleteModal
-          isOpen={Boolean(deleteTarget)}
-          title="Anmeldephase löschen"
-          description={
-            <p>
-              Möchten Sie die Anmeldephase{" "}
-              <span className="font-medium">„{deleteTarget.name}“</span>{" "}
-              wirklich endgültig löschen? Sie kann jederzeit gelöscht werden,
-              während des Betreuungszeitraums, davor und danach.
-            </p>
-          }
-          warningSlot={
-            <div className="space-y-2">
-              <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-                <p className="font-medium">
-                  Diese Aktion kann nicht rückgängig gemacht werden:
-                </p>
-                {impactLoading ? (
-                  <p className="mt-1 text-xs">Löschvorschau wird geladen…</p>
-                ) : impactError ? (
-                  <p className="mt-1 text-xs">
-                    Die Löschvorschau konnte nicht geladen werden. Das Löschen
-                    ist erst möglich, sobald die Vorschau vorliegt. Bitte
-                    schließen Sie den Dialog und versuchen Sie es erneut.
-                  </p>
-                ) : deleteImpact ? (
-                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                    <li>
-                      {deleteImpact.requests}{" "}
-                      {deleteImpact.requests === 1
-                        ? "Anmeldung"
-                        : "Anmeldungen"}{" "}
-                      werden endgültig gelöscht
-                    </li>
-                    <li>
-                      {deleteImpact.care_offerings}{" "}
-                      {deleteImpact.care_offerings === 1
-                        ? "Betreuungsangebot"
-                        : "Betreuungsangebote"}{" "}
-                      werden endgültig gelöscht
-                    </li>
-                  </ul>
+          <SlideOver
+            open={Boolean((editingId && draft) ?? rolloverSource)}
+            onOpenChange={(open) => {
+              if (open) return;
+              if (rolloverSource) {
+                setRolloverSource(null);
+                return;
+              }
+              cancelEdit();
+            }}
+          >
+            <SlideOverContent widthClass="sm:w-[760px]">
+              <SlideOverHeader>
+                <SlideOverTitle>
+                  {rolloverSource
+                    ? "Anmeldephase übertragen"
+                    : editingId === "new"
+                      ? "Neue Anmeldephase"
+                      : "Anmeldephase bearbeiten"}
+                </SlideOverTitle>
+              </SlideOverHeader>
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {rolloverSource ? (
+                  <RolloverForm
+                    source={rolloverSource}
+                    onCancel={() => setRolloverSource(null)}
+                    onSuccess={handleRolloverSuccess}
+                  />
+                ) : editingId && draft ? (
+                  <PhaseForm
+                    draft={draft}
+                    setDraft={setDraft}
+                    periods={periods}
+                    schemas={latestSchemas}
+                    schemaSource={schemaSource}
+                    setSchemaSource={setSchemaSource}
+                    editing={editingId !== "new"}
+                    saving={saving}
+                    highlightFormSection={highlightFormSection}
+                    gradeLevelMax={gradeLevelMax}
+                    onSubmit={handleSave}
+                    onCancel={cancelEdit}
+                  />
                 ) : null}
               </div>
-              {!impactLoading && deleteImpact && (
-                <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
-                  {deleteImpact.students_kept === 1
-                    ? "1 bereits angelegter Kind bleibt erhalten."
-                    : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
+            </SlideOverContent>
+          </SlideOver>
+
+          {deleteTarget && (
+            <ConfirmDeleteModal
+              isOpen={Boolean(deleteTarget)}
+              title="Anmeldephase löschen"
+              description={
+                <p>
+                  Möchten Sie die Anmeldephase{" "}
+                  <span className="font-medium">„{deleteTarget.name}“</span>{" "}
+                  wirklich endgültig löschen? Sie kann jederzeit gelöscht
+                  werden, während des Betreuungszeitraums, davor und danach.
+                </p>
+              }
+              warningSlot={
+                <div className="space-y-2">
+                  <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
+                    <p className="font-medium">
+                      Diese Aktion kann nicht rückgängig gemacht werden:
+                    </p>
+                    {impactLoading ? (
+                      <p className="mt-1 text-xs">
+                        Löschvorschau wird geladen…
+                      </p>
+                    ) : impactError ? (
+                      <p className="mt-1 text-xs">
+                        Die Löschvorschau konnte nicht geladen werden. Das
+                        Löschen ist erst möglich, sobald die Vorschau vorliegt.
+                        Bitte schließen Sie den Dialog und versuchen Sie es
+                        erneut.
+                      </p>
+                    ) : deleteImpact ? (
+                      <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                        <li>
+                          {deleteImpact.requests}{" "}
+                          {deleteImpact.requests === 1
+                            ? "Anmeldung"
+                            : "Anmeldungen"}{" "}
+                          werden endgültig gelöscht
+                        </li>
+                        <li>
+                          {deleteImpact.care_offerings}{" "}
+                          {deleteImpact.care_offerings === 1
+                            ? "Betreuungsangebot"
+                            : "Betreuungsangebote"}{" "}
+                          werden endgültig gelöscht
+                        </li>
+                      </ul>
+                    ) : null}
+                  </div>
+                  {!impactLoading && deleteImpact && (
+                    <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
+                      {deleteImpact.students_kept === 1
+                        ? "1 bereits angelegter Kind bleibt erhalten."
+                        : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          }
-          gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
-          confirmDisabled={
-            impactLoading || !deleteImpact || Boolean(impactError)
-          }
-          onConfirm={confirmDelete}
-          onClose={closeDelete}
-          loading={deletingId === deleteTarget.id}
-          error={impactError || deleteError}
+              }
+              gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+              confirmDisabled={
+                impactLoading || !deleteImpact || Boolean(impactError)
+              }
+              onConfirm={confirmDelete}
+              onClose={closeDelete}
+              loading={deletingId === deleteTarget.id}
+              error={impactError || deleteError}
+            />
+          )}
+        </>
+      }
+    >
+      <DesktopOnlyNotice />
+      <div className="hidden space-y-4 lg:block">
+        {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
+            das gerade bearbeitete Formular nicht ersetzen. */}
+        {error ? <Alert type="error" message={error} /> : null}
+        <div className="grid gap-2 sm:grid-cols-3">
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
+            label="Anmeldephasen"
+            value={phases.length}
+          />
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="careTimes" size={16} />}
+            label="Aktiv"
+            value={activePhaseCount}
+          />
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+            label="In Vorbereitung"
+            value={Math.max(phases.length - activePhaseCount, 0)}
+          />
+        </div>
+
+        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
+
+        <DataTable
+          columns={columns}
+          rows={phases}
+          getRowKey={(phase) => phase.id}
+          defaultSortKey="service_period"
+          defaultSortDirection="desc"
         />
-      )}
-    </>
+      </div>
+    </TenantPage>
   );
 }
 

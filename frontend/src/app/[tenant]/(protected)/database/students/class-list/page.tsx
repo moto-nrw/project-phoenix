@@ -524,6 +524,203 @@ export default function ClassListEntriesPage() {
         ) : undefined
       }
       back
+      overlays={
+        <>
+          <Modal
+            isOpen={modal?.kind === "create" || modal?.kind === "edit"}
+            onClose={closeModal}
+            title={
+              modal?.kind === "edit"
+                ? "Eintrag bearbeiten"
+                : "Klassenlisteneintrag anlegen"
+            }
+          >
+            <div className="space-y-4">
+              {modalError ? <Alert type="error" message={modalError} /> : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="entry-first-name"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Vorname
+                  </label>
+                  <Input
+                    id="entry-first-name"
+                    value={form.firstName}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        firstName: e.target.value,
+                      }))
+                    }
+                    placeholder="z.B. Lena"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="entry-last-name"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Nachname
+                  </label>
+                  <Input
+                    id="entry-last-name"
+                    value={form.lastName}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, lastName: e.target.value }))
+                    }
+                    placeholder="z.B. Beispiel"
+                  />
+                </div>
+              </div>
+              <div>
+                <label
+                  htmlFor="entry-school-class"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Klasse
+                </label>
+                <Input
+                  id="entry-school-class"
+                  value={form.schoolClass}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      schoolClass: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. 1a"
+                  list="class-list-class-suggestions"
+                />
+                <datalist id="class-list-class-suggestions">
+                  {(classSuggestions ?? []).map((klass) => (
+                    <option key={klass} value={klass} />
+                  ))}
+                </datalist>
+                <p className="mt-1 text-xs text-gray-500">
+                  Genau wie bei den regulären Kindern geschrieben, damit der
+                  Eintrag in derselben Klassenliste landet.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={closeModal}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  disabled={
+                    saving ||
+                    !form.firstName.trim() ||
+                    !form.lastName.trim() ||
+                    !form.schoolClass.trim()
+                  }
+                  onClick={() => void submitForm()}
+                >
+                  {saving
+                    ? "Speichern…"
+                    : modal?.kind === "edit"
+                      ? "Speichern"
+                      : "Anlegen"}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+
+          <ConfirmDeleteModal
+            isOpen={modal?.kind === "delete"}
+            onClose={closeModal}
+            onConfirm={() => void confirmDelete()}
+            title="Eintrag löschen?"
+            description={
+              modal?.kind === "delete" ? (
+                <>
+                  Soll der Eintrag{" "}
+                  <span className="font-medium text-gray-900">
+                    {modal.entry.firstName} {modal.entry.lastName} (
+                    {modal.entry.schoolClass})
+                  </span>{" "}
+                  gelöscht werden? Er verschwindet damit von allen
+                  Klassenlisten.
+                </>
+              ) : null
+            }
+            gate={{ mode: "twoStep" }}
+            loading={saving}
+            error={modalError ?? ""}
+          />
+
+          <ConfirmationModal
+            isOpen={modal?.kind === "assign"}
+            onClose={closeModal}
+            onConfirm={() => void confirmAssign()}
+            title="Eintrag zuordnen"
+            confirmText="Zuordnen"
+            isConfirmLoading={saving}
+            isConfirmDisabled={!assignTarget}
+          >
+            {modal?.kind === "assign" ? (
+              <div className="space-y-3">
+                {modalError ? (
+                  <Alert type="error" message={modalError} />
+                ) : null}
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium text-gray-900">
+                    {modal.entry.firstName} {modal.entry.lastName} (
+                    {modal.entry.schoolClass})
+                  </span>{" "}
+                  ist inzwischen als reguläres Kind angelegt. Beim Zuordnen wird
+                  der Klassenlisteneintrag entfernt, das Kind steht dann nur
+                  noch über seinen regulären Datensatz auf der Klassenliste.
+                </p>
+                {modal.entry.matchingStudentIds.length > 1 ? (
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium text-gray-900">
+                      Mehrere Kinder tragen diesen Namen in dieser Klasse. Bitte
+                      den richtigen Datensatz auswählen:
+                    </legend>
+                    {modal.entry.matchingStudentIds.map((studentId) => (
+                      <label
+                        key={studentId}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                      >
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="assign-target"
+                            className="accent-moto-green"
+                            checked={assignTarget === studentId}
+                            onChange={() => setAssignTarget(studentId)}
+                          />
+                          Kind-Datensatz #{studentId}
+                        </span>
+                        <Link
+                          href={`/students/${studentId}`}
+                          target="_blank"
+                          className="text-xs font-medium text-gray-600 underline hover:text-gray-900"
+                        >
+                          Öffnen
+                        </Link>
+                      </label>
+                    ))}
+                  </fieldset>
+                ) : null}
+                <p className="text-xs text-gray-500">
+                  Die Zuordnung passiert nie automatisch: Bitte nur bestätigen,
+                  wenn es sich wirklich um dasselbe Kind handelt.
+                </p>
+              </div>
+            ) : null}
+          </ConfirmationModal>
+        </>
+      }
     >
       <SectionCard
         title="Kinder im Klassenverband"
@@ -574,191 +771,6 @@ export default function ClassListEntriesPage() {
           }
         />
       </SectionCard>
-
-      <Modal
-        isOpen={modal?.kind === "create" || modal?.kind === "edit"}
-        onClose={closeModal}
-        title={
-          modal?.kind === "edit"
-            ? "Eintrag bearbeiten"
-            : "Klassenlisteneintrag anlegen"
-        }
-      >
-        <div className="space-y-4">
-          {modalError ? <Alert type="error" message={modalError} /> : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="entry-first-name"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Vorname
-              </label>
-              <Input
-                id="entry-first-name"
-                value={form.firstName}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, firstName: e.target.value }))
-                }
-                placeholder="z.B. Lena"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="entry-last-name"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Nachname
-              </label>
-              <Input
-                id="entry-last-name"
-                value={form.lastName}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, lastName: e.target.value }))
-                }
-                placeholder="z.B. Beispiel"
-              />
-            </div>
-          </div>
-          <div>
-            <label
-              htmlFor="entry-school-class"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Klasse
-            </label>
-            <Input
-              id="entry-school-class"
-              value={form.schoolClass}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, schoolClass: e.target.value }))
-              }
-              placeholder="z.B. 1a"
-              list="class-list-class-suggestions"
-            />
-            <datalist id="class-list-class-suggestions">
-              {(classSuggestions ?? []).map((klass) => (
-                <option key={klass} value={klass} />
-              ))}
-            </datalist>
-            <p className="mt-1 text-xs text-gray-500">
-              Genau wie bei den regulären Kindern geschrieben, damit der Eintrag
-              in derselben Klassenliste landet.
-            </p>
-          </div>
-          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={closeModal}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={
-                saving ||
-                !form.firstName.trim() ||
-                !form.lastName.trim() ||
-                !form.schoolClass.trim()
-              }
-              onClick={() => void submitForm()}
-            >
-              {saving
-                ? "Speichern…"
-                : modal?.kind === "edit"
-                  ? "Speichern"
-                  : "Anlegen"}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <ConfirmDeleteModal
-        isOpen={modal?.kind === "delete"}
-        onClose={closeModal}
-        onConfirm={() => void confirmDelete()}
-        title="Eintrag löschen?"
-        description={
-          modal?.kind === "delete" ? (
-            <>
-              Soll der Eintrag{" "}
-              <span className="font-medium text-gray-900">
-                {modal.entry.firstName} {modal.entry.lastName} (
-                {modal.entry.schoolClass})
-              </span>{" "}
-              gelöscht werden? Er verschwindet damit von allen Klassenlisten.
-            </>
-          ) : null
-        }
-        gate={{ mode: "twoStep" }}
-        loading={saving}
-        error={modalError ?? ""}
-      />
-
-      <ConfirmationModal
-        isOpen={modal?.kind === "assign"}
-        onClose={closeModal}
-        onConfirm={() => void confirmAssign()}
-        title="Eintrag zuordnen"
-        confirmText="Zuordnen"
-        isConfirmLoading={saving}
-        isConfirmDisabled={!assignTarget}
-      >
-        {modal?.kind === "assign" ? (
-          <div className="space-y-3">
-            {modalError ? <Alert type="error" message={modalError} /> : null}
-            <p className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">
-                {modal.entry.firstName} {modal.entry.lastName} (
-                {modal.entry.schoolClass})
-              </span>{" "}
-              ist inzwischen als reguläres Kind angelegt. Beim Zuordnen wird der
-              Klassenlisteneintrag entfernt, das Kind steht dann nur noch über
-              seinen regulären Datensatz auf der Klassenliste.
-            </p>
-            {modal.entry.matchingStudentIds.length > 1 ? (
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gray-900">
-                  Mehrere Kinder tragen diesen Namen in dieser Klasse. Bitte den
-                  richtigen Datensatz auswählen:
-                </legend>
-                {modal.entry.matchingStudentIds.map((studentId) => (
-                  <label
-                    key={studentId}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
-                  >
-                    <span className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="assign-target"
-                        className="accent-moto-green"
-                        checked={assignTarget === studentId}
-                        onChange={() => setAssignTarget(studentId)}
-                      />
-                      Kind-Datensatz #{studentId}
-                    </span>
-                    <Link
-                      href={`/students/${studentId}`}
-                      target="_blank"
-                      className="text-xs font-medium text-gray-600 underline hover:text-gray-900"
-                    >
-                      Öffnen
-                    </Link>
-                  </label>
-                ))}
-              </fieldset>
-            ) : null}
-            <p className="text-xs text-gray-500">
-              Die Zuordnung passiert nie automatisch: Bitte nur bestätigen, wenn
-              es sich wirklich um dasselbe Kind handelt.
-            </p>
-          </div>
-        ) : null}
-      </ConfirmationModal>
     </TenantPage>
   );
 }

@@ -26,8 +26,15 @@ import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu"
 import { DataTable } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import { FormModal } from "~/components/ui/form-modal";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   DataField,
@@ -591,221 +598,224 @@ function ParentAnnouncementsContent() {
   }
 
   return (
-    <>
-      <TenantPage
-        title={copy.title}
-        stats={kindSummary}
-        statsLoading={isLoading && !announcements}
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={openCreate}
-            aria-label={copy.ariaLabel}
-            className="gap-1.5"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            {copy.action}
-          </Button>
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Titel suchen…",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setStatusFilter("all");
-        }}
-        // Mitteilungen und Umfragen sind zwei Listen derselben Seite, also
-        // Seitenreiter — nicht ein Filter in der Suchzeile.
-        tabs={{
-          value: kind,
-          onChange: (value) => setKind(value as AnnouncementKind),
-          items: KIND_ITEMS.map((item) => ({
-            value: item.value,
-            label: item.label,
-            badge: kindCounts[item.value],
-          })),
-          label: "Mitteilungen oder Umfragen",
-        }}
-        loading={isLoading}
-        error={
-          loadError ? "Elternmitteilungen konnten nicht geladen werden." : null
-        }
-        empty={
-          !isLoading && filtered.length === 0
-            ? {
-                icon:
-                  kind === "poll" ? (
-                    <ListChecks className="h-12 w-12" aria-hidden />
-                  ) : (
-                    <Megaphone className="h-12 w-12" aria-hidden />
-                  ),
-                title: copy.emptyTitle,
-                description: copy.emptyBody,
-                action: (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={openCreate}
-                    aria-label={copy.ariaLabel}
-                    className="gap-1.5"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden />
-                    {copy.action}
-                  </Button>
+    <TenantPage
+      title={copy.title}
+      stats={kindSummary}
+      statsLoading={isLoading && !announcements}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={openCreate}
+          aria-label={copy.ariaLabel}
+          className="gap-1.5"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          {copy.action}
+        </Button>
+      }
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Titel suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSearchTerm("");
+        setStatusFilter("all");
+      }}
+      // Mitteilungen und Umfragen sind zwei Listen derselben Seite, also
+      // Seitenreiter — nicht ein Filter in der Suchzeile.
+      tabs={{
+        value: kind,
+        onChange: (value) => setKind(value as AnnouncementKind),
+        items: KIND_ITEMS.map((item) => ({
+          value: item.value,
+          label: item.label,
+          badge: kindCounts[item.value],
+        })),
+        label: "Mitteilungen oder Umfragen",
+      }}
+      loading={isLoading}
+      error={
+        loadError ? "Elternmitteilungen konnten nicht geladen werden." : null
+      }
+      empty={
+        !isLoading && filtered.length === 0
+          ? {
+              icon:
+                kind === "poll" ? (
+                  <ListChecks className="h-12 w-12" aria-hidden />
+                ) : (
+                  <Megaphone className="h-12 w-12" aria-hidden />
                 ),
+              title: copy.emptyTitle,
+              description: copy.emptyBody,
+              action: (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={openCreate}
+                  aria-label={copy.ariaLabel}
+                  className="gap-1.5"
+                >
+                  <Plus className="h-4 w-4" aria-hidden />
+                  {copy.action}
+                </Button>
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          {isFormOpen && (
+            <AnnouncementFormModal
+              announcement={editing}
+              kind={
+                editing ? (isPoll(editing) ? "poll" : "announcement") : kind
               }
-            : null
-        }
-      >
-        {reminderNotice && <Alert type="success" message={reminderNotice} />}
+              groups={groups ?? []}
+              activities={activities ?? []}
+              schoolClasses={schoolClasses ?? []}
+              onClose={closeForm}
+              onRefresh={async () => {
+                await mutate();
+              }}
+              onSaved={async () => {
+                await mutate();
+                closeForm();
+              }}
+            />
+          )}
 
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          getRowKey={(row) => row.id}
-          defaultSortKey="title"
-          onRowClick={(row) => setDetailFor(row)}
-        />
-      </TenantPage>
+          {detailFor && (
+            <DetailModal
+              announcement={detailFor}
+              groups={groups ?? []}
+              activities={activities ?? []}
+              onClose={() => setDetailFor(null)}
+              onReminded={(count) => {
+                setReminderNotice(
+                  count === 0
+                    ? "Alle erreichten Kinder haben bereits geantwortet, es wurde niemand erinnert."
+                    : `${count} ${count === 1 ? "Elternteil wurde" : "Eltern wurden"} an die offene Umfrage erinnert.`,
+                );
+                setDetailFor(null);
+              }}
+            />
+          )}
 
-      {isFormOpen && (
-        <AnnouncementFormModal
-          announcement={editing}
-          kind={editing ? (isPoll(editing) ? "poll" : "announcement") : kind}
-          groups={groups ?? []}
-          activities={activities ?? []}
-          schoolClasses={schoolClasses ?? []}
-          onClose={closeForm}
-          onRefresh={async () => {
-            await mutate();
-          }}
-          onSaved={async () => {
-            await mutate();
-            closeForm();
-          }}
-        />
-      )}
+          {publishTarget && (
+            <ConfirmationModal
+              isOpen={Boolean(publishTarget)}
+              onClose={() => {
+                setPublishTarget(null);
+                setPublishError("");
+              }}
+              onConfirm={() => void confirmPublish()}
+              title="Elternmitteilung veröffentlichen"
+              confirmText="Jetzt veröffentlichen"
+              cancelText="Abbrechen"
+              isConfirmLoading={pendingActionId === publishTarget.id}
+            >
+              <div className="space-y-2 text-sm text-gray-700">
+                <p>
+                  „{publishTarget.title}“ wird für{" "}
+                  <span className="font-medium">
+                    {summarizeTargets(publishTarget.targets)}
+                  </span>{" "}
+                  sichtbar.
+                </p>
+                {publishTarget.send_email && (
+                  <p>
+                    Die erreichten Eltern werden zusätzlich per E-Mail
+                    benachrichtigt.
+                  </p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Nach dem Veröffentlichen kann die Mitteilung nicht mehr
+                  bearbeitet werden.
+                </p>
+                {publishError && (
+                  <p role="alert" className="text-moto-red-strong text-sm">
+                    {publishError}
+                  </p>
+                )}
+              </div>
+            </ConfirmationModal>
+          )}
 
-      {detailFor && (
-        <DetailModal
-          announcement={detailFor}
-          groups={groups ?? []}
-          activities={activities ?? []}
-          onClose={() => setDetailFor(null)}
-          onReminded={(count) => {
-            setReminderNotice(
-              count === 0
-                ? "Alle erreichten Kinder haben bereits geantwortet, es wurde niemand erinnert."
-                : `${count} ${count === 1 ? "Elternteil wurde" : "Eltern wurden"} an die offene Umfrage erinnert.`,
-            );
-            setDetailFor(null);
-          }}
-        />
-      )}
+          {unpublishTarget && (
+            <ConfirmationModal
+              isOpen={Boolean(unpublishTarget)}
+              onClose={() => {
+                setUnpublishTarget(null);
+                setUnpublishError("");
+              }}
+              onConfirm={() => void confirmUnpublish()}
+              title="Elternmitteilung zurückziehen"
+              confirmText="Zurückziehen"
+              cancelText="Abbrechen"
+              isConfirmLoading={pendingActionId === unpublishTarget.id}
+            >
+              <div className="space-y-2 text-sm text-gray-700">
+                <p>
+                  „{unpublishTarget.title}“ wird für die Eltern nicht mehr
+                  sichtbar und kehrt in den Entwurfsstatus zurück.
+                </p>
+                <p className="text-xs text-gray-500">
+                  Noch nicht versendete E-Mail-Benachrichtigungen werden
+                  abgebrochen.
+                </p>
+                {unpublishError && (
+                  <p role="alert" className="text-moto-red-strong text-sm">
+                    {unpublishError}
+                  </p>
+                )}
+              </div>
+            </ConfirmationModal>
+          )}
 
-      {publishTarget && (
-        <ConfirmationModal
-          isOpen={Boolean(publishTarget)}
-          onClose={() => {
-            setPublishTarget(null);
-            setPublishError("");
-          }}
-          onConfirm={() => void confirmPublish()}
-          title="Elternmitteilung veröffentlichen"
-          confirmText="Jetzt veröffentlichen"
-          cancelText="Abbrechen"
-          isConfirmLoading={pendingActionId === publishTarget.id}
-        >
-          <div className="space-y-2 text-sm text-gray-700">
-            <p>
-              „{publishTarget.title}“ wird für{" "}
-              <span className="font-medium">
-                {summarizeTargets(publishTarget.targets)}
-              </span>{" "}
-              sichtbar.
-            </p>
-            {publishTarget.send_email && (
-              <p>
-                Die erreichten Eltern werden zusätzlich per E-Mail
-                benachrichtigt.
-              </p>
-            )}
-            <p className="text-xs text-gray-500">
-              Nach dem Veröffentlichen kann die Mitteilung nicht mehr bearbeitet
-              werden.
-            </p>
-            {publishError && (
-              <p role="alert" className="text-moto-red-strong text-sm">
-                {publishError}
-              </p>
-            )}
-          </div>
-        </ConfirmationModal>
-      )}
+          {deleteTarget && (
+            <ConfirmDeleteModal
+              isOpen={Boolean(deleteTarget)}
+              title="Elternmitteilung löschen"
+              description={
+                <>
+                  Möchten Sie die Elternmitteilung
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    „{deleteTarget.title}“{" "}
+                  </span>
+                  wirklich löschen? Dies kann nicht rückgängig gemacht werden.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              onConfirm={confirmDelete}
+              onClose={() => {
+                setDeleteTarget(null);
+                setDeleteError("");
+              }}
+              loading={deleting}
+              error={deleteError}
+            />
+          )}
+        </>
+      }
+    >
+      {reminderNotice && <Alert type="success" message={reminderNotice} />}
 
-      {unpublishTarget && (
-        <ConfirmationModal
-          isOpen={Boolean(unpublishTarget)}
-          onClose={() => {
-            setUnpublishTarget(null);
-            setUnpublishError("");
-          }}
-          onConfirm={() => void confirmUnpublish()}
-          title="Elternmitteilung zurückziehen"
-          confirmText="Zurückziehen"
-          cancelText="Abbrechen"
-          isConfirmLoading={pendingActionId === unpublishTarget.id}
-        >
-          <div className="space-y-2 text-sm text-gray-700">
-            <p>
-              „{unpublishTarget.title}“ wird für die Eltern nicht mehr sichtbar
-              und kehrt in den Entwurfsstatus zurück.
-            </p>
-            <p className="text-xs text-gray-500">
-              Noch nicht versendete E-Mail-Benachrichtigungen werden
-              abgebrochen.
-            </p>
-            {unpublishError && (
-              <p role="alert" className="text-moto-red-strong text-sm">
-                {unpublishError}
-              </p>
-            )}
-          </div>
-        </ConfirmationModal>
-      )}
-
-      {deleteTarget && (
-        <ConfirmDeleteModal
-          isOpen={Boolean(deleteTarget)}
-          title="Elternmitteilung löschen"
-          description={
-            <>
-              Möchten Sie die Elternmitteilung
-              <span className="font-medium text-gray-900">
-                {" "}
-                „{deleteTarget.title}“{" "}
-              </span>
-              wirklich löschen? Dies kann nicht rückgängig gemacht werden.
-            </>
-          }
-          gate={{ mode: "twoStep" }}
-          onConfirm={confirmDelete}
-          onClose={() => {
-            setDeleteTarget(null);
-            setDeleteError("");
-          }}
-          loading={deleting}
-          error={deleteError}
-        />
-      )}
-    </>
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getRowKey={(row) => row.id}
+        defaultSortKey="title"
+        onRowClick={(row) => setDetailFor(row)}
+      />
+    </TenantPage>
   );
 }
 
@@ -1084,282 +1094,297 @@ function AnnouncementFormModal({
     );
 
   return (
-    <FormModal
-      isOpen
-      onClose={onClose}
-      title={
-        isPollForm
-          ? isEdit
-            ? "Umfrage bearbeiten"
-            : "Neue Umfrage"
-          : isEdit
-            ? "Elternmitteilung bearbeiten"
-            : "Neue Elternmitteilung"
-      }
-      footer={footer}
-      size="xl"
+    <SlideOver
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div className="space-y-4">
-        <WizardStepper steps={WIZARD_STEPS} current={step} />
+      <SlideOverContent widthClass="sm:w-[860px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              {isPollForm
+                ? isEdit
+                  ? "Umfrage bearbeiten"
+                  : "Neue Umfrage"
+                : isEdit
+                  ? "Elternmitteilung bearbeiten"
+                  : "Neue Elternmitteilung"}
+            </SlideOverTitle>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <WizardStepper steps={WIZARD_STEPS} current={step} />
 
-        {step === 0 ? (
-          // Sections with quiet uppercase headers, every control on the full
-          // width — the same form language as the Vertretungsplan slide-over.
-          // No nested cards and no per-option input rows: at this size they
-          // read as clutter, not as structure.
-          <div className="space-y-6">
-            <section className="space-y-4">
-              <Input
-                label={isPollForm ? "Frage" : "Titel"}
-                name="announcement-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={
-                  isPollForm
-                    ? "z. B. Kommt Ihr Kind zur Murmelparty?"
-                    : "z. B. Sommerfest am Freitag"
-                }
-              />
-
-              <div>
-                <label
-                  htmlFor="announcement-body"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Text
-                </label>
-                <textarea
-                  id="announcement-body"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={5}
-                  maxLength={4000}
-                  placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
-                  className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+          {step === 0 ? (
+            // Sections with quiet uppercase headers, every control on the full
+            // width — the same form language as the Vertretungsplan slide-over.
+            // No nested cards and no per-option input rows: at this size they
+            // read as clutter, not as structure.
+            <div className="space-y-6">
+              <section className="space-y-4">
+                <Input
+                  label={isPollForm ? "Frage" : "Titel"}
+                  name="announcement-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={
+                    isPollForm
+                      ? "z. B. Kommt Ihr Kind zur Murmelparty?"
+                      : "z. B. Sommerfest am Freitag"
+                  }
                 />
-              </div>
 
-              <Input
-                label="Link (optional)"
-                name="announcement-link"
-                type="url"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://…"
-              />
-            </section>
-
-            {isPollForm && (
-              <section className="space-y-3">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Antwortmöglichkeiten
-                </h3>
                 <div>
-                  <ul className="space-y-2">
-                    {optionRows.map((option, index) => (
-                      // Rows have no id before saving; the list is short and
-                      // edited in place, so the index is the stable key.
-                      // eslint-disable-next-line react/no-array-index-key
-                      <li key={index} className="flex items-center gap-2">
-                        {/* Input's className lands on the control, not on its
-                            wrapper, so the wrapper carries the flex sizing. */}
-                        <div className="min-w-0 flex-1">
-                          <Input
-                            controlSize="compact"
-                            name={`announcement-option-${index}`}
-                            value={option}
-                            onChange={(e) => setOptionAt(index, e.target.value)}
-                            placeholder={`Antwort ${index + 1}`}
-                            aria-label={`Antwort ${index + 1}`}
-                            maxLength={120}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeOptionAt(index)}
-                          aria-label={`Antwort ${index + 1} entfernen`}
-                          className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <button
-                    type="button"
-                    onClick={addOption}
-                    disabled={optionRows.length >= 10}
-                    className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  <label
+                    htmlFor="announcement-body"
+                    className="mb-2 block text-sm font-medium text-gray-700"
                   >
-                    <Plus className="h-4 w-4" aria-hidden />
-                    Antwort hinzufügen
-                  </button>
-
-                  <p className="mt-2 text-xs text-gray-500">
-                    Zwei bis zehn Antworten. Eltern antworten für jedes Kind
-                    einzeln.
-                  </p>
+                    Text
+                  </label>
+                  <textarea
+                    id="announcement-body"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={5}
+                    maxLength={4000}
+                    placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
+                    className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+                  />
                 </div>
 
+                <Input
+                  label="Link (optional)"
+                  name="announcement-link"
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://…"
+                />
+              </section>
+
+              {isPollForm && (
+                <section className="space-y-3">
+                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    Antwortmöglichkeiten
+                  </h3>
+                  <div>
+                    <ul className="space-y-2">
+                      {optionRows.map((option, index) => (
+                        // Rows have no id before saving; the list is short and
+                        // edited in place, so the index is the stable key.
+                        // eslint-disable-next-line react/no-array-index-key
+                        <li key={index} className="flex items-center gap-2">
+                          {/* Input's className lands on the control, not on its
+                            wrapper, so the wrapper carries the flex sizing. */}
+                          <div className="min-w-0 flex-1">
+                            <Input
+                              controlSize="compact"
+                              name={`announcement-option-${index}`}
+                              value={option}
+                              onChange={(e) =>
+                                setOptionAt(index, e.target.value)
+                              }
+                              placeholder={`Antwort ${index + 1}`}
+                              aria-label={`Antwort ${index + 1}`}
+                              maxLength={120}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeOptionAt(index)}
+                            aria-label={`Antwort ${index + 1} entfernen`}
+                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <button
+                      type="button"
+                      onClick={addOption}
+                      disabled={optionRows.length >= 10}
+                      className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden />
+                      Antwort hinzufügen
+                    </button>
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      Zwei bis zehn Antworten. Eltern antworten für jedes Kind
+                      einzeln.
+                    </p>
+                  </div>
+
+                  <label
+                    htmlFor="announcement-multi"
+                    className="flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="announcement-multi"
+                      checked={multiChoice}
+                      onChange={(e) => setMultiChoice(e.target.checked)}
+                    />
+                    <span className="text-sm text-gray-800">
+                      <span className="block">Mehrfachauswahl erlauben</span>
+                      <span className="block text-xs text-gray-500">
+                        Eltern können pro Kind mehrere Antworten auswählen.
+                      </span>
+                    </span>
+                  </label>
+                </section>
+              )}
+
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Zeitraum
+                </h3>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {isPollForm && (
+                    <div>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Antwortfrist (optional)
+                      </span>
+                      <DatePicker
+                        value={deadline}
+                        onChange={setDeadline}
+                        placeholder="Keine Frist"
+                        dropdownPlacement="down"
+                      />
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        Danach ist die Umfrage geschlossen, bleibt aber lesbar.
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                      Ablaufdatum (optional)
+                    </span>
+                    <DatePicker
+                      value={expiresAt}
+                      onChange={setExpiresAt}
+                      placeholder="Kein Ablaufdatum"
+                      dropdownPlacement="down"
+                    />
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Danach wird{" "}
+                      {isPollForm ? "die Umfrage" : "die Mitteilung"} für Eltern
+                      ausgeblendet.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Veröffentlichung
+                </h3>
+
+                <div>
+                  <span
+                    id="announcement-priority-label"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                  >
+                    Priorität
+                  </span>
+                  <div
+                    className="flex flex-wrap gap-2"
+                    role="group"
+                    aria-labelledby="announcement-priority-label"
+                  >
+                    {PRIORITY_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setPriority(opt.value)}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                          priority === opt.value
+                            ? "bg-gray-900 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* A poll answer already IS the confirmation — offering a second,
+                  weaker "gelesen" checkbox on top only muddies the result. */}
+                {!isPollForm && (
+                  <label
+                    htmlFor="announcement-ack"
+                    className="flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="announcement-ack"
+                      checked={requiresAck}
+                      onChange={(e) => setRequiresAck(e.target.checked)}
+                    />
+                    <span className="text-sm text-gray-800">
+                      <span className="block">
+                        Lesebestätigung erforderlich
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        Eltern bestätigen ausdrücklich, dass sie die Mitteilung
+                        gelesen haben.
+                      </span>
+                    </span>
+                  </label>
+                )}
+
                 <label
-                  htmlFor="announcement-multi"
+                  htmlFor="announcement-email"
                   className="flex cursor-pointer items-start gap-3"
                 >
                   <Checkbox
-                    id="announcement-multi"
-                    checked={multiChoice}
-                    onChange={(e) => setMultiChoice(e.target.checked)}
+                    id="announcement-email"
+                    checked={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.checked)}
                   />
                   <span className="text-sm text-gray-800">
-                    <span className="block">Mehrfachauswahl erlauben</span>
+                    <span className="block">
+                      Eltern zusätzlich per E-Mail benachrichtigen
+                    </span>
                     <span className="block text-xs text-gray-500">
-                      Eltern können pro Kind mehrere Antworten auswählen.
+                      Beim Veröffentlichen erhalten die erreichten Eltern eine
+                      E-Mail mit Titel und Link ins Elternportal.
                     </span>
                   </span>
                 </label>
               </section>
-            )}
+            </div>
+          ) : (
+            <TargetingStep
+              targets={targets}
+              groups={groups}
+              activities={activities}
+              schoolClasses={schoolClasses}
+              studentNames={studentNames}
+              onChange={setTargets}
+              onSetStudentName={(id, name) =>
+                setStudentNames((prev) => ({ ...prev, [id]: name }))
+              }
+              kindLabel={isPollForm ? "diese Umfrage" : "diese Mitteilung"}
+              allowPendingEnrollment={!isPollForm}
+            />
+          )}
 
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Zeitraum
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {isPollForm && (
-                  <div>
-                    <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Antwortfrist (optional)
-                    </span>
-                    <DatePicker
-                      value={deadline}
-                      onChange={setDeadline}
-                      placeholder="Keine Frist"
-                      dropdownPlacement="down"
-                    />
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      Danach ist die Umfrage geschlossen, bleibt aber lesbar.
-                    </p>
-                  </div>
-                )}
-                <div>
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Ablaufdatum (optional)
-                  </span>
-                  <DatePicker
-                    value={expiresAt}
-                    onChange={setExpiresAt}
-                    placeholder="Kein Ablaufdatum"
-                    dropdownPlacement="down"
-                  />
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    Danach wird {isPollForm ? "die Umfrage" : "die Mitteilung"}{" "}
-                    für Eltern ausgeblendet.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Veröffentlichung
-              </h3>
-
-              <div>
-                <span
-                  id="announcement-priority-label"
-                  className="mb-1.5 block text-sm font-medium text-gray-700"
-                >
-                  Priorität
-                </span>
-                <div
-                  className="flex flex-wrap gap-2"
-                  role="group"
-                  aria-labelledby="announcement-priority-label"
-                >
-                  {PRIORITY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setPriority(opt.value)}
-                      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                        priority === opt.value
-                          ? "bg-gray-900 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* A poll answer already IS the confirmation — offering a second,
-                  weaker "gelesen" checkbox on top only muddies the result. */}
-              {!isPollForm && (
-                <label
-                  htmlFor="announcement-ack"
-                  className="flex cursor-pointer items-start gap-3"
-                >
-                  <Checkbox
-                    id="announcement-ack"
-                    checked={requiresAck}
-                    onChange={(e) => setRequiresAck(e.target.checked)}
-                  />
-                  <span className="text-sm text-gray-800">
-                    <span className="block">Lesebestätigung erforderlich</span>
-                    <span className="block text-xs text-gray-500">
-                      Eltern bestätigen ausdrücklich, dass sie die Mitteilung
-                      gelesen haben.
-                    </span>
-                  </span>
-                </label>
-              )}
-
-              <label
-                htmlFor="announcement-email"
-                className="flex cursor-pointer items-start gap-3"
-              >
-                <Checkbox
-                  id="announcement-email"
-                  checked={sendEmail}
-                  onChange={(e) => setSendEmail(e.target.checked)}
-                />
-                <span className="text-sm text-gray-800">
-                  <span className="block">
-                    Eltern zusätzlich per E-Mail benachrichtigen
-                  </span>
-                  <span className="block text-xs text-gray-500">
-                    Beim Veröffentlichen erhalten die erreichten Eltern eine
-                    E-Mail mit Titel und Link ins Elternportal.
-                  </span>
-                </span>
-              </label>
-            </section>
-          </div>
-        ) : (
-          <TargetingStep
-            targets={targets}
-            groups={groups}
-            activities={activities}
-            schoolClasses={schoolClasses}
-            studentNames={studentNames}
-            onChange={setTargets}
-            onSetStudentName={(id, name) =>
-              setStudentNames((prev) => ({ ...prev, [id]: name }))
-            }
-            kindLabel={isPollForm ? "diese Umfrage" : "diese Mitteilung"}
-            allowPendingEnrollment={!isPollForm}
-          />
-        )}
-
-        {formError && (
-          <p role="alert" className="text-moto-red-strong text-sm">
-            {formError}
-          </p>
-        )}
-      </div>
-    </FormModal>
+          {formError && (
+            <p role="alert" className="text-moto-red-strong text-sm">
+              {formError}
+            </p>
+          )}
+        </div>
+        <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 
@@ -2123,149 +2148,157 @@ function DetailModal({
   const chips = targetChips(announcement.targets, groups, activities);
 
   return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={announcement.title}
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+    <SlideOver
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div className="space-y-5">
-        {/* Identitätskopf: Titel trägt der Modalkopf, hier stehen Status und
+      <SlideOverContent widthClass="sm:w-[680px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>{announcement.title}</SlideOverTitle>
+          </div>
+          <SlideOverCloseButton />
+        </SlideOverHeader>
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          {/* Identitätskopf: Titel trägt der Modalkopf, hier stehen Status und
             Zeitpunkte des Objekts. */}
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusPill status={announcement.status} />
-          {announcement.priority === "important" && (
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-              Wichtig
-            </span>
-          )}
-          <span className="text-xs text-gray-500">
-            {announcement.published_at
-              ? `Veröffentlicht ${formatDate(announcement.published_at)}`
-              : "Noch nicht veröffentlicht"}
-            {announcement.expires_at &&
-              ` · Läuft ab ${formatBerlinDate(announcement.expires_at)}`}
-          </span>
-        </div>
-
-        <InfoSection
-          title={poll ? "Umfrage" : "Mitteilung"}
-          icon={
-            poll ? (
-              <ListChecks className="h-4 w-4 text-gray-500" aria-hidden />
-            ) : (
-              <Megaphone className="h-4 w-4 text-gray-500" aria-hidden />
-            )
-          }
-        >
-          <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
-            <LinkifiedText text={announcement.body} />
-          </p>
-
-          {announcement.link_url && (
-            <a
-              href={announcement.link_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-moto-blue hover:text-moto-blue-hover mt-3 inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
-            >
-              <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="truncate">{announcement.link_url}</span>
-            </a>
-          )}
-        </InfoSection>
-
-        <InfoSection
-          title="Zielgruppen und Zustellung"
-          icon={<Send className="h-4 w-4 text-gray-500" aria-hidden />}
-        >
-          <DataGrid>
-            <DataField label="Zielgruppen" fullWidth>
-              <span className="flex flex-wrap gap-1.5">
-                {chips.map((chip) => (
-                  <span
-                    key={chip}
-                    className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
-                  >
-                    {chip}
-                  </span>
-                ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill status={announcement.status} />
+            {announcement.priority === "important" && (
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                Wichtig
               </span>
-            </DataField>
-            <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
-              {poll
-                ? RESPONSE_TYPE_LABEL[announcement.response_type]
-                : announcement.requires_acknowledgement
-                  ? "Erforderlich"
-                  : "Nicht erforderlich"}
-            </DataField>
-            <DataField label="E-Mail an die Eltern">
-              {announcement.send_email
-                ? "Wird versendet"
-                : "Wird nicht versendet"}
-            </DataField>
-            {poll && announcement.response_deadline && (
-              <DataField label="Antwort bis">
-                {formatBerlinDate(announcement.response_deadline)}
-              </DataField>
             )}
-          </DataGrid>
-        </InfoSection>
+            <span className="text-xs text-gray-500">
+              {announcement.published_at
+                ? `Veröffentlicht ${formatDate(announcement.published_at)}`
+                : "Noch nicht veröffentlicht"}
+              {announcement.expires_at &&
+                ` · Läuft ab ${formatBerlinDate(announcement.expires_at)}`}
+            </span>
+          </div>
 
-        {poll && (
-          <PollResultsPanel
-            announcement={announcement}
-            onReminded={onReminded}
-          />
-        )}
+          <InfoSection
+            title={poll ? "Umfrage" : "Mitteilung"}
+            icon={
+              poll ? (
+                <ListChecks className="h-4 w-4 text-gray-500" aria-hidden />
+              ) : (
+                <Megaphone className="h-4 w-4 text-gray-500" aria-hidden />
+              )
+            }
+          >
+            <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
+              <LinkifiedText text={announcement.body} />
+            </p>
 
-        {/* A published poll shows its Auswertung instead of the read/ack
+            {announcement.link_url && (
+              <a
+                href={announcement.link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-moto-blue hover:text-moto-blue-hover mt-3 inline-flex max-w-full items-center gap-1.5 text-sm font-medium underline underline-offset-2"
+              >
+                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                <span className="truncate">{announcement.link_url}</span>
+              </a>
+            )}
+          </InfoSection>
+
+          <InfoSection
+            title="Zielgruppen und Zustellung"
+            icon={<Send className="h-4 w-4 text-gray-500" aria-hidden />}
+          >
+            <DataGrid>
+              <DataField label="Zielgruppen" fullWidth>
+                <span className="flex flex-wrap gap-1.5">
+                  {chips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </span>
+              </DataField>
+              <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
+                {poll
+                  ? RESPONSE_TYPE_LABEL[announcement.response_type]
+                  : announcement.requires_acknowledgement
+                    ? "Erforderlich"
+                    : "Nicht erforderlich"}
+              </DataField>
+              <DataField label="E-Mail an die Eltern">
+                {announcement.send_email
+                  ? "Wird versendet"
+                  : "Wird nicht versendet"}
+              </DataField>
+              {poll && announcement.response_deadline && (
+                <DataField label="Antwort bis">
+                  {formatBerlinDate(announcement.response_deadline)}
+                </DataField>
+              )}
+            </DataGrid>
+          </InfoSection>
+
+          {poll && (
+            <PollResultsPanel
+              announcement={announcement}
+              onReminded={onReminded}
+            />
+          )}
+
+          {/* A published poll shows its Auswertung instead of the read/ack
             statistics: the two count different things (children vs guardian
             accounts), and two different denominators in one modal is a support
             ticket waiting to happen. A DRAFT poll still shows the reach, which
             is the number staff check before publishing. */}
-        {showReadStats && (
-          <InfoSection
-            title={isPublished ? "Statistik" : "Aktuelle Reichweite"}
-            icon={<BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />}
-          >
-            {error ? (
-              <p className="text-moto-red-strong text-sm">{error}</p>
-            ) : stats === null || recipients === null ? (
-              <SkeletonRegion label="Statistik wird geladen…">
-                <ListSkeleton rows={4} avatar={false} />
-              </SkeletonRegion>
-            ) : (
-              <>
-                <p className="text-sm text-gray-700">
-                  {isPublished ? (
-                    <>
-                      {stats.read_count} von {stats.target_count} gelesen
-                      {announcement.requires_acknowledgement &&
-                        ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
-                    </>
-                  ) : (
-                    <>
-                      Erreicht aktuell {stats.target_count}{" "}
-                      {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
-                    </>
+          {showReadStats && (
+            <InfoSection
+              title={isPublished ? "Statistik" : "Aktuelle Reichweite"}
+              icon={<BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />}
+            >
+              {error ? (
+                <p className="text-moto-red-strong text-sm">{error}</p>
+              ) : stats === null || recipients === null ? (
+                <SkeletonRegion label="Statistik wird geladen…">
+                  <ListSkeleton rows={4} avatar={false} />
+                </SkeletonRegion>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-700">
+                    {isPublished ? (
+                      <>
+                        {stats.read_count} von {stats.target_count} gelesen
+                        {announcement.requires_acknowledgement &&
+                          ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
+                      </>
+                    ) : (
+                      <>
+                        Erreicht aktuell {stats.target_count}{" "}
+                        {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
+                      </>
+                    )}
+                  </p>
+                  {recipients.length > 0 && (
+                    <RecipientList
+                      recipients={recipients}
+                      showStatus={isPublished}
+                      statusFilter={statusFilter}
+                      onStatusFilter={setStatusFilter}
+                      nameFilter={nameFilter}
+                      onNameFilter={setNameFilter}
+                    />
                   )}
-                </p>
-                {recipients.length > 0 && (
-                  <RecipientList
-                    recipients={recipients}
-                    showStatus={isPublished}
-                    statusFilter={statusFilter}
-                    onStatusFilter={setStatusFilter}
-                    nameFilter={nameFilter}
-                    onNameFilter={setNameFilter}
-                  />
-                )}
-              </>
-            )}
-          </InfoSection>
-        )}
-      </div>
-    </Modal>
+                </>
+              )}
+            </InfoSection>
+          )}
+        </div>
+      </SlideOverContent>
+    </SlideOver>
   );
 }

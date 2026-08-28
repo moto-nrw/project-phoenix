@@ -233,6 +233,39 @@ vi.mock("~/components/staff/staff-session-table", () => ({
   },
 }));
 
+// Der Bearbeiten-Dialog der Zeiterfassung ist ein SlideOver (Dialog-Diät):
+// derselbe Ersatz wie beim Modal daneben, damit die Struktur im Test steht und
+// die vorhandenen Selektoren weiter greifen.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    children,
+  }: {
+    open?: boolean;
+    children: React.ReactNode;
+  }) => (open === false ? null : <div data-testid="modal">{children}</div>),
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="modal-body">{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h3>{children}</h3>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="modal-footer">{children}</div>
+  ),
+  SlideOverCloseButton: () => (
+    <button type="button" data-testid="slide-over-close">
+      close
+    </button>
+  ),
+}));
+
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
@@ -2668,9 +2701,9 @@ describe("TimeTrackingPage", () => {
 
     it("modal title is 'Eintrag bearbeiten' for session-only", async () => {
       await openEditModal(makePastSession());
-      expect(screen.getByTestId("modal").getAttribute("data-title")).toBe(
-        "Eintrag bearbeiten",
-      );
+      expect(
+        screen.getByRole("heading", { name: "Eintrag bearbeiten" }),
+      ).toBeInTheDocument();
     });
 
     it("modal title is 'Abwesenheit bearbeiten' for absence-only", async () => {
@@ -2690,9 +2723,9 @@ describe("TimeTrackingPage", () => {
       if (row) {
         fireEvent.click(row);
         await waitFor(() => {
-          expect(screen.getByTestId("modal").getAttribute("data-title")).toBe(
-            "Abwesenheit bearbeiten",
-          );
+          expect(
+            screen.getByRole("heading", { name: "Abwesenheit bearbeiten" }),
+          ).toBeInTheDocument();
         });
       }
     });
@@ -2707,9 +2740,9 @@ describe("TimeTrackingPage", () => {
       };
 
       await openEditModal(pastSession, { absences: [pastAbsence] });
-      expect(screen.getByTestId("modal").getAttribute("data-title")).toBe(
-        "Tag bearbeiten",
-      );
+      expect(
+        screen.getByRole("heading", { name: "Tag bearbeiten" }),
+      ).toBeInTheDocument();
     });
 
     it("shows tabs when both session and absence exist", async () => {

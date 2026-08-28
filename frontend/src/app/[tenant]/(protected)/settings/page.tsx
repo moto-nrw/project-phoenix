@@ -6,6 +6,8 @@ import { redirect, useSearchParams } from "next/navigation";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSettingsTabs } from "~/components/settings/settings-page";
+import { useTenantRouter } from "~/lib/tenant-router";
+import { SETTINGS_REGISTER_TABS } from "~/lib/section-navigation";
 
 function SettingsContent() {
   const { data: session, status } = useSession({
@@ -13,6 +15,7 @@ function SettingsContent() {
   });
 
   const settingsTabs = useSettingsTabs();
+  const router = useTenantRouter();
   const searchParams = useSearchParams();
   const { data: schema } = useSettingsSchema();
 
@@ -25,12 +28,21 @@ function SettingsContent() {
     setSelectedTab(requestedTabId);
   }, [requestedTabId]);
 
+  // Die Register, die reine Konfiguration sind (Gruppen, Rollen,
+  // Berechtigungen, Geräte, Info-Displays, Exporte, Jahrgangswechsel), standen
+  // im aufgelösten Bereich „Datenverwaltung". Sie sind jetzt Reiter hier und
+  // führen auf ihre bestehenden Routen.
   const tabItems = useMemo(
-    () =>
-      (settingsTabs?.tabs ?? []).map((tab) => ({
+    () => [
+      ...(settingsTabs?.tabs ?? []).map((tab) => ({
         value: tab.id,
         label: tab.label,
       })),
+      ...SETTINGS_REGISTER_TABS.map((tab) => ({
+        value: tab.href,
+        label: tab.label,
+      })),
+    ],
     [settingsTabs],
   );
 
@@ -86,7 +98,14 @@ function SettingsContent() {
       stats={`${tabItems.length} ${tabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe`}
       tabs={{
         value: activeTab,
-        onChange: setSelectedTab,
+        onChange: (value) => {
+          // Ein Reiter, der auf eine eigene Seite zeigt, navigiert dorthin.
+          if (value.startsWith("/")) {
+            router.push(value);
+            return;
+          }
+          setSelectedTab(value);
+        },
         items: tabItems,
         label: "Einstellungsbereiche",
       }}

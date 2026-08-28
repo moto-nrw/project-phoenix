@@ -557,7 +557,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
 
     // Should show loading state while SWR is loading
     expect(
-      screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
+      screen.getByLabelText("Aufsicht heute wird geladen…"),
     ).toBeInTheDocument();
   });
 });

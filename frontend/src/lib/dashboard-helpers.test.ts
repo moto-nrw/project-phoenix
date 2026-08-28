@@ -282,7 +282,9 @@ describe("dashboard-helpers", () => {
     });
 
     it("should return gray for unknown status", () => {
-      expect(getActivityStatusColor("unknown" as never)).toBe("bg-gray-500");
+      // Grau für „unbekannt" kommt jetzt aus LOCATION_COLORS.UNKNOWN statt aus
+      // einem generischen Tailwind-Ton (BAUARTEN-SPEC, Querregel Farbe).
+      expect(getActivityStatusColor("unknown" as never)).toBe("bg-moto-stone");
     });
   });
 
@@ -300,7 +302,7 @@ describe("dashboard-helpers", () => {
     });
 
     it("should return gray for unknown status", () => {
-      expect(getGroupStatusColor("unknown" as never)).toBe("bg-gray-500");
+      expect(getGroupStatusColor("unknown" as never)).toBe("bg-moto-stone");
     });
   });
 });

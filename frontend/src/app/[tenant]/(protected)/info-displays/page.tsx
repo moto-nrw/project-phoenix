@@ -239,158 +239,162 @@ function InfoDisplaysPageContent() {
   const listLoading = permissionLoading || isLoading;
 
   return (
-    <>
-      <TenantPage
-        title="Info-Displays"
-        stats={`${total} ${total === 1 ? "Display" : "Displays"} · ${active} aktiv`}
-        statsLoading={listLoading}
-        actions={
-          canManage ? (
-            <Button
-              type="button"
-              size="md"
-              onClick={() => {
-                setNameInput("");
-                setCreateOpen(true);
-              }}
-            >
-              Neues Display
-            </Button>
-          ) : undefined
-        }
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: "Display suchen…",
-        }}
-        error={loadError || null}
-        loading={listLoading}
-        empty={
-          !listLoading && !loadError && total === 0
-            ? {
-                title: "Noch keine Info-Displays",
-                description:
-                  "Ein Info-Display zeigt die Anwesenheit auf einem Fernseher oder Smartboard. Legen Sie eines an; den Link öffnen Sie danach im Browser des Geräts.",
-                action: canManage ? (
-                  <Button
-                    type="button"
-                    size="md"
-                    onClick={() => {
-                      setNameInput("");
-                      setCreateOpen(true);
-                    }}
-                  >
-                    Neues Display
-                  </Button>
-                ) : undefined,
-              }
-            : null
-        }
-      >
-        {error && <Alert type="error" message={error} />}
+    <TenantPage
+      title="Info-Displays"
+      stats={`${total} ${total === 1 ? "Display" : "Displays"} · ${active} aktiv`}
+      statsLoading={listLoading}
+      actions={
+        canManage ? (
+          <Button
+            type="button"
+            size="md"
+            onClick={() => {
+              setNameInput("");
+              setCreateOpen(true);
+            }}
+          >
+            Neues Display
+          </Button>
+        ) : undefined
+      }
+      search={{
+        value: searchQuery,
+        onChange: setSearchQuery,
+        placeholder: "Display suchen…",
+      }}
+      error={loadError || null}
+      loading={listLoading}
+      empty={
+        !listLoading && !loadError && total === 0
+          ? {
+              title: "Noch keine Info-Displays",
+              description:
+                "Ein Info-Display zeigt die Anwesenheit auf einem Fernseher oder Smartboard. Legen Sie eines an; den Link öffnen Sie danach im Browser des Geräts.",
+              action: canManage ? (
+                <Button
+                  type="button"
+                  size="md"
+                  onClick={() => {
+                    setNameInput("");
+                    setCreateOpen(true);
+                  }}
+                >
+                  Neues Display
+                </Button>
+              ) : undefined,
+            }
+          : null
+      }
+      overlays={
+        <>
+          {/* Create / rename modal */}
+          <FormModal
+            isOpen={createOpen || renameTarget !== null}
+            onClose={() => {
+              setCreateOpen(false);
+              setRenameTarget(null);
+            }}
+            title={renameTarget ? "Display umbenennen" : "Neues Info-Display"}
+            size="sm"
+            footer={
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    setCreateOpen(false);
+                    setRenameTarget(null);
+                  }}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  size="md"
+                  disabled={busy || nameInput.trim() === ""}
+                  onClick={() =>
+                    void (renameTarget ? handleRename() : handleCreate())
+                  }
+                >
+                  {renameTarget ? "Speichern" : "Erstellen"}
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-2">
+              <label
+                htmlFor="display-name"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Name des Displays
+              </label>
+              <Input
+                id="display-name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="z. B. Eingangsbereich"
+                maxLength={100}
+              />
+              {!renameTarget && (
+                <p className="text-sm text-gray-500">
+                  Nach dem Erstellen wird der Link zum Dashboard genau einmal
+                  angezeigt.
+                </p>
+              )}
+            </div>
+          </FormModal>
 
-        {/* Die Zeilen sind bewusst nicht anklickbar: zu einem Display gibt es
+          {/* One-time token modal */}
+          {tokenModal && (
+            <TokenModal
+              state={tokenModal}
+              onClose={() => setTokenModal(null)}
+            />
+          )}
+
+          {/* Delete confirmation */}
+          {deleteTarget && (
+            <ConfirmDeleteModal
+              isOpen
+              title="Display löschen"
+              description={
+                <>
+                  Das Display <strong>{deleteTarget.name}</strong> wird gelöscht
+                  und der zugehörige Link sofort ungültig. Der Bildschirm zeigt
+                  danach nur noch einen Hinweis.
+                </>
+              }
+              gate={{ mode: "twoStep" }}
+              onConfirm={handleDelete}
+              onClose={() => setDeleteTarget(null)}
+              loading={busy}
+              error={deleteError}
+            />
+          )}
+        </>
+      }
+    >
+      {error && <Alert type="error" message={error} />}
+
+      {/* Die Zeilen sind bewusst nicht anklickbar: zu einem Display gibt es
             keine Objektansicht. Sein Link wird genau einmal gezeigt und laesst
             sich nicht wieder aufrufen, alles Weitere steht im Kebab der Zeile.
             Ohne `onRowClick` traegt die Zeile weder Zeiger noch Hover-Flaeche,
             verspricht also auch nichts. */}
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          getRowKey={(row) => row.id}
-          defaultSortKey="name"
-          emptyState={
-            <EmptyState
-              title="Kein Display gefunden"
-              description="Zu Ihrer Suche gibt es kein Display. Ändern Sie den Suchbegriff."
-            />
-          }
-        />
-      </TenantPage>
-
-      {/* Create / rename modal */}
-      <FormModal
-        isOpen={createOpen || renameTarget !== null}
-        onClose={() => {
-          setCreateOpen(false);
-          setRenameTarget(null);
-        }}
-        title={renameTarget ? "Display umbenennen" : "Neues Info-Display"}
-        size="sm"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                setCreateOpen(false);
-                setRenameTarget(null);
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              disabled={busy || nameInput.trim() === ""}
-              onClick={() =>
-                void (renameTarget ? handleRename() : handleCreate())
-              }
-            >
-              {renameTarget ? "Speichern" : "Erstellen"}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-2">
-          <label
-            htmlFor="display-name"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Name des Displays
-          </label>
-          <Input
-            id="display-name"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            placeholder="z. B. Eingangsbereich"
-            maxLength={100}
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getRowKey={(row) => row.id}
+        defaultSortKey="name"
+        emptyState={
+          <EmptyState
+            title="Kein Display gefunden"
+            description="Zu Ihrer Suche gibt es kein Display. Ändern Sie den Suchbegriff."
           />
-          {!renameTarget && (
-            <p className="text-sm text-gray-500">
-              Nach dem Erstellen wird der Link zum Dashboard genau einmal
-              angezeigt.
-            </p>
-          )}
-        </div>
-      </FormModal>
-
-      {/* One-time token modal */}
-      {tokenModal && (
-        <TokenModal state={tokenModal} onClose={() => setTokenModal(null)} />
-      )}
-
-      {/* Delete confirmation */}
-      {deleteTarget && (
-        <ConfirmDeleteModal
-          isOpen
-          title="Display löschen"
-          description={
-            <>
-              Das Display <strong>{deleteTarget.name}</strong> wird gelöscht und
-              der zugehörige Link sofort ungültig. Der Bildschirm zeigt danach
-              nur noch einen Hinweis.
-            </>
-          }
-          gate={{ mode: "twoStep" }}
-          onConfirm={handleDelete}
-          onClose={() => setDeleteTarget(null)}
-          loading={busy}
-          error={deleteError}
-        />
-      )}
-    </>
+        }
+      />
+    </TenantPage>
   );
 }
 

@@ -5,12 +5,16 @@ import { getActivePlanningSubPage } from "~/lib/planning-navigation";
 import {
   DATABASE_SECTION,
   ENROLLMENT_SECTION,
-  getActiveDatabaseSubPage,
   getActiveEnrollmentSubPage,
   getActiveParentSubPage,
+  getActiveReportsSubPage,
+  getActiveTabPage,
+  getActiveTeamSubPage,
   PARENT_SECTION,
   PLANNING_SECTION,
+  REPORTS_SECTION,
   STAFF_FLAT_PAGES,
+  TEAM_SECTION,
   type SectionRoot,
   type SectionSubPage,
 } from "~/lib/section-navigation";
@@ -31,7 +35,7 @@ const detailRouteTitles: Array<{
   {
     basePath: "/staff/",
     rootPath: "/staff",
-    title: "Mitarbeiter Details",
+    title: "Mitarbeitende Details",
   },
   // Eine Unterhaltung im Team-Chat (#2598). Ohne diesen Eintrag fiele
   // /team-chat/{id} auf den "Home"-Fallback zurück, obwohl die Übersicht
@@ -64,8 +68,10 @@ const mainRoutes: Record<string, string> = {
   // Die beiden Akkordeon-Bereiche. Ihre Beschriftung in der Seitenleiste ist
   // dynamisch (Ein-/Mehrzahl je nach Anzahl, plus Anwesenheitszähler) und
   // taugt deshalb nicht als gemeinsame Quelle.
-  "/ogs-groups": "Meine Gruppe",
-  "/active-supervisions": "Aktuelle Aufsicht",
+  // Beide sind Reiter ihrer Sammlung (Kinder bzw. Räume) und tragen dort
+  // dieselben Wörter.
+  "/ogs-groups": "Meine Gruppen",
+  "/active-supervisions": "Aufsicht heute",
   // Ohne Navigationseintrag, nur über Verlinkung erreichbar.
   "/reminders": "Erinnerungen",
   // Abwesenheits-Übersicht (#2288): bewusst ohne Seitenleisten-Eintrag,
@@ -143,13 +149,10 @@ const BREADCRUMB_SECTIONS: readonly {
   /** Dritte Stufe für Unterseiten wie /database/students/import. */
   readonly hasDeepPages?: boolean;
 }[] = [
-  {
-    root: DATABASE_SECTION,
-    getActivePage: getActiveDatabaseSubPage,
-    hasDeepPages: true,
-  },
   { root: PLANNING_SECTION, getActivePage: getActivePlanningSubPage },
   { root: PARENT_SECTION, getActivePage: getActiveParentSubPage },
+  { root: TEAM_SECTION, getActivePage: getActiveTeamSubPage },
+  { root: REPORTS_SECTION, getActivePage: getActiveReportsSubPage },
 ];
 
 /**
@@ -163,6 +166,21 @@ const BREADCRUMB_SECTIONS: readonly {
 export function getSectionBreadcrumb(
   pathname: string,
 ): SectionBreadcrumbInfo | null {
+  // Register sind Reiter an ihrer Fläche (BAUARTEN-SPEC, Teil 2): die
+  // Brotkrume nennt zuerst die Fläche, dann den Reiter — „Kinder ›
+  // Stammdaten", nicht mehr „Datenverwaltung › Kinder".
+  const tabPage = getActiveTabPage(pathname);
+  if (tabPage) {
+    const isDeepPage = pathname !== tabPage.href;
+    return {
+      sectionLabel: tabPage.parent.label,
+      sectionHref: tabPage.parent.href,
+      pageLabel: tabPage.label,
+      pageHref: isDeepPage ? tabPage.href : undefined,
+      deepLabel: isDeepPage ? getSubPageLabel(pathname) : undefined,
+    };
+  }
+
   for (const { root, getActivePage, hasDeepPages } of BREADCRUMB_SECTIONS) {
     const page = getActivePage(pathname);
     if (!page || page.href === root.href) continue;
@@ -247,15 +265,15 @@ export function getSubPageLabel(pathname: string): string {
  * Determine breadcrumb context based on referrer
  */
 export function getBreadcrumbLabel(referrer: string): string {
-  if (referrer.startsWith("/ogs-groups")) return "Meine Gruppe";
-  if (referrer.startsWith("/active-supervisions")) return "Aktuelle Aufsicht";
+  if (referrer.startsWith("/ogs-groups")) return "Meine Gruppen";
+  if (referrer.startsWith("/active-supervisions")) return "Aufsicht heute";
   // Drill-in from a room detail (legacy /rooms/{id} subpage OR the new
   // /rooms?room={id} modal flow, see #1374). The breadcrumb has to
   // point back to the entry path in both cases so the header label and
   // the active sidebar entry agree with how the user actually got here.
   if (referrer.startsWith("/rooms/") || referrer.startsWith("/rooms?"))
     return "Räume";
-  return "Alle Kinder";
+  return STAFF_FLAT_PAGES.studentSearch.label;
 }
 
 /**

@@ -8,16 +8,24 @@ import {
   getPageTitle,
   getSectionBreadcrumb,
 } from "~/components/dashboard/header/breadcrumb-utils";
+import {
+  additionalNavItems,
+  ADMIN_MAIN_ITEMS,
+  STAFF_MAIN_ITEMS,
+} from "~/components/dashboard/mobile-bottom-nav";
 import { PLANNING_SUB_PAGES } from "~/lib/planning-navigation";
 import {
-  DATABASE_SECTION,
-  DATABASE_SUB_PAGES,
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
   PLANNING_SECTION,
+  REPORTS_SECTION,
+  REPORTS_SUB_PAGES,
   STAFF_FLAT_PAGES,
+  TAB_PAGES,
+  TEAM_SECTION,
+  TEAM_SUB_PAGES,
   type SectionRoot,
   type SectionSubPage,
 } from "~/lib/section-navigation";
@@ -42,13 +50,10 @@ const CATALOGS: readonly {
   readonly root: SectionRoot;
   readonly pages: readonly SectionSubPage[];
 }[] = [
-  {
-    name: "Datenverwaltung",
-    root: DATABASE_SECTION,
-    pages: DATABASE_SUB_PAGES,
-  },
   { name: "Planung", root: PLANNING_SECTION, pages: PLANNING_SUB_PAGES },
   { name: "Eltern", root: PARENT_SECTION, pages: PARENT_SUB_PAGES },
+  { name: "Team", root: TEAM_SECTION, pages: TEAM_SUB_PAGES },
+  { name: "Auswertung", root: REPORTS_SECTION, pages: REPORTS_SUB_PAGES },
   {
     name: "Anmeldungen",
     root: ENROLLMENT_SECTION,
@@ -179,6 +184,53 @@ describe("navigation catalogs stay in sync with the header", () => {
         expect(getPageTitle(route)).toBe(title);
       },
     );
+  });
+
+  /**
+   * Ein Begriff, ein Wort. Die mobile Navigation kürzte einige Namen ab
+   * („Suchen" statt „Kinder"), sodass dieselbe Fläche unten anders hieß als in
+   * der Seitenleiste und in der Kopfzeile. Reicht der Platz nicht, ist der
+   * Name zu lang — nicht die Leiste zu schmal.
+   */
+  describe("mobile navigation uses the same words as the header", () => {
+    const mobileItems = [
+      ...ADMIN_MAIN_ITEMS,
+      ...STAFF_MAIN_ITEMS,
+      ...additionalNavItems,
+    ].filter((item) => !item.href.startsWith("/operator"));
+
+    it("finds the entries it is supposed to guard", () => {
+      expect(mobileItems.length).toBeGreaterThanOrEqual(15);
+    });
+
+    it.each(
+      [...new Map(mobileItems.map((item) => [item.href, item])).values()].map(
+        (item) => [item.href, item.label] as const,
+      ),
+    )("labels %s '%s' like the header does", (href, label) => {
+      expect(getPageTitle(href)).toBe(label);
+    });
+  });
+
+  /**
+   * Die Register der aufgelösten Datenverwaltung sind Reiter an ihrer Fläche.
+   * Die Brotkrume muss deshalb zuerst die Fläche nennen, dann den Reiter.
+   */
+  describe("register tabs hang under their collection", () => {
+    it.each(
+      TAB_PAGES.map((page) => [page.href, page.parent.label, page.label]),
+    )("%s reads as '%s › %s'", (href, parentLabel, label) => {
+      const crumb = getSectionBreadcrumb(href);
+      expect(crumb).not.toBeNull();
+      expect(crumb?.sectionLabel).toBe(parentLabel);
+      expect(crumb?.pageLabel).toBe(label);
+      expect(getPageTitle(href)).toBe(label);
+    });
+
+    it("has no duplicate hrefs", () => {
+      const hrefs = TAB_PAGES.map((page) => page.href);
+      expect(new Set(hrefs).size).toBe(hrefs.length);
+    });
   });
 
   it("never routes a catalog page to the 'Home' fallback", () => {

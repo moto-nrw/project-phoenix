@@ -6,7 +6,15 @@ import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { RangeCalendarInline } from "~/components/ui/date-range-picker";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { Textarea } from "~/components/ui/textarea";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useToast } from "~/contexts/ToastContext";
@@ -317,216 +325,234 @@ export function VacationRequestModal({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {
-        if (!submitting) {
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && !submitting) {
           handleReset();
           onClose();
         }
       }}
-      title="Urlaub beantragen"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      footer={
-        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-xs text-gray-500">
-            {range?.from && range?.to ? (
-              <>
-                <span className="font-medium text-gray-700">
-                  {workingDays} {workingDays === 1 ? "Tag" : "Tage"}
-                </span>
-                {" beantragt · "}
-                <span
-                  className={
-                    exceedsBalance ? "text-moto-red-strong" : "text-gray-500"
-                  }
-                >
-                  {remainingDays} Tage verfügbar
-                </span>
-              </>
-            ) : (
-              <span>Wähle einen Zeitraum</span>
-            )}
-          </div>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                handleReset();
-                onClose();
-              }}
-              disabled={submitting}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={handleSubmit}
-              disabled={
-                submitting ||
-                !range?.from ||
-                !range.to ||
-                workingDays === 0 ||
-                Boolean(overlapMessage)
-              }
-            >
-              {submitting
-                ? "Wird gesendet…"
-                : exceedsBalance && confirmedOverBalance
-                  ? "Trotzdem anfragen"
-                  : "Antrag senden"}
-            </Button>
-          </div>
-        </div>
-      }
     >
-      <div className="space-y-5">
-        <div>
-          <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Zeitraum
-          </p>
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <RangeCalendarInline
-              value={range}
-              onChange={(nextRange) => {
-                setRange(nextRange);
-                setServerError(null);
-                setConfirmedOverBalance(false);
-              }}
-              fromMin={today}
-              presets={vacationPresets}
-              modifiers={calendarModifiers}
-              modifiersClassNames={{
-                requestedVacation:
-                  "[&>button]:!bg-moto-orange/10 [&>button]:!text-moto-orange-strong [&>button]:!ring-moto-orange/30 [&>button]:!ring-1",
-                questionVacation:
-                  "[&>button]:!bg-moto-purple/15 [&>button]:!text-moto-purple [&>button]:!ring-1 [&>button]:!ring-moto-purple/40",
-                approvedVacation:
-                  "[&>button]:!bg-moto-green/15 [&>button]:!text-moto-green-strong [&>button]:!ring-1 [&>button]:!ring-moto-green/40",
-              }}
-            />
+      <SlideOverContent widthClass="sm:w-[640px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>Urlaub beantragen</SlideOverTitle>
+            <SlideOverDescription>
+              Zeitraum wählen und den Antrag an die OGS-Leitung senden.
+            </SlideOverDescription>
           </div>
-          {blockingVacations.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
-              <span className="inline-flex items-center gap-1">
-                <span className="bg-moto-orange/50 h-2 w-2 rounded-full" />
-                Beantragt
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="bg-moto-purple/50 h-2 w-2 rounded-full" />
-                {"Rückfrage"}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="bg-moto-green/50 h-2 w-2 rounded-full" />
-                Genehmigt oder eingetragen
-              </span>
+          <SlideOverCloseButton disabled={submitting} />
+        </SlideOverHeader>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="space-y-5">
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                Zeitraum
+              </p>
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                <RangeCalendarInline
+                  value={range}
+                  onChange={(nextRange) => {
+                    setRange(nextRange);
+                    setServerError(null);
+                    setConfirmedOverBalance(false);
+                  }}
+                  fromMin={today}
+                  presets={vacationPresets}
+                  modifiers={calendarModifiers}
+                  modifiersClassNames={{
+                    requestedVacation:
+                      "[&>button]:!bg-moto-orange/10 [&>button]:!text-moto-orange-strong [&>button]:!ring-moto-orange/30 [&>button]:!ring-1",
+                    questionVacation:
+                      "[&>button]:!bg-moto-purple/15 [&>button]:!text-moto-purple [&>button]:!ring-1 [&>button]:!ring-moto-purple/40",
+                    approvedVacation:
+                      "[&>button]:!bg-moto-green/15 [&>button]:!text-moto-green-strong [&>button]:!ring-1 [&>button]:!ring-moto-green/40",
+                  }}
+                />
+              </div>
+              {blockingVacations.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="bg-moto-orange/50 h-2 w-2 rounded-full" />
+                    Beantragt
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="bg-moto-purple/50 h-2 w-2 rounded-full" />
+                    {"Rückfrage"}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="bg-moto-green/50 h-2 w-2 rounded-full" />
+                    Genehmigt oder eingetragen
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {range?.from &&
-          range?.to &&
-          (isSingleDay ? (
-            <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-gray-800">Halber Tag</p>
-                <p className="text-xs text-gray-500">
-                  Aktivieren, wenn nur ein halber Arbeitstag beansprucht wird.
+            {range?.from &&
+              range?.to &&
+              (isSingleDay ? (
+                <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      Halber Tag
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Aktivieren, wenn nur ein halber Arbeitstag beansprucht
+                      wird.
+                    </p>
+                  </div>
+                  <BooleanField
+                    value={startHalf || endHalf}
+                    onChange={(v) => {
+                      setStartHalf(v);
+                      setEndHalf(v);
+                      setConfirmedOverBalance(false);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                    Halbe Tage an den Rändern
+                  </p>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">
+                        Erster Tag halbtags
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Nur Vor- oder Nachmittag am Startdatum.
+                      </p>
+                    </div>
+                    <BooleanField
+                      value={startHalf}
+                      onChange={(v) => {
+                        setStartHalf(v);
+                        setConfirmedOverBalance(false);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">
+                        Letzter Tag halbtags
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Nur Vor- oder Nachmittag am Enddatum.
+                      </p>
+                    </div>
+                    <BooleanField
+                      value={endHalf}
+                      onChange={(v) => {
+                        setEndHalf(v);
+                        setConfirmedOverBalance(false);
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+
+            {exceedsBalance && (
+              <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-xs">
+                <p className="font-medium">
+                  Dieser Antrag liegt {overBalanceDays}{" "}
+                  {overBalanceDays === 1 ? "Tag" : "Tage"} über deinem
+                  Resturlaub.
+                </p>
+                <p className="mt-1">
+                  {confirmedOverBalance
+                    ? "Du hast die Warnung bestätigt. Mit Trotzdem anfragen wird der Antrag gesendet."
+                    : "Die OGS-Leitung kann ihn trotzdem genehmigen. Klicke erst auf Antrag senden, um die Warnung zu bestätigen."}
                 </p>
               </div>
-              <BooleanField
-                value={startHalf || endHalf}
-                onChange={(v) => {
-                  setStartHalf(v);
-                  setEndHalf(v);
-                  setConfirmedOverBalance(false);
-                }}
+            )}
+
+            <div>
+              <label
+                htmlFor="vacation-note"
+                className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+              >
+                Notiz (optional)
+              </label>
+              <Textarea
+                id="vacation-note"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Zum Beispiel: Vertretung mit Kollegin XY abgestimmt"
               />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                Halbe Tage an den Rändern
+              <p className="mt-1 text-right text-xs text-gray-400">
+                {note.length}/500
               </p>
-              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">
-                    Erster Tag halbtags
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Nur Vor- oder Nachmittag am Startdatum.
-                  </p>
-                </div>
-                <BooleanField
-                  value={startHalf}
-                  onChange={(v) => {
-                    setStartHalf(v);
-                    setConfirmedOverBalance(false);
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">
-                    Letzter Tag halbtags
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Nur Vor- oder Nachmittag am Enddatum.
-                  </p>
-                </div>
-                <BooleanField
-                  value={endHalf}
-                  onChange={(v) => {
-                    setEndHalf(v);
-                    setConfirmedOverBalance(false);
-                  }}
-                />
-              </div>
             </div>
-          ))}
 
-        {exceedsBalance && (
-          <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-xs">
-            <p className="font-medium">
-              Dieser Antrag liegt {overBalanceDays}{" "}
-              {overBalanceDays === 1 ? "Tag" : "Tage"} über deinem Resturlaub.
-            </p>
-            <p className="mt-1">
-              {confirmedOverBalance
-                ? "Du hast die Warnung bestätigt. Mit Trotzdem anfragen wird der Antrag gesendet."
-                : "Die OGS-Leitung kann ihn trotzdem genehmigen. Klicke erst auf Antrag senden, um die Warnung zu bestätigen."}
-            </p>
+            {(overlapMessage || serverError) && (
+              <Alert
+                type="error"
+                message={overlapMessage ?? serverError ?? ""}
+              />
+            )}
           </div>
-        )}
-
-        <div>
-          <label
-            htmlFor="vacation-note"
-            className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-          >
-            Notiz (optional)
-          </label>
-          <Textarea
-            id="vacation-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            maxLength={500}
-            placeholder="Zum Beispiel: Vertretung mit Kollegin XY abgestimmt"
-          />
-          <p className="mt-1 text-right text-xs text-gray-400">
-            {note.length}/500
-          </p>
         </div>
-
-        {(overlapMessage || serverError) && (
-          <Alert type="error" message={overlapMessage ?? serverError ?? ""} />
-        )}
-      </div>
-    </Modal>
+        <SlideOverFooter>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-gray-500">
+              {range?.from && range?.to ? (
+                <>
+                  <span className="font-medium text-gray-700">
+                    {workingDays} {workingDays === 1 ? "Tag" : "Tage"}
+                  </span>
+                  {" beantragt · "}
+                  <span
+                    className={
+                      exceedsBalance ? "text-moto-red-strong" : "text-gray-500"
+                    }
+                  >
+                    {remainingDays} Tage verfügbar
+                  </span>
+                </>
+              ) : (
+                <span>Wähle einen Zeitraum</span>
+              )}
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  handleReset();
+                  onClose();
+                }}
+                disabled={submitting}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={handleSubmit}
+                disabled={
+                  submitting ||
+                  !range?.from ||
+                  !range.to ||
+                  workingDays === 0 ||
+                  Boolean(overlapMessage)
+                }
+              >
+                {submitting
+                  ? "Wird gesendet…"
+                  : exceedsBalance && confirmedOverBalance
+                    ? "Trotzdem anfragen"
+                    : "Antrag senden"}
+              </Button>
+            </div>
+          </div>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }

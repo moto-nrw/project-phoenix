@@ -1,7 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo } from "react";
+import { Suspense, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -9,52 +9,48 @@ import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceLogEnabled,
   useStaffMessagingEnabled,
-  useDisplayEnabled,
   useNFCEnabled,
-  useOpenCareGroupMode,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
-import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   getActivePlanningSubPageHref,
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
 import {
-  DATABASE_SECTION,
-  DATABASE_SUB_PAGES,
-  ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   getActiveEnrollmentSubPageHref,
   getActiveParentSubPageHref,
+  getActiveReportsSubPageHref,
+  getActiveTeamSubPageHref,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
   PLANNING_SECTION,
+  REPORTS_SECTION,
+  REPORTS_SUB_PAGES,
   STAFF_FLAT_PAGES,
+  TEAM_SECTION,
+  TEAM_SUB_PAGES,
 } from "~/lib/section-navigation";
 
 // Type für Navigation Items
@@ -76,17 +72,22 @@ interface NavItem {
   hideForAdmin?: boolean;
   comingSoon?: boolean;
   bottomPinned?: boolean;
-  activeColor?: string;
   newTab?: boolean;
 }
 
-// Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
+/**
+ * Die flachen Bereiche der Seitenleiste. Die Bereiche mit Unterseiten
+ * (Planung, Eltern, Team, Auswertung) stehen weiter unten als Akkordeon.
+ *
+ * Keine Farbe je Bereich mehr (BAUARTEN-SPEC, Teil 2): elf Akzentfarben ohne
+ * Bedeutung entwerten das Rot, das „krank" heißt. Der aktive Eintrag wird
+ * durch Fläche und Schriftschnitt markiert.
+ */
 const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
     concept: "dashboard",
-    activeColor: "text-moto-blue",
     requiresAdmin: true,
   },
   {
@@ -96,114 +97,27 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.activities,
-    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    concept: "activities",
-    activeColor: "text-moto-coral",
+    ...STAFF_FLAT_PAGES.staff,
+    concept: "staff",
+    icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     alwaysShow: true,
   },
   {
     ...STAFF_FLAT_PAGES.rooms,
     icon: navigationIcons.rooms,
     concept: "rooms",
-    activeColor: "text-moto-navy",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.staff,
-    concept: "staff",
-    icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
-    activeColor: "text-moto-orange",
+    ...STAFF_FLAT_PAGES.activities,
+    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+    concept: "activities",
     alwaysShow: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.teamChat,
-    // Kein eigenes moto-Konzept-Icon: der Team-Chat ist eine neue Fläche und
-    // teilt sich die Sprechblasen-Form mit den Eltern-Nachrichten, nur in der
-    // Mitarbeitenden-Farbe statt in Blau.
-    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-    activeColor: "text-moto-orange",
-    alwaysShow: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.calendar,
-    icon: navigationIcons.calendar,
-    concept: "calendar",
-    activeColor: "text-moto-indigo",
-    // Backend gates GET /api/calendar/my on calendar:own; match it so
-    // restricted/custom roles without the permission don't land on a 403 page.
-    requiresPermission: "calendar:own",
-  },
-  {
-    // Alt-Seite mit eigenem Datenmodell (education.group_substitution):
-    // vergibt temporären Gruppen-Datenzugriff, keine Personalplanung — daher
-    // "Gruppenzugriff" zur Abgrenzung vom Planungsbereich "Vertretung"
-    // (#1940). Nur relevant bei festen Gruppen (operations.group_mode);
-    // Gating siehe substitutionsItem-Rendering unten.
-    ...STAFF_FLAT_PAGES.substitutions,
-    icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-    concept: "groupAccess",
-    activeColor: "text-moto-purple",
-    requiresAdmin: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.infoDisplays,
-    concept: "infoDisplays",
-    icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-    activeColor: "text-moto-blue",
-    requiresPermission: ["display:read", "display:manage"],
-  },
-  {
-    ...STAFF_FLAT_PAGES.timeTracking,
-    icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
-    concept: "timeTracking",
-    alwaysShow: true,
-  },
-  {
-    // Tagesauswertung (#1456): rückwirkender Tagesstatus pro Gruppe
-    // (Anwesend/Krank/Entschuldigt/Abwesend). Als Auswertung unten bei den
-    // Berichts-Einträgen einsortiert. Opt-in über
-    // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
-    ...STAFF_FLAT_PAGES.dayLog,
-    concept: "dayReport",
-    icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
-    activeColor: "text-moto-green",
-    requiresPermission: "users:read",
-  },
-  {
-    // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
-    // Mitarbeitenden an einem Ort. Sichtbarkeit hängt an zwei getrennten
-    // Rechte-Regeln (Eltern-Reiter bzw. Mitarbeitende-Reiter) — Gating unten
-    // in filteredNavItems über canOpenRequestsPage, weil requiresPermission
-    // das users:absence+users:read-Paar nicht ausdrücken kann.
-    ...STAFF_FLAT_PAGES.anfragen,
-    icon: navigationIcons.tray,
-    concept: "requests",
-    activeColor: "text-moto-blue",
-  },
-  {
-    // Dateiablage (#2596): jeder mit Tenant-Zugang sieht den Eintrag; welche
-    // Ordner sichtbar sind, entscheidet das Backend pro Ordner.
-    ...STAFF_FLAT_PAGES.dateien,
-    icon: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z",
-    concept: "files",
-    activeColor: "text-moto-indigo",
-    alwaysShow: true,
-  },
-  {
-    // Statistik (#2606): Anwesenheitsquoten je Kind, Gruppe und Zeitraum
-    // plus Raumauslastung. Das Backend verlangt config:read UND users:read.
-    ...STAFF_FLAT_PAGES.statistics,
-    icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    requiresAllPermissions: ["config:read", "users:read"],
-    concept: "reports",
-    activeColor: "text-moto-blue",
   },
   {
     ...STAFF_FLAT_PAGES.emergency,
     icon: navigationIcons.emergency,
     concept: "emergency",
-    activeColor: "text-moto-wine",
     alwaysShow: true,
     bottomPinned: true,
   },
@@ -211,7 +125,6 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.help,
     icon: navigationIcons.book,
     concept: "help",
-    activeColor: "text-moto-green",
     alwaysShow: true,
     bottomPinned: true,
     newTab: true,
@@ -220,18 +133,10 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.settings,
     concept: "settings",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
-    activeColor: "text-gray-500",
     requiresAdmin: true,
     bottomPinned: true,
   },
 ];
-
-// Shared accent for all Verwaltung items. Source of truth:
-// LOCATION_COLORS.OTHER_ROOM in ~/lib/location-helper (#5080D8). Tailwind's
-// JIT scans for literal class strings, so the hex is inlined here rather
-// than interpolated at runtime. If LOCATION_COLORS.OTHER_ROOM ever changes,
-// update this literal to match.
-const OPERATOR_VERWALTUNG_ACTIVE_COLOR = "text-moto-blue";
 
 interface OperatorNavSection {
   readonly label: string;
@@ -250,7 +155,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Träger",
         icon: navigationIcons.rooms,
         concept: "organizations",
-        activeColor: "text-moto-petrol",
         alwaysShow: true,
       },
       {
@@ -258,7 +162,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Schulen",
         icon: navigationIcons.buildingOffice,
         concept: "schools",
-        activeColor: "text-moto-gold",
         alwaysShow: true,
       },
       {
@@ -266,7 +169,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Konten",
         icon: navigationIcons.profile,
         concept: "accounts",
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
       {
@@ -274,7 +176,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Geräte",
         icon: navigationIcons.device,
         concept: "devices",
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
       {
@@ -282,7 +183,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Personen",
         icon: navigationIcons.userSingle,
         concept: "people",
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
       {
@@ -290,7 +190,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Unbekannte RFID",
         icon: navigationIcons.security,
         concept: "rfid",
-        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
     ],
@@ -303,7 +202,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Ankündigungen",
         icon: navigationIcons.bell,
         concept: "announcements",
-        activeColor: "text-moto-amber",
         alwaysShow: true,
       },
     ],
@@ -316,7 +214,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         label: "Operatoren",
         icon: navigationIcons.group,
         concept: "operators",
-        activeColor: "text-violet-500",
         alwaysShow: true,
       },
     ],
@@ -334,43 +231,6 @@ const NFC_ONLY_HREFS = new Set<string>([
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
 // accordion is gated separately below (it's not in NAV_ITEMS).
 const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
-
-/** Determine if a group sub-item should be highlighted as active */
-function isGroupSubItemActive(
-  childGroupId: string | null,
-  groupId: string,
-  pathname: string,
-  currentGroupParam: string | null,
-  index: number,
-): boolean {
-  if (childGroupId) return childGroupId === groupId;
-  if (!pathname.startsWith("/ogs-groups")) return false;
-  if (currentGroupParam) return currentGroupParam === groupId;
-  return index === 0;
-}
-
-/**
- * Determine if a supervision sub-item should be highlighted as active.
- * Sessions are keyed by active-group ID (`?session=`, #2265); the legacy
- * room key still resolves for old links and stored state.
- */
-function isRoomSubItemActive(
-  childSessionId: string | null,
-  childRoomId: string | null,
-  sessionId: string,
-  roomId: string,
-  pathname: string,
-  currentSessionParam: string | null,
-  currentRoomParam: string | null,
-  index: number,
-): boolean {
-  if (childSessionId) return childSessionId === sessionId;
-  if (childRoomId) return childRoomId === roomId;
-  if (!pathname.startsWith("/active-supervisions")) return false;
-  if (currentSessionParam) return currentSessionParam === sessionId;
-  if (currentRoomParam) return currentRoomParam === roomId;
-  return index === 0;
-}
 
 interface SidebarProps {
   readonly className?: string;
@@ -396,15 +256,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     tenantSlug,
     routingMode,
   );
-
-  // Get supervision state
-  const {
-    isLoadingGroups,
-    isLoadingSupervision,
-    groups,
-    supervisedRooms,
-    overviewEnabled,
-  } = useOptionalSupervision();
 
   // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
   // #2433 auf das Anfragen-Modul ein, wo sie auch entschieden werden — der
@@ -449,11 +300,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
-  const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
   const staffMessagingEnabled = useStaffMessagingEnabled();
-  const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
-  const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
   // admins. The meal-plan GET route is guarded by config:read, so a non-admin
   // config reader (custom config-manager) must also see the feature flags;
@@ -495,39 +343,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
     ) {
       return false;
     }
-    return (
-      timetableEnabled ||
-      page.href === "/calendar-periods" ||
-      page.href === "/payroll"
-    );
+    return timetableEnabled || page.independentOfTimetable === true;
   });
-
-  // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
-  // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
-  // Berechtigten mit allen Kindern.
-  const openCareGroupMode = useOpenCareGroupMode();
-
-  const formatGroupAttendanceCount = (groupId: string | number) => {
-    if (!canShowGroupAttendanceCounts) return undefined;
-    const count = groupAttendanceCounts[groupId.toString()];
-    return count ? `${count.present}/${count.total}` : undefined;
-  };
-
-  const databaseSubPages = useMemo(
-    () =>
-      DATABASE_SUB_PAGES.filter((page) => {
-        if (!nfcEnabled && NFC_ONLY_HREFS.has(page.href)) return false;
-        // Jahrgangswechsel is gated on grade_transitions:read so a user without
-        // it isn't sent to a page that only 403s.
-        if (page.href === "/database/grade-transitions") {
-          return (
-            userIsAdmin || hasPermission(session, "grade_transitions:read")
-          );
-        }
-        return true;
-      }),
-    [nfcEnabled, userIsAdmin, session],
-  );
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
   // NAV_ITEMS carried before consolidation: overview + Nachrichten for all
@@ -539,6 +356,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
           case "overview":
           case "messages":
             return true;
+          case "requests":
+            return canOpenRequestsPage(session);
           case "approvals":
             return userIsAdmin;
           case "announcements":
@@ -553,28 +372,57 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Eltern badge: unread messages. Die Elternanfragen zählen seit #2429 am
-  // Top-Level-Eintrag "Anfragen", nicht mehr hier.
-  const parentSectionBadgeCount = messagesUnreadCount;
+  // Eltern badge: ungelesene Elternnachrichten plus offene Anfragen. Der
+  // Anfragen-Eintrag steht seit dem Navigationsumbau in diesem Bereich, also
+  // zählt sein Badge auch hier mit.
+  const parentSectionBadgeCount = messagesUnreadCount + requestsPendingCount;
+
+  // Team (#2598/#2596): Team-Chat ist Opt-in
+  // (operations.staff_messaging_enabled, Default aus), die Dateiablage sieht
+  // jeder mit Tenant-Zugang — welche Ordner, entscheidet das Backend.
+  const teamSubPages = useMemo(
+    () =>
+      TEAM_SUB_PAGES.filter(
+        (page) =>
+          page.href !== STAFF_FLAT_PAGES.teamChat.href || staffMessagingEnabled,
+      ),
+    [staffMessagingEnabled],
+  );
+
+  // Auswertung: dieselben Rechte-Regeln, die die Einträge vorher flach
+  // getragen haben.
+  const reportsSubPages = useMemo(
+    () =>
+      REPORTS_SUB_PAGES.filter((page) => {
+        switch (page.href) {
+          case STAFF_FLAT_PAGES.statistics.href:
+            // Das Backend verlangt config:read UND users:read.
+            return (
+              userIsAdmin ||
+              (hasPermission(session, "config:read") &&
+                hasPermission(session, "users:read"))
+            );
+          case STAFF_FLAT_PAGES.payroll.href:
+            return userIsAdmin || hasPermission(session, "config:manage");
+          case STAFF_FLAT_PAGES.dayLog.href:
+            // Tagesbericht (#1456) hängt am Anwesenheitsprotokoll-Gate
+            // (gdpr.attendance_log_enabled, Opt-in, Default aus).
+            return (
+              attendanceLogEnabled &&
+              (userIsAdmin || hasPermission(session, "users:read"))
+            );
+          default:
+            return true;
+        }
+      }),
+    [userIsAdmin, session, attendanceLogEnabled],
+  );
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
-    // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
-    // deckt users:update, das Paar users:absence+users:read und
-    // vacation:approve ab — als requiresPermission nicht ausdrückbar.
-    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
-    // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
-    // the admin entry until a school explicitly turns the feature on.
-    if (!displayEnabled && item.href === "/info-displays") return false;
-    // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
-    // (gdpr.attendance_log_enabled, Opt-in, Default aus).
-    if (!attendanceLogEnabled && item.href === "/day-log") return false;
-    // Team-Chat (#2598) ist Opt-in (operations.staff_messaging_enabled,
-    // Default aus): ohne Einschalten taucht der Eintrag gar nicht erst auf.
-    if (!staffMessagingEnabled && item.href === "/team-chat") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -674,25 +522,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return pathname.startsWith(href);
   };
 
-  // Check if a section's parent header should be highlighted
-  // Parent highlights only when on the section page WITHOUT a sub-item selected
-  const isAccordionSectionActive = (
-    parentHref: string,
-    hasSubItemSelected: boolean,
-  ) => {
-    const isStudentDetailPage =
-      pathname.startsWith("/students/") && pathname !== "/students/search";
-    if (isStudentDetailPage) {
-      const from = searchParams.get("from");
-      if (getStudentDetailActiveHref(from) !== parentHref) return false;
-      // If a sub-item is highlighted on the child page, don't highlight the parent
-      return !hasSubItemSelected;
-    }
-    if (!pathname.startsWith(parentHref)) return false;
-    // If a sub-item is selected, don't highlight the parent
-    return !hasSubItemSelected;
-  };
-
   const getLinkClasses = (href: string, comingSoon?: boolean) => {
     const baseClasses =
       "flex items-center px-3 py-2.5 text-sm lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm rounded-lg transition-colors";
@@ -712,36 +541,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const mainNavItems = filteredNavItems.filter((item) => !item.bottomPinned);
   const bottomNavItems = filteredNavItems.filter((item) => item.bottomPinned);
 
-  const getIconClasses = (item: NavItem) => {
-    const base =
-      "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
-    if (!item.comingSoon && item.activeColor && isActiveLink(item.href)) {
-      return `${base} ${item.activeColor}`;
-    }
-    return base;
-  };
+  // Ein Symbolformat für alle Einträge. Farbe je Bereich gibt es nicht mehr;
+  // das Symbol nimmt die Textfarbe des Eintrags an.
+  const iconClasses =
+    "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
 
   const renderNavIcon = (item: NavItem) => {
     const concept = item.concept ? MOTO_CONCEPTS[item.concept] : null;
     const isActive = !item.comingSoon && isActiveLink(item.href);
     if (concept) {
-      if (isActive) {
-        return (
-          <MotoDuotoneIcon
-            icon={concept.icon}
-            tone={concept.tone}
-            size={22}
-            className="mr-3 h-5 w-5 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5"
-          />
-        );
-      }
-
       const ConceptIcon = concept.icon;
       return (
         <ConceptIcon
           size={22}
-          weight="regular"
-          className={getIconClasses(item)}
+          weight={isActive ? "fill" : "regular"}
+          className={iconClasses}
           aria-hidden="true"
         />
       );
@@ -749,7 +563,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     return (
       <svg
-        className={getIconClasses(item)}
+        className={iconClasses}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -780,11 +594,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={
-            item.href === "/anfragen" || item.href === "/team-chat"
-              ? tenantPath(item.href)
-              : item.href
-          }
+          href={tenantPath(item.href)}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -793,191 +603,24 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {renderNavIcon(item)}
           <span className="flex flex-1 items-center justify-between">
             {item.label}
-            {item.href === "/anfragen" && (
-              <NotificationBadge
-                count={requestsPendingCount}
-                tone="staff"
-                ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
-                className="ml-2"
-              />
-            )}
-            {item.href === "/team-chat" && (
-              <NotificationBadge
-                count={teamChatUnreadCount}
-                tone="staff"
-                ariaLabel={`${teamChatUnreadCount} ungelesene Nachrichten im Team-Chat`}
-                className="ml-2"
-              />
-            )}
           </span>
         </Link>
       )}
     </div>
   );
 
-  // Determine which flat items come before / after the accordion insertion points
-  // Order: Home, groups, supervisions, search, activities, rooms, staff,
-  // substitutions, database, coming soon, bottom pinned.
-  const beforeAccordionItems = mainNavItems.filter(
-    (item) =>
-      item.href === "/dashboard" ||
-      (item.href === "/students/search" && !item.comingSoon),
-  );
-
-  // Items between Kindersuche and Database accordion
-  const middleItems = mainNavItems.filter(
-    (item) =>
-      !item.comingSoon &&
-      item.href !== "/dashboard" &&
-      item.href !== "/students/search" &&
-      item.href !== "/substitutions",
-  );
-
-  // Gruppenzugriff (admin only, flat) — nur bei festen Gruppen relevant
-  const substitutionsItem = mainNavItems.find(
-    (item) => item.href === "/substitutions",
-  );
-
   // Coming soon items
   const comingSoonItems = mainNavItems.filter((item) => item.comingSoon);
 
-  // Get current search params for group/room selection
-  const currentGroupParam = searchParams.get("group");
-  const currentRoomParam = searchParams.get("room");
-  const currentSessionParam = searchParams.get("session");
-
-  // On child pages (e.g. student detail with ?from=/ogs-groups), determine
-  // which sub-item should stay highlighted using the last selection from localStorage.
-  const isChildOfAccordion =
-    pathname.startsWith("/students/") && pathname !== "/students/search";
-  const childFromParam = isChildOfAccordion ? fromParam : null;
-  const childGroupId = useLocalStorageValue(
-    "sidebar-last-group",
-    childFromParam?.startsWith("/ogs-groups") ?? false,
-  );
-  const childRoomId = useLocalStorageValue(
-    "sidebar-last-room",
-    childFromParam?.startsWith("/active-supervisions") ?? false,
-  );
-  const childSessionId = useLocalStorageValue(
-    "supervision-last-session",
-    childFromParam?.startsWith("/active-supervisions") ?? false,
-  );
-
-  // Persist last selected sub-item per accordion section to localStorage.
-  // Pages read this on mount to restore the user's last selection.
-  useEffect(() => {
-    if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
-      localStorage.setItem("sidebar-last-group", currentGroupParam);
-      const groupName = groups.find(
-        (g) => g.id.toString() === currentGroupParam,
-      )?.name;
-      if (groupName) {
-        localStorage.setItem("sidebar-last-group-name", groupName);
-      }
-    }
-  }, [pathname, currentGroupParam, groups]);
-
-  useEffect(() => {
-    if (pathname.startsWith("/active-supervisions") && currentRoomParam) {
-      localStorage.setItem("sidebar-last-room", currentRoomParam);
-      const roomName = supervisedRooms.find(
-        (r) => r.id === currentRoomParam,
-      )?.name;
-      if (roomName) {
-        localStorage.setItem("sidebar-last-room-name", roomName);
-      }
-    }
-  }, [pathname, currentRoomParam, supervisedRooms]);
-
-  useEffect(() => {
-    if (
-      pathname.startsWith("/database/") &&
-      databaseSubPages.some((p) => pathname === p.href)
-    ) {
-      localStorage.setItem("sidebar-last-database", pathname);
-    }
-  }, [pathname, databaseSubPages]);
-
-  // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
-  // Reads localStorage at click-time so the page loads with the right param immediately.
-  const handleGroupsToggle = useCallback(() => {
-    toggle("groups");
-    if (!pathname.startsWith("/ogs-groups")) {
-      const savedGroupId = localStorage.getItem("sidebar-last-group");
-      const targetGroup = savedGroupId
-        ? groups.find((g) => g.id.toString() === savedGroupId)
-        : groups[0];
-      const groupId = targetGroup?.id ?? groups[0]?.id;
-      if (groupId) {
-        router.push(`/ogs-groups?group=${groupId}`);
-      } else {
-        router.push("/ogs-groups");
-      }
-    }
-  }, [toggle, pathname, groups, router]);
-
-  const handleSupervisionsToggle = useCallback(() => {
-    toggle("supervisions");
-    if (!pathname.startsWith("/active-supervisions")) {
-      // Prefer the precise session key (#2265); the room key is the legacy
-      // fallback for state written before session tracking existed.
-      const savedSessionId = localStorage.getItem("supervision-last-session");
-      const savedRoomId = localStorage.getItem("sidebar-last-room");
-      const targetRoom =
-        (savedSessionId
-          ? supervisedRooms.find((r) =>
-              r.isSchulhof
-                ? savedSessionId === "schulhof"
-                : r.groupId === savedSessionId,
-            )
-          : undefined) ??
-        (savedRoomId
-          ? supervisedRooms.find((r) => r.id === savedRoomId)
-          : undefined) ??
-        supervisedRooms[0];
-      if (targetRoom) {
-        const sessionId = targetRoom.isSchulhof
-          ? "schulhof"
-          : targetRoom.groupId;
-        router.push(`/active-supervisions?session=${sessionId}`);
-      } else {
-        router.push("/active-supervisions");
-      }
-    }
-  }, [toggle, pathname, supervisedRooms, router]);
-
-  const handleDatabaseToggle = useCallback(() => {
-    if (!pathname.startsWith("/database")) {
-      // Not on any database page, expand accordion and navigate to hub
-      toggle("database");
-      router.push("/database");
-    } else if (pathname === "/database") {
-      // On hub page, just toggle collapse or expand
-      toggle("database");
-    } else {
-      // On a sub-page like /database/rooms, navigate back to hub
-      router.push("/database");
-    }
-  }, [toggle, pathname, router]);
+  // Die Sammlung „Meine Gruppen" und die Aufsicht hingen bis zum
+  // Navigationsumbau als dynamische Unterpunkte in der Seitenleiste — eine
+  // Navigation, die mit den Daten wächst. Sie sind jetzt Reiter an ihrer
+  // Sammlung (Kinder bzw. Räume); die Seitenleiste kennt nur noch die
+  // Bereiche. Die Merker für die zuletzt gewählte Gruppe bzw. Aufsicht
+  // schreiben weiterhin die Seiten selbst.
 
   const activeEnrollmentSubPageHref = getActiveEnrollmentSubPageHref(pathname);
   const isOnEnrollmentsPage = activeEnrollmentSubPageHref !== null;
-
-  const handleEnrollmentsToggle = useCallback(() => {
-    // Hub = the request review queue. Mirrors handleDatabaseToggle's
-    // navigate-on-expand behavior so clicking the section label always
-    // ends up on a useful page rather than just toggling chevrons.
-    const onSection = getActiveEnrollmentSubPageHref(pathname) !== null;
-    if (!onSection) {
-      toggle("enrollments");
-      router.push("/admin/enrollments");
-    } else if (pathname === "/admin/enrollments") {
-      toggle("enrollments");
-    } else {
-      router.push("/admin/enrollments");
-    }
-  }, [toggle, pathname, router]);
 
   const activePlanningSubPageHref = getActivePlanningSubPageHref(pathname);
   const isOnPlanningPage = activePlanningSubPageHref !== null;
@@ -1004,6 +647,37 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const activeParentSubPageHref = getActiveParentSubPageHref(pathname);
   const isOnParentPage = activeParentSubPageHref !== null;
 
+  const activeTeamSubPageHref = getActiveTeamSubPageHref(pathname);
+  const isOnTeamPage = activeTeamSubPageHref !== null;
+  const teamHubHref = teamSubPages[0]?.href ?? STAFF_FLAT_PAGES.dateien.href;
+
+  const handleTeamToggle = useCallback(() => {
+    if (getActiveTeamSubPageHref(pathname) === null) {
+      toggle("team");
+      router.push(teamHubHref);
+    } else if (pathname === teamHubHref) {
+      toggle("team");
+    } else {
+      router.push(teamHubHref);
+    }
+  }, [toggle, pathname, router, teamHubHref]);
+
+  const activeReportsSubPageHref = getActiveReportsSubPageHref(pathname);
+  const isOnReportsPage = activeReportsSubPageHref !== null;
+  const reportsHubHref =
+    reportsSubPages[0]?.href ?? STAFF_FLAT_PAGES.timeTracking.href;
+
+  const handleReportsToggle = useCallback(() => {
+    if (getActiveReportsSubPageHref(pathname) === null) {
+      toggle("reports");
+      router.push(reportsHubHref);
+    } else if (pathname === reportsHubHref) {
+      toggle("reports");
+    } else {
+      router.push(reportsHubHref);
+    }
+  }, [toggle, pathname, router, reportsHubHref]);
+
   const handleParentToggle = useCallback(() => {
     // Hub = the /eltern overview. Mirrors the other accordions'
     // navigate-on-expand behavior so the section label lands on a real page.
@@ -1017,12 +691,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       router.push("/eltern");
     }
   }, [toggle, pathname, router]);
-
-  // Caregivers see their own supervision. A successful overview request also
-  // covers effective admins and verified staff under all_staff (#2380).
-  // overviewEnabled avoids the synthetic Schulhof entry triggering the
-  // accordion when the school keeps everyone on their own supervisions.
-  const showStaffAccordions = userIsCaregiver || overviewEnabled;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorSections = useMemo(
@@ -1083,211 +751,20 @@ function SidebarContent({ className = "" }: SidebarProps) {
       <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
         {/* Main navigation, scrollable */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
-          {/* Home (admin only) */}
-          {beforeAccordionItems
-            .filter((item) => item.href === "/dashboard")
-            .map(renderNavItem)}
+          {/* Die fünf flachen Bereiche: Start, Kinder, Mitarbeitende, Räume,
+              Aktivitäten. Reihenfolge kommt aus NAV_ITEMS. */}
+          {mainNavItems.filter((item) => !item.comingSoon).map(renderNavItem)}
 
-          {/* Meine Gruppen accordion (staff only; hidden in open-care group
-              mode because there is no concept of "meine Gruppe" — staff work
-              with all children instead, #1544) */}
-          {showStaffAccordions && !openCareGroupMode && (
-            <SidebarAccordionSection
-              icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              concept="groups"
-              label={
-                groups.length > 1
-                  ? "Meine Gruppen"
-                  : [
-                      "Meine Gruppe",
-                      formatGroupAttendanceCount(groups[0]?.id ?? ""),
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-              }
-              activeColor="text-moto-green"
-              isExpanded={expanded === "groups"}
-              onToggle={handleGroupsToggle}
-              isActive={isAccordionSectionActive(
-                "/ogs-groups",
-                Boolean(currentGroupParam) ||
-                  Boolean(childGroupId) ||
-                  groups.length > 0,
-              )}
-              isIconActive={
-                pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-              }
-              isLoading={isLoadingGroups}
-              emptyText="Keine Gruppen zugeordnet"
-              hasChildren={groups.length > 0}
-            >
-              {groups.map((group, index) => (
-                <SidebarSubItem
-                  key={group.id}
-                  href={`/ogs-groups?group=${group.id}`}
-                  label={group.name}
-                  count={formatGroupAttendanceCount(group.id)}
-                  isActive={isGroupSubItemActive(
-                    childGroupId,
-                    group.id.toString(),
-                    pathname,
-                    currentGroupParam,
-                    index,
-                  )}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
-
-          {/* Aktuelle Aufsicht accordion (staff only; hidden in binary mode
-              because room-level supervision has no meaning without visits) */}
-          {showStaffAccordions && !isBinaryMode && (
-            <SidebarAccordionSection
-              icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              concept="supervision"
-              label={
-                supervisedRooms.length > 1
-                  ? "Aktuelle Aufsichten"
-                  : "Aktuelle Aufsicht"
-              }
-              activeColor="text-violet-500"
-              isExpanded={expanded === "supervisions"}
-              onToggle={handleSupervisionsToggle}
-              isActive={isAccordionSectionActive(
-                "/active-supervisions",
-                Boolean(currentRoomParam) ||
-                  Boolean(childRoomId) ||
-                  supervisedRooms.length > 0,
-              )}
-              isIconActive={
-                pathname.startsWith("/active-supervisions") ||
-                Boolean(childRoomId)
-              }
-              isLoading={isLoadingSupervision}
-              emptyText="Keine aktive Aufsicht"
-              hasChildren={supervisedRooms.length > 0}
-            >
-              {supervisedRooms.map((room, index) => (
-                <SidebarSubItem
-                  key={`${room.id}-${room.groupId ?? index}`}
-                  href={
-                    room.isSchulhof
-                      ? `/active-supervisions?session=schulhof`
-                      : `/active-supervisions?session=${room.groupId}`
-                  }
-                  label={room.name}
-                  isActive={isRoomSubItemActive(
-                    childSessionId,
-                    childRoomId,
-                    room.isSchulhof ? "schulhof" : room.groupId,
-                    room.isSchulhof ? "schulhof" : room.id,
-                    pathname,
-                    currentSessionParam,
-                    currentRoomParam,
-                    index,
-                  )}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
-
-          {/* Alle Kinder (flat) */}
-          {beforeAccordionItems
-            .filter((item) => item.href === "/students/search")
-            .map(renderNavItem)}
-
-          {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
-          {middleItems.map(renderNavItem)}
-
-          {/* Gruppenzugriff (admin, flat) — nur bei festen Gruppen (#1940) */}
-          {substitutionsItem &&
-            !openCareGroupMode &&
-            renderNavItem(substitutionsItem)}
-
-          {/* Eltern accordion — bundles the parent-communication surfaces
-              (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an
-              overview hub. Shown to all staff; sub-items are gated per item.
-              Die Elternanfragen leben seit #2429 im Top-Level-Modul
-              "Anfragen". */}
-          <SidebarAccordionSection
-            icon={navigationIcons.parents}
-            concept="parents"
-            label={PARENT_SECTION.label}
-            activeColor="text-moto-blue"
-            isExpanded={expanded === "eltern"}
-            onToggle={handleParentToggle}
-            isActive={isOnParentPage}
-            isIconActive={isOnParentPage}
-            hasChildren={parentSubPages.length > 0}
-            badgeCount={parentSectionBadgeCount}
-          >
-            {parentSubPages.map((page) => (
-              <SidebarSubItem
-                key={page.href}
-                // Every Eltern sub-page is a tenant-scoped [tenant]/… route
-                // (/eltern, /messages, /admin/guardian-approvals, /meal-plan,
-                // …). In path-routing mode a bare href is either captured as
-                // the tenant slug ("/eltern") or leaves the current tenant path
-                // entirely ("/messages" → wrong slug / missing route), so
-                // prefix all of them via tenantPath — matching the accordion
-                // header's tenant-aware router.push and the /eltern page's
-                // card links. No-op in subdomain mode.
-                href={tenantPath(page.href)}
-                label={page.label}
-                isActive={activeParentSubPageHref === page.href}
-                badgeCount={
-                  page.feature === "messages" ? messagesUnreadCount : 0
-                }
-              />
-            ))}
-          </SidebarAccordionSection>
-
-          {/* Datenverwaltung accordion (admin only) */}
-          {userIsAdmin && (
-            <SidebarAccordionSection
-              icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-              concept="database"
-              label={DATABASE_SECTION.label}
-              activeColor="text-gray-500"
-              isExpanded={expanded === "database"}
-              onToggle={handleDatabaseToggle}
-              isActive={isAccordionSectionActive(
-                "/database",
-                databaseSubPages.some((p) => pathname === p.href),
-              )}
-              isIconActive={pathname.startsWith("/database")}
-              hasChildren={databaseSubPages.length > 0}
-            >
-              {databaseSubPages.map((page) => (
-                <SidebarSubItem
-                  key={page.href}
-                  // Tenant-scoped [tenant]/… routes: in path-routing mode a
-                  // bare "/database/exports" makes the router read "database"
-                  // as the tenant slug, so prefix via tenantPath like the
-                  // Eltern accordion. No-op in subdomain mode.
-                  href={tenantPath(page.href)}
-                  label={page.label}
-                  isActive={pathname === page.href}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
-
-          {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
-              Vertretung und Kalenderzeiträume für Admins. Bei explizit
-              ausgeschaltetem timetable.enabled bleiben für Admins
-              Kalenderzeiträume und Abrechnung übrig.
-
-              Nicht-Admins erreichen die Betreuungsplan-Leseansicht (#2283)
-              als Tab in "Mein Kalender"; das Akkordeon zeigt ihnen nur
-              Seiten mit gehaltener nonAdminPermission (heute: Abrechnung
-              über config:manage). */}
+          {/* Planung (#1946) — Betreuungsplan, Dienstplan, Vertretung,
+              Tageslisten, Zeiträume, Kalender. Bei explizit ausgeschaltetem
+              timetable.enabled bleiben die Seiten übrig, die nicht daran
+              hängen. Nicht-Admins sehen nur Seiten mit gehaltener
+              nonAdminPermission (heute: Kalender). */}
           {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
               concept="carePlan"
               label={PLANNING_SECTION.label}
-              activeColor="text-moto-blue"
               isExpanded={expanded === "planning"}
               onToggle={handlePlanningToggle}
               isActive={isOnPlanningPage}
@@ -1298,8 +775,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 <SidebarSubItem
                   key={page.href}
                   // Tenant-scoped [tenant]/… Routen: im Path-Routing-Modus
-                  // via tenantPath prefixen (No-op im Subdomain-Modus),
-                  // wie beim Eltern-/Datenverwaltung-Akkordeon.
+                  // via tenantPath prefixen (No-op im Subdomain-Modus).
                   href={tenantPath(page.href)}
                   label={page.label}
                   isActive={activePlanningSubPageHref === page.href}
@@ -1308,26 +784,100 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Anmeldungen accordion (admin only). Bundles the setup hub,
-              enrollment periods, offers and enrollment forms for admins. */}
-          {userIsAdmin && (
-            <SidebarAccordionSection
-              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              concept="enrollments"
-              label={ENROLLMENT_SECTION.label}
-              activeColor="text-moto-green"
-              isExpanded={expanded === "enrollments"}
-              onToggle={handleEnrollmentsToggle}
-              isActive={isOnEnrollmentsPage}
-              isIconActive={isOnEnrollmentsPage}
-              hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
-            >
-              {ENROLLMENT_SUB_PAGES.map((page) => (
+          {/* Eltern — alle Flächen, die mit Eltern zu tun haben: Nachrichten,
+              Anfragen, Neue Elternkonten, Mitteilungen, Essensplan und die
+              Anmeldungen. Der Anmeldungsblock stand bis zum
+              Navigationsumbau als eigener Bereich daneben. */}
+          <SidebarAccordionSection
+            icon={navigationIcons.parents}
+            concept="parents"
+            label={PARENT_SECTION.label}
+            isExpanded={expanded === "eltern"}
+            onToggle={handleParentToggle}
+            isActive={isOnParentPage || isOnEnrollmentsPage}
+            isIconActive={isOnParentPage || isOnEnrollmentsPage}
+            hasChildren={parentSubPages.length > 0}
+            badgeCount={parentSectionBadgeCount}
+          >
+            {parentSubPages.map((page) => (
+              <SidebarSubItem
+                key={page.href}
+                // Every Eltern sub-page is a tenant-scoped [tenant]/… route
+                // (/eltern, /messages, /admin/guardian-approvals, /meal-plan,
+                // …). In path-routing mode a bare href is either captured as
+                // the tenant slug ("/eltern") or leaves the current tenant path
+                // entirely, so prefix all of them via tenantPath. No-op in
+                // subdomain mode.
+                href={tenantPath(page.href)}
+                label={page.label}
+                isActive={activeParentSubPageHref === page.href}
+                badgeCount={
+                  page.feature === "messages"
+                    ? messagesUnreadCount
+                    : page.feature === "requests"
+                      ? requestsPendingCount
+                      : 0
+                }
+              />
+            ))}
+            {userIsAdmin &&
+              ENROLLMENT_SUB_PAGES.map((page) => (
                 <SidebarSubItem
                   key={page.href}
-                  href={page.href}
+                  href={tenantPath(page.href)}
                   label={page.label}
                   isActive={activeEnrollmentSubPageHref === page.href}
+                />
+              ))}
+          </SidebarAccordionSection>
+
+          {/* Team — die internen Flächen der OGS. */}
+          {teamSubPages.length > 0 && (
+            <SidebarAccordionSection
+              icon={navigationIcons.chat}
+              concept="messages"
+              label={TEAM_SECTION.label}
+              isExpanded={expanded === "team"}
+              onToggle={handleTeamToggle}
+              isActive={isOnTeamPage}
+              isIconActive={isOnTeamPage}
+              hasChildren={teamSubPages.length > 0}
+              badgeCount={teamChatUnreadCount}
+            >
+              {teamSubPages.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={tenantPath(page.href)}
+                  label={page.label}
+                  isActive={activeTeamSubPageHref === page.href}
+                  badgeCount={
+                    page.href === STAFF_FLAT_PAGES.teamChat.href
+                      ? teamChatUnreadCount
+                      : 0
+                  }
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Auswertung — Zahlen über einen Zeitraum. */}
+          {reportsSubPages.length > 0 && (
+            <SidebarAccordionSection
+              icon={navigationIcons.chart}
+              concept="reports"
+              label={REPORTS_SECTION.label}
+              isExpanded={expanded === "reports"}
+              onToggle={handleReportsToggle}
+              isActive={isOnReportsPage}
+              isIconActive={isOnReportsPage}
+              hasChildren={reportsSubPages.length > 0}
+            >
+              {reportsSubPages.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={tenantPath(page.href)}
+                  label={page.label}
+                  isActive={activeReportsSubPageHref === page.href}
                 />
               ))}
             </SidebarAccordionSection>

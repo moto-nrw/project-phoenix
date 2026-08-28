@@ -5,7 +5,13 @@ import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -554,20 +560,30 @@ export function PersonalCalendar({
         />
       ) : null}
 
-      <Modal
-        isOpen={selectedEvent !== null}
-        onClose={() => setSelectedEvent(null)}
-        title="Termin"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
+      <SlideOver
+        open={selectedEvent !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedEvent(null);
+        }}
       >
-        {selectedEvent ? (
-          <CalendarEventDetail
-            event={selectedEvent}
-            actions={actions}
-            onClose={() => setSelectedEvent(null)}
-          />
-        ) : null}
-      </Modal>
+        <SlideOverContent widthClass="sm:w-[520px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>Termin</SlideOverTitle>
+            </div>
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {selectedEvent ? (
+              <CalendarEventDetail
+                event={selectedEvent}
+                actions={actions}
+                onClose={() => setSelectedEvent(null)}
+              />
+            ) : null}
+          </div>
+        </SlideOverContent>
+      </SlideOver>
     </div>
   );
 }

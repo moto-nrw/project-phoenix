@@ -18,7 +18,14 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -460,7 +467,7 @@ export default function DayLogPage() {
 
   return (
     <TenantPage
-      title="Tagesauswertung"
+      title="Tagesbericht"
       stats={statusLine}
       statsLoading={loading}
       loading={loading}
@@ -508,6 +515,53 @@ export default function DayLogPage() {
           <div className="flex flex-wrap gap-2">{exportButtons()}</div>
         </div>
       }
+      overlays={
+        <>
+          {/* Die Gruppe steht im Panel neben der Tagesliste: die Zahlen der
+              anderen Gruppen bleiben dabei sichtbar. */}
+          <SlideOver
+            open={openGroup !== null}
+            onOpenChange={(open) => {
+              if (!open) setOpenGroupId(null);
+            }}
+          >
+            <SlideOverContent widthClass="sm:w-[760px]">
+              <SlideOverHeader className="flex-row items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SlideOverTitle>
+                    {openGroup
+                      ? `${openGroup.name} · ${formatDate(dateISO)}`
+                      : ""}
+                  </SlideOverTitle>
+                </div>
+                <SlideOverCloseButton />
+              </SlideOverHeader>
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {openGroup && (
+                  <>
+                    <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
+                      {DAY_LOG_STATUS_ORDER.map((status) => (
+                        <Stat
+                          key={status}
+                          label={STATUS_LABELS[status]}
+                          value={counterFor(openGroup.counters, status)}
+                          highlight={status === "absent"}
+                        />
+                      ))}
+                    </div>
+                    <GroupDetail group={openGroup} />
+                  </>
+                )}
+              </div>
+              {openGroup ? (
+                <SlideOverFooter className="flex-row flex-wrap justify-end gap-2">
+                  {exportButtons(openGroup.group_id)}
+                </SlideOverFooter>
+              ) : null}
+            </SlideOverContent>
+          </SlideOver>
+        </>
+      }
     >
       {/* Inhaltskarte ohne eigenen Kopf: Titel, Datum und Exporte trägt die
           Kopfkarte darüber, hier stehen nur Zahlen und Gruppen. */}
@@ -544,36 +598,6 @@ export default function DayLogPage() {
           </>
         )}
       </SectionCard>
-
-      <Modal
-        isOpen={openGroup !== null}
-        onClose={() => setOpenGroupId(null)}
-        title={openGroup ? `${openGroup.name} · ${formatDate(dateISO)}` : ""}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
-        footer={
-          openGroup ? (
-            <div className="flex flex-wrap justify-end gap-2">
-              {exportButtons(openGroup.group_id)}
-            </div>
-          ) : undefined
-        }
-      >
-        {openGroup && (
-          <>
-            <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {DAY_LOG_STATUS_ORDER.map((status) => (
-                <Stat
-                  key={status}
-                  label={STATUS_LABELS[status]}
-                  value={counterFor(openGroup.counters, status)}
-                  highlight={status === "absent"}
-                />
-              ))}
-            </div>
-            <GroupDetail group={openGroup} />
-          </>
-        )}
-      </Modal>
     </TenantPage>
   );
 }

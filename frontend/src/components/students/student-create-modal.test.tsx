@@ -28,28 +28,45 @@ vi.mock("~/lib/student-arrival-api", async () => {
   };
 });
 
-// Mock Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
+// Der Erstell-Dialog laeuft als SlideOver (Vaul). Vaul rendert in jsdom nicht,
+// deshalb wird das Panel hier durch dieselbe Struktur ohne Animationsschicht
+// ersetzt; data-testid="modal" bleibt der Einstieg der Tests.
+vi.mock("~/components/ui/slide-over", () => ({
+  SlideOver: ({
+    open,
+    onOpenChange,
     children,
   }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
   }) =>
-    isOpen ? (
+    open ? (
       <div data-testid="modal">
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={() => onOpenChange(false)}>
           Close
         </button>
         {children}
       </div>
     ) : null,
+  SlideOverContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverHeader: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SlideOverTitle: ({ children }: { children: React.ReactNode }) => (
+    <h2>{children}</h2>
+  ),
+  SlideOverDescription: ({ children }: { children: React.ReactNode }) => (
+    <p>{children}</p>
+  ),
+  SlideOverCloseButton: (
+    props: React.ButtonHTMLAttributes<HTMLButtonElement>,
+  ) => <button type="button" {...props} />,
 }));
 
 // Mock student form field components

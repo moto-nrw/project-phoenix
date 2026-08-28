@@ -19,6 +19,13 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   ListSkeleton,
@@ -717,524 +724,564 @@ export default function StaffCalendarPage() {
       : null;
 
   return (
-    <>
-      <TenantPage
-        title="Mein Kalender"
-        stats={onCalendarTab ? statusLine : undefined}
-        statsLoading={calendarLoading}
-        loading={calendarLoading}
-        error={calendarErrorState}
-        empty={calendarEmpty}
-        actions={
-          canManageCalendar && onCalendarTab ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="gap-1.5"
-              onClick={handleCreate}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Neuer Termin
-            </Button>
-          ) : undefined
-        }
-        searchSlot={
-          onCalendarTab ? (
-            <PersonalCalendarChrome
-              events={calendarEvents}
-              referenceDate={referenceDate}
-              viewMode={viewMode}
-              showWeekend={showWeekend}
-              onShowWeekendChange={setShowWeekend}
-              onDateChange={setReferenceDate}
-              onViewModeChange={setViewMode}
-            />
-          ) : undefined
-        }
-        tabs={
-          showSchoolPlanTab
-            ? {
-                value: activeTab,
-                onChange: (next) => setActiveTab(next as CalendarTab),
-                items: [
-                  { value: "meine", label: "Meine Termine" },
-                  { value: "schule", label: "Betreuungsplan" },
-                ],
-                label: "Kalenderbereiche",
-              }
-            : undefined
-        }
-      >
-        {showSchoolPlanTab && activeTab === "schule" ? (
-          // BetreuungsplanView liest Search-Params (d/view/block) und
-          // braucht deshalb eine Suspense-Grenze.
-          <Suspense fallback={null}>
-            <SchoolPlanReadView />
-          </Suspense>
-        ) : (
-          personalCalendar
-        )}
-      </TenantPage>
-
-      <Modal
-        isOpen={formOpen && canManageCalendar}
-        onClose={() => {
-          if (!submitting) resetForm();
-        }}
-        title={editingId ? "Termin bearbeiten" : "Termin erstellen"}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-5xl"
-      >
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          <div className="flex items-center gap-2">
-            <MotoConceptIcon concept="calendarPeriods" size={20} />
-            <p className="text-sm text-gray-600">
-              {editingId
-                ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
-                : "Legen Sie Zeitpunkt, Antwortregel und Empfängergruppen fest."}
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input
-              label="Titel"
-              name="calendar-title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              disabled={submitting}
-              required
-            />
-            <Input
-              label="Ort"
-              name="calendar-location"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              disabled={submitting}
-            />
-            <ISODatePicker
-              label="Startdatum"
-              id="calendar-start-date"
-              controlSize="lg"
-              value={startDate}
-              onChange={(next) => {
-                setStartDate(next);
-                if (endDate < next) setEndDate(next);
-              }}
-              disabled={submitting}
-              calendarLayout="popover"
-              hideClearButton
-              required
-            />
-            <ISODatePicker
-              label="Enddatum"
-              id="calendar-end-date"
-              controlSize="lg"
-              value={endDate}
-              min={startDate}
-              onChange={setEndDate}
-              disabled={submitting}
-              calendarLayout="popover"
-              hideClearButton
-              required
-            />
-            <Input
-              label="Startzeit"
-              name="calendar-start-time"
-              type="time"
-              value={startTime}
-              onChange={(event) => setStartTime(event.target.value)}
-              disabled={submitting || allDay}
-              required
-            />
-            <Input
-              label="Endzeit"
-              name="calendar-end-time"
-              type="time"
-              value={endTime}
-              onChange={(event) => setEndTime(event.target.value)}
-              disabled={submitting || allDay}
-              required
-            />
-          </div>
-
-          <label
-            htmlFor="calendar-all-day"
-            className="flex items-center gap-2 text-sm font-medium text-gray-700"
+    <TenantPage
+      title="Kalender"
+      stats={onCalendarTab ? statusLine : undefined}
+      statsLoading={calendarLoading}
+      loading={calendarLoading}
+      error={calendarErrorState}
+      empty={calendarEmpty}
+      actions={
+        canManageCalendar && onCalendarTab ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-1.5"
+            onClick={handleCreate}
           >
-            <Checkbox
-              id="calendar-all-day"
-              checked={allDay}
-              onChange={(event) => setAllDay(event.target.checked)}
-              disabled={submitting}
-            />
-            Ganztägig
-          </label>
-
-          <label
-            htmlFor="calendar-send-email"
-            className="flex items-start gap-2 text-sm font-medium text-gray-700"
+            <Plus className="h-4 w-4" aria-hidden />
+            Neuer Termin
+          </Button>
+        ) : undefined
+      }
+      searchSlot={
+        onCalendarTab ? (
+          <PersonalCalendarChrome
+            events={calendarEvents}
+            referenceDate={referenceDate}
+            viewMode={viewMode}
+            showWeekend={showWeekend}
+            onShowWeekendChange={setShowWeekend}
+            onDateChange={setReferenceDate}
+            onViewModeChange={setViewMode}
+          />
+        ) : undefined
+      }
+      tabs={
+        showSchoolPlanTab
+          ? {
+              value: activeTab,
+              onChange: (next) => setActiveTab(next as CalendarTab),
+              items: [
+                { value: "meine", label: "Meine Termine" },
+                { value: "schule", label: "Betreuungsplan" },
+              ],
+              label: "Kalenderbereiche",
+            }
+          : undefined
+      }
+      overlays={
+        <>
+          {/* Das Terminformular ist laenger als sechs Felder und steht deshalb
+              im Panel neben dem Kalender, nicht als Fenster darueber. */}
+          <SlideOver
+            open={formOpen && canManageCalendar}
+            onOpenChange={(open) => {
+              if (!open && !submitting) resetForm();
+            }}
           >
-            <Checkbox
-              id="calendar-send-email"
-              checked={sendEmail}
-              onChange={(event) => setSendEmail(event.target.checked)}
-              disabled={submitting}
-            />
-            <span>
-              Eltern per E-Mail benachrichtigen
-              <span className="mt-0.5 block text-xs font-normal text-gray-500">
-                Sendet eine E-Mail mit Titel und Termin an die eingeladenen
-                Eltern. Ohne Haken erscheint der Termin nur im Eltern-Portal.
-              </span>
-            </span>
-          </label>
+            <SlideOverContent widthClass="sm:w-[860px]">
+              <SlideOverHeader className="flex-row items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SlideOverTitle>
+                    {editingId ? "Termin bearbeiten" : "Termin erstellen"}
+                  </SlideOverTitle>
+                </div>
+                <SlideOverCloseButton disabled={submitting} />
+              </SlideOverHeader>
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                  <div className="flex items-center gap-2">
+                    <MotoConceptIcon concept="calendarPeriods" size={20} />
+                    <p className="text-sm text-gray-600">
+                      {editingId
+                        ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
+                        : "Legen Sie Zeitpunkt, Antwortregel und Empfängergruppen fest."}
+                    </p>
+                  </div>
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-gray-700">
-              Beschreibung
-            </span>
-            <textarea
-              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              disabled={submitting}
-            />
-          </label>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Input
+                      label="Titel"
+                      name="calendar-title"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      disabled={submitting}
+                      required
+                    />
+                    <Input
+                      label="Ort"
+                      name="calendar-location"
+                      value={location}
+                      onChange={(event) => setLocation(event.target.value)}
+                      disabled={submitting}
+                    />
+                    <ISODatePicker
+                      label="Startdatum"
+                      id="calendar-start-date"
+                      controlSize="lg"
+                      value={startDate}
+                      onChange={(next) => {
+                        setStartDate(next);
+                        if (endDate < next) setEndDate(next);
+                      }}
+                      disabled={submitting}
+                      calendarLayout="popover"
+                      hideClearButton
+                      required
+                    />
+                    <ISODatePicker
+                      label="Enddatum"
+                      id="calendar-end-date"
+                      controlSize="lg"
+                      value={endDate}
+                      min={startDate}
+                      onChange={setEndDate}
+                      disabled={submitting}
+                      calendarLayout="popover"
+                      hideClearButton
+                      required
+                    />
+                    <Input
+                      label="Startzeit"
+                      name="calendar-start-time"
+                      type="time"
+                      value={startTime}
+                      onChange={(event) => setStartTime(event.target.value)}
+                      disabled={submitting || allDay}
+                      required
+                    />
+                    <Input
+                      label="Endzeit"
+                      name="calendar-end-time"
+                      type="time"
+                      value={endTime}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      disabled={submitting || allDay}
+                      required
+                    />
+                  </div>
 
-          <div className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}>
-            {!editingId ? (
-              <label htmlFor="calendar-delivery-mode" className="block">
-                <span className="mb-2 block text-sm font-medium text-gray-700">
-                  Antwortregel
-                </span>
-                <CustomSelect
-                  id="calendar-delivery-mode"
-                  ariaLabel="Antwortregel"
-                  value={deliveryMode}
-                  onChange={(next) =>
-                    setDeliveryMode(next as CalendarDeliveryMode)
-                  }
-                  disabled={submitting}
-                  options={[
-                    {
-                      value: "rsvp_required",
-                      label: "Antwort erforderlich: Zusage oder Absage",
-                    },
-                    {
-                      value: "informational",
-                      label: "Nur informieren: ohne Rückmeldung eintragen",
-                    },
-                  ]}
-                />
-              </label>
-            ) : null}
-            <label htmlFor="calendar-overview-visibility" className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Teilnehmerübersicht
-              </span>
-              <CustomSelect
-                id="calendar-overview-visibility"
-                ariaLabel="Teilnehmerübersicht"
-                value={overviewVisibility}
-                onChange={(next) =>
-                  setOverviewVisibility(next as CalendarOverviewVisibility)
-                }
-                disabled={submitting}
-                options={[
-                  { value: "organizer", label: "Nur ich" },
-                  { value: "staff", label: "Mitarbeitende mit Termin" },
-                  { value: "all", label: "Alle Eingeladenen" },
-                ]}
-              />
-            </label>
-          </div>
-
-          {!editingId ? (
-            <div className="rounded-lg border border-gray-200 bg-white p-3">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Empfänger auswählen
-                </h3>
-                <span className="text-xs text-gray-500">
-                  {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
-                  ausgewählt
-                </span>
-              </div>
-              <div className="mb-3">
-                <Input
-                  label="Ziele suchen"
-                  name="calendar-target-search"
-                  value={targetSearch}
-                  onChange={(event) => setTargetSearch(event.target.value)}
-                  disabled={submitting}
-                  placeholder="Name, Klasse oder Gruppe"
-                />
-              </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {targetGroups.map((group) => (
-                  <section
-                    key={group.type}
-                    className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+                  <label
+                    htmlFor="calendar-all-day"
+                    className="flex items-center gap-2 text-sm font-medium text-gray-700"
                   >
-                    <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
-                      {group.label}
-                    </h4>
-                    <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
-                      {group.choices.length === 0 ? (
-                        <p className="py-2 text-xs text-gray-500">
-                          Keine Treffer
-                        </p>
-                      ) : (
-                        group.choices.map((choice) => {
-                          const selected = selectedKeys.has(choice.key);
-                          const disabled =
-                            submitting || (!selected && choice.covered);
-                          const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
-                          return (
-                            <label
-                              key={choice.key}
-                              htmlFor={checkboxId}
-                              className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
-                                selected
-                                  ? "border-gray-900 bg-white text-gray-950"
-                                  : choice.covered
-                                    ? "bg-moto-green-soft border-gray-200 text-gray-500"
-                                    : "border-transparent bg-white text-gray-700 hover:border-gray-200"
-                              } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
-                            >
-                              <Checkbox
-                                id={checkboxId}
-                                checked={selected}
-                                disabled={disabled}
-                                onChange={() => toggleTarget(choice)}
-                              />
-                              <span className="min-w-0 flex-1 truncate">
-                                {choice.label}
-                              </span>
-                              {choice.covered && !selected ? (
-                                <span className="text-[11px] font-medium text-gray-500">
-                                  bereits enthalten
-                                </span>
-                              ) : null}
-                            </label>
-                          );
-                        })
-                      )}
+                    <Checkbox
+                      id="calendar-all-day"
+                      checked={allDay}
+                      onChange={(event) => setAllDay(event.target.checked)}
+                      disabled={submitting}
+                    />
+                    Ganztägig
+                  </label>
+
+                  <label
+                    htmlFor="calendar-send-email"
+                    className="flex items-start gap-2 text-sm font-medium text-gray-700"
+                  >
+                    <Checkbox
+                      id="calendar-send-email"
+                      checked={sendEmail}
+                      onChange={(event) => setSendEmail(event.target.checked)}
+                      disabled={submitting}
+                    />
+                    <span>
+                      Eltern per E-Mail benachrichtigen
+                      <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                        Sendet eine E-Mail mit Titel und Termin an die
+                        eingeladenen Eltern. Ohne Haken erscheint der Termin nur
+                        im Eltern-Portal.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-medium text-gray-700">
+                      Beschreibung
+                    </span>
+                    <textarea
+                      className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      disabled={submitting}
+                    />
+                  </label>
+
+                  <div
+                    className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}
+                  >
+                    {!editingId ? (
+                      <label htmlFor="calendar-delivery-mode" className="block">
+                        <span className="mb-2 block text-sm font-medium text-gray-700">
+                          Antwortregel
+                        </span>
+                        <CustomSelect
+                          id="calendar-delivery-mode"
+                          ariaLabel="Antwortregel"
+                          value={deliveryMode}
+                          onChange={(next) =>
+                            setDeliveryMode(next as CalendarDeliveryMode)
+                          }
+                          disabled={submitting}
+                          options={[
+                            {
+                              value: "rsvp_required",
+                              label: "Antwort erforderlich: Zusage oder Absage",
+                            },
+                            {
+                              value: "informational",
+                              label:
+                                "Nur informieren: ohne Rückmeldung eintragen",
+                            },
+                          ]}
+                        />
+                      </label>
+                    ) : null}
+                    <label
+                      htmlFor="calendar-overview-visibility"
+                      className="block"
+                    >
+                      <span className="mb-2 block text-sm font-medium text-gray-700">
+                        Teilnehmerübersicht
+                      </span>
+                      <CustomSelect
+                        id="calendar-overview-visibility"
+                        ariaLabel="Teilnehmerübersicht"
+                        value={overviewVisibility}
+                        onChange={(next) =>
+                          setOverviewVisibility(
+                            next as CalendarOverviewVisibility,
+                          )
+                        }
+                        disabled={submitting}
+                        options={[
+                          { value: "organizer", label: "Nur ich" },
+                          { value: "staff", label: "Mitarbeitende mit Termin" },
+                          { value: "all", label: "Alle Eingeladenen" },
+                        ]}
+                      />
+                    </label>
+                  </div>
+
+                  {!editingId ? (
+                    <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          Empfänger auswählen
+                        </h3>
+                        <span className="text-xs text-gray-500">
+                          {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
+                          ausgewählt
+                        </span>
+                      </div>
+                      <div className="mb-3">
+                        <Input
+                          label="Ziele suchen"
+                          name="calendar-target-search"
+                          value={targetSearch}
+                          onChange={(event) =>
+                            setTargetSearch(event.target.value)
+                          }
+                          disabled={submitting}
+                          placeholder="Name, Klasse oder Gruppe"
+                        />
+                      </div>
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        {targetGroups.map((group) => (
+                          <section
+                            key={group.type}
+                            className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+                          >
+                            <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
+                              {group.label}
+                            </h4>
+                            <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
+                              {group.choices.length === 0 ? (
+                                <p className="py-2 text-xs text-gray-500">
+                                  Keine Treffer
+                                </p>
+                              ) : (
+                                group.choices.map((choice) => {
+                                  const selected = selectedKeys.has(choice.key);
+                                  const disabled =
+                                    submitting || (!selected && choice.covered);
+                                  const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
+                                  return (
+                                    <label
+                                      key={choice.key}
+                                      htmlFor={checkboxId}
+                                      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
+                                        selected
+                                          ? "border-gray-900 bg-white text-gray-950"
+                                          : choice.covered
+                                            ? "bg-moto-green-soft border-gray-200 text-gray-500"
+                                            : "border-transparent bg-white text-gray-700 hover:border-gray-200"
+                                      } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                                    >
+                                      <Checkbox
+                                        id={checkboxId}
+                                        checked={selected}
+                                        disabled={disabled}
+                                        onChange={() => toggleTarget(choice)}
+                                      />
+                                      <span className="min-w-0 flex-1 truncate">
+                                        {choice.label}
+                                      </span>
+                                      {choice.covered && !selected ? (
+                                        <span className="text-[11px] font-medium text-gray-500">
+                                          bereits enthalten
+                                        </span>
+                                      ) : null}
+                                    </label>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
                     </div>
-                  </section>
-                ))}
+                  ) : null}
+
+                  {targets.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {targets.map((target) => (
+                        <span
+                          key={target.key}
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
+                        >
+                          {target.label}
+                          <button
+                            type="button"
+                            className="rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
+                            onClick={() => removeTarget(target.key)}
+                            disabled={submitting}
+                            aria-label={`${target.label} entfernen`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <label htmlFor="calendar-frequency" className="block">
+                      <span className="mb-2 block text-sm font-medium text-gray-700">
+                        Wiederholung
+                      </span>
+                      <CustomSelect
+                        id="calendar-frequency"
+                        ariaLabel="Wiederholung"
+                        value={frequency}
+                        onChange={(next) =>
+                          setFrequency(next as RecurrenceFrequency)
+                        }
+                        disabled={submitting}
+                        options={[
+                          { value: "none", label: "Keine" },
+                          { value: "daily", label: "Täglich" },
+                          { value: "weekly", label: "Wöchentlich" },
+                          { value: "monthly", label: "Monatlich" },
+                          { value: "yearly", label: "Jährlich" },
+                        ]}
+                      />
+                    </label>
+                    <Input
+                      label="Intervall"
+                      name="calendar-recurrence-interval"
+                      type="number"
+                      min={1}
+                      value={intervalCount}
+                      onChange={(event) =>
+                        setIntervalCount(
+                          Number.parseInt(event.target.value, 10) || 1,
+                        )
+                      }
+                      disabled={submitting || frequency === "none"}
+                    />
+                    <ISODatePicker
+                      label="Endet am"
+                      id="calendar-recurrence-end"
+                      controlSize="lg"
+                      value={endsOn}
+                      min={startDate}
+                      onChange={setEndsOn}
+                      disabled={submitting || frequency === "none"}
+                      calendarLayout="popover"
+                    />
+                  </div>
+
+                  {frequency === "weekly" ? (
+                    <div className="flex flex-wrap gap-2">
+                      {weekdays.map((day) => (
+                        <label
+                          key={day.value}
+                          htmlFor={`calendar-weekday-${day.value}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
+                        >
+                          <Checkbox
+                            id={`calendar-weekday-${day.value}`}
+                            checked={weeklyDays.includes(day.value)}
+                            onChange={(event) => {
+                              setWeeklyDays((current) =>
+                                event.target.checked
+                                  ? [...current, day.value]
+                                  : current.filter(
+                                      (value) => value !== day.value,
+                                    ),
+                              );
+                            }}
+                            disabled={submitting}
+                          />
+                          {day.label}
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={resetForm}
+                      disabled={submitting}
+                    >
+                      Abbrechen
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="md"
+                      isLoading={submitting}
+                      loadingText="Speichert…"
+                    >
+                      {editingId ? "Änderungen speichern" : "Termin speichern"}
+                    </Button>
+                  </div>
+                </form>
               </div>
-            </div>
-          ) : null}
+            </SlideOverContent>
+          </SlideOver>
 
-          {targets.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {targets.map((target) => (
-                <span
-                  key={target.key}
-                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm text-gray-700"
-                >
-                  {target.label}
-                  <button
-                    type="button"
-                    className="rounded p-0.5 text-gray-500 hover:bg-gray-200 hover:text-gray-900"
-                    onClick={() => removeTarget(target.key)}
-                    disabled={submitting}
-                    aria-label={`${target.label} entfernen`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </span>
-              ))}
-            </div>
-          ) : null}
+          <Modal
+            isOpen={overview !== null || overviewLoading}
+            onClose={() => {
+              if (!overviewLoading) setOverview(null);
+            }}
+            title="Teilnehmer"
+            widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
+          >
+            {overviewLoading ? (
+              <SkeletonRegion label="Teilnehmer werden geladen…">
+                <ListSkeleton rows={4} avatar={false} />
+              </SkeletonRegion>
+            ) : overview ? (
+              <CalendarOverviewList overview={overview} />
+            ) : null}
+          </Modal>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <label htmlFor="calendar-frequency" className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Wiederholung
-              </span>
-              <CustomSelect
-                id="calendar-frequency"
-                ariaLabel="Wiederholung"
-                value={frequency}
-                onChange={(next) => setFrequency(next as RecurrenceFrequency)}
-                disabled={submitting}
-                options={[
-                  { value: "none", label: "Keine" },
-                  { value: "daily", label: "Täglich" },
-                  { value: "weekly", label: "Wöchentlich" },
-                  { value: "monthly", label: "Monatlich" },
-                  { value: "yearly", label: "Jährlich" },
-                ]}
-              />
-            </label>
-            <Input
-              label="Intervall"
-              name="calendar-recurrence-interval"
-              type="number"
-              min={1}
-              value={intervalCount}
-              onChange={(event) =>
-                setIntervalCount(Number.parseInt(event.target.value, 10) || 1)
-              }
-              disabled={submitting || frequency === "none"}
-            />
-            <ISODatePicker
-              label="Endet am"
-              id="calendar-recurrence-end"
-              controlSize="lg"
-              value={endsOn}
-              min={startDate}
-              onChange={setEndsOn}
-              disabled={submitting || frequency === "none"}
-              calendarLayout="popover"
-            />
-          </div>
-
-          {frequency === "weekly" ? (
-            <div className="flex flex-wrap gap-2">
-              {weekdays.map((day) => (
-                <label
-                  key={day.value}
-                  htmlFor={`calendar-weekday-${day.value}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
-                >
-                  <Checkbox
-                    id={`calendar-weekday-${day.value}`}
-                    checked={weeklyDays.includes(day.value)}
-                    onChange={(event) => {
-                      setWeeklyDays((current) =>
-                        event.target.checked
-                          ? [...current, day.value]
-                          : current.filter((value) => value !== day.value),
-                      );
-                    }}
-                    disabled={submitting}
-                  />
-                  {day.label}
-                </label>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={resetForm}
-              disabled={submitting}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="submit"
-              size="md"
-              isLoading={submitting}
-              loadingText="Speichert…"
-            >
-              {editingId ? "Änderungen speichern" : "Termin speichern"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={overview !== null || overviewLoading}
-        onClose={() => {
-          if (!overviewLoading) setOverview(null);
-        }}
-        title="Teilnehmer"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
-      >
-        {overviewLoading ? (
-          <SkeletonRegion label="Teilnehmer werden geladen…">
-            <ListSkeleton rows={4} avatar={false} />
-          </SkeletonRegion>
-        ) : overview ? (
-          <CalendarOverviewList overview={overview} />
-        ) : null}
-      </Modal>
-
-      <Modal
-        isOpen={confirmAction !== null}
-        onClose={() => {
-          if (!busyAppointmentId) setConfirmAction(null);
-        }}
-        title={
-          confirmAction?.mode === "delete" ? "Termin löschen" : "Termin absagen"
-        }
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-md"
-      >
-        {confirmAction ? (
-          <div className="space-y-5">
-            <p className="text-sm text-gray-700">
-              {confirmAction.mode === "delete"
-                ? "Möchten Sie diesen Termin wirklich löschen? Die Empfänger sehen ihn dann nicht mehr."
-                : "Möchten Sie diesen Termin absagen? Die Empfänger sehen ihn als „Abgesagt“."}
-            </p>
-            {confirmAction.event.recurring ? (
-              <div className="grid gap-2">
-                <Button
-                  type="button"
-                  variant={
-                    confirmAction.mode === "delete" ? "danger" : "primary"
-                  }
-                  size="md"
-                  isLoading={Boolean(busyAppointmentId)}
-                  onClick={() =>
-                    runScope(confirmAction.event, confirmAction.mode, "series")
-                  }
-                >
-                  Ganze Reihe{" "}
-                  {confirmAction.mode === "delete" ? "löschen" : "absagen"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={Boolean(busyAppointmentId)}
-                  onClick={() =>
-                    runScope(
-                      confirmAction.event,
-                      confirmAction.mode,
-                      "occurrence",
-                    )
-                  }
-                >
-                  Nur diesen Termin entfernen
-                </Button>
+          <Modal
+            isOpen={confirmAction !== null}
+            onClose={() => {
+              if (!busyAppointmentId) setConfirmAction(null);
+            }}
+            title={
+              confirmAction?.mode === "delete"
+                ? "Termin löschen"
+                : "Termin absagen"
+            }
+            widthClass="mx-4 w-[calc(100%-2rem)] max-w-md"
+          >
+            {confirmAction ? (
+              <div className="space-y-5">
+                <p className="text-sm text-gray-700">
+                  {confirmAction.mode === "delete"
+                    ? "Möchten Sie diesen Termin wirklich löschen? Die Empfänger sehen ihn dann nicht mehr."
+                    : "Möchten Sie diesen Termin absagen? Die Empfänger sehen ihn als „Abgesagt“."}
+                </p>
+                {confirmAction.event.recurring ? (
+                  <div className="grid gap-2">
+                    <Button
+                      type="button"
+                      variant={
+                        confirmAction.mode === "delete" ? "danger" : "primary"
+                      }
+                      size="md"
+                      isLoading={Boolean(busyAppointmentId)}
+                      onClick={() =>
+                        runScope(
+                          confirmAction.event,
+                          confirmAction.mode,
+                          "series",
+                        )
+                      }
+                    >
+                      Ganze Reihe{" "}
+                      {confirmAction.mode === "delete" ? "löschen" : "absagen"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      disabled={Boolean(busyAppointmentId)}
+                      onClick={() =>
+                        runScope(
+                          confirmAction.event,
+                          confirmAction.mode,
+                          "occurrence",
+                        )
+                      }
+                    >
+                      Nur diesen Termin entfernen
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      disabled={Boolean(busyAppointmentId)}
+                      onClick={() => setConfirmAction(null)}
+                    >
+                      Abbrechen
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={
+                        confirmAction.mode === "delete" ? "danger" : "primary"
+                      }
+                      size="md"
+                      isLoading={Boolean(busyAppointmentId)}
+                      onClick={() =>
+                        runScope(
+                          confirmAction.event,
+                          confirmAction.mode,
+                          "series",
+                        )
+                      }
+                    >
+                      {confirmAction.mode === "delete" ? "Löschen" : "Absagen"}
+                    </Button>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={Boolean(busyAppointmentId)}
-                  onClick={() => setConfirmAction(null)}
-                >
-                  Abbrechen
-                </Button>
-                <Button
-                  type="button"
-                  variant={
-                    confirmAction.mode === "delete" ? "danger" : "primary"
-                  }
-                  size="md"
-                  isLoading={Boolean(busyAppointmentId)}
-                  onClick={() =>
-                    runScope(confirmAction.event, confirmAction.mode, "series")
-                  }
-                >
-                  {confirmAction.mode === "delete" ? "Löschen" : "Absagen"}
-                </Button>
-              </div>
-            )}
-          </div>
-        ) : null}
-      </Modal>
-    </>
+            ) : null}
+          </Modal>
+        </>
+      }
+    >
+      {showSchoolPlanTab && activeTab === "schule" ? (
+        // BetreuungsplanView liest Search-Params (d/view/block) und
+        // braucht deshalb eine Suspense-Grenze.
+        <Suspense fallback={null}>
+          <SchoolPlanReadView />
+        </Suspense>
+      ) : (
+        personalCalendar
+      )}
+    </TenantPage>
   );
 }

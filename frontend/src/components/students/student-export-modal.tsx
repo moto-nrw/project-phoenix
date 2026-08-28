@@ -20,7 +20,15 @@ import {
 import { parseMultiValueParam } from "~/lib/multi-value-param";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { Modal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 
 const logger = createLogger({ component: "StudentExportModal" });
@@ -226,169 +234,180 @@ export function StudentExportModal({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={heading}
-      closeLabel="Export schließen"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-      isDismissDisabled={exporting}
-      footer={footer}
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !exporting) onClose();
+      }}
     >
-      <p className="mb-5 text-sm text-gray-500">
-        {resultCount === undefined
-          ? "Alle Kinder der Schule."
-          : `${resultCount} Kinder aus der aktuellen Filterung.`}
-      </p>
-      <div className="space-y-5">
-        <section>
-          <label
-            htmlFor="student-export-title-input"
-            className="text-sm font-medium text-gray-900"
-          >
-            Titel
-          </label>
-          <input
-            id="student-export-title-input"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      <SlideOverContent widthClass="sm:w-[640px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>{heading}</SlideOverTitle>
+            <SlideOverDescription>
+              {resultCount === undefined
+                ? "Alle Kinder der Schule."
+                : `${resultCount} Kinder aus der aktuellen Filterung.`}
+            </SlideOverDescription>
+          </div>
+          <SlideOverCloseButton
+            aria-label="Export schließen"
+            disabled={exporting}
           />
-        </section>
-
-        {!lockedPreset && (
+        </SlideOverHeader>
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <section>
-            <p className="text-sm font-medium text-gray-900">Vorlage</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {presets.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setPreset(item.id)}
-                  className={`rounded-lg border px-3 py-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    preset === item.id
-                      ? "border-gray-900 bg-gray-950 text-white"
-                      : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`mt-1 block text-xs ${
-                      preset === item.id ? "text-gray-200" : "text-gray-500"
+            <label
+              htmlFor="student-export-title-input"
+              className="text-sm font-medium text-gray-900"
+            >
+              Titel
+            </label>
+            <input
+              id="student-export-title-input"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            />
+          </section>
+
+          {!lockedPreset && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Vorlage</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {presets.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPreset(item.id)}
+                    className={`rounded-lg border px-3 py-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                      preset === item.id
+                        ? "border-gray-900 bg-gray-950 text-white"
+                        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
                     }`}
                   >
-                    {item.description}
-                  </span>
+                    <span className="block text-sm font-semibold">
+                      {item.label}
+                    </span>
+                    <span
+                      className={`mt-1 block text-xs ${
+                        preset === item.id ? "text-gray-200" : "text-gray-500"
+                      }`}
+                    >
+                      {item.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section>
+            <p className="text-sm font-medium text-gray-900">Format</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {FORMAT_OPTIONS.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setFormat(item.value)}
+                  className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                    format === item.value
+                      ? "border-gray-900 bg-gray-950 text-white"
+                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {item.icon}
+                  {item.label}
                 </button>
               ))}
             </div>
           </section>
-        )}
 
-        <section>
-          <p className="text-sm font-medium text-gray-900">Format</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {FORMAT_OPTIONS.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                onClick={() => setFormat(item.value)}
-                className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                  format === item.value
-                    ? "border-gray-900 bg-gray-950 text-white"
-                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </section>
+          {preset === "birthday_list" && (
+            <section>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    Geburtsmonate
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {months.length === 0
+                      ? "Alle Geburtstage des Jahres werden aufgelistet."
+                      : "Nur Kinder, die in den gewählten Monaten Geburtstag haben."}
+                  </p>
+                </div>
+                <ToggleChip
+                  pressed={months.length === 0}
+                  onPressedChange={() => setMonths([])}
+                  className="shrink-0"
+                >
+                  Ganzes Jahr
+                </ToggleChip>
+              </div>
+              <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                {BIRTHDAY_MONTH_OPTIONS.map((month) => {
+                  const selected = months.includes(month.value);
+                  return (
+                    <ToggleChip
+                      key={month.value}
+                      pressed={selected}
+                      onPressedChange={() => toggleMonth(month.value)}
+                      ariaLabel={month.label}
+                    >
+                      {month.label.slice(0, 3)}
+                    </ToggleChip>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
-        {preset === "birthday_list" && (
+          {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Gliederung</p>
+              <div className="mt-2">
+                <ExportToggleCheckbox
+                  checked={groupByClass}
+                  label="Nach Klassen getrennt"
+                  description="Jede Klasse beginnt mit einer eigenen Überschrift, im PDF auf einer neuen Seite."
+                  onChange={() => setGroupByClass((current) => !current)}
+                />
+              </div>
+            </section>
+          )}
+
           <section>
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-gray-900">
-                  Geburtsmonate
-                </p>
+                <p className="text-sm font-medium text-gray-900">Spalten</p>
                 <p className="text-xs text-gray-500">
-                  {months.length === 0
-                    ? "Alle Geburtstage des Jahres werden aufgelistet."
-                    : "Nur Kinder, die in den gewählten Monaten Geburtstag haben."}
+                  {activePreset?.label ?? "Vorlage"} kann angepasst werden.
                 </p>
               </div>
-              <ToggleChip
-                pressed={months.length === 0}
-                onPressedChange={() => setMonths([])}
-                className="shrink-0"
-              >
-                Ganzes Jahr
-              </ToggleChip>
+              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+                {columns.length} aktiv
+              </span>
             </div>
-            <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
-              {BIRTHDAY_MONTH_OPTIONS.map((month) => {
-                const selected = months.includes(month.value);
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {availableColumns.map((column) => {
+                const checked = columns.includes(column.id);
                 return (
-                  <ToggleChip
-                    key={month.value}
-                    pressed={selected}
-                    onPressedChange={() => toggleMonth(month.value)}
-                    ariaLabel={month.label}
-                  >
-                    {month.label.slice(0, 3)}
-                  </ToggleChip>
+                  <ExportColumnCheckbox
+                    key={column.id}
+                    checked={checked}
+                    column={column}
+                    onChange={() => toggleColumn(column.id)}
+                  />
                 );
               })}
             </div>
           </section>
-        )}
-
-        {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
-          <section>
-            <p className="text-sm font-medium text-gray-900">Gliederung</p>
-            <div className="mt-2">
-              <ExportToggleCheckbox
-                checked={groupByClass}
-                label="Nach Klassen getrennt"
-                description="Jede Klasse beginnt mit einer eigenen Überschrift, im PDF auf einer neuen Seite."
-                onChange={() => setGroupByClass((current) => !current)}
-              />
-            </div>
-          </section>
-        )}
-
-        <section>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-gray-900">Spalten</p>
-              <p className="text-xs text-gray-500">
-                {activePreset?.label ?? "Vorlage"} kann angepasst werden.
-              </p>
-            </div>
-            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
-              {columns.length} aktiv
-            </span>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {availableColumns.map((column) => {
-              const checked = columns.includes(column.id);
-              return (
-                <ExportColumnCheckbox
-                  key={column.id}
-                  checked={checked}
-                  column={column}
-                  onChange={() => toggleColumn(column.id)}
-                />
-              );
-            })}
-          </div>
-        </section>
-      </div>
-    </Modal>
+        </div>
+        <SlideOverFooter className="flex-row justify-end gap-2">
+          {footer}
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
   );
 }
 

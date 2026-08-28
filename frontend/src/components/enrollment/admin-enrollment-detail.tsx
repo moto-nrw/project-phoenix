@@ -294,6 +294,66 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={statusLine}
       leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      overlays={
+        <>
+          <ConfirmationModal
+            isOpen={approvalWithoutOfferingChildId !== null}
+            onClose={() => setApprovalWithoutOfferingChildId(null)}
+            onConfirm={() => {
+              const childId = approvalWithoutOfferingChildId;
+              setApprovalWithoutOfferingChildId(null);
+              if (childId !== null) void handleDecide(childId, "approved");
+            }}
+            title="Anmeldung bestätigen"
+            confirmText="Trotzdem bestätigen"
+          >
+            <Alert
+              type="warning"
+              message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+            />
+          </ConfirmationModal>
+          <ConfirmationModal
+            isOpen={restoreOpen}
+            onClose={() => setRestoreOpen(false)}
+            onConfirm={() => void handleRestore()}
+            title="Anmeldung wiederherstellen"
+            confirmText="Wiederherstellen"
+            isConfirmLoading={restoring}
+          >
+            <p className="text-sm text-gray-600">
+              {withdrawnChildCount === 1
+                ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
+                : `Alle ${withdrawnChildCount} zurückgezogenen Kinder werden wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet.`}{" "}
+              Bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes
+              Betreuungsangebot inzwischen voll, kommt das betroffene Kind
+              stattdessen auf die Warteliste.
+            </p>
+          </ConfirmationModal>
+          <AdminEnrollmentDeletionModal
+            isOpen={deletionTarget !== null}
+            requestId={data.id}
+            childId={
+              deletionTarget?.type === "child" ? deletionTarget.id : undefined
+            }
+            childLabel={
+              deletionTarget?.type === "child"
+                ? deletionTarget.label
+                : undefined
+            }
+            studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
+            onClose={() => setDeletionTarget(null)}
+            onDeleted={(impact) => {
+              setDeletionTarget(null);
+              if (impact.deletes_request) {
+                router.push(`/admin/enrollments/phases/${data.phase_id}`);
+                return;
+              }
+              setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
+              void load();
+            }}
+          />
+        </>
+      }
     >
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
@@ -362,60 +422,6 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </aside>
         </div>
       </section>
-      <ConfirmationModal
-        isOpen={approvalWithoutOfferingChildId !== null}
-        onClose={() => setApprovalWithoutOfferingChildId(null)}
-        onConfirm={() => {
-          const childId = approvalWithoutOfferingChildId;
-          setApprovalWithoutOfferingChildId(null);
-          if (childId !== null) void handleDecide(childId, "approved");
-        }}
-        title="Anmeldung bestätigen"
-        confirmText="Trotzdem bestätigen"
-      >
-        <Alert
-          type="warning"
-          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
-        />
-      </ConfirmationModal>
-      <ConfirmationModal
-        isOpen={restoreOpen}
-        onClose={() => setRestoreOpen(false)}
-        onConfirm={() => void handleRestore()}
-        title="Anmeldung wiederherstellen"
-        confirmText="Wiederherstellen"
-        isConfirmLoading={restoring}
-      >
-        <p className="text-sm text-gray-600">
-          {withdrawnChildCount === 1
-            ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
-            : `Alle ${withdrawnChildCount} zurückgezogenen Kinder werden wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet.`}{" "}
-          Bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes
-          Betreuungsangebot inzwischen voll, kommt das betroffene Kind
-          stattdessen auf die Warteliste.
-        </p>
-      </ConfirmationModal>
-      <AdminEnrollmentDeletionModal
-        isOpen={deletionTarget !== null}
-        requestId={data.id}
-        childId={
-          deletionTarget?.type === "child" ? deletionTarget.id : undefined
-        }
-        childLabel={
-          deletionTarget?.type === "child" ? deletionTarget.label : undefined
-        }
-        studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
-        onClose={() => setDeletionTarget(null)}
-        onDeleted={(impact) => {
-          setDeletionTarget(null);
-          if (impact.deletes_request) {
-            router.push(`/admin/enrollments/phases/${data.phase_id}`);
-            return;
-          }
-          setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
-          void load();
-        }}
-      />
     </TenantPage>
   );
 }

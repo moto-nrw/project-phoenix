@@ -447,331 +447,332 @@ export default function MealPlanPage() {
   const statusLine = `KW ${weekNumber} · ${spokenRange} · ${plannedDays} von ${weekDates.length} Tagen geplant`;
 
   return (
-    <>
-      <TenantPage
-        title="Essensplan"
-        stats={statusLine}
-        statsLoading={initialLoading}
-        loading={initialLoading}
-        error={
-          loadError
-            ? {
-                message:
-                  "Essensplan konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
-                action: (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => void load()}
-                    disabled={loading}
-                  >
-                    Erneut versuchen
-                  </Button>
-                ),
-              }
-            : null
-        }
-      >
-        {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
-            kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
-        <SectionCard
-          title="Wochenplan"
-          description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
-          actions={
-            <>
-              {/* Wochennavigation steht in der Titelzeile, damit die Karte
-                  nicht aus zwei fast leeren Zeilen besteht. */}
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Vorherige Woche"
-                  onClick={() => attemptWeekChange(weekOffset - 1)}
-                  disabled={loading || saving || copyingPrev}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="min-w-32 text-center">
-                  <div className="text-sm font-semibold text-gray-900">
-                    KW {weekNumber}
-                    {isCurrentWeek ? (
-                      <span className="text-moto-green ml-1.5">
-                        · Diese Woche
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="text-xs text-gray-500">{rangeLabel}</div>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Nächste Woche"
-                  onClick={() => attemptWeekChange(weekOffset + 1)}
-                  disabled={loading || saving || copyingPrev}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                {!isCurrentWeek && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => attemptWeekChange(0)}
-                    disabled={loading || saving || copyingPrev}
-                  >
-                    Heute
-                  </Button>
-                )}
-              </div>
-              {canEdit ? (
+    <TenantPage
+      title="Essensplan"
+      stats={statusLine}
+      statsLoading={initialLoading}
+      loading={initialLoading}
+      error={
+        loadError
+          ? {
+              message:
+                "Essensplan konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
+              action: (
                 <Button
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={requestCopyPreviousWeek}
-                  disabled={loading || saving || copyingPrev || loadError}
-                  isLoading={copyingPrev}
-                  loadingText="Übernehmen…"
+                  onClick={() => void load()}
+                  disabled={loading}
                 >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Vorwoche übernehmen
+                  Erneut versuchen
                 </Button>
-              ) : null}
-            </>
-          }
-        />
+              ),
+            }
+          : null
+      }
+      overlays={
+        <>
+          {/* Löschen läuft portalweit über dasselbe Bauteil. */}
+          <ConfirmDeleteModal
+            isOpen={deleteTarget !== null}
+            title="Gericht entfernen"
+            description={
+              deleteTarget
+                ? `„${drafts[deleteTarget.date]?.[deleteTarget.idx]?.dish.trim() || "Dieses Gericht"}“ wird aus dem Plan entfernt. Die Änderung wird mit „Speichern“ übernommen.`
+                : ""
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
+            confirmLabel="Entfernen"
+            onConfirm={confirmRemove}
+            onClose={() => setDeleteTarget(null)}
+            loading={false}
+            error=""
+          />
 
-        <SectionCard
-          className={`transition-opacity duration-200 ${
-            loading ? "opacity-50" : "opacity-100"
-          }`}
-          bodyClassName=""
-        >
-          <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-x md:divide-y-0">
-            {weekDates.map((date) => {
-              const rows = drafts[date] ?? [];
-              const isToday = date === today;
-              const hasContent = dayHasContent(rows);
-              return (
-                <div
-                  key={date}
-                  data-meal-day-column
-                  className={`flex flex-col ${isToday ? "bg-moto-green/[0.04]" : ""}`}
+          <ConfirmationModal
+            isOpen={pendingOffset !== null}
+            onClose={() => setPendingOffset(null)}
+            onConfirm={confirmWeekChange}
+            title="Ungespeicherte Änderungen"
+            confirmText="Verwerfen & wechseln"
+            cancelText="Hierbleiben"
+            confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+          >
+            <p className="text-sm text-gray-600">
+              Sie haben Änderungen in dieser Woche, die noch nicht gespeichert
+              sind. Beim Wochenwechsel gehen sie verloren.
+            </p>
+          </ConfirmationModal>
+
+          <ConfirmationModal
+            isOpen={pendingHref !== null}
+            onClose={cancelNavigation}
+            onConfirm={confirmNavigation}
+            title="Ungespeicherte Änderungen"
+            confirmText="Verwerfen & verlassen"
+            cancelText="Hierbleiben"
+            confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+          >
+            <p className="text-sm text-gray-600">
+              Sie haben Änderungen, die noch nicht gespeichert sind. Beim
+              Verlassen der Seite gehen sie verloren.
+            </p>
+          </ConfirmationModal>
+
+          <ConfirmationModal
+            isOpen={confirmCopyPrev}
+            onClose={() => setConfirmCopyPrev(false)}
+            onConfirm={() => {
+              setConfirmCopyPrev(false);
+              void doCopyPreviousWeek();
+            }}
+            title="Vorwoche übernehmen?"
+            confirmText="Übernehmen"
+            cancelText="Abbrechen"
+          >
+            <p className="text-sm text-gray-600">
+              Die aktuelle Woche wird mit dem Plan der Vorwoche überschrieben.
+              Die Änderung wird erst mit „Speichern“ übernommen.
+            </p>
+          </ConfirmationModal>
+        </>
+      }
+    >
+      {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
+            kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
+      <SectionCard
+        title="Wochenplan"
+        description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
+        actions={
+          <>
+            {/* Wochennavigation steht in der Titelzeile, damit die Karte
+                  nicht aus zwei fast leeren Zeilen besteht. */}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Vorherige Woche"
+                onClick={() => attemptWeekChange(weekOffset - 1)}
+                disabled={loading || saving || copyingPrev}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-32 text-center">
+                <div className="text-sm font-semibold text-gray-900">
+                  KW {weekNumber}
+                  {isCurrentWeek ? (
+                    <span className="text-moto-green ml-1.5">
+                      · Diese Woche
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-xs text-gray-500">{rangeLabel}</div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Nächste Woche"
+                onClick={() => attemptWeekChange(weekOffset + 1)}
+                disabled={loading || saving || copyingPrev}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {!isCurrentWeek && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => attemptWeekChange(0)}
+                  disabled={loading || saving || copyingPrev}
                 >
-                  <div
-                    className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
-                      isToday ? "border-moto-green/30" : "border-gray-200"
-                    }`}
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {weekdayLabel(date)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {shortDate(date)}
-                      </div>
+                  Heute
+                </Button>
+              )}
+            </div>
+            {canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={requestCopyPreviousWeek}
+                disabled={loading || saving || copyingPrev || loadError}
+                isLoading={copyingPrev}
+                loadingText="Übernehmen…"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Vorwoche übernehmen
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
+      <SectionCard
+        className={`transition-opacity duration-200 ${
+          loading ? "opacity-50" : "opacity-100"
+        }`}
+        bodyClassName=""
+      >
+        <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-x md:divide-y-0">
+          {weekDates.map((date) => {
+            const rows = drafts[date] ?? [];
+            const isToday = date === today;
+            const hasContent = dayHasContent(rows);
+            return (
+              <div
+                key={date}
+                data-meal-day-column
+                className={`flex flex-col ${isToday ? "bg-moto-green/[0.04]" : ""}`}
+              >
+                <div
+                  className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
+                    isToday ? "border-moto-green/30" : "border-gray-200"
+                  }`}
+                >
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {weekdayLabel(date)}
                     </div>
-                    <div className="flex items-center gap-1">
-                      {isToday && (
-                        <span className="bg-moto-green rounded-full px-2 py-0.5 text-[11px] font-semibold text-gray-950">
-                          Heute
-                        </span>
-                      )}
-                      {canEdit && (
-                        <OverflowMenu
-                          ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
-                          triggerClassName="!size-7"
-                          matchContainerSelector="[data-meal-day-column]"
-                          items={[
-                            {
-                              label: "Tag kopieren",
-                              icon: <Copy className="h-4 w-4" />,
-                              onClick: () => copyDay(date),
-                              disabled: !hasContent || editingLocked,
-                            },
-                            {
-                              label: "Einfügen",
-                              icon: <ClipboardPaste className="h-4 w-4" />,
-                              onClick: () => pasteDay(date),
-                              disabled: clipboard === null || editingLocked,
-                            },
-                            {
-                              label: "Tag leeren",
-                              icon: <Trash2 className="h-4 w-4" />,
-                              onClick: () => clearDay(date),
-                              destructive: true,
-                              disabled: !hasContent || editingLocked,
-                            },
-                          ]}
-                        />
-                      )}
+                    <div className="text-xs text-gray-500">
+                      {shortDate(date)}
                     </div>
                   </div>
-
-                  <div className="flex flex-1 flex-col gap-3 p-3">
-                    {rows.map((row, idx) => (
-                      <div
-                        key={row.clientId}
-                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
-                      >
-                        <textarea
-                          rows={1}
-                          className={dishFieldClass}
-                          value={row.dish}
-                          placeholder="Gericht eintragen…"
-                          readOnly={!canEditNow}
-                          onChange={(e) =>
-                            updateDish(date, idx, "dish", e.target.value)
-                          }
-                        />
-                        <textarea
-                          rows={1}
-                          className={noteFieldClass}
-                          value={row.note}
-                          placeholder="Hinweis (optional)"
-                          readOnly={!canEditNow}
-                          onChange={(e) =>
-                            updateDish(date, idx, "note", e.target.value)
-                          }
-                        />
-                        {canEdit &&
-                          (rows.length > 1 ||
-                            row.dish.trim() !== "" ||
-                            row.note.trim() !== "") && (
-                            <button
-                              type="button"
-                              aria-label="Gericht entfernen"
-                              onClick={() => requestRemove(date, idx)}
-                              disabled={editingLocked}
-                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
-                      </div>
-                    ))}
-
+                  <div className="flex items-center gap-1">
+                    {isToday && (
+                      <span className="bg-moto-green rounded-full px-2 py-0.5 text-[11px] font-semibold text-gray-950">
+                        Heute
+                      </span>
+                    )}
                     {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => addRow(date)}
-                        disabled={editingLocked}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Gericht
-                      </button>
+                      <OverflowMenu
+                        ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
+                        triggerClassName="!size-7"
+                        matchContainerSelector="[data-meal-day-column]"
+                        items={[
+                          {
+                            label: "Tag kopieren",
+                            icon: <Copy className="h-4 w-4" />,
+                            onClick: () => copyDay(date),
+                            disabled: !hasContent || editingLocked,
+                          },
+                          {
+                            label: "Einfügen",
+                            icon: <ClipboardPaste className="h-4 w-4" />,
+                            onClick: () => pasteDay(date),
+                            disabled: clipboard === null || editingLocked,
+                          },
+                          {
+                            label: "Tag leeren",
+                            icon: <Trash2 className="h-4 w-4" />,
+                            onClick: () => clearDay(date),
+                            destructive: true,
+                            disabled: !hasContent || editingLocked,
+                          },
+                        ]}
+                      />
                     )}
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </SectionCard>
 
-        {/* Sticky save bar — only while there are unsaved changes. */}
-        {canEdit && isDirty && !loading && !loadError && (
-          <div className="sticky bottom-4 z-20">
-            <SectionCard className="shadow-lg" bodyClassName="">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-gray-700">
-                  {changedDays.length}{" "}
-                  {changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}
-                </span>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={discard}
-                    disabled={saving}
-                  >
-                    Verwerfen
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={handleSave}
-                    disabled={saving}
-                    isLoading={saving}
-                    loadingText="Speichern…"
-                  >
-                    Speichern
-                  </Button>
+                <div className="flex flex-1 flex-col gap-3 p-3">
+                  {rows.map((row, idx) => (
+                    <div
+                      key={row.clientId}
+                      className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
+                    >
+                      <textarea
+                        rows={1}
+                        className={dishFieldClass}
+                        value={row.dish}
+                        placeholder="Gericht eintragen…"
+                        readOnly={!canEditNow}
+                        onChange={(e) =>
+                          updateDish(date, idx, "dish", e.target.value)
+                        }
+                      />
+                      <textarea
+                        rows={1}
+                        className={noteFieldClass}
+                        value={row.note}
+                        placeholder="Hinweis (optional)"
+                        readOnly={!canEditNow}
+                        onChange={(e) =>
+                          updateDish(date, idx, "note", e.target.value)
+                        }
+                      />
+                      {canEdit &&
+                        (rows.length > 1 ||
+                          row.dish.trim() !== "" ||
+                          row.note.trim() !== "") && (
+                          <button
+                            type="button"
+                            aria-label="Gericht entfernen"
+                            onClick={() => requestRemove(date, idx)}
+                            disabled={editingLocked}
+                            className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                    </div>
+                  ))}
+
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => addRow(date)}
+                      disabled={editingLocked}
+                      className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Gericht
+                    </button>
+                  )}
                 </div>
               </div>
-            </SectionCard>
-          </div>
-        )}
-      </TenantPage>
+            );
+          })}
+        </div>
+      </SectionCard>
 
-      {/* Löschen läuft portalweit über dasselbe Bauteil. */}
-      <ConfirmDeleteModal
-        isOpen={deleteTarget !== null}
-        title="Gericht entfernen"
-        description={
-          deleteTarget
-            ? `„${drafts[deleteTarget.date]?.[deleteTarget.idx]?.dish.trim() || "Dieses Gericht"}“ wird aus dem Plan entfernt. Die Änderung wird mit „Speichern“ übernommen.`
-            : ""
-        }
-        gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
-        confirmLabel="Entfernen"
-        onConfirm={confirmRemove}
-        onClose={() => setDeleteTarget(null)}
-        loading={false}
-        error=""
-      />
-
-      <ConfirmationModal
-        isOpen={pendingOffset !== null}
-        onClose={() => setPendingOffset(null)}
-        onConfirm={confirmWeekChange}
-        title="Ungespeicherte Änderungen"
-        confirmText="Verwerfen & wechseln"
-        cancelText="Hierbleiben"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-      >
-        <p className="text-sm text-gray-600">
-          Sie haben Änderungen in dieser Woche, die noch nicht gespeichert sind.
-          Beim Wochenwechsel gehen sie verloren.
-        </p>
-      </ConfirmationModal>
-
-      <ConfirmationModal
-        isOpen={pendingHref !== null}
-        onClose={cancelNavigation}
-        onConfirm={confirmNavigation}
-        title="Ungespeicherte Änderungen"
-        confirmText="Verwerfen & verlassen"
-        cancelText="Hierbleiben"
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
-      >
-        <p className="text-sm text-gray-600">
-          Sie haben Änderungen, die noch nicht gespeichert sind. Beim Verlassen
-          der Seite gehen sie verloren.
-        </p>
-      </ConfirmationModal>
-
-      <ConfirmationModal
-        isOpen={confirmCopyPrev}
-        onClose={() => setConfirmCopyPrev(false)}
-        onConfirm={() => {
-          setConfirmCopyPrev(false);
-          void doCopyPreviousWeek();
-        }}
-        title="Vorwoche übernehmen?"
-        confirmText="Übernehmen"
-        cancelText="Abbrechen"
-      >
-        <p className="text-sm text-gray-600">
-          Die aktuelle Woche wird mit dem Plan der Vorwoche überschrieben. Die
-          Änderung wird erst mit „Speichern“ übernommen.
-        </p>
-      </ConfirmationModal>
-    </>
+      {/* Sticky save bar — only while there are unsaved changes. */}
+      {canEdit && isDirty && !loading && !loadError && (
+        <div className="sticky bottom-4 z-20">
+          <SectionCard className="shadow-lg" bodyClassName="">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-gray-700">
+                {changedDays.length}{" "}
+                {changedDays.length === 1 ? "Tag geändert" : "Tage geändert"}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={discard}
+                  disabled={saving}
+                >
+                  Verwerfen
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={handleSave}
+                  disabled={saving}
+                  isLoading={saving}
+                  loadingText="Speichern…"
+                >
+                  Speichern
+                </Button>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+    </TenantPage>
   );
 }
