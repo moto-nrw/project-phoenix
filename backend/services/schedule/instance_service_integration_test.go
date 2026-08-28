@@ -454,6 +454,24 @@ func TestInstance_CreateRejectsDateOutsideActiveCalendarPeriod(t *testing.T) {
 	require.ErrorIs(t, err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
 }
 
+func TestInstance_CreateSpontaneousSkipsActiveCalendarPeriodValidation(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	isSpontaneous := true
+	created, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:          timezone.NewDate(2101, 4, 21),
+		StartTime:     time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:         "Spontan außerhalb des Zeitraums",
+		RoomID:        s.roomID,
+		IsSpontaneous: &isSpontaneous,
+	})
+
+	require.NoError(t, err)
+	assert.True(t, created.IsSpontaneous)
+}
+
 func TestInstance_UpdatePlannedRejectsDateOutsideActiveCalendarPeriod(t *testing.T) {
 	t.Parallel()
 
@@ -471,6 +489,27 @@ func TestInstance_UpdatePlannedRejectsDateOutsideActiveCalendarPeriod(t *testing
 	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
 	require.NoError(t, err)
 	assert.Equal(t, instance.Date, stored.Date)
+}
+
+func TestInstance_UpdatePlannedKeepsDateAfterPeriodDeactivation(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	instance := seedInstance(t, s, false, false)
+	s.period.IsActive = false
+	_, err := s.db.NewUpdate().Model(s.period).Column("is_active").WherePK().Exec(s.ctx)
+	require.NoError(t, err)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, instance.ID, scheduleSvc.UpdateInstanceInput{
+		Date:      instance.Date,
+		StartTime: instance.StartTime,
+		EndTime:   instance.EndTime,
+		Title:     "Bearbeitet nach Deaktivierung",
+		RoomID:    s.roomID,
+	}, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, instance.Date, updated.Date)
 }
 
 func TestInstance_CreateIdempotencyRetryReturnsStoredResultAfterPeriodDeactivation(t *testing.T) {

@@ -1533,8 +1533,10 @@ func (s *instanceService) createInTenantTransaction(
 			return idempotentCreateResult(existing, idempotencyFingerprint)
 		}
 	}
-	if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
-		return nil, &ScheduleError{Op: "create instance: validate calendar period", Err: err}
+	if req.IsSpontaneous == nil || !*req.IsSpontaneous {
+		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
+			return nil, &ScheduleError{Op: "create instance: validate calendar period", Err: err}
+		}
 	}
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, req.CreatedByStaffID); err != nil {
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
@@ -1797,8 +1799,10 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if err := validateLegacyWeekendInstanceDate(instance.Date, req.Date); err != nil {
 		return nil, err
 	}
-	if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
-		return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
+	if instance.Date != req.Date {
+		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
+			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
+		}
 	}
 
 	if err := s.validateInstanceReferences(ctx, req.Date, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
