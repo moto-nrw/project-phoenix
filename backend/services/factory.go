@@ -1043,6 +1043,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
+		IdempotencyRepo:    repos.InstanceIdempotency,
 		InstanceStaffRepo:  repos.InstanceStaff,
 		InstanceStudents:   repos.InstanceStudent,
 		ExceptionRepo:      repos.ActivityException,
@@ -2201,6 +2202,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Outbox:      emailOutboxService,
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
+		Deliveries:  repos.EmailDelivery,
 		ParentsURL:  parentsURL,
 		Logger:      logger.With("service", "announcement"),
 	})

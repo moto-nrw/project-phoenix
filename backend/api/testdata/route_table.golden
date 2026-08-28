@@ -101,6 +101,8 @@ DELETE /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
+DELETE /school/notifications/preferences/
+DELETE /school/notifications/push/subscriptions
 GET /
 GET /api/absence-types/
 GET /api/active/analytics/dashboard
@@ -273,6 +275,7 @@ GET /api/notifications/preferences/
 GET /api/notifications/push/public-key
 GET /api/parent-announcements/
 GET /api/parent-announcements/{announcementId}
+GET /api/parent-announcements/{announcementId}/letter-status
 GET /api/parent-announcements/{announcementId}/poll-children
 GET /api/parent-announcements/{announcementId}/poll-results
 GET /api/parent-announcements/{announcementId}/recipients
@@ -529,8 +532,15 @@ GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
+GET /school-sse/events
 GET /school/class-day/
 GET /school/class-day/classes
+GET /school/notifications/preferences/
+GET /school/notifications/push/public-key
+GET /school/staff-messages/
+GET /school/staff-messages/recipients
+GET /school/staff-messages/threads/{threadID}
+GET /school/staff-messages/unread-count
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
@@ -658,6 +668,7 @@ POST /api/notifications/test
 POST /api/parent-announcements/
 POST /api/parent-announcements/{announcementId}/publish
 POST /api/parent-announcements/{announcementId}/remind
+POST /api/parent-announcements/{announcementId}/resend-failed
 POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
@@ -862,6 +873,10 @@ POST /school/auth/mfa/verify
 POST /school/auth/password-reset
 POST /school/auth/password-reset/confirm
 POST /school/auth/switch-school
+POST /school/notifications/push/subscriptions
+POST /school/notifications/test
+POST /school/staff-messages/threads/open
+POST /school/staff-messages/threads/{threadID}
 POST /school/supervisions/{id}/complete
 POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in
@@ -964,5 +979,6 @@ PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
+PUT /school/notifications/preferences/{type}
 QUERY /internal/metrics
 TRACE /internal/metrics

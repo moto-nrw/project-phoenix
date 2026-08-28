@@ -23,6 +23,12 @@ type Client struct {
 	// match tenant/group broadcasts, only BroadcastParentMessage addressed to
 	// their guardian account.
 	IsParent bool
+	// IsSchool marks a school-portal (Lehrkraft) connection. School clients
+	// are tenant-bound like staff clients but indexed ONLY by account
+	// (schoolAccountClients): they receive the explicitly school-supported
+	// personal wake-ups such as Team-Chat and nothing tenant-wide —
+	// the class-day role deliberately never sees group/tenant refreshes.
+	IsSchool bool
 	// AccountID is auth.accounts.id, carried explicitly because UserID is NOT
 	// interchangeable with it: for staff clients UserID is users.staff.id, for
 	// parent clients it is the account id, and for an effective admin without a
@@ -67,8 +73,11 @@ type Hub struct {
 	// personal notification reaches its recipient without scanning the tenant.
 	// Maintained in Register / Unregister alongside the other indexes.
 	staffAccountClients map[int64][]*Client
-	mu                  sync.RWMutex
-	logger              *slog.Logger
+	// schoolAccountClients keeps the school portal isolated from the broader
+	// staff notification surface.
+	schoolAccountClients map[int64][]*Client
+	mu                   sync.RWMutex
+	logger               *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -79,12 +88,13 @@ func (h *Hub) getLogger() *slog.Logger {
 // NewHub creates a new SSE hub
 func NewHub(logger *slog.Logger) *Hub {
 	return &Hub{
-		clients:             make(map[*Client]bool),
-		groupClients:        make(map[string][]*Client),
-		guardianClients:     make(map[int64][]*Client),
-		tenantClients:       make(map[int64][]*Client),
-		staffAccountClients: make(map[int64][]*Client),
-		logger:              logger,
+		clients:              make(map[*Client]bool),
+		groupClients:         make(map[string][]*Client),
+		guardianClients:      make(map[int64][]*Client),
+		tenantClients:        make(map[int64][]*Client),
+		staffAccountClients:  make(map[int64][]*Client),
+		schoolAccountClients: make(map[int64][]*Client),
+		logger:               logger,
 	}
 }
 
@@ -149,6 +159,30 @@ func (h *Hub) RegisterParent(client *Client) {
 	observability.RecordSSEConnection(0, "connected")
 }
 
+// RegisterSchool adds a school-portal client (#2208). It is indexed by its
+// login account only, so the one fan-out that can reach it is
+// BroadcastToSchoolAccounts for its own tenant. It is deliberately NOT added
+// to tenantClients or any group: BroadcastToTenant/BroadcastToGroup carry
+// staff-only refresh triggers the Lehrkraft role has no surface for.
+func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	client.IsSchool = true
+	client.TenantID = tenantID
+	h.clients[client] = true
+	if client.AccountID > 0 {
+		h.schoolAccountClients[client.AccountID] = append(h.schoolAccountClients[client.AccountID], client)
+	}
+
+	h.getLogger().Info("SSE school client connected",
+		slog.Int64("account_id", client.AccountID),
+		slog.Int64("tenant_id", tenantID),
+		slog.Int("total_clients", len(h.clients)),
+	)
+	observability.RecordSSEConnection(tenantID, "connected")
+}
+
 // Unregister removes a client from the hub and all group subscriptions
 func (h *Hub) Unregister(client *Client) {
 	h.mu.Lock()
@@ -162,12 +196,21 @@ func (h *Hub) Unregister(client *Client) {
 
 	// Remove from the guardian/tenant indexes so a closed channel can never be
 	// reached by a later BroadcastParentMessage (a send on it would panic).
-	if client.IsParent {
+	switch {
+	case client.IsParent:
 		h.guardianClients[client.UserID] = removeClient(h.guardianClients[client.UserID], client)
 		if len(h.guardianClients[client.UserID]) == 0 {
 			delete(h.guardianClients, client.UserID)
 		}
-	} else {
+	case client.IsSchool:
+		// Only ever indexed by account (RegisterSchool).
+		if client.AccountID > 0 {
+			h.schoolAccountClients[client.AccountID] = removeClient(h.schoolAccountClients[client.AccountID], client)
+			if len(h.schoolAccountClients[client.AccountID]) == 0 {
+				delete(h.schoolAccountClients, client.AccountID)
+			}
+		}
+	default:
 		h.tenantClients[client.TenantID] = removeClient(h.tenantClients[client.TenantID], client)
 		if len(h.tenantClients[client.TenantID]) == 0 {
 			delete(h.tenantClients, client.TenantID)
@@ -411,6 +454,47 @@ func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event
 	return nil
 }
 
+// BroadcastToSchoolAccounts wakes only the addressed school-portal clients in
+// one tenant. Its separate index prevents a staff-only notification from
+// leaking into moto schule merely because both portals use the same account.
+func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error {
+	if len(accountIDs) == 0 {
+		return nil
+	}
+
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	for _, accountID := range accountIDs {
+		for _, client := range h.schoolAccountClients[accountID] {
+			if client.TenantID != tenantID {
+				continue
+			}
+			recipients++
+			select {
+			case client.Channel <- event:
+			default:
+				droppedCount++
+				h.getLogger().Warn("SSE client channel full, skipping school broadcast",
+					slog.Int64("account_id", accountID),
+					slog.Int64("tenant_id", tenantID),
+					slog.String("event_type", string(event.Type)),
+				)
+			}
+		}
+	}
+
+	h.getLogger().Debug("SSE event broadcast to school accounts",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "school_account", droppedCount)
+	return nil
+}
+
 // BroadcastParentMessage routes a parent-OGS messaging trigger by recipient:
 // the addressed guardian's portal client (matched on account id) is woken so
 // only that one family sees the activity, while staff clients in the tenant are
@@ -510,7 +594,9 @@ func (h *Hub) BroadcastToAll(event Event) error {
 		// by BroadcastParentMessage. A tenant-wide refresh (dashboard counts,
 		// arrival schedule) is staff-only data and must never fan out to every
 		// connected guardian nationwide.
-		if client.IsParent {
+		// School (Lehrkraft) clients are addressed per account only; the
+		// tenant-wide refreshes are staff-portal data as well.
+		if client.IsParent || client.IsSchool {
 			continue
 		}
 		select {

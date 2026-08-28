@@ -31,6 +31,7 @@ type recordingPushRepository struct {
 	operations      []string
 	err             error
 	deleteParentErr error
+	deleteSchoolErr error
 	failAfter       int
 	deleteFailAfter int
 }
@@ -54,10 +55,33 @@ func (r *recordingPushRepository) DeleteByEndpoint(ctx context.Context, accountI
 	return r.err
 }
 
+func (r *recordingPushRepository) DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	r.deletedAccount = accountID
+	r.deletedEndpoint = endpoint
+	r.deletedTenants = append(r.deletedTenants, tenant.FromContext(ctx))
+	return r.err
+}
+
+func (r *recordingPushRepository) DeleteParentByAccountEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	r.deletedAccount = accountID
+	r.deletedEndpoint = endpoint
+	r.deletedTenants = append(r.deletedTenants, tenant.FromContext(ctx))
+	if r.deleteFailAfter > 0 && len(r.deletedTenants) < r.deleteFailAfter {
+		return nil
+	}
+	return r.err
+}
+
 func (r *recordingPushRepository) DeleteParentByEndpoint(_ context.Context, endpoint string) error {
 	r.reboundEndpoint = endpoint
 	r.operations = append(r.operations, "clear")
 	return r.deleteParentErr
+}
+
+func (r *recordingPushRepository) DeleteSchoolByEndpointAcrossTenants(_ context.Context, endpoint string) error {
+	r.reboundEndpoint = endpoint
+	r.operations = append(r.operations, "clear-school")
+	return r.deleteSchoolErr
 }
 
 type accountTenantRepositoryStub struct {
@@ -128,6 +152,7 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 
 		require.ErrorIs(t, service.Subscribe(context.Background(), 42, validPushInput()), errPushRepository)
 		require.ErrorIs(t, service.Unsubscribe(context.Background(), 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
+		require.ErrorIs(t, service.UnsubscribeSchool(context.Background(), 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
 		assert.Equal(t, int64(42), repo.deletedAccount)
 		assert.Equal(t, "https://fcm.googleapis.com/fcm/send/device", repo.deletedEndpoint)
 	})

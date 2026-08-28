@@ -241,7 +241,7 @@ describe("CareWeeklyPlanModal", () => {
 
     const monday = screen.getByRole("checkbox", { name: "Montag" });
     expect(document.getElementById("weekly-arrival-1")).toBeDisabled();
-    fireEvent.click(monday);
+    fireEvent.click(monday.nextElementSibling!);
     expect(document.getElementById("weekly-arrival-1")).toBeEnabled();
 
     fireEvent.click(

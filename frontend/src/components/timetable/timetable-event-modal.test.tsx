@@ -505,6 +505,7 @@ describe("TimetableEventModal", () => {
           student_ids: [21],
           staff_ids: [11],
         }),
+        expect.any(String),
       ),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith("Termin angelegt");
@@ -548,6 +549,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ title: "Ferienbetreuung" }),
+        expect.any(String),
       ),
     );
   });
@@ -1096,6 +1098,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() =>
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({ student_ids: [] }),
+        expect.any(String),
       ),
     );
   });

@@ -6,6 +6,7 @@ import { Loading } from "~/components/ui/loading";
 import { SchoolShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SchoolShell } from "~/components/school/shell/school-shell";
+import { SchoolRealtimeBridge } from "~/components/school/school-realtime-bridge";
 import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { schoolPath } from "~/lib/school-url";
 
@@ -73,6 +74,7 @@ export function SchoolAuthGuard({
     <SchoolShellProvider>
       <BreadcrumbProvider>
         <ShellIntlProvider>
+          <SchoolRealtimeBridge />
           <SchoolShell>{children}</SchoolShell>
         </ShellIntlProvider>
       </BreadcrumbProvider>

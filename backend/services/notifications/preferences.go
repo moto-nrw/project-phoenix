@@ -46,9 +46,15 @@ type PreferenceService interface {
 
 	// SetForAccount records one decision.
 	SetForAccount(ctx context.Context, accountID int64, notificationType string, enabled bool) error
+	// SetForPortalAccount is SetForAccount for a named portal: the type must be
+	// offered there (OfferedInPortal). The school portal (#2208) writes the
+	// same row as the staff portal.
+	SetForPortalAccount(ctx context.Context, accountID int64, portal, notificationType string, enabled bool) error
 
 	// DisableAllForAccount switches every stored staff-portal decision off.
 	DisableAllForAccount(ctx context.Context, accountID int64) error
+	// DisableAllForPortalAccount switches off every type the portal offers.
+	DisableAllForPortalAccount(ctx context.Context, accountID int64, portal string) error
 
 	// FilterOptedIn narrows a producer's candidate recipients to those who
 	// agreed to the type AND whose school still allows it. This is the single
@@ -166,11 +172,18 @@ func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, 
 // would lose a person's choice whenever an admin toggles the school setting off
 // and on again; the gate is applied at delivery time instead.
 func (s *preferenceService) SetForAccount(ctx context.Context, accountID int64, notificationType string, enabled bool) error {
+	return s.SetForPortalAccount(ctx, accountID, PortalStaff, notificationType, enabled)
+}
+
+func (s *preferenceService) SetForPortalAccount(ctx context.Context, accountID int64, portal, notificationType string, enabled bool) error {
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
+	if portal != PortalStaff && portal != PortalSchool {
+		return fmt.Errorf("unsupported preference portal %q", portal)
+	}
 	def, known := GetType(notificationType)
-	if !known || def.Portal != PortalStaff {
+	if !known || !OfferedInPortal(def, portal) {
 		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
 	}
 
@@ -189,10 +202,17 @@ func (s *preferenceService) SetForAccount(ctx context.Context, accountID int64, 
 }
 
 func (s *preferenceService) DisableAllForAccount(ctx context.Context, accountID int64) error {
+	return s.DisableAllForPortalAccount(ctx, accountID, PortalStaff)
+}
+
+func (s *preferenceService) DisableAllForPortalAccount(ctx context.Context, accountID int64, portal string) error {
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
-	if err := s.repo.DisableAllForAccount(ctx, accountID, typeKeysForPortal(PortalStaff)); err != nil {
+	if portal != PortalStaff && portal != PortalSchool {
+		return fmt.Errorf("unsupported preference portal %q", portal)
+	}
+	if err := s.repo.DisableAllForAccount(ctx, accountID, typeKeysForPortal(portal)); err != nil {
 		return fmt.Errorf("disable notification preferences: %w", err)
 	}
 	return nil

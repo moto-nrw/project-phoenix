@@ -24,6 +24,7 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,6 +104,7 @@ var (
 	ErrInstanceCompleteEarly       = errors.New("activity instance cannot be completed before planned end")
 	ErrLifecycleSettings           = errors.New("activity lifecycle settings unavailable")
 	ErrCompletionConfirmationStale = errors.New("activity completion confirmation is stale")
+	ErrIdempotencyKeyReuse         = errors.New("idempotency key was reused with different request data")
 )
 
 type LifecycleSettings interface {
@@ -257,6 +259,7 @@ type CreateInstanceInput struct {
 	StaffIDs         []int64
 	StudentIDs       []int64
 	CreatedByStaffID *int64
+	IdempotencyKey   *string
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// nil = derive from the Betreuungsschlüssel.
 	RequiredStaff *int
@@ -306,6 +309,7 @@ type ReplanWeekResult struct {
 // Broadcaster is optional (nil → no SSE).
 type InstanceServiceDependencies struct {
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
+	IdempotencyRepo   scheduleModel.InstanceIdempotencyRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	InstanceStudents  scheduleModel.InstanceStudentRepository
 	ExceptionRepo     scheduleModel.ActivityExceptionRepository
@@ -345,7 +349,7 @@ type instanceService struct {
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
 func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
-	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
+	if deps.InstanceRepo == nil || deps.IdempotencyRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.ExceptionRepo == nil ||
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
@@ -1493,6 +1497,25 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		})
 		return created, err
 	}
+	return s.createInTenantTransaction(ctx, tenantID, req)
+}
+
+func (s *instanceService) createInTenantTransaction(
+	ctx context.Context, tenantID int64, req CreateInstanceInput,
+) (*scheduleModel.ActivityInstance, error) {
+	idempotencyFingerprint, err := createInstanceIdempotencyFingerprint(req)
+	if err != nil {
+		return nil, &ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
+	}
+	if req.IdempotencyKey != nil {
+		existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
+		if err != nil {
+			return nil, &ScheduleError{Op: "create instance: find idempotency key", Err: err}
+		}
+		if existing != nil {
+			return idempotentCreateResult(existing, idempotencyFingerprint)
+		}
+	}
 	if err := s.lockRecurrenceThenGradeTransitions(ctx, "create instance"); err != nil {
 		return nil, err
 	}
@@ -1500,55 +1523,171 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 
+	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
+	result, inserted, err := s.insertCreatedInstance(ctx, inst)
+	if err != nil || !inserted {
+		return result, err
+	}
+	if err := s.assignCreatedInstanceRoster(ctx, inst, req, tenantID); err != nil {
+		return nil, err
+	}
+	s.logCreatedInstance(ctx, inst, req)
+	return inst, nil
+}
+
+func newActivityInstance(
+	tenantID int64, req CreateInstanceInput, idempotencyFingerprint *string,
+) *scheduleModel.ActivityInstance {
 	isSpontaneous := false
 	if req.IsSpontaneous != nil {
 		isSpontaneous = *req.IsSpontaneous
 	}
-
 	inst := &scheduleModel.ActivityInstance{
-		Date:            req.Date,
-		StartTime:       req.StartTime,
-		EndTime:         req.EndTime,
-		Title:           req.Title,
-		Description:     req.Description,
-		Notes:           req.Notes,
-		RoomID:          req.RoomID,
-		ActivityGroupID: req.ActivityGroupID,
-		RequiredStaff:   req.RequiredStaff,
-		ListKind:        req.ListKind,
-		Status:          scheduleModel.InstanceStatusPlanned,
-		IsSpontaneous:   isSpontaneous,
-		CreatedBy:       req.CreatedByStaffID,
+		Date:                   req.Date,
+		StartTime:              req.StartTime,
+		EndTime:                req.EndTime,
+		Title:                  req.Title,
+		Description:            req.Description,
+		Notes:                  req.Notes,
+		RoomID:                 req.RoomID,
+		ActivityGroupID:        req.ActivityGroupID,
+		RequiredStaff:          req.RequiredStaff,
+		ListKind:               req.ListKind,
+		Status:                 scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous:          isSpontaneous,
+		CreatedBy:              req.CreatedByStaffID,
+		IdempotencyKey:         req.IdempotencyKey,
+		IdempotencyFingerprint: idempotencyFingerprint,
 	}
 	inst.SetTenantID(tenantID)
+	return inst
+}
 
-	if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
-		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
+func createInstanceIdempotencyFingerprint(req CreateInstanceInput) (*string, error) {
+	if req.IdempotencyKey == nil {
+		return nil, nil
 	}
+	isSpontaneous := req.IsSpontaneous != nil && *req.IsSpontaneous
+	staffIDs := sliceutil.UniquePositive(slices.Clone(req.StaffIDs))
+	studentIDs := sliceutil.UniquePositive(slices.Clone(req.StudentIDs))
+	slices.Sort(staffIDs)
+	slices.Sort(studentIDs)
+	payload, err := json.Marshal(struct {
+		Date             string  `json:"date"`
+		StartTime        string  `json:"start_time"`
+		EndTime          string  `json:"end_time"`
+		Title            string  `json:"title"`
+		Description      *string `json:"description"`
+		Notes            *string `json:"notes"`
+		RoomID           int64   `json:"room_id"`
+		ActivityGroupID  *int64  `json:"activity_group_id"`
+		ListKind         *string `json:"list_kind"`
+		IsSpontaneous    bool    `json:"is_spontaneous"`
+		StaffIDs         []int64 `json:"staff_ids"`
+		StudentIDs       []int64 `json:"student_ids"`
+		CreatedByStaffID *int64  `json:"created_by_staff_id"`
+		RequiredStaff    *int    `json:"required_staff"`
+	}{
+		Date: req.Date.String(), StartTime: req.StartTime.Format("15:04:05"), EndTime: req.EndTime.Format("15:04:05"),
+		Title: req.Title, Description: req.Description, Notes: req.Notes, RoomID: req.RoomID,
+		ActivityGroupID: req.ActivityGroupID, ListKind: req.ListKind, IsSpontaneous: isSpontaneous,
+		StaffIDs: staffIDs, StudentIDs: studentIDs, CreatedByStaffID: req.CreatedByStaffID, RequiredStaff: req.RequiredStaff,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal create request: %w", err)
+	}
+	sum := sha256.Sum256(payload)
+	fingerprint := fmt.Sprintf("%x", sum)
+	return &fingerprint, nil
+}
 
-	for _, staffID := range sliceutil.UniquePositive(req.StaffIDs) {
-		if staffID <= 0 {
-			continue
+func idempotentCreateResult(
+	existing *scheduleModel.ActivityInstance, fingerprint *string,
+) (*scheduleModel.ActivityInstance, error) {
+	if fingerprint == nil || existing.IdempotencyFingerprint == nil ||
+		*existing.IdempotencyFingerprint != *fingerprint {
+		return nil, ErrIdempotencyKeyReuse
+	}
+	return existing, nil
+}
+
+func (s *instanceService) insertCreatedInstance(
+	ctx context.Context, inst *scheduleModel.ActivityInstance,
+) (*scheduleModel.ActivityInstance, bool, error) {
+	if inst.IdempotencyKey == nil {
+		if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
+			return nil, false, &ScheduleError{Op: "create instance: insert", Err: err}
 		}
+		return inst, true, nil
+	}
+	inserted, err := s.deps.IdempotencyRepo.CreateIdempotent(ctx, inst)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "create instance: insert idempotent", Err: err}
+	}
+	if inserted {
+		return inst, true, nil
+	}
+	existing, err := s.findCreateByIdempotencyKey(ctx, *inst.IdempotencyKey)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "create instance: load idempotent result", Err: err}
+	}
+	if existing == nil {
+		return nil, false, &ScheduleError{
+			Op:  "create instance: load idempotent result",
+			Err: errors.New("idempotent insert conflict has no matching row"),
+		}
+	}
+	result, err := idempotentCreateResult(existing, inst.IdempotencyFingerprint)
+	return result, false, err
+}
+
+func (s *instanceService) findCreateByIdempotencyKey(
+	ctx context.Context, key string,
+) (*scheduleModel.ActivityInstance, error) {
+	options := modelBase.NewQueryOptions().WithPagination(1, 1)
+	options.Filter.Equal("idempotency_key", key)
+	instances, err := s.deps.InstanceRepo.List(ctx, options)
+	if err != nil || len(instances) == 0 {
+		return nil, err
+	}
+	return instances[0], nil
+}
+
+func (s *instanceService) assignCreatedInstanceRoster(
+	ctx context.Context, inst *scheduleModel.ActivityInstance, req CreateInstanceInput, tenantID int64,
+) error {
+	if err := s.assignCreatedInstanceStaff(ctx, inst.ID, req.StaffIDs, tenantID); err != nil {
+		return err
+	}
+	studentIDs := sliceutil.UniquePositive(req.StudentIDs)
+	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, inst.Date); err != nil {
+		return err
+	}
+	return s.assignCreatedInstanceStudents(ctx, inst, studentIDs, tenantID)
+}
+
+func (s *instanceService) assignCreatedInstanceStaff(
+	ctx context.Context, instanceID int64, staffIDs []int64, tenantID int64,
+) error {
+	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
 		row := &scheduleModel.InstanceStaff{
-			InstanceID: inst.ID,
+			InstanceID: instanceID,
 			StaffID:    staffID,
 			// RoomID nil → uses instance.RoomID at runtime
 			IsPrimary: false,
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
-			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
+			return &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	newStudentIDs := sliceutil.UniquePositive(req.StudentIDs)
-	if err := s.lockCareExceptionDaysForStudents(ctx, newStudentIDs, inst.Date); err != nil {
-		return nil, err
-	}
-	for _, studentID := range newStudentIDs {
-		if studentID <= 0 {
-			continue
-		}
+	return nil
+}
+
+func (s *instanceService) assignCreatedInstanceStudents(
+	ctx context.Context, inst *scheduleModel.ActivityInstance, studentIDs []int64, tenantID int64,
+) error {
+	for _, studentID := range studentIDs {
 		row := &scheduleModel.InstanceStudent{
 			InstanceID: inst.ID,
 			StudentID:  studentID,
@@ -1556,26 +1695,29 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
-			return nil, &ScheduleError{Op: "create instance: assign student", Err: err}
+			return &ScheduleError{Op: "create instance: assign student", Err: err}
 		}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return nil, &ScheduleError{Op: "create instance: apply student status days", Err: err}
+		return &ScheduleError{Op: "create instance: apply student status days", Err: err}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return nil, &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
+		return &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
 	}
+	return nil
+}
 
+func (s *instanceService) logCreatedInstance(
+	ctx context.Context, inst *scheduleModel.ActivityInstance, req CreateInstanceInput,
+) {
 	s.getLogger().Info("instance created",
-		slog.Int64("tenant_id", tenantID),
+		slog.Int64("tenant_id", inst.GetTenantID()),
 		slog.Int64("instance_id", inst.ID),
 		slog.String("date", inst.Date.String()),
 		slog.Bool("spontaneous", inst.IsSpontaneous),
 		slog.Int("staff_assigned", len(req.StaffIDs)),
 	)
 	s.broadcastPlannedInstanceChanged(ctx, "instance_create")
-
-	return inst, nil
 }
 
 func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {

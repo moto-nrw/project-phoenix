@@ -118,6 +118,71 @@ func TestStaffScopeRoutesToNamedAccounts(t *testing.T) {
 	assert.Empty(t, bc.CallsByMethod("admin"))
 	assert.Empty(t, bc.CallsByMethod("group"))
 	assert.Empty(t, bc.CallsByMethod("guardian"))
+	assert.Empty(t, bc.CallsByMethod("school"), "a staff-only type must not wake moto schule")
+}
+
+func TestStaffMessageAlsoRoutesToSchoolPortal(t *testing.T) {
+	t.Parallel()
+
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+		notifications.NewSSEChannel(bc))
+	event := staffEvent(testTenantID, 11)
+	event.Type = notifications.TypeStaffMessage
+
+	require.NoError(t, dispatch(t, func(ctx context.Context) error {
+		return svc.Notify(ctx, event)
+	}))
+
+	calls := bc.CallsByMethod("school")
+	require.Len(t, calls, 1)
+	assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+}
+
+// The test notification answers one question: does the portal I am looking at
+// receive notifications? Delivering it in both staff portals would answer a
+// question nobody asked, so it stays in the portal that requested it (#2208).
+func TestTestNotificationStaysInTheRequestingPortal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fired from moto schule it reaches only the school clients", func(t *testing.T) {
+		t.Parallel()
+
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+			notifications.NewSSEChannel(bc))
+		event := staffEvent(testTenantID, 11)
+		event.Type = notifications.TypeTest
+		event.Portal = notifications.PortalSchool
+
+		require.NoError(t, dispatch(t, func(ctx context.Context) error {
+			return svc.Notify(ctx, event)
+		}))
+
+		calls := bc.CallsByMethod("school")
+		require.Len(t, calls, 1)
+		assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+		assert.Empty(t, bc.CallsByMethod("staff"), "the OGS devices were not asked to be tested")
+	})
+
+	t.Run("fired from the OGS portal it reaches only the staff clients", func(t *testing.T) {
+		t.Parallel()
+
+		bc := testpkg.NewRecordingBroadcaster()
+		svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+			notifications.NewSSEChannel(bc))
+		event := staffEvent(testTenantID, 11)
+		event.Type = notifications.TypeTest
+
+		require.NoError(t, dispatch(t, func(ctx context.Context) error {
+			return svc.Notify(ctx, event)
+		}))
+
+		calls := bc.CallsByMethod("staff")
+		require.Len(t, calls, 1)
+		assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+		assert.Empty(t, bc.CallsByMethod("school"), "moto schule was not the portal under test")
+	})
 }
 
 // TestStaffAccountIDsAreSnapshotted pins that the recipient list survives the

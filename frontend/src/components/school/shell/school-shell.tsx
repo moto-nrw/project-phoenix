@@ -2,6 +2,7 @@
 
 import { Header } from "~/components/dashboard/header";
 import { PortalShell } from "~/components/ui/portal-shell";
+import { useSchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { SchoolBottomNav } from "./school-bottom-nav";
 import { SchoolSidebar } from "./school-sidebar";
 
@@ -23,11 +24,12 @@ export function SchoolShell({
 }: {
   readonly children: React.ReactNode;
 }) {
+  const teamChat = useSchoolTeamChatUnread();
   return (
     <PortalShell
       header={<Header />}
-      sidebar={<SchoolSidebar />}
-      bottomNav={<SchoolBottomNav />}
+      sidebar={<SchoolSidebar teamChat={teamChat} />}
+      bottomNav={<SchoolBottomNav teamChat={teamChat} />}
     >
       {children}
     </PortalShell>

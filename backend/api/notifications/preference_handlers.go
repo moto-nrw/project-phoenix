@@ -40,7 +40,7 @@ func (rs *Resource) listPreferences(w http.ResponseWriter, r *http.Request) {
 	}
 
 	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	overview, err := rs.PreferenceService.GetForAccount(r.Context(), accountID, notificationsService.PortalStaff)
+	overview, err := rs.PreferenceService.GetForAccount(r.Context(), accountID, requestPortal(r))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -70,7 +70,7 @@ func (rs *Resource) setPreference(w http.ResponseWriter, r *http.Request) {
 	}
 
 	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	err := rs.PreferenceService.SetForAccount(r.Context(), accountID, notificationType, *req.Enabled)
+	err := rs.PreferenceService.SetForPortalAccount(r.Context(), accountID, requestPortal(r), notificationType, *req.Enabled)
 	switch {
 	case errors.Is(err, notificationsService.ErrUnknownNotificationType):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -92,7 +92,7 @@ func (rs *Resource) deleteAllPreferences(w http.ResponseWriter, r *http.Request)
 	}
 
 	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	if err := rs.PreferenceService.DisableAllForAccount(r.Context(), accountID); err != nil {
+	if err := rs.PreferenceService.DisableAllForPortalAccount(r.Context(), accountID, requestPortal(r)); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

@@ -110,7 +110,18 @@ type Event struct {
 	Title    string
 	Body     string
 	DeepLink string // app-relative path ("/reminders"); never an absolute URL
-	Data     map[string]string
+	// SchoolDeepLink is the same destination on the school portal (#2208),
+	// as an app-relative /school/... path. Empty means "this notification has
+	// no place in moto schule"; a school device then opens the portal root.
+	SchoolDeepLink string
+	Data           map[string]string
+
+	// Portal names the portal that asked for the event. It is only consulted
+	// for TypeTest (#2208): the test notification proves the setup of the
+	// portal the person is standing in, so it must not fan out into the other
+	// staff portal. Empty means PortalStaff. Catalogue types ignore it — where
+	// they are delivered is decided by the catalogue, not by the producer.
+	Portal string
 }
 
 // ErrDisabled is returned by Notify when notifications.dispatch_enabled is
@@ -262,6 +273,11 @@ func validate(event Event) error {
 		strings.HasPrefix(event.DeepLink, "//") ||
 		strings.Contains(event.DeepLink, `\`)) {
 		return errors.New("deep link must be an app-relative path")
+	}
+	if event.SchoolDeepLink != "" && (!strings.HasPrefix(event.SchoolDeepLink, "/") ||
+		strings.HasPrefix(event.SchoolDeepLink, "//") ||
+		strings.Contains(event.SchoolDeepLink, `\`)) {
+		return errors.New("school deep link must be an app-relative path")
 	}
 	switch event.Priority {
 	case "", PriorityLow, PriorityNormal, PriorityHigh:

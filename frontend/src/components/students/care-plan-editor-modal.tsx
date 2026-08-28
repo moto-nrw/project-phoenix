@@ -1218,7 +1218,10 @@ function WeeklySection({
                 className="grid gap-3 px-3 py-4 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] sm:items-center sm:px-4"
               >
                 <div>
-                  <div className="flex items-center gap-2">
+                  <label
+                    htmlFor={`weekly-care-${day.value}`}
+                    className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed"
+                  >
                     <Checkbox
                       id={`weekly-care-${day.value}`}
                       checked={row?.arrivalInCare ?? false}
@@ -1227,13 +1230,8 @@ function WeeklySection({
                         onToggleCare(day.value, event.target.checked)
                       }
                     />
-                    <label
-                      htmlFor={`weekly-care-${day.value}`}
-                      className="text-sm font-semibold text-gray-900"
-                    >
-                      {day.label}
-                    </label>
-                  </div>
+                    <span>{day.label}</span>
+                  </label>
                   <button
                     type="button"
                     onClick={() => onToggleNotes(day.value)}

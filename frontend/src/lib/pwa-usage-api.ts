@@ -13,7 +13,9 @@ const logger = createLogger({ component: "PwaUsageApi" });
 const SESSION_REPORTED_KEY_PREFIX = "moto-pwa-usage-reported.";
 
 function reportPath(portal: PushPortal): string {
-  return portal === "parent" ? "/api/parent/me/pwa-usage" : "/api/pwa/usage";
+  if (portal === "parent") return "/api/parent/me/pwa-usage";
+  if (portal === "tenant") return "/api/pwa/usage";
+  return "";
 }
 
 /**
@@ -28,6 +30,11 @@ export async function reportStandaloneUsage(
 ): Promise<void> {
   if (!isStandaloneApp()) return;
 
+  // School sessions have no PWA-usage API route. Do not send their school JWT
+  // to the tenant-only endpoint, which rejects that scope.
+  const path = reportPath(portal);
+  if (!path) return;
+
   const sessionKey = `${SESSION_REPORTED_KEY_PREFIX}${portal}.${accountID}.${tenantID ?? "parent"}`;
   try {
     if (sessionStorage.getItem(sessionKey) === "1") return;
@@ -36,7 +43,7 @@ export async function reportStandaloneUsage(
   }
 
   try {
-    const response = await fetch(reportPath(portal), {
+    const response = await fetch(path, {
       method: "POST",
       credentials: "include",
     });

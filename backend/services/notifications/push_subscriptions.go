@@ -39,8 +39,17 @@ type PushSubscriptionService interface {
 	PublicKey() (string, error)
 	// Subscribe registers (or refreshes) a staff device for the current tenant.
 	Subscribe(ctx context.Context, accountID int64, input PushSubscriptionInput) error
+	// SubscribeSchool registers a device of the school portal (#2208). The row
+	// carries portal "school" so pushes get the school host's deep link and a
+	// school logout revokes only these devices. Registration rebinds the
+	// endpoint: a school registration left by a login at another school is
+	// removed in the same transaction.
+	SubscribeSchool(ctx context.Context, accountID int64, input PushSubscriptionInput) error
 	// Unsubscribe removes a staff device registration for the current tenant.
 	Unsubscribe(ctx context.Context, accountID int64, endpoint string) error
+	// UnsubscribeSchool removes only a school-portal device registration for
+	// the current tenant.
+	UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error
 	// SubscribeParent registers a guardian device for every school the account
 	// is actively linked to. Pending-enrollment-only schools are excluded until
 	// the account has an active guardian mapping there. Rebinding replaces every
@@ -103,8 +112,42 @@ func (s *pushSubscriptionService) Subscribe(ctx context.Context, accountID int64
 	return s.repo.Upsert(ctx, sub)
 }
 
+func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID int64, input PushSubscriptionInput) error {
+	if !s.vapid.Configured() {
+		return ErrWebPushNotConfigured
+	}
+	sub, err := s.buildSubscription(accountID, iot.PushPortalSchool, input)
+	if err != nil {
+		return err
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("school push subscription requires a school context")
+	}
+	sub.TenantID = tenantID
+
+	// A school session is pinned to one school, so a browser endpoint holds at
+	// most one school registration. After a login at another school the
+	// previous school's row must go: it survives the login, its account still
+	// holds the Lehrkraft role there, and it would keep pushing that school's
+	// notifications to a device now looking at a different one. The clearing
+	// delete crosses tenants and therefore needs its own admin transaction;
+	// the upsert joins it so a failed rebind never leaves the device
+	// unregistered.
+	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.repo.DeleteSchoolByEndpointAcrossTenants(txCtx, sub.Endpoint); err != nil {
+			return fmt.Errorf("clearing previous school push subscription bindings: %w", err)
+		}
+		return s.repo.Upsert(txCtx, sub)
+	})
+}
+
 func (s *pushSubscriptionService) Unsubscribe(ctx context.Context, accountID int64, endpoint string) error {
 	return s.repo.DeleteByEndpoint(ctx, accountID, endpoint)
+}
+
+func (s *pushSubscriptionService) UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error {
+	return s.repo.DeleteSchoolByEndpoint(ctx, accountID, endpoint)
 }
 
 func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID int64, input PushSubscriptionInput) error {
@@ -154,7 +197,7 @@ func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, account
 		}
 		for _, mapping := range mappings {
 			tenantCtx := tenant.WithTenantID(txCtx, mapping.TenantID)
-			if err := s.repo.DeleteByEndpoint(tenantCtx, accountID, endpoint); err != nil {
+			if err := s.repo.DeleteParentByAccountEndpoint(tenantCtx, accountID, endpoint); err != nil {
 				return fmt.Errorf("removing push subscription for tenant %d: %w", mapping.TenantID, err)
 			}
 		}

@@ -160,6 +160,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			// mit dem heutigen Block der Historie kollidieren.
 			seedStatisticsDemoStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
+			seedParentLetterStep{},
 			seedCareWithdrawalsStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
