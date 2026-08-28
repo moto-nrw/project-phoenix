@@ -814,6 +814,31 @@ func TestLetterStatusSeparatesUnconfirmableChildrenFromOpenOnes(t *testing.T) {
 	}
 }
 
+func TestLetterStatusKeepsAcknowledgedChildrenFulfilledAfterAccessRevocation(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)
+	acknowledged := ackedChild(1, "Anna", &now, "Mama")
+	acknowledged.CanConfirm = false
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		children:     []*usersModels.AnnouncementLetterChildStatus{acknowledged},
+	}
+	svc := newLetterService(repo, &letterOutbox{}, &letterDeliveries{})
+
+	status, err := svc.LetterStatus(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("LetterStatus: %v", err)
+	}
+	s := status.Summary
+	if s.ChildrenFulfilled != 1 {
+		t.Errorf("ChildrenFulfilled = %d, want 1", s.ChildrenFulfilled)
+	}
+	if s.ChildrenWithoutPortal != 0 {
+		t.Errorf("ChildrenWithoutPortal = %d, want 0", s.ChildrenWithoutPortal)
+	}
+}
+
 // Outstanding is the predicate the reminder button and the "nur offene" filter
 // both hang on, so it gets its own pin.
 func TestLetterChildOutstanding(t *testing.T) {

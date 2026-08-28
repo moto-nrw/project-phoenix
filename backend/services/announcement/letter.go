@@ -342,11 +342,11 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 	out.Summary.RecipientsTotal = len(recipients)
 	for _, c := range children {
 		switch {
-		case !c.CanConfirm:
-			out.Summary.ChildrenWithoutPortal++
 		case c.Fulfilled():
 			out.Summary.ChildrenConfirmable++
 			out.Summary.ChildrenFulfilled++
+		case !c.CanConfirm:
+			out.Summary.ChildrenWithoutPortal++
 		default:
 			out.Summary.ChildrenConfirmable++
 			out.Summary.ChildrenOpen++
