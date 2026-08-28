@@ -957,7 +957,7 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  it("forces the week view and hides the view switcher for read-only staff", () => {
+  it("forces the week view and offers only Tag/Woche for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
       data: { user: { permissions: ["schedules:read"] } },
@@ -965,10 +965,31 @@ describe("BetreuungsplanView", () => {
     setUrl("view=monat");
     render(<BetreuungsplanView />);
 
-    // ?view=monat fällt still auf die Woche zurück, der Umschalter fehlt.
+    // ?view=monat fällt still auf die Woche zurück; Monat und Serien sind
+    // Planungsansichten und stehen der Leseansicht nicht offen (#2621: Tag
+    // und Woche schon).
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(screen.queryByText("Monat")).not.toBeInTheDocument();
     expect(screen.queryByText("Serien")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tag" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Woche" })).toBeVisible();
+  });
+
+  it("öffnet die Tagesansicht für Teammitglieder ohne Planungsrecht", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setUrl("view=tag&d=2026-05-06");
+    render(<BetreuungsplanView />);
+
+    // Ein Deeplink auf den Tag überlebt das Neuladen …
+    expect(screen.getByTestId("grid-week-days")).toHaveTextContent("1");
+    expect(screen.getByText("Mittwoch, 06.05.2026")).toBeVisible();
+    // … und bleibt vollständig lesend: kein Anlegen aus dem Raster.
+    expect(
+      screen.queryByRole("button", { name: "slot-click" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides print and skips gaps/conflict-acks fetches for read-only staff", () => {
@@ -1039,6 +1060,50 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("view")).toBe("monat");
     selectTab("Serien");
     expect(urlParams().get("view")).toBe("serien");
+    selectTab("Woche");
+    expect(urlParams().has("view")).toBe(false);
+  });
+
+  // --- Tagesansicht (#2621) ---
+
+  it("zeigt in der Tagesansicht genau einen Tag mit ausgeschriebenem Datum", () => {
+    setUrl("view=tag&d=2026-05-06");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-week-days")).toHaveTextContent("1");
+    expect(screen.getByText("Mittwoch, 06.05.2026")).toBeVisible();
+  });
+
+  it("navigiert in der Tagesansicht von Schultag zu Schultag", () => {
+    setUrl("view=tag&d=2026-05-08");
+    const { unmount } = render(<BetreuungsplanView />);
+
+    // Freitag -> Weiter überspringt das Wochenende.
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    expect(urlParams().get("d")).toBe("2026-05-11");
+    unmount();
+
+    setUrl("view=tag&d=2026-05-04");
+    render(<BetreuungsplanView />);
+    // Montag -> Zurück landet auf dem vorigen Freitag.
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+    expect(urlParams().get("d")).toBe("2026-05-01");
+  });
+
+  it("führt Heute in der Tagesansicht am Wochenende auf den nächsten Schultag", () => {
+    vi.setSystemTime(new Date("2026-05-09T12:00:00Z"));
+    setUrl("view=tag&d=2026-05-04");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Heute" })[0]!);
+    expect(urlParams().get("d")).toBe("2026-05-11");
+  });
+
+  it("hält Tag und Woche als Umschalter-Werte in der URL", () => {
+    render(<BetreuungsplanView />);
+
+    selectTab("Tag");
+    expect(urlParams().get("view")).toBe("tag");
     selectTab("Woche");
     expect(urlParams().has("view")).toBe(false);
   });

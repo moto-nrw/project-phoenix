@@ -50,6 +50,8 @@ import {
   mapWeeklyInstances,
   firstSchoolDayInPeriod,
   nextWorkdayISO,
+  previousWorkdayISO,
+  formatFullDayLabel,
   offeringPhaseStartWarning,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
@@ -224,6 +226,24 @@ describe("date and range helpers", () => {
     expect(nextWorkdayISO("2026-07-17")).toBe("2026-07-17"); // Fr bleibt
     expect(nextWorkdayISO("2026-08-01")).toBe("2026-08-03"); // Monatswechsel
     expect(nextWorkdayISO("2027-01-03")).toBe("2027-01-04"); // Jahreswechsel
+  });
+
+  it("steps back to the previous school day", () => {
+    expect(previousWorkdayISO("2026-07-20")).toBe("2026-07-17"); // Mo -> Fr
+    expect(previousWorkdayISO("2026-07-17")).toBe("2026-07-16"); // Fr -> Do
+    expect(previousWorkdayISO("2026-07-18")).toBe("2026-07-17"); // Sa -> Fr
+    expect(previousWorkdayISO("2026-07-19")).toBe("2026-07-17"); // So -> Fr
+    expect(previousWorkdayISO("2026-08-03")).toBe("2026-07-31"); // Monatswechsel
+    expect(previousWorkdayISO("2027-01-04")).toBe("2027-01-01"); // Jahreswechsel
+  });
+
+  it("writes the day label in full", () => {
+    expect(formatFullDayLabel(new Date(2026, 4, 6))).toBe(
+      "Mittwoch, 06.05.2026",
+    );
+    expect(formatFullDayLabel(new Date(2027, 0, 1))).toBe(
+      "Freitag, 01.01.2027",
+    );
   });
 
   it("snaps a weekend jump target to the nearest school day inside the period", () => {

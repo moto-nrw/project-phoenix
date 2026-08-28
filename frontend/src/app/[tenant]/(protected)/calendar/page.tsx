@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -286,7 +287,20 @@ const SchoolPlanReadView = dynamic(
   },
 );
 
-export default function StaffCalendarPage() {
+/**
+ * Ein Deeplink in den Betreuungsplan (`?view=tag&d=…&block=…`) muss auch den
+ * richtigen Tab öffnen — sonst landet ein geteilter Link (#2621) auf "Meine
+ * Termine" und der Zustand ist verloren. Der Betreuungsplan verwaltet seine
+ * Parameter über eine Allowlist (d/view/block) und würde einen eigenen
+ * Tab-Parameter beim nächsten Wechsel wieder abräumen; deshalb entscheidet
+ * die Anwesenheit genau dieser Parameter über den Starttab.
+ */
+function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
+  return ["d", "view", "block"].some((key) => params?.has(key) === true);
+}
+
+function StaffCalendarPageInner() {
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { data: session } = useSession();
   const canManageCalendar = hasPermission(session, "calendar:manage");
@@ -673,7 +687,9 @@ export default function StaffCalendarPage() {
   return (
     <div className="w-full">
       {showSchoolPlanTab ? (
-        <Tabs defaultValue="meine">
+        <Tabs
+          defaultValue={hasSchoolPlanParams(searchParams) ? "schule" : "meine"}
+        >
           <TabsList variant="line" className="mb-4">
             <TabsTrigger value="meine">Meine Termine</TabsTrigger>
             <TabsTrigger value="schule">Betreuungsplan</TabsTrigger>
@@ -1150,5 +1166,14 @@ export default function StaffCalendarPage() {
         ) : null}
       </Modal>
     </div>
+  );
+}
+
+export default function StaffCalendarPage() {
+  // useSearchParams braucht eine Suspense-Grenze (Next.js 16).
+  return (
+    <Suspense fallback={null}>
+      <StaffCalendarPageInner />
+    </Suspense>
   );
 }
