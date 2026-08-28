@@ -157,6 +157,19 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 	}
 }
 
+func TestRenderEmptyCalendarIncludesComponent(t *testing.T) {
+	t.Parallel()
+
+	out := Render("Leerer Kalender", nil)
+
+	if !strings.Contains(out, "BEGIN:VTIMEZONE") {
+		t.Fatalf("RFC 5545 requires at least one calendar component\n%s", out)
+	}
+	if strings.Contains(out, "BEGIN:VEVENT") {
+		t.Fatalf("empty calendar must not invent an event\n%s", out)
+	}
+}
+
 func TestRenderRecurrenceWithExDates(t *testing.T) {
 	t.Parallel()
 
