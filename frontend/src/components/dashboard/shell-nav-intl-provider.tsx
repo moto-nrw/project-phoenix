@@ -11,7 +11,13 @@ import { DEFAULT_LOCALE } from "~/i18n/locales";
 // minimal German parentNav-only context instead — enough to satisfy the hook
 // without shipping the rest of the parent message catalog into those portals'
 // bundles. Keep this only around shells that are NOT parent-localized.
-const NAV_MESSAGES = { parentNav: deMessages.parentNav };
+// PwaInstallHint hängt im Tenant-Layout neben der Shell und ruft
+// useTranslations("pwaInstallHint") — ohne diesen Namensraum wirft der Hook
+// und reißt das gesamte geschützte Layout mit. Deshalb reist er hier mit.
+const NAV_MESSAGES = {
+  parentNav: deMessages.parentNav,
+  pwaInstallHint: deMessages.pwaInstallHint,
+};
 
 export function ShellNavIntlProvider({
   children,

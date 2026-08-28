@@ -26,8 +26,11 @@ export default function ProtectedLayout({
         <AnnouncementModal />
         {/* Layout-level on purpose: the install promotion targets staff on
             phones and tablets, and most of them never reach the admin-only
-            dashboard. */}
-        <PwaInstallHint />
+            dashboard. Der Intl-Provider muss mitkommen: der Hinweis liest
+            seine Texte über useTranslations. */}
+        <ShellNavIntlProvider>
+          <PwaInstallHint />
+        </ShellNavIntlProvider>
       </BreadcrumbProvider>
     </TeacherShellProvider>
   );
