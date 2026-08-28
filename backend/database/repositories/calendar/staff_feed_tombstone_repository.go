@@ -12,16 +12,21 @@ import (
 )
 
 type StaffFeedTombstoneRepository struct {
-	db *bun.DB
+	*base.Repository[*calendarModels.StaffFeedTombstone]
 }
 
 func NewStaffFeedTombstoneRepository(db *bun.DB) calendarModels.StaffFeedTombstoneRepository {
-	return &StaffFeedTombstoneRepository{db: db}
+	repo := base.NewRepository[*calendarModels.StaffFeedTombstone](db, "calendar.staff_feed_tombstones", "StaffFeedTombstone")
+	repo.TenantScoped = true
+	return &StaffFeedTombstoneRepository{Repository: repo}
 }
 
+// ListForStaffSince keeps the ordered timestamp range and PostgreSQL TIME
+// normalization together. The calendar repository cannot import the generic
+// QueryOptions domain across its architecture boundary.
 func (r *StaffFeedTombstoneRepository) ListForStaffSince(ctx context.Context, staffID int64, since time.Time) ([]*calendarModels.StaffFeedTombstone, error) {
 	rows := make([]*calendarModels.StaffFeedTombstone, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`calendar.staff_feed_tombstones AS "staff_feed_tombstone"`).
 		Where(`"staff_feed_tombstone".staff_id = ?`, staffID).
@@ -38,21 +43,12 @@ func (r *StaffFeedTombstoneRepository) ListForStaffSince(ctx context.Context, st
 	return rows, nil
 }
 
+// DeleteBefore exposes the feed-retention operation while delegating its
+// tenant-scoped timestamp deletion to the generic repository implementation.
 func (r *StaffFeedTombstoneRepository) DeleteBefore(ctx context.Context, before time.Time) (int, error) {
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*calendarModels.StaffFeedTombstone)(nil)).
-		ModelTableExpr(`calendar.staff_feed_tombstones AS "staff_feed_tombstone"`).
-		Where(`"staff_feed_tombstone".cancelled_at < ?`, before)
-	if where, value, ok := base.TenantWhere(ctx, "staff_feed_tombstone"); ok {
-		query = query.Where(where, value)
-	}
-	result, err := query.Exec(ctx)
+	count, err := r.Repository.DeleteBefore(ctx, "cancelled_at", before, "delete expired staff feed tombstones")
 	if err != nil {
-		return 0, fmt.Errorf("delete expired staff feed tombstones: %w", err)
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("count deleted staff feed tombstones: %w", err)
+		return 0, err
 	}
 	return int(count), nil
 }
