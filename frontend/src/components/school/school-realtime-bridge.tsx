@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { schoolTeamChatDeepLink } from "~/lib/school-team-chat-links";
@@ -22,8 +23,16 @@ import type { SSEEvent } from "~/lib/sse-types";
  * dem Team") geht an den app-weiten NotificationBridge-Toast; sein Deep-Link
  * ist für das OGS-Portal geschrieben und wird vorher auf den Posteingang des
  * Schul-Hosts umgebogen.
+ *
+ * Die Verbindung hängt an der angemeldeten Sitzung (Schule und Konto): der
+ * Server ordnet den Stream dem Konto des mitgeschickten Zugangs zu, und die
+ * Hülle bleibt beim Schulwechsel eingehängt. Ohne diesen Schlüssel liefe der
+ * alte EventSource mit dem alten Zugang weiter, bis er von selbst abbricht.
+ * Die neue Sitzung bekäme dann Hinweise und Zähler-Auffrischungen der vorigen
+ * Schule.
  */
 export function SchoolRealtimeBridge() {
+  const { data: session, status } = useSession();
   const handleSSE = useCallback((event: SSEEvent) => {
     if (typeof window === "undefined") return;
     if (event.type === "notification") {
@@ -55,6 +64,10 @@ export function SchoolRealtimeBridge() {
       }),
     );
   }, []);
-  useSSE("/api/school/sse/events", { onMessage: handleSSE });
+  useSSE("/api/school/sse/events", {
+    onMessage: handleSSE,
+    enabled: status === "authenticated",
+    reconnectKey: `${session?.user?.tenantId ?? ""}:${session?.user?.id ?? ""}`,
+  });
   return null;
 }
