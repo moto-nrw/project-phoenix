@@ -120,7 +120,7 @@ func diagramArtifacts(policy *architecture.Policy, target, migration architectur
 	if err != nil {
 		return nil, err
 	}
-	bundleJSON, err := json.MarshalIndent(diagramBundle{SchemaVersion: 1, Target: target, Migration: migration}, "", "  ")
+	bundleJSON, err := json.MarshalIndent(diagramBundle{SchemaVersion: architecture.ProjectionSchemaVersion, Target: target, Migration: migration}, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal diagram bundle: %w", err)
 	}

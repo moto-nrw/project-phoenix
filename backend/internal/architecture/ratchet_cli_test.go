@@ -45,6 +45,43 @@ func TestCheckRequiresExactLegacyBaseline(t *testing.T) {
 	}
 }
 
+func TestRatchetMismatchReportsViolationLocations(t *testing.T) {
+	t.Parallel()
+
+	output, err := runArchitecture(t,
+		"check",
+		"--project", fixturePath(t, "valid"),
+		"--policy", fixturePath(t, "vertical-forbidden.json"),
+		"--baseline", writeManifest(t, ""),
+	)
+	if err == nil {
+		t.Fatalf("empty baseline unexpectedly accepted a violation:\n%s", output)
+	}
+	if !strings.Contains(output, "    at source/source.go:3 (import example.test/architecture-fixture/target)") {
+		t.Fatalf("ratchet mismatch omits the import location:\n%s", output)
+	}
+}
+
+func TestLegacyBaselineJSONOmitsLocations(t *testing.T) {
+	t.Parallel()
+
+	entry := architecture.LegacyEntry{
+		Violation: architecture.Violation{
+			Scope: architecture.ScopeProduction, Rule: "imports.forbidden",
+			Source: "example.test/architecture-fixture/source", Target: "example.test/architecture-fixture/target",
+			Locations: []architecture.Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
+		},
+		Issue: "https://github.com/moto-nrw/project-phoenix/issues/2583",
+	}
+	encoded, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("marshal legacy entry: %v", err)
+	}
+	if got, want := string(encoded)+"\n", legacyRecord(2583); got != want {
+		t.Fatalf("legacy baseline shape changed:\ngot  %s\nwant %s", got, want)
+	}
+}
+
 func TestCheckRejectsInvalidLegacyManifests(t *testing.T) {
 	t.Parallel()
 
