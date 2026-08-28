@@ -215,6 +215,7 @@ interface TimetableRosterRowProps {
   readonly attendanceWebEnabled: boolean;
   readonly instanceIsSpontaneous: boolean;
   readonly pickupTimesLoaded?: boolean;
+  readonly pickupTimesRedacted?: boolean;
   readonly row: TimetableRosterRow;
   readonly onAction: RosterRowActionsProps["onAction"];
   /**
@@ -229,6 +230,7 @@ function TimetableRosterStudentRow({
   attendanceWebEnabled,
   instanceIsSpontaneous,
   pickupTimesLoaded,
+  pickupTimesRedacted,
   row,
   onAction,
   onOpenStudent,
@@ -236,6 +238,7 @@ function TimetableRosterStudentRow({
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
     pickupTimesLoaded,
+    pickupTimesRedacted,
   );
   const attendanceDetail = [
     row.substatus ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus] : null,
@@ -290,6 +293,7 @@ interface TimetableRosterSectionProps {
   readonly attendanceWebEnabled: boolean;
   readonly instanceIsSpontaneous: boolean;
   readonly pickupTimesLoaded?: boolean;
+  readonly pickupTimesRedacted?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly rows: TimetableRosterRow[];
@@ -301,6 +305,7 @@ function TimetableRosterSection({
   attendanceWebEnabled,
   instanceIsSpontaneous,
   pickupTimesLoaded,
+  pickupTimesRedacted,
   onAction,
   onOpenStudent,
   rows,
@@ -322,6 +327,7 @@ function TimetableRosterSection({
           attendanceWebEnabled={attendanceWebEnabled}
           instanceIsSpontaneous={instanceIsSpontaneous}
           pickupTimesLoaded={pickupTimesLoaded}
+          pickupTimesRedacted={pickupTimesRedacted}
           row={row}
           onAction={onAction}
           onOpenStudent={onOpenStudent}
@@ -683,6 +689,7 @@ export function TimetableRosterContent({
     attendanceWebEnabled,
     instanceIsSpontaneous,
     pickupTimesLoaded: roster.pickupTimesLoaded,
+    pickupTimesRedacted: roster.pickupTimesRedacted,
     onAction: onRosterAction,
     onOpenStudent,
     showTimetableCounts,
@@ -708,7 +715,7 @@ export function TimetableRosterContent({
         onComplete={onComplete}
         onConfirmExpected={onConfirmExpected}
       />
-      {roster.pickupTimesLoaded === false ? (
+      {roster.pickupTimesLoaded === false && !roster.pickupTimesRedacted ? (
         <Alert
           type="warning"
           announce="polite"

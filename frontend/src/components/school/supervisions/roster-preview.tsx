@@ -29,10 +29,12 @@ function childLine(row: TimetableRosterRow): string {
 function ChildRow({
   row,
   pickupTimesLoaded,
+  pickupTimesRedacted,
   onOpen,
 }: Readonly<{
   row: TimetableRosterRow;
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
   onOpen: (row: TimetableRosterRow) => void;
 }>) {
   const absence = row.substatus ? ABSENCE_LABELS[row.substatus] : null;
@@ -40,6 +42,7 @@ function ChildRow({
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
     pickupTimesLoaded,
+    pickupTimesRedacted,
   );
 
   return (
@@ -77,12 +80,14 @@ function Section({
   rows,
   hint,
   pickupTimesLoaded,
+  pickupTimesRedacted,
   onOpen,
 }: Readonly<{
   title: string;
   rows: TimetableRosterRow[];
   hint?: string;
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
   onOpen: (row: TimetableRosterRow) => void;
 }>) {
   if (rows.length === 0) return null;
@@ -100,6 +105,7 @@ function Section({
             key={row.studentId}
             row={row}
             pickupTimesLoaded={pickupTimesLoaded}
+            pickupTimesRedacted={pickupTimesRedacted}
             onOpen={onOpen}
           />
         ))}
@@ -117,10 +123,12 @@ function Section({
 export function SupervisionRosterPreview({
   rows,
   pickupTimesLoaded,
+  pickupTimesRedacted,
   onOpenStudent,
 }: Readonly<{
   rows: readonly TimetableRosterRow[];
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
   onOpenStudent: (row: TimetableRosterRow) => void;
 }>) {
   const expected = rows.filter(
@@ -134,7 +142,7 @@ export function SupervisionRosterPreview({
 
   return (
     <div className="space-y-4">
-      {pickupTimesLoaded === false ? (
+      {pickupTimesLoaded === false && !pickupTimesRedacted ? (
         <Alert
           type="warning"
           announce="polite"
@@ -146,6 +154,7 @@ export function SupervisionRosterPreview({
         hint="Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht, wer es abholen darf und wen Sie im Notfall anrufen."
         rows={expected}
         pickupTimesLoaded={pickupTimesLoaded}
+        pickupTimesRedacted={pickupTimesRedacted}
         onOpen={onOpenStudent}
       />
       <Section
@@ -153,6 +162,7 @@ export function SupervisionRosterPreview({
         hint="Diese Kinder sind heute nicht für die Betreuung gebucht. Kommen sie trotzdem, können Sie sie nach dem Start eintragen."
         rows={notScheduled}
         pickupTimesLoaded={pickupTimesLoaded}
+        pickupTimesRedacted={pickupTimesRedacted}
         onOpen={onOpenStudent}
       />
     </div>

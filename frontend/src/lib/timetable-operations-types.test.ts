@@ -39,6 +39,7 @@ describe("timetable operation mappers", () => {
         room_id: 218,
       },
       pickup_times_loaded: false,
+      pickup_times_redacted: true,
       rows: [
         {
           student_id: 418,
@@ -57,6 +58,7 @@ describe("timetable operation mappers", () => {
     expect(loaded.pickupTimesLoaded).toBe(true);
     expect(loaded.rows[0]!.pickupTime).toBe("13:30");
     expect(failed.pickupTimesLoaded).toBe(false);
+    expect(failed.pickupTimesRedacted).toBe(true);
     expect(failed.rows[0]!.pickupTime).toBeNull();
   });
 

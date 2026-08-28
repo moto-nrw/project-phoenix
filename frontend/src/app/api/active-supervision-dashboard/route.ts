@@ -82,6 +82,7 @@ interface WirePlannedInstance {
   start_available_at?: string;
   start_expires_at?: string;
   pickup_times_loaded?: boolean;
+  pickup_times_redacted?: boolean;
   roster_preview?: WireRosterRow[];
 }
 
@@ -260,6 +261,7 @@ interface ActiveSupervisionDashboardResponse {
     startAvailableAt: string;
     startExpiresAt: string;
     pickupTimesLoaded?: boolean;
+    pickupTimesRedacted?: boolean;
     rosterPreview: Array<{
       studentId: string;
       studentName: string;
@@ -399,6 +401,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       startAvailableAt: i.start_available_at ?? "",
       startExpiresAt: i.start_expires_at ?? "",
       pickupTimesLoaded: i.pickup_times_loaded,
+      pickupTimesRedacted: i.pickup_times_redacted,
       rosterPreview: (i.roster_preview ?? []).map((row) => ({
         studentId: row.student_id.toString(),
         studentName: row.student_name,

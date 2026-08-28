@@ -152,18 +152,19 @@ type OperationPlannedInstance struct {
 	// They are excluded from ExpectedStudentsCount; this field keeps the
 	// reduction visible instead of silently shrinking the number the
 	// supervisor knows.
-	NotScheduledCount int                       `json:"not_scheduled_students_count"`
-	AssignedStaffIDs  []int64                   `json:"assigned_staff_ids"`
-	IsAssigned        bool                      `json:"is_assigned"`
-	IsPrimary         bool                      `json:"is_primary"`
-	IsSubstitute      bool                      `json:"is_substitute"`
-	IsAbsent          bool                      `json:"is_absent"`
-	RosterPreview     []OperationRosterRow      `json:"roster_preview,omitempty"`
-	PickupTimesLoaded bool                      `json:"pickup_times_loaded"`
-	Warnings          []InstanceConflictWarning `json:"warnings"`
-	CanStart          bool                      `json:"can_start"`
-	StartAvailableAt  string                    `json:"start_available_at"`
-	StartExpiresAt    string                    `json:"start_expires_at"`
+	NotScheduledCount   int                       `json:"not_scheduled_students_count"`
+	AssignedStaffIDs    []int64                   `json:"assigned_staff_ids"`
+	IsAssigned          bool                      `json:"is_assigned"`
+	IsPrimary           bool                      `json:"is_primary"`
+	IsSubstitute        bool                      `json:"is_substitute"`
+	IsAbsent            bool                      `json:"is_absent"`
+	RosterPreview       []OperationRosterRow      `json:"roster_preview,omitempty"`
+	PickupTimesLoaded   bool                      `json:"pickup_times_loaded"`
+	PickupTimesRedacted bool                      `json:"pickup_times_redacted,omitempty"`
+	Warnings            []InstanceConflictWarning `json:"warnings"`
+	CanStart            bool                      `json:"can_start"`
+	StartAvailableAt    string                    `json:"start_available_at"`
+	StartExpiresAt      string                    `json:"start_expires_at"`
 }
 
 // OperationActiveSession is one running instance seen from its live session
@@ -178,9 +179,10 @@ type OperationActiveSession struct {
 }
 
 type OperationRoster struct {
-	Instance          OperationRosterInstance `json:"instance"`
-	Rows              []OperationRosterRow    `json:"rows"`
-	PickupTimesLoaded bool                    `json:"pickup_times_loaded"`
+	Instance            OperationRosterInstance `json:"instance"`
+	Rows                []OperationRosterRow    `json:"rows"`
+	PickupTimesLoaded   bool                    `json:"pickup_times_loaded"`
+	PickupTimesRedacted bool                    `json:"pickup_times_redacted,omitempty"`
 	// MovedFrom is set only on check-in responses that auto-moved the child
 	// out of another running session (#2386). It carries the origin's display
 	// name; an empty string means the move happened but no name resolved.

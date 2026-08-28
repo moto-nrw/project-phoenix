@@ -221,7 +221,8 @@ function PastBlockCard({
                   </p>
                 ) : (
                   <>
-                    {roster.pickupTimesLoaded === false ? (
+                    {roster.pickupTimesLoaded === false &&
+                    !roster.pickupTimesRedacted ? (
                       <Alert
                         type="warning"
                         announce="polite"
@@ -233,6 +234,7 @@ function PastBlockCard({
                         key={row.studentId}
                         row={row}
                         pickupTimesLoaded={roster.pickupTimesLoaded}
+                        pickupTimesRedacted={roster.pickupTimesRedacted}
                         showStatus={completed}
                       />
                     ))}
@@ -250,15 +252,18 @@ function PastBlockCard({
 function PastRosterRow({
   row,
   pickupTimesLoaded,
+  pickupTimesRedacted,
   showStatus,
 }: Readonly<{
   row: TimetableRosterRow;
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
   showStatus: boolean;
 }>) {
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
     pickupTimesLoaded,
+    pickupTimesRedacted,
   );
   return (
     <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">

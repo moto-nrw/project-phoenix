@@ -26,6 +26,7 @@ export interface PlannedTimetableInstance {
   isAbsent: boolean;
   rosterPreview: TimetableRosterRow[];
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
   canStart?: boolean;
   startAvailableAt?: string;
   startExpiresAt?: string;
@@ -107,6 +108,7 @@ export interface TimetableRoster {
   rows: TimetableRosterRow[];
   /** False only when the bulk pickup lookup failed. */
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
   /**
    * Set only on check-in responses that auto-moved the child out of another
    * running session (#2386). Carries the origin's display name; an empty
@@ -150,6 +152,7 @@ interface BackendPlannedTimetableInstance {
   is_absent?: boolean;
   roster_preview?: BackendRosterRow[];
   pickup_times_loaded?: boolean;
+  pickup_times_redacted?: boolean;
   can_start?: boolean;
   start_available_at?: string;
   start_expires_at?: string;
@@ -210,6 +213,7 @@ export interface BackendTimetableRoster {
   instance: BackendRosterInstance;
   rows: BackendRosterRow[];
   pickup_times_loaded?: boolean;
+  pickup_times_redacted?: boolean;
   moved_from?: string | null;
 }
 
@@ -245,6 +249,9 @@ export function mapPlannedInstance(
     ...(raw.pickup_times_loaded === undefined
       ? {}
       : { pickupTimesLoaded: raw.pickup_times_loaded }),
+    ...(raw.pickup_times_redacted === undefined
+      ? {}
+      : { pickupTimesRedacted: raw.pickup_times_redacted }),
     canStart: raw.can_start ?? false,
     startAvailableAt: raw.start_available_at ?? "",
     startExpiresAt: raw.start_expires_at ?? "",
@@ -312,6 +319,9 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
     ...(raw.pickup_times_loaded === undefined
       ? {}
       : { pickupTimesLoaded: raw.pickup_times_loaded }),
+    ...(raw.pickup_times_redacted === undefined
+      ? {}
+      : { pickupTimesRedacted: raw.pickup_times_redacted }),
     movedFrom: raw.moved_from ?? null,
   };
 }

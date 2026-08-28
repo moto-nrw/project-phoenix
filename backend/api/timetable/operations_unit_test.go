@@ -98,6 +98,7 @@ func TestOperationsRosterRoutesRedactPickupTimesWithoutStudentRead(t *testing.T)
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			assert.NotContains(t, response.Body.String(), pickupTime)
 			assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+			assert.Contains(t, response.Body.String(), `"pickup_times_redacted":true`)
 		})
 	}
 }
@@ -132,6 +133,7 @@ func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.NotContains(t, response.Body.String(), pickupTime)
 	assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+	assert.Contains(t, response.Body.String(), `"pickup_times_redacted":true`)
 }
 
 func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testing.T) {
@@ -177,6 +179,7 @@ func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testi
 			assert.NotContains(t, response.Body.String(), pickupTime)
 			if tc.method != http.MethodPatch {
 				assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+				assert.Contains(t, response.Body.String(), `"pickup_times_redacted":true`)
 			}
 		})
 	}

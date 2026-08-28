@@ -571,6 +571,7 @@ func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
 		return
 	}
 	roster.PickupTimesLoaded = false
+	roster.PickupTimesRedacted = true
 	for i := range roster.Rows {
 		roster.Rows[i].PickupTime = nil
 	}
@@ -579,6 +580,7 @@ func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
 func redactOperationPlannedPickupTimes(instances []scheduleSvc.OperationPlannedInstance) {
 	for i := range instances {
 		instances[i].PickupTimesLoaded = false
+		instances[i].PickupTimesRedacted = true
 		for j := range instances[i].RosterPreview {
 			instances[i].RosterPreview[j].PickupTime = nil
 		}

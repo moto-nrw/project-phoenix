@@ -303,7 +303,8 @@ export function PlannedNowSection({
 
                     {instance.rosterPreview.length > 0 ? (
                       <div className="mt-3 space-y-2">
-                        {instance.pickupTimesLoaded === false ? (
+                        {instance.pickupTimesLoaded === false &&
+                        !instance.pickupTimesRedacted ? (
                           <Alert
                             type="warning"
                             announce="polite"
@@ -315,6 +316,7 @@ export function PlannedNowSection({
                             key={row.studentId}
                             row={row}
                             pickupTimesLoaded={instance.pickupTimesLoaded}
+                            pickupTimesRedacted={instance.pickupTimesRedacted}
                           />
                         ))}
                         {hiddenCount > 0 ? (
@@ -457,13 +459,16 @@ function SummaryPill({
 function RosterPreviewRow({
   row,
   pickupTimesLoaded,
+  pickupTimesRedacted,
 }: Readonly<{
   row: TimetableRosterRow;
   pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
 }>) {
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
     pickupTimesLoaded,
+    pickupTimesRedacted,
   );
   const warnings = row.warnings ?? [];
   const warningLabel =

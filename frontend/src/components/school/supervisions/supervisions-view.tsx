@@ -347,6 +347,7 @@ export function SchoolSupervisionsView() {
         <SupervisionRosterPreview
           rows={roster.rows}
           pickupTimesLoaded={roster.pickupTimesLoaded}
+          pickupTimesRedacted={roster.pickupTimesRedacted}
           onOpenStudent={setSheetRow}
         />
       ) : null}
