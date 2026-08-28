@@ -794,6 +794,9 @@ func runArchitecture(t *testing.T, args ...string) (string, error) {
 
 func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ...string) (string, error) {
 	t.Helper()
+	if hasProjectWithoutBaseline(args) {
+		args = append(args, "--baseline", "")
+	}
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
 	command := exec.Command(filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
@@ -811,6 +814,19 @@ func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ..
 	}
 	output, err := command.CombinedOutput()
 	return string(output), err
+}
+
+func hasProjectWithoutBaseline(args []string) bool {
+	hasProject := false
+	for _, argument := range args {
+		switch {
+		case argument == "--project" || strings.HasPrefix(argument, "--project="):
+			hasProject = true
+		case argument == "--baseline" || strings.HasPrefix(argument, "--baseline="):
+			return false
+		}
+	}
+	return hasProject
 }
 
 func fixturePath(t *testing.T, parts ...string) string {
