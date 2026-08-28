@@ -479,8 +479,8 @@ func earlyPickupWithin(
 	if !ok {
 		return nil
 	}
-	start := timezone.WallClock(inst.StartTime)
-	end := timezone.WallClock(inst.EndTime)
+	start := timezone.NormalizeWallClock(inst.StartTime)
+	end := timezone.NormalizeWallClock(inst.EndTime)
 	if cutoff.After(start) && cutoff.Before(end) {
 		formatted := cutoff.Format("15:04")
 		return &formatted

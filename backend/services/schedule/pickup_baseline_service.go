@@ -349,7 +349,7 @@ func projectOfferingWeek(
 			out[studentID][date] = make(PickupWeek)
 		}
 		current := out[studentID][date][weekday]
-		if current != nil && !timezone.WallClock(current.PickupTime).Before(row.PickupTime) {
+		if current != nil && !timezone.NormalizeWallClock(current.PickupTime).Before(row.PickupTime) {
 			continue
 		}
 		out[studentID][date][weekday] = row
@@ -384,7 +384,7 @@ func projectedOfferingPickup(
 	}
 	offeringID := offering.ID
 	return weekday, &scheduleModel.StudentPickupSchedule{
-		StudentID: studentID, Weekday: weekday, PickupTime: timezone.WallClock(parsed),
+		StudentID: studentID, Weekday: weekday, PickupTime: timezone.NormalizeWallClock(parsed),
 		Source: scheduleModel.PickupScheduleSourceCareOffering, CareOfferingID: &offeringID,
 		CareOfferingName: offering.Name,
 	}, true, nil

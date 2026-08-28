@@ -139,7 +139,7 @@ func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
 	cutoffs := make(map[int64]time.Time, len(rows))
 	for _, row := range rows {
 		if row != nil && row.ExcusedAuto && row.ExcusedFrom != nil {
-			cutoffs[row.StudentID] = timezone.WallClock(*row.ExcusedFrom)
+			cutoffs[row.StudentID] = timezone.NormalizeWallClock(*row.ExcusedFrom)
 		}
 	}
 	return cutoffs, nil

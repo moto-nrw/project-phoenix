@@ -237,7 +237,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 
 // setupBasicMiddleware configures basic router middleware
 func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *observability.HTTPMetrics) {
-	router.Use(middleware.RequestID)
+	router.Use(requestIDMiddleware)
 	router.Use(middleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
 	if httpMetrics != nil {

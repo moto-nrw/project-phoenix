@@ -4417,7 +4417,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 		if err != nil {
 			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 		}
-		t = timezone.WallClock(t)
+		t = timezone.NormalizeWallClock(t)
 		row := &scheduleModels.StudentPickupSchedule{
 			StudentID:  studentID,
 			Weekday:    weekdayInt[day],

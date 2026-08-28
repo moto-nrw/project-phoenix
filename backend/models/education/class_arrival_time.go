@@ -57,7 +57,7 @@ func (c *ClassArrivalTime) TimeForWeekday(weekday int) (time.Time, bool) {
 			if err != nil {
 				return time.Time{}, false
 			}
-			return timezone.WallClock(parsed), true
+			return timezone.NormalizeWallClock(parsed), true
 		}
 	}
 	return time.Time{}, false

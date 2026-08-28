@@ -836,8 +836,8 @@ func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int
 // services/schedule — that package imports this one, so it cannot be shared
 // without an import cycle.
 func shiftNetMinutes(shift *scheduleModels.StaffShift) int {
-	start := timezone.WallClock(shift.StartTime)
-	end := timezone.WallClock(shift.EndTime)
+	start := timezone.NormalizeWallClock(shift.StartTime)
+	end := timezone.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0

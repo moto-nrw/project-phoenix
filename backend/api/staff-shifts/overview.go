@@ -81,16 +81,16 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 		intervals := make([]CoverageIntervalResponse, 0, len(assignment.UncoveredIntervals))
 		for _, interval := range assignment.UncoveredIntervals {
 			intervals = append(intervals, CoverageIntervalResponse{
-				StartTime: timezone.WallClock(interval.StartTime).Format("15:04"),
-				EndTime:   timezone.WallClock(interval.EndTime).Format("15:04"),
+				StartTime: timezone.NormalizeWallClock(interval.StartTime).Format("15:04"),
+				EndTime:   timezone.NormalizeWallClock(interval.EndTime).Format("15:04"),
 			})
 		}
 		assignments = append(assignments, AssignmentResponse{
 			InstanceID:         assignment.InstanceID,
 			StaffID:            assignment.StaffID,
 			Date:               assignment.Date.String(),
-			StartTime:          timezone.WallClock(assignment.StartTime).Format("15:04"),
-			EndTime:            timezone.WallClock(assignment.EndTime).Format("15:04"),
+			StartTime:          timezone.NormalizeWallClock(assignment.StartTime).Format("15:04"),
+			EndTime:            timezone.NormalizeWallClock(assignment.EndTime).Format("15:04"),
 			ActivityTitle:      assignment.ActivityTitle,
 			RoomID:             assignment.RoomID,
 			RoomName:           assignment.RoomName,

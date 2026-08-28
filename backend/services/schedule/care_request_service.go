@@ -1647,7 +1647,7 @@ func careStructToMap(v any) (map[string]any, error) {
 }
 
 // parseCareWallClock turns an "HH:MM" string into the normalized wall-clock
-// time.Time the schedule TIME columns store. Routing through timezone.WallClock
+// time.Time the schedule TIME columns store. Routing through timezone.NormalizeWallClock
 // is the mandated normalization for TIME columns (CLAUDE.md rule 11). Preserved
 // rows carried through a merge must be re-normalized the same way before
 // re-insert, since TIME columns scan back with a driver-chosen year that
@@ -1657,7 +1657,7 @@ func parseCareWallClock(hhmm string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	return timezone.WallClock(t), nil
+	return timezone.NormalizeWallClock(t), nil
 }
 
 // buildCareScheduleChanges validates a care-schedule payload (weekday range,

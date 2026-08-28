@@ -54,7 +54,7 @@ func (pickupTimeDomain) NewException(fields effectiveExceptionFields) *schedule.
 	// PickupTime; do the same for the partial-excusal cutoff here.
 	var excusedFrom = fields.ExcusedFrom
 	if excusedFrom != nil {
-		clock := timezone.WallClock(*excusedFrom)
+		clock := timezone.NormalizeWallClock(*excusedFrom)
 		excusedFrom = &clock
 	}
 	row := &schedule.StudentPickupException{

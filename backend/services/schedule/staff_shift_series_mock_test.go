@@ -205,8 +205,8 @@ func unitSeries(t *testing.T) *scheduleModels.StaffShiftSeries {
 	return &scheduleModels.StaffShiftSeries{
 		StaffID:          5,
 		Weekdays:         []int16{1, 2, 3, 4, 5, 6, 7},
-		StartTime:        timezone.WallClock(start),
-		EndTime:          timezone.WallClock(end),
+		StartTime:        timezone.NormalizeWallClock(start),
+		EndTime:          timezone.NormalizeWallClock(end),
 		CalendarPeriodID: 8,
 		WeekPattern:      scheduleModels.WeekPatternEvery,
 		ValidFrom:        timezone.TodayDate().AddDays(-7),
@@ -432,8 +432,8 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "update current series occurrence")
 		require.NotNil(t, updated)
-		assert.Equal(t, "10:00", timezone.WallClock(updated.StartTime).Format("15:04"))
-		assert.Equal(t, "15:00", timezone.WallClock(updated.EndTime).Format("15:04"))
+		assert.Equal(t, "10:00", timezone.NormalizeWallClock(updated.StartTime).Format("15:04"))
+		assert.Equal(t, "15:00", timezone.NormalizeWallClock(updated.EndTime).Format("15:04"))
 		assert.Equal(t, 30, updated.BreakMinutes)
 		require.NotNil(t, updated.ShiftTypeID)
 		assert.Equal(t, shiftTypeID, *updated.ShiftTypeID)
@@ -510,7 +510,7 @@ func seriesClockForMockTest(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func splitInput(t *testing.T, seriesID int64) SplitSeriesInput {
@@ -522,8 +522,8 @@ func splitInput(t *testing.T, seriesID int64) SplitSeriesInput {
 	return SplitSeriesInput{
 		SeriesID:      seriesID,
 		EffectiveDate: timezone.TodayDate().AddDays(3),
-		StartTime:     timezone.WallClock(start),
-		EndTime:       timezone.WallClock(end),
+		StartTime:     timezone.NormalizeWallClock(start),
+		EndTime:       timezone.NormalizeWallClock(end),
 		ActorStaffID:  5,
 	}
 }
@@ -775,7 +775,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 			}},
 			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, updated *scheduleModels.StaffShift, _ StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
 				updates++
-				assert.Equal(t, "10:00", timezone.WallClock(updated.StartTime).Format("15:04"))
+				assert.Equal(t, "10:00", timezone.NormalizeWallClock(updated.StartTime).Format("15:04"))
 				return updated, nil
 			}},
 		})

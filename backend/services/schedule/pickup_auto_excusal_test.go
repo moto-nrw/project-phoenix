@@ -143,7 +143,7 @@ func TestAutoExcusal_PulledForwardPickupExcusesLaterBlocks(t *testing.T) {
 	require.NotNil(t, row)
 	assert.True(t, row.ExcusedAuto, "pull-forward must derive an auto excusal")
 	require.NotNil(t, row.ExcusedFrom)
-	assert.Equal(t, "14:45", timezone.WallClock(*row.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:45", timezone.NormalizeWallClock(*row.ExcusedFrom).Format("15:04"))
 	assert.Nil(t, row.ExcusedCreatedBy, "auto excusals carry no staff author")
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.beforeRow).Status)
@@ -188,7 +188,7 @@ func TestAutoExcusal_MovingPickupEarlierWidensTheExcusal(t *testing.T) {
 	updated, err := h.svc.UpdateException(h.ctx, row.ID, h.student.ID, h.date, nil, wallClockAt(14, 0), false, h.resolveStaff)
 	require.NoError(t, err)
 	require.True(t, updated.ExcusedAuto)
-	assert.Equal(t, "14:00", timezone.WallClock(*updated.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:00", timezone.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.beforeRow).Status)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status,
@@ -261,7 +261,7 @@ func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
 	updated, err := h.svc.UpdateException(h.ctx, manual.ID, h.student.ID, h.date, nil, wallClockAt(15, 30), false, h.resolveStaff)
 	require.NoError(t, err)
 	require.NotNil(t, updated.ExcusedFrom)
-	assert.Equal(t, "13:30", timezone.WallClock(*updated.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
 	assert.False(t, updated.ExcusedAuto)
 
 	// Blocks follow the manual 13:30 cutoff, not the 15:30 pickup time.
@@ -289,7 +289,7 @@ func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {
 	assert.False(t, manual.ExcusedAuto)
 	require.NotNil(t, manual.ExcusedCreatedBy)
 	assert.Equal(t, h.staffID, *manual.ExcusedCreatedBy)
-	assert.Equal(t, "13:30", timezone.WallClock(*manual.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*manual.ExcusedFrom).Format("15:04"))
 
 	// 14:00 block starts after the manual 13:30 cutoff → excused now.
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status)
@@ -340,7 +340,7 @@ func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
 	require.NotNil(t, fresh)
 	assert.True(t, fresh.ExcusedAuto, "unchanged early pickup time must re-derive the auto excusal")
 	require.NotNil(t, fresh.ExcusedFrom)
-	assert.Equal(t, "14:45", timezone.WallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:45", timezone.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
 	assert.Nil(t, fresh.ExcusedCreatedBy)
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.overlapRow).Status,
@@ -432,7 +432,7 @@ func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
 	require.NotNil(t, fresh)
 	assert.True(t, fresh.ExcusedAuto)
 	require.NotNil(t, fresh.ExcusedFrom)
-	assert.Equal(t, "14:45", timezone.WallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:45", timezone.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
 	after := h.attendance(t, h.afterRow)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, after.Status)
 	require.NotNil(t, after.PickupExceptionID)

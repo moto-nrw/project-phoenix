@@ -17,7 +17,7 @@ import (
 )
 
 func helperClock(hour, minute int) time.Time {
-	return timezone.WallClock(time.Date(2026, 1, 1, hour, minute, 0, 0, time.UTC))
+	return timezone.NormalizeWallClock(time.Date(2026, 1, 1, hour, minute, 0, 0, time.UTC))
 }
 
 func helperAppointment() *calModels.Appointment {

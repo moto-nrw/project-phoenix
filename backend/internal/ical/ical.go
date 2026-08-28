@@ -227,7 +227,7 @@ func formatDate(d timezone.Date) string {
 }
 
 func formatLocal(d timezone.Date, clock time.Time) string {
-	wc := timezone.WallClock(clock)
+	wc := timezone.NormalizeWallClock(clock)
 	return fmt.Sprintf("%sT%02d%02d%02d", formatDate(d), wc.Hour(), wc.Minute(), wc.Second())
 }
 

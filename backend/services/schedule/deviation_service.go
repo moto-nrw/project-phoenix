@@ -350,7 +350,7 @@ func (s *instanceService) logDeviationEvent(ctx context.Context, in deviationEve
 	event := &auditModel.DeviationEvent{
 		ActivityGroupID: in.instance.ActivityGroupID,
 		OccurrenceDate:  in.instance.Date,
-		StartTime:       timezone.WallClock(in.instance.StartTime),
+		StartTime:       timezone.NormalizeWallClock(in.instance.StartTime),
 		InstanceID:      &in.instance.ID,
 		SubjectStaffID:  in.subjectStaffID,
 		RelatedStaffID:  in.relatedStaffID,
@@ -424,7 +424,7 @@ func (s *instanceService) logSnapshotDropped(
 	event := &auditModel.DeviationEvent{
 		ActivityGroupID: &activityGroupID,
 		OccurrenceDate:  snap.date,
-		StartTime:       timezone.WallClock(startTime),
+		StartTime:       timezone.NormalizeWallClock(startTime),
 		EventType:       auditModel.DeviationEventDroppedByReplan,
 		ActorAccountID:  normalizeActor(actorAccountID),
 	}

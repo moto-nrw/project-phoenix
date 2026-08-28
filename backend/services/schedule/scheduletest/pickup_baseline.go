@@ -35,7 +35,7 @@ func (f FixedPickupBaseline) Project(
 	weekly[f.StudentID] = make(schedule.PickupPlanByDate)
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		row := &scheduleModel.StudentPickupSchedule{
-			StudentID: f.StudentID, Weekday: f.Weekday, PickupTime: timezone.WallClock(parsed),
+			StudentID: f.StudentID, Weekday: f.Weekday, PickupTime: timezone.NormalizeWallClock(parsed),
 			Source: scheduleModel.PickupScheduleSourceCareOffering, CareOfferingName: f.OfferingName,
 		}
 		offering[f.StudentID][date] = schedule.PickupWeek{f.Weekday: row}

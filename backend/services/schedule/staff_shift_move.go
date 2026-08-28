@@ -171,7 +171,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 	}
 	event := &auditModels.DeviationEvent{
 		OccurrenceDate: moved.Date,
-		StartTime:      timezone.WallClock(moved.StartTime),
+		StartTime:      timezone.NormalizeWallClock(moved.StartTime),
 		StaffShiftID:   &moved.ID,
 		SubjectStaffID: &existing.StaffID,
 		EventType:      auditModels.DeviationEventShiftMoved,
@@ -198,8 +198,8 @@ func shiftMoveSlot(shift *scheduleModels.StaffShift) map[string]any {
 	return map[string]any{
 		"staff_id":   shift.StaffID,
 		"date":       shift.Date.String(),
-		"start_time": timezone.WallClock(shift.StartTime).Format("15:04"),
-		"end_time":   timezone.WallClock(shift.EndTime).Format("15:04"),
+		"start_time": timezone.NormalizeWallClock(shift.StartTime).Format("15:04"),
+		"end_time":   timezone.NormalizeWallClock(shift.EndTime).Format("15:04"),
 	}
 }
 

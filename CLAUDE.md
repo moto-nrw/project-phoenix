@@ -168,7 +168,7 @@ CLI commands (migrate, seed, cleanup) connect via `DB_DSN` as the `postgres` **s
 ### 10. Time Modeling: Match the Type to the Business Meaning
 - **Actual instant** (created_at, checked_in_at): `TIMESTAMPTZ` ↔ `time.Time`, API ISO timestamp
 - **Calendar date** (attendance day, birthday): `DATE` ↔ `timezone.Date` — NEVER `time.Time` — API `YYYY-MM-DD`
-- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.WallClock()`, API `HH:MM`
+- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.NormalizeWallClock()`, API `HH:MM`
 
 bun binds every `time.Time` as UTC, so DATE columns modeled as `time.Time` land one day behind around Berlin midnight. `TestDateColumnTypes` fails CI for violations. Full guide: `.claude/rules/calendar-dates.md`.
 

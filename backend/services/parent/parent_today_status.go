@@ -137,5 +137,5 @@ func hhmm(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return timezone.WallClock(t).Format("15:04")
+	return timezone.NormalizeWallClock(t).Format("15:04")
 }
