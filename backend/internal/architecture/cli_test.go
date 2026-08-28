@@ -502,6 +502,10 @@ func TestCheckReportsDeterministicSemanticLocations(t *testing.T) {
 		"  at service/service.go:34 (SQLAccess)",
 		"production|contracts.orm-tag|example.test/architecture-semantic/public|public.Leaky",
 		"  at public/public.go:10 (public.Leaky)",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewComposite.List",
+		"  at public/public.go:55 (public.NewComposite.List)",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewLater.List",
+		"  at public/public.go:61 (public.NewLater.List)",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
 		"  at consumer/consumer.go:5 (Build)",
 	)
@@ -681,6 +685,8 @@ func expectedContractViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewImported.List",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewShared.First.List",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewShared.Second.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewComposite.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewLater.List",
 	}
 }
 

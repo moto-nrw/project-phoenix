@@ -1031,24 +1031,50 @@ func contractDeclarationPosition(pkg *packages.Package, target string) (token.Po
 		return token.NoPos, false
 	}
 	position := object.Pos()
-	current := object.Type()
+	current := []types.Type{object.Type()}
 	for _, name := range pathParts[1:] {
-		if signature, ok := current.(*types.Signature); ok {
-			if signature.Results().Len() == 0 {
-				return position, true
+		var members []types.Object
+		var next []types.Type
+		for _, candidate := range current {
+			candidates := []types.Type{candidate}
+			if signature, ok := candidate.(*types.Signature); ok {
+				candidates = contractResultTypes(signature.Results())
 			}
-			current = signature.Results().At(0).Type()
+			for _, candidate := range candidates {
+				member, _, _ := types.LookupFieldOrMethod(candidate, true, pkg.Types, name)
+				if member != nil {
+					members = append(members, member)
+					next = append(next, member.Type())
+				}
+			}
 		}
-		member, _, _ := types.LookupFieldOrMethod(current, true, pkg.Types, name)
-		if member == nil {
+		if len(members) == 0 {
 			return position, true
 		}
+		sort.Slice(members, func(i, j int) bool { return members[i].Pos() < members[j].Pos() })
+		member := members[0]
 		if member.Pkg() != nil && member.Pkg().Path() == pkg.PkgPath && member.Pos() != token.NoPos {
 			position = member.Pos()
 		}
-		current = member.Type()
+		current = next
 	}
 	return position, true
+}
+
+func contractResultTypes(results *types.Tuple) []types.Type {
+	resultTypes := make(map[types.Type]struct{})
+	walkTuple(results, make(map[types.Type]struct{}), func(current types.Type) {
+		switch current.(type) {
+		case *types.Named, *types.Interface:
+			resultTypes[current] = struct{}{}
+		}
+	})
+	types := make([]types.Type, 0, len(resultTypes))
+	for result := range resultTypes {
+		types = append(types, result)
+	}
+	sort.Slice(types, func(i, j int) bool { return types[i].String() < types[j].String() })
+	return types
 }
 
 func validateLoadedLegacySymbols(loaded []*packages.Package, legacy map[string]map[string]struct{}) error {
@@ -1155,15 +1181,8 @@ func contractResultMethodViolations(source, target string, function *types.Func,
 	if !ok {
 		return nil
 	}
-	resultTypes := make(map[types.Type]struct{})
-	walkTuple(signature.Results(), make(map[types.Type]struct{}), func(current types.Type) {
-		switch current.(type) {
-		case *types.Named, *types.Interface:
-			resultTypes[current] = struct{}{}
-		}
-	})
 	var violations []Violation
-	for resultType := range resultTypes {
+	for _, resultType := range contractResultTypes(signature.Results()) {
 		switch typed := resultType.(type) {
 		case *types.Named:
 			violations = append(violations, contractMethodViolationsSeen(source, target, typed, contractStack)...)
