@@ -1,32 +1,38 @@
-import { getTranslations } from "next-intl/server";
-import { ErrorPage, ErrorPage404Visual } from "~/components/error-page";
-import { ErrorPageBackButton } from "~/components/error-page-back-button";
+import { MotoBrand } from "~/components/auth/auth-shell";
 import { ButtonLink } from "~/components/ui/button";
 
-/**
- * App-weite 404 für alle Portale: Next.js rendert diese Datei für jede URL,
- * die keine Route trifft (Root-not-found-Konvention). „Zur Startseite" führt
- * auf `/` — der Proxy löst das je Host zum richtigen Portal-Einstieg auf.
- *
- * Übersetzt über next-intl: auf Parents-Oberflächen setzt der Proxy den
- * Localize-Header und die Portalsprache greift, überall sonst bleibt Deutsch.
- */
-export default async function NotFound() {
-  const t = await getTranslations("notFoundPage");
-
+export default function NotFound() {
   return (
-    <ErrorPage
-      visual={<ErrorPage404Visual />}
-      title={t("title")}
-      description={t("description")}
-      actions={
-        <>
-          <ErrorPageBackButton label={t("back")} />
-          <ButtonLink href="/" variant="primary" size="md">
-            {t("home")}
-          </ButtonLink>
-        </>
-      }
-    />
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-white px-4 py-16">
+      <div
+        aria-hidden="true"
+        className="bg-moto-green-soft pointer-events-none absolute -top-44 -left-36 size-[26rem] rounded-full"
+      />
+      <div
+        aria-hidden="true"
+        className="bg-moto-green-soft pointer-events-none absolute -right-28 -bottom-32 size-[19rem] rounded-full"
+      />
+      <div className="relative flex flex-col items-center text-center">
+        <MotoBrand />
+        <div aria-hidden="true" className="mt-8 flex items-center">
+          <span className="text-[6.5rem] leading-none font-extrabold text-gray-950 sm:text-[10rem]">
+            4
+          </span>
+          <span className="border-moto-green mx-2 inline-block size-[4.6rem] rounded-full border-[1.05rem] sm:mx-3 sm:size-[7rem] sm:border-[1.6rem]" />
+          <span className="text-[6.5rem] leading-none font-extrabold text-gray-950 sm:text-[10rem]">
+            4
+          </span>
+        </div>
+        <h1 className="mt-8 text-3xl font-semibold text-gray-950 sm:text-4xl">
+          Seite nicht gefunden
+        </h1>
+        <p className="mt-3 max-w-md text-sm leading-6 text-gray-600 sm:text-base">
+          Diese Seite gibt es nicht. Vielleicht ist die Adresse falsch.
+        </p>
+        <ButtonLink href="/" variant="primary" size="base" className="mt-9">
+          Zur Startseite
+        </ButtonLink>
+      </div>
+    </main>
   );
 }

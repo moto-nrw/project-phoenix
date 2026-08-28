@@ -379,28 +379,6 @@ Text seiner Klasse angezeigt.
 Der **Fehlerkatalog** ordnet jedem Fehlercode seine Fehlermeldung zu, je Sprache.
 Er ist die einzige Stelle, an der Fehlertexte für Nutzerinnen entstehen.
 
-## Fehlerseite
-
-Eine **Fehlerseite** ist eine ganzseitige Fehlermeldung für Zustände, in denen
-kein angefragter Inhalt gezeigt werden kann. Es gibt genau eine
-Fehlerseiten-Komponente mit einheitlichem Design (offenes typografisches
-Layout ohne Karte, große 404 mit Markengrün-Ring, dezente Grün-Tint-Kreise;
-abgestimmt in pen.dev, Variante C, 28.08.2026) und
-drei Textvarianten: „Seite nicht gefunden" (unbekannter Pfad, alle Portale),
-„Schule nicht gefunden" (Adresse ohne Schule, ohne Startseiten-Aktion) und
-„Diese Funktion ist ausgeschaltet" (an der Schule abgeschaltetes Feature,
-mit Hinweis auf die Schulleitung als nächste Anlaufstelle). Die beiden
-„nicht gefunden"-Fälle sind technisch getrennt, damit nie der falsche Text
-erscheint. Unbekannte Pfade zeigen die Fehlerseite sichtbar an; ein stilles
-Umleiten zur Startseite ist verboten. Im Elternportal erscheint die
-Fehlerseite in den Portalsprachen; die Texte der „nicht gefunden"-Varianten
-stehen im Nachrichtenkatalog (Fehlerklasse: Fachliche Ablehnung bzw. Eingabe
-— der nächste Schritt ist „Adresse prüfen" oder „zur Startseite", nicht
-„später erneut versuchen"). Die „Funktion ausgeschaltet"-Variante ist nur im
-Staff-Portal sichtbar und trägt ihren deutschen Text wie das übrige
-Staff-Portal direkt im Code. Entschieden in #2624; das Design wird vor der Umsetzung in
-pen.dev abgestimmt.
-
 ## Vorgangskennung
 
 Die **Vorgangskennung** benennt einen einzelnen fehlgeschlagenen Aufruf. Sie

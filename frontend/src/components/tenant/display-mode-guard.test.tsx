@@ -9,10 +9,10 @@ import { TenantProvider } from "~/lib/tenant-context";
 import { DisplayModeGuard } from "./display-mode-guard";
 import type { TenantInfo } from "~/lib/tenant-api";
 
-// The FeatureDisabledPage inside the guard navigates via useTenantRouter,
-// which needs next/navigation's useRouter under jsdom.
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
 }));
 
 function makeTenant(displayEnabled: boolean): TenantInfo {
@@ -46,18 +46,19 @@ describe("DisplayModeGuard", () => {
     expect(screen.getByText("display-content")).toBeInTheDocument();
   });
 
-  it("shows the feature-disabled page when the Info-Point Dashboard is disabled (#2624)", () => {
-    render(
-      <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
-        <DisplayModeGuard>
-          <div>display-content</div>
-        </DisplayModeGuard>
-      </TenantProvider>,
-    );
+  it("triggers notFound() when the Info-Point Dashboard is disabled", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(
-      screen.getByText("Diese Funktion ist ausgeschaltet"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("display-content")).not.toBeInTheDocument();
+    expect(() =>
+      render(
+        <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
+          <DisplayModeGuard>
+            <div>display-content</div>
+          </DisplayModeGuard>
+        </TenantProvider>,
+      ),
+    ).toThrow("NEXT_NOT_FOUND");
+
+    errorSpy.mockRestore();
   });
 });

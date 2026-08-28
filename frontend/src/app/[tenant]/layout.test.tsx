@@ -23,11 +23,21 @@ vi.mock("~/env", () => ({
   },
 }));
 
-const { default: TenantLayout } = await import("./layout");
+const { bareTenantHost, default: TenantLayout } = await import("./layout");
 
 beforeEach(() => {
   notFoundMock.mockClear();
   vi.restoreAllMocks();
+});
+
+describe("bareTenantHost", () => {
+  it("strips an invalid local tenant subdomain and keeps the port", () => {
+    expect(bareTenantHost("asld.localhost:3000")).toBe("localhost:3000");
+  });
+
+  it("keeps the bare tenant domain unchanged", () => {
+    expect(bareTenantHost("localhost:3000")).toBe("localhost:3000");
+  });
 });
 
 describe("TenantLayout", () => {
@@ -57,28 +67,6 @@ describe("TenantLayout", () => {
 
     expect(notFoundMock).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("renders the Schule-nicht-gefunden screen when the subdomain resolves to no school (#2624)", async () => {
-    // The mocked host is school-a.localhost:3000, so tenant "school-a" is
-    // subdomain-routed. An unknown school on its own subdomain must show the
-    // dedicated screen — not redirect, not the generic 404.
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(null, { status: 404 }));
-
-    const result = await TenantLayout({
-      children: null,
-      params: Promise.resolve({ tenant: "school-a" }),
-    });
-
-    expect(fetchSpy).toHaveBeenCalledOnce();
-    expect(notFoundMock).not.toHaveBeenCalled();
-    const { render, screen } = await import("@testing-library/react");
-    render(result);
-    expect(
-      screen.getByRole("heading", { name: "Schule nicht gefunden" }),
-    ).toBeInTheDocument();
   });
 
   it("still resolves a syntactically valid tenant path", async () => {

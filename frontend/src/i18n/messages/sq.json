@@ -1641,16 +1641,5 @@
     "open": "Të hapura",
     "openLabel": "Të hapura, {count}",
     "completed": "Të përfunduara"
-  },
-  "notFoundPage": {
-    "title": "Faqja nuk u gjet",
-    "description": "Kjo faqe nuk ekziston. Ndoshta adresa është e gabuar.",
-    "back": "Kthehu",
-    "home": "Në faqen kryesore"
-  },
-  "tenantNotFoundPage": {
-    "title": "Shkolla nuk u gjet",
-    "description": "Në këtë adresë nuk ka shkollë. Ju lutemi kontrolloni adresën.",
-    "back": "Kthehu"
   }
 }

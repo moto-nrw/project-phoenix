@@ -1,12 +1,10 @@
 "use client";
 
+import { notFound } from "next/navigation";
 import { usePresenceMode } from "~/lib/tenant-context";
-import { FeatureDisabledPage } from "./feature-disabled-page";
 
 /**
- * BinaryModeGuard — renders the "Funktion ausgeschaltet" page when the tenant
- * runs in binary mode (#2624; previously notFound(), which wrongly showed
- * "Schule nicht gefunden").
+ * BinaryModeGuard — triggers Next.js 404 when the tenant runs in binary mode.
  *
  * Use at the top of any page that depends on detailed-mode concepts (room
  * visits, activities, room supervision, room history). Binary-mode tenants
@@ -22,14 +20,15 @@ import { FeatureDisabledPage } from "./feature-disabled-page";
  *     );
  *   }
  *
- * Why a component, not a hook: a hook would force every page to remember to
- * gate render before data loads. A wrapper component centralises the decision
- * and keeps the gate next to the route boundary.
+ * Why a component, not a hook: calling `notFound()` from a hook forces every
+ * page to import `notFound` itself and remember to gate render before data
+ * loads. A wrapper component centralises the decision and keeps the gate
+ * next to the route boundary.
  */
 export function BinaryModeGuard({ children }: { children: React.ReactNode }) {
   const mode = usePresenceMode();
   if (mode === "binary") {
-    return <FeatureDisabledPage />;
+    notFound();
   }
   return <>{children}</>;
 }

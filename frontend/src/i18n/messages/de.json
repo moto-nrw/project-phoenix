@@ -1641,16 +1641,5 @@
     "open": "Offen",
     "openLabel": "Offen, {count}",
     "completed": "Erledigt"
-  },
-  "notFoundPage": {
-    "title": "Seite nicht gefunden",
-    "description": "Diese Seite gibt es nicht. Vielleicht ist die Adresse falsch.",
-    "back": "Zurück",
-    "home": "Zur Startseite"
-  },
-  "tenantNotFoundPage": {
-    "title": "Schule nicht gefunden",
-    "description": "Unter dieser Adresse gibt es keine Schule. Bitte prüfen Sie die Adresse.",
-    "back": "Zurück"
   }
 }

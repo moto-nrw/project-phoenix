@@ -9,10 +9,12 @@ import { TenantProvider } from "~/lib/tenant-context";
 import { BinaryModeGuard } from "./binary-mode-guard";
 import type { TenantInfo } from "~/lib/tenant-api";
 
-// The FeatureDisabledPage inside the guard navigates via useTenantRouter,
-// which needs next/navigation's useRouter under jsdom.
+// `notFound()` throws a Next.js-internal NEXT_NOT_FOUND error synchronously.
+// We mock the module so the test can assert the throw without a Next runtime.
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  notFound: () => {
+    throw new Error("NEXT_NOT_FOUND");
+  },
 }));
 
 function makeTenant(
@@ -48,19 +50,22 @@ describe("BinaryModeGuard", () => {
     expect(screen.getByText("protected-content")).toBeInTheDocument();
   });
 
-  it("shows the feature-disabled page in binary mode (#2624)", () => {
-    render(
-      <TenantProvider tenantSlug="demo" tenant={makeTenant("binary")}>
-        <BinaryModeGuard>
-          <div>protected-content</div>
-        </BinaryModeGuard>
-      </TenantProvider>,
-    );
+  it("triggers notFound() in binary mode", () => {
+    // React 18 logs the caught error via an error boundary; silence that to
+    // keep test output readable. The assertion verifies the throw itself.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(
-      screen.getByText("Diese Funktion ist ausgeschaltet"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("protected-content")).not.toBeInTheDocument();
+    expect(() =>
+      render(
+        <TenantProvider tenantSlug="demo" tenant={makeTenant("binary")}>
+          <BinaryModeGuard>
+            <div>protected-content</div>
+          </BinaryModeGuard>
+        </TenantProvider>,
+      ),
+    ).toThrow("NEXT_NOT_FOUND");
+
+    errorSpy.mockRestore();
   });
 
   it("renders children when no tenant context (safe default is detailed)", () => {

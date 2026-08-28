@@ -250,13 +250,10 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
     return secureNext(request);
   }
 
-  // Everything else (e.g. /dashboard, /database/*) → rewrite into the
-  // /operator namespace, where no such route exists, so the app-wide 404
-  // page renders (#2624). The rewrite keeps the host isolated: an unknown
-  // path can never reach tenant routes.
+  // Everything else (e.g. /dashboard, /database/*) → redirect to root
   const url = request.nextUrl.clone();
-  url.pathname = `/operator${pathname}`;
-  return secureRewrite(request, url);
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
 }
 
 // --- Parents subdomain handling (cross-tenant guardian portal) ---
@@ -362,13 +359,11 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
     return nextLocalized(request);
   }
 
-  // Anything else → rewrite into the /parents namespace, where no such
-  // route exists, so the app-wide 404 page renders — localized like every
-  // parents surface (#2624). The rewrite keeps the host from leaking access
-  // to tenant or operator paths.
+  // Anything else → redirect to root. Keeps the parents host from
+  // leaking access to tenant or operator paths.
   const url = request.nextUrl.clone();
-  url.pathname = `/parents${pathname}`;
-  return rewriteLocalized(request, url);
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
 }
 
 // --- School subdomain handling ("moto schule" teacher portal, #2207) ---
@@ -451,12 +446,11 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
     return secureNext(request);
   }
 
-  // Anything else → rewrite into the /school namespace, where no such route
-  // exists, so the app-wide 404 page renders (#2624). The rewrite keeps the
-  // host from leaking access to tenant, operator, or parents paths.
+  // Anything else → redirect to root. Keeps the school host from leaking
+  // access to tenant, operator, or parents paths.
   const url = request.nextUrl.clone();
-  url.pathname = `/school${pathname}`;
-  return secureRewrite(request, url);
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
 }
 
 // --- Tenant subdomain handling (from multi-tenancy) ---
