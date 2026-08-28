@@ -12,7 +12,7 @@ import {
   PersonalCalendar,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
-import { StaffCalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
+import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -717,7 +717,7 @@ function StaffCalendarPageInner() {
         busyAppointmentId={busyAppointmentId}
         icsHrefBase="/api/calendar/appointments"
       />
-      <StaffCalendarSubscribePanel />
+      <CalendarSubscribePanel audience="staff" />
     </div>
   );
 

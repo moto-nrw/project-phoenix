@@ -491,6 +491,25 @@ func (r *AppointmentRepository) SoftDelete(ctx context.Context, appointmentID in
 	return nil
 }
 
+func (r *AppointmentRepository) DeleteSoftDeletedBefore(ctx context.Context, before time.Time) (int, error) {
+	q := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*calModels.Appointment)(nil)).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`"appointment".deleted_at < ?`, before)
+	if where, value, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, value)
+	}
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("delete expired appointment tombstones: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("count deleted appointment tombstones: %w", err)
+	}
+	return int(count), nil
+}
+
 func applyAppointmentWindow(query *bun.SelectQuery, from, to timezone.Date) *bun.SelectQuery {
 	return query.Where(`(
 		("appointment".end_date >= ? AND "appointment".start_date <= ?)

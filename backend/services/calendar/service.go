@@ -79,6 +79,15 @@ type Service interface {
 	EnqueueDueAppointmentReminders(ctx context.Context, from, to time.Time) (int, error)
 }
 
+type FeedCleanupService interface {
+	CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
+}
+
+type FullService interface {
+	Service
+	FeedCleanupService
+}
+
 type Config struct {
 	AppointmentRepo      calModels.AppointmentRepository
 	RecurrenceRepo       calModels.RecurrenceRuleRepository
@@ -105,14 +114,15 @@ type Config struct {
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
-	Outbox        OutboxEnqueuer
-	SchoolRepo    platformModels.SchoolRepository
-	Settings      LogoResolver
-	AccountRepo   FeedAccountRepo
-	StaffFeedRepo authModels.StaffCalendarFeedTokenRepository
-	PersonRepo    userModels.PersonRepository
-	ParentsURL    string
-	FrontendURL   string
+	Outbox                 OutboxEnqueuer
+	SchoolRepo             platformModels.SchoolRepository
+	Settings               LogoResolver
+	AccountRepo            FeedAccountRepo
+	StaffFeedRepo          authModels.StaffCalendarFeedTokenRepository
+	StaffFeedTombstoneRepo calModels.StaffFeedTombstoneRepository
+	PersonRepo             userModels.PersonRepository
+	ParentsURL             string
+	FrontendURL            string
 
 	// Notifier and Preferences drive the guardian push/in-app notification that
 	// accompanies the appointment e-mails (#1671). Both optional and both
@@ -134,7 +144,7 @@ type service struct {
 	feedCreation singleflight.Group
 }
 
-func NewService(cfg Config) Service {
+func NewService(cfg Config) FullService {
 	return &service{cfg: cfg}
 }
 
@@ -1299,9 +1309,9 @@ func (s *service) timetableRoomNames(ctx context.Context, roomIDs []int64) (map[
 
 // collectStaffTimetableAssignments resolves the staff member's assignments and
 // their instances in two range queries. It keeps the first assignment per
-// instance; cancelled instances drop out here, so their rooms never reach the
-// batch lookup.
-func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date) ([]staffTimetableAssignment, error) {
+// instance. Interactive reads drop cancelled instances; subscription feeds
+// retain them so external calendars receive STATUS:CANCELLED.
+func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]staffTimetableAssignment, error) {
 	assignments, err := s.cfg.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
 		return nil, err
@@ -1332,7 +1342,7 @@ func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID 
 		}
 		seen[assignment.InstanceID] = struct{}{}
 		instance := instancesByID[assignment.InstanceID]
-		if instance == nil || instance.Status == scheduleModels.InstanceStatusCancelled {
+		if instance == nil || (!includeCancelled && instance.Status == scheduleModels.InstanceStatusCancelled) {
 			continue
 		}
 		collected = append(collected, staffTimetableAssignment{instance: instance, assignment: assignment})
@@ -1341,7 +1351,15 @@ func (s *service) collectStaffTimetableAssignments(ctx context.Context, staffID 
 }
 
 func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
-	assigned, err := s.collectStaffTimetableAssignments(ctx, staffID, from, to)
+	return s.staffTimetableEventsWithCancelled(ctx, staffID, from, to, false)
+}
+
+func (s *service) staffTimetableFeedEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	return s.staffTimetableEventsWithCancelled(ctx, staffID, from, to, true)
+}
+
+func (s *service) staffTimetableEventsWithCancelled(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]Event, error) {
+	assigned, err := s.collectStaffTimetableAssignments(ctx, staffID, from, to, includeCancelled)
 	if err != nil {
 		return nil, err
 	}
@@ -1368,6 +1386,7 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 			StartTime:   formatClock(instance.StartTime),
 			EndTime:     formatClock(instance.EndTime),
 			AllDay:      false,
+			Cancelled:   instance.Status == scheduleModels.InstanceStatusCancelled,
 			ModifiedAt:  modifiedAt,
 		}
 		// A room deleted between assignment and this read misses the map;
@@ -1400,6 +1419,14 @@ func shiftsReferenceTypes(shifts []*scheduleModels.StaffShift) bool {
 // Location stays deliberately empty: schedule.staff_shifts carries no room
 // column, so there is nothing to resolve (#2078).
 func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	return s.staffShiftEventsWithCancelled(ctx, staffID, from, to, false)
+}
+
+func (s *service) staffShiftFeedEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	return s.staffShiftEventsWithCancelled(ctx, staffID, from, to, true)
+}
+
+func (s *service) staffShiftEventsWithCancelled(ctx context.Context, staffID int64, from, to timezone.Date, includeCancelled bool) ([]Event, error) {
 	if s.cfg.StaffShiftRepo == nil {
 		return []Event{}, nil
 	}
@@ -1419,7 +1446,7 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 	}
 	events := []Event{}
 	for _, shift := range shifts {
-		if shift.Cancelled {
+		if shift.Cancelled && !includeCancelled {
 			continue
 		}
 		title := "Dienst"
@@ -1437,6 +1464,7 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 			StartTime:  formatClock(shift.StartTime),
 			EndTime:    formatClock(shift.EndTime),
 			AllDay:     false,
+			Cancelled:  shift.Cancelled,
 			ModifiedAt: shift.UpdatedAt,
 		}
 		if shift.Notes != "" {

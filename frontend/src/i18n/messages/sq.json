@@ -1636,6 +1636,9 @@
     "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
     "createNew": "Krijoni lidhje të re abonimi"
   },
+  "staffCalendarSubscribe": {
+    "description": "Abononi një herë takimet tuaja në kalendarin e telefonit. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht. Nuk keni nevojë ta shtoni secilin takim veçmas. Ndryshimet në kalendarin e telefonit nuk kalojnë te moto."
+  },
   "parentNews": {
     "kicker": "Postë nga OGS",
     "title": "Letra për prindërit",

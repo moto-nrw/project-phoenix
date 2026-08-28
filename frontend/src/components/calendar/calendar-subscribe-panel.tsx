@@ -40,55 +40,23 @@ interface CalendarSubscribeCopy {
   readonly copyFailed: string;
 }
 
-interface CalendarSubscribePanelViewProps {
-  readonly copy: CalendarSubscribeCopy;
-  readonly inputId: string;
-  readonly loadFeed: () => Promise<CalendarFeedInfo>;
-  readonly rotateFeed: () => Promise<CalendarFeedInfo>;
+interface CalendarSubscribePanelProps {
+  readonly audience?: "parent" | "staff";
 }
 
-const staffCopy: CalendarSubscribeCopy = {
-  title: "Kalender abonnieren",
-  description:
-    "Abonnieren Sie Ihre Termine einmal im Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch. Sie müssen keinen Termin einzeln hinzufügen. Änderungen im Handy-Kalender erreichen moto nicht.",
-  showLink: "Abo-Link anzeigen",
-  createNew: "Neuen Abo-Link erstellen",
-  subscribe: "Im Kalender abonnieren",
-  regenerate: "Link neu erstellen",
-  linkLabel: "Abo-Link",
-  copy: "Link kopieren",
-  copiedButton: "Kopiert",
-  linkOnce:
-    "Sie sehen diesen Link nur jetzt. Kopieren Sie ihn direkt in Ihren Kalender. Ein neuer Link beendet das bisherige Abo.",
-  howToTitle: "So geht es:",
-  howToMac:
-    "Mac: Wählen Sie „Im Kalender abonnieren“. Apple Kalender öffnet den Link.",
-  howToApple:
-    "iPhone und iPad: Kopieren Sie den Link. Öffnen Sie Einstellungen > Apps > Kalender > Kalenderaccounts. Wählen Sie Account hinzufügen > Andere > Kalenderabo hinzufügen. Fügen Sie den Link ein.",
-  howToAndroid:
-    "Google Kalender und Outlook: Kopieren Sie den Link. Fügen Sie ihn als Kalender aus dem Internet hinzu.",
-  alreadyActive:
-    "Ihr Abo läuft bereits. Aus Sicherheitsgründen sehen Sie den Link nicht erneut. Ein neuer Link beendet das bisherige Abo.",
-  loadError:
-    "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-  rotateError:
-    "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-  regenerated: "Neuer Abo-Link erstellt. Der alte Link gilt nicht mehr.",
-  copied: "Abo-Link kopiert.",
-  copyFailed:
-    "Das Kopieren hat leider nicht geklappt. Bitte kopieren Sie den Link von Hand.",
-};
-
 /**
- * Parents-portal panel to subscribe an external calendar (Apple/Google/Outlook)
- * to the family Termine. Once subscribed, new, changed and cancelled
- * appointments sync automatically — no per-event import needed.
+ * Shared panel for subscribing an external calendar to parent or staff
+ * appointments. The audience selects only the API and audience-specific copy.
  */
-export function CalendarSubscribePanel() {
+export function CalendarSubscribePanel({
+  audience = "parent",
+}: CalendarSubscribePanelProps) {
   const t = useTranslations("parentCalendarSubscribe");
+  const staffT = useTranslations("staffCalendarSubscribe");
+  const isStaff = audience === "staff";
   const copy: CalendarSubscribeCopy = {
     title: t("title"),
-    description: t("description"),
+    description: isStaff ? staffT("description") : t("description"),
     showLink: t("showLink"),
     createNew: t("createNew"),
     subscribe: t("subscribe"),
@@ -108,40 +76,19 @@ export function CalendarSubscribePanel() {
     copied: t("copied"),
     copyFailed: t("copyFailed"),
   };
-
-  return (
-    <CalendarSubscribePanelView
-      copy={copy}
-      inputId="parent-calendar-feed-url"
-      loadFeed={getParentCalendarFeed}
-      rotateFeed={rotateParentCalendarFeed}
-    />
-  );
-}
-
-export function StaffCalendarSubscribePanel() {
-  return (
-    <CalendarSubscribePanelView
-      copy={staffCopy}
-      inputId="staff-calendar-feed-url"
-      loadFeed={getStaffCalendarFeed}
-      rotateFeed={rotateStaffCalendarFeed}
-    />
-  );
-}
-
-function CalendarSubscribePanelView({
-  copy,
-  inputId,
-  loadFeed,
-  rotateFeed,
-}: CalendarSubscribePanelViewProps) {
+  const inputId = isStaff
+    ? "staff-calendar-feed-url"
+    : "parent-calendar-feed-url";
+  const loadFeed = isStaff ? getStaffCalendarFeed : getParentCalendarFeed;
+  const rotateFeed = isStaff
+    ? rotateStaffCalendarFeed
+    : rotateParentCalendarFeed;
   const toast = useToast();
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { copied, copy: copyToClipboard } = useClipboardCopy(
-    "CalendarSubscribePanelView",
+    "CalendarSubscribePanel",
     2000,
   );
 

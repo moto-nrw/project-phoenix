@@ -120,6 +120,7 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.TimetableCleanup != nil {
 		sched.SetTimetableCleanup(svc.TimetableCleanup)
 	}
+	sched.SetCalendarFeedCleanup(svc.CalendarFeedCleanup)
 	// Tranche 0b: time-tracking GDPR cleanup. Same nil-safe wiring.
 	if svc.TimeTrackingCleanup != nil {
 		sched.SetTimeTrackingCleanup(svc.TimeTrackingCleanup)

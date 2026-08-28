@@ -34,10 +34,7 @@ vi.mock("~/lib/personal-calendar-api", async () => {
   };
 });
 
-import {
-  CalendarSubscribePanel,
-  StaffCalendarSubscribePanel,
-} from "./calendar-subscribe-panel";
+import { CalendarSubscribePanel } from "./calendar-subscribe-panel";
 
 describe("CalendarSubscribePanel", () => {
   beforeEach(() => {
@@ -180,7 +177,7 @@ describe("CalendarSubscribePanel", () => {
   });
 });
 
-describe("StaffCalendarSubscribePanel", () => {
+describe("CalendarSubscribePanel staff audience", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -191,7 +188,7 @@ describe("StaffCalendarSubscribePanel", () => {
       webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
     });
 
-    render(<StaffCalendarSubscribePanel />);
+    render(<CalendarSubscribePanel audience="staff" />);
 
     expect(
       screen.getByText(/Neue, geänderte und abgesagte Termine/),
@@ -209,11 +206,11 @@ describe("StaffCalendarSubscribePanel", () => {
   it("states that creating a new link ends the previous subscription", async () => {
     mockGetStaffFeed.mockResolvedValue({ url: "", webcal_url: "" });
 
-    render(<StaffCalendarSubscribePanel />);
+    render(<CalendarSubscribePanel audience="staff" />);
     fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
 
     expect(
-      await screen.findByText(/Ein neuer Link beendet das bisherige Abo/),
+      await screen.findByText(/der bisherige gilt dann nicht mehr/),
     ).toBeInTheDocument();
     expect(mockRotateStaffFeed).not.toHaveBeenCalled();
   });

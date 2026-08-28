@@ -233,7 +233,8 @@ type Factory struct {
 	ParentEventEmitter *parentmessaging.Emitter
 
 	// Calendar (staff and parent personal calendars)
-	Calendar calendarService.Service
+	Calendar            calendarService.Service
+	CalendarFeedCleanup calendarService.FeedCleanupService
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
 	ParentAnnouncement announcement.Service
@@ -2126,37 +2127,38 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
-		AppointmentRepo:      repos.CalendarAppointment,
-		RecurrenceRepo:       repos.CalendarRecurrenceRule,
-		RecipientRepo:        repos.CalendarAppointmentRecipient,
-		RecipientStudentRepo: repos.CalendarAppointmentRecipientChild,
-		TargetRepo:           repos.CalendarAppointmentTarget,
-		OverrideRepo:         repos.CalendarOccurrenceOverride,
-		StaffRepo:            repos.Staff,
-		StudentRepo:          repos.Student,
-		GuardianProfileRepo:  repos.GuardianProfile,
-		StudentGuardianRepo:  repos.StudentGuardian,
-		ChildRepo:            repos.ParentChild,
-		GroupRepo:            repos.Group,
-		InstanceStaffRepo:    repos.InstanceStaff,
-		ActivityInstanceRepo: repos.ActivityInstance,
-		RoomRepo:             repos.Room,
-		StaffShiftRepo:       repos.StaffShift,
-		ShiftTypeRepo:        repos.ShiftType,
-		UserContext:          userContextService,
-		DB:                   db,
-		Outbox:               emailOutboxService,
-		SchoolRepo:           repos.School,
-		Settings:             settingsService,
-		AccountRepo:          repos.Account,
-		StaffFeedRepo:        repos.StaffCalendarFeedToken,
-		PersonRepo:           repos.Person,
-		ParentsURL:           parentsURL,
-		FrontendURL:          frontendURL,
-		Notifier:             notificationsService,
-		ReminderNotifier:     notificationsService,
-		Preferences:          notificationPreferencesService,
-		Logger:               logger.With("service", "calendar"),
+		AppointmentRepo:        repos.CalendarAppointment,
+		RecurrenceRepo:         repos.CalendarRecurrenceRule,
+		RecipientRepo:          repos.CalendarAppointmentRecipient,
+		RecipientStudentRepo:   repos.CalendarAppointmentRecipientChild,
+		TargetRepo:             repos.CalendarAppointmentTarget,
+		OverrideRepo:           repos.CalendarOccurrenceOverride,
+		StaffRepo:              repos.Staff,
+		StudentRepo:            repos.Student,
+		GuardianProfileRepo:    repos.GuardianProfile,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		ChildRepo:              repos.ParentChild,
+		GroupRepo:              repos.Group,
+		InstanceStaffRepo:      repos.InstanceStaff,
+		ActivityInstanceRepo:   repos.ActivityInstance,
+		RoomRepo:               repos.Room,
+		StaffShiftRepo:         repos.StaffShift,
+		ShiftTypeRepo:          repos.ShiftType,
+		UserContext:            userContextService,
+		DB:                     db,
+		Outbox:                 emailOutboxService,
+		SchoolRepo:             repos.School,
+		Settings:               settingsService,
+		AccountRepo:            repos.Account,
+		StaffFeedRepo:          repos.StaffCalendarFeedToken,
+		StaffFeedTombstoneRepo: repos.CalendarStaffFeedTombstone,
+		PersonRepo:             repos.Person,
+		ParentsURL:             parentsURL,
+		FrontendURL:            frontendURL,
+		Notifier:               notificationsService,
+		ReminderNotifier:       notificationsService,
+		Preferences:            notificationPreferencesService,
+		Logger:                 logger.With("service", "calendar"),
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
@@ -2571,12 +2573,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentDeletion:        enrollmentDeletionService,
 		EnrollmentRejectedCleanup: enrollmentRejectedCleanupService,
 
-		Parent:             parentService,
-		Messaging:          messagingService,
-		StaffMessaging:     staffMessagingService,
-		Calendar:           calendarSvc,
-		ParentAnnouncement: parentAnnouncementService,
-		ParentEventEmitter: pillEmitter,
+		Parent:              parentService,
+		Messaging:           messagingService,
+		StaffMessaging:      staffMessagingService,
+		Calendar:            calendarSvc,
+		CalendarFeedCleanup: calendarSvc,
+		ParentAnnouncement:  parentAnnouncementService,
+		ParentEventEmitter:  pillEmitter,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
