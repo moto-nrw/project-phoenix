@@ -27,7 +27,8 @@ func activityInstanceIdempotencyUp(ctx context.Context, db *bun.DB) error {
 
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
-			ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+			ADD COLUMN IF NOT EXISTS idempotency_key TEXT,
+			ADD COLUMN IF NOT EXISTS idempotency_fingerprint TEXT;
 
 		CREATE UNIQUE INDEX IF NOT EXISTS uq_activity_instances_tenant_idempotency
 			ON schedule.activity_instances (tenant_id, idempotency_key)
@@ -35,6 +36,8 @@ func activityInstanceIdempotencyUp(ctx context.Context, db *bun.DB) error {
 
 		COMMENT ON COLUMN schedule.activity_instances.idempotency_key IS
 			'Client-generated key for replaying one create operation without inserting a second instance (#2532)';
+		COMMENT ON COLUMN schedule.activity_instances.idempotency_fingerprint IS
+			'Fingerprint of the create request bound to an idempotency key (#2532)';
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("add activity-instance idempotency keys: %w", err)
@@ -48,7 +51,8 @@ func activityInstanceIdempotencyDown(ctx context.Context, db *bun.DB) error {
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS schedule.uq_activity_instances_tenant_idempotency;
 		ALTER TABLE schedule.activity_instances
-			DROP COLUMN IF EXISTS idempotency_key;
+			DROP COLUMN IF EXISTS idempotency_key,
+			DROP COLUMN IF EXISTS idempotency_fingerprint;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("remove activity-instance idempotency keys: %w", err)

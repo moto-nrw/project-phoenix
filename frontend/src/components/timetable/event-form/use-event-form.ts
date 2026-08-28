@@ -373,6 +373,7 @@ export function useEventForm({
   const submitLock = useRef(false);
   // Keep retries of this modal's manual create on the same server operation.
   const createIdempotencyKey = useRef<string | null>(null);
+  const createIdempotencyFingerprint = useRef<string | null>(null);
   // Mirror of the last validateForm() result, readable synchronously right
   // after the call (the fieldErrors state only lands on the next render). The
   // wizard shell uses it to decide whether the CURRENT step is clean without
@@ -537,6 +538,7 @@ export function useEventForm({
     manualWeekPattern.current = null;
     submitLock.current = false;
     createIdempotencyKey.current = null;
+    createIdempotencyFingerprint.current = null;
     setForm(nextForm);
     initialFormSnapshot.current = nextForm;
     setValidationError(null);
@@ -2121,12 +2123,20 @@ export function useEventForm({
           parsed.roomId,
           initialInstance?.activityGroupId,
         );
-        const saved = initialInstance
-          ? await timetableService.update(initialInstance.id, body)
-          : await timetableService.create(
-              body,
-              (createIdempotencyKey.current ??= crypto.randomUUID()),
-            );
+        let saved: EnrichedInstance;
+        if (initialInstance) {
+          saved = await timetableService.update(initialInstance.id, body);
+        } else {
+          const createFingerprint = JSON.stringify(body);
+          if (createIdempotencyFingerprint.current !== createFingerprint) {
+            createIdempotencyKey.current = crypto.randomUUID();
+            createIdempotencyFingerprint.current = createFingerprint;
+          }
+          saved = await timetableService.create(
+            body,
+            createIdempotencyKey.current!,
+          );
+        }
         toastSuccess(
           initialInstance ? "Termin gespeichert" : "Termin angelegt",
         );

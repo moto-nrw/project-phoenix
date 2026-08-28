@@ -108,3 +108,21 @@ func TestCreateInstance_IdempotencyKeyDeduplicatesOnlyOneCreateOperation(t *test
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 }
+
+func TestCreateInstance_IdempotencyKeyRejectsDifferentCreateOperation(t *testing.T) {
+	t.Parallel()
+	setup := buildIdempotentCreateSetup(t)
+	suffix := time.Now().UnixNano()
+	body := map[string]any{
+		"date": nextCreateWorkday().String(), "start_time": "10:00", "end_time": "11:00",
+		"title": fmt.Sprintf("Idempotent manual instance %d", suffix), "room_id": setup.roomID,
+	}
+	key := fmt.Sprintf("form-%d", suffix)
+	first := postIdempotentCreate(t, setup, body, key)
+	require.Equal(t, http.StatusCreated, first.Code, "body=%s", first.Body.String())
+
+	body["title"] = fmt.Sprintf("Changed manual instance %d", suffix)
+	second := postIdempotentCreate(t, setup, body, key)
+	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
+	assert.Contains(t, second.Body.String(), "idempotency_key_reused")
+}

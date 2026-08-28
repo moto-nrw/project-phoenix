@@ -99,6 +99,58 @@ describe("useEventForm submit locking", () => {
     expect(result.current.submitting).toBe(true);
   });
 
+  it("uses a new idempotency key after a failed create is edited", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    const create = vi
+      .spyOn(timetableService, "create")
+      .mockRejectedValueOnce(new Error("Speichern fehlgeschlagen"))
+      .mockReturnValue(new Promise(() => undefined));
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        defaultStartTime: "12:00",
+        defaultEndTime: "13:00",
+        canCheckShiftCoverage: false,
+      }),
+    );
+    act(() => {
+      result.current.update("title", "Basteln");
+      result.current.update("roomId", "7");
+    });
+    const event = { preventDefault: vi.fn() } as unknown as Parameters<
+      typeof result.current.handleSubmit
+    >[0];
+
+    await act(async () => {
+      await result.current.handleSubmit(event);
+    });
+    act(() => result.current.update("title", "Malen"));
+    act(() => {
+      void result.current.handleSubmit(event);
+    });
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create.mock.calls[1]?.[1]).not.toBe(create.mock.calls[0]?.[1]);
+  });
+
   it("unlocks a deferred series save after confirmation fails", async () => {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
     vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);

@@ -24,6 +24,7 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -103,6 +104,7 @@ var (
 	ErrInstanceCompleteEarly       = errors.New("activity instance cannot be completed before planned end")
 	ErrLifecycleSettings           = errors.New("activity lifecycle settings unavailable")
 	ErrCompletionConfirmationStale = errors.New("activity completion confirmation is stale")
+	ErrIdempotencyKeyReuse         = errors.New("idempotency key was reused with different request data")
 )
 
 type LifecycleSettings interface {
@@ -1501,13 +1503,17 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 func (s *instanceService) createInTenantTransaction(
 	ctx context.Context, tenantID int64, req CreateInstanceInput,
 ) (*scheduleModel.ActivityInstance, error) {
+	idempotencyFingerprint, err := createInstanceIdempotencyFingerprint(req)
+	if err != nil {
+		return nil, &ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
+	}
 	if req.IdempotencyKey != nil {
 		existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
 		if err != nil {
 			return nil, &ScheduleError{Op: "create instance: find idempotency key", Err: err}
 		}
 		if existing != nil {
-			return existing, nil
+			return idempotentCreateResult(existing, idempotencyFingerprint)
 		}
 	}
 	if err := s.lockRecurrenceThenGradeTransitions(ctx, "create instance"); err != nil {
@@ -1517,7 +1523,7 @@ func (s *instanceService) createInTenantTransaction(
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 
-	inst := newActivityInstance(tenantID, req)
+	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
 	result, inserted, err := s.insertCreatedInstance(ctx, inst)
 	if err != nil || !inserted {
 		return result, err
@@ -1529,29 +1535,80 @@ func (s *instanceService) createInTenantTransaction(
 	return inst, nil
 }
 
-func newActivityInstance(tenantID int64, req CreateInstanceInput) *scheduleModel.ActivityInstance {
+func newActivityInstance(
+	tenantID int64, req CreateInstanceInput, idempotencyFingerprint *string,
+) *scheduleModel.ActivityInstance {
 	isSpontaneous := false
 	if req.IsSpontaneous != nil {
 		isSpontaneous = *req.IsSpontaneous
 	}
 	inst := &scheduleModel.ActivityInstance{
-		Date:            req.Date,
-		StartTime:       req.StartTime,
-		EndTime:         req.EndTime,
-		Title:           req.Title,
-		Description:     req.Description,
-		Notes:           req.Notes,
-		RoomID:          req.RoomID,
-		ActivityGroupID: req.ActivityGroupID,
-		RequiredStaff:   req.RequiredStaff,
-		ListKind:        req.ListKind,
-		Status:          scheduleModel.InstanceStatusPlanned,
-		IsSpontaneous:   isSpontaneous,
-		CreatedBy:       req.CreatedByStaffID,
-		IdempotencyKey:  req.IdempotencyKey,
+		Date:                   req.Date,
+		StartTime:              req.StartTime,
+		EndTime:                req.EndTime,
+		Title:                  req.Title,
+		Description:            req.Description,
+		Notes:                  req.Notes,
+		RoomID:                 req.RoomID,
+		ActivityGroupID:        req.ActivityGroupID,
+		RequiredStaff:          req.RequiredStaff,
+		ListKind:               req.ListKind,
+		Status:                 scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous:          isSpontaneous,
+		CreatedBy:              req.CreatedByStaffID,
+		IdempotencyKey:         req.IdempotencyKey,
+		IdempotencyFingerprint: idempotencyFingerprint,
 	}
 	inst.SetTenantID(tenantID)
 	return inst
+}
+
+func createInstanceIdempotencyFingerprint(req CreateInstanceInput) (*string, error) {
+	if req.IdempotencyKey == nil {
+		return nil, nil
+	}
+	isSpontaneous := req.IsSpontaneous != nil && *req.IsSpontaneous
+	staffIDs := sliceutil.UniquePositive(slices.Clone(req.StaffIDs))
+	studentIDs := sliceutil.UniquePositive(slices.Clone(req.StudentIDs))
+	slices.Sort(staffIDs)
+	slices.Sort(studentIDs)
+	payload, err := json.Marshal(struct {
+		Date             string  `json:"date"`
+		StartTime        string  `json:"start_time"`
+		EndTime          string  `json:"end_time"`
+		Title            string  `json:"title"`
+		Description      *string `json:"description"`
+		Notes            *string `json:"notes"`
+		RoomID           int64   `json:"room_id"`
+		ActivityGroupID  *int64  `json:"activity_group_id"`
+		ListKind         *string `json:"list_kind"`
+		IsSpontaneous    bool    `json:"is_spontaneous"`
+		StaffIDs         []int64 `json:"staff_ids"`
+		StudentIDs       []int64 `json:"student_ids"`
+		CreatedByStaffID *int64  `json:"created_by_staff_id"`
+		RequiredStaff    *int    `json:"required_staff"`
+	}{
+		Date: req.Date.String(), StartTime: req.StartTime.Format("15:04:05"), EndTime: req.EndTime.Format("15:04:05"),
+		Title: req.Title, Description: req.Description, Notes: req.Notes, RoomID: req.RoomID,
+		ActivityGroupID: req.ActivityGroupID, ListKind: req.ListKind, IsSpontaneous: isSpontaneous,
+		StaffIDs: staffIDs, StudentIDs: studentIDs, CreatedByStaffID: req.CreatedByStaffID, RequiredStaff: req.RequiredStaff,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal create request: %w", err)
+	}
+	sum := sha256.Sum256(payload)
+	fingerprint := fmt.Sprintf("%x", sum)
+	return &fingerprint, nil
+}
+
+func idempotentCreateResult(
+	existing *scheduleModel.ActivityInstance, fingerprint *string,
+) (*scheduleModel.ActivityInstance, error) {
+	if fingerprint == nil || existing.IdempotencyFingerprint == nil ||
+		*existing.IdempotencyFingerprint != *fingerprint {
+		return nil, ErrIdempotencyKeyReuse
+	}
+	return existing, nil
 }
 
 func (s *instanceService) insertCreatedInstance(
@@ -1580,7 +1637,8 @@ func (s *instanceService) insertCreatedInstance(
 			Err: errors.New("idempotent insert conflict has no matching row"),
 		}
 	}
-	return existing, false, nil
+	result, err := idempotentCreateResult(existing, inst.IdempotencyFingerprint)
+	return result, false, err
 }
 
 func (s *instanceService) findCreateByIdempotencyKey(
