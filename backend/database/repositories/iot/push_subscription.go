@@ -296,7 +296,7 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 					OR (
 						"push_subscription".portal = ?
 						AND "token".tenant_id = "push_subscription".tenant_id
-						AND "token".portal_scope IN (?, ?, ?, ?, ?)
+						AND "token".portal_scope IN (?, ?, ?, ?)
 					)
 					OR (
 						"push_subscription".portal = ?
@@ -306,7 +306,7 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 				)
 		)`, iot.PushPortalParent, authModels.PortalScopeParent, authModels.PortalScopeUnknown, "",
 			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,
-			authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "",
+			authModels.PortalScopeUnknown, "",
 			iot.PushPortalSchool, authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
 		Exec(ctx)
 	if err != nil {
