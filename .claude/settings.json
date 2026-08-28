@@ -177,7 +177,7 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Bash|WebFetch",
         "hooks": [
           {
             "type": "command",

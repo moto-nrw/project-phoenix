@@ -42,22 +42,33 @@ case "$tool" in
         cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
         [[ -n "$cmd" ]] || exit 0
 
-        # Rule 1: network commands against production domains. Reading the
-        # domain string in code (rg/grep/cat) stays allowed.
-        if printf '%s' "$cmd" | grep -Eq 'moto-app\.de|moto\.nrw'; then
-            if printf '%s' "$cmd" | grep -Eq '(^|[|&;([:space:]])(curl|wget|xh|httpie|https?|nc|ncat|wscat|fetch)([[:space:]]|$)'; then
+        # Rule 1: a production hostname in a shell segment is a request
+        # unless that segment is plainly reading source text. This covers
+        # wrapped clients (python/node/bash -c) without maintaining a
+        # bypassable list of network binaries.
+        while IFS= read -r segment; do
+            [[ -n "$segment" ]] || continue
+            if printf '%s' "$segment" | grep -Eq 'moto-app\.de|moto\.nrw' &&
+                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(rg|grep|cat)([[:space:]]|$)'; then
                 deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
             fi
-        fi
+        done <<EOF
+$(printf '%s' "$cmd" | tr ';|&' '\n')
+EOF
 
-        # Rule 2 (shell half): writing into SOPS files outside the sops CLI.
-        if printf '%s' "$cmd" | grep -q '\.sops\.env'; then
-            if ! printf '%s' "$cmd" | grep -Eq '^[[:space:]]*sops([[:space:]]|$)'; then
-                if printf '%s' "$cmd" | grep -Eq '(sed[[:space:]]+-i|>>?|(^|[|&;[:space:]])(tee|mv|cp)[[:space:]])'; then
-                    deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
-                fi
+        # Rule 2 (shell half): validate each shell segment. A SOPS file may
+        # be passed only to sops itself or to an obvious read-only command;
+        # every other use could write it. This prevents an initial `sops`
+        # command from exempting later writers in an &&/pipe chain.
+        while IFS= read -r segment; do
+            [[ -n "$segment" ]] || continue
+            if printf '%s' "$segment" | grep -q '\.sops\.env' &&
+                ! printf '%s' "$segment" | grep -Eq '^[[:space:]]*(sops|rg|grep|cat)([[:space:]]|$)'; then
+                deny "Blocked: environments/*.sops.env must only be edited with the sops CLI (sops environments/<env>.sops.env). See CLAUDE.md, Environment Management (SOPS)."
             fi
-        fi
+        done <<EOF
+$(printf '%s' "$cmd" | tr ';|&' '\n')
+EOF
 
         # Rule 4: --no-verify bypasses lefthook incl. the sops encryption
         # check. Scoped to the same pipeline segment as "git commit"; a
@@ -65,6 +76,12 @@ case "$tool" in
         # positive.
         if printf '%s' "$cmd" | grep -Eq 'git[[:space:]]+commit[^|;&]*[[:space:]](--no-verify|-n)([[:space:]]|$)'; then
             deny "Blocked: git commit --no-verify / -n skips lefthook (incl. the sops encryption guard). Commit without it; if a hook misfires, fix the hook."
+        fi
+        ;;
+    WebFetch)
+        url=$(printf '%s' "$input" | jq -r '.tool_input.url // empty' 2>/dev/null) || exit 0
+        if printf '%s' "$url" | grep -Eq '(^|[/:.])moto(-app)?\.de([/:?&#]|$)|(^|[/:.])moto\.nrw([/:?&#]|$)'; then
+            deny "Blocked: HTTP requests against moto-app.de / moto.nrw are forbidden (.claude/rules/no-production-requests.md). Use localhost; only a human may target production."
         fi
         ;;
     Edit | Write)
