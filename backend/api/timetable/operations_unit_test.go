@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -64,6 +65,124 @@ func TestOperationsPlannedNow(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, scheduleSvc.PlannedNowScopePast, service.lastPlannedOptions.Scope)
+}
+
+func TestOperationsRosterRoutesRedactPickupTimesWithoutStudentRead(t *testing.T) {
+	t.Parallel()
+
+	pickupTime := "15:00"
+	resource := NewResource(Dependencies{OperationsService: &fakeOperationsService{
+		roster: &scheduleSvc.OperationRoster{
+			Rows:              []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}},
+			PickupTimesLoaded: true,
+		},
+	}})
+
+	for _, tc := range []struct {
+		route   string
+		path    string
+		handler http.HandlerFunc
+	}{
+		{"/instances/{id}/roster", "/instances/230/roster", resource.operationsRoster},
+		{"/active-groups/{id}/roster", "/active-groups/340/roster", resource.operationsRosterByActiveGroup},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			router := operationRouter(http.MethodGet, tc.route, tc.handler)
+			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithPermissions(permissions.SchedulesRead)(request)
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			assert.NotContains(t, response.Body.String(), pickupTime)
+			assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+			assert.Contains(t, response.Body.String(), `"pickup_times_redacted":true`)
+		})
+	}
+}
+
+func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
+	t.Parallel()
+
+	pickupTime := "15:00"
+	service := &fakeOperationsService{planned: []scheduleSvc.OperationPlannedInstance{{
+		ID:                220,
+		RosterPreview:     []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}},
+		PickupTimesLoaded: true,
+	}}}
+	router := operationRouter(http.MethodGet, "/planned-now", NewResource(Dependencies{OperationsService: service}).operationsPlannedNow)
+	req := httptest.NewRequest(http.MethodGet, "/planned-now", nil)
+	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(req)
+	testutil.WithPermissions(permissions.SchedulesRead)(req)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, req)
+
+	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.False(t, service.lastPlannedOptions.IncludeRoster)
+
+	request := httptest.NewRequest(http.MethodGet, "/planned-now?include_roster=true", nil)
+	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+	testutil.WithPermissions(permissions.SchedulesRead)(request)
+	response = httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), pickupTime)
+	assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+	assert.Contains(t, response.Body.String(), `"pickup_times_redacted":true`)
+}
+
+func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testing.T) {
+	t.Parallel()
+
+	pickupTime := "15:00"
+	service := &fakeOperationsService{
+		roster:   &scheduleSvc.OperationRoster{Rows: []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}}, PickupTimesLoaded: true},
+		patchRow: &scheduleSvc.OperationRosterRow{StudentID: 350, PickupTime: &pickupTime},
+	}
+	resource := NewResource(Dependencies{OperationsService: service})
+	cases := []struct {
+		method  string
+		path    string
+		body    any
+		handler http.HandlerFunc
+	}{
+		{http.MethodPost, "/instances/250/students/350/check-in", nil, resource.operationsCheckInStudent},
+		{http.MethodPost, "/instances/250/students/350/check-out", nil, resource.operationsCheckOutStudent},
+		{http.MethodPatch, "/instances/250/students/350/attendance", map[string]any{"status": "absent"}, resource.operationsPatchAttendance},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			router := operationRouter(tc.method, "/instances/{id}/students/{student_id}/"+lastPathSegment(tc.path), tc.handler)
+			body := bytes.NewReader(nil)
+			if tc.body != nil {
+				raw, err := json.Marshal(tc.body)
+				require.NoError(t, err)
+				body = bytes.NewReader(raw)
+			}
+			request := httptest.NewRequest(tc.method, tc.path, body)
+			if tc.body != nil {
+				request.Header.Set("Content-Type", "application/json")
+			}
+			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithPermissions(permissions.SchedulesRead)(request)
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			assert.NotContains(t, response.Body.String(), pickupTime)
+			if tc.method != http.MethodPatch {
+				assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+				assert.Contains(t, response.Body.String(), `"pickup_times_redacted":true`)
+			}
+		})
+	}
 }
 
 func testWorkdayNow() time.Time {
@@ -976,6 +1095,12 @@ func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context,
 	return nil, nil
 }
 
+type stubOpPickupService struct{}
+
+func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*scheduleSvc.EffectivePickupTime, error) {
+	return nil, nil
+}
+
 // stubOpCareDayService reports no care-plan verdicts, i.e. "unknown" for every
 // child — the rosters and counts below therefore behave exactly as they did
 // before the care-day derivation (#1747) existed.
@@ -1002,6 +1127,7 @@ func newRealSpontaneousOpsService(db *bun.DB, instanceSvc scheduleSvc.InstanceSe
 		ActivityGroupRepo:  &fakeOperationActivityGroupRepo{},
 		ActiveService:      stubOpActiveService{},
 		ArrivalService:     stubOpArrivalService{},
+		PickupService:      stubOpPickupService{},
 		CareDayService:     stubOpCareDayService{},
 		SupervisorRepo:     stubOpSupervisorRepo{},
 		VisitRepo:          stubOpVisitRepo{},
@@ -1244,6 +1370,7 @@ func executeOperationRequest(tb testing.TB, router chi.Router, method, path stri
 		req.Header.Set("Content-Type", "application/json")
 	}
 	testutil.WithClaims(tb, testutil.AdminTestClaims(120))(req)
+	testutil.WithPermissions(permissions.UsersRead)(req)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 	return rr

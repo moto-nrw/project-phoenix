@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { ShellNavIntlProvider } from "./shell-nav-intl-provider";
+import { ShellIntlProvider } from "./shell-intl-provider";
 
 const meta = {
-  title: "components/dashboard/ShellNavIntlProvider",
-  component: ShellNavIntlProvider,
-} satisfies Meta<typeof ShellNavIntlProvider>;
+  title: "components/dashboard/ShellIntlProvider",
+  component: ShellIntlProvider,
+} satisfies Meta<typeof ShellIntlProvider>;
 
 export default meta;
 

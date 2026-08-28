@@ -302,6 +302,10 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 			weight = 1.5
 		case ColumnGuardianContacts:
 			weight = 2.7
+		case ColumnIBAN:
+			// A German IBAN is 22 characters and must not wrap: a bank
+			// transfer typed off a broken line is a wrong transfer.
+			weight = 2.0
 		case ColumnHealthInfo:
 			// A free-text health note is the widest cell on the Notfallliste
 			// (#2609): it has to wrap into readable lines rather than into a

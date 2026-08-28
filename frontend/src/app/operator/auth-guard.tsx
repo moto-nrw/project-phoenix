@@ -6,7 +6,7 @@ import { operatorPath } from "~/lib/operator-url";
 import { OperatorShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { AppShell } from "~/components/dashboard/app-shell";
-import { ShellNavIntlProvider } from "~/components/dashboard/shell-nav-intl-provider";
+import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { Loading } from "~/components/ui/loading";
 
 function FullPageLoading() {
@@ -61,9 +61,9 @@ export function OperatorAuthGuard({
   return (
     <OperatorShellProvider>
       <BreadcrumbProvider>
-        <ShellNavIntlProvider>
+        <ShellIntlProvider>
           <AppShell>{children}</AppShell>
-        </ShellNavIntlProvider>
+        </ShellIntlProvider>
       </BreadcrumbProvider>
     </OperatorShellProvider>
   );

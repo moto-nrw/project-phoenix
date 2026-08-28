@@ -309,6 +309,8 @@ describe("guardian-api functions", () => {
         isPrimary: true,
         isEmergencyContact: true,
         canPickup: true,
+        // A payload without the payment mark (#2608) maps to false.
+        isPayer: false,
         pickupNotes: "Can pickup anytime",
         emergencyPriority: 1,
         accountStatus: "none",

@@ -204,10 +204,37 @@ describe("guardian-helpers", () => {
         isPrimary: true,
         isEmergencyContact: true,
         canPickup: true,
+        // Payloads that predate the payment mark (#2608) map to false, so an
+        // older backend never reads as "this guardian pays".
+        isPayer: false,
         pickupNotes: "Usually picks up at 15:00",
         emergencyPriority: 1,
         accountStatus: "active",
       });
+    });
+
+    it("carries the payment mark through", () => {
+      const backendData: BackendGuardianWithRelationship = {
+        guardian: {
+          id: 101,
+          first_name: "Payer",
+          last_name: "One",
+          preferred_contact_method: "email",
+          language_preference: "de",
+          has_account: false,
+        },
+        relationship_id: 51,
+        relationship_type: "parent",
+        is_primary: true,
+        is_emergency_contact: false,
+        can_pickup: true,
+        is_payer: true,
+        emergency_priority: 1,
+      };
+
+      expect(mapGuardianWithRelationshipResponse(backendData).isPayer).toBe(
+        true,
+      );
     });
 
     it("handles non-primary, non-emergency guardian", () => {
