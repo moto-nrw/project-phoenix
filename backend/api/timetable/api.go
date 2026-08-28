@@ -323,15 +323,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/capabilities", rs.operationsCapabilities)
-			// Roster previews expose children's pickup times. The handler applies
-			// the extra users:read boundary only when include_roster is requested.
+			// Roster endpoints stay available to operational supervisors; their
+			// pickup-time fields are redacted without users:read.
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/active-sessions", rs.operationsActiveSessions)
-			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/instances/{id}/roster", rs.operationsRoster)
-			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/active-groups/{id}/roster", rs.operationsRosterByActiveGroup)
 			// Operational mutations are available to normal supervisors with
 			// SchedulesRead; the service enforces assignment/admin access via

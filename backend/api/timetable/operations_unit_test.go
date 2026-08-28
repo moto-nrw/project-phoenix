@@ -67,22 +67,37 @@ func TestOperationsPlannedNow(t *testing.T) {
 	assert.Equal(t, scheduleSvc.PlannedNowScopePast, service.lastPlannedOptions.Scope)
 }
 
-func TestOperationsRosterRoutesRequireStudentDataRead(t *testing.T) {
+func TestOperationsRosterRoutesRedactPickupTimesWithoutStudentRead(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
-	router := resource.Router()
-	claims := testutil.DefaultTestClaims()
+	pickupTime := "15:00"
+	resource := NewResource(Dependencies{OperationsService: &fakeOperationsService{
+		roster: &scheduleSvc.OperationRoster{
+			Rows:              []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}},
+			PickupTimesLoaded: true,
+		},
+	}})
 
-	for _, path := range []string{
-		"/operations/instances/230/roster",
-		"/operations/active-groups/340/roster",
+	for _, tc := range []struct {
+		route   string
+		path    string
+		handler http.HandlerFunc
+	}{
+		{"/instances/{id}/roster", "/instances/230/roster", resource.operationsRoster},
+		{"/active-groups/{id}/roster", "/active-groups/340/roster", resource.operationsRosterByActiveGroup},
 	} {
-		t.Run(path, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, path, nil)
-			response := testutil.ExecuteWithAuthPermissions(t, router, request, claims, []string{permissions.SchedulesRead})
+		t.Run(tc.path, func(t *testing.T) {
+			router := operationRouter(http.MethodGet, tc.route, tc.handler)
+			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithPermissions(permissions.SchedulesRead)(request)
+			response := httptest.NewRecorder()
 
-			assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
+			router.ServeHTTP(response, request)
+
+			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+			assert.NotContains(t, response.Body.String(), pickupTime)
+			assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
 		})
 	}
 }
@@ -90,7 +105,12 @@ func TestOperationsRosterRoutesRequireStudentDataRead(t *testing.T) {
 func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 	t.Parallel()
 
-	service := &fakeOperationsService{planned: []scheduleSvc.OperationPlannedInstance{{ID: 220}}}
+	pickupTime := "15:00"
+	service := &fakeOperationsService{planned: []scheduleSvc.OperationPlannedInstance{{
+		ID:                220,
+		RosterPreview:     []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}},
+		PickupTimesLoaded: true,
+	}}}
 	router := operationRouter(http.MethodGet, "/planned-now", NewResource(Dependencies{OperationsService: service}).operationsPlannedNow)
 	req := httptest.NewRequest(http.MethodGet, "/planned-now", nil)
 	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(req)
@@ -109,7 +129,9 @@ func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 
 	router.ServeHTTP(response, request)
 
-	assert.Equal(t, http.StatusForbidden, response.Code, response.Body.String())
+	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), pickupTime)
+	assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
 }
 
 func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testing.T) {
@@ -117,7 +139,7 @@ func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testi
 
 	pickupTime := "15:00"
 	service := &fakeOperationsService{
-		roster:   &scheduleSvc.OperationRoster{Rows: []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}}},
+		roster:   &scheduleSvc.OperationRoster{Rows: []scheduleSvc.OperationRosterRow{{StudentID: 350, PickupTime: &pickupTime}}, PickupTimesLoaded: true},
 		patchRow: &scheduleSvc.OperationRosterRow{StudentID: 350, PickupTime: &pickupTime},
 	}
 	resource := NewResource(Dependencies{OperationsService: service})
@@ -153,6 +175,9 @@ func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testi
 
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			assert.NotContains(t, response.Body.String(), pickupTime)
+			if tc.method != http.MethodPatch {
+				assert.Contains(t, response.Body.String(), `"pickup_times_loaded":false`)
+			}
 		})
 	}
 }

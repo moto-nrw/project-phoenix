@@ -94,10 +94,6 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if opts.IncludeRoster && !canViewOperationPickupTimes(r.Context()) {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("student data access is required for roster preview")))
-		return
-	}
 	today := timezone.TodayDate()
 	date := today
 	if raw := r.URL.Query().Get("date"); raw != "" {
@@ -117,6 +113,9 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
+	}
+	if opts.IncludeRoster && !canViewOperationPickupTimes(r.Context()) {
+		redactOperationPlannedPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, map[string]any{"instances": result}, "Planned timetable instances retrieved")
 }
@@ -161,7 +160,11 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		accountID, isAdmin := operationActor(r.Context())
-		return rs.OperationsService.Roster(r.Context(), accountID, isAdmin, instanceID)
+		roster, err := rs.OperationsService.Roster(r.Context(), accountID, isAdmin, instanceID)
+		if err == nil && !canViewOperationPickupTimes(r.Context()) {
+			redactOperationRosterPickupTimes(roster)
+		}
+		return roster, err
 	}, "Timetable roster retrieved")
 }
 
@@ -179,6 +182,9 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
+	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, result, "Timetable roster retrieved")
 }
@@ -561,8 +567,21 @@ func canViewOperationPickupTimes(ctx context.Context) bool {
 }
 
 func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
+	if roster == nil {
+		return
+	}
+	roster.PickupTimesLoaded = false
 	for i := range roster.Rows {
 		roster.Rows[i].PickupTime = nil
+	}
+}
+
+func redactOperationPlannedPickupTimes(instances []scheduleSvc.OperationPlannedInstance) {
+	for i := range instances {
+		instances[i].PickupTimesLoaded = false
+		for j := range instances[i].RosterPreview {
+			instances[i].RosterPreview[j].PickupTime = nil
+		}
 	}
 }
 
