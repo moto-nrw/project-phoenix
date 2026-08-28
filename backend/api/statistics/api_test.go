@@ -525,8 +525,13 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 	// care days, so the child would sit in the table with an empty quota while
 	// the room aggregate still counts them (#2606).
 	require.True(t, activatedFound, "row of the activated child missing")
-	assert.Equal(t, 1, activatedPresentDays, "today counts as a care day with attendance")
-	require.NotNil(t, activatedRate, "a child with care days has a quota")
+	if weekday := today.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
+		assert.Zero(t, activatedPresentDays, "weekends are not care days")
+		assert.Nil(t, activatedRate, "a child without care days has no quota")
+	} else {
+		assert.Equal(t, 1, activatedPresentDays, "today counts as a care day with attendance")
+		require.NotNil(t, activatedRate, "a child with care days has a quota")
+	}
 
 	var found bool
 	for _, r := range payload.Data.Rooms {
