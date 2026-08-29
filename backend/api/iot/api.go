@@ -30,7 +30,6 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -120,7 +119,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolService))
 		r.Use(iotMetricsMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.DB))
+		r.Use(common.TenantTxMiddleware)
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)
@@ -145,7 +144,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.pinResolver(),
 		))
 		r.Use(iotMetricsMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.DB))
+		r.Use(common.TenantTxMiddleware)
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)
 		checkinResource := checkinAPI.NewResource(

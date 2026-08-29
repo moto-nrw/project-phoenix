@@ -68,7 +68,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{
+	ctx := context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), jwt.CtxClaims, jwt.AppClaims{
 		ID:        int(chain.AccountID),
 		FirstName: "Petra",
 		LastName:  "Parent",
@@ -85,7 +85,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 
 	repos := repositories.NewFactory(db)
 	edits, err := repos.StudentFieldEdit.GetByStudentID(
-		tenant.WithTenantID(context.Background(), chain.TenantID),
+		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID),
 		chain.StudentID,
 	)
 	require.NoError(t, err)
@@ -122,14 +122,14 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 
 	_, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
 		json.RawMessage(strconv.Quote(newEmail)),
 	)
 	assert.ErrorIs(t, err, parentService.ErrGuardianManagementDisabled)
 
 	data, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`"allowed"`),
 	)
@@ -151,7 +151,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.MasterDataEditEnabled, "health/direct master-data fields stay editable")
 	assert.False(t, flags.MasterDataContactEditEnabled, "guardian contact fields follow guardian-management gate")
@@ -164,7 +164,7 @@ func TestGetChildMasterData_ReturnsChainData(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	data, err := svc.GetChildMasterData(context.Background(), chain.AccountID, chain.StudentID)
+	data, err := svc.GetChildMasterData(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, data)
 	assert.Equal(t, "Felix", data.FirstName)
@@ -180,7 +180,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	secondTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, secondTenantID)
 	testpkg.MapAccountToTenant(t, db, chain.AccountID, secondTenantID)
@@ -241,7 +241,7 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	data, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`"Penicillin-Allergie"`),
 	)
@@ -250,7 +250,7 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, "Penicillin-Allergie", *data.HealthInfo)
 
 	// The live student record was updated.
-	student, err := repositories.NewFactory(db).Student.FindByID(context.Background(), chain.StudentID)
+	student, err := repositories.NewFactory(db).Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, student.HealthInfo)
 	assert.Equal(t, "Penicillin-Allergie", *student.HealthInfo)
@@ -260,7 +260,7 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 	err = db.NewRaw(
 		`SELECT count(*) FROM users.student_data_change_requests WHERE student_id = ? AND status = ?`,
 		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
-	).Scan(context.Background(), &count)
+	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &count)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 }
@@ -272,7 +272,7 @@ func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	data, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
 		json.RawMessage(strconv.Quote("  "+chain.Email+"  ")),
 	)
@@ -284,7 +284,7 @@ func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
 	err = db.NewRaw(
 		`SELECT count(*) FROM users.student_data_change_requests WHERE student_id = ? AND status = ?`,
 		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
-	).Scan(context.Background(), &count)
+	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &count)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
@@ -297,7 +297,7 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 
 	data, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
 		json.RawMessage(strconv.Quote("  "+newEmail+"  ")),
 	)
@@ -306,7 +306,7 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, newEmail, *data.Email)
 
 	data, err = svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "language_preference",
 		json.RawMessage(`"en"`),
 	)
@@ -325,7 +325,7 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 		  WHERE student_id = ? AND status = ?
 		  ORDER BY id`,
 		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
-	).Scan(context.Background(), &rows)
+	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &rows)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, usersModels.DataChangeTargetGuardianProfile, rows[0].Target)
@@ -343,7 +343,7 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 	newEmail := fmt.Sprintf("mom.%d@example.test", chain.AccountID)
 
 	data, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
 		json.RawMessage(strconv.Quote("Mom <"+newEmail+">")),
 	)
@@ -351,7 +351,7 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 	require.NotNil(t, data.Email)
 	assert.Equal(t, newEmail, *data.Email)
 
-	profile, err := repositories.NewFactory(db).GuardianProfile.FindByID(context.Background(), chain.GuardianProfileID)
+	profile, err := repositories.NewFactory(db).GuardianProfile.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.Email)
 	assert.Equal(t, newEmail, *profile.Email)
@@ -366,7 +366,7 @@ func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing
 	require.NotNil(t, other.Email)
 
 	_, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
 		json.RawMessage(strconv.Quote(*other.Email)),
 	)
@@ -420,7 +420,7 @@ func TestUpdateMasterDataField_GuardianProfile_AddressAndContactFields(t *testin
 	for _, tc := range cases {
 		t.Run(tc.field, func(t *testing.T) {
 			data, err := svc.UpdateMasterDataField(
-				context.Background(), chain.AccountID, chain.StudentID,
+				testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 				usersModels.DataChangeTargetGuardianProfile, tc.field,
 				json.RawMessage(tc.value),
 			)
@@ -437,7 +437,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	data, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianPhone, "primary",
 		json.RawMessage(`"+49 151 12345678"`),
 	)
@@ -448,7 +448,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 	firstPhoneID := *data.PrimaryPhoneID
 
 	data, err = svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianPhone, "primary",
 		json.RawMessage(`"+49 151 87654321"`),
 	)
@@ -459,7 +459,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 	assert.Equal(t, firstPhoneID, *data.PrimaryPhoneID, "update should reuse the existing primary phone row")
 
 	data, err = svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianPhone, "primary",
 		json.RawMessage(`""`),
 	)
@@ -478,7 +478,7 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 		usersModels.DataChangeTargetGuardianPhone,
 		"primary",
 		usersModels.DataChangeStatusAutoApplied,
-	).Scan(context.Background(), &clearRef)
+	).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &clearRef)
 	require.NoError(t, err)
 	require.NotNil(t, clearRef)
 	assert.Equal(t, firstPhoneID, *clearRef)
@@ -491,21 +491,21 @@ func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
 		json.RawMessage(`"not-an-email"`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "preferred_contact_method",
 		json.RawMessage(`""`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 
 	_, err = svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "language_preference",
 		json.RawMessage(`"zz"`),
 	)
@@ -553,7 +553,7 @@ func TestUpdateMasterDataField_RejectsOversizedDirectValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := svc.UpdateMasterDataField(
-				context.Background(), chain.AccountID, chain.StudentID,
+				testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 				tt.target, tt.field,
 				json.RawMessage(strconv.Quote(tt.value)),
 			)
@@ -568,11 +568,11 @@ func TestMasterDataField_InvalidOwnerAndPayloadRejected(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.GetChildMasterData(context.Background(), 0, chain.StudentID)
+	_, err := svc.GetChildMasterData(testpkg.WithPackageTenantRuntime(context.Background()), 0, chain.StudentID)
 	require.Error(t, err)
 
 	_, err = svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`123`),
 	)
@@ -586,7 +586,7 @@ func TestUpdateMasterDataField_NonAllowlistedField_Rejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetPerson, "first_name",
 		json.RawMessage(`"Hacker"`),
 	)
@@ -600,7 +600,7 @@ func TestUpdateMasterDataField_FeatureDisabled_Rejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	_, err := svc.UpdateMasterDataField(
-		context.Background(), chain.AccountID, chain.StudentID,
+		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetStudent, "health_info",
 		json.RawMessage(`"x"`),
 	)

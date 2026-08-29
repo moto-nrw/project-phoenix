@@ -89,7 +89,7 @@ func (s *Scheduler) checkAndRunRolloverDeadline(task *ScheduledTask) {
 				slog.String("error", err.Error()),
 			)
 		}
-		// Returning the worker error is what makes tenant.ForEachActive roll
+		// Returning the worker error is what makes the tenant runtime roll
 		// back this tenant's transaction. Swallowing it here can commit writes
 		// made before a fatal transaction/savepoint failure.
 		return err

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -61,14 +62,26 @@ var ErrNoWebPushSubscribers = errors.New("no web push subscribers are available"
 // per-subscription failures are logged, expired subscriptions (HTTP 404/410)
 // are pruned, and Deliver only returns an error for whole-audience failures.
 type webPushChannel struct {
-	db     *bun.DB
-	repo   iot.PushSubscriptionRepository
-	vapid  VAPIDConfig
-	sender pushSender
-	logger *slog.Logger
+	db            *bun.DB
+	repo          iot.PushSubscriptionRepository
+	vapid         VAPIDConfig
+	sender        pushSender
+	logger        *slog.Logger
+	tenantRuntime *tenant.Runtime
 	// Shared across deliveries so concurrent notification batches cannot each
 	// consume maxConcurrentPushSends outbound connections.
 	sendSlots chan struct{}
+}
+
+func (c *webPushChannel) SetTenantRuntime(runtime tenant.Runtime) {
+	c.tenantRuntime = &runtime
+}
+
+func (c *webPushChannel) withTenantRuntime(ctx context.Context) context.Context {
+	if c.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *c.tenantRuntime)
 }
 
 // NewWebPushChannel returns the Web Push channel. With unset VAPID keys the
@@ -104,6 +117,7 @@ func (c *webPushChannel) getLogger() *slog.Logger {
 }
 
 func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
+	ctx = c.withTenantRuntime(ctx)
 	if !c.vapid.Configured() {
 		c.getLogger().Debug("web push channel has no VAPID keys configured, skipping delivery",
 			"notification_type", event.Type,
@@ -134,6 +148,8 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 	}
 
 	dispatchCtx := context.WithoutCancel(ctx)
+	dispatchCtx = modelBase.ContextWithoutTx(dispatchCtx)
+	dispatchCtx = tenant.ContextWithoutAfterCommitHooks(dispatchCtx)
 	go func() {
 		c.sendAll(dispatchCtx, event, payload, subs)
 	}()
@@ -144,6 +160,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 // subscription. It is reserved for durable producers that can retry a failed
 // attempt; normal notifications continue to use Deliver's async path.
 func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) error {
+	ctx = c.withTenantRuntime(ctx)
 	if !c.vapid.Configured() {
 		return ErrNoWebPushSubscribers
 	}
@@ -178,6 +195,7 @@ func (c *webPushChannel) DeliverSynchronously(ctx context.Context, event Event) 
 // because the other scopes resolve their devices from the scope alone and gain
 // nothing from batching.
 func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error {
+	ctx = c.withTenantRuntime(ctx)
 	if !c.vapid.Configured() || len(events) == 0 {
 		return nil
 	}
@@ -246,6 +264,8 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 	}
 
 	dispatchCtx := context.WithoutCancel(ctx)
+	dispatchCtx = modelBase.ContextWithoutTx(dispatchCtx)
+	dispatchCtx = tenant.ContextWithoutAfterCommitHooks(dispatchCtx)
 	for _, event := range staffEvents {
 		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
 		toStaff, toSchool := deliversToStaffPortal(event), deliversToSchoolPortal(event)

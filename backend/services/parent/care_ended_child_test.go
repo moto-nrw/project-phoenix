@@ -27,7 +27,7 @@ func endCareFor(t *testing.T, db *bun.DB, studentID int64) {
 		TableExpr("users.students").
 		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
 		Where("id = ?", studentID).
-		Exec(context.Background())
+		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 }
 
@@ -39,7 +39,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	svc, _, _, _ := buildAbsenceApprovalServices(t, false, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// While the child is still in care the family can report an absence.
 	_, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,

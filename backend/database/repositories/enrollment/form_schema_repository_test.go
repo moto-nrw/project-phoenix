@@ -51,7 +51,7 @@ func setupSchemaRepoTest(t *testing.T) (*bun.DB, enrollmentModels.FormSchemaRepo
 // error from the closure unchanged.
 func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
 	})
 }

@@ -42,19 +42,13 @@ type Store interface {
 	ActivateQueuedCleanup(ctx context.Context, storedName string) error
 }
 
-// TenantContext produces a background context carrying a tenant, used by the
-// after-commit cleanup hooks that outlive the request.
-type TenantContext func(tenantID int64) context.Context
-
 // Coordinator moves document bytes for one domain.
 type Coordinator struct {
 	// Kind is the storage key prefix, e.g. "student-documents".
 	Kind    string
 	Backend storage.Backend
 	Store   Store
-	// NewTenantContext builds the context for post-request cleanup work.
-	NewTenantContext TenantContext
-	Logger           *slog.Logger
+	Logger  *slog.Logger
 }
 
 func (c *Coordinator) logger() *slog.Logger {
@@ -167,8 +161,7 @@ func (c *Coordinator) Remove(ctx context.Context, tenantID int64, storedName str
 // CleanupDocument removes a soft-deleted document's bytes and records that
 // they are gone. Failures are logged, never propagated: the caller is a
 // post-commit hook whose transaction is already finished.
-func (c *Coordinator) CleanupDocument(tenantID, ownerID, documentID int64, storedName, source string) {
-	ctx := c.NewTenantContext(tenantID)
+func (c *Coordinator) CleanupDocument(ctx context.Context, tenantID, ownerID, documentID int64, storedName, source string) {
 	if err := c.Remove(ctx, tenantID, storedName); err != nil {
 		c.logger().Warn("document cleanup failed",
 			"kind", c.Kind,

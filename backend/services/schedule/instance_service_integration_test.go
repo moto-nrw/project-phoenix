@@ -67,6 +67,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	// Own tenant per caller, subtests included: every subtest builds its own
 	// lifecycle and then asserts tenant-wide (loadLifecycleExceptions counts

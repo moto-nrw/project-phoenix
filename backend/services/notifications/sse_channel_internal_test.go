@@ -127,7 +127,7 @@ func TestSSEGuardianFanOutRechecksChildAccess(t *testing.T) {
 
 	broadcaster := &recordingGuardianBroadcaster{}
 	access := &fakeGuardianAccess{permitted: []int64{88}}
-	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(mockTenantTxDB(t, true), access, nil))
+	channel := newMockSSEChannel(t, broadcaster, WithGuardianChildAccess(mockTenantTxDB(t, true), access, nil))
 
 	require.NoError(t, channel.Deliver(context.Background(), guardianEvent([]int64{55})))
 
@@ -149,7 +149,7 @@ func TestSSEGuardianFanOutSkipsRecheckWithoutChildren(t *testing.T) {
 	broadcaster := &recordingGuardianBroadcaster{}
 	access := &fakeGuardianAccess{}
 	db, _ := mockDB(t) // no statement expected: the unchanged path opens no transaction
-	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(db, access, nil))
+	channel := newMockSSEChannel(t, broadcaster, WithGuardianChildAccess(db, access, nil))
 
 	require.NoError(t, channel.Deliver(context.Background(), guardianEvent(nil)))
 
@@ -164,7 +164,7 @@ func TestSSEGuardianFanOutFailsClosedWithoutAccessLookup(t *testing.T) {
 	t.Parallel()
 
 	broadcaster := &recordingGuardianBroadcaster{}
-	channel := NewSSEChannel(broadcaster)
+	channel := newMockSSEChannel(t, broadcaster)
 
 	require.NoError(t, channel.Deliver(context.Background(), guardianEvent([]int64{55})))
 
@@ -179,7 +179,7 @@ func TestSSEGuardianFanOutReportsLookupFailure(t *testing.T) {
 
 	broadcaster := &recordingGuardianBroadcaster{}
 	access := &fakeGuardianAccess{err: errors.New("access lookup failed")}
-	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(mockTenantTxDB(t, false), access, nil))
+	channel := newMockSSEChannel(t, broadcaster, WithGuardianChildAccess(mockTenantTxDB(t, false), access, nil))
 
 	err := channel.Deliver(context.Background(), guardianEvent([]int64{55}))
 

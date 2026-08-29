@@ -151,7 +151,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// Seed an old instance in T2; run cleanup there; verify T1 fresh
 	// instance is still intact.
 	t2Scope := tenant.WithTenantID(context.Background(), s.secondaryTenant)
-	err = tenant.WithTenantTx(t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
 		_, err := s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
 		return err
 	})
@@ -173,7 +173,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 func runInTenantTx(t *testing.T, s *scenario, fn func(ctx context.Context) (any, error)) any {
 	t.Helper()
 	var out any
-	err := tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
+	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
 			res, err := fn(ctx)
 			out = res
@@ -191,14 +191,14 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 		permissions.ConfigManage,
 		permissions.ConfigUpdate,
 	}
-	err := tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
+	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
 			return s.factory.Settings.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
 		})
 	require.NoError(t, err, "set gdpr.timetable_retention_days=%d", days)
 	s.extraCleanup = append(s.extraCleanup, func() {
 		// Reset the override so a subsequent test sees the registry default.
-		_ = tenant.WithTenantTx(context.Background(), s.db, s.primaryTenant,
+		_ = testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 			func(ctx context.Context, _ bun.Tx) error {
 				return s.factory.Settings.ResetValue(ctx, "gdpr.timetable_retention_days", nil, perms)
 			})

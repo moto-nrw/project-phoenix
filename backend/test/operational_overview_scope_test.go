@@ -79,7 +79,7 @@ func TestOperationalOverviewScopeIsTenantScoped(t *testing.T) {
 
 	assertScope := func(tb testing.TB, tenantID int64, wantScope string, wantOverview bool) {
 		tb.Helper()
-		err := tenant.WithTenantTx(context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		err := WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			ctx := staffClaimsCtx(txCtx, tenantID)
 
 			scope, err := authorize.OperationalOverviewScope(ctx, settings)
@@ -128,7 +128,7 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()
-		err := tenant.WithTenantTx(context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
+		err := WithTenantTx(t, context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
 			groups, err := repository.List(txCtx, nil)
 			require.NoError(tb, err)
 

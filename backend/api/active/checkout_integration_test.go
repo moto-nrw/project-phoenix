@@ -32,7 +32,7 @@ func makeCheckoutRequest(t *testing.T, studentID int64, token string) *http.Requ
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	return req
+	return req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 }
 
 func TestCheckoutStudent_Integration(t *testing.T) {

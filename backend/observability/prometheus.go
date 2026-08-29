@@ -81,6 +81,13 @@ var (
 		},
 		[]string{"tenant_id", "scope", "method", "route"},
 	)
+	tenantRuntimeEvents = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_tenant_runtime_events_total",
+			Help: "Rejected tenant entry points and tenant transaction failures.",
+		},
+		[]string{"entry_point", "outcome"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -175,6 +182,7 @@ func init() {
 		appHTTPActive,
 		tenantHTTPRequests,
 		tenantHTTPDuration,
+		tenantRuntimeEvents,
 		rateLimitRejections,
 		iotRequests,
 		iotDuration,
@@ -256,6 +264,10 @@ func ObserveTenantRequest(tenantID int64, scope, method, route string, status in
 	statusClass := StatusClass(status)
 	tenantHTTPRequests.WithLabelValues(tenant, scope, method, route, statusClass, txOutcome).Inc()
 	tenantHTTPDuration.WithLabelValues(tenant, scope, method, route).Observe(duration.Seconds())
+}
+
+func RecordTenantRuntimeEvent(entryPoint, outcome string) {
+	tenantRuntimeEvents.WithLabelValues(sanitizeLabel(entryPoint), sanitizeLabel(outcome)).Inc()
 }
 
 func RecordRateLimitRejection(bucket string) {

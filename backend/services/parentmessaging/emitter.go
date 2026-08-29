@@ -14,6 +14,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+type Broadcaster = realtime.Broadcaster
+
 // ChildEvent describes one notification pill appended to a child's parent-OGS
 // thread: a request lifecycle notice (created / decided / withdrawn) or a
 // self-service action mirror (sick note, one-day pickup change). Pills are
@@ -72,12 +74,13 @@ func isTerminalRequestEvent(ev ChildEvent) bool {
 // tenant transaction on a background context, so a pill failure can never
 // roll back — or be rolled back by — the action it mirrors.
 type Emitter struct {
-	db          *bun.DB
-	threadRepo  usersModels.ParentMessageThreadRepository
-	messageRepo usersModels.ParentMessageRepository
-	settings    TenantSettingsResolver
-	broadcaster realtime.Broadcaster
-	logger      *slog.Logger
+	db            *bun.DB
+	threadRepo    usersModels.ParentMessageThreadRepository
+	messageRepo   usersModels.ParentMessageRepository
+	settings      TenantSettingsResolver
+	broadcaster   realtime.Broadcaster
+	logger        *slog.Logger
+	tenantRuntime *tenant.Runtime
 
 	// notifier and preferences push a staff DECISION to the submitting
 	// guardian's devices (#1671). Optional and set through
@@ -85,6 +88,20 @@ type Emitter struct {
 	// working and a partially-wired test emitter simply does not push.
 	notifier    notifications.Service
 	preferences notifications.PreferenceService
+}
+
+func (e *Emitter) SetTenantRuntime(runtime tenant.Runtime) {
+	if e != nil {
+		e.tenantRuntime = &runtime
+	}
+}
+
+func (e *Emitter) backgroundContext() context.Context {
+	ctx := context.Background()
+	if e != nil && e.tenantRuntime != nil {
+		ctx = tenant.WithRuntime(ctx, *e.tenantRuntime)
+	}
+	return ctx
 }
 
 // WithDecisionNotifications adds the guardian push for decided requests. It is a
@@ -108,7 +125,7 @@ func NewEmitter(
 	threadRepo usersModels.ParentMessageThreadRepository,
 	messageRepo usersModels.ParentMessageRepository,
 	settings TenantSettingsResolver,
-	broadcaster realtime.Broadcaster,
+	broadcaster Broadcaster,
 	logger *slog.Logger,
 ) *Emitter {
 	return &Emitter{
@@ -144,7 +161,7 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	}
 	// Detached background context: the pill outlives the (already committed)
 	// request transaction and must not inherit its cancellation.
-	bgCtx := context.Background()
+	bgCtx := e.backgroundContext()
 	enabled, err := e.settings.ResolveBoolForTenant(bgCtx, tenantID, configModels.KeyParentNotesEnabled)
 	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
 	// write path) normally drops the pill entirely so a disabled school never
@@ -372,7 +389,7 @@ func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID i
 	// The access recheck, the consent read and the delivery are RLS-scoped, so
 	// they need a tenant transaction of their own — the pill's transaction
 	// committed before this call.
-	bgCtx := context.Background()
+	bgCtx := e.backgroundContext()
 	err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Authorization first, and read here rather than carried over from the
 		// pill's transaction: a push payload is rendered on a lock screen, so the
@@ -454,7 +471,7 @@ func (e *Emitter) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
 	// Detached background context: this outlives the (already committed)
 	// originating transaction. Reading the guardian list is RLS-scoped, so it runs
 	// inside its own tenant transaction like EmitChildEvent's work.
-	bgCtx := context.Background()
+	bgCtx := e.backgroundContext()
 	var guardians []*usersModels.MessageableGuardian
 	if err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		gs, gerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)

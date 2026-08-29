@@ -12,7 +12,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -205,7 +204,7 @@ func (f *calendarPeriodValidationFixture) validate(
 ) error {
 	t.Helper()
 	var validationErr error
-	require.NoError(t, tenant.WithTenantTx(f.ctx, f.db, f.tenantID,
+	require.NoError(t, testpkg.WithTenantTx(t, f.ctx, f.db, f.tenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
 			validationErr = f.validator(t).ValidateCalendarPeriodChange(txCtx, periodID, replacement)
 			return nil

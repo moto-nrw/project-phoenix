@@ -18,7 +18,6 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -99,7 +98,7 @@ func withdrawalSelection(offeringID int64) []enrollmentService.OfferingAdjustmen
 }
 
 func (f *completeWithdrawalFixture) apply(decision enrollmentService.DecisionService, input enrollmentService.UpdateChildOfferingsInput) error {
-	return tenant.WithTenantTx(f.ctx, f.env.db, testpkg.Tenant(f.t), func(txCtx context.Context, _ bun.Tx) error {
+	return testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := decision.UpdateChildOfferings(txCtx, input)
 		return err
 	})
@@ -249,7 +248,7 @@ func (f *nonAuthoritativeWithdrawalFixture) applyConfirmed(offerings []enrollmen
 func (f *nonAuthoritativeWithdrawalFixture) applyInput(
 	offerings []enrollmentService.OfferingAdjustmentSelection, confirmed bool,
 ) error {
-	return tenant.WithTenantTx(f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
+	return testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
 		_, err := f.env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID: f.requestID, ChildID: f.childID, Offerings: offerings,
 			ActorAccountID: f.env.creatorID, ActorRole: "admin", Reason: "Betreuung geändert",
@@ -335,7 +334,7 @@ func (f *withdrawalRaceFixture) apply(ctx context.Context) error {
 }
 
 func (f *withdrawalRaceFixture) applyInTenantTx() error {
-	return tenant.WithTenantTx(f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
+	return testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
 		return f.apply(ctx)
 	})
 }
@@ -362,7 +361,7 @@ func (f *withdrawalRaceFixture) runRebookingRace(
 	pending *userModels.CareWithdrawalCompletion, preview *usersService.CareExitPreview, input usersService.CareExitInput,
 ) {
 	confirmErr := make(chan error, 1)
-	err := tenant.WithTenantTx(f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
 		if err := f.recurrenceGate(ctx); err != nil {
 			return err
 		}

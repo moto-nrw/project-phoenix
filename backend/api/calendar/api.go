@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -38,7 +37,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		withTx := common.TenantTxMiddleware
 
 		own := authorize.RequiresPermission(permissions.CalendarOwn)
 		manage := authorize.RequiresPermission(permissions.CalendarManage)

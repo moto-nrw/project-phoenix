@@ -95,7 +95,7 @@ func (f *fakeStudentLifecycleRepo) TransitionStatus(
 func TestSetStudentLifecycleRepo(t *testing.T) {
 	t.Parallel()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 	assert.Nil(t, s.studentLifecycleRepo)
 
 	repo := &fakeStudentLifecycleRepo{}
@@ -110,11 +110,11 @@ func TestSetStudentLifecycleRepo(t *testing.T) {
 func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-	}
+		tasks:  make(map[string]*ScheduledTask)})
+
 	s.scheduleActivateStudentsTask()
 	assert.Empty(t, s.tasks, "nil repo → no task registered")
 }
@@ -122,12 +122,12 @@ func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 func TestScheduleActivateStudentsTask_RegistersTask(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:                 make(chan struct{}),
 		logger:               slog.Default(),
 		tasks:                make(map[string]*ScheduledTask),
-		studentLifecycleRepo: &fakeStudentLifecycleRepo{},
-	}
+		studentLifecycleRepo: &fakeStudentLifecycleRepo{}})
+
 	// Pre-close done so the spawned goroutine exits during the startup sleep.
 	close(s.done)
 
@@ -156,10 +156,9 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 	pending[1].ID = 102
 
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -178,10 +177,9 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 	due[0].ID = 201
 
 	repo := &fakeStudentLifecycleRepo{activeDue: due}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -204,10 +202,9 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 		pendingDue: pending,
 		activeDue:  due,
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -229,10 +226,9 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 	pending := []*userModels.Student{{Status: userModels.StudentStatusPending}}
 	pending[0].ID = 401
 	repo := &fakeStudentLifecycleRepo{pendingDue: pending}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -260,10 +256,9 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 		pendingErr: errors.New("pending query failed"),
 		activeDue:  due,
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -279,10 +274,9 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 	repo := &fakeStudentLifecycleRepo{
 		activeErr: errors.New("active query failed"),
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -306,10 +300,9 @@ func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *test
 		updateErr:      errors.New("update blew up"),
 		updateErrForID: 601,
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -323,10 +316,9 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeStudentLifecycleRepo{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:               slog.Default(),
-		studentLifecycleRepo: repo,
-	}
+		studentLifecycleRepo: repo})
 
 	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
@@ -344,7 +336,7 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 func TestResolveActivateStudentsInterval_DefaultWhenUnset(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	got := s.resolveActivateStudentsInterval()
 	assert.Equal(t, 60*time.Minute, got, "no settings resolver → registry default 60m")
 }
@@ -352,13 +344,13 @@ func TestResolveActivateStudentsInterval_DefaultWhenUnset(t *testing.T) {
 func TestResolveActivateStudentsInterval_TenantOverride(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger: slog.Default(),
 		settings: &fakeSettingsResolver{
 			intValues: map[string]int{
 				"operations.student_activation_interval_minutes": 15,
 			},
-		},
-	}
+		}})
+
 	assert.Equal(t, 15*time.Minute, s.resolveActivateStudentsInterval())
 }

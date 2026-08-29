@@ -73,7 +73,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	// 4. Invalidate old invitations and create new token atomically.
 	// Without the transaction, a failed insert would leave the old token burned.
 	var token *platform.OperatorInvitationToken
-	if err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// Lock the inviter's operator row to serialize concurrent InviteOperator
 		// calls from the same operator. Without this, two parallel transactions
 		// under READ COMMITTED could both read count=N, both pass the rate-limit
@@ -178,7 +178,7 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 	}
 
 	var operator *platform.Operator
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// 2. Atomically consume the token FIRST (cheap DB operation).
 		// This prevents CPU amplification: bogus/expired tokens are rejected before
 		// the expensive Argon2id hash. The tx rollback on any later failure unconsumeS
@@ -394,7 +394,7 @@ func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Contex
 
 	baseRetry := token.EmailRetryCount
 
-	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(detachedOperatorContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},

@@ -49,6 +49,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	require.NoError(t, err)
 	authService, err := authSvcPkg.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, authService, db)
 
 	deps := usersSvc.StaffOffboardingServiceDependencies{
 		PersonRepo:             repos.Person,
@@ -289,6 +290,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		InvitationExpiry: time.Hour,
 		DB:               sc.db,
 	})
+	testpkg.SetTenantRuntime(t, invSvc, sc.db)
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")

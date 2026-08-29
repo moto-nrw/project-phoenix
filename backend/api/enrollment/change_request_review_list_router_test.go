@@ -163,7 +163,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 
 	env := &reviewListEnv{
 		db:        db,
-		router:    resource.Router(),
+		router:    testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
 		tenantID:  tenantID,
 		requestID: submitted.Request.ID,
 		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},

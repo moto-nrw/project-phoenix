@@ -660,6 +660,7 @@ func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.
 
 func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
 	cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(ctx))
+	cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 	return tenant.WithTenantTx(cleanupCtx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)
 	})

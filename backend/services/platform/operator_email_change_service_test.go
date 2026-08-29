@@ -835,6 +835,7 @@ func newEmailChangeTestService(t *testing.T, opts ...func(*emailChangeTestSetup)
 	}
 
 	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{OperatorRepo: setup.OperatorRepo, AuditLogRepo: setup.AuditLogRepo, EmailChangeTokenRepo: setup.TokenRepo, Dispatcher: setup.Dispatcher, DB: bunDB, FrontendURL: "https://app.example.com", DefaultFrom: email.NewEmail("moto", "noreply@example.com"), EmailChangeExpiry: 30 * time.Minute, Logger: slog.Default()}}
+	svc.tenantRuntime = newMockTenantRuntimePtr(t, bunDB)
 
 	return svc, mock, setup
 }

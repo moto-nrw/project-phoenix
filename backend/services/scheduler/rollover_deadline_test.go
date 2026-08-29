@@ -50,12 +50,11 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 		repo:        repos.Timeframe,
 		description: fmt.Sprintf("rollover-deadline-rollback-%d", time.Now().UnixNano()),
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:                     db,
 		schoolRepo:             repos.School,
 		rolloverDeadlineRunner: probe,
-		logger:                 slog.Default(),
-	}
+		logger:                 slog.Default()})
 
 	s.checkAndRunRolloverDeadline(&ScheduledTask{})
 

@@ -113,7 +113,7 @@ func newOperatorAuthServiceForGate(t *testing.T, mfa *stubOperatorMFAService) (p
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	svc, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	svc, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     auditLogRepo,
 		RefreshTokenRepo: &mockOperatorRefreshTokenRepo{},
@@ -316,7 +316,7 @@ func TestOperatorLoginWithMFAGate_InactiveOperator_ReturnsInactiveError(t *testi
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	svc, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	svc, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},

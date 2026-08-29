@@ -2119,8 +2119,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 			"confirm_password": "Test1234%",
 		}
 		acceptReq := testutil.NewJSONRequest(t, "POST", "/invitations/"+token+"/accept", acceptBody)
-		acceptRR := httptest.NewRecorder()
-		tc.resource.Router().ServeHTTP(acceptRR, acceptReq)
+		acceptRR := testutil.ExecuteRequest(tc.resource.Router(), acceptReq)
 
 		require.Equal(t, http.StatusCreated, acceptRR.Code,
 			"Expected 201 Created, got %d. Body: %s", acceptRR.Code, acceptRR.Body.String())

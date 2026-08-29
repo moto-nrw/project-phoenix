@@ -104,7 +104,7 @@ func TestGetChildConversation_EmptyViewWhenNoThread(t *testing.T) {
 	svc, _, db, _ := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	view, err := svc.GetChildConversation(context.Background(), chain.AccountID, chain.StudentID)
+	view, err := svc.GetChildConversation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, view)
 	assert.Zero(t, view.ThreadID, "no conversation yet → ThreadID 0 so the chat opens ready to write")
@@ -123,19 +123,19 @@ func TestGetChildConversation_ReturnsHistoryMarksReadAndBroadcasts(t *testing.T)
 	_, _ = seedStaffReply(t, db, repos, chain, "Bitte Jacke mitgeben")
 
 	// Before reading, the staff reply is unread to the guardian.
-	before, err := svc.UnreadMessageCount(context.Background(), chain.AccountID)
+	before, err := svc.UnreadMessageCount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, before)
 
 	bc.Reset()
-	view, err := svc.GetChildConversation(context.Background(), chain.AccountID, chain.StudentID)
+	view, err := svc.GetChildConversation(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, view.Messages, 1)
 	assert.Equal(t, "Bitte Jacke mitgeben", view.Messages[0].Body)
 	assert.Positive(t, view.ThreadID)
 
 	// Reading it advances the guardian cursor → unread clears.
-	after, err := svc.UnreadMessageCount(context.Background(), chain.AccountID)
+	after, err := svc.UnreadMessageCount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, after, "GetChildConversation marks the staff reply read")
 }
@@ -149,15 +149,15 @@ func TestListMessageThreads_ReturnsConversationAfterFirstMessage(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// No message yet → no thread in the list (empty conversations stay hidden).
-	threads, err := svc.ListMessageThreads(context.Background(), chain.AccountID)
+	threads, err := svc.ListMessageThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	assert.Empty(t, threads)
 
 	// Guardian writes → the conversation appears with the child + school header.
-	_, err = svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	_, err = svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "Hallo OGS")
 	require.NoError(t, err)
 
-	threads, err = svc.ListMessageThreads(context.Background(), chain.AccountID)
+	threads, err = svc.ListMessageThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	require.Len(t, threads, 1)
 	assert.Equal(t, chain.StudentID, threads[0].StudentID)
@@ -171,11 +171,11 @@ func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *tes
 	svc, _, db, repos := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	view, err := svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "Hallo OGS")
 	require.NoError(t, err)
 	require.Len(t, view.Messages, 1)
 
-	threads, err := svc.ListMessageThreads(context.Background(), chain.AccountID)
+	threads, err := svc.ListMessageThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	require.Len(t, threads, 1)
 	assert.False(t, threads[0].LastMessageReadByStaff)
@@ -183,7 +183,7 @@ func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *tes
 	_, staffAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, chain.TenantID, "Olivia", "Berg")
 
 	message := view.Messages[0]
-	tenantCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	advanced, err := repos.ParentMessageRead.MarkReadUpTo(
 		tenantCtx,
 		chain.TenantID,
@@ -195,7 +195,7 @@ func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *tes
 	require.NoError(t, err)
 	require.True(t, advanced)
 
-	threads, err = svc.ListMessageThreads(context.Background(), chain.AccountID)
+	threads, err = svc.ListMessageThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	require.Len(t, threads, 1)
 	assert.True(t, threads[0].LastMessageReadByStaff)
@@ -208,7 +208,7 @@ func TestListChildThreads_FiltersToOneChild(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	seedStaffReply(t, db, repos, chain, "Hallo")
 
-	rows, err := svc.ListChildThreads(context.Background(), chain.AccountID, chain.StudentID)
+	rows, err := svc.ListChildThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, chain.StudentID, rows[0].StudentID)
@@ -223,11 +223,11 @@ func TestListChildThreads_NotOwnedDenied(t *testing.T) {
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
 	}()
 
-	_, err := svc.ListChildThreads(context.Background(), chain.AccountID, other.ID)
+	_, err := svc.ListChildThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -241,12 +241,12 @@ func TestUnreadMessageCount_ZeroWhenSchoolDisabled(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	seedStaffReply(t, db, repos, chain, "Hallo")
 
-	count, err := svc.UnreadMessageCount(context.Background(), chain.AccountID)
+	count, err := svc.UnreadMessageCount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "a disabled school's unread badge is suppressed")
 
 	// The per-row pill is suppressed too, so the child-thread row agrees with the badge.
-	rows, err := svc.ListChildThreads(context.Background(), chain.AccountID, chain.StudentID)
+	rows, err := svc.ListChildThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, 0, rows[0].UnreadCount, "disabled school suppresses the per-row unread pill")
@@ -256,9 +256,9 @@ func TestParentMessaging_AccountIDMustBePositive(t *testing.T) {
 	t.Parallel()
 
 	svc, _, _, _ := buildReadService(t, true)
-	_, err := svc.ListMessageThreads(context.Background(), 0)
+	_, err := svc.ListMessageThreads(testpkg.WithPackageTenantRuntime(context.Background()), 0)
 	require.Error(t, err)
-	_, err = svc.UnreadMessageCount(context.Background(), -1)
+	_, err = svc.UnreadMessageCount(testpkg.WithPackageTenantRuntime(context.Background()), -1)
 	require.Error(t, err)
 }
 
@@ -271,7 +271,7 @@ func TestPostChildMessage_DenormalizesGuardianName(t *testing.T) {
 	svc, _, db, _ := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	view, err := svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "Hallo OGS")
 	require.NoError(t, err)
 	require.Len(t, view.Messages, 1)
 	assert.Equal(t, "Sabine Schneider", view.Messages[0].SenderName,
@@ -285,7 +285,7 @@ func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
 	svc, _, db, _ := buildReadServiceWithNotifier(t, true, notifier)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	view, err := svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "Hallo OGS")
 	require.NoError(t, err)
 	require.Len(t, notifier.reports, 1)
 	assert.Equal(t, notificationsSvc.StaffParentMessageReport{

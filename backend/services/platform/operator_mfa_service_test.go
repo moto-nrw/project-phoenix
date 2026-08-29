@@ -33,6 +33,7 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 		DB:        db,
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 	return svc, repos, db
 }
 

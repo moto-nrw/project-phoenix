@@ -12,7 +12,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,7 +31,7 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 	withdrawn := createPending(t, svc, db, chain, []timezone.Date{day.AddDays(1)}, "Familienfeier")
 	pending := createPending(t, svc, db, chain, []timezone.Date{day.AddDays(2)}, "Ausflug")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: rejected.ID, Approve: false, Reason: "bitte anrufen", ReviewedBy: staffAccount.ID,
 		}); e != nil {
@@ -43,7 +42,7 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, next, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		assert.Nil(t, next)

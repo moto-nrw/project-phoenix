@@ -1,4 +1,4 @@
-package middleware
+package api
 
 import (
 	"net/http"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,15 +17,14 @@ import (
 func TestNewSecurityLogger(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 	assert.NotNil(t, sl)
-	assert.NotNil(t, sl.logger)
 }
 
 func TestSecurityLogger_LogEvent(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("User-Agent", "TestAgent/1.0")
@@ -42,7 +42,7 @@ func TestSecurityLogger_LogEvent(t *testing.T) {
 func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)
 
@@ -54,12 +54,12 @@ func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
 func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	events := []string{
 		"AUTH_FAILURE",
-		EventRateLimitExceed,
+		customMiddleware.EventRateLimitExceed,
 		"SUSPICIOUS_ACCESS",
 		"ACCOUNT_LOCKED",
 		"INVALID_TOKEN",
@@ -77,7 +77,7 @@ func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
 func TestSecurityLogger_LogRateLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.RemoteAddr = "10.0.0.1:12345"
@@ -88,16 +88,16 @@ func TestSecurityLogger_LogRateLimitExceeded(t *testing.T) {
 }
 
 // =============================================================================
-// SecurityLoggingMiddleware Tests
+// customMiddleware.SecurityLoggingMiddleware Tests
 // =============================================================================
 
 func TestSecurityLoggingMiddleware_NormalRequest(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 
 	r := chi.NewRouter()
-	r.Use(SecurityLoggingMiddleware(sl))
+	r.Use(customMiddleware.SecurityLoggingMiddleware(sl))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -113,10 +113,10 @@ func TestSecurityLoggingMiddleware_NormalRequest(t *testing.T) {
 func TestSecurityLoggingMiddleware_RateLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 
 	r := chi.NewRouter()
-	r.Use(SecurityLoggingMiddleware(sl))
+	r.Use(customMiddleware.SecurityLoggingMiddleware(sl))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 	})
@@ -132,7 +132,7 @@ func TestSecurityLoggingMiddleware_RateLimitExceeded(t *testing.T) {
 func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
 	t.Parallel()
 
-	sl := NewSecurityLogger()
+	sl := customMiddleware.NewSecurityLogger()
 
 	statusCodes := []int{
 		http.StatusOK,
@@ -148,7 +148,7 @@ func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
 	for _, code := range statusCodes {
 		t.Run(http.StatusText(code), func(t *testing.T) {
 			r := chi.NewRouter()
-			r.Use(SecurityLoggingMiddleware(sl))
+			r.Use(customMiddleware.SecurityLoggingMiddleware(sl))
 			r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(code)
 			})
@@ -161,58 +161,4 @@ func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
 			assert.Equal(t, code, rr.Code)
 		})
 	}
-}
-
-// =============================================================================
-// responseWriter Tests
-// =============================================================================
-
-func TestResponseWriter_WriteHeader(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
-
-	wrapped.WriteHeader(http.StatusNotFound)
-
-	assert.Equal(t, http.StatusNotFound, wrapped.statusCode)
-	assert.Equal(t, http.StatusNotFound, rr.Code)
-}
-
-func TestResponseWriter_DefaultStatusCode(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
-
-	// Before WriteHeader is called, status should be default
-	assert.Equal(t, http.StatusOK, wrapped.statusCode)
-}
-
-func TestResponseWriter_Write(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
-
-	n, err := wrapped.Write([]byte("test body"))
-
-	assert.NoError(t, err)
-	assert.Equal(t, 9, n)
-	assert.Equal(t, "test body", rr.Body.String())
-}
-
-func TestResponseWriter_Flush(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	wrapped := &responseWriter{ResponseWriter: rr, statusCode: http.StatusOK}
-
-	// httptest.ResponseRecorder implements http.Flusher
-	// Verify the wrapper satisfies http.Flusher at compile time
-	var w http.ResponseWriter = wrapped
-	flusher, ok := w.(http.Flusher)
-	assert.True(t, ok, "responseWriter should implement http.Flusher when underlying writer does")
-	assert.NotPanics(t, func() { flusher.Flush() })
-	assert.True(t, rr.Flushed)
 }

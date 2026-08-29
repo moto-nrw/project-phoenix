@@ -259,7 +259,7 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	release := make(chan struct{})
 	lockDone := make(chan error, 1)
 	go func() {
-		lockDone <- tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		lockDone <- testpkg.WithTenantTx(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
 			if _, err := repos.Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
 				return err
 			}

@@ -13,7 +13,6 @@ import (
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +28,7 @@ func TestScheduleStatusFlagClearTask_DisabledByEnvVar(t *testing.T) {
 	defer func() { _ = os.Unsetenv("STATUS_FLAG_CLEAR_ENABLED") }()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+		s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 		s.scheduleStatusFlagClearTask()
 		synctest.Wait()
 
@@ -48,7 +47,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
+	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)})
 
 	// Create two students: one sick, one not, both in tenant 1.
 	sickStudent := testpkg.CreateTestStudent(t, db, "Clear", "SickFlag", "1a")
@@ -67,7 +66,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 
 	// Call the scheduler helper inside a tenant tx so the UPDATE lands.
 	ctx := testpkg.Ctx(t)
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		affected, clearErr := s.clearStatusFlag(txCtx, "sick", "sick_since")
 		require.NoError(t, clearErr)
 		// We don't assert exact row count — other tests may leave sick rows
@@ -98,7 +97,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 // it also clears the flags of the tenants belonging to tests running beside
 // this one — and those tests' students land in this one's assertions.
 func TestClearStatusFlag_NilDBReturnsError(t *testing.T) {
-	s := &Scheduler{}
+	s := unitScheduler(&Scheduler{})
 	_, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
 	assert.Error(t, err)
 }
@@ -138,13 +137,13 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 	// timeMatchesNow returns false, so the task body should short-circuit
 	// without attempting any DB work (db is deliberately nil here to prove
 	// the short-circuit — any attempted UPDATE would panic).
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": "99:99",
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "status-flag-clear"}
 	s.checkAndRunStatusFlagClear(task)
 	// If we reach here without a nil-db panic the short-circuit worked.
@@ -158,9 +157,9 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 // it also clears the flags of the tenants belonging to tests running beside
 // this one — and those tests' students land in this one's assertions.
 func TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty(t *testing.T) {
-	s := &Scheduler{
-		settings: &fakeStatusFlagSettings{overrides: map[string]string{}},
-	}
+	s := unitScheduler(&Scheduler{
+		settings: &fakeStatusFlagSettings{overrides: map[string]string{}}})
+
 	task := &ScheduledTask{Name: "status-flag-clear"}
 	s.checkAndRunStatusFlagClear(task)
 	assert.False(t, task.Running)
@@ -184,15 +183,15 @@ func TestCheckAndRunStatusFlagClear_FiresBothModesWhenTimeMatches(t *testing.T) 
 	}
 	nowHHMM := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
 				"operations.sick_clear_mode":        "end_of_day",
 				"operations.excused_clear_mode":     "end_of_day",
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "status-flag-clear"}
 	s.checkAndRunStatusFlagClear(task)
 
@@ -209,10 +208,10 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			done:     make(chan struct{}),
-			settings: &fakeStatusFlagSettings{overrides: map[string]string{}},
-		}
+			settings: &fakeStatusFlagSettings{overrides: map[string]string{}}})
+
 		task := &ScheduledTask{Name: "status-flag-clear"}
 		s.wg.Add(1)
 		go s.runStatusFlagClearTaskPolling(task)
@@ -232,7 +231,7 @@ func TestRunStatusFlagClearTaskPolling_StopsOnDone(t *testing.T) {
 func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
-	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
+	s := unitScheduler(&Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)})
 
 	excStudent := testpkg.CreateTestStudent(t, db, "Clear", "ExcusedFlag", "1b")
 
@@ -247,7 +246,7 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := testpkg.Ctx(t)
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		affected, clearErr := s.clearStatusFlag(txCtx, "excused", "excused_since")
 		require.NoError(t, clearErr)
 		assert.GreaterOrEqual(t, affected, int64(1))
@@ -338,7 +337,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	// Fully wired scheduler: real db, real school repo (so
 	// forEachTenantSettings iterates every active tenant), fake settings
 	// resolver that pins the clock + both modes to what the task expects.
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
 		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
@@ -349,8 +348,8 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 				"operations.excused_clear_mode":     "end_of_day",
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
 	s.checkAndRunStatusFlagClear(task)
@@ -398,7 +397,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
 		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
@@ -409,8 +408,8 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 				"operations.excused_clear_mode":     "next_checkin",
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
 	s.checkAndRunStatusFlagClear(task)
@@ -446,19 +445,19 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 	require.NoError(t, err)
 
 	// Configure a clearly past time so timeMatchesNow always returns false.
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:                   db,
 		schoolRepo:           platformRepo.NewSchoolRepository(db),
 		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
-				"operations.status_flag_clear_time": "25:99", // invalid, timeMatchesNow → false
+				"operations.status_flag_clear_time": "25:99",
 				"operations.sick_clear_mode":        "end_of_day",
 				"operations.excused_clear_mode":     "end_of_day",
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
 	s.checkAndRunStatusFlagClear(task)

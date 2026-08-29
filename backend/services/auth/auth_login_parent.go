@@ -99,7 +99,7 @@ func (s *Service) findGuardianTenantForAccount(ctx context.Context, accountID in
 	hasGuardianRole := false
 	var firstGuardianTenantID int64
 
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, tx bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, tx bun.Tx) error {
 		mappings, listErr := s.repos.AccountTenant.FindActiveByAccountID(adminCtx, accountID)
 		if listErr != nil {
 			return listErr

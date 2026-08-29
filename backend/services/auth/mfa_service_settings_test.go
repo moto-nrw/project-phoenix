@@ -179,6 +179,8 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 		DB:          db,
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
+	testpkg.SetTenantRuntime(t, settings, db)
 
 	return &wiredMFAFixture{
 		svc:        svc,

@@ -20,7 +20,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -110,7 +109,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// ARRANGE 1 — the office corrects the booking itself, through the very
 	// service the admin route calls: the child stays in Ganztag and is taken
 	// out of Mittagessen. The frozen before/after snapshots must show that.
-	err := tenant.WithTenantTx(t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		_, updateErr := tc.services.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID:      fixture.child.RequestID,
 			ChildID:        fixture.child.ID,

@@ -18,7 +18,6 @@ import (
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -432,7 +431,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	// MUST run in one (the SELECT ... FOR UPDATE row lock and the link-then-
 	// guardian ordering are only meaningful/atomic within a single tx), and the
 	// HTTP handler wraps it that way. Exercising the real contract here.
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs, 1)
 	})
 
@@ -474,7 +473,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999}, 1)
 	})
 

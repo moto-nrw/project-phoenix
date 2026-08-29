@@ -71,6 +71,7 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 	require.NoError(t, err)
 	svc, err := auth.NewService(repos, authCfg, db, nil)
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 
 	var mfaSvc auth.MFAService
 	if withMFA {
@@ -83,6 +84,7 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 			DB:        db,
 		})
 		require.NoError(t, err)
+		testpkg.SetTenantRuntime(t, mfaSvc, db)
 		svc.SetMFAService(mfaSvc)
 	}
 
