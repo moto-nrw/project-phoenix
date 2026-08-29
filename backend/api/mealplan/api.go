@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -46,9 +45,9 @@ func (rs *Resource) Router() chi.Router {
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		r.With(authorize.RequiresPermission(permissions.ConfigRead), withTx).Get("/", rs.getWeek)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate), withTx).Put("/{date}", rs.setDay)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate), withTx).Delete("/{date}", rs.deleteDay)
+		r.With(common.RequiresPermission(permissions.ConfigRead), withTx).Get("/", rs.getWeek)
+		r.With(common.RequiresPermission(permissions.ConfigUpdate), withTx).Put("/{date}", rs.setDay)
+		r.With(common.RequiresPermission(permissions.ConfigUpdate), withTx).Delete("/{date}", rs.deleteDay)
 	})
 
 	return r

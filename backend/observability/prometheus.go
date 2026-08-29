@@ -163,6 +163,21 @@ var (
 		},
 		[]string{"bucket"},
 	)
+	authorizationDenials = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_authorization_denials_total",
+			Help: "Authorization denials by stable reason code.",
+		},
+		[]string{"reason"},
+	)
+	authMiddlewareDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_auth_middleware_duration_seconds",
+			Help:    "Security-principal middleware duration by outcome.",
+			Buckets: []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05},
+		},
+		[]string{"outcome"},
+	)
 	iotRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_iot_requests_total",
@@ -260,6 +275,8 @@ func init() {
 		settingsLookupDuration,
 		settingsSideEffectFailures,
 		rateLimitRejections,
+		authorizationDenials,
+		authMiddlewareDuration,
 		iotRequests,
 		iotDuration,
 		sseBroadcasts,
@@ -373,6 +390,19 @@ func RecordSettingsSideEffectFailure(key string) {
 
 func RecordRateLimitRejection(bucket string) {
 	rateLimitRejections.WithLabelValues(sanitizeLabel(bucket)).Inc()
+}
+
+func RecordAuthorizationEvent(outcome, reason string, duration time.Duration) {
+	switch reason {
+	case "invalid_principal", "missing_principal", "permission_denied":
+		authorizationDenials.WithLabelValues(reason).Inc()
+	case "":
+	default:
+		authorizationDenials.WithLabelValues("unknown").Inc()
+	}
+	if outcome == "resolved" || outcome == "invalid" {
+		authMiddlewareDuration.WithLabelValues(outcome).Observe(duration.Seconds())
+	}
 }
 
 func ObserveIoTRequest(tenantID int64, method, route string, status int, duration time.Duration, deviceType string) {

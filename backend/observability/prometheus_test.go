@@ -88,6 +88,20 @@ func TestRecordTenantRuntimeEventCountsByEntryPointAndOutcome(t *testing.T) {
 	assert.Equal(t, before+1, after)
 }
 
+func TestRecordAuthorizationEventUsesStableLabels(t *testing.T) {
+	t.Parallel()
+	denialsBefore := testutil.ToFloat64(authorizationDenials.WithLabelValues("permission_denied"))
+	unknownBefore := testutil.ToFloat64(authorizationDenials.WithLabelValues("unknown"))
+	durationsBefore := testutil.CollectAndCount(authMiddlewareDuration)
+
+	RecordAuthorizationEvent("resolved", "permission_denied", time.Millisecond)
+	RecordAuthorizationEvent("", "student-Erika", 0)
+
+	assert.Equal(t, denialsBefore+1, testutil.ToFloat64(authorizationDenials.WithLabelValues("permission_denied")))
+	assert.Equal(t, unknownBefore+1, testutil.ToFloat64(authorizationDenials.WithLabelValues("unknown")))
+	assert.Equal(t, durationsBefore+1, testutil.CollectAndCount(authMiddlewareDuration))
+}
+
 func TestHTTPMethodLabelsCollapseUnknownValues(t *testing.T) {
 	t.Parallel()
 

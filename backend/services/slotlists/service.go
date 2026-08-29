@@ -181,11 +181,16 @@ type Dependencies struct {
 	ArrivalService      arrivalTimeReader
 	ListExport          *listexport.RendererService
 	Settings            settingsReader
-	UserContext         authorize.StudentAccessUserContext
+	UserContext         slotListUserContext
 	Logger              *slog.Logger
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
+}
+
+type slotListUserContext interface {
+	authorize.StudentAccessUserContext
+	GetCurrentStaff(ctx context.Context) (*userModel.Staff, error)
 }
 
 type service struct {
@@ -205,7 +210,7 @@ type service struct {
 	arrivalService      arrivalTimeReader
 	listExport          *listexport.RendererService
 	settings            settingsReader
-	userContext         authorize.StudentAccessUserContext
+	userContext         slotListUserContext
 	logger              *slog.Logger
 	// now is the clock the service reads "today" and "has this slot started
 	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed

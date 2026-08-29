@@ -1,54 +1,34 @@
 package authorize
 
-// Pure-logic tests for ResolveStudentReadScope (student_read_scope.go), the
-// list-level counterpart to CanReadStudent. Reuses the stubUserCtx double
-// defined in student_access_test.go (same package) so the branch coverage
-// stays in-package.
-
 import (
 	"context"
 	"errors"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-func TestResolveStudentReadScope_AdminSeesAll(t *testing.T) {
+func TestResolveStudentReadScope(t *testing.T) {
 	t.Parallel()
-
-	// Admin permission short-circuits before any userCtx lookup.
-	assert.True(t, ResolveStudentReadScope(context.Background(), []string{"admin:*"}, nil))
-}
-
-func TestResolveStudentReadScope_StaffSeesAll(t *testing.T) {
-	t.Parallel()
-
-	// #2329: a verified staff record grants tenant-wide read.
-	uc := &stubUserCtx{staff: &users.Staff{}}
-	assert.True(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, uc))
-}
-
-func TestResolveStudentReadScope_NonStaffReadsNothing(t *testing.T) {
-	t.Parallel()
-
-	// A guardian/guest holding users:read has no staff record and is NOT
-	// promoted to tenant-wide read.
-	uc := &stubUserCtx{staffErr: errors.New("no staff record")}
-	assert.False(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, uc))
-}
-
-func TestResolveStudentReadScope_NilUserContextReadsNothing(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, nil))
-}
-
-func TestResolveStudentReadScope_StaffLookupErrorReadsNothing(t *testing.T) {
-	t.Parallel()
-
-	uc := &stubUserCtx{staffErr: errors.New("DB outage")}
-	assert.False(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, uc),
-		"a staff lookup error must fail closed to no access")
+	for _, tt := range []struct {
+		name  string
+		perms []string
+		staff *testStaffContext
+		want  bool
+	}{
+		{name: "admin without user context", perms: []string{"admin:*"}, want: true},
+		{name: "verified staff", perms: []string{"users:read"}, staff: &testStaffContext{present: true}, want: true},
+		{name: "non-staff", perms: []string{"users:read"}, staff: &testStaffContext{}},
+		{name: "missing user context", perms: []string{"users:read"}},
+		{name: "staff lookup error", perms: []string{"users:read"}, staff: &testStaffContext{err: errors.New("database unavailable")}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var staff StudentAccessUserContext
+			if tt.staff != nil {
+				staff = tt.staff
+			}
+			if got := ResolveStudentReadScope(context.Background(), tt.perms, staff); got != tt.want {
+				t.Fatalf("ResolveStudentReadScope() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

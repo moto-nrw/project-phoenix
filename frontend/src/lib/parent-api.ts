@@ -1163,6 +1163,37 @@ export async function getChildCareSchedule(
   );
 }
 
+export interface CareScheduleRequestInput {
+  readonly weekdays: ReadonlyArray<{
+    readonly weekday: number;
+    readonly scheduled?: boolean;
+    readonly pickup?: string;
+    readonly mode?: string;
+  }>;
+}
+
+/** Submits a permanent change request for the child's standard weekly plan. */
+export async function submitCareScheduleRequest(
+  studentId: string,
+  payload: CareScheduleRequestInput,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
+    { payload },
+  );
+}
+
+/** Withdraws the calling guardian's own pending weekly-plan request. */
+export async function withdrawCareScheduleRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
+  );
+}
+
 // --- Booked care offerings (#1665, #2303) ---
 
 /** One booked care offering of the child's current care period. */

@@ -19,7 +19,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -46,8 +45,8 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 		// Reading is open to anyone who may decide absences too, so the
 		// Leitung's approval views can render the school's own wording.
-		read := authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage, permissions.VacationApprove)
-		manage := authorize.RequiresPermission(permissions.TimeTrackingManage)
+		read := common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage, permissions.VacationApprove)
+		manage := common.RequiresPermission(permissions.TimeTrackingManage)
 		r.With(read, withTx).Get("/", rs.list)
 		r.With(manage, withTx).Post("/", rs.create)
 		r.With(manage, withTx).Put("/{id}", rs.update)

@@ -86,21 +86,21 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations require rooms:read permission
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
-		r.With(authorize.RequiresAllPermissions(permissions.RoomsRead, permissions.UsersRead), withTx).Post("/export", rs.exportSnapshot)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.GetRoomHistory)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
+		r.With(common.RequiresAllPermissions(permissions.RoomsRead, permissions.UsersRead), withTx).Post("/export", rs.exportSnapshot)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}", rs.getRoom)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/by-category", rs.getRoomsByCategory)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/{id}/history", rs.GetRoomHistory)
 
 		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsUpdate), withTx).Put("/{id}", rs.updateRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsDelete), withTx).Delete("/{id}", rs.deleteRoom)
+		r.With(common.RequiresPermission(permissions.RoomsCreate), withTx).Post("/", rs.createRoom)
+		r.With(common.RequiresPermission(permissions.RoomsUpdate), withTx).Put("/{id}", rs.updateRoom)
+		r.With(common.RequiresPermission(permissions.RoomsDelete), withTx).Delete("/{id}", rs.deleteRoom)
 
 		// Advanced operations
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/buildings", rs.getBuildingList)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/categories", rs.getCategoryList)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/available", rs.getAvailableRooms)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/buildings", rs.getBuildingList)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/categories", rs.getCategoryList)
+		r.With(common.RequiresPermission(permissions.RoomsRead), withTx).Get("/available", rs.getAvailableRooms)
 	})
 
 	return r

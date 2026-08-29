@@ -272,6 +272,9 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Setup router middleware
 	api.Router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
 	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
+	api.Router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
+		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
+	}))
 	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(ctx context.Context, event apiCommon.TenantRuntimeEvent) {
 		recordHTTPRuntimeEvent(ctx, tracer, event)
 	}))
@@ -698,8 +701,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		},
 		TenantGuard: apiCommon.TenantOperationMiddleware,
 		RequestActor: func(ctx context.Context) (int64, int64, []string) {
-			claims := projectJWT.ClaimsFromCtx(ctx)
-			return claims.TenantID, int64(claims.ID), claims.Permissions
+			principal, err := apiCommon.CurrentPrincipal(ctx)
+			if err != nil {
+				return 0, 0, nil
+			}
+			return principal.TenantID(), principal.AccountID(), principal.Permissions()
 		},
 		Editable:  apiCommon.CanEditConfig,
 		Success:   apiCommon.Respond,

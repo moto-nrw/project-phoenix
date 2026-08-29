@@ -1318,13 +1318,16 @@
       "7": "Die"
     },
     "careSchedule": {
+      "arrival": "Ora e mbërritjes",
       "pickup": "Ora e marrjes",
       "modes": "Mënyra e marrjes",
       "loadError": "Oraret e kujdesit nuk mund të ngarkoheshin. Ju lutemi përditësoni faqen.",
+      "readOnlyNotice": "Planin javor nuk mund ta ndryshoni këtu. Ndryshimet e ofertave të rezervuara janë në pjesën tjetër.",
+      "noPermissionNotice": "Këtu nuk mund të kërkoni ndryshim. Ju lutemi pyesni OGS-në.",
       "requestButton": "Kërko ndryshime",
       "requestTitle": "Kërko ndryshimin e planit javor",
       "close": "Mbyll dialogun",
-      "requestIntro": "Zgjidhni çfarë duhet të vlejë rregullisht në çdo ditë të javës.",
+      "requestIntro": "Ndryshoni ditët e kujdesit, orët ose mënyrat e marrjes. Shihni vetëm ndryshimet që lejon OGS-ja juaj.",
       "requestNoticeTitle": "Kërkesë për OGS-në",
       "requestNoticeBody": "Ky është një ndryshim i përhershëm që vlen çdo javë. OGS-ja e shqyrton kërkesën. Plani aktual javor mbetet në fuqi deri në miratim.",
       "requestSubmit": "Dërgo kërkesën në OGS",
@@ -1335,7 +1338,8 @@
       "requestError": "Kërkesa nuk mund të dërgohej.",
       "requestAlreadyPending": "Një ndryshim për këtë fëmijë është tashmë në shqyrtim.",
       "requestDisabled": "Ky ndryshim nuk është aktivizuar nga OGS-ja juaj.",
-      "requestInvalid": "Kontrolloni oraret dhe mënyrat e zgjedhura të marrjes.",
+      "requestBookingLed": "OGS-ja juaj nuk pranon kërkesa për planin javor. Ndryshimet bëhen përmes ofertave të rezervuara.",
+      "requestInvalid": "Kontrolloni ditët e kujdesit, oraret dhe mënyrat e marrjes.",
       "modeUnchanged": "Mënyra e marrjes pa ndryshim",
       "modeCurrent": "Aktualisht: {modes}",
       "careDay": "Kujdes në këtë ditë",
@@ -1360,7 +1364,7 @@
       "withdraw": "Tërhiq kërkesën",
       "withdrawError": "Kërkesa nuk mund të tërhiqej.",
       "withdrawConfirmTitle": "Tërhiq kërkesën?",
-      "withdrawConfirmBody": "Dëshironi vërtet ta tërhiqni kërkesën për ndryshimin e marrjes?"
+      "withdrawConfirmBody": "Dëshironi vërtet ta tërhiqni kërkesën për planin javor?"
     }
   },
   "parentOgsMessaging": {
