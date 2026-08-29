@@ -224,7 +224,10 @@ export function TenantPageStats({
  * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
  * nicht nur direkte Kinder.
  */
-const CONTROL_HEIGHT = "[&_button]:h-9 [&_select]:h-9";
+// Eine Bedienhöhe in der Kopfkarte: 36 px für Schaltflächen, Auswahl- UND
+// Eingabefelder. Das Eingabefeld fehlte hier, deshalb stand das Suchfeld mit
+// 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe Versatz.
+const CONTROL_HEIGHT = "[&_button]:h-9 [&_select]:h-9 [&_input]:h-9";
 
 export function TenantPage({
   title,
