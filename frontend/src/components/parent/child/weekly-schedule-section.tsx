@@ -89,10 +89,18 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
   const { schedule, childFirstName, careEnded } = props;
   const showAction =
     !careEnded && schedule.can_request && !schedule.pending_request;
-  const readOnly =
-    !schedule.can_request &&
-    !schedule.request_capabilities.pickup &&
-    !schedule.request_capabilities.departure_mode;
+  // No action and no pending request: say why. Booking-led schools point to
+  // the offerings section; otherwise this guardian lacks the request
+  // permission (the school enabled at least one field).
+  const schoolAllowsRequests =
+    schedule.request_capabilities.pickup ||
+    schedule.request_capabilities.departure_mode;
+  const noticeKey =
+    !careEnded && !schedule.can_request && !schedule.pending_request
+      ? schoolAllowsRequests
+        ? "noPermissionNotice"
+        : "readOnlyNotice"
+      : null;
   return (
     <>
       <ParentSection
@@ -113,9 +121,7 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
         }
       >
         <ScheduleDays schedule={schedule} childFirstName={childFirstName} />
-        {readOnly && !schedule.pending_request && (
-          <p className="text-sm text-gray-600">{t("readOnlyNotice")}</p>
-        )}
+        {noticeKey && <p className="text-sm text-gray-600">{t(noticeKey)}</p>}
         {schedule.pending_request && (
           <PendingRequestPanel
             pending={schedule.pending_request}

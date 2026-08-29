@@ -435,6 +435,28 @@ describe("BookedCareSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("erklärt fehlende Berechtigung bei wochenplangeführter Betreuung", async () => {
+    mockedSchedule.mockResolvedValue({
+      ...pendingSchedule(),
+      can_request: false,
+      pending_request: undefined,
+    });
+    renderSection();
+
+    await screen.findByText("Montag");
+    expect(
+      screen.queryByRole("button", { name: "Änderungen anfragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Sie können hier keine Änderung anfragen. Bitte fragen Sie bei der OGS nach.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Den Wochenplan können Sie hier nicht ändern/),
+    ).not.toBeInTheDocument();
+  });
+
   it("zeigt eine alte offene Wochenplananfrage mit Rücknahme weiter an", async () => {
     mockedSchedule.mockResolvedValue({
       ...pendingSchedule(),

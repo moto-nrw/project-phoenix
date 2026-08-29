@@ -35,6 +35,10 @@ var (
 	// ErrCareRequestFieldDisabled means the payload contains at least one field
 	// group the child's school has disabled for permanent parent requests.
 	ErrCareRequestFieldDisabled = errors.New("parent: care schedule request field disabled")
+	// ErrCareRequestBookingsAuthoritative means the school runs booking-led care
+	// (enrollment.bookings_authoritative), so permanent weekly-plan requests are
+	// not a parent path there at all (#2793).
+	ErrCareRequestBookingsAuthoritative = errors.New("parent: care schedule requests unavailable under booking-led care")
 )
 
 // CareScheduleRequestCapabilities are the resolved field-level permissions
@@ -121,7 +125,7 @@ func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child care schedule: %w", txErr)
 	}
-	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	capabilities, _, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -144,9 +148,12 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
-	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	capabilities, bookingsAuthoritative, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
 	if err != nil {
 		return nil, err
+	}
+	if bookingsAuthoritative {
+		return nil, ErrCareRequestBookingsAuthoritative
 	}
 	requested, err := scheduleService.RequestedCareScheduleFields(payload)
 	if err != nil {
@@ -200,7 +207,7 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
-	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	capabilities, _, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +237,11 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	return view, nil
 }
 
-func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, tenantID int64) (CareScheduleRequestCapabilities, error) {
+// resolveCareScheduleRequestCapabilities returns the field-level capabilities
+// and whether the school runs booking-led care. Under booking-led care the
+// capabilities are always empty; the flag lets the create path name that as
+// the reason instead of a disabled field.
+func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, tenantID int64) (CareScheduleRequestCapabilities, bool, error) {
 	resolve := func(key string) (bool, error) {
 		if s.Settings == nil {
 			return false, errors.New("parent: settings service not configured")
@@ -239,20 +250,20 @@ func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, te
 	}
 	bookingsAuthoritative, err := resolve(configModels.KeyEnrollmentBookingsAuthoritative)
 	if err != nil {
-		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve bookings-authoritative setting: %w", err)
+		return CareScheduleRequestCapabilities{}, false, fmt.Errorf("parent: resolve bookings-authoritative setting: %w", err)
 	}
 	if bookingsAuthoritative {
-		return CareScheduleRequestCapabilities{}, nil
+		return CareScheduleRequestCapabilities{}, true, nil
 	}
 	pickup, err := resolve(configModels.KeyParentCarePickupRequestEnabled)
 	if err != nil {
-		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve pickup request setting: %w", err)
+		return CareScheduleRequestCapabilities{}, false, fmt.Errorf("parent: resolve pickup request setting: %w", err)
 	}
 	mode, err := resolve(configModels.KeyParentCareModeRequestEnabled)
 	if err != nil {
-		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
+		return CareScheduleRequestCapabilities{}, false, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
 	}
-	return CareScheduleRequestCapabilities{Pickup: pickup, DepartureMode: mode}, nil
+	return CareScheduleRequestCapabilities{Pickup: pickup, DepartureMode: mode}, false, nil
 }
 
 // buildCareScheduleView loads the weekly plan + pending request inside the

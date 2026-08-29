@@ -36,7 +36,7 @@ func TestGetAndCreateCareScheduleRequest_BookingsAuthoritative(t *testing.T) {
 	assert.Equal(t, parentService.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
 
 	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
-	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
+	require.ErrorIs(t, err, parentService.ErrCareRequestBookingsAuthoritative)
 }
 
 func TestExistingCareScheduleRequestSurvivesBookingAuthorityChange(t *testing.T) {
