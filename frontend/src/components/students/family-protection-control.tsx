@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Shield, ShieldCheck } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -78,11 +79,12 @@ function ProtectionStatus({
   compact: boolean;
 }>) {
   if (enabled === null) return null;
+  if (compact && !enabled) return null;
   const label = compact
-    ? `Familienschutz ${enabled ? "aktiv" : "aus"}`
+    ? "Familienschutz"
     : enabled
-      ? "Aktiv"
-      : "Aus";
+      ? "Eingeschaltet"
+      : "Ausgeschaltet";
   return <StatusBadge tone={enabled ? "red" : "gray"} label={label} />;
 }
 
@@ -105,7 +107,7 @@ function ProtectionModal(props: ProtectionModalProps) {
       isOpen={open}
       onClose={close}
       onConfirm={save}
-      title={enabled ? "Familienschutz aufheben" : "Familienschutz einschalten"}
+      title={enabled ? "Schutz aufheben" : "Private Angaben schützen"}
       confirmText={enabled ? "Schutz aufheben" : "Schutz einschalten"}
       cancelText="Zurück"
       isConfirmLoading={saving}
@@ -113,16 +115,22 @@ function ProtectionModal(props: ProtectionModalProps) {
       isDismissDisabled={saving}
       mobileSheet
     >
+      <p className="mb-4 text-sm text-gray-700">
+        {enabled
+          ? "Die Eltern können Anfragen danach wieder miteinander teilen."
+          : "Andere Sorgeberechtigte sehen dann keine geteilten Anfragen und Begründungen mehr."}
+      </p>
       <label
         htmlFor={`family-protection-reason-${studentId}`}
         className="block space-y-1 text-sm font-medium text-gray-800"
       >
-        <span>Begründung</span>
+        <span>Grund für die Änderung</span>
         <Textarea
           id={`family-protection-reason-${studentId}`}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           rows={3}
+          placeholder="Zum Beispiel besondere Familiensituation"
         />
       </label>
     </ConfirmationModal>
@@ -131,11 +139,9 @@ function ProtectionModal(props: ProtectionModalProps) {
 
 function ProtectionDescription() {
   return (
-    <p className="text-xs text-gray-600">
-      Alle berechtigten Sorgeberechtigten sehen den wirksamen Stand des Kindes.
-      Wer eine Anfrage gestellt hat und freie Begründungen sehen nur die
-      einreichende Person und die OGS. Bei aktivem Familienschutz können private
-      Angaben nicht mit anderen Sorgeberechtigten geteilt werden.
+    <p className="text-sm text-gray-600">
+      Eltern können einzelne Anfragen miteinander teilen. Der Familienschutz
+      verhindert das für dieses Kind.
     </p>
   );
 }
@@ -167,48 +173,80 @@ export function FamilyProtectionControl({
     enabled,
     onSaved,
   );
+  const modal = enabled !== null && (
+    <ProtectionModal
+      studentId={studentId}
+      enabled={enabled}
+      open={modalOpen}
+      saving={saving}
+      reason={reason}
+      setReason={setReason}
+      close={() => setModalOpen(false)}
+      save={() => void save(reason)}
+    />
+  );
+  if (compact) {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ProtectionStatus enabled={enabled} compact />
+        {canManage && enabled !== null ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            className="gap-1.5"
+            onClick={() => setModalOpen(true)}
+          >
+            {enabled ? (
+              <ShieldCheck className="size-4" aria-hidden="true" />
+            ) : (
+              <Shield className="size-4" aria-hidden="true" />
+            )}
+            {enabled ? "Schutz aufheben" : "Angaben schützen"}
+          </Button>
+        ) : null}
+        {loadError ? (
+          <p className="text-moto-red text-sm">
+            Der Familienschutz konnte nicht geladen werden.
+          </p>
+        ) : null}
+        {saveError ? (
+          <p className="text-moto-red text-sm">
+            Die Änderung konnte nicht gespeichert werden.
+          </p>
+        ) : null}
+        {modal}
+      </div>
+    );
+  }
   const content = (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {!compact && (
-          <span className="font-medium text-gray-900">Familienschutz</span>
-        )}
-        <ProtectionStatus enabled={enabled} compact={compact} />
+      <ProtectionDescription />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ProtectionStatus enabled={enabled} compact={false} />
+        {canManage && enabled !== null ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setModalOpen(true)}
+          >
+            {enabled ? "Aufheben" : "Einschalten"}
+          </Button>
+        ) : null}
       </div>
-      {!compact && <ProtectionDescription />}
-      {(loadError || saveError) && (
+      {loadError ? (
         <p className="text-moto-red text-sm">
-          Der Familienschutz konnte nicht gespeichert oder geladen werden.
+          Der Familienschutz konnte nicht geladen werden.
         </p>
-      )}
-      {canManage && enabled !== null && (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setModalOpen(true)}
-        >
-          Familienschutz {enabled ? "aufheben" : "einschalten"}
-        </Button>
-      )}
-      {enabled !== null && (
-        <ProtectionModal
-          studentId={studentId}
-          enabled={enabled}
-          open={modalOpen}
-          saving={saving}
-          reason={reason}
-          setReason={setReason}
-          close={() => setModalOpen(false)}
-          save={() => void save(reason)}
-        />
-      )}
+      ) : null}
+      {saveError ? (
+        <p className="text-moto-red text-sm">
+          Die Änderung konnte nicht gespeichert werden.
+        </p>
+      ) : null}
+      {modal}
     </>
   );
-  return compact ? (
-    <div className="flex flex-wrap items-center gap-2">{content}</div>
-  ) : (
-    <div className="border-moto-sand mt-4 space-y-3 border-t pt-4">
-      {content}
-    </div>
-  );
+  return <div className="space-y-3">{content}</div>;
 }

@@ -68,12 +68,12 @@ describe("RequestSharingControl", () => {
 
   it("is only available to the guardian who submitted the request", () => {
     renderControl(false);
-    expect(screen.queryByText("Sichtbarkeit ändern")).not.toBeInTheDocument();
+    expect(screen.queryByText("Anfrage teilen")).not.toBeInTheDocument();
   });
 
   it("saves only the explicitly selected guardian", async () => {
     renderControl();
-    fireEvent.click(await screen.findByText("Sichtbarkeit ändern"));
+    fireEvent.click(await screen.findByText("Anfrage teilen"));
     const checkbox = await screen.findByRole("checkbox", {
       name: "Mara Muster",
     });
@@ -91,9 +91,43 @@ describe("RequestSharingControl", () => {
       recipients: [],
     });
     renderControl();
-    expect(await screen.findByText(/Familienschutz aktiv/)).toBeInTheDocument();
-    expect(screen.queryByText("Sichtbarkeit ändern")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Anfrage teilen")).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("reloads family protection when the sharing dialog is opened", async () => {
+    getSharing
+      .mockResolvedValueOnce({
+        family_protected: false,
+        recipients: [
+          {
+            guardian_profile_id: "7",
+            first_name: "Mara",
+            last_name: "Muster",
+            selected: true,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        family_protected: true,
+        recipients: [],
+      });
+
+    renderControl();
+    fireEvent.click(await screen.findByText("Anfrage teilen"));
+
+    expect(
+      await screen.findByText(
+        "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(getSharing).toHaveBeenCalledTimes(2);
   });
 
   it("shows named recipients before a request is submitted", async () => {
@@ -108,5 +142,11 @@ describe("RequestSharingControl", () => {
     expect(
       await screen.findByRole("checkbox", { name: "Mara Muster" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Anfrage teilen (optional)")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Nur ausgewählte Sorgeberechtigte sehen Ihre Anfrage und die Antwort der OGS.",
+      ),
+    ).toBeVisible();
   });
 });

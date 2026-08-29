@@ -306,44 +306,73 @@ function hasCaseConflict(childCase: OpenCase): boolean {
 
 function OpenCaseSummary({ childCase }: Readonly<{ childCase: OpenCase }>) {
   const dates = caseDates(childCase);
-  const needsIndividualReview = childCase.items.some(
-    (item) => hasReviewMetadata(item) && !item.bulk_eligible,
-  );
   const conflict = hasCaseConflict(childCase);
-  const parts = [
-    childCase.groupName ? `Gruppe: ${childCase.groupName}` : "",
-    dates.length > 0
-      ? `Betrifft: ${dates.map((date) => formatDate(date)).join(", ")}`
-      : "",
-    needsIndividualReview ? "Einzeln prüfen" : "",
-    conflict ? "Wünsche widersprechen sich" : "Keine Widersprüche",
-  ].filter(Boolean);
-  return <p className="mt-1 text-xs text-gray-500">{parts.join(" · ")}</p>;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+      {childCase.groupName ? <span>{childCase.groupName}</span> : null}
+      {dates.length > 0 ? (
+        <span>
+          Betrifft: {dates.map((date) => formatDate(date)).join(", ")}
+        </span>
+      ) : null}
+      {conflict ? (
+        <StatusBadge tone="red" label="Diese Anfragen widersprechen sich" />
+      ) : null}
+    </div>
+  );
 }
 
 function OpenRequestContent({
   request,
   view,
   onDecided,
+  grouped = false,
 }: Readonly<{
   request: AggregatedOpenRequest;
   view: "open" | "history";
   onDecided: (notice: string) => void;
+  grouped?: boolean;
 }>) {
   switch (request.request_type) {
     case "enrollment":
-      return <EnrollmentRequestItem row={request.data} view={view} />;
+      return (
+        <EnrollmentRequestItem
+          row={request.data}
+          view={view}
+          grouped={grouped}
+        />
+      );
     case "master_data":
-      return <MasterDataReviewItem row={request.data} onDecided={onDecided} />;
+      return (
+        <MasterDataReviewItem
+          row={request.data}
+          onDecided={onDecided}
+          grouped={grouped}
+        />
+      );
     case "care_schedule":
-      return <CareRequestReviewItem row={request.data} onDecided={onDecided} />;
+      return (
+        <CareRequestReviewItem
+          row={request.data}
+          onDecided={onDecided}
+          grouped={grouped}
+        />
+      );
     case "offering":
       return (
-        <OfferingRequestReviewItem row={request.data} onDecided={onDecided} />
+        <OfferingRequestReviewItem
+          row={request.data}
+          onDecided={onDecided}
+          grouped={grouped}
+        />
       );
     case "excused":
       return (
-        <ExcusedRequestReviewItem row={request.data} onDecided={onDecided} />
+        <ExcusedRequestReviewItem
+          row={request.data}
+          onDecided={onDecided}
+          grouped={grouped}
+        />
       );
   }
 }
@@ -351,11 +380,15 @@ function OpenRequestContent({
 function OpenRequestRow({
   request,
   selected,
+  position,
+  total,
   onSelectionChange,
   onDecided,
 }: Readonly<{
   request: AggregatedOpenRequest;
   selected: boolean;
+  position: number;
+  total: number;
   onSelectionChange: (key: string, checked: boolean) => void;
   onDecided: (key: string, notice: string) => void;
 }>) {
@@ -364,37 +397,40 @@ function OpenRequestRow({
     <OpenRequestContent
       request={request}
       view="open"
+      grouped
       onDecided={(notice) => onDecided(key, notice)}
     />
   );
   if (!hasReviewMetadata(request)) return content;
-  const disabledReason = request.bulk_eligible
-    ? undefined
-    : (request.bulk_ineligible_reason ??
-      "Diese Anfrage muss einzeln geprüft werden.");
   return (
     <div className="border-t border-gray-100 first:border-t-0">
-      <div className="flex items-start gap-3 px-3 py-2 sm:px-4">
-        <label
-          htmlFor={`bulk-request-${key}`}
-          className="flex min-h-11 shrink-0 items-center gap-2 text-sm text-gray-700"
-        >
-          <Checkbox
-            id={`bulk-request-${key}`}
-            aria-label={`${request.student_name} für Sammelfreigabe auswählen`}
-            checked={selected}
-            disabled={!request.bulk_eligible}
-            onChange={(event) => onSelectionChange(key, event.target.checked)}
-          />
-          <span className="sr-only">Für Sammelfreigabe auswählen</span>
-        </label>
-        <div className="min-w-0 flex-1">
-          {disabledReason ? (
-            <p className="mb-1 text-xs text-gray-600">{disabledReason}</p>
-          ) : null}
-          {content}
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3 sm:px-5">
+        <p className="text-xs font-medium text-gray-500">
+          Anfrage {position} von {total}
+        </p>
+        {request.bulk_eligible ? (
+          <label
+            htmlFor={`bulk-request-${key}`}
+            className="flex min-h-8 cursor-pointer items-center gap-2 text-xs font-medium text-gray-600"
+          >
+            <Checkbox
+              id={`bulk-request-${key}`}
+              aria-label={`${request.student_name} für gemeinsame Freigabe auswählen`}
+              checked={selected}
+              onChange={(event) => onSelectionChange(key, event.target.checked)}
+            />
+            <span>Gemeinsam freigeben</span>
+          </label>
+        ) : (
+          <span
+            className="text-xs font-medium text-gray-500"
+            title={request.bulk_ineligible_reason}
+          >
+            Nur einzeln freigeben
+          </span>
+        )}
       </div>
+      <div className="min-w-0">{content}</div>
     </div>
   );
 }
@@ -427,14 +463,16 @@ function OpenCaseCard({
   const requestCount = childCase.items.length + childCase.withdrawals.length;
   return (
     <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:px-5">
         <div className="min-w-0">
           <h3 className="truncate font-semibold text-gray-900">
             {childCase.studentName}
           </h3>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm font-medium text-gray-600">
             <span>
-              {requestCount === 1 ? "1 Wunsch" : `${requestCount} Wünsche`}
+              {requestCount === 1
+                ? "1 offene Anfrage"
+                : `${requestCount} offene Anfragen`}
             </span>
             {typeLabels.length > 0 ? ` · ${typeLabels.join(", ")}` : ""}
           </p>
@@ -458,19 +496,24 @@ function OpenCaseCard({
         </div>
       </header>
       <div>
-        {childCase.items.map((request) => (
+        {childCase.items.map((request, index) => (
           <OpenRequestRow
             key={itemKey(request)}
             request={request}
             selected={selected.has(itemKey(request))}
+            position={index + 1}
+            total={requestCount}
             onSelectionChange={onSelectionChange}
             onDecided={onDecided}
           />
         ))}
-        {childCase.withdrawals.map((row) => (
+        {childCase.withdrawals.map((row, index) => (
           <OpenWithdrawalCard
             key={`care_withdrawal:${row.id}`}
             row={row}
+            grouped
+            position={childCase.items.length + index + 1}
+            total={requestCount}
             finish={finishWithdrawal}
             remove={removeWithdrawal}
           />
@@ -482,18 +525,23 @@ function OpenCaseCard({
 
 function OpenCaseGroup(
   props: Readonly<
-    { id: string; title: string; cases: readonly OpenCase[] } & Omit<
-      Parameters<typeof OpenCaseCard>[0],
-      "childCase"
-    >
+    {
+      id: string;
+      title: string;
+      description: string;
+      cases: readonly OpenCase[];
+    } & Omit<Parameters<typeof OpenCaseCard>[0], "childCase">
   >,
 ) {
   if (props.cases.length === 0) return null;
   return (
     <section aria-labelledby={props.id} className="space-y-2">
-      <h2 id={props.id} className="text-sm font-semibold text-gray-900">
-        {props.title}
-      </h2>
+      <div>
+        <h2 id={props.id} className="font-semibold text-gray-900">
+          {props.title}
+        </h2>
+        <p className="text-sm text-gray-600">{props.description}</p>
+      </div>
       {props.cases.map((childCase) => (
         <OpenCaseCard key={childCase.key} {...props} childCase={childCase} />
       ))}
@@ -523,18 +571,15 @@ function BulkApprovalPanel({
   setReason: (value: string) => void;
   open: () => void;
 }>) {
+  if (count === 0) return null;
   return (
-    <div className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface sticky top-20 z-10 space-y-3 rounded-2xl border p-4 shadow-md">
       <div>
-        <h2 className="font-semibold text-gray-900">Sammelfreigabe</h2>
+        <h2 className="font-semibold text-gray-900">Gemeinsam freigeben</h2>
         <p className="text-sm text-gray-600">
-          Wählen Sie mindestens zwei einfache Anfragen aus. Entweder werden alle
-          freigegeben oder keine.
-        </p>
-        <p className="mt-1 text-sm text-gray-600">
-          Ohne ausdrückliche Freigabe sehen andere Sorgeberechtigte nur den
-          wirksamen Stand. Name, Hinweise und Begründungen der einreichenden
-          Person bleiben privat.
+          {count === 1
+            ? "Wählen Sie noch eine passende Anfrage aus."
+            : "Alle ausgewählten Anfragen werden freigegeben. Klappt eine nicht, wird keine freigegeben."}
         </p>
       </div>
       <label
@@ -557,7 +602,7 @@ function BulkApprovalPanel({
         disabled={count < 2 || reason.trim() === ""}
         onClick={open}
       >
-        {count} freigeben
+        {count} {count === 1 ? "Anfrage" : "Anfragen"} freigeben
       </Button>
     </div>
   );
@@ -565,20 +610,27 @@ function BulkApprovalPanel({
 
 function OpenWithdrawalCard({
   row,
+  grouped = false,
+  position,
+  total,
   finish,
   remove,
 }: Readonly<{
   row: CareWithdrawalCompletion;
+  grouped?: boolean;
+  position?: number;
+  total?: number;
   finish: (row: CareWithdrawalCompletion) => void;
   remove: (row: CareWithdrawalCompletion) => void;
 }>) {
   const name = `${row.firstName} ${row.lastName}`.trim();
   const overdue = row.urgency === "overdue";
-  return (
+  const card = (
     <RequestReviewCard
       type="care_withdrawal"
       typeLabel="Abmeldung"
       childName={name}
+      grouped={grouped}
       summary={`Keine Betreuungstage ab ${formatDate(row.firstBookinglessDay)}`}
       badge={
         <StatusBadge
@@ -617,6 +669,20 @@ function OpenWithdrawalCard({
         die Betreuung.
       </p>
     </RequestReviewCard>
+  );
+  if (!grouped || position === undefined || total === undefined) return card;
+  return (
+    <div className="border-t border-gray-100 first:border-t-0">
+      <div className="flex items-center justify-between gap-2 px-4 pt-3 sm:px-5">
+        <p className="text-xs font-medium text-gray-500">
+          Anfrage {position} von {total}
+        </p>
+        <span className="text-xs font-medium text-gray-500">
+          Nur einzeln freigeben
+        </span>
+      </div>
+      {card}
+    </div>
   );
 }
 
@@ -808,8 +874,8 @@ function BulkConfirmationDialog({
       isOpen
       onClose={close}
       onConfirm={confirm}
-      title="Sammelfreigabe bestätigen"
-      confirmText="Alles freigeben"
+      title={`${count} Anfragen gemeinsam freigeben?`}
+      confirmText={`${count} Anfragen freigeben`}
       cancelText="Zurück"
       isConfirmLoading={saving}
       isDismissDisabled={saving}
@@ -1217,7 +1283,7 @@ export function AggregatedRequestList({
       setError(
         err instanceof Error
           ? err.message
-          : "Die Sammelfreigabe konnte nicht gespeichert werden.",
+          : "Die Anfragen konnten nicht gemeinsam freigegeben werden.",
       );
       await feed.reload();
     } finally {
@@ -1311,9 +1377,16 @@ export function AggregatedRequestList({
         />
       ) : view === "open" ? (
         <>
+          <BulkApprovalPanel
+            count={selectedBulkItems.length}
+            reason={bulkReason}
+            setReason={setBulkReason}
+            open={() => setBulkConfirmOpen(true)}
+          />
           <OpenCaseGroup
             id="request-group-urgent"
             title="Heute wichtig"
+            description="Diese Kinder sind heute betroffen."
             cases={openCases.filter((childCase) => childCase.urgentToday)}
             canManageFamilyProtection={Boolean(
               filters.canManageFamilyProtection,
@@ -1325,15 +1398,10 @@ export function AggregatedRequestList({
             finishWithdrawal={setCareExitWithdrawal}
             removeWithdrawal={setDeletionWarningWithdrawal}
           />
-          <BulkApprovalPanel
-            count={selectedBulkItems.length}
-            reason={bulkReason}
-            setReason={setBulkReason}
-            open={() => setBulkConfirmOpen(true)}
-          />
           <OpenCaseGroup
             id="request-group-later"
-            title="Später"
+            title="Weitere Anfragen"
+            description="Diese Anfragen sind nicht für heute dringend."
             cases={openCases.filter((childCase) => !childCase.urgentToday)}
             canManageFamilyProtection={Boolean(
               filters.canManageFamilyProtection,

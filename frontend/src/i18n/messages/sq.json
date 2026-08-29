@@ -1155,11 +1155,11 @@
     "lockedAllAction": "Te aplikacioni për prindër"
   },
   "parentRequestSharing": {
-    "button": "Ndrysho dukshmërinë",
-    "title": "Kush mund ta shohë këtë kërkesë?",
-    "privacyHint": "Pa miratim, kujdestarët e tjerë shohin vetëm gjendjen aktuale. Kërkesën, arsyen dhe përgjigjen e shkollës i shihni vetëm ju. Mund ta ndani kërkesën me persona të zgjedhur.",
-    "recipientLegend": "Ndaje kërkesën me",
-    "protected": "Mbrojtja e familjes është aktive për këtë fëmijë. Kërkesa nuk mund të ndahet me kujdestarë të tjerë.",
+    "button": "Ndaje kërkesën",
+    "title": "Ndaje kërkesën me të tjerët",
+    "privacyHint": "Vetëm kujdestarët e zgjedhur e shohin kërkesën tuaj dhe përgjigjen e shkollës.",
+    "recipientLegend": "Ndaje kërkesën (me dëshirë)",
+    "protected": "Kjo kërkesë mbetet private. Shkolla ka aktivizuar mbrojtjen e familjes.",
     "noRecipients": "Nuk ka kujdestarë të tjerë me qasje në aplikacionin e prindërve.",
     "loading": "Po ngarkohen cilësimet e ndarjes …",
     "error": "Cilësimet e ndarjes nuk mund të ngarkoheshin ose ruheshin.",

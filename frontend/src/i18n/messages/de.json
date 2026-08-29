@@ -1155,11 +1155,11 @@
     "lockedAllAction": "Zur Eltern-App"
   },
   "parentRequestSharing": {
-    "button": "Sichtbarkeit ändern",
-    "title": "Wer darf diese Anfrage sehen?",
-    "privacyHint": "Ohne Freigabe sehen andere Sorgeberechtigte nur den aktuellen Stand. Ihre Anfrage, Ihre Begründung und die Antwort der OGS sehen nur Sie. Sie können diese Anfrage für einzelne Personen freigeben.",
-    "recipientLegend": "Anfrage freigeben für",
-    "protected": "Für dieses Kind ist der Familienschutz aktiv. Die Anfrage kann nicht mit anderen Sorgeberechtigten geteilt werden.",
+    "button": "Anfrage teilen",
+    "title": "Anfrage mit anderen teilen",
+    "privacyHint": "Nur ausgewählte Sorgeberechtigte sehen Ihre Anfrage und die Antwort der OGS.",
+    "recipientLegend": "Anfrage teilen (optional)",
+    "protected": "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
     "noRecipients": "Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App.",
     "loading": "Freigaben werden geladen …",
     "error": "Die Freigaben konnten nicht geladen oder gespeichert werden.",

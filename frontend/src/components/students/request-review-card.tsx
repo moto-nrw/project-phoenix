@@ -59,6 +59,8 @@ const TYPE_COLOR: Record<RequestRowType, string> = {
  */
 const OPEN_ROW_GRID =
   "sm:grid sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_auto_1rem] sm:items-center sm:gap-3";
+const GROUPED_OPEN_ROW_GRID =
+  "sm:grid sm:grid-cols-[minmax(0,1fr)_auto_1rem] sm:items-center sm:gap-3";
 const HISTORY_ROW_GRID =
   "sm:grid sm:grid-cols-[5.5rem_minmax(0,10rem)_minmax(0,1fr)_auto_minmax(0,8rem)_1rem] sm:items-center sm:gap-3";
 
@@ -188,6 +190,7 @@ export function RequestReviewCard({
   approveDisabled,
   onApprove,
   onReject,
+  grouped = false,
 }: Readonly<{
   childName: string;
   summary?: string;
@@ -225,6 +228,8 @@ export function RequestReviewCard({
   approveDisabled?: boolean;
   onApprove?: () => void;
   onReject?: () => void;
+  /** Der umgebende Fall nennt das Kind bereits. */
+  grouped?: boolean;
 }>) {
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
@@ -243,6 +248,7 @@ export function RequestReviewCard({
   // Wie lange die Anfrage schon liegt — die Dringlichkeit der Arbeitsliste.
   const waitingLabel =
     submittedAt && now ? relativeDaysLabel(submittedAt, now) : null;
+  const waitingDisplay = waitingLabel ? `Eingereicht ${waitingLabel}` : null;
 
   if (history) {
     const meta = statusMeta(history);
@@ -256,14 +262,20 @@ export function RequestReviewCard({
         <RowButton
           open={open}
           onToggle={() => setOpen((o) => !o)}
-          grid={decided ? HISTORY_ROW_GRID : OPEN_ROW_GRID}
+          grid={
+            decided
+              ? HISTORY_ROW_GRID
+              : grouped
+                ? GROUPED_OPEN_ROW_GRID
+                : OPEN_ROW_GRID
+          }
           ariaLabel={rowAccessibleLabel({
             childName,
             type,
             typeLabel,
             summary,
             status: meta?.label,
-            timing: decided ? history.decidedAt : waitingLabel,
+            timing: decided ? history.decidedAt : waitingDisplay,
             open,
           })}
         >
@@ -272,9 +284,11 @@ export function RequestReviewCard({
               {formatDate(history.decidedAt)}
             </span>
           )}
-          <span className="truncate text-sm font-semibold text-gray-900">
-            {childName}
-          </span>
+          {grouped && !decided ? null : (
+            <span className="truncate text-sm font-semibold text-gray-900">
+              {childName}
+            </span>
+          )}
           <span className="flex min-w-0 items-center gap-2">
             <TypePill type={type} label={typeLabel} />
             {summary && (
@@ -299,7 +313,7 @@ export function RequestReviewCard({
               <span />
             ))}
           <span className="hidden truncate text-xs text-gray-500 sm:block">
-            {decided ? (history.decidedByName ?? "") : (waitingLabel ?? "")}
+            {decided ? (history.decidedByName ?? "") : (waitingDisplay ?? "")}
           </span>
         </RowButton>
         {open && (
@@ -335,26 +349,28 @@ export function RequestReviewCard({
       <RowButton
         open={open}
         onToggle={() => setOpen((o) => !o)}
-        grid={OPEN_ROW_GRID}
+        grid={grouped ? GROUPED_OPEN_ROW_GRID : OPEN_ROW_GRID}
         ariaLabel={rowAccessibleLabel({
           childName,
           type,
           typeLabel,
           summary,
-          timing: waitingLabel,
+          timing: waitingDisplay,
           open,
         })}
       >
-        <span className="truncate text-sm font-semibold text-gray-900">
-          {childName}
-        </span>
+        {grouped ? null : (
+          <span className="truncate text-sm font-semibold text-gray-900">
+            {childName}
+          </span>
+        )}
         <span className="flex min-w-0 items-center gap-2">
           <TypePill type={type} label={typeLabel} />
           {badge}
           <span className="truncate text-sm text-gray-500">{summary}</span>
         </span>
         <span className="hidden text-xs text-gray-400 sm:block">
-          {waitingLabel ?? ""}
+          {waitingDisplay ?? ""}
         </span>
       </RowButton>
       {open && (

@@ -460,6 +460,40 @@ describe("SickNoteModal — Abmeldegrund", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers optional sharing after the absence details", async () => {
+    const options = vi
+      .spyOn(parentApi, "getRequestSharingOptions")
+      .mockResolvedValue({
+        family_protected: false,
+        recipients: [
+          {
+            guardian_profile_id: "7",
+            first_name: "Mara",
+            last_name: "Muster",
+            selected: false,
+          },
+        ],
+      });
+    render(
+      <SickNoteModal
+        studentId="1"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval
+      />,
+    );
+
+    const reason = screen.getByRole("textbox", {
+      name: "Grund / Hinweis an die OGS",
+    });
+    const sharing = await screen.findByText("Anfrage teilen (optional)");
+    expect(
+      reason.compareDocumentPosition(sharing) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    options.mockRestore();
+  });
+
   it("shows the pending confirmation after the request was sent", async () => {
     const onSubmit = vi.fn().mockResolvedValue("pending");
     const onClose = vi.fn();

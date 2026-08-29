@@ -65,12 +65,12 @@ export function RequestSharingSelector({
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 p-3">
-      <p className="text-sm text-gray-700">{t("privacyHint")}</p>
+    <div className="rounded-xl bg-gray-50 p-3">
       <SharingRecipients
         state={state}
         selected={[...selected]}
         saving={false}
+        hint={t("privacyHint")}
         toggle={(id) =>
           onChange(
             selected.includes(id)
@@ -89,6 +89,7 @@ function useSharingState(
   studentId: string,
   requestType: ParentRequestShareType,
   requestId: string,
+  refreshCount: number,
 ) {
   const [state, setState] = useState<RequestSharingState | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -97,6 +98,10 @@ function useSharingState(
   useEffect(() => {
     if (!enabled) return;
     let active = true;
+    if (refreshCount > 0) {
+      setState(null);
+      setSelected([]);
+    }
     setLoading(true);
     setError(false);
     void (async () => {
@@ -112,7 +117,7 @@ function useSharingState(
     return () => {
       active = false;
     };
-  }, [enabled, requestId, requestType, studentId]);
+  }, [enabled, refreshCount, requestId, requestType, studentId]);
   return { state, setState, selected, setSelected, loading, error, setError };
 }
 
@@ -164,12 +169,14 @@ function SharingRecipients({
   state,
   selected,
   saving,
+  hint,
   toggle,
   t,
 }: Readonly<{
   state: RequestSharingState;
   selected: string[];
   saving: boolean;
+  hint?: string;
   toggle: (id: string) => void;
   t: ReturnType<typeof useTranslations>;
 }>) {
@@ -182,6 +189,7 @@ function SharingRecipients({
       <legend className="text-sm font-semibold text-gray-900">
         {t("recipientLegend")}
       </legend>
+      {hint ? <p className="text-sm text-gray-600">{hint}</p> : null}
       {state.recipients.map((recipient) => (
         <label
           key={recipient.guardian_profile_id}
@@ -239,7 +247,14 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   const { studentId, requestType, requestId, isSelf } = props;
   const t = useTranslations("parentRequestSharing");
   const [open, setOpen] = useState(false);
-  const sharing = useSharingState(isSelf, studentId, requestType, requestId);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const sharing = useSharingState(
+    isSelf,
+    studentId,
+    requestType,
+    requestId,
+    refreshCount,
+  );
   const saved = useCallback(
     (next: RequestSharingState) => {
       sharing.setState(next);
@@ -285,7 +300,10 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
         type="button"
         variant="ghost"
         size="compact"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setRefreshCount((current) => current + 1);
+          setOpen(true);
+        }}
       >
         {t("button")}
       </Button>
@@ -300,7 +318,6 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
         footer={footer}
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-700">{t("privacyHint")}</p>
           {sharing.loading && (
             <p className="text-sm text-gray-500">{t("loading")}</p>
           )}
@@ -310,6 +327,7 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
               state={sharing.state}
               selected={sharing.selected}
               saving={saving}
+              hint={t("privacyHint")}
               toggle={toggle}
               t={t}
             />

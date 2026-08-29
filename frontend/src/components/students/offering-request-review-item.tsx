@@ -136,9 +136,11 @@ function conflictDays(days: readonly string[]): string {
 export function OfferingRequestReviewItem({
   row,
   onDecided,
+  grouped = false,
 }: Readonly<{
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
+  grouped?: boolean;
 }>) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -358,6 +360,7 @@ export function OfferingRequestReviewItem({
     <RequestReviewCard
       type="offering"
       childName={row.student_name}
+      grouped={grouped}
       summary={`ab ${formatDate(effectiveFrom)}`}
       badge={
         fullWithdrawal ? (

@@ -1155,11 +1155,11 @@
     "lockedAllAction": "Go to parents app"
   },
   "parentRequestSharing": {
-    "button": "Change visibility",
-    "title": "Who may see this request?",
-    "privacyHint": "Without sharing, other guardians only see the current status. Only you see your request, your reason and the school's reply. You can share this request with selected people.",
-    "recipientLegend": "Share request with",
-    "protected": "Family protection is active for this child. This request cannot be shared with other guardians.",
+    "button": "Share request",
+    "title": "Share request with others",
+    "privacyHint": "Only selected guardians can see your request and the school's reply.",
+    "recipientLegend": "Share request (optional)",
+    "protected": "This request stays private. The school has enabled family protection.",
     "noRecipients": "There are no other guardians with access to the parents app.",
     "loading": "Loading sharing settings …",
     "error": "The sharing settings could not be loaded or saved.",

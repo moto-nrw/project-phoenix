@@ -357,7 +357,7 @@ func masterDataBulkEligibility(req *userModels.StudentDataChangeRequest, scope *
 	case userModels.DataChangeTargetDeparture:
 		return departureRequestBulkEligibility(req, student)
 	default:
-		return false, "Die Anfrage enthält keinen eindeutig anwendbaren Wert."
+		return false, "Diese Anfrage kann nur einzeln freigegeben werden."
 	}
 }
 
@@ -367,7 +367,7 @@ func personRequestBulkEligibility(req *userModels.StudentDataChangeRequest, pers
 	}
 	current, err := personFieldRaw(person, req.FieldKey)
 	if err != nil || !validPersonRequestValue(req) {
-		return false, "Die Anfrage enthält keinen eindeutig anwendbaren Wert."
+		return false, "Diese Anfrage kann nur einzeln freigegeben werden."
 	}
 	if !jsonRawEqual(current, req.OldValue) {
 		return false, "Der aktuelle Wert wurde nach der Anfrage geändert."
@@ -377,7 +377,7 @@ func personRequestBulkEligibility(req *userModels.StudentDataChangeRequest, pers
 
 func studentRequestBulkEligibility(req *userModels.StudentDataChangeRequest, student *userModels.Student) (bool, string) {
 	if req.FieldKey != "school_class" || !validRequiredString(req.NewValue) {
-		return false, "Die Anfrage enthält keinen eindeutig anwendbaren Wert."
+		return false, "Diese Anfrage kann nur einzeln freigegeben werden."
 	}
 	if !jsonRawEqual(jsonString(student.SchoolClass), req.OldValue) {
 		return false, "Der aktuelle Wert wurde nach der Anfrage geändert."
@@ -389,7 +389,7 @@ func departureRequestBulkEligibility(req *userModels.StudentDataChangeRequest, s
 	requested, err := decodeDepartureModes(req.NewValue)
 	previous, oldErr := decodeDepartureModes(req.OldValue)
 	if req.FieldKey != "allowed_departure_modes" || err != nil || oldErr != nil || requested.HasMode(userModels.DepartureAccompanied) {
-		return false, "Die Anfrage enthält keinen eindeutig anwendbaren Wert."
+		return false, "Diese Anfrage kann nur einzeln freigegeben werden."
 	}
 	if !departureModesEqual(student.AllowedDepartureModes.Normalize(), previous.Normalize()) {
 		return false, "Der aktuelle Wert wurde nach der Anfrage geändert."

@@ -111,9 +111,11 @@ export function formatValue(
 export function MasterDataReviewItem({
   row,
   onDecided,
+  grouped = false,
 }: Readonly<{
   row: StaffMasterDataChange;
   onDecided: (notice: string) => void;
+  grouped?: boolean;
 }>) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -145,6 +147,7 @@ export function MasterDataReviewItem({
     <RequestReviewCard
       type="master_data"
       childName={`${row.first_name} ${row.last_name}`}
+      grouped={grouped}
       summary={fieldLabel(row.field_key)}
       submittedAt={row.created_at}
       reason={reason}

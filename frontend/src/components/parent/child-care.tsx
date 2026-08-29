@@ -888,14 +888,6 @@ export function SickNoteModal({
               ]}
             />
           </label>
-          {requiresApproval === true && studentId && (
-            <RequestSharingSelector
-              studentId={studentId}
-              selected={recipientIds}
-              onChange={setRecipientIds}
-              onReadyChange={setSharingReady}
-            />
-          )}
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
             {t(kindHint)}
           </p>
@@ -965,6 +957,14 @@ export function SickNoteModal({
               className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
+          {requiresApproval === true && studentId && (
+            <RequestSharingSelector
+              studentId={studentId}
+              selected={recipientIds}
+              onChange={setRecipientIds}
+              onReadyChange={setSharingReady}
+            />
+          )}
           {error && (
             <p
               id={errorId}

@@ -188,17 +188,21 @@ describe("AggregatedRequestList", () => {
     const urgentHeading = await screen.findByRole("heading", {
       name: "Heute wichtig",
     });
-    const laterHeading = screen.getByRole("heading", { name: "Später" });
+    const laterHeading = screen.getByRole("heading", {
+      name: "Weitere Anfragen",
+    });
     expect(
       urgentHeading.compareDocumentPosition(laterHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(screen.getAllByText("Heute Kind")).toHaveLength(1);
-    expect(screen.getByText("2 Wünsche")).toBeVisible();
-    expect(screen.getByText(/Gruppe: Füchse/)).toHaveTextContent(
-      "Betrifft: 29.08.2026",
-    );
-    expect(screen.getAllByText(/Keine Widersprüche/)).toHaveLength(2);
+    expect(screen.getByText("2 offene Anfragen")).toBeVisible();
+    expect(screen.getByText("Füchse")).toBeVisible();
+    expect(screen.getByText("Betrifft: 29.08.2026")).toBeVisible();
+    expect(screen.queryByText(/Keine Widersprüche/)).not.toBeInTheDocument();
+    expect(screen.getByText("Anfrage 1 von 2")).toBeVisible();
+    expect(screen.getByText("Anfrage 2 von 2")).toBeVisible();
+    expect(screen.getByText("Nur einzeln freigeben")).toBeVisible();
     expect(screen.getByText("Später Kind")).toBeVisible();
   });
 
@@ -223,7 +227,9 @@ describe("AggregatedRequestList", () => {
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 
-    expect(await screen.findByText("Wünsche widersprechen sich")).toBeVisible();
+    expect(
+      await screen.findByText("Diese Anfragen widersprechen sich"),
+    ).toBeVisible();
   });
 
   it("ordnet eine Mehrkind-Anmeldung jedem betroffenen Kind zu", async () => {
@@ -262,7 +268,7 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
-    expect(await screen.findByText("2 Wünsche")).toBeVisible();
+    expect(await screen.findByText("2 offene Anfragen")).toBeVisible();
     expect(screen.getByText("Noah Muster")).toBeVisible();
     expect(screen.getAllByText("enrollment-item-9")).toHaveLength(2);
   });
@@ -295,20 +301,33 @@ describe("AggregatedRequestList", () => {
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 
+    expect(screen.queryByText("Gemeinsam freigeben")).not.toBeInTheDocument();
+
     const selections = await screen.findAllByRole("checkbox", {
-      name: /für Sammelfreigabe auswählen/,
+      name: /für gemeinsame Freigabe auswählen/,
     });
     fireEvent.click(selections[0]!);
+    expect(
+      screen.getByRole("heading", { name: "Gemeinsam freigeben" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Wählen Sie noch eine passende Anfrage aus."),
+    ).toBeVisible();
     fireEvent.click(selections[1]!);
     fireEvent.change(screen.getByLabelText("Gemeinsame Begründung"), {
       target: { value: "Alles geprüft" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "2 freigeben" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "2 Anfragen freigeben" }),
+    );
 
     expect(
       screen.getByText(/Alle 2 Anfragen werden gemeinsam freigegeben/),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Alles freigeben" }));
+    const approvalButtons = screen.getAllByRole("button", {
+      name: "2 Anfragen freigeben",
+    });
+    fireEvent.click(approvalButtons.at(-1)!);
 
     await waitFor(() =>
       expect(mockBulkApprove).toHaveBeenCalledWith(
@@ -349,14 +368,15 @@ describe("AggregatedRequestList", () => {
     );
 
     expect(
-      await screen.findByText(
-        /Name, Hinweise und Begründungen.*bleiben privat/,
+      await screen.findByRole("button", { name: "Angaben schützen" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Angaben schützen" }));
+    expect(
+      screen.getByText(
+        "Andere Sorgeberechtigte sehen dann keine geteilten Anfragen und Begründungen mehr.",
       ),
     ).toBeVisible();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Familienschutz einschalten" }),
-    );
-    fireEvent.change(screen.getByLabelText("Begründung"), {
+    fireEvent.change(screen.getByLabelText("Grund für die Änderung"), {
       target: { value: "Schutz nötig" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Schutz einschalten" }));
@@ -368,7 +388,10 @@ describe("AggregatedRequestList", () => {
         "Schutz nötig",
       ),
     );
-    expect(await screen.findByText("Familienschutz aktiv")).toBeVisible();
+    expect(await screen.findByText("Familienschutz")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Schutz aufheben" }),
+    ).toBeVisible();
   });
 
   it("loads complete withdrawals into the shared open task list", async () => {

@@ -1753,9 +1753,9 @@ function FullAccessView({
             />
             {canManageFamilyProtection ? (
               <SectionCard
-                kicker="Private Familienangaben"
+                kicker="Private Angaben"
                 title="Familienschutz"
-                description="Legen Sie fest, ob private Anfrageangaben mit anderen Sorgeberechtigten geteilt werden dürfen."
+                description="Verhindert, dass Eltern Anfragen zu diesem Kind miteinander teilen."
               >
                 <FamilyProtectionControl studentId={studentId} canManage />
               </SectionCard>

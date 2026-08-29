@@ -110,9 +110,11 @@ function decisionNotice(row: StaffCareRequest, approve: boolean): string {
 export function CareRequestReviewItem({
   row,
   onDecided,
+  grouped = false,
 }: Readonly<{
   row: StaffCareRequest;
   onDecided: (notice: string) => void;
+  grouped?: boolean;
 }>) {
   const decision = useCareRequestDecision(row, onDecided);
   return (
@@ -120,6 +122,7 @@ export function CareRequestReviewItem({
       type="care_schedule"
       typeLabel={careTypeLabel(row.request_kind)}
       childName={`${row.first_name} ${row.last_name}`}
+      grouped={grouped}
       summary={careSummary(row.diff, row.request_kind)}
       submittedAt={row.created_at}
       reason={decision.reason}

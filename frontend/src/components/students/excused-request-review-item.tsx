@@ -73,9 +73,11 @@ function absenceLabel(row: StaffExcusedRequest): string {
 export function ExcusedRequestReviewItem({
   row,
   onDecided,
+  grouped = false,
 }: Readonly<{
   row: StaffExcusedRequest;
   onDecided: (notice: string) => void;
+  grouped?: boolean;
 }>) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -115,6 +117,7 @@ export function ExcusedRequestReviewItem({
     <RequestReviewCard
       type="excused"
       childName={`${row.first_name} ${row.last_name}`}
+      grouped={grouped}
       typeLabel={absenceLabel(row)}
       summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
