@@ -73,8 +73,12 @@ type InvitationServiceConfig struct {
 	SchoolURL        string
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
-	DB               *bun.DB
-	Logger           *slog.Logger
+	// MailIdentity points replies to a staff invitation at the OGS instead of
+	// moto (#1936). This send bypasses the outbox, so it stamps the header
+	// itself. Optional: nil sends without a Reply-To, exactly as before.
+	MailIdentity platformModels.TenantMailIdentityResolver
+	DB           *bun.DB
+	Logger       *slog.Logger
 }
 
 type invitationService struct {
@@ -94,6 +98,7 @@ type invitationService struct {
 	schoolURL         string
 	defaultFrom       email.Email
 	invitationExpiry  time.Duration
+	mailIdentity      platformModels.TenantMailIdentityResolver
 	db                *bun.DB
 	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
@@ -132,6 +137,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		frontendURL:       trimmedFrontend,
 		schoolURL:         strings.TrimRight(strings.TrimSpace(config.SchoolURL), "/"),
 		defaultFrom:       config.DefaultFrom,
+		mailIdentity:      config.MailIdentity,
 		invitationExpiry:  config.InvitationExpiry,
 		db:                config.DB,
 		txHandler:         modelBase.NewTxHandler(config.DB),
@@ -929,8 +935,13 @@ func (s *invitationService) sendInvitationEmail(ctx context.Context, invitation 
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
 	}
 
+	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
+	// reach the OGS, not moto (#1936).
+	replyIdentity := platformModels.ResolveReplyToIdentity(ctx, s.mailIdentity, tenant.FromContext(ctx), s.getLogger())
+
 	message := email.Message{
 		From:     s.defaultFrom,
+		ReplyTo:  email.NewEmail(replyIdentity.ReplyToName, replyIdentity.ReplyToAddress),
 		To:       email.NewEmail("", invitation.Email),
 		Subject:  subject,
 		Template: "invitation.html",

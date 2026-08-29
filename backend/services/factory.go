@@ -679,13 +679,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
 	}); ok {
 		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
-			Settings:    settingsService,
-			Dispatcher:  dispatcher,
-			StaffRepo:   repos.Staff,
-			SchoolRepo:  repos.School,
-			DefaultFrom: defaultFrom,
-			FrontendURL: frontendURL,
-			Logger:      activeLogger,
+			Settings:     settingsService,
+			Dispatcher:   dispatcher,
+			StaffRepo:    repos.Staff,
+			SchoolRepo:   repos.School,
+			DefaultFrom:  defaultFrom,
+			FrontendURL:  frontendURL,
+			MailIdentity: tenantMailIdentity,
+			Logger:       activeLogger,
 		})
 	}
 
@@ -1260,6 +1261,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		SchoolURL:         schoolURL,
 		DefaultFrom:       defaultFrom,
 		InvitationExpiry:  invitationTokenExpiry,
+		MailIdentity:      tenantMailIdentity,
 		DB:                db,
 		Logger:            authLogger,
 	})

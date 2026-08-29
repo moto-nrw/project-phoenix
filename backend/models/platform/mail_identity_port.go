@@ -1,6 +1,9 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"log/slog"
+)
 
 // TenantMailIdentity is the outward mail identity of one school for
 // tenant-bound e-mail (#1936).
@@ -29,4 +32,34 @@ func (i TenantMailIdentity) IsZero() bool { return i.ReplyToAddress == "" }
 // OutboxEnqueuer in outbox_port.go.
 type TenantMailIdentityResolver interface {
 	ResolveTenantMailIdentity(ctx context.Context, tenantID int64) (TenantMailIdentity, error)
+}
+
+// ResolveReplyToIdentity is the one place that decides what a failed lookup
+// means: nothing. Losing the return path degrades the mail; returning an error
+// to the caller would tempt each send site into dropping the message instead.
+//
+// Shared by every synchronous tenant-bound send (staff invitation, guardian
+// invitation, absence notifications) so the degradation policy exists once
+// rather than once per service. Queued mail is stamped by the outbox worker.
+func ResolveReplyToIdentity(
+	ctx context.Context,
+	resolver TenantMailIdentityResolver,
+	tenantID int64,
+	logger *slog.Logger,
+) TenantMailIdentity {
+	if resolver == nil {
+		return TenantMailIdentity{}
+	}
+	identity, err := resolver.ResolveTenantMailIdentity(ctx, tenantID)
+	if err != nil {
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("failed to resolve tenant reply-to, sending without it",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return TenantMailIdentity{}
+	}
+	return identity
 }

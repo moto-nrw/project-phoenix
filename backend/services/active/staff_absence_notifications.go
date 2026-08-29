@@ -40,7 +40,10 @@ type AbsenceEmailDeps struct {
 	SchoolRepo  absenceEmailSchoolFinder
 	DefaultFrom email.Email
 	FrontendURL string
-	Logger      *slog.Logger
+	// MailIdentity points replies at the OGS instead of moto (#1936).
+	// Optional: nil sends without a Reply-To, exactly as before.
+	MailIdentity platformModels.TenantMailIdentityResolver
+	Logger       *slog.Logger
 }
 
 // SetAbsenceEmailDeps wires the absence email notifications (#1419 4d).
@@ -308,7 +311,21 @@ func (s *staffAbsenceService) dispatchAbsenceEmail(ctx context.Context, metaType
 			Recipient:   recipient,
 		},
 	}
+	// The reply address is resolved after commit, on a fresh context that only
+	// carries the tenant: resolving it here would open a settings transaction
+	// inside the caller's still-open one.
+	tenantID := tenant.FromContext(ctx)
+	logger := s.emailDeps.Logger
+	resolver := s.emailDeps.MailIdentity
 	tenant.RegisterAfterCommit(ctx, func() {
-		dispatcher.Dispatch(context.Background(), request)
+		sendCtx := context.Background()
+		// Without a tenant there is no OGS to answer to, and stamping the
+		// context would panic. Send exactly as before in that case.
+		if tenantID > 0 {
+			sendCtx = tenant.WithTenantID(sendCtx, tenantID)
+			identity := platformModels.ResolveReplyToIdentity(sendCtx, resolver, tenantID, logger)
+			request.Message.ReplyTo = email.NewEmail(identity.ReplyToName, identity.ReplyToAddress)
+		}
+		dispatcher.Dispatch(sendCtx, request)
 	})
 }

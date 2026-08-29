@@ -1336,21 +1336,9 @@ func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64)
 }
 
 // resolveReplyTo returns the OGS reply address for this tenant, or the zero
-// value when none is configured or the lookup fails. A missing return path
-// must never cost the invitation, so every failure degrades to "no header".
+// value when none is configured. This send bypasses the outbox, so it stamps
+// the header itself; the degradation policy is shared (#1936).
 func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
-	if s.MailIdentity == nil {
-		return email.Email{}
-	}
-	identity, err := s.MailIdentity.ResolveTenantMailIdentity(ctx, tenant.FromContext(ctx))
-	if err != nil {
-		slog.Warn("failed to resolve tenant reply-to for guardian invitation",
-			slog.String("error", err.Error()),
-		)
-		return email.Email{}
-	}
-	if identity.IsZero() {
-		return email.Email{}
-	}
+	identity := platformModels.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
 	return email.NewEmail(identity.ReplyToName, identity.ReplyToAddress)
 }
