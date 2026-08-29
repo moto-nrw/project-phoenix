@@ -402,3 +402,22 @@ wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
 Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
 sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
 Auftreten eine andere Vorgangskennung.
+
+## Träger
+
+Ein **Träger** ist die Organisation, die mehrere OGS betreibt und finanziert
+(zum Beispiel eine Stadt, ein Wohlfahrtsverband, eine gGmbH). Im System ist
+jede OGS genau einem Träger zugeordnet. Eine einzelne OGS ohne weitere
+Standorte arbeitet direkt im OGS-Portal; der Träger als Ebene wird erst
+sichtbar, wenn mehrere OGS zu ihm gehören.
+_Vermeiden_: Organisation (nur im Code), Umbrella, Trägerverein, Kommune (das
+ist eine Rolle, die ein Träger haben kann, kein Synonym).
+
+## Träger-Büro
+
+Das **Träger-Büro** sind die Personen beim Träger, die über alle seine OGS
+hinweg planen, steuern und nachweisen (Bereichsleitung, Personal, Verwaltung).
+Sie betreuen keine Kinder und sind keine OGS-Admins; ein OGS-Admin mit Zugang
+zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
+_Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
+Träger-Büro, nicht das Büro).
