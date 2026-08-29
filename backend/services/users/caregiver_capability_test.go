@@ -388,11 +388,11 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	assert.Equal(t, true, after["has_teacher"])
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). The nested request transaction verifies that disable
-// retains its independently committed retry boundary.
+// The nested request transaction verifies that disable retains its
+// independently committed retry boundary.
 func TestCaregiverCapability_DisableCommitsIndependentlyOfAmbientTransaction(t *testing.T) {
+	t.Parallel()
+
 	db, factory := setupCaregiverFactory(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
