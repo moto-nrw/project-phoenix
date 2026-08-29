@@ -17,7 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBookingConsistencyAuditFindsProjectionDrift(t *testing.T) {
+// Raw arrival rows on unbooked days and broad class rosters are deliberate in
+// booking-led care. This fixture includes both and pins that only actionable
+// pickup/offering violations contribute to the report.
+func TestBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -85,12 +88,9 @@ func TestBookingConsistencyAuditFindsProjectionDrift(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, testpkg.Tenant(t), report.TenantID)
 	assert.Equal(t, 1, report.PickupProjectionMissingDays)
-	assert.Equal(t, 1, report.ArrivalWithoutBookingDays)
-	assert.Equal(t, 1, report.BookingWithoutArrivalDays)
-	assert.Equal(t, 1, report.PlannedWithoutBookingRows)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 	assert.Equal(t, 1, report.ApprovedWithoutOptionalOffering)
-	assert.Equal(t, 5, report.TotalFindings())
+	assert.Equal(t, 2, report.TotalFindings())
 }
 
 func TestBookingConsistencyAuditRequiresDateAndTenant(t *testing.T) {
@@ -143,7 +143,6 @@ func TestBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T) {
 	report, err := auditRepo.NewBookingConsistencyRepository(db).Audit(ctx, auditDate)
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.PickupProjectionMissingDays)
-	assert.Equal(t, 0, report.BookingWithoutArrivalDays)
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 }
 
@@ -180,7 +179,6 @@ func TestBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T
 	report, err := auditRepo.NewBookingConsistencyRepository(db).Audit(ctx, auditDate)
 	require.NoError(t, err)
 	assert.Equal(t, 0, report.ApprovedWithoutRequiredOffering)
-	assert.Equal(t, 0, report.BookingWithoutArrivalDays)
 }
 
 type approvedAuditChild struct {
