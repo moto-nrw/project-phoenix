@@ -20,25 +20,57 @@ type Request struct {
 	// active schema submits without one. The form_schemas FK still
 	// applies when set, so admins can audit which schema version a
 	// non-trivial submission was bound to.
-	SchemaID           *int64         `bun:"schema_id" json:"schema_id,omitempty"`
-	PhaseID            int64          `bun:"phase_id,notnull" json:"phase_id"`
-	GuardianFirstName  string         `bun:"guardian_first_name,notnull" json:"guardian_first_name"`
-	GuardianLastName   string         `bun:"guardian_last_name,notnull" json:"guardian_last_name"`
-	GuardianEmail      string         `bun:"guardian_email,notnull" json:"guardian_email"`
-	GuardianPhone      *string        `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GuardianAccountID  *int64         `bun:"guardian_account_id" json:"guardian_account_id,omitempty"`
-	ConsentFlags       map[string]any `bun:"consent_flags,type:jsonb,notnull,default:'{}'" json:"consent_flags"`
-	CustomData         map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
-	SubmissionSource   string         `bun:"submission_source,notnull,default:'public'" json:"submission_source"`
-	SourceMetadata     map[string]any `bun:"source_metadata,type:jsonb,notnull,default:'{}'" json:"source_metadata"`
-	StatusToken        string         `bun:"status_token,notnull,unique" json:"status_token"`
-	StatusTokenExpires *time.Time     `bun:"status_token_expires" json:"status_token_expires,omitempty"`
-	SubmittedAt        time.Time      `bun:"submitted_at,notnull,default:current_timestamp" json:"submitted_at"`
-	WithdrawnAt        *time.Time     `bun:"withdrawn_at" json:"withdrawn_at,omitempty"`
+	SchemaID          *int64         `bun:"schema_id" json:"schema_id,omitempty"`
+	PhaseID           int64          `bun:"phase_id,notnull" json:"phase_id"`
+	GuardianFirstName string         `bun:"guardian_first_name,notnull" json:"guardian_first_name"`
+	GuardianLastName  string         `bun:"guardian_last_name,notnull" json:"guardian_last_name"`
+	GuardianEmail     string         `bun:"guardian_email,notnull" json:"guardian_email"`
+	GuardianPhone     *string        `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GuardianAccountID *int64         `bun:"guardian_account_id" json:"guardian_account_id,omitempty"`
+	ConsentFlags      map[string]any `bun:"consent_flags,type:jsonb,notnull,default:'{}'" json:"consent_flags"`
+	// LegalBlocksSnapshot is append-only consent evidence (Art. 5 Abs. 2,
+	// Art. 7 Abs. 1 DSGVO): one entry per parent-facing (re)submission,
+	// recording the resolved legal blocks exactly as the form rendered
+	// them. Settings-sourced blocks are not versioned anywhere else, so
+	// without this record a later settings edit would silently change
+	// what a stored request "accepted". Not part of the request API yet
+	// (deliberate, like DecisionNotificationMode) — admin-facing display
+	// is a follow-up.
+	LegalBlocksSnapshot []LegalBlocksSnapshotEntry `bun:"legal_blocks_snapshot,type:jsonb,notnull,default:'[]'" json:"-"`
+	CustomData          map[string]any             `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
+	SubmissionSource    string                     `bun:"submission_source,notnull,default:'public'" json:"submission_source"`
+	SourceMetadata      map[string]any             `bun:"source_metadata,type:jsonb,notnull,default:'{}'" json:"source_metadata"`
+	StatusToken         string                     `bun:"status_token,notnull,unique" json:"status_token"`
+	StatusTokenExpires  *time.Time                 `bun:"status_token_expires" json:"status_token_expires,omitempty"`
+	SubmittedAt         time.Time                  `bun:"submitted_at,notnull,default:current_timestamp" json:"submitted_at"`
+	WithdrawnAt         *time.Time                 `bun:"withdrawn_at" json:"withdrawn_at,omitempty"`
 
 	// DecisionNotificationMode is pinned when the first parent-notifiable
 	// decision is made. It is internal state, not part of the request API.
 	DecisionNotificationMode *string `bun:"decision_notification_mode" json:"-"`
+}
+
+// LegalBlockSnapshot is one resolved legal block exactly as the public
+// form rendered it at (re)submission time. It mirrors the resolved view
+// (services/enrollment.LegalBlock), not the template row, so the record
+// stays meaningful for blocks that came from live tenant settings.
+type LegalBlockSnapshot struct {
+	Key      string `json:"key"`
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	Label    string `json:"label"`
+	Text     string `json:"text"`
+	Required bool   `json:"required"`
+	Source   string `json:"source,omitempty"`
+}
+
+// LegalBlocksSnapshotEntry records one parent-facing (re)submission:
+// which legal blocks were shown, in which wording, at what time.
+// Entries are never rewritten or deleted while the request lives; they
+// share the request's retention.
+type LegalBlocksSnapshotEntry struct {
+	SnapshotAt time.Time            `json:"snapshot_at"`
+	Blocks     []LegalBlockSnapshot `json:"blocks"`
 }
 
 // Consent-flag keys stored in Request.ConsentFlags. These are the
