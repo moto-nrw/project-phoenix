@@ -295,8 +295,10 @@ export function StudentsMasterDetail({
     } else if (!hasArrival) {
       subtitleParts.push("keine Ankunft");
     }
-    const subtitleText = subtitleParts.join(" · ") || "–";
-    const subtitle = !hasArrival ? (
+    // Kein Gedankenstrich als Platzhalter: eine Zeile, die nur „–" sagt,
+    // sagt nichts. Gibt es nichts zu ergaenzen, entfaellt die Zeile.
+    const subtitleText = subtitleParts.join(" · ");
+    const subtitle = !subtitleText ? undefined : !hasArrival ? (
       <span className="text-moto-orange font-medium">{subtitleText}</span>
     ) : (
       subtitleText

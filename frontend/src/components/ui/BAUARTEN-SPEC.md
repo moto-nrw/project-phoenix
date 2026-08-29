@@ -180,9 +180,9 @@ bekommt eine shrink-only Baseline analog zum bestehenden
 2. **Bauart 2 zuerst** — eine Objektansicht je Typ, die Doppelbäume von Kind,
    Mitarbeiter und Raum zusammenführen, Verwaltungsfelder als Reiter. Das ist
    zugleich die halbe Navigationsentscheidung.
-3. **Navigation und Wörter** — Datenverwaltung auflösen, Seitenleiste auf
-   etwa acht Einträge, Wörterbuch mit Ratsche, Weiterleitungen für alte
-   Pfade, Hilfe-Anleitung im selben Zug.
+3. **Wörter** — Wörterbuch mit Ratsche, Weiterleitungen für alte Pfade,
+   Hilfe-Anleitung im selben Zug. (Der Navigationsumbau aus Teil 2 ist am
+   29.08.2026 zurückgenommen worden — siehe dort.)
 4. **Bauart 1 und 3** — Sammlungen und Werkzeuge angleichen.
 5. **Farbe und Ruhe** — einfarbige Navigation, Statusfarben aufräumen.
 6. **Selbsterklärung** — jeder Leerzustand als nächster Schritt, jede
@@ -192,52 +192,39 @@ Die Ratsche einer Stufe wird mit der Stufe eingeführt, nicht danach.
 
 ---
 
-# Teil 2 — Navigation und Wörter (Ziel-Zustand)
+# Teil 2 — Navigation und Wörter
 
-Nachtrag vom 28.08.2026: Die Navigation ist Teil des Umbaus. Ziel ist, dass
-eine Sache genau einen Ort hat und die Seitenleiste in einem Blick lesbar ist.
+Nachtrag vom 28.08.2026, **zurückgenommen am 29.08.2026.**
 
-## Der Grundsatz
+## Was zurückgenommen wurde
 
-**Ein Objekt, ein Ort.** „Datenverwaltung" wird aufgelöst. Sie war kein Ort,
-den eine OGS-Leitung im Kopf hat, sondern eine Beschreibung der Datenbank —
-und sie hat jede Entität verdoppelt: das Kind wohnte unter „Alle Kinder" UND
-unter „Datenverwaltung → Kinder", mit zwei Ansichten, zwei Bearbeiten-Wegen
-und ohne Querverweis.
+Teil 2 sah vor, den Bereich „Datenverwaltung" aufzulösen und seine Register
+als Reiter an die Sammlungen zu hängen („ein Objekt, ein Ort"). Das ist
+gebaut und wieder entfernt worden. Die Entscheidung steht: **die
+Datenverwaltung bleibt ein eigener Bereich in der Seitenleiste, genau wie
+zuvor.**
 
-Verwaltung ist ab jetzt ein **Modus am Objekt**, kein zweiter Baum: die
-Stammdaten eines Kindes sind ein Reiter im Kind, sichtbar nach Recht. Wer das
-Recht nicht hat, sieht den Reiter nicht — nicht eine zweite Seite, die er
-nicht öffnen kann.
+Der Grund ist nicht die Idee, sondern ihr Ergebnis auf dem Schirm. Die
+Register wanderten als Reiter an vier Sammlungen und in die Einstellungen.
+Damit stand über den Kindern ein Reiter „Stammdaten", über den
+Mitarbeitenden noch einer, und weil je Fläche höchstens vier Reiter erlaubt
+waren, bündelte sie ein Reiter „Verwaltung" — ein Wort, das nicht sagt, was
+darin liegt, und das den Wortstamm der „Datenverwaltung" ein zweites Mal
+belegt. Eine Verwaltungsfläche war damit an fünf Stellen erreichbar und an
+keiner benannt. Ein zusammenhängender Bereich mit zehn klaren Namen ist
+verständlicher als zehn Namen, die über die Seiten verteilt und hinter einem
+Sammelwort versteckt sind.
 
-## Die Seitenleiste
+Was aus Teil 2 gültig bleibt, weil es unabhängig davon steht:
 
-Neun Bereiche plus drei Einträge am Fuß. Reihenfolge fest:
+- **Die Wörter** (Tabelle unten) — ein Begriff, ein Wort, überall gleich.
+- **Kein geteilter Wortstamm** ohne sichtbare Abgrenzung.
+- **Einfarbige Navigation** — Farbe ist Status, kein Bereichsschmuck.
+- **Nichts läuft ins Leere** — jede alte Route bleibt als Weiterleitung.
 
-1. **Start**
-2. **Kinder** — Sammlung, Objekt, Reiter „Abwesenheiten"; Stammdaten als
-   Reiter im Kind
-3. **Mitarbeitende** — Sammlung, Objekt; Stammdaten, Dokumente, Abwesenheiten
-   als Reiter in der Person
-4. **Räume** — Sammlung, Objekt, Reiter „Aufsicht heute"
-5. **Aktivitäten** — Sammlung, Objekt
-6. **Planung** — Betreuungsplan · Dienstplan · Vertretung · Tageslisten ·
-   Zeiträume · Mein Kalender
-7. **Eltern** — Nachrichten · Mitteilungen · Konto-Anfragen · Essensplan ·
-   Anmeldungen
-8. **Team** — Team-Chat · Dateien
-9. **Auswertung** — Statistik · Zeiterfassung · Abrechnung · Tagesauswertung
-
-Am Fuß: **Notfall** · **Hilfe** · **Einstellungen**. In den Einstellungen
-wohnen die Register, die reine Konfiguration sind und kein Tagesgeschäft:
-Gruppen, Rollen, Berechtigungen, Geräte, Info-Displays, Exporte,
-Jahrgangswechsel.
-
-Was damit verschwindet: der Bereich „Datenverwaltung", der Doppeleintrag
-„Anfragen" neben „Konto-Anfragen", der Einzeleintrag „Gruppenzugriff" (er
-wird ein Reiter bei den Mitarbeitenden), und die dynamisch eingehängten
-Gruppen- und Raum-Kinder in der Seitenleiste — eine Navigation, die mit den
-Daten wächst, ist keine Navigation mehr.
+Nicht mehr gültig: die Seitenleiste auf neun Bereiche, das Auflösen der
+Datenverwaltung, die Register als Reiter an den Sammlungen, der Sammelreiter
+„Verwaltung" (siehe Teil 3, Regel 3).
 
 ## Die Wörter
 
@@ -246,13 +233,10 @@ Knopf, Hilfe, E-Mail. Verbindlich:
 
 | Statt | Ab jetzt |
 |---|---|
-| „Home" / „Startseite" / „Suchen" | **Start** |
 | „Alle Kinder" / „Kindersuche" / „Kinder" | **Kinder** |
 | „Mitarbeiter" / „Personal" / „Lehrkräfte" | **Mitarbeitende** |
-| „Gruppenzugriff" | **Vertretungszugriff** (Reiter bei Mitarbeitende) |
 | „Betreuungsangebote" | **Angebote** (im Bereich Anmeldungen) |
 | „Tagesauswertung" | **Tagesbericht** |
-| „Mein Kalender" | **Kalender** |
 
 Zwei sichtbare Namen teilen keinen Wortstamm ohne sichtbare Abgrenzung.
 Der Wortstamm „Betreuungs-" darf nur noch EINMAL als Navigationsname
@@ -322,17 +306,32 @@ Zwei Gründe:
   nicht — beide lesen sich als „wähle einen Wert", nicht als „wechsle die
   Ansicht". Genau daran scheiterten die ersten beiden Fassungen.
 
-Kein `-mb-px` an den Reitern. Der gebündelte Reiter (`menu`) rendert eine
-zusätzliche Hülle um seine Schaltfläche; ein negativer Rand greift dort an der
-inneren Schaltfläche und verschiebt genau diesen einen Reiter um ein Pixel.
+Kein `-mb-px` an den Reitern. Der Reiter „Mehr" rendert eine zusätzliche
+Hülle um seine Schaltfläche; ein negativer Rand greift dort an der inneren
+Schaltfläche und verschiebt genau diesen einen Reiter um ein Pixel.
 
-## 3. Höchstens vier Seitenreiter
+## 3. Reiter werden gemessen, nicht gebündelt
 
-Mehr Reiter sind eine Werkzeugleiste, keine Orientierung. Was täglich
-gebraucht wird, steht als Reiter; alles Seltene bündelt sich hinter EINEM
-Reiter mit Menü (`TenantPageTab.menu`), benannt nach dem, was es enthält —
-in der Regel „Verwaltung". Der gebündelte Reiter zeigt den Namen des offenen
-Untereintrags, damit man sieht, wo man ist.
+Nachtrag vom 29.08.2026, ersetzt die frühere Regel „höchstens vier
+Seitenreiter": Seiten bündeln ihre Reiter NICHT von Hand. Eine Seite übergibt
+alle Reiter flach an `TenantPage`; das Gerüst misst, wie viele in die Zeile
+passen, und räumt nur den Überhang in einen letzten Reiter **„Mehr"** mit
+Menü. Passt alles, gibt es kein „Mehr".
+
+Warum die alte Regel weg ist: ein benannter Sammelreiter („Verwaltung") ist
+geraten. Er verrät nicht, was in ihm liegt, er bündelt auch dann, wenn der
+Platz längst reicht, und er trug denselben Wortstamm wie der Bereich
+„Datenverwaltung" — genau die Dublette, die diese Spezifikation verbietet.
+
+Die Messung läuft über eine unsichtbare Schattenzeile mit allen Reitern in
+natürlicher Breite (`ResizeObserver` auf der sichtbaren Zeile). Ohne Messwerte
+— Testumgebung, noch nicht gelayoutet, Zeile verborgen — stehen ALLE Reiter
+da. Ein „Mehr" zu bauen, weil die Breite unbekannt ist, versteckt Bereiche
+ohne Grund.
+
+Das Menü hinter „Mehr" ist innen abgesetzt: die Zeilen sind gerundet und
+haben Abstand zur Kante des Kastens. Eine eckige Hover-Fläche in einem
+gerundeten Kasten liest sich als Fehler.
 
 ## 4. Farbe bleibt Status
 

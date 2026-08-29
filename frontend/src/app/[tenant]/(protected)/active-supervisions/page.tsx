@@ -259,20 +259,7 @@ function MeinRaumPageContent() {
       ? [{ value: SCHULHOF_TAB_ID, label: SCHULHOF_ROOM_NAME }]
       : []),
   ];
-  // Höchstens vier Reiter: ab der fünften Aufsicht bündelt ein Reiter mit
-  // Menü den Rest. Mehr Reiter nebeneinander sind eine Werkzeugleiste, keine
-  // Orientierung.
-  const supervisionTabItems =
-    allSupervisionTabItems.length > 4
-      ? [
-          ...allSupervisionTabItems.slice(0, 3),
-          {
-            value: "weitere-aufsichten",
-            label: "Weitere Aufsichten",
-            menu: allSupervisionTabItems.slice(3),
-          },
-        ]
-      : allSupervisionTabItems;
+  const supervisionTabItems = allSupervisionTabItems;
   const supervisionTabs =
     totalSupervisions >= 2 && !isDesktop
       ? {

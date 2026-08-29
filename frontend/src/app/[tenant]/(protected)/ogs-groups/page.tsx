@@ -172,15 +172,7 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
     value: group.id,
     label: formatGroupLabelWithAttendance(group),
   });
-  if (groups.length <= 4) return groups.map(toItem);
-  return [
-    ...groups.slice(0, 3).map(toItem),
-    {
-      value: "weitere-gruppen",
-      label: "Weitere Gruppen",
-      menu: groups.slice(3).map(toItem),
-    },
-  ];
+  return groups.map(toItem);
 }
 
 function OGSGroupPageContent() {

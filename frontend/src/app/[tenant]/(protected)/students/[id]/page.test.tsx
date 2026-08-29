@@ -2061,10 +2061,9 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      // Der gebündelte Reiter zeigt den Namen des offenen Untereintrags.
-      expect(screen.getByRole("tab", { name: "Verwaltung" })).toHaveTextContent(
-        "Betreuungszeiten",
-      );
+      expect(
+        screen.getByRole("tab", { name: "Betreuungszeiten" }),
+      ).toHaveAttribute("aria-selected", "true");
     });
 
     it("updates the URL with the tab param when a tab is selected", () => {

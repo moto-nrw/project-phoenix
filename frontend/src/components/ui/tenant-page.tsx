@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
@@ -53,13 +54,6 @@ export interface TenantPageTab {
    * Ohne `href` schaltet der Reiter wie bisher nur den Inhalt um.
    */
   readonly href?: string;
-  /**
-   * Untereinträge. Ein Reiter mit Menü bündelt Flächen, die man selten
-   * braucht (die Register einer Sammlung), damit sie nicht gleichrangig neben
-   * der täglichen Ansicht stehen. Sechs Reiter nebeneinander sind eine
-   * Werkzeugleiste, keine Orientierung.
-   */
-  readonly menu?: readonly TenantPageTab[];
 }
 
 export interface TenantPageProps {
@@ -129,6 +123,15 @@ export interface TenantPageProps {
    * search/filters und NICHT diesen Slot.
    */
   readonly searchSlot?: ReactNode;
+
+  /**
+   * Hoehe der Elemente im searchSlot. "controls" (Standard) zieht Knoepfe,
+   * Felder und Auswahllisten auf die einheitliche Bedienhoehe von 36 px.
+   * "natural" laesst dem Slot seine eigene Hoehe -- fuer Inhalte, die keine
+   * Bedienzeile sind, sondern die Hauptaktion der Seite (die grossen
+   * Aktionskarten in der Kindakte).
+   */
+  readonly searchSlotHeight?: "controls" | "natural";
 
   /** Horizontale Seitenreiter unter der Kopfkarte. */
   readonly tabs?: {
@@ -251,6 +254,7 @@ export function TenantPage({
   activeFilterDisplay,
   primaryAction,
   searchSlot,
+  searchSlotHeight = "controls",
   tabs,
   error,
   loading = false,
@@ -341,7 +345,12 @@ export function TenantPage({
         {tabs && <TenantPageTabs {...tabs} />}
 
         {(searchSlot ?? hasSearchRow) && (
-          <div className={cn("mt-4", CONTROL_HEIGHT)}>
+          <div
+            className={cn(
+              "mt-4",
+              searchSlotHeight === "controls" && CONTROL_HEIGHT,
+            )}
+          >
             {searchSlot}
             {!searchSlot && hasSearchRow && (
               <PageHeaderWithSearch
@@ -387,17 +396,179 @@ export function TenantPage({
  * `ui/Tabs` bleibt für Reiter INNERHALB einer Karte, `SegmentedControl` für
  * eine Wertauswahl.
  */
+/** Abstand zwischen zwei Reitern (gap-6) -- die Messung braucht ihn als Zahl. */
+const TAB_GAP = 24;
+
+/** Auffangreiter, wenn die Breite nicht fuer alle Reiter reicht. */
+const MORE_LABEL = "Mehr";
+
 function TenantPageTabs({
   value,
   onChange,
   items,
   label = "Seitenbereiche",
 }: NonNullable<TenantPageProps["tabs"]>) {
+  // Reiter werden NICHT von Hand gebuendelt. Ein benannter Sammelreiter
+  // („Verwaltung") ist geraten: er verraet nicht, was in ihm liegt, und er
+  // buendelt auch dann, wenn der Platz laengst reicht. Stattdessen wird
+  // gemessen -- sichtbar ist, was hineinpasst, der Rest steht unter „Mehr".
+  const rowRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState(items.length);
+
+  const measure = useCallback(() => {
+    const row = rowRef.current;
+    const shadow = measureRef.current;
+    if (!row || !shadow) return;
+
+    const children = Array.from(shadow.children) as HTMLElement[];
+    if (children.length < 2) return;
+    // Das letzte Kind der Schattenzeile ist der „Mehr"-Auslöser.
+    const moreWidth = children[children.length - 1]!.offsetWidth;
+    const widths = children.slice(0, -1).map((child) => child.offsetWidth);
+    const available = row.clientWidth;
+
+    // Ohne Messwerte (Testumgebung, noch nicht gelayoutet, Zeile verborgen)
+    // wird NICHT geraten: dann stehen alle Reiter da. Ein „Mehr" zu bauen,
+    // weil die Breite unbekannt ist, versteckt Bereiche ohne Grund.
+    if (available === 0 || widths.every((width) => width === 0)) {
+      setVisibleCount(items.length);
+      return;
+    }
+
+    let used = 0;
+    let count = 0;
+    for (const width of widths) {
+      const next = used + (count > 0 ? TAB_GAP : 0) + width;
+      if (next > available) break;
+      used = next;
+      count += 1;
+    }
+
+    // Passt nicht alles, braucht auch „Mehr" seinen Platz.
+    if (count < widths.length) {
+      while (count > 0 && used + TAB_GAP + moreWidth > available) {
+        used -= widths[count - 1]! + (count > 1 ? TAB_GAP : 0);
+        count -= 1;
+      }
+    }
+
+    setVisibleCount(Math.max(count, 1));
+  }, [items.length]);
+
+  useLayoutEffect(() => {
+    measure();
+    const row = rowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [measure, items]);
+
+  const visible = items.slice(0, visibleCount);
+  const hidden = items.slice(visibleCount);
+
+  const tabClass = (active: boolean, disabled?: boolean) =>
+    cn(
+      "flex shrink-0 items-center gap-1.5 border-b-[3px] pb-3 text-base whitespace-nowrap transition-colors",
+      active
+        ? "border-moto-green font-semibold text-gray-900"
+        : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900",
+      disabled && "cursor-not-allowed opacity-50",
+    );
+
+  const renderInner = (item: TenantPageTab) => (
+    <>
+      {item.label}
+      {item.badge !== undefined && item.badge > 0 && (
+        <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
+          {item.badge}
+        </span>
+      )}
+    </>
+  );
+
+  const renderTab = (item: TenantPageTab, measuring = false) => {
+    const active = item.value === value;
+    const className = tabClass(active, item.disabled);
+    if (item.href && !item.disabled) {
+      return (
+        <Link
+          key={item.value}
+          href={item.href}
+          role={measuring ? undefined : "tab"}
+          aria-selected={measuring ? undefined : active}
+          tabIndex={measuring ? -1 : undefined}
+          className={className}
+          onClick={(event) => {
+            // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
+            // Dokument -- die aktuelle Seite bleibt stehen, dort gibt es
+            // nichts zu bewachen. Der schlichte Linksklick navigiert dagegen
+            // weg und läuft deshalb weiter über `onChange`, das den Wächter
+            // für ungespeicherte Änderungen befragt.
+            if (
+              event.defaultPrevented ||
+              event.button !== 0 ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return;
+            }
+            event.preventDefault();
+            onChange(item.value);
+          }}
+        >
+          {renderInner(item)}
+        </Link>
+      );
+    }
+    return (
+      <button
+        key={item.value}
+        type="button"
+        role={measuring ? undefined : "tab"}
+        aria-selected={measuring ? undefined : active}
+        tabIndex={measuring ? -1 : undefined}
+        disabled={item.disabled}
+        onClick={() => onChange(item.value)}
+        className={className}
+      >
+        {renderInner(item)}
+      </button>
+    );
+  };
+
+  const hiddenActive = hidden.find((item) => item.value === value);
+  const moreTrigger = (measuring = false) => (
+    <OverflowMenu
+      key="__mehr__"
+      ariaLabel={MORE_LABEL}
+      triggerRole={measuring ? undefined : "tab"}
+      triggerAriaSelected={measuring ? undefined : Boolean(hiddenActive)}
+      triggerClassName={tabClass(Boolean(hiddenActive))}
+      // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die Zeilenhöhe
+      // um ein Pixel und der Reiter steht einen Hauch tiefer als seine
+      // Nachbarn.
+      triggerContent={
+        <span className="flex items-center gap-1 leading-6">
+          {hiddenActive ? hiddenActive.label : MORE_LABEL}
+          <ChevronDown className="size-3.5" aria-hidden />
+        </span>
+      }
+      items={(measuring ? items : hidden).map((item) => ({
+        label: item.label,
+        onClick: () => onChange(item.value),
+      }))}
+    />
+  );
+
   return (
     <div className="-mx-5 mt-4">
       {/* Unter sm eine Auswahlliste: sieben Reiter nebeneinander wären auf
           einem Telefon eine Scrollleiste, in der die Hälfte der Bereiche
-          unsichtbar bleibt. Dieselbe Bauart, andere Form — kein Sonderweg
+          unsichtbar bleibt. Dieselbe Bauart, andere Form -- kein Sonderweg
           pro Seite. */}
       <div className="sm:hidden">
         <label className="sr-only" htmlFor="tenant-page-tabs">
@@ -409,19 +580,17 @@ function TenantPageTabs({
           onChange={(event) => onChange(event.target.value)}
           className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 shadow-sm focus:ring-2 focus:outline-none"
         >
-          {items
-            .flatMap((item) => (item.menu ? [...item.menu] : [item]))
-            .map((item) => (
-              <option
-                key={item.value}
-                value={item.value}
-                disabled={item.disabled}
-              >
-                {item.badge !== undefined && item.badge > 0
-                  ? `${item.label} (${item.badge})`
-                  : item.label}
-              </option>
-            ))}
+          {items.map((item) => (
+            <option
+              key={item.value}
+              value={item.value}
+              disabled={item.disabled}
+            >
+              {item.badge !== undefined && item.badge > 0
+                ? `${item.label} (${item.badge})`
+                : item.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -429,113 +598,34 @@ function TenantPageTabs({
           Haarlinie über die volle Kartenbreite, der aktive Reiter färbt nur
           sein Stück davon ein. Dadurch sind alle Reiter gleich hohe Kästen
           und der Abstand hängt nicht mehr an einem Strich, den nur einer von
-          ihnen trägt — der Fehler der ersten Fassung. Die Linie verbindet den
-          Reiter zugleich sichtbar mit dem Inhalt darunter; eine einzeln
-          getönte Pille sagt das nicht, sie liest sich als Filter. */}
-      <div
-        role="tablist"
-        aria-label={label}
-        className="hidden items-end gap-6 overflow-x-auto border-b border-gray-200 px-5 sm:flex"
-      >
-        {items.map((item) => {
-          const active = item.menu
-            ? item.menu.some((entry) => entry.value === value)
-            : item.value === value;
-          // Der aktive Reiter ist eine Fläche, kein Unterstrich. Ein Strich
-          // an der Unterkante haben nur die aktiven Reiter, und die Zeile
-          // richtet sich dann optisch an etwas aus, das den meisten Reitern
-          // fehlt: unter dem Text der übrigen steht doppelt so viel Luft.
-          // Als gleich große Kästen hängt der Abstand an nichts mehr — und es
-          // ist dieselbe Sprache wie in der Seitenleiste: aktiv ist Fläche und
-          // Schriftschnitt, nicht Farbe.
-          const tabClass = cn(
-            "flex shrink-0 items-center gap-1.5 border-b-[3px] pb-3 text-base whitespace-nowrap transition-colors",
-            active
-              ? "border-moto-green font-semibold text-gray-900"
-              : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900",
-            item.disabled && "cursor-not-allowed opacity-50",
-          );
-          const inner = (
-            <>
-              {item.label}
-              {item.badge !== undefined && item.badge > 0 && (
-                <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
-                  {item.badge}
-                </span>
-              )}
-            </>
-          );
-          if (item.menu && item.menu.length > 0) {
-            const openEntry = item.menu.find((entry) => entry.value === value);
-            return (
-              <OverflowMenu
-                key={item.value}
-                ariaLabel={item.label}
-                triggerRole="tab"
-                triggerAriaSelected={active}
-                triggerClassName={tabClass}
-                // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die
-                // Zeilenhöhe um ein Pixel und der Reiter steht einen Hauch
-                // tiefer als seine Nachbarn.
-                triggerContent={
-                  <span className="flex items-center gap-1 leading-6">
-                    {openEntry ? openEntry.label : item.label}
-                    <ChevronDown className="size-3.5" aria-hidden />
-                  </span>
-                }
-                items={item.menu.map((entry) => ({
-                  label: entry.label,
-                  onClick: () => onChange(entry.value),
-                }))}
-              />
-            );
-          }
-          if (item.href && !item.disabled) {
-            return (
-              <Link
-                key={item.value}
-                href={item.href}
-                role="tab"
-                aria-selected={active}
-                className={tabClass}
-                onClick={(event) => {
-                  // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
-                  // Dokument — die aktuelle Seite bleibt stehen, dort gibt es
-                  // nichts zu bewachen. Der schlichte Linksklick navigiert
-                  // dagegen weg und läuft deshalb weiter über `onChange`, das
-                  // den Wächter für ungespeicherte Änderungen befragt.
-                  if (
-                    event.defaultPrevented ||
-                    event.button !== 0 ||
-                    event.metaKey ||
-                    event.ctrlKey ||
-                    event.shiftKey ||
-                    event.altKey
-                  ) {
-                    return;
-                  }
-                  event.preventDefault();
-                  onChange(item.value);
-                }}
-              >
-                {inner}
-              </Link>
-            );
-          }
-          return (
-            <button
-              key={item.value}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              disabled={item.disabled}
-              onClick={() => onChange(item.value)}
-              className={tabClass}
-            >
-              {inner}
-            </button>
-          );
-        })}
+          ihnen trägt. Die Linie verbindet den Reiter zugleich sichtbar mit
+          dem Inhalt darunter; eine einzeln getönte Pille sagt das nicht, sie
+          liest sich als Filter. */}
+      <div className="hidden border-b border-gray-200 px-5 sm:block">
+        <div
+          ref={rowRef}
+          role="tablist"
+          aria-label={label}
+          className="flex items-end gap-6"
+        >
+          {visible.map((item) => renderTab(item))}
+          {hidden.length > 0 && moreTrigger()}
+        </div>
+
+        {/* Schattenzeile für die Messung: sie steht in einem Kasten ohne Höhe
+            und ist unsichtbar, behält aber die natürlichen Breiten aller
+            Reiter. Ohne sie liesse sich nicht feststellen, wie viele Reiter
+            in die Zeile passen -- nur, wie breit die bereits gekürzte Zeile
+            ist. */}
+        <div className="relative h-0 overflow-hidden" aria-hidden>
+          <div
+            ref={measureRef}
+            className="pointer-events-none invisible absolute top-0 left-0 flex items-end gap-6"
+          >
+            {items.map((item) => renderTab(item, true))}
+            {moreTrigger(true)}
+          </div>
+        </div>
       </div>
     </div>
   );

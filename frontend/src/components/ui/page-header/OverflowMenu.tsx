@@ -291,7 +291,7 @@ export function OverflowMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full" : ""} ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none ${triggerClassName}`}
       >
         {triggerContent ?? (
           <MoreVertical className={iconSizeClass} aria-hidden />
@@ -312,7 +312,7 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+              className={`fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >
@@ -321,7 +321,7 @@ export function OverflowMenu({
                   return (
                     <div
                       key={`header-${entry.label}`}
-                      className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
+                      className={`px-3 py-2 ${index > 0 ? "mt-1 border-t border-gray-100 pt-3" : ""}`}
                     >
                       <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
                         {entry.label}
@@ -344,7 +344,7 @@ export function OverflowMenu({
                         entry.onClick();
                       }}
                       onKeyDown={onItemKey(entry)}
-                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium transition-colors ${
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                         entry.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "hover:bg-gray-50 active:bg-gray-100"
@@ -375,7 +375,7 @@ export function OverflowMenu({
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
-                const itemClassName = `flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                const itemClassName = `flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
 
                 const inner = (
                   <>
