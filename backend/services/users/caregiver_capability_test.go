@@ -18,6 +18,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -412,6 +413,23 @@ func TestCaregiverCapability_DisableCommitsIndependentlyOfAmbientTransaction(t *
 	require.ErrorIs(t, err, outerRollback)
 
 	state, err := factory.CaregiverCapability.GetCaregiverCapability(testpkg.Ctx(t), account.ID)
+	require.NoError(t, err)
+	assert.False(t, state.HasUserRole)
+}
+
+func TestCaregiverCapability_DisableFallsBackWithoutUnitOfWork(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Standalone", "Disable")
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "admin")
+	assignSystemRoleToAccount(t, db, account.ID, tenantID, "user")
+
+	state, err := factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
 	require.NoError(t, err)
 	assert.False(t, state.HasUserRole)
 }

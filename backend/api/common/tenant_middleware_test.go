@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -175,6 +176,41 @@ func TestTenantTxMiddlewareDiscardsSuccessWhenCommitFails(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
 	assert.NotContains(t, recorder.Body.String(), `"ok":true`)
+}
+
+func TestTenantTxMiddlewareReportsRollbackFailure(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return errors.Join(fn(ctx, struct{}{}), assert.AnError)
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenant.MarkRollback(r.Context())
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
+	request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
+
+func TestTenantStatusWriterSpoolsLargeResponse(t *testing.T) {
+	t.Parallel()
+	recorder := httptest.NewRecorder()
+	sw := newTenantStatusWriter(recorder)
+	body := make([]byte, tenantResponseMemoryLimit+1)
+
+	_, err := sw.Write(body)
+	require.NoError(t, err)
+	assert.NotNil(t, sw.bodyFile)
+	assert.LessOrEqual(t, sw.body.Len(), tenantResponseMemoryLimit)
+	require.NoError(t, sw.commitResponse())
+	assert.Len(t, recorder.Body.Bytes(), len(body))
 }
 
 func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {

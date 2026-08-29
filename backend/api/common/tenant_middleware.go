@@ -3,10 +3,11 @@ package common
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -109,6 +110,7 @@ func runRequestTransaction(
 ) {
 	start := time.Now()
 	sw := newTenantStatusWriter(w)
+	defer sw.cleanupBodyFile()
 
 	err := within(r.Context(), func(ctx context.Context) error {
 		ctx = tenant.WithRollbackMarker(ctx)
@@ -122,8 +124,8 @@ func runRequestTransaction(
 		return nil
 	})
 
-	var requestRollback *requestRollbackError
-	if err != nil && !errors.As(err, &requestRollback) {
+	_, requestRollback := err.(*requestRollbackError)
+	if err != nil && !requestRollback {
 		slog.ErrorContext(r.Context(), "tenant transaction failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("method", r.Method),
@@ -195,11 +197,14 @@ type tenantStatusWriter struct {
 	header         http.Header
 	initialHeader  http.Header
 	body           bytes.Buffer
+	bodyFile       *os.File
 	status         int
 	wroteHeader    bool
 	bytesWritten   int64
 	flushRequested bool
 }
+
+const tenantResponseMemoryLimit = 1 << 20
 
 func newTenantStatusWriter(target http.ResponseWriter) *tenantStatusWriter {
 	initial := target.Header().Clone()
@@ -220,7 +225,27 @@ func (w *tenantStatusWriter) Write(body []byte) (int, error) {
 		w.status = http.StatusOK
 		w.wroteHeader = true
 	}
-	n, err := w.body.Write(body)
+	if w.bodyFile == nil && w.body.Len()+len(body) > tenantResponseMemoryLimit {
+		file, err := os.CreateTemp("", "phoenix-tenant-response-*")
+		if err != nil {
+			return 0, err
+		}
+		if _, err := file.Write(w.body.Bytes()); err != nil {
+			_ = file.Close()
+			_ = os.Remove(file.Name())
+			return 0, err
+		}
+		w.body.Reset()
+		w.bodyFile = file
+	}
+
+	var n int
+	var err error
+	if w.bodyFile != nil {
+		n, err = w.bodyFile.Write(body)
+	} else {
+		n, err = w.body.Write(body)
+	}
 	w.bytesWritten += int64(n)
 	return n, err
 }
@@ -239,6 +264,7 @@ func (w *tenantStatusWriter) statusCode() int {
 func (w *tenantStatusWriter) reset() {
 	w.header = w.initialHeader.Clone()
 	w.body.Reset()
+	w.cleanupBodyFile()
 	w.status = 0
 	w.wroteHeader = false
 	w.bytesWritten = 0
@@ -246,13 +272,21 @@ func (w *tenantStatusWriter) reset() {
 }
 
 func (w *tenantStatusWriter) commitResponse() error {
+	defer w.cleanupBodyFile()
 	targetHeader := w.target.Header()
 	clear(targetHeader)
 	for key, values := range w.header {
 		targetHeader[key] = append([]string(nil), values...)
 	}
 	w.target.WriteHeader(w.statusCode())
-	if _, err := w.target.Write(w.body.Bytes()); err != nil {
+	if w.bodyFile != nil {
+		if _, err := w.bodyFile.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		if _, err := io.Copy(w.target, w.bodyFile); err != nil {
+			return err
+		}
+	} else if _, err := w.target.Write(w.body.Bytes()); err != nil {
 		return err
 	}
 	if w.flushRequested {
@@ -261,4 +295,13 @@ func (w *tenantStatusWriter) commitResponse() error {
 		}
 	}
 	return nil
+}
+
+func (w *tenantStatusWriter) cleanupBodyFile() {
+	if w.bodyFile == nil {
+		return
+	}
+	_ = w.bodyFile.Close()
+	_ = os.Remove(w.bodyFile.Name())
+	w.bodyFile = nil
 }

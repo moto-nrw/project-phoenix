@@ -90,6 +90,8 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 	return nil
 }
 
+const defaultTxRetries = 3
+
 // IsRetryableTxError reports whether err is a transient PostgreSQL transaction
 // failure that is safe to retry by re-running the whole transaction:
 // deadlock_detected (40P01) or serialization_failure (40001). These are not
@@ -107,4 +109,21 @@ func IsRetryableTxError(err error) bool {
 	default:
 		return false
 	}
+}
+
+// RunInTxWithRetry runs a standalone transaction and retries transient
+// deadlock and serialization failures. An ambient transaction is never
+// replayed because Postgres has already aborted it after such a failure.
+func (h *TxHandler) RunInTxWithRetry(ctx context.Context, fn func(context.Context, bun.Tx) error) error {
+	if _, ok := TxFromContext(ctx); ok {
+		return h.RunInTx(ctx, fn)
+	}
+	var err error
+	for attempt := 0; attempt <= defaultTxRetries; attempt++ {
+		err = h.RunInTx(ctx, fn)
+		if err == nil || !IsRetryableTxError(err) {
+			return err
+		}
+	}
+	return err
 }

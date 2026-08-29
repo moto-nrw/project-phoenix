@@ -286,6 +286,9 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 		return work(txCtx, *tx)
 	})
+	if errors.Is(err, tenant.ErrRuntimeRequired) {
+		err = s.txHandler.RunInTxWithRetry(retryCtx, work)
+	}
 	if err != nil {
 		return nil, err
 	}
