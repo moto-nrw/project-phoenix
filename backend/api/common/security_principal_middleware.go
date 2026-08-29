@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -48,10 +47,6 @@ func SecurityPrincipalMiddleware(next http.Handler) http.Handler {
 		})
 		if err != nil {
 			observeAuthorization(r.Context(), AuthorizationEvent{Outcome: "invalid", Reason: "invalid_principal", Elapsed: time.Since(started)})
-			slog.WarnContext(r.Context(), "security principal rejected",
-				slog.String("reason", "invalid_principal"),
-				slog.String("path", r.URL.Path),
-			)
 			RenderError(w, r, ErrorUnauthorized(permissions.ErrPrincipalRequired))
 			return
 		}

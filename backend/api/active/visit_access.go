@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"slices"
 
@@ -116,7 +115,7 @@ func (rs *Resource) requireVisitView(next http.Handler) http.Handler {
 			return
 		}
 		if !allowed {
-			slog.WarnContext(r.Context(), "forbidden access attempt", slog.String("path", r.URL.Path))
+			rs.getLogger().WarnContext(r.Context(), "forbidden access attempt", "path", r.URL.Path)
 			common.RenderError(w, r, common.AuthorizationForbidden())
 			return
 		}
@@ -125,16 +124,7 @@ func (rs *Resource) requireVisitView(next http.Handler) http.Handler {
 }
 
 func renderVisitAuthorizationError(w http.ResponseWriter, r *http.Request, err error) {
-	slog.ErrorContext(r.Context(), "authorization error",
-		slog.String("error", err.Error()),
-		slog.String("path", r.URL.Path),
-	)
-	common.RenderError(w, r, &common.ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		Status:         "Authorization error",
-		ErrorText:      err.Error(),
-	})
+	common.RenderError(w, r, common.ErrorInternalServerWrap("Authorization error", err))
 }
 
 func visitReadAll(principal permissions.Principal) bool {
