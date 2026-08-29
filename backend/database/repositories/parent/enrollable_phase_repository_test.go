@@ -15,32 +15,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// enableEnrollmentForTenant sets the enrollment.enabled setting to
-// true for the given tenant. The repo INNER JOINs on this setting, so
-// without it every test row drops out of the result.
-func enableEnrollmentForTenant(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	bg := context.Background()
-	// Need a real account to satisfy the FK on config.setting_values.updated_by.
-	updater := testpkg.CreateTestAccount(t, db, "settingsupdater")
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", updater.ID).Exec(bg)
-	})
-
-	_, err := db.NewRaw(`
-		INSERT INTO config.setting_values
-		  (tenant_id, setting_key, value, updated_by, created_at, updated_at)
-		VALUES (?, 'enrollment.enabled', 'true'::jsonb, ?, NOW(), NOW())
-		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = 'true'::jsonb, updated_at = NOW()
-	`, tenantID, updater.ID).Exec(bg)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.NewDelete().Table("config.setting_values").
-			Where("tenant_id = ? AND setting_key = ?", tenantID, "enrollment.enabled").
-			Exec(bg)
-	})
-}
-
 // insertEnrollablePhase makes a minimal phase row directly so we don't
 // pull in the enrollment repo here. windowOpen/Close = nil means
 // "always open".
@@ -89,7 +63,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	enableEnrollmentForTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-happy")
 	// The assertion below is "no account_tenants mapping → AlreadyLinked is
@@ -135,7 +108,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	enableEnrollmentForTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-linked")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
@@ -168,19 +140,14 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 	t.Fatal("phase not found in result")
 }
 
-func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSetting(t *testing.T) {
+func TestEnrollablePhaseRepository_ListEnrollable_DoesNotReadEnrollmentSetting(t *testing.T) {
 	t.Parallel()
 
-	// A tenant that hasn't enabled enrollment.enabled (or has it set
-	// to false) must drop out of the result entirely — the INNER JOIN
-	// on config.setting_values enforces this.
-	//
-	// Uses a dedicated tenant ID so the tenant-1 setting other tests
-	// flip on/off doesn't bleed into this assertion.
+	// Settings filtering belongs to services/parent. The repository returns
+	// eligible phases even when no config.setting_values row exists.
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	// Deliberately NOT calling enableEnrollmentForTenant.
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-nosetting")
 	t.Cleanup(func() {
@@ -199,10 +166,11 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSett
 		list, lErr = repo.ListEnrollable(ctx, account.ID)
 		return lErr
 	}))
-	for _, p := range list {
-		assert.NotEqual(t, name, p.PhaseName,
-			"phase from a tenant without enrollment.enabled MUST NOT appear")
+	found := false
+	for _, phase := range list {
+		found = found || phase.PhaseName == name
 	}
+	assert.True(t, found, "repository must not filter on enrollment.enabled")
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing.T) {
@@ -211,7 +179,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	enableEnrollmentForTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-inactive")
 	t.Cleanup(func() {
@@ -244,7 +211,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *te
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	enableEnrollmentForTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-window")
 	t.Cleanup(func() {
@@ -295,8 +261,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T
 	tenantUnlinked := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantLinked)
 	testpkg.EnsureTestTenant(t, db, tenantUnlinked)
-	enableEnrollmentForTenant(t, db, tenantLinked)
-	enableEnrollmentForTenant(t, db, tenantUnlinked)
 
 	account := testpkg.CreateTestAccount(t, db, "enrollable-order")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantLinked) // linked here only

@@ -266,6 +266,23 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 	return result, nil
 }
 
+func (s *settingsService) EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error) {
+	snapshots, err := s.ResolveManyForTenants(ctx, tenantIDs, []string{config.KeyEnrollmentEnabled})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[int64]bool, len(snapshots))
+	for tenantID, snapshot := range snapshots {
+		enabled, resolveErr := snapshot.Bool(config.KeyEnrollmentEnabled)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		result[tenantID] = enabled
+	}
+	return result, nil
+}
+
 // ResolveStringForTenant resolves a setting as a string for a specific tenant,
 // wrapping the query in a tenant transaction to satisfy RLS.
 func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error) {

@@ -84,7 +84,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseHiddenWithou
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	enableEnrollmentForTenant(t, db, tenantID)
 
 	// Fresh account: no tenant mapping, no guardian rows anywhere.
 	account := testpkg.CreateTestAccount(t, db, "eligibility-unlinked")
@@ -110,7 +109,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithS
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 
 	linkedName := fmt.Sprintf("eligibility-visible-%d", time.Now().UnixNano())
 	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-visible")
@@ -126,7 +124,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedT
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	revokeGuardianSubmitPermission(t, db, chain.StudentID)
 
 	// The account has a guardian link at the school but no relationship grants
@@ -154,7 +151,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutG
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	enableEnrollmentForTenant(t, db, tenantID)
 
 	// Fresh account: no tenant mapping, no guardian rows anywhere. Such an
 	// account can never complete an existing_students phase — a child it does
@@ -184,7 +180,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSub
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 
 	existingName := fmt.Sprintf("eligibility-exvisible-%d", time.Now().UnixNano())
 	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-exvisible")
@@ -214,7 +209,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInact
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	setStudentStatus(t, db, chain.StudentID, "inactive")
 
 	existingName := fmt.Sprintf("eligibility-exinactive-existing-%d", time.Now().UnixNano())
@@ -237,7 +231,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPend
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	setStudentStatus(t, db, chain.StudentID, "pending")
 
 	existingName := fmt.Sprintf("eligibility-expending-%d", time.Now().UnixNano())
@@ -254,7 +247,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedP
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// Full permission set stays on the guardian link; only the membership
 	// mapping is deactivated. The linked_parents phase must still disappear.
 	deactivateAccountTenantMapping(t, db, chain.AccountID)
@@ -283,7 +275,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinke
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
 	// A defer (not t.Cleanup) so it runs before the deferred db.Close.
@@ -321,7 +312,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuar
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
 	// A defer (not t.Cleanup) so it runs before the deferred db.Close.
@@ -358,7 +348,6 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMem
 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
 	// A defer (not t.Cleanup) so it runs before the deferred db.Close.

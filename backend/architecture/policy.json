@@ -1716,6 +1716,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "settings",
+      "owner": "settings-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "tenant",
       "owner": "tenant-runtime",
       "role": "public",
@@ -2720,6 +2727,17 @@
       "source_role": "public",
       "target_role": "application",
       "same_owner": true
+    },
+    {
+      "id": "legacy-composition.settings-platform",
+      "description": "The service composition root wires the public settings capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "settings-platform",
+      "target_role": "public"
     },
     {
       "id": "domain.shared-kernel",

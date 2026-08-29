@@ -68,6 +68,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -2165,6 +2166,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:                repos.ParentChild,
 		EnrollablePhaseRepo:      repos.ParentEnrollablePhase,
+		EnrollmentSettings:       settings.NewQueries(settingsService),
 		EnrollmentRequestRepo:    repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		AttendanceRepo:           repos.Attendance,
