@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/pwa"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Type aliases keep existing service callers (e.g. api/operator) referencing
@@ -23,7 +22,7 @@ type (
 // the shared capture-and-return wrapper of the operator summary readers.
 func adminTxValue[T any](ctx context.Context, s *operatorProvisioningService, fn func(adminCtx context.Context) (T, error)) (T, error) {
 	var result T
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		v, fnErr := fn(adminCtx)
 		if fnErr != nil {
 			return fnErr
@@ -127,7 +126,7 @@ func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, sch
 // client-side fan-out that issued one request per school.
 func (s *operatorProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr

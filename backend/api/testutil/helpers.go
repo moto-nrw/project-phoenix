@@ -270,7 +270,7 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 func NewTenantRouter(db *bun.DB) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Use(tenant.TenantTxMiddleware(db))
+	router.Use(testpkg.TenantTxMiddleware(db))
 	return router
 }
 

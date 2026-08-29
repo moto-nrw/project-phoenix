@@ -19,7 +19,6 @@ import (
 
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // TestClassListEntryTenantIsolation pins the read side: a tenant transaction
@@ -44,7 +43,7 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 
 	assertSeesOnly := func(t *testing.T, ownTenant int64, own, foreign *userModels.ClassListEntry) {
 		t.Helper()
-		err := tenant.WithTenantTx(context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
+		err := WithTenantTx(t, context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
 			entries, err := repo.List(txCtx, nil)
 			require.NoError(t, err)
 			ids := make(map[int64]bool, len(entries))
@@ -96,7 +95,7 @@ func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
 	// survives to the INSERT — exactly the write WITH CHECK must reject.
 	smuggled.SetTenantID(tenantB)
 
-	err := tenant.WithTenantTx(context.Background(), db, tenantA, func(txCtx context.Context, _ bun.Tx) error {
+	err := WithTenantTx(t, context.Background(), db, tenantA, func(txCtx context.Context, _ bun.Tx) error {
 		return repo.Create(txCtx, smuggled)
 	})
 	require.Error(t, err, "the database must refuse an entry stamped with a foreign tenant_id")

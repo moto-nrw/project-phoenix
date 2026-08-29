@@ -16,7 +16,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -126,7 +125,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-parent")
 
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		privateAudit := &usersModels.StudentDataChangeRequest{
 			StudentID:   chain.StudentID,
 			SubmittedBy: otherAccount.ID,
@@ -309,7 +308,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 
 	// Every created row must have its OWN request_created pill (found by its id),
 	// so the decision path (keyed on the decided row's id) can always resolve it.
-	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		thread, gErr := repos.ParentMessageThread.GetOrCreate(txCtx, chain.TenantID, chain.StudentID, chain.AccountID)
 		if gErr != nil {
 			return gErr

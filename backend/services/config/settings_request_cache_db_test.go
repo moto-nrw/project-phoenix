@@ -72,7 +72,7 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 	// The first request now writes long=15:15. Against its stale cache entry
 	// (short=15:00) the pair looks valid; against the committed 15:30 it is
 	// inverted and must be rejected.
-	err = tenant.WithTenantTx(requestCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, requestCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return service.SetValue(txCtx, config.KeySlotListLongDayCutoff, "15:15", nil, nil)
 	})
 	require.Error(t, err, "the inverted pair must be rejected despite the request cache")
@@ -115,7 +115,7 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 
 	// ...while the in-transaction read, on the mint's own transaction, sees the
 	// committed state and refuses to mint an MFA-free session.
-	err = tenant.WithAdminTx(requestCtx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithAdminTx(t, requestCtx, db, func(txCtx context.Context, _ bun.Tx) error {
 		fresh, resolveErr := service.ResolveStringForTenantInTx(txCtx, tenantID, config.KeyMFAMode)
 		require.NoError(t, resolveErr)
 		assert.Equal(t, config.MFAModeRequiredAll, fresh,
@@ -155,7 +155,7 @@ func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
 		tenant.WithTenantID(context.Background(), tenantID),
 	)
 
-	err := tenant.WithTenantTx(requestCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, requestCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		value, resolveErr := service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
 		require.Equal(t, 4, value)
@@ -192,13 +192,13 @@ func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
 	mintLock := make(chan error, 1)
 	writerCtx := tenant.WithTenantID(context.Background(), tenantID)
 
-	err := tenant.WithTenantTx(writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, service.SetValue(txCtx, config.KeyMFAMode, config.MFAModeRequiredAll, nil, nil))
 
 		// A school login reaching its mint takes the shared side of the same
 		// lock on its own transaction.
 		go func() {
-			mintLock <- tenant.WithAdminTx(context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
+			mintLock <- testpkg.WithAdminTx(t, context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
 				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
 			})
 		}()
@@ -232,11 +232,11 @@ func TestNonMFASettingWriteDoesNotBlockTheMintLock(t *testing.T) {
 	mintLock := make(chan error, 1)
 	writerCtx := tenant.WithTenantID(context.Background(), tenantID)
 
-	err := tenant.WithTenantTx(writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, service.SetValue(txCtx, "test.unrelated", 45, nil, nil))
 
 		go func() {
-			mintLock <- tenant.WithAdminTx(context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
+			mintLock <- testpkg.WithAdminTx(t, context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
 				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
 			})
 		}()

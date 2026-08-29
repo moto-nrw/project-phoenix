@@ -94,12 +94,22 @@ func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.Offe
 	return lister
 }
 
+func recordHTTPRuntimeEvent(event apiCommon.TenantRuntimeEvent) {
+	switch {
+	case event.Outcome == apiCommon.TenantRuntimeMissingTenant:
+		observability.RecordTenantRuntimeEvent("http", "missing_tenant")
+	case event.Outcome == apiCommon.TenantRuntimeTransaction && event.Err != nil:
+		observability.RecordTenantRuntimeEvent("http", "transaction_failure")
+	}
+}
+
 // API represents the API structure
 type API struct {
 	Services           *services.Factory
 	Router             chi.Router
 	db                 *bun.DB
 	repos              *repositories.Factory
+	tenantRuntime      apiCommon.TenantRuntime
 	Metrics            *observability.HTTPMetrics
 	metricsBearerToken string
 
@@ -165,6 +175,18 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	databaseTenantRuntime, err := database.NewTenantRuntime(db)
+	if err != nil {
+		return nil, err
+	}
+	tenantRuntime, err := services.BindTenantRuntime(
+		databaseTenantRuntime.WithinTenant,
+		databaseTenantRuntime.WithinAdmin,
+		databaseTenantRuntime.ControlSavepoint,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Fail fast on a partially migrated schema: the student repository selects
 	// and writes its departure columns unconditionally (no per-request
@@ -184,6 +206,9 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Initialize service factory with repository factory
 	serviceFactory, err := services.NewFactory(repoFactory, db, logger)
 	if err != nil {
+		return nil, err
+	}
+	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
 	observability.RegisterDBStatsProvider(db.DB)
@@ -212,11 +237,29 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 		Router:             chi.NewRouter(),
 		db:                 db,
 		repos:              repoFactory,
+		tenantRuntime:      tenantRuntime,
 		Metrics:            httpMetrics,
 		metricsBearerToken: metricsBearerToken,
 	}
 
 	// Setup router middleware
+	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
+	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(recordHTTPRuntimeEvent))
+	api.Router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
+		observability.ObserveTenantRequest(
+			event.TenantID,
+			event.Scope,
+			event.Request.Method,
+			observability.RoutePattern(event.Request),
+			event.Status,
+			event.Duration,
+			event.Outcome,
+		)
+		switch event.Outcome {
+		case "missing_tenant":
+			observability.RecordTenantRuntimeEvent("http", "missing_tenant")
+		}
+	}))
 	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
 	// Setup CORS, security logging, and rate limiting

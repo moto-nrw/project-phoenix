@@ -16,7 +16,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -275,7 +274,7 @@ func TestCareWithdrawalLifecycle_ConcurrentCompletionWritesOneResult(t *testing.
 		go func(index int) {
 			defer wg.Done()
 			<-start
-			err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				_, confirmErr := svc.ConfirmWithdrawalCareEnd(txCtx, completion.ID, preview.Token, input, actorID)
 				return confirmErr
 			})

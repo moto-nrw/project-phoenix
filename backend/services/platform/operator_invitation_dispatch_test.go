@@ -72,7 +72,7 @@ func newTestServiceWithDispatcher(
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(1, []time.Duration{10 * time.Millisecond})
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:        operatorRepo,
 		AuditLogRepo:        auditLogRepo,
 		InvitationTokenRepo: invitationTokenRepo,

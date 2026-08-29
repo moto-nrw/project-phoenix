@@ -44,6 +44,9 @@ func newMockIoTService() *mockIoTService {
 }
 
 func (m *mockIoTService) addDevice(apiKey string, device *iot.Device) {
+	if device.TenantID == 0 {
+		device.TenantID = 7
+	}
 	m.devices[apiKey] = device
 }
 

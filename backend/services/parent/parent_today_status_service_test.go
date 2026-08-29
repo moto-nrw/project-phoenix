@@ -94,11 +94,11 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 	}
 	row.SetTenantID(tenantID)
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
-	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return repositories.NewFactory(db).StudentPickupSchedule.Create(txCtx, row)
 	}))
 	t.Cleanup(func() {
-		_ = tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			return repositories.NewFactory(db).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
 		})
 	})
@@ -129,7 +129,7 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 	row.SetTenantID(tenantID)
 
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
-	err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 		_, insertErr := tx.NewInsert().
 			Model(row).
 			ModelTableExpr(`schedule.student_arrival_schedules`).
@@ -140,7 +140,7 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 
 	t.Cleanup(func() {
 		cleanupCtx := tenant.WithTenantID(context.Background(), tenantID)
-		_ = tenant.WithTenantTx(cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		_ = testpkg.WithTenantTx(t, cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 			_, delErr := tx.NewDelete().
 				Model((*scheduleModels.StudentArrivalSchedule)(nil)).
 				ModelTableExpr(`schedule.student_arrival_schedules`).
@@ -173,7 +173,7 @@ func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64,
 	row.SetTenantID(tenantID)
 
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
-	err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 		_, insertErr := tx.NewInsert().
 			Model(row).
 			ModelTableExpr(`active.attendance`).
@@ -184,7 +184,7 @@ func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64,
 
 	t.Cleanup(func() {
 		cleanupCtx := tenant.WithTenantID(context.Background(), tenantID)
-		_ = tenant.WithTenantTx(cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		_ = testpkg.WithTenantTx(t, cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 			_, delErr := tx.NewDelete().
 				Model((*activeModels.Attendance)(nil)).
 				ModelTableExpr(`active.attendance`).
@@ -212,7 +212,7 @@ func openAttendanceToday(t *testing.T, db *bun.DB, tenantID, studentID int64, ch
 	row.SetTenantID(tenantID)
 
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
-	err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 		_, insertErr := tx.NewInsert().
 			Model(row).
 			ModelTableExpr(`active.attendance`).
@@ -223,7 +223,7 @@ func openAttendanceToday(t *testing.T, db *bun.DB, tenantID, studentID int64, ch
 
 	t.Cleanup(func() {
 		cleanupCtx := tenant.WithTenantID(context.Background(), tenantID)
-		_ = tenant.WithTenantTx(cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		_ = testpkg.WithTenantTx(t, cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 			_, delErr := tx.NewDelete().
 				Model((*activeModels.Attendance)(nil)).
 				ModelTableExpr(`active.attendance`).
@@ -427,7 +427,7 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	}
 	exception.SetTenantID(chain.TenantID)
 	ctx := tenant.WithTenantID(context.Background(), chain.TenantID)
-	require.NoError(t, tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return repositories.NewFactory(db).StudentArrivalException.Create(txCtx, exception)
 	}))
 

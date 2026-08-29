@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -43,6 +44,7 @@ type cleanupContext struct {
 	CleanupService             active.CleanupService
 	TimetableCleanupService    schedule.TimetableCleanupService
 	TimeTrackingCleanupService active.TimeTrackingCleanupService
+	TenantRuntime              tenant.Runtime
 }
 
 // newCleanupContext initializes database and repository factory.
@@ -54,10 +56,21 @@ func newCleanupContext() (*cleanupContext, error) {
 	}
 
 	repoFactory := repositories.NewFactory(db)
+	postgresRuntime, err := database.NewTenantRuntime(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	tenantRuntime, err := tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, postgresRuntime.ControlSavepoint)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 
 	return &cleanupContext{
-		DB:          db,
-		RepoFactory: repoFactory,
+		DB:            db,
+		RepoFactory:   repoFactory,
+		TenantRuntime: tenantRuntime,
 	}, nil
 }
 
@@ -74,6 +87,10 @@ func newCleanupContextWithServices() (*cleanupContext, error) {
 	if err != nil {
 		ctx.Close()
 		return nil, fmt.Errorf(errServiceFactory, err)
+	}
+	if err := serviceFactory.SetTenantRuntime(ctx.TenantRuntime); err != nil {
+		ctx.Close()
+		return nil, err
 	}
 
 	ctx.ServiceFactory = serviceFactory

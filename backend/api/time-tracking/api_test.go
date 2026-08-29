@@ -1733,7 +1733,7 @@ func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
 					next.ServeHTTP(w, r.WithContext(ctx))
 				})
 			})
-			router.Use(tenant.TenantTxMiddleware(db))
+			router.Use(testpkg.TenantTxMiddleware(db))
 			switch tc.method {
 			case http.MethodPost:
 				router.Post("/absences", rs.createAbsence)

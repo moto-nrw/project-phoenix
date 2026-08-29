@@ -1532,7 +1532,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
 		})
 	})
-	router.Use(tenant.TenantTxMiddleware(db))
+	router.Use(testpkg.TenantTxMiddleware(db))
 	router.Delete("/{id}", res.deletePeriod)
 
 	w := executeRequest(router, http.MethodDelete, "/42", nil)
@@ -1591,7 +1591,7 @@ func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), tenantID)))
 		})
 	})
-	router.Use(tenant.TenantTxMiddleware(db))
+	router.Use(testpkg.TenantTxMiddleware(db))
 	router.Delete("/{id}", res.deletePeriod)
 
 	w := executeRequest(router, http.MethodDelete, "/42", nil)

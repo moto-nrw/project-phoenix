@@ -95,8 +95,9 @@ func newStaffPINAuthService(
 			Person:        personRepo,
 			Staff:         staffRepo,
 		},
-		db:     bunDB,
-		logger: slog.New(slog.DiscardHandler),
+		db:            bunDB,
+		logger:        slog.New(slog.DiscardHandler),
+		tenantRuntime: newMockTenantRuntime(t, bunDB),
 	}
 	cleanup := func() {
 		mock.ExpectClose()

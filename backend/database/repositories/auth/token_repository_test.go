@@ -380,7 +380,7 @@ func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *
 	_, err := db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithAdminTx(testpkg.WithTenantRuntime(t, ctx, db), db, func(adminCtx context.Context, _ bun.Tx) error {
 		deleted, delErr := repo.DeleteByAccountIDReturning(adminCtx, account.ID)
 		require.NoError(t, delErr)
 		require.Len(t, deleted, 1)
@@ -771,12 +771,12 @@ func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t
 		PortalScope: auth.PortalScopeTenant,
 	}
 	other.SetTenantID(otherTenantID)
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithAdminTx(testpkg.WithTenantRuntime(t, ctx, db), db, func(adminCtx context.Context, _ bun.Tx) error {
 		return repo.Create(adminCtx, other)
 	}))
 
 	var deleted []*auth.Token
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithAdminTx(testpkg.WithTenantRuntime(t, ctx, db), db, func(adminCtx context.Context, _ bun.Tx) error {
 		var err error
 		deleted, err = repo.CleanupOldTokensForAccountReturning(adminCtx, account.ID, auth.PortalScopeTenant, 5)
 		return err

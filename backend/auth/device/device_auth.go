@@ -306,7 +306,7 @@ func authenticateStaffContext(
 	return staff, nil
 }
 
-func authenticatedDeviceContext(r *http.Request, device *iot.Device, staff *users.Staff) context.Context {
+func authenticatedDeviceContext(r *http.Request, device *iot.Device, staff *users.Staff, tenantID tenant.TenantID) context.Context {
 	ctx := context.WithValue(r.Context(), CtxDevice, device)
 	ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
 	if staff != nil {
@@ -314,10 +314,7 @@ func authenticatedDeviceContext(r *http.Request, device *iot.Device, staff *user
 	}
 
 	// Device-auth routes don't use jwt.TenantMiddleware.
-	if device.TenantID > 0 {
-		ctx = tenant.WithTenantID(ctx, device.TenantID)
-	}
-	return ctx
+	return tenant.WithTenant(ctx, tenantID)
 }
 
 func serveAuthenticatedDeviceRequest(
@@ -346,6 +343,11 @@ func serveAuthenticatedDeviceRequest(
 		renderDeviceAuthError(w, r, errResp)
 		return
 	}
+	tenantID, err := tenant.NewTenantID(device.TenantID)
+	if err != nil {
+		renderDeviceAuthError(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey))
+		return
+	}
 
 	staff, errResp := authenticateStaffContext(
 		r.Context(),
@@ -359,7 +361,7 @@ func serveAuthenticatedDeviceRequest(
 		return
 	}
 
-	ctx := authenticatedDeviceContext(r, device, staff)
+	ctx := authenticatedDeviceContext(r, device, staff, tenantID)
 	slog.Debug("device authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
@@ -420,13 +422,17 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service, schools SchoolLookup) fu
 				return
 			}
 
+			tenantID, err := tenant.NewTenantID(device.TenantID)
+			if err != nil {
+				if renderErr := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey)); renderErr != nil {
+					slog.Error("failed to render device auth error", slog.String("error", renderErr.Error()))
+				}
+				return
+			}
+
 			// Authentication successful - set device context only
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
-
-			// Inject tenant context from the authenticated device
-			if device.TenantID > 0 {
-				ctx = tenant.WithTenantID(ctx, device.TenantID)
-			}
+			ctx = tenant.WithTenant(ctx, tenantID)
 
 			slog.Info("device-only authentication successful",
 				slog.String("device_id", device.DeviceID),

@@ -202,7 +202,7 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 		}},
 		notifier: &captureBatchNotifier{},
 	}
-	setup.sched = &Scheduler{
+	setup.sched = unitScheduler(&Scheduler{
 		tasks:  make(map[string]*ScheduledTask),
 		logger: slog.Default(),
 		reminderNotifications: ReminderNotificationDeps{
@@ -212,8 +212,8 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 			Staff:        setup.staff,
 			Accounts:     setup.admins,
 			WorkSessions: setup.duty,
-		},
-	}
+		}})
+
 	return setup
 }
 
@@ -758,7 +758,7 @@ func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
 	complete := buildReminderSched(nil, nil).sched.reminderNotifications
 
 	t.Run("nothing wired", func(t *testing.T) {
-		sched := &Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()}
+		sched := unitScheduler(&Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
 		sched.scheduleReminderNotificationTask()
 		assert.Empty(t, sched.tasks)
 	})
@@ -776,7 +776,7 @@ func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
 	}
 	for name, deps := range partials {
 		t.Run(name, func(t *testing.T) {
-			sched := &Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()}
+			sched := unitScheduler(&Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
 			sched.SetReminderNotificationDeps(deps)
 			sched.scheduleReminderNotificationTask()
 			assert.Empty(t, sched.tasks)
@@ -784,7 +784,7 @@ func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
 	}
 
 	t.Run("fully wired", func(t *testing.T) {
-		sched := &Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()}
+		sched := unitScheduler(&Scheduler{tasks: make(map[string]*ScheduledTask), logger: slog.Default()})
 		sched.SetReminderNotificationDeps(complete)
 		sched.scheduleReminderNotificationTask()
 		assert.Contains(t, sched.tasks, "reminder-notifications")

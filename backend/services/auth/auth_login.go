@@ -1146,7 +1146,7 @@ func (s *Service) RegisterSchoolAccount(
 			// intact for the subsequent account creation. The resolved role is
 			// also what the identity provisioning below is decided on — inside the
 			// tenant transaction a system role would be invisible.
-			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			roleLookupCtx := tenant.ContextWithoutTenant(adminCtx)
 			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
 			return roleErr
 		})
@@ -1359,7 +1359,7 @@ func (s *Service) LinkSchoolAccount(
 		// this lookup; the admin transaction and the target-school policy remain
 		// in force.
 		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
+			roleLookupCtx := tenant.ContextWithoutTenant(adminCtx)
 			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
 			return roleErr
 		})

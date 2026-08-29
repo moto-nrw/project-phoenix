@@ -26,6 +26,7 @@ func (s *Service) AuthenticateStaffPIN(
 	tenantID, staffID int64,
 	pin string,
 ) (*userModels.Staff, error) {
+	ctx = s.withTenantRuntime(ctx)
 	if tenantID <= 0 || staffID <= 0 || pin == "" {
 		return nil, ErrInvalidStaffPINCredentials
 	}

@@ -25,10 +25,22 @@ type GuardianChildAccessRepository interface {
 // the existing cache-invalidation events are a separate concern and keep
 // flowing exactly as before (#1624 acceptance criterion).
 type sseChannel struct {
-	broadcaster realtime.Broadcaster
-	db          *bun.DB
-	guardians   GuardianChildAccessRepository
-	logger      *slog.Logger
+	broadcaster   realtime.Broadcaster
+	db            *bun.DB
+	guardians     GuardianChildAccessRepository
+	logger        *slog.Logger
+	tenantRuntime *tenant.Runtime
+}
+
+func (c *sseChannel) SetTenantRuntime(runtime tenant.Runtime) {
+	c.tenantRuntime = &runtime
+}
+
+func (c *sseChannel) withTenantRuntime(ctx context.Context) context.Context {
+	if c.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *c.tenantRuntime)
 }
 
 // SSEChannelOption configures optional dependencies of the SSE channel.
@@ -72,6 +84,7 @@ func (c *sseChannel) getLogger() *slog.Logger {
 }
 
 func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
+	ctx = c.withTenantRuntime(ctx)
 	sseEvent := realtime.NewEvent(realtime.EventNotification, event.Audience.ActiveGroupID, realtime.EventData{
 		Title:            &event.Title,
 		Body:             &event.Body,

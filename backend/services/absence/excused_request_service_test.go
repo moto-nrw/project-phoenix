@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -119,7 +118,7 @@ func createPending(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db
 func createPendingStatus(t *testing.T, svc absenceSvc.ExcusedAbsenceRequestService, db *bun.DB, chain testpkg.ParentChain, dates []timezone.Date, note, status string) *activeModels.ExcusedAbsenceRequest {
 	t.Helper()
 	var req *activeModels.ExcusedAbsenceRequest
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
 		req, e = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, dates, note, status)
 		return e
@@ -140,7 +139,7 @@ func TestCreateRequestForStatus_DistinguishesSickAndExcusedRetries(t *testing.T)
 	assert.Equal(t, activeModels.StudentStatusDaySick, sick.AbsenceStatus)
 
 	var retried *activeModels.ExcusedAbsenceRequest
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
 		retried, createErr = svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
 		return createErr
@@ -148,7 +147,7 @@ func TestCreateRequestForStatus_DistinguishesSickAndExcusedRetries(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, sick.ID, retried.ID, "an identical sick request must be idempotent")
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := svc.CreateRequestForStatus(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin", activeModels.StudentStatusDayExcused)
 		return createErr
 	})
@@ -185,7 +184,7 @@ func TestListPending_EnrichedAndScoped(t *testing.T) {
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
 	createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 2, "both pending requests must surface in the staff queue")
@@ -208,7 +207,7 @@ func TestListPending_Empty(t *testing.T) {
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items)
@@ -229,7 +228,7 @@ func TestPendingByStudentForDate(t *testing.T) {
 	covered := timezone.TodayDate().AddDays(4)
 	createPending(t, svc, db, chain, []timezone.Date{covered}, "Familienfeier")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		hit, e := svc.PendingByStudentForDate(txCtx, covered)
 		require.NoError(t, e)
 		req, ok := hit[chain.StudentID]
@@ -257,7 +256,7 @@ func TestListForStudent_FiltersOutcomes(t *testing.T) {
 	withdrawn := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(6)}, "wird zurueckgezogen")
 
 	// Reject one (staff) and withdraw one (guardian).
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: rejected.ID, Approve: false, Reason: "telefonisch klaeren"}); e != nil {
 			return e
 		}
@@ -267,7 +266,7 @@ func TestListForStudent_FiltersOutcomes(t *testing.T) {
 	require.NoError(t, err)
 
 	var got []*activeModels.ExcusedAbsenceRequest
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
 		got, e = svc.ListForStudent(txCtx, chain.StudentID, time.Now().Add(-24*time.Hour))
 		return e
@@ -296,7 +295,7 @@ func TestPendingByStudentForDate_DedupesPerStudent(t *testing.T) {
 	createPending(t, svc, db, chain, []timezone.Date{day}, "aeltere Anfrage")
 	newer := createPending(t, svc, db, chain, []timezone.Date{day}, "neuere Anfrage")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		hit, e := svc.PendingByStudentForDate(txCtx, day)
 		require.NoError(t, e)
 		require.Len(t, hit, 1, "only one entry per student")
@@ -318,7 +317,7 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 
 	// A plain context (no admin:* permissions, nil userContext) cannot write the
 	// child, so the decision is forbidden.
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true})
 		if e != absenceSvc.ErrExcusedRequestForbidden {
 			t.Fatalf("expected forbidden, got %v", e)
@@ -359,7 +358,7 @@ func TestDecide_ApproveRejectsDatesAfterPlannedCareEnd(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID,
 		})
@@ -387,7 +386,7 @@ func TestDecide_NotFoundAndNotPending(t *testing.T) {
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Non-existent id under this tenant → not found.
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID + 999999, Approve: true}); e != activeModels.ErrExcusedRequestNotFound {
 			t.Fatalf("expected not-found, got %v", e)
@@ -425,7 +424,7 @@ func TestDecide_ApproveClearsLiveSickToday(t *testing.T) {
 	today := timezone.TodayDate()
 	pending := createPending(t, svc, db, chain, []timezone.Date{today}, "krank gemeldet, jetzt entschuldigt")
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		item, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
 		if e != nil {
 			return e
@@ -469,7 +468,7 @@ func TestTransition_WakesGuardiansIndependentOfMessaging(t *testing.T) {
 
 	bc.guardianWakeups = nil
 	bc.tenantEvents = nil
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
 		return e
 	})
@@ -503,7 +502,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Approving a request whose submitter lost access is refused, and the row
 		// stays pending so staff can still reject it.
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID}); e != absenceSvc.ErrExcusedRequestGuardianAccessRevoked {
@@ -536,7 +535,7 @@ func TestWithdrawRequest(t *testing.T) {
 
 	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "note")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Wrong owner → not found (a stranger must not learn the id exists).
 		if _, e := svc.WithdrawRequest(txCtx, pending.ID, chain.StudentID, chain.AccountID+424242); e != activeModels.ErrExcusedRequestNotFound {
 			t.Fatalf("expected not-found for foreign submitter, got %v", e)
@@ -584,7 +583,7 @@ func TestExcusedAbsenceRequestModel(t *testing.T) {
 func insertStatusDay(t *testing.T, db *bun.DB, chain testpkg.ParentChain, date timezone.Date, status string, reportedAt time.Time) {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return repos.StudentStatusDay.UpsertReported(txCtx, &activeModels.StudentStatusDay{
 			StudentID:  chain.StudentID,
 			Date:       date,
@@ -614,7 +613,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 
 	// Identical resubmit (dates in a different order) → same row, no duplicate.
 	var second *activeModels.ExcusedAbsenceRequest
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
 		second, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{d2, d1}, "nochmal")
 		return e
@@ -623,7 +622,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 	assert.Equal(t, first.ID, second.ID, "an identical resubmit must be idempotent, not a new row")
 
 	// Partial overlap (d2 already covered) → refused.
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{d2, d3}, "ueberschneidung")
 		return e
 	})
@@ -631,7 +630,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 
 	// Disjoint date set → allowed as a second request.
 	var third *activeModels.ExcusedAbsenceRequest
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
 		third, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{d3}, "anderer Tag")
 		return e
@@ -640,7 +639,7 @@ func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
 	assert.NotEqual(t, first.ID, third.ID, "a disjoint request must create a new row")
 
 	// Exactly two pending rows exist (first + third; the overlap never inserted).
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Len(t, items, 2, "only the idempotent-deduped and disjoint requests should remain pending")
@@ -665,14 +664,14 @@ func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
 	// A newer sick status for the same day, reported AFTER the request was filed.
 	insertStatusDay(t, db, chain, day, activeModels.StudentStatusDaySick, time.Now().Add(time.Hour))
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
 		return e
 	})
 	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestStatusConflict)
 
 	// The request stays pending, and rejecting it still works.
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		item, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: false, Reason: "bitte klaeren", ReviewedBy: chain.AccountID})
 		if e != nil {
 			return e
@@ -708,7 +707,7 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 	pickup.SetTenantID(chain.TenantID)
 	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID:  pending.ID,
 			Approve:    true,
@@ -749,7 +748,7 @@ func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
 	pickup.SetTenantID(chain.TenantID)
 	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin")
 		return createErr
 	})
@@ -776,7 +775,7 @@ func TestDecide_ApproveOverwritesOlderStatus(t *testing.T) {
 	insertStatusDay(t, db, chain, day, activeModels.StudentStatusDaySick, time.Now().Add(-24*time.Hour))
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		item, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
 		if e != nil {
 			return e

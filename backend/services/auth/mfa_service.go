@@ -298,7 +298,19 @@ type MFAServiceConfig struct {
 // MFAService implementation.
 type mfaService struct {
 	MFAServiceConfig
-	mfaSecret []byte
+	mfaSecret     []byte
+	tenantRuntime *tenant.Runtime
+}
+
+func (s *mfaService) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *mfaService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *s.tenantRuntime)
 }
 
 // Compile-time assertion that mfaService satisfies MFAService.
@@ -1940,6 +1952,7 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 		event.Metadata[k] = v
 	}
 
+	detachedCtx := detachedTenantContext(s.withTenantRuntime(ctx))
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -1959,7 +1972,7 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 		event.SetTenantID(tenantID)
 
 		logCtx, cancel := context.WithTimeout(
-			tenant.WithTenantID(context.Background(), tenantID),
+			tenant.WithTenantID(detachedCtx, tenantID),
 			5*time.Second,
 		)
 		defer cancel()

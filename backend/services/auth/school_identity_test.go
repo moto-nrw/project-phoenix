@@ -253,7 +253,7 @@ func TestAcceptInvitation_CustomSchoolRoleCreatesStaff(t *testing.T) {
 	staff, staffAll := newStubStaffRepository()
 	teachers := newStubTeacherRepository()
 
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    invitations,
 		AccountRepo:       newStubAccountRepository(),
 		AccountTenantRepo: newStubAccountTenantRepository(),

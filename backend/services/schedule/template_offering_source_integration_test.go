@@ -25,7 +25,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // createSourceCareOffering creates a phase plus one care offering that is NOT
@@ -66,7 +66,7 @@ func createSourceCareOffering(
 		AutoAddGradeLevels: []int{},
 	}
 	var created *enrollmentModels.CareOffering
-	require.NoError(t, tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var createErr error
 		created, createErr = s.factory.EnrollmentCareOffering.Create(txCtx, offering)
 		return createErr

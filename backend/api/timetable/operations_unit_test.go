@@ -427,7 +427,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 			next.ServeHTTP(w, r.WithContext(tenant.WithTenantID(r.Context(), testpkg.Tenant(t))))
 		})
 	})
-	router.Use(tenant.TenantTxMiddleware(db))
+	router.Use(testpkg.TenantTxMiddleware(db))
 	router.Post("/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
 	body, err := json.Marshal(map[string]any{

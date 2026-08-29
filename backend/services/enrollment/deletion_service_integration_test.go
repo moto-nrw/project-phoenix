@@ -17,7 +17,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,7 +109,7 @@ func (f *deletionTestFixture) service(auditRepo auditModels.EnrollmentDeletionRe
 func tenantCall[T any](t *testing.T, db *bun.DB, tenantID int64, fn func(context.Context) (T, error)) (T, error) {
 	t.Helper()
 	var result T
-	err := tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var callErr error
 		result, callErr = fn(ctx)
 		return callErr

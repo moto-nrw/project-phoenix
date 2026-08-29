@@ -190,6 +190,7 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 		event.ErrorMessage = errorMessage
 	}
 
+	detachedCtx := detachedTenantContext(s.withTenantRuntime(ctx))
 	// Log asynchronously to avoid blocking auth operations
 	go func() {
 		defer func() {
@@ -209,7 +210,7 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 		}
 
 		logCtx, cancel := context.WithTimeout(
-			tenant.WithTenantID(context.Background(), tenantID),
+			tenant.WithTenantID(detachedCtx, tenantID),
 			5*time.Second,
 		)
 		defer cancel()

@@ -246,7 +246,7 @@ func (s *Service) queuePushCleanup(ctx context.Context, accountID int64, tokens 
 }
 
 func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0))
+	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(modelBase.ContextWithoutTx(ctx)))
 }
 
 func hasAmbientTx(ctx context.Context) bool {
@@ -272,7 +272,7 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 		}
 		return s.markAccountWideWipeCompleted(ctx, accountID)
 	}
-	adminCtx := tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0)
+	adminCtx := tenant.ContextWithoutTenant(modelBase.ContextWithoutTx(ctx))
 	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
 	var tokens []*authModels.Token
 	err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {

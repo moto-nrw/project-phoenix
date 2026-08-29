@@ -28,6 +28,7 @@ import (
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +77,7 @@ func splitRouter(parentCtx context.Context, res *Resource, perms []string) chi.R
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
-	r.Use(tenant.TenantTxMiddleware(res.DB))
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Post("/templates", res.createTemplate)
 	r.Get("/templates", res.listTemplates)
 	r.Get("/templates/{id}", res.getTemplate)

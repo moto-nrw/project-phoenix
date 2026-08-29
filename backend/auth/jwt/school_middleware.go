@@ -41,13 +41,14 @@ func SchoolMiddleware(next http.Handler) http.Handler {
 		// the resolved school). A zero tenant_id can only mean a
 		// hand-crafted or corrupted token — refuse it instead of
 		// letting RLS return empty results downstream.
-		if claims.TenantID == 0 {
+		tenantID, err := tenant.NewTenantID(claims.TenantID)
+		if err != nil {
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
 
 		ctx := r.Context()
-		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+		ctx = tenant.WithTenant(ctx, tenantID)
 		ctx = tenant.WithOrgID(ctx, claims.OrgID)
 		ctx = tenant.WithScope(ctx, claims.Scope)
 

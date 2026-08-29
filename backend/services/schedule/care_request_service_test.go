@@ -109,7 +109,7 @@ func (f *careFixture) staffCtx(accountID int64) context.Context {
 func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.Date, pickupTime time.Time) {
 	t.Helper()
 	ctx := f.staffCtx(f.staffAccount)
-	require.NoError(t, tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := schedule.LockCareExceptionDay(txCtx, f.db, f.chain.StudentID, date); err != nil {
 			return err
 		}
@@ -331,7 +331,7 @@ func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 
-	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := f.svc.Decide(txCtx, schedule.CareRequestDecideInput{
 			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		})
@@ -371,7 +371,7 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 		f.sf.StudentAudit,
 	)
 
-	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := failingService.Decide(txCtx, schedule.CareRequestDecideInput{
 			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		})
@@ -418,7 +418,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 		f.sf.StudentAudit,
 	)
 
-	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := service.Decide(txCtx, schedule.CareRequestDecideInput{
 			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		})

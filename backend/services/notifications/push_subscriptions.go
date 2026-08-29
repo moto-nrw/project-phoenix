@@ -65,6 +65,18 @@ type pushSubscriptionService struct {
 	accountTenants authModels.AccountTenantRepository
 	vapid          VAPIDConfig
 	logger         *slog.Logger
+	tenantRuntime  *tenant.Runtime
+}
+
+func (s *pushSubscriptionService) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *pushSubscriptionService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *s.tenantRuntime)
 }
 
 // NewPushSubscriptionService builds the push subscription service.
@@ -102,6 +114,7 @@ func (s *pushSubscriptionService) buildSubscription(accountID int64, portal stri
 }
 
 func (s *pushSubscriptionService) Subscribe(ctx context.Context, accountID int64, input PushSubscriptionInput) error {
+	ctx = s.withTenantRuntime(ctx)
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
@@ -109,10 +122,13 @@ func (s *pushSubscriptionService) Subscribe(ctx context.Context, accountID int64
 	if err != nil {
 		return err
 	}
-	return s.repo.Upsert(ctx, sub)
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return s.repo.Upsert(txCtx, sub)
+	})
 }
 
 func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID int64, input PushSubscriptionInput) error {
+	ctx = s.withTenantRuntime(ctx)
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
@@ -120,11 +136,11 @@ func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID
 	if err != nil {
 		return err
 	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
+	tenantID, tenantErr := tenant.TenantFromContext(ctx)
+	if tenantErr != nil {
 		return errors.New("school push subscription requires a school context")
 	}
-	sub.TenantID = tenantID
+	sub.TenantID = tenantID.Int64()
 
 	// A school session is pinned to one school, so a browser endpoint holds at
 	// most one school registration. After a login at another school the
@@ -143,14 +159,21 @@ func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID
 }
 
 func (s *pushSubscriptionService) Unsubscribe(ctx context.Context, accountID int64, endpoint string) error {
-	return s.repo.DeleteByEndpoint(ctx, accountID, endpoint)
+	ctx = s.withTenantRuntime(ctx)
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return s.repo.DeleteByEndpoint(txCtx, accountID, endpoint)
+	})
 }
 
 func (s *pushSubscriptionService) UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error {
-	return s.repo.DeleteSchoolByEndpoint(ctx, accountID, endpoint)
+	ctx = s.withTenantRuntime(ctx)
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return s.repo.DeleteSchoolByEndpoint(txCtx, accountID, endpoint)
+	})
 }
 
 func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID int64, input PushSubscriptionInput) error {
+	ctx = s.withTenantRuntime(ctx)
 	if !s.vapid.Configured() {
 		return ErrWebPushNotConfigured
 	}
@@ -190,6 +213,7 @@ func (s *pushSubscriptionService) SubscribeParent(ctx context.Context, accountID
 }
 
 func (s *pushSubscriptionService) UnsubscribeParent(ctx context.Context, accountID int64, endpoint string) error {
+	ctx = s.withTenantRuntime(ctx)
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
 		if err != nil {

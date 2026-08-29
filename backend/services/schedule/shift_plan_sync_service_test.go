@@ -105,7 +105,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 
 func (e *sickCascadeEnv) inTx(t *testing.T, fn func(ctx context.Context) error) {
 	t.Helper()
-	require.NoError(t, tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	}))
 }
@@ -402,7 +402,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	releaseLock := make(chan struct{})
 	lockerDone := make(chan error, 1)
 	go func() {
-		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		lockerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := e.repos.StaffAbsence.LockStaffAbsenceWrites(ctx, e.subject.ID); err != nil {
 				return err
 			}
@@ -420,7 +420,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 
 	creatorDone := make(chan error, 1)
 	go func() {
-		creatorDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		creatorDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
 				AbsenceType: "sick",
 				DateStart:   day.String(),
@@ -561,7 +561,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	e.createShift(t, e.subject.ID, oldDay, "09:00", "11:00", nil)
 	newStart := newDay.String()
 	newEnd := newDay.String()
-	err := tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 		_, updateErr := e.factory.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, activeSvc.UpdateAbsenceRequest{
 			DateStart: &newStart,
 			DateEnd:   &newEnd,
@@ -604,7 +604,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 	release := make(chan struct{})
 	writerDone := make(chan error, 1)
 	go func() {
-		writerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		writerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, e.subject.ID); err != nil {
 				return err
 			}
@@ -620,7 +620,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 
 	markDone := make(chan error, 1)
 	go func() {
-		markDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		markDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return e.syncer.MarkSickForRange(ctx, input)
 		})
 	}()
@@ -663,7 +663,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 	release := make(chan struct{})
 	writerDone := make(chan error, 1)
 	go func() {
-		writerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		writerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, e.subject.ID); err != nil {
 				return err
 			}
@@ -679,7 +679,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 
 	clearDone := make(chan error, 1)
 	go func() {
-		clearDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		clearDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return e.syncer.ClearSickForRange(ctx, input)
 		})
 	}()
@@ -721,7 +721,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 	release := make(chan struct{})
 	lockerDone := make(chan error, 1)
 	go func() {
-		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		lockerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, cover.StaffID); err != nil {
 				return err
 			}
@@ -734,7 +734,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 
 	clearDone := make(chan error, 1)
 	go func() {
-		clearDone <- tenant.WithTenantTx(context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		clearDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return e.syncer.ClearSickForRange(ctx, input)
 		})
 	}()

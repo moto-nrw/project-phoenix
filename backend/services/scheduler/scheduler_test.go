@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +86,7 @@ func TestNewScheduler(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.NotNil(t, s.tasks)
@@ -96,7 +97,7 @@ func TestNewScheduler(t *testing.T) {
 func TestNewScheduler_NilServices(t *testing.T) {
 	t.Parallel()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Empty(t, s.cleanupJobs)
@@ -107,7 +108,7 @@ func TestNewScheduler_OnlyAuthService(t *testing.T) {
 
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 3) // 3 auth jobs only
@@ -118,7 +119,7 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, nil, invitations, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, invitations, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
@@ -163,7 +164,7 @@ func TestScheduler_StartStop(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Start should not panic
 	assert.NotPanics(t, func() {
@@ -188,7 +189,7 @@ func TestScheduler_StartStop(t *testing.T) {
 func TestScheduler_StopWithoutStart(t *testing.T) {
 	t.Parallel()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Stop without start should not panic
 	assert.NotPanics(t, func() {
@@ -215,7 +216,7 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+		s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -246,7 +247,7 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{result: 4}
 
-	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	if err := s.RunCleanupJobs(); err != nil {
 		t.Fatalf("RunCleanupJobs() returned error: %v", err)
@@ -272,7 +273,7 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 	}
 	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, invitations, nil, nil, slog.Default())
 
 	err := s.RunCleanupJobs()
 	if !errors.Is(err, expectedErr) {
@@ -292,22 +293,41 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 func TestRunCleanupJobs_NoJobs(t *testing.T) {
 	t.Parallel()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Should not error when no jobs
 	err := s.RunCleanupJobs()
 	assert.NoError(t, err)
 }
 
+func TestRunCleanupJobsRejectsMissingRuntime(t *testing.T) {
+	t.Parallel()
+
+	auth := &fakeAuthCleanup{}
+	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	var outcomes []string
+	s.SetTenantRuntimeObserver(func(entryPoint, outcome string) {
+		assert.Equal(t, "worker", entryPoint)
+		outcomes = append(outcomes, outcome)
+	})
+
+	err := s.RunCleanupJobs()
+
+	assert.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	assert.Zero(t, auth.tokenCalls)
+	assert.Zero(t, auth.passwordCalls)
+	assert.Zero(t, auth.rateLimitCalls)
+	assert.Equal(t, []string{"missing_tenant"}, outcomes)
+}
+
 func TestRunCleanupJobs_NilRunFunc(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupJobs: []CleanupJob{
 			{Description: "nil job", Run: nil},
 			{Description: "valid job", Run: func(_ context.Context) (int, error) { return 1, nil }},
-		},
-	}
+		}})
 
 	// Should skip nil Run functions without error
 	err := s.RunCleanupJobs()
@@ -323,7 +343,7 @@ func TestRunCleanupJobs_MultipleErrors(t *testing.T) {
 		rateLimitErr: errors.New("rate limit error"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	err := s.RunCleanupJobs()
 
@@ -346,7 +366,7 @@ func TestRunCleanupJobs_Concurrent(t *testing.T) {
 		rateLimitResult: 3,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	// Run cleanup jobs concurrently
 	var wg sync.WaitGroup
@@ -537,7 +557,7 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+		s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -573,7 +593,7 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 	_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Default values should be set
 	assert.Equal(t, 0, s.sessionCleanupIntervalMinutes) // Not set until Start()
@@ -613,10 +633,9 @@ func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with invalid time
 		s.scheduleCleanupTask()
@@ -646,10 +665,9 @@ func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with invalid hour
 		s.scheduleCleanupTask()
@@ -673,10 +691,9 @@ func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with invalid minute
 		s.scheduleCleanupTask()
@@ -700,10 +717,9 @@ func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with non-numeric hour
 		s.scheduleCleanupTask()
@@ -727,10 +743,9 @@ func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with non-numeric minute
 		s.scheduleCleanupTask()
@@ -754,10 +769,9 @@ func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with negative hour
 		s.scheduleCleanupTask()
@@ -781,10 +795,9 @@ func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task with negative minute
 		s.scheduleCleanupTask()
@@ -808,10 +821,9 @@ func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with invalid time
 		s.scheduleSessionEndTask()
@@ -835,10 +847,9 @@ func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with invalid hour
 		s.scheduleSessionEndTask()
@@ -862,10 +873,9 @@ func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with invalid minute
 		s.scheduleSessionEndTask()
@@ -889,10 +899,9 @@ func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with non-numeric hour
 		s.scheduleSessionEndTask()
@@ -916,10 +925,9 @@ func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with non-numeric minute
 		s.scheduleSessionEndTask()
@@ -943,10 +951,9 @@ func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with negative hour
 		s.scheduleSessionEndTask()
@@ -970,10 +977,9 @@ func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task with negative minute
 		s.scheduleSessionEndTask()
@@ -1002,10 +1008,9 @@ func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+		done:  make(chan struct{})})
 
 	// Schedule session cleanup task (should be disabled)
 	s.scheduleSessionCleanupTask()
@@ -1380,10 +1385,9 @@ func TestExecuteSessionEndForTenant_Success(t *testing.T) {
 		},
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
 	require.NoError(t, err)
@@ -1402,10 +1406,9 @@ func TestExecuteSessionEndForTenant_Error(t *testing.T) {
 		endDailySessionsErr: errors.New("session end failed"),
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	// Session-end errors are swallowed (other tenants must still run) but
 	// reported as ok=false so the day-mark is not set.
@@ -1432,10 +1435,9 @@ func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
 		},
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
 	require.NoError(t, err)
@@ -1463,10 +1465,9 @@ func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
 		},
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
 	require.NoError(t, err)
@@ -1483,10 +1484,9 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 
 	activeSvc := &mockActiveService{}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	task := &ScheduledTask{Name: "test-session-end", Running: true}
 
@@ -1513,10 +1513,9 @@ func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 		},
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
 	require.NoError(t, err)
@@ -1537,7 +1536,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 		rateLimitResult: 2,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -1562,7 +1561,7 @@ func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup", Running: true}
 
@@ -1582,7 +1581,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 		tokenErr: errors.New("token cleanup failed"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -1602,10 +1601,9 @@ func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 		cleanupAbandonedResult: 5,
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
@@ -1632,10 +1630,9 @@ func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
 		cleanupAbandonedResult: 0,
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
@@ -1656,10 +1653,9 @@ func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
 		cleanupAbandonedErr: errors.New("cleanup failed"),
 	}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
@@ -1677,10 +1673,9 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 
 	activeSvc := &mockActiveService{}
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		activeService: activeSvc,
-		done:          make(chan struct{}),
-	}
+		done:          make(chan struct{})})
 
 	task := &ScheduledTask{Name: "session-cleanup", Running: true}
 
@@ -1707,11 +1702,10 @@ func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
-			activeService: &mockActiveService{}, // Needed for session cleanup
+		s := unitScheduler(&Scheduler{
+			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1738,11 +1732,10 @@ func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
-			activeService: &mockActiveService{}, // Needed for session cleanup
+		s := unitScheduler(&Scheduler{
+			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1769,11 +1762,10 @@ func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
-			activeService: &mockActiveService{}, // Needed for session cleanup
+		s := unitScheduler(&Scheduler{
+			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1800,11 +1792,10 @@ func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
-			activeService: &mockActiveService{}, // Needed for session cleanup
+		s := unitScheduler(&Scheduler{
+			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task
 		s.scheduleSessionCleanupTask()
@@ -1831,10 +1822,9 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule cleanup task
 		s.scheduleCleanupTask()
@@ -1866,10 +1856,9 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task
 		s.scheduleSessionEndTask()
@@ -1899,10 +1888,9 @@ func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
 	_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			tasks: make(map[string]*ScheduledTask),
-			done:  make(chan struct{}),
-		}
+			done:  make(chan struct{})})
 
 		// Schedule session end task (should be enabled by default)
 		s.scheduleSessionEndTask()
@@ -1930,11 +1918,10 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{
-			activeService: &mockActiveService{}, // Needed for session cleanup
+		s := unitScheduler(&Scheduler{
+			activeService: &mockActiveService{},
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task (should be enabled by default)
 		s.scheduleSessionCleanupTask()
@@ -1991,11 +1978,10 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 			},
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
-			done:           make(chan struct{}),
-		}
+			done:           make(chan struct{})})
 
 		// Schedule cleanup task (should use default "02:00")
 		s.scheduleCleanupTask()
@@ -2033,11 +2019,10 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 			},
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
-			done:           make(chan struct{}),
-		}
+			done:           make(chan struct{})})
 
 		// Schedule cleanup task (spawns goroutine)
 		// Task is scheduled for 02:00, and synctest starts at 01:00:00
@@ -2075,11 +2060,10 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 			cleanupResult: &activeService.CleanupResult{Success: true},
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			cleanupService: cleanupSvc,
 			tasks:          make(map[string]*ScheduledTask),
-			done:           make(chan struct{}),
-		}
+			done:           make(chan struct{})})
 
 		// Schedule cleanup task
 		s.scheduleCleanupTask()
@@ -2121,11 +2105,10 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 			},
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session end task
 		// Task is scheduled for 18:00, and synctest starts at 01:00:00
@@ -2161,11 +2144,10 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 			endDailySessionsResult: &activeService.DailySessionCleanupResult{Success: true},
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session end task
 		s.scheduleSessionEndTask()
@@ -2201,11 +2183,10 @@ func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
 			cleanupAbandonedResult: 5,
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task (has 30-second initial delay)
 		s.scheduleSessionCleanupTask()
@@ -2235,7 +2216,7 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
+		s := newUnitScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 
 		// Schedule token cleanup task (runs immediately, then every hour)
 		s.scheduleTokenCleanupTask()
@@ -2280,11 +2261,10 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 			cleanupAbandonedResult: 3,
 		}
 
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			activeService: activeSvc,
 			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{}),
-		}
+			done:          make(chan struct{})})
 
 		// Schedule session cleanup task (has 30-second initial delay, then runs every 15 min by default)
 		s.scheduleSessionCleanupTask()
@@ -2331,7 +2311,7 @@ func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+		s := unitScheduler(&Scheduler{done: make(chan struct{}), logger: slog.Default()})
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			close(s.done)
@@ -2345,11 +2325,11 @@ func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
 	t.Setenv("CLEANUP_SCHEDULER_ENABLED", "false")
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-	}
+		tasks:  make(map[string]*ScheduledTask)})
+
 	s.scheduleCleanupTask()
 	assert.Empty(t, s.tasks, "cleanup task should not be registered when disabled")
 }
@@ -2357,11 +2337,11 @@ func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
 	t.Setenv("SESSION_END_SCHEDULER_ENABLED", "false")
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-	}
+		tasks:  make(map[string]*ScheduledTask)})
+
 	s.scheduleSessionEndTask()
 	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
 }
@@ -2369,12 +2349,12 @@ func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
 func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupErr: errors.New("db error"),
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.False(t, result)
 }
@@ -2382,12 +2362,12 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
@@ -2395,13 +2375,13 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
 			attendanceErr: errors.New("attendance db error"),
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	// Returns true because primary cleanup (expired visits) succeeded
 	assert.True(t, result)
@@ -2410,7 +2390,7 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
 			attendanceResult: &activeService.AttendanceCleanupResult{
@@ -2419,8 +2399,8 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 				Errors:        []string{"record 1 failed", "record 2 failed"},
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
@@ -2428,7 +2408,7 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
 			attendanceResult: &activeService.AttendanceCleanupResult{
@@ -2437,8 +2417,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 				StudentsAffected: 3,
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
@@ -2446,7 +2426,7 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
 			attendanceResult: &activeService.AttendanceCleanupResult{
@@ -2454,8 +2434,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 				RecordsClosed: 0,
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
@@ -2463,13 +2443,13 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult:    &activeService.CleanupResult{},
 			attendanceResult: nil,
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
 	assert.True(t, result)
 }
@@ -2530,7 +2510,7 @@ func TestWasRunToday_DifferentTenant(t *testing.T) {
 func TestResolveStringSetting_NoSettings(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveStringSetting(context.Background(), "key", "NONEXISTENT_ENV", "fallback")
 	assert.Equal(t, "fallback", val)
 }
@@ -2538,7 +2518,7 @@ func TestResolveStringSetting_NoSettings(t *testing.T) {
 func TestResolveBoolSetting_NoSettings(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveBoolSetting(context.Background(), "key", "NONEXISTENT_ENV", true)
 	assert.True(t, val)
 }
@@ -2546,7 +2526,7 @@ func TestResolveBoolSetting_NoSettings(t *testing.T) {
 func TestResolveIntSetting_NoSettings(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveIntSetting(context.Background(), "key", "NONEXISTENT_ENV", 42)
 	assert.Equal(t, 42, val)
 }
@@ -2554,7 +2534,7 @@ func TestResolveIntSetting_NoSettings(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveStringSetting_FromEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_STR", "from_env")
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveStringSetting(context.Background(), "key", "TEST_RESOLVE_STR", "default")
 	assert.Equal(t, "from_env", val)
 }
@@ -2562,7 +2542,7 @@ func TestResolveStringSetting_FromEnv(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveBoolSetting_FromEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_BOOL", "true")
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveBoolSetting(context.Background(), "key", "TEST_RESOLVE_BOOL", false)
 	assert.True(t, val)
 }
@@ -2570,7 +2550,7 @@ func TestResolveBoolSetting_FromEnv(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveIntSetting_FromEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_INT", "99")
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT", 10)
 	assert.Equal(t, 99, val)
 }
@@ -2578,7 +2558,7 @@ func TestResolveIntSetting_FromEnv(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestResolveIntSetting_InvalidEnv(t *testing.T) {
 	t.Setenv("TEST_RESOLVE_INT_BAD", "notanumber")
-	s := &Scheduler{logger: slog.Default()}
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
 	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_BAD", 10)
 	assert.Equal(t, 10, val)
 }
@@ -2586,11 +2566,11 @@ func TestResolveIntSetting_InvalidEnv(t *testing.T) {
 func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-	}
+		tasks:  make(map[string]*ScheduledTask)})
+
 	s.scheduleBreakAutoEndTask()
 	assert.Empty(t, s.tasks, "should not register task without break auto-ender")
 }
@@ -2598,13 +2578,13 @@ func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
 	t.Setenv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:           make(chan struct{}),
 		logger:         slog.Default(),
 		tasks:          make(map[string]*ScheduledTask),
 		wg:             sync.WaitGroup{},
-		breakAutoEnder: &mockBreakAutoEnder{},
-	}
+		breakAutoEnder: &mockBreakAutoEnder{}})
+
 	s.scheduleBreakAutoEndTask()
 	defer close(s.done)
 	assert.Equal(t, 30, s.breakAutoEndIntervalSeconds)
@@ -2684,7 +2664,7 @@ func (f *fakeFeedbackCleaner) DeleteEntriesOlderThan(_ context.Context, days int
 func TestSetFeedbackCleaner(t *testing.T) {
 	t.Parallel()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	assert.Nil(t, s.feedbackCleaner)
 
@@ -2824,7 +2804,7 @@ func otherISOWeekday() int {
 func TestSetMaterializer(t *testing.T) {
 	t.Parallel()
 
-	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 	assert.Nil(t, s.materializer)
 
 	m := &fakeMaterializer{}
@@ -2835,11 +2815,11 @@ func TestSetMaterializer(t *testing.T) {
 func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
-		tasks:  make(map[string]*ScheduledTask),
-	}
+		tasks:  make(map[string]*ScheduledTask)})
+
 	s.scheduleMaterializationTask()
 	assert.Empty(t, s.tasks, "no task should register without a materializer")
 }
@@ -2847,12 +2827,12 @@ func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
 func TestScheduleMaterializationTask_RegistersTask(t *testing.T) {
 	t.Parallel()
 
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:         make(chan struct{}),
 		logger:       slog.Default(),
 		tasks:        make(map[string]*ScheduledTask),
-		materializer: &fakeMaterializer{},
-	}
+		materializer: &fakeMaterializer{}})
+
 	// Pre-close done so the spawned goroutine exits promptly after the
 	// startup check and waitUntilNextMinute returns false.
 	close(s.done)
@@ -2870,10 +2850,10 @@ func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
-		materializer: m,
-	}
+		materializer: m})
+
 	task := &ScheduledTask{Name: "test", Running: true}
 
 	s.checkAndRunMaterialization(task)
@@ -2887,15 +2867,15 @@ func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
 	// With no tenant override on the enabled key, resolveBoolSetting returns
 	// the defaultVal (true) — materializer runs on the configured weekday.
 	m := &fakeMaterializer{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
 			intValues: map[string]int{
 				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
@@ -2911,7 +2891,7 @@ func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
@@ -2921,8 +2901,8 @@ func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
 			intValues: map[string]int{
 				configModel.KeyTimetableMaterializationWeekday: otherISOWeekday(),
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
@@ -2934,7 +2914,7 @@ func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
@@ -2944,11 +2924,11 @@ func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
 			intValues: map[string]int{
 				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
 			},
-		},
-	}
+		}})
+
 	// Seed lastMaterialization with today's timestamp — simulates a prior run.
-	// forEachTenantSettings calls fn with tenantID=0 when db/schoolRepo are nil.
-	s.lastMaterialization.Store(int64(0), time.Now())
+	// Unit scheduler composition supplies one validated tenant.
+	s.lastMaterialization.Store(schedulerUnitTenantID, time.Now())
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
@@ -2966,7 +2946,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 			DurationMS:       123,
 		},
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
@@ -2977,8 +2957,8 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 				configModel.KeyTimetableMaterializationWeekday:    currentISOWeekday(),
 				configModel.KeyTimetableMaterializationWeeksAhead: 3,
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
@@ -2990,7 +2970,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 		"source tag must be scheduler (not manual) for scheduled runs")
 
 	// Verify lastMaterialization was stamped so the next poll skips.
-	_, ok := s.lastMaterialization.Load(int64(0))
+	_, ok := s.lastMaterialization.Load(schedulerUnitTenantID)
 	assert.True(t, ok, "lastMaterialization must record that tenant ran today")
 }
 
@@ -3005,7 +2985,7 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 			CandidatesRaced:  0,
 		},
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
@@ -3015,8 +2995,8 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 			intValues: map[string]int{
 				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
@@ -3030,7 +3010,7 @@ func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
 	m := &fakeMaterializer{
 		returnErr: errors.New("materialization exploded"),
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
@@ -3040,8 +3020,8 @@ func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
 			intValues: map[string]int{
 				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "test"}
 
 	assert.NotPanics(t, func() {
@@ -3061,7 +3041,7 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 			DurationMS:      55,
 		},
 	}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
 		settings: &fakeSettingsResolver{
@@ -3071,8 +3051,8 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 			intValues: map[string]int{
 				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
 			},
-		},
-	}
+		}})
+
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
@@ -3105,12 +3085,12 @@ func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {
 	// Pre-close done before launching so waitUntilNextMinute returns false
 	// immediately after the startup checkAndRunMaterialization completes.
 	m := &fakeMaterializer{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		done:         make(chan struct{}),
 		logger:       slog.Default(),
 		tasks:        make(map[string]*ScheduledTask),
-		materializer: m,
-	}
+		materializer: m})
+
 	close(s.done)
 	task := &ScheduledTask{Name: "timetable-materialization"}
 
@@ -3136,7 +3116,7 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 	// 60-second poll loop. The ticker branch + done branch both get exercised.
 	synctest.Test(t, func(t *testing.T) {
 		m := &fakeMaterializer{}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			done:         make(chan struct{}),
 			logger:       slog.Default(),
 			tasks:        make(map[string]*ScheduledTask),
@@ -3145,8 +3125,8 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 				boolValues: map[string]bool{
 					configModel.KeyTimetableMaterializationEnabled: false,
 				},
-			},
-		}
+			}})
+
 		task := &ScheduledTask{Name: "timetable-materialization"}
 
 		s.wg.Add(1)

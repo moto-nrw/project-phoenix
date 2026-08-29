@@ -50,7 +50,7 @@ func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTena
 		})
 	})
 	if withTenantTx {
-		r.Use(tenant.TenantTxMiddleware(res.DB))
+		r.Use(testpkg.TenantTxMiddleware(res.DB))
 	}
 	r.Post("/instances/{id}/convert-to-series", res.convertInstanceToSeries)
 	r.Get("/instances", res.listInstances)

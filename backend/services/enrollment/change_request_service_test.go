@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // These tests use setupRequestTest from request_service_test.go; that helper
@@ -957,7 +955,7 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	correctedDOB := timezone.NewDate(2018, 5, 16)
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
 	var audit *enrollmentService.ChangeRequestAggregate
-	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var correctionErr error
 		audit, correctionErr = svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 			RequestID:        result.Request.ID,
@@ -1033,7 +1031,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			reason := "Nachname anhand der Geburtsurkunde berichtigt"
 			expectedNote := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
 			var audit *enrollmentService.ChangeRequestAggregate
-			err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				var correctionErr error
 				audit, correctionErr = svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 					RequestID:        result.Request.ID,
@@ -1114,7 +1112,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 	before, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, correctionErr := svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 			RequestID:        result.Request.ID,
 			ChildID:          result.Children[0].ID,
@@ -1169,7 +1167,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestW
 	failingService := newChangeRequestServiceWithDecisionAndRepoForTest(t, env, failAdminAuditChangeRequestRepo{
 		ChangeRequestRepository: env.repos.ChangeRequest,
 	})
-	err = tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, correctionErr := failingService.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
 			RequestID:        result.Request.ID,
 			ChildID:          result.Children[0].ID,
@@ -1304,7 +1302,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 
 	svc := newChangeRequestServiceWithDecisionForTest(t, env)
 	correct := func(input enrollmentService.CorrectApprovedChildDataInput) error {
-		return tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		return testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			_, correctionErr := svc.CorrectApprovedChildData(txCtx, input)
 			return correctionErr
 		})

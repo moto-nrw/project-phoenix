@@ -51,7 +51,7 @@ func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, 
 		Status:      userModels.DataChangeStatusPending,
 	}
 	row.SetTenantID(c.TenantID)
-	err := tenant.WithTenantTx(context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return repos.StudentDataChangeRequest.Create(txCtx, row)
 	})
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	denyBase := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:update"})
-	err := tenant.WithTenantTx(denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items, "a caller who cannot write the child must not see its request in the queue")
@@ -83,7 +83,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	})
 	assert.ErrorIs(t, err, userService.ErrReviewForbidden)
 
-	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		require.Len(t, items, 1)
@@ -105,7 +105,7 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	var decided *userService.MasterDataReviewItem
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		d, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		decided = d
 		return e
@@ -133,7 +133,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	lastName := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 	birthday := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "birthday", `null`, `"2017-12-24"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: lastName.ID, Approve: true}); e != nil {
 			return e
 		}
@@ -160,7 +160,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{
 			RequestID:  row.ID,
 			Approve:    true,
@@ -193,7 +193,7 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 		wg.Add(1)
 		go func(idx int, req *userModels.StudentDataChangeRequest) {
 			defer wg.Done()
-			errs[idx] = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			errs[idx] = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: req.ID, Approve: true})
 				return e
 			})
@@ -227,7 +227,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 		wg.Add(1)
 		go func(idx int, approve bool) {
 			defer wg.Done()
-			errs[idx] = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			errs[idx] = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: approve})
 				return e
 			})
@@ -277,7 +277,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 
 	var items []*userService.MasterDataReviewItem
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
 		items, _, e = svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		return e
@@ -300,7 +300,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 		require.NoError(t, e)
 		assert.Empty(t, items)
@@ -310,7 +310,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 	})
 	assert.ErrorIs(t, err, userService.ErrReviewNotFound)
 
-	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: 999_999_999, Approve: true})
 		return e
 	})
@@ -328,7 +328,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
 		return e
 	})
@@ -367,7 +367,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 	person.FirstName = "StaffEdit"
 	require.NoError(t, repos.Person.Update(context.Background(), person))
 
-	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
@@ -395,7 +395,7 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	}
 	require.NoError(t, repos.Student.Update(context.Background(), student))
 
-	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
@@ -418,7 +418,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
 		assert.Empty(t, broadcaster.CallsByMethod("tenant"), "broadcast must wait until the transaction commits")
 		return e
@@ -440,7 +440,7 @@ func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "Bitte Nachweis"})
 		return e
 	})
@@ -463,13 +463,13 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	// First decision approves; the second must fail as not-pending.
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
@@ -504,7 +504,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 			row := insertPendingChange(t, db, repos, chain, tt.target, tt.field, `null`, tt.value)
-			err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 				return e
 			})
@@ -519,7 +519,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 func findRequestStatusPill(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain) *userModels.ParentMessage {
 	t.Helper()
 	var pill *userModels.ParentMessage
-	err := tenant.WithTenantTx(context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		thread, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || thread == nil {
 			return ferr
@@ -558,7 +558,7 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
 		return e
 	})
@@ -589,7 +589,7 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "Nachweis fehlt", ReviewedBy: chain.AccountID})
 		return e
 	})
@@ -626,7 +626,7 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	approve := func(t *testing.T, row *userModels.StudentDataChangeRequest) {
 		t.Helper()
 		bc.Reset()
-		err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 			_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
 			return e
 		})

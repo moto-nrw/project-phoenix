@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -147,7 +146,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c te
 	t.Helper()
 	var threadID int64
 	var msgs []*usersModels.ParentMessage
-	err := tenant.WithTenantTx(context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr

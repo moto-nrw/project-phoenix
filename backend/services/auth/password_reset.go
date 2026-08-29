@@ -56,6 +56,7 @@ func (s *Service) InitiateSchoolPasswordReset(ctx context.Context, emailAddress 
 }
 
 func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string, opts passwordResetOptions) (*auth.PasswordResetToken, error) {
+	ctx = s.withTenantRuntime(ctx)
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
@@ -232,8 +233,8 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	// WithoutCancel: async delivery must outlive the HTTP request.
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	// Async delivery must outlive the HTTP request without retaining its tx.
+	s.dispatcher.Dispatch(detachedTenantContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
@@ -246,6 +247,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 // ResetPassword resets a password using a reset token
 func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
+	ctx = s.withTenantRuntime(ctx)
 	// Find valid token
 	resetToken, err := s.repos.PasswordResetToken.FindValidByToken(ctx, token)
 	if err != nil {

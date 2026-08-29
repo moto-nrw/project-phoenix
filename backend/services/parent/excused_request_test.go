@@ -18,7 +18,6 @@ import (
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -146,7 +145,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 		[]timezone.Date{today}, "Fieber", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID:  res.PendingRequest.ID,
 			Approve:    true,
@@ -259,7 +258,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	requestID := res.PendingRequest.ID
 
 	// Staff approve inside a tenant transaction (as the middleware would).
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		item, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   true,
@@ -297,7 +296,7 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   false,
@@ -344,7 +343,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 	require.NoError(t, err)
 
 	// Staff reject it today — reviewed_at is stamped now, inside the window.
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   false,
@@ -381,7 +380,7 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: requestID,
 			Approve:   true,
