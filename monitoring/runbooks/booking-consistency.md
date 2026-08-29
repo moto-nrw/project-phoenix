@@ -27,20 +27,20 @@ keine Namen, Kind-IDs oder andere personenbezogene Daten.
 
 ## Bekannter Ausgangswert
 
-Der read-only Production-Lauf vom 29.08.2026, noch vor dem Deployment des
-reduzierten Logvertrags, enthielt bei den weiterhin gültigen Feldern:
+Die read-only Production-Prüfung vom 29.08.2026 nach der Datenbereinigung
+enthielt bei den weiterhin gültigen Feldern:
 
 | Mandant | `pickup_projection_missing_days` | `approved_without_required_offering` | `approved_without_optional_offering` |
 |---|---:|---:|---:|
 | `4` | 10 | 0 | 1 |
-| `5` | 5 | 0 | 3 |
+| `5` | 0 | 0 | 3 |
 
 Die übrigen erfolgreichen Mandanten meldeten für diese Felder null. Die alten
 `total_findings`-Werte sind kein Ausgangswert, weil sie noch die drei entfernten
 Zähler enthielten. Den Ausgangswert nach dem Backend-Deployment mit dem ersten
 neuen Lauf bestätigen; erst danach Datenabweichungen fachlich bearbeiten. Die
-Alert-Regel codiert die beiden von null abweichenden handlungsfähigen Werte
-explizit. Für alle anderen Mandanten und Kategorien gilt null.
+Alert-Regel codiert den von null abweichenden handlungsfähigen Wert von Mandant
+4 explizit. Für alle anderen Mandanten und Kategorien gilt null.
 
 ## Technischer Fehler
 
