@@ -15,6 +15,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -70,6 +71,11 @@ type GuardianServiceDependencies struct {
 	FrontendURL      string
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
+
+	// MailIdentity points replies to this invitation at the OGS instead of
+	// moto (#1936). Optional: nil sends without a Reply-To, exactly as before.
+	// This send bypasses the outbox, so it stamps the header itself.
+	MailIdentity platformModels.TenantMailIdentityResolver
 
 	// Infrastructure
 	DB *bun.DB
@@ -494,6 +500,7 @@ func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *a
 
 	message := email.Message{
 		From:     s.DefaultFrom,
+		ReplyTo:  s.resolveReplyTo(ctx),
 		To:       email.NewEmail("", *profile.Email),
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
@@ -1326,4 +1333,24 @@ func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianI
 // GetPhoneNumberByID retrieves a phone number by ID
 func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
+}
+
+// resolveReplyTo returns the OGS reply address for this tenant, or the zero
+// value when none is configured or the lookup fails. A missing return path
+// must never cost the invitation, so every failure degrades to "no header".
+func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
+	if s.MailIdentity == nil {
+		return email.Email{}
+	}
+	identity, err := s.MailIdentity.ResolveTenantMailIdentity(ctx, tenant.FromContext(ctx))
+	if err != nil {
+		slog.Warn("failed to resolve tenant reply-to for guardian invitation",
+			slog.String("error", err.Error()),
+		)
+		return email.Email{}
+	}
+	if identity.IsZero() {
+		return email.Email{}
+	}
+	return email.NewEmail(identity.ReplyToName, identity.ReplyToAddress)
 }

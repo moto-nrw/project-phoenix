@@ -474,6 +474,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	)
 
 	// Initialize guardian service
+	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
+	// Built once here and shared: the outbox worker covers every queued kind,
+	// the guardian service covers its own synchronous invitation send.
+	tenantMailIdentity := platform.NewTenantMailIdentityService(repos.School, settingsService, logger)
+
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo:     repos.GuardianProfile,
 		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
@@ -494,6 +499,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		FrontendURL:             frontendURL,
 		DefaultFrom:             defaultFrom,
 		InvitationExpiry:        invitationTokenExpiry,
+		MailIdentity:            tenantMailIdentity,
 		DB:                      db,
 	})
 
@@ -1270,6 +1276,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Logger:      logger.With("service", "outbox"),
 		DB:          db,
 	})
+	emailOutboxWorker.SetMailIdentityResolver(tenantMailIdentity)
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:         repos.GuardianInvitation,

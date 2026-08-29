@@ -77,14 +77,12 @@ func NewMailer() (Mailer, error) {
 	return s, nil
 }
 
-// Send sends the mail via smtp.
-func (m *SMTPMailer) Send(email Message) error {
-	if email.From.Address == "" {
-		email.From = m.defaultFrom
-	}
-
+// buildMessage turns a Message into the go-mail message that goes on the
+// wire. Split out of Send so the header contract (From, Reply-To,
+// List-Unsubscribe) is testable without an SMTP dial.
+func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
 	if err := email.parse(); err != nil {
-		return err
+		return nil, err
 	}
 
 	msg := mail.NewMsg()
@@ -92,16 +90,37 @@ func (m *SMTPMailer) Send(email Message) error {
 	// display name (e.g. "@", ",", quotes) and non-ASCII names are encoded
 	// correctly instead of producing a malformed header.
 	if err := msg.FromFormat(email.From.Name, email.From.Address); err != nil {
-		return fmt.Errorf("failed to set from address: %w", err)
+		return nil, fmt.Errorf("failed to set from address: %w", err)
 	}
 	if err := msg.AddToFormat(email.To.Name, email.To.Address); err != nil {
-		return fmt.Errorf("failed to set to address: %w", err)
+		return nil, fmt.Errorf("failed to set to address: %w", err)
+	}
+	// Replies to tenant-bound mail must reach the OGS, not moto. The From stays
+	// the central authenticated sender so SPF/DKIM alignment is untouched —
+	// only the return path moves (#1936).
+	if email.ReplyTo.Address != "" {
+		if err := msg.ReplyToFormat(email.ReplyTo.Name, email.ReplyTo.Address); err != nil {
+			return nil, fmt.Errorf("failed to set reply-to address: %w", err)
+		}
 	}
 	msg.Subject(email.Subject)
 	msg.SetGenHeader(mail.HeaderListUnsubscribe, fmt.Sprintf("<mailto:%s?subject=unsubscribe>", email.From.Address))
 	msg.SetGenHeader(mail.HeaderListUnsubscribePost, "List-Unsubscribe=One-Click")
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
+	return msg, nil
+}
+
+// Send sends the mail via smtp.
+func (m *SMTPMailer) Send(email Message) error {
+	if email.From.Address == "" {
+		email.From = m.defaultFrom
+	}
+
+	msg, err := m.buildMessage(email)
+	if err != nil {
+		return err
+	}
 
 	slog.Default().Info("sending email",
 		slog.String("to", email.To.Address),
