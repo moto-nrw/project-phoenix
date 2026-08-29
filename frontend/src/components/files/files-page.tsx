@@ -17,10 +17,11 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -289,23 +290,24 @@ export function FilesPage() {
                     </span>
                   }
                 />
-                <InfoItem
-                  label="Dateien hochladen"
-                  value={
-                    overview.staffUploadEnabled
-                      ? "Leitung und Team"
-                      : "Nur Leitung"
-                  }
-                />
-                {canChangeUploadPermission && (
-                  <ButtonLink
-                    href="/settings?tab=operations&highlight=files.staff_upload_enabled"
-                    variant="surface"
-                    size="compact"
-                  >
-                    Berechtigung ändern
-                  </ButtonLink>
-                )}
+                <div className="space-y-1">
+                  <InfoItem
+                    label="Dateien hochladen"
+                    value={
+                      overview.staffUploadEnabled
+                        ? "Leitung und Team"
+                        : "Nur Leitung"
+                    }
+                  />
+                  {canChangeUploadPermission && (
+                    <Link
+                      href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                      className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                    >
+                      Berechtigung ändern
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </aside>

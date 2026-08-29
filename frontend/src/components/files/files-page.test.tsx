@@ -65,12 +65,14 @@ describe("FilesPage upload permission summary", () => {
     renderPage(true);
 
     expect(screen.getByText("Leitung und Team")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Berechtigung ändern" }),
-    ).toHaveAttribute(
+    const settingsLink = screen.getByRole("link", {
+      name: "Berechtigung ändern",
+    });
+    expect(settingsLink).toHaveAttribute(
       "href",
       "/settings?tab=operations&highlight=files.staff_upload_enabled",
     );
+    expect(settingsLink).toHaveClass("text-xs", "underline");
   });
 
   it("does not link to settings without permission to change them", () => {
