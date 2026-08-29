@@ -17,20 +17,22 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { InfoItem } from "~/components/ui/info-card";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatCard } from "~/components/ui/stat-card";
 import { formatDate } from "~/lib/date-helpers";
+import { hasPermission } from "~/lib/auth-utils";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
@@ -81,6 +83,7 @@ function visibilityIcon(visibility: FileFolder["visibility"]) {
 }
 
 export function FilesPage() {
+  const { data: session } = useSession();
   const {
     data: overview,
     isLoading,
@@ -145,6 +148,9 @@ export function FilesPage() {
 
   const canManage = overview?.canManage ?? false;
   const canUpload = overview?.canUpload ?? false;
+  const canChangeUploadPermission =
+    hasPermission(session, "config:read") &&
+    hasPermission(session, "config:update");
 
   const folderNav = (
     <nav aria-label="Ordner" className="space-y-1">
@@ -208,10 +214,10 @@ export function FilesPage() {
           </p>
           <h1 className="text-base font-semibold text-gray-900">Dateien</h1>
           <p className="max-w-3xl text-sm leading-6 text-gray-600">
-            Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder
-            Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner
-            fest. Unterlagen zu einem Kind oder zu einer Person liegen weiter
-            beim Kind bzw. bei der Person.
+            Hier liegen gemeinsame Dateien der OGS, zum Beispiel Formulare und
+            Notfallpläne. Die Leitung entscheidet für jeden Ordner, wer ihn
+            sehen darf. Unterlagen zu Kindern und Mitarbeitenden bleiben bei der
+            jeweiligen Person.
           </p>
         </div>
         {canManage && (
@@ -273,19 +279,33 @@ export function FilesPage() {
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
             {canManage && overview && overview.maxBytes > 0 && (
-              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                <StatCard
-                  variant="tile"
-                  label="Belegter Speicherplatz"
-                  value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Team darf hochladen"
+              <div className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                <InfoItem
+                  label="Speicherplatz"
                   value={
-                    overview.staffUploadEnabled ? "Ja" : "Nein (Einstellungen)"
+                    <span className="tabular-nums">
+                      {formatBytes(overview.usedBytes)} von{" "}
+                      {formatBytes(overview.maxBytes)} belegt
+                    </span>
                   }
                 />
+                <InfoItem
+                  label="Dateien hochladen"
+                  value={
+                    overview.staffUploadEnabled
+                      ? "Leitung und Team"
+                      : "Nur Leitung"
+                  }
+                />
+                {canChangeUploadPermission && (
+                  <ButtonLink
+                    href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                    variant="surface"
+                    size="compact"
+                  >
+                    Berechtigung ändern
+                  </ButtonLink>
+                )}
               </div>
             )}
           </aside>
@@ -592,7 +612,7 @@ function FolderFilesPanel({
             </Button>
           </p>
           <p className="text-xs text-gray-400">
-            PDF, Word, Excel, PowerPoint, PNG oder JPG · max. 25 MB pro Datei
+            PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB
           </p>
           <input
             ref={fileInputRef}
@@ -623,7 +643,7 @@ function FolderFilesPanel({
             title="Noch keine Dateien in diesem Ordner"
             description={
               canUpload
-                ? "Laden Sie die erste Datei über den Bereich oben hoch."
+                ? "Laden Sie oben die erste Datei hoch."
                 : "Sobald die Leitung Dateien ablegt, erscheinen sie hier."
             }
           />
