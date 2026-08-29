@@ -10,22 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 type settingsService struct {
-	valueRepo     config.SettingValueRepository
-	auditRepo     config.SettingAuditRepository
-	schoolRepo    platform.SchoolRepository
-	db            *bun.DB
-	logger        *slog.Logger
-	tenantRuntime *tenant.UnitOfWork
+	valueRepo   config.SettingValueRepository
+	auditRepo   config.SettingAuditRepository
+	schoolStore SchoolSettingsStore
+	runtime     Runtime
+	logger      *slog.Logger
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
 	// eligibility to specific school classes. It gates disabling the
@@ -51,16 +44,7 @@ type settingsService struct {
 	gradeCapGuard func(ctx context.Context) (int, error)
 }
 
-func (s *settingsService) SetTenantRuntime(runtime tenant.UnitOfWork) {
-	s.tenantRuntime = &runtime
-}
-
-func (s *settingsService) withTenantRuntime(ctx context.Context) context.Context {
-	if s.tenantRuntime == nil {
-		return ctx
-	}
-	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
-}
+func (s *settingsService) SetRuntime(runtime Runtime) { s.runtime = runtime }
 
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used
 // by the concrete-class collection guard. Kept off the constructor (and off
@@ -88,16 +72,16 @@ func (s *settingsService) SetGradeCapGuard(fn func(ctx context.Context) (int, er
 func NewSettingsService(
 	valueRepo config.SettingValueRepository,
 	auditRepo config.SettingAuditRepository,
-	schoolRepo platform.SchoolRepository,
-	db *bun.DB,
+	schoolStore SchoolSettingsStore,
+	runtime Runtime,
 	logger *slog.Logger,
 ) SettingsService {
 	return &settingsService{
-		valueRepo:  valueRepo,
-		auditRepo:  auditRepo,
-		schoolRepo: schoolRepo,
-		db:         db,
-		logger:     logger.With("service", "settings"),
+		valueRepo:   valueRepo,
+		auditRepo:   auditRepo,
+		schoolStore: schoolStore,
+		runtime:     runtime,
+		logger:      logger.With("service", "settings"),
 	}
 }
 
@@ -118,7 +102,7 @@ func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) 
 // within one request every (tenant_id, key) pair is loaded from PostgreSQL at
 // most once; only cache-missing keys reach the repository.
 func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error) {
-	tenantID := tenant.FromContext(ctx)
+	tenantID := s.tenantID(ctx)
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		// Explicit snapshots are returned as-is and deliberately NEVER copied
 		// into the request cache: the scheduler's minute snapshot may be up to
@@ -172,7 +156,6 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*Sett
 // query when a scheduler already prefetched the values, and a full
 // request-cache hit skips the tenant transaction entirely (issue #2065).
 func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error) {
-	ctx = s.withTenantRuntime(ctx)
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		return snapshot, nil
 	}
@@ -181,7 +164,7 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 	// or matches tenantID: a mismatched ambient tenant must still reach
 	// WithTenantTx below so its nested-transaction guard surfaces the wiring
 	// bug instead of the cache silently succeeding.
-	if ctxTenant := tenant.FromContext(ctx); tenantID > 0 && len(keys) > 0 &&
+	if ctxTenant := s.tenantID(ctx); tenantID > 0 && len(keys) > 0 &&
 		(ctxTenant == 0 || ctxTenant == tenantID) {
 		if cache := requestCacheFromContext(ctx); cache != nil {
 			for _, key := range keys {
@@ -198,8 +181,11 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 		}
 	}
 
+	if s.runtime == nil {
+		return nil, ErrRuntimeUnavailable
+	}
 	var result *SettingsSnapshot
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var resolveErr error
 		result, resolveErr = s.ResolveMany(txCtx, keys)
 		return resolveErr
@@ -236,7 +222,10 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 
 	var stored []*config.SettingValue
 	if len(keys) > 0 {
-		err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(txCtx context.Context, _ bun.Tx) error {
+		if s.runtime == nil {
+			return nil, ErrRuntimeUnavailable
+		}
+		err := s.runtime.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var findErr error
 			stored, findErr = s.valueRepo.FindByTenantsAndKeys(txCtx, uniqueTenantIDs, keys)
 			return findErr
@@ -311,7 +300,7 @@ func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenant
 			Err: fmt.Errorf("tenant id is required to resolve %q inside a transaction", key),
 		}
 	}
-	if tx, ok := modelBase.TxFromContext(ctx); !ok || tx == nil {
+	if s.runtime == nil || !s.runtime.HasTransaction(ctx) {
 		return "", &SettingsError{
 			Op:  "resolve_in_tx",
 			Err: fmt.Errorf("resolving %q inside a transaction requires an ambient transaction", key),
@@ -418,10 +407,47 @@ func checkWritePermission(def *config.Definition, userPermissions []string) erro
 	if userPermissions == nil || def.WritePermission == "" {
 		return nil
 	}
-	if authorize.HasPermission(def.WritePermission, userPermissions) {
+	if hasPermission(def.WritePermission, userPermissions) {
 		return nil
 	}
 	return &PermissionDeniedError{Key: def.Key, RequiredPermission: def.WritePermission}
+}
+
+func hasPermission(required string, permissions []string) bool {
+	if required == "" {
+		return true
+	}
+	requiredParts := strings.Split(required, ":")
+	if len(requiredParts) != 2 {
+		return false
+	}
+	for _, permission := range permissions {
+		if permission == "admin:*" || permission == "*:*" {
+			return true
+		}
+		parts := strings.Split(permission, ":")
+		if len(parts) != 2 {
+			continue
+		}
+		if permissionPartMatches(parts[0], requiredParts[0]) && permissionPartMatches(parts[1], requiredParts[1]) {
+			return true
+		}
+	}
+	return false
+}
+
+func permissionPartMatches(pattern, required string) bool {
+	if pattern == required || pattern == "*" {
+		return true
+	}
+	return strings.HasSuffix(pattern, "*") && strings.HasPrefix(required, strings.TrimSuffix(pattern, "*"))
+}
+
+func (s *settingsService) tenantID(ctx context.Context) int64 {
+	if s.runtime == nil {
+		return 0
+	}
+	return s.runtime.TenantID(ctx)
 }
 
 // SetValue sets a tenant override for a setting.
@@ -464,7 +490,7 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("marshal value: %w", err)}
 	}
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := s.tenantID(ctx)
 	if tenantID <= 0 {
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
@@ -551,7 +577,7 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
-	tenantID := tenant.FromContext(ctx)
+	tenantID := s.tenantID(ctx)
 	if tenantID <= 0 {
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
 	}
@@ -912,10 +938,10 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 // database and observe the concurrent writer's committed state.
 func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
 	s.flushRequestCacheForLock(ctx)
-	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+	if s.runtime == nil || !s.runtime.HasTransaction(ctx) {
 		return nil
 	}
-	if err := base.AcquireXactLock(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+	if err := s.runtime.AcquireLock(ctx, slotListCutoffLockKey(s.tenantID(ctx)), false); err != nil {
 		return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
 	}
 	return nil
@@ -927,7 +953,7 @@ func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
 // flush stays correct when the next guard adds another key (#1565/#1663).
 func (s *settingsService) flushRequestCacheForLock(ctx context.Context) {
 	if cache := requestCacheFromContext(ctx); cache != nil {
-		cache.evictTenant(tenant.FromContext(ctx))
+		cache.evictTenant(s.tenantID(ctx))
 	}
 }
 
@@ -943,10 +969,10 @@ func (s *settingsService) flushRequestCacheForLock(ctx context.Context) {
 // the writer's committed pair, not memoized pre-lock values.
 func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) error {
 	s.flushRequestCacheForLock(ctx)
-	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+	if s.runtime == nil || !s.runtime.HasTransaction(ctx) {
 		return nil
 	}
-	if err := base.AcquireXactLockShared(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+	if err := s.runtime.AcquireLock(ctx, slotListCutoffLockKey(s.tenantID(ctx)), true); err != nil {
 		return fmt.Errorf("lock Ganztag cutoff pair (shared): %w", err)
 	}
 	return nil
@@ -954,8 +980,8 @@ func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) erro
 
 // slotListCutoffLockKey is the per-tenant advisory-lock key shared by the
 // exclusive writer lock and the shared reader lock so the two conflict.
-func slotListCutoffLockKey(ctx context.Context) string {
-	return fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
+func slotListCutoffLockKey(tenantID int64) string {
+	return fmt.Sprintf("slot-list-cutoff:%d", tenantID)
 }
 
 // LockClassCollectionPair takes the per-tenant transaction-scoped advisory lock
@@ -976,10 +1002,10 @@ func slotListCutoffLockKey(ctx context.Context) string {
 // state, not memoized pre-lock values.
 func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
 	s.flushRequestCacheForLock(ctx)
-	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+	if s.runtime == nil || !s.runtime.HasTransaction(ctx) {
 		return nil
 	}
-	if err := base.AcquireXactLock(ctx, s.db, classCollectionLockKey(ctx)); err != nil {
+	if err := s.runtime.AcquireLock(ctx, classCollectionLockKey(s.tenantID(ctx)), false); err != nil {
 		return fmt.Errorf("lock class-collection pair: %w", err)
 	}
 	return nil
@@ -988,15 +1014,15 @@ func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
 // classCollectionLockKey is the per-tenant advisory-lock key shared by the
 // settings-side class-collection guard and the enrollment-side phase
 // eligibility guard so the two conflict.
-func classCollectionLockKey(ctx context.Context) string {
-	return fmt.Sprintf("enrollment-class-collection:%d", tenant.FromContext(ctx))
+func classCollectionLockKey(tenantID int64) string {
+	return fmt.Sprintf("enrollment-class-collection:%d", tenantID)
 }
 
 // LockMFAPolicy takes the exclusive per-tenant advisory lock on
 // security.mfa_mode for the WRITE side — see the interface doc and
 // lockMFAPolicy.
 func (s *settingsService) LockMFAPolicy(ctx context.Context) error {
-	return s.lockMFAPolicy(ctx, tenant.FromContext(ctx), false)
+	return s.lockMFAPolicy(ctx, s.tenantID(ctx), false)
 }
 
 // LockMFAPolicySharedForTenant takes the shared variant for the token-mint READ
@@ -1032,14 +1058,10 @@ func (s *settingsService) lockMFAPolicy(ctx context.Context, tenantID int64, sha
 	if tenantID <= 0 {
 		return nil
 	}
-	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+	if s.runtime == nil || !s.runtime.HasTransaction(ctx) {
 		return nil
 	}
-	acquire := base.AcquireXactLock
-	if shared {
-		acquire = base.AcquireXactLockShared
-	}
-	if err := acquire(ctx, s.db, mfaPolicyLockKey(tenantID)); err != nil {
+	if err := s.runtime.AcquireLock(ctx, mfaPolicyLockKey(tenantID), shared); err != nil {
 		return fmt.Errorf("lock mfa policy: %w", err)
 	}
 	return nil
@@ -1129,12 +1151,15 @@ func (s *settingsService) GetLoginImageURL(ctx context.Context, tenantID int64) 
 		return "", nil
 	}
 
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	if s.schoolStore == nil {
+		return "", ErrRuntimeUnavailable
+	}
+	raw, err := s.schoolStore.FindSettings(ctx, tenantID)
 	if err != nil {
 		return "", fmt.Errorf("find school: %w", err)
 	}
 
-	settings, err := unmarshalSchoolSettings(school.Settings)
+	settings, err := unmarshalSchoolSettings(raw)
 	if err != nil {
 		return "", err
 	}
@@ -1157,35 +1182,30 @@ func (s *settingsService) ClearLoginImageURL(ctx context.Context, tenantID int64
 // Uses WithAdminTx because platform.schools requires the phoenix_admin role.
 // Pass nil imageURL to remove the key.
 func (s *settingsService) updateSchoolSetting(ctx context.Context, tenantID int64, imageURL *string) (oldURL string, err error) {
-	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		// Use FOR UPDATE lock to serialize concurrent read-modify-write on the JSONB settings.
-		// FOR SHARE is insufficient here: two transactions could both acquire the shared lock,
-		// read the same JSONB, and then deadlock when both try to UPDATE the row.
-		school, findErr := s.schoolRepo.FindByIDForUpdate(adminCtx, tenantID)
-		if findErr != nil {
-			return fmt.Errorf("find school: %w", findErr)
-		}
+	if s.runtime == nil || s.schoolStore == nil {
+		return "", ErrRuntimeUnavailable
+	}
+	err = s.runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
+		return s.schoolStore.UpdateSettings(adminCtx, tenantID, func(raw string) (string, error) {
+			settings, unmarshalErr := unmarshalSchoolSettings(raw)
+			if unmarshalErr != nil {
+				return "", unmarshalErr
+			}
 
-		settings, unmarshalErr := unmarshalSchoolSettings(school.Settings)
-		if unmarshalErr != nil {
-			return unmarshalErr
-		}
+			oldURL, _ = settings[loginImageKey].(string)
 
-		oldURL, _ = settings[loginImageKey].(string)
+			if imageURL != nil {
+				settings[loginImageKey] = *imageURL
+			} else {
+				delete(settings, loginImageKey)
+			}
 
-		if imageURL != nil {
-			settings[loginImageKey] = *imageURL
-		} else {
-			delete(settings, loginImageKey)
-		}
-
-		settingsJSON, marshalErr := json.Marshal(settings)
-		if marshalErr != nil {
-			return fmt.Errorf("marshal settings: %w", marshalErr)
-		}
-		school.Settings = string(settingsJSON)
-
-		return s.schoolRepo.Update(adminCtx, school)
+			settingsJSON, marshalErr := json.Marshal(settings)
+			if marshalErr != nil {
+				return "", fmt.Errorf("marshal settings: %w", marshalErr)
+			}
+			return string(settingsJSON), nil
+		})
 	})
 	return oldURL, err
 }

@@ -74,6 +74,7 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
+	settingsRuntimeDB        *bun.DB
 	Auth                     auth.AuthService
 	StaffPINAuth             auth.StaffPINAuthenticator
 	MFA                      auth.MFAService
@@ -395,8 +396,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
-		repos.School,
-		db,
+		newSchoolSettingsStore(repos.School),
+		newSettingsRuntime(db, nil),
 		logger,
 	)
 	// Wire the enrollment class-restriction probe so the settings service can
@@ -649,7 +650,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	// writes an audit.data_access_logs row or fails.
 	// One payroll-status instance: the /payroll page and the DATEV writers
 	// must judge completeness identically.
-	payrollStatusService := config.NewPayrollStatusService(settingsService, repos.Staff)
+	payrollStatusService := config.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
+		staff, err := repos.Staff.List(ctx, nil)
+		if err != nil {
+			return 0, 0, err
+		}
+		withoutPersonnelNumber := 0
+		for _, member := range staff {
+			if member.PersonnelNumber == nil || *member.PersonnelNumber == "" {
+				withoutPersonnelNumber++
+			}
+		}
+		return len(staff), withoutPersonnelNumber, nil
+	})
 
 	staffTimeExportService := active.NewStaffTimeExportService(
 		staffOverviewService,
@@ -2349,7 +2362,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	})
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
-	workTimeModelService.SetBroadcaster(realtimeHub)
+	workTimeModelService.SetChangeNotifier(func(ctx context.Context) {
+		realtime.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
+	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -2427,6 +2442,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	})
 
 	factory := &Factory{
+		settingsRuntimeDB:        db,
 		Auth:                     authService,
 		StaffPINAuth:             authService,
 		MFA:                      mfaService,

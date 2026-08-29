@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ type stubAttendanceChecker struct {
 	err    error
 }
 
-func (s *stubAttendanceChecker) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+func (s *stubAttendanceChecker) HasOpenAttendanceOn(_ context.Context, _ configModel.CalendarDate) (bool, error) {
 	s.called = true
 	return s.exists, s.err
 }
@@ -33,6 +32,7 @@ func TestCheckPresenceModeSwitch_IgnoresOtherKeys(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
+		configModel.CalendarDate{},
 		configModel.KeyCheckoutSchulhofEnabled,
 		false,
 	)
@@ -45,6 +45,7 @@ func TestCheckPresenceModeSwitch_ForceBypass(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
+		configModel.CalendarDate{},
 		configModel.KeyPresenceMode,
 		true,
 	)
@@ -57,6 +58,7 @@ func TestCheckPresenceModeSwitch_NonPresenceForceIsNoop(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
+		configModel.CalendarDate{},
 		configModel.KeyCheckoutSchulhofEnabled,
 		true,
 	)
@@ -69,6 +71,7 @@ func TestCheckPresenceModeSwitch_NilCheckerIsNoop(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
+		configModel.CalendarDate{},
 		configModel.KeyPresenceMode,
 		false,
 	)
@@ -82,6 +85,7 @@ func TestCheckPresenceModeSwitch_BlocksWithOpenAttendance(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		checker,
+		configModel.CalendarDate{},
 		configModel.KeyPresenceMode,
 		false,
 	)
@@ -96,6 +100,7 @@ func TestCheckPresenceModeSwitch_PassesWithNoOpenAttendance(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		checker,
+		configModel.CalendarDate{},
 		configModel.KeyPresenceMode,
 		false,
 	)
@@ -111,6 +116,7 @@ func TestCheckPresenceModeSwitch_WrapsCheckerError(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		checker,
+		configModel.CalendarDate{},
 		configModel.KeyPresenceMode,
 		false,
 	)

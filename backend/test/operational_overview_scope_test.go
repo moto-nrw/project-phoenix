@@ -73,7 +73,7 @@ func TestOperationalOverviewScopeIsTenantScoped(t *testing.T) {
 	setOverviewScope(t, db, tenantA, configModel.OverviewScopeAllStaff)
 
 	settings := configService.NewSettingsService(
-		configRepo.NewSettingValueRepository(ConfigRuntime(db)), nil, nil, db, slog.Default(),
+		configRepo.NewSettingValueRepository(ConfigRuntime(db)), nil, nil, SettingsRuntime(t, db), slog.Default(),
 	)
 	caller := overviewStaffContext{staff: &usersModel.Staff{}}
 

@@ -152,8 +152,20 @@ func tenantCtx(tenantID int64) context.Context {
 	return tenant.WithTenantID(context.Background(), tenantID)
 }
 
+type testSettingsRuntime struct{}
+
+func (testSettingsRuntime) TenantID(ctx context.Context) int64  { return tenant.FromContext(ctx) }
+func (testSettingsRuntime) HasTransaction(context.Context) bool { return false }
+func (testSettingsRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	return fn(tenant.WithTenantID(ctx, tenantID))
+}
+func (testSettingsRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (testSettingsRuntime) AcquireLock(context.Context, string, bool) error { return nil }
+
 func createService(valueRepo config.SettingValueRepository, auditRepo config.SettingAuditRepository) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, nil, nil, slog.Default())
+	return configSvc.NewSettingsService(valueRepo, auditRepo, nil, testSettingsRuntime{}, slog.Default())
 }
 
 // --- Tests ---
@@ -1909,7 +1921,30 @@ func createServiceWithSchoolRepo(
 	auditRepo config.SettingAuditRepository,
 	schoolRepo platform.SchoolRepository,
 ) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, schoolRepo, nil, slog.Default())
+	return configSvc.NewSettingsService(valueRepo, auditRepo, schoolSettingsStoreAdapter{repo: schoolRepo}, testSettingsRuntime{}, slog.Default())
+}
+
+type schoolSettingsStoreAdapter struct{ repo platform.SchoolRepository }
+
+func (s schoolSettingsStoreAdapter) FindSettings(ctx context.Context, schoolID int64) (string, error) {
+	school, err := s.repo.FindByID(ctx, schoolID)
+	if err != nil {
+		return "", err
+	}
+	return school.Settings, nil
+}
+
+func (s schoolSettingsStoreAdapter) UpdateSettings(ctx context.Context, schoolID int64, update func(string) (string, error)) error {
+	school, err := s.repo.FindByIDForUpdate(ctx, schoolID)
+	if err != nil {
+		return err
+	}
+	settings, err := update(school.Settings)
+	if err != nil {
+		return err
+	}
+	school.Settings = settings
+	return s.repo.Update(ctx, school)
 }
 
 func newSchool(id int64, settings string) *platform.School {
@@ -2056,7 +2091,7 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	require.NoError(t, schoolRepo.Create(ctx, school))
 
 	svc := configSvc.NewSettingsService(
-		newMockValueRepo(), &mockAuditRepo{}, schoolRepo, db, slog.Default(),
+		newMockValueRepo(), &mockAuditRepo{}, schoolSettingsStoreAdapter{repo: schoolRepo}, testpkg.SettingsRuntime(t, db), slog.Default(),
 	)
 	testpkg.SetTenantRuntime(t, svc, db)
 

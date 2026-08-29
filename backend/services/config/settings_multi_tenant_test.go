@@ -64,7 +64,7 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 
 	counter := &settingValuesSelectCounter{}
 	db.AddQueryHook(counter)
-	service := configService.NewSettingsService(repository, nil, nil, db, slog.Default())
+	service := configService.NewSettingsService(repository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, service, db)
 	batch, ok := service.(configService.BatchSettingsService)
 	require.True(t, ok)
@@ -102,17 +102,7 @@ func TestEnrollmentEnabledForTenantsPreservesOverrideAndDefault(t *testing.T) {
 	override.SetTenantID(tenantA)
 	require.NoError(t, repository.Upsert(context.Background(), override))
 
-	runtime, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, bun.Tx{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, bun.Tx{}) },
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
-	)
-	require.NoError(t, err)
-	service := configService.NewSettingsService(repository, nil, nil, nil, slog.Default())
-	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(runtime)
+	service := configService.NewSettingsService(repository, nil, nil, testSettingsRuntime{}, slog.Default())
 	values, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{tenantA, tenantB})
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]bool{tenantA: true, tenantB: false}, values)
@@ -122,19 +112,9 @@ func TestEnrollmentEnabledForTenantsFailsWhenDefinitionIsMissing(t *testing.T) {
 	config.ResetRegistry()
 	t.Cleanup(config.ResetRegistry)
 
-	runtime, err := tenant.NewUnitOfWork(
-		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
-			return fn(ctx, bun.Tx{})
-		},
-		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, bun.Tx{}) },
-		func(context.Context, tenant.SavepointAction) error { return nil },
-		func(error) bool { return false },
-	)
-	require.NoError(t, err)
-	service := configService.NewSettingsService(newInMemoryValueRepo(), nil, nil, nil, slog.Default())
-	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(runtime)
+	service := configService.NewSettingsService(newInMemoryValueRepo(), nil, nil, testSettingsRuntime{}, slog.Default())
 
-	_, err = service.EnrollmentEnabledForTenants(context.Background(), []int64{41})
+	_, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{41})
 	var missing *configService.DefinitionNotFoundError
 	require.ErrorAs(t, err, &missing)
 	assert.Equal(t, config.KeyEnrollmentEnabled, missing.Key)
