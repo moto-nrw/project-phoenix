@@ -135,6 +135,26 @@ func TestRecordTenantRuntimeEventCountsByEntryPointAndOutcome(t *testing.T) {
 	assert.Equal(t, before+1, after)
 }
 
+func TestRecordUnitOfWorkEvidence(t *testing.T) {
+	t.Parallel()
+	const entryPoint = "unit_test_evidence"
+	rollbackBefore := testutil.ToFloat64(unitOfWorkRollbacks.WithLabelValues(entryPoint))
+	retryBefore := testutil.ToFloat64(unitOfWorkRetries.WithLabelValues(entryPoint))
+	durationBefore := testutil.CollectAndCount(unitOfWorkDuration)
+	poolBefore := testutil.CollectAndCount(unitOfWorkPoolWait)
+	lockBefore := testutil.CollectAndCount(unitOfWorkLockWait)
+
+	RecordUnitOfWorkEvent(entryPoint, "transaction", "rollback", 25*time.Millisecond, 2)
+	RecordUnitOfWorkEvent(entryPoint, "pool_wait", "", 3*time.Millisecond, 0)
+	RecordUnitOfWorkEvent(entryPoint, "lock_wait", "", 4*time.Millisecond, 0)
+
+	assert.Equal(t, rollbackBefore+1, testutil.ToFloat64(unitOfWorkRollbacks.WithLabelValues(entryPoint)))
+	assert.Equal(t, retryBefore+2, testutil.ToFloat64(unitOfWorkRetries.WithLabelValues(entryPoint)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(unitOfWorkDuration))
+	assert.Equal(t, poolBefore+1, testutil.CollectAndCount(unitOfWorkPoolWait))
+	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
+}
+
 func TestRoutePatternFallsBackToUnmatched(t *testing.T) {
 	t.Parallel()
 

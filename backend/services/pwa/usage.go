@@ -64,14 +64,14 @@ type usageService struct {
 	accountTenants authModels.AccountTenantRepository
 	settings       config.SettingsService
 	logger         *slog.Logger
-	tenantRuntime  *tenant.Runtime
+	tenantRuntime  *tenant.UnitOfWork
 
 	snapshotMu   sync.Mutex
 	snapshot     []platformModels.SchoolPWAUsageRow
 	snapshotTime time.Time
 }
 
-func (s *usageService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *usageService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -107,7 +107,7 @@ func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {
 
 func (s *usageService) ReportParent(ctx context.Context, accountID int64) error {
 	if s.tenantRuntime != nil {
-		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 	}
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
@@ -175,7 +175,7 @@ func (s *usageService) SnapshotUsage() ([]platformModels.SchoolPWAUsageRow, erro
 	var rows []platformModels.SchoolPWAUsageRow
 	ctx := context.Background()
 	if s.tenantRuntime != nil {
-		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 	}
 	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		var qErr error

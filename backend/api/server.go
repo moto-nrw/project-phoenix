@@ -77,6 +77,7 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 	sched.SetSchoolRepo(api.repos.School)
 	sched.SetTenantRuntime(api.tenantRuntime)
 	sched.SetTenantRuntimeObserver(observability.RecordTenantRuntimeEvent)
+	sched.SetUnitOfWorkObserver(observability.RecordUnitOfWorkEvent)
 
 	configureSchedulerServices(sched, api.Services)
 	configureSchedulerRepos(sched, api)

@@ -95,10 +95,17 @@ func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.Offe
 }
 
 func recordHTTPRuntimeEvent(event apiCommon.TenantRuntimeEvent) {
+	observability.RecordUnitOfWorkEvent(
+		"http",
+		string(event.Kind),
+		string(event.Result),
+		event.Duration,
+		event.Retries,
+	)
 	switch {
-	case event.Outcome == apiCommon.TenantRuntimeMissingTenant:
+	case event.Kind == apiCommon.TenantRuntimeMissingTenant:
 		observability.RecordTenantRuntimeEvent("http", "missing_tenant")
-	case event.Outcome == apiCommon.TenantRuntimeTransaction && event.Err != nil:
+	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil:
 		observability.RecordTenantRuntimeEvent("http", "transaction_failure")
 	}
 }
@@ -175,14 +182,16 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	databaseTenantRuntime, err := database.NewTenantRuntime(db)
+	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
+	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
 		return nil, err
 	}
 	tenantRuntime, err := services.BindTenantRuntime(
-		databaseTenantRuntime.WithinTenant,
-		databaseTenantRuntime.WithinAdmin,
-		databaseTenantRuntime,
+		postgresUnitOfWork.WithinTenant,
+		postgresUnitOfWork.WithinAdmin,
+		postgresUnitOfWork,
+		database.IsRetryableTransactionError,
 	)
 	if err != nil {
 		return nil, err

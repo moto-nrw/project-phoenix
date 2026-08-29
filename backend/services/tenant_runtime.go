@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"reflect"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -11,18 +12,34 @@ func BindTenantRuntime(
 	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
 	withinAdmin func(context.Context, func(context.Context, any) error) error,
 	savepoints tenant.SavepointController,
-) (tenant.Runtime, error) {
-	return tenant.NewRuntime(withinTenant, withinAdmin, tenant.SavepointFunc(savepoints))
+	retryable func(error) bool,
+) (tenant.UnitOfWork, error) {
+	return tenant.NewUnitOfWork(
+		withinTenant,
+		withinAdmin,
+		tenant.SavepointFunc(savepoints),
+		retryable,
+	)
+}
+
+// ObserveUnitOfWorkPoolWait bridges the PostgreSQL adapter to the transaction
+// observer without exposing the tenant package to composition callers.
+func ObserveUnitOfWorkPoolWait(ctx context.Context, duration time.Duration) {
+	tenant.ObservePoolWait(ctx, duration)
+}
+
+func ObserveUnitOfWorkLockWait(ctx context.Context, duration time.Duration) {
+	tenant.ObserveLockWait(ctx, duration)
 }
 
 type tenantRuntimeSetter interface {
-	SetTenantRuntime(tenant.Runtime)
+	SetTenantRuntime(tenant.UnitOfWork)
 }
 
 // SetTenantRuntime wires the runtime into every composed service that accepts
 // one. Fields are discovered by reflection so a new service with a
 // SetTenantRuntime method cannot be forgotten in a hand-maintained list.
-func (f *Factory) SetTenantRuntime(runtime tenant.Runtime) error {
+func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
 	fields := reflect.ValueOf(f).Elem()
 	for i := 0; i < fields.NumField(); i++ {
 		field := fields.Field(i)

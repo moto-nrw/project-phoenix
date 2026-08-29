@@ -143,9 +143,10 @@ type Scheduler struct {
 	settings                   SettingsResolver
 	db                         *bun.DB
 	schoolRepo                 platform.SchoolRepository
-	tenantRuntime              tenant.Runtime
+	tenantRuntime              tenant.UnitOfWork
 	tenantRuntimeConfigured    bool
 	tenantRuntimeObserver      func(entryPoint, outcome string)
+	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
 	minuteSnapshotNow          func() time.Time
@@ -401,7 +402,7 @@ func (s *Scheduler) SetSchoolRepo(repo platform.SchoolRepository) {
 }
 
 // SetTenantRuntime wires the fail-fast tenant execution seam used by workers.
-func (s *Scheduler) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *Scheduler) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = runtime
 	s.tenantRuntimeConfigured = true
 }
@@ -409,6 +410,22 @@ func (s *Scheduler) SetTenantRuntime(runtime tenant.Runtime) {
 // SetTenantRuntimeObserver records fail-closed worker entry and transaction outcomes.
 func (s *Scheduler) SetTenantRuntimeObserver(observer func(entryPoint, outcome string)) {
 	s.tenantRuntimeObserver = observer
+}
+
+// SetUnitOfWorkObserver records transaction, retry, pool-wait, and lock-wait
+// evidence for worker commands.
+func (s *Scheduler) SetUnitOfWorkObserver(observer func(entryPoint, kind, result string, duration time.Duration, retries int)) {
+	s.unitOfWorkObserver = observer
+}
+
+func (s *Scheduler) withUnitOfWork(ctx context.Context) context.Context {
+	ctx = tenant.WithUnitOfWork(ctx, s.tenantRuntime)
+	if s.unitOfWorkObserver == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
+		s.unitOfWorkObserver("worker", string(event.Kind), string(event.Result), event.Duration, event.Retries)
+	})
 }
 
 func (s *Scheduler) observeTenantRuntime(outcome string) {
@@ -493,7 +510,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 		return fmt.Errorf("tenant runtime is not configured for %s", opName)
 	}
 
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	var tenantIDs []int64
 	if s.allTenantIDsLoader != nil {
 		var err error
@@ -1069,7 +1086,7 @@ func (s *Scheduler) RunCleanupJobs() error {
 		s.observeTenantRuntime("missing_tenant")
 		return tenant.ErrRuntimeRequired
 	}
-	ctx := tenant.WithRuntime(context.Background(), s.tenantRuntime)
+	ctx := s.withUnitOfWork(context.Background())
 	var firstErr error
 
 	for _, job := range s.cleanupJobs {

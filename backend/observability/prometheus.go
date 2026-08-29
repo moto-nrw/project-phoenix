@@ -88,6 +88,44 @@ var (
 		},
 		[]string{"entry_point", "outcome"},
 	)
+	unitOfWorkDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_unit_of_work_duration_seconds",
+			Help:    "Transaction duration by entry point and result.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		},
+		[]string{"entry_point", "result"},
+	)
+	unitOfWorkRollbacks = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_unit_of_work_rollbacks_total",
+			Help: "Rolled-back transactions by entry point.",
+		},
+		[]string{"entry_point"},
+	)
+	unitOfWorkRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_unit_of_work_retries_total",
+			Help: "Deadlock and serialization retries owned by an outer UnitOfWork.",
+		},
+		[]string{"entry_point"},
+	)
+	unitOfWorkPoolWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_unit_of_work_pool_wait_seconds",
+			Help:    "Database-pool wait attributed to UnitOfWork execution.",
+			Buckets: []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"entry_point"},
+	)
+	unitOfWorkLockWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_unit_of_work_lock_wait_seconds",
+			Help:    "Explicit transaction-lock acquisition time by entry point.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"entry_point"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -183,6 +221,11 @@ func init() {
 		tenantHTTPRequests,
 		tenantHTTPDuration,
 		tenantRuntimeEvents,
+		unitOfWorkDuration,
+		unitOfWorkRollbacks,
+		unitOfWorkRetries,
+		unitOfWorkPoolWait,
+		unitOfWorkLockWait,
 		rateLimitRejections,
 		iotRequests,
 		iotDuration,
@@ -268,6 +311,25 @@ func ObserveTenantRequest(tenantID int64, scope, method, route string, status in
 
 func RecordTenantRuntimeEvent(entryPoint, outcome string) {
 	tenantRuntimeEvents.WithLabelValues(sanitizeLabel(entryPoint), sanitizeLabel(outcome)).Inc()
+}
+
+func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Duration, retries int) {
+	entryPoint = sanitizeLabel(entryPoint)
+	switch kind {
+	case "transaction":
+		result = sanitizeLabel(result)
+		unitOfWorkDuration.WithLabelValues(entryPoint, result).Observe(duration.Seconds())
+		if result == "rollback" || result == "panic" {
+			unitOfWorkRollbacks.WithLabelValues(entryPoint).Inc()
+		}
+		if retries > 0 {
+			unitOfWorkRetries.WithLabelValues(entryPoint).Add(float64(retries))
+		}
+	case "pool_wait":
+		unitOfWorkPoolWait.WithLabelValues(entryPoint).Observe(duration.Seconds())
+	case "lock_wait":
+		unitOfWorkLockWait.WithLabelValues(entryPoint).Observe(duration.Seconds())
+	}
 }
 
 func RecordRateLimitRejection(bucket string) {
