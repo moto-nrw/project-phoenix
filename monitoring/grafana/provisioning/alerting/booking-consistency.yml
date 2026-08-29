@@ -166,11 +166,7 @@ groups:
                   max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id="4" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h])) - 10
                 )
                 or
-                (
-                  max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id="5" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h])) - 5
-                )
-                or
-                max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id!~"4|5" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h]))
+                max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id!="4" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h]))
                 or
                 max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | label_format category="approved_without_required_offering" | unwrap approved_without_required_offering [26h]))
               instant: true
