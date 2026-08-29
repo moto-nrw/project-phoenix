@@ -70,6 +70,7 @@ git clone https://github.com/moto-nrw/project-phoenix.git
 cd project-phoenix
 
 direnv allow              # one-time: activates the devbox environment
+devbox run bootstrap      # installs development tools and frontend dependencies
 ./scripts/setup-dev.sh    # creates configs, SSL certs, and your operator credentials
 docker compose up -d      # starts everything; migrations run automatically
 
