@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
-import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSettingsTabs } from "~/components/settings/settings-page";
@@ -110,7 +109,11 @@ function SettingsContent() {
   return (
     <TenantPage
       title="Einstellungen"
-      stats={`${flatTabItems.length} ${flatTabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe`}
+      // Bauart „Einstellungen": die einzige Fläche, die automatisch speichert,
+      // und das Verhalten muss benannt sein. Es gehört in die Statuszeile des
+      // Kopfes, nicht in eine eigene Karte: eine Karte, die nichts enthält
+      // außer einem Nebensatz, liest sich als leerer Block.
+      stats={`${flatTabItems.length} ${flatTabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe · Änderungen werden sofort gespeichert`}
       tabs={{
         value: activeTab,
         onChange: (value) => {
@@ -125,15 +128,6 @@ function SettingsContent() {
         label: "Einstellungsbereiche",
       }}
     >
-      {/* Bauart „Einstellungen": die einzige Flaeche, die automatisch
-          speichert. Das Verhalten steht einmal ruhig auf einer eigenen
-          Flaeche und nicht als Banner ueber jeder Karte — und nicht als
-          freier Text auf dem Grund. */}
-      <SectionCard className="px-5 py-3">
-        <p className="text-sm leading-5 text-gray-500">
-          Änderungen werden sofort gespeichert.
-        </p>
-      </SectionCard>
       {settingsTabs.renderTab(activeTab)}
     </TenantPage>
   );
