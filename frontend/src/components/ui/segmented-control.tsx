@@ -35,14 +35,16 @@ export interface SegmentedControlItem<T extends string> {
   readonly disabled?: boolean;
 }
 
+// Das aktive Segment. `neutral` ist die Regel (hell abgehoben wie in jedem
+// anderen Umschalter); die Farbtöne bleiben für die wenigen Fälle, in denen
+// die Wahl selbst eine Bedeutung trägt (Arbeitsmodus). Form und Höhe sind in
+// allen Fällen dieselben — nur die Tönung wechselt.
 const ACTIVE_PILL: Record<SegmentedControlTone, string> = {
-  neutral: "bg-gray-900 text-white ring-1 ring-gray-900",
-  green: "bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40",
-  blue: "bg-[#5080D8]/10 text-[#5080D8] ring-1 ring-[#5080D8]/40",
-  red: "bg-[#FF3130]/10 text-[#FF3130] ring-1 ring-[#FF3130]/40",
+  neutral: "bg-white text-gray-900 shadow-sm",
+  green: "bg-[#83CD2D]/15 text-[#3F6F12] shadow-sm",
+  blue: "bg-[#5080D8]/15 text-[#5080D8] shadow-sm",
+  red: "bg-[#DC2626]/15 text-[#B91C1C] shadow-sm",
 };
-
-const INACTIVE_PILL = "bg-gray-100 text-gray-500 hover:bg-gray-200";
 
 export function SegmentedControl<T extends string>({
   items,
@@ -63,15 +65,24 @@ export function SegmentedControl<T extends string>({
   readonly ariaLabel?: string;
   readonly className?: string;
 }) {
+  // EINE Höhe und EINE Mindestbreite je Segment, überall. Gemessen am 29.08.
+  // trat dasselbe Bauteil in drei Höhen (28, 36, 44 px) und Breiten von 140
+  // bis 798 px auf, auf der Zeiterfassung sogar zweimal verschieden auf
+  // derselben Seite. Ein Umschalter, der auf jeder Seite anders groß ist,
+  // wirkt beim Blättern unruhig, auch wenn jede einzelne Fassung für sich
+  // stimmig aussieht.
   const base =
-    "px-3 py-1.5 text-xs font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+    "flex h-9 min-w-[84px] items-center justify-center px-3 text-xs font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
+  // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
+  // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im
+  // selben Portal nebeneinander. Eine Form, eine Höhe — die Tönung bleibt.
   if (variant === "pills") {
     return (
       <div
         role="group"
         aria-label={ariaLabel}
-        className={`flex flex-wrap justify-center gap-2 ${className}`}
+        className={`inline-grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`}
       >
         {items.map((item) => {
           const active = item.value === value;
@@ -82,8 +93,10 @@ export function SegmentedControl<T extends string>({
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={`${base} rounded-full sm:px-4 ${
-                active ? ACTIVE_PILL[item.tone ?? "neutral"] : INACTIVE_PILL
+              className={`${base} rounded-md ${
+                active
+                  ? ACTIVE_PILL[item.tone ?? "neutral"]
+                  : "text-gray-500 hover:text-gray-900"
               }`}
             >
               {item.label}
@@ -94,19 +107,22 @@ export function SegmentedControl<T extends string>({
     );
   }
 
-  // Full-width variant reads as a tab bar (light track, raised active
-  // segment); the inline one is the compact bordered switcher. The segments
-  // size from their label and share the remaining width; when the track is
-  // narrower than the labels (three long German options in a mobile card)
-  // they wrap onto a second row instead of overflowing the track.
+  // Eine Erscheinung für beide Breiten: helle Spur, das aktive Segment hell
+  // abgehoben. Vorher färbte die schmale Fassung ihr aktives Segment schwarz
+  // und die breite hob es weiß hervor — dasselbe Bauteil in zwei Gestalten.
+  //
+  // Alle Segmente sind GLEICH BREIT (`auto-cols-fr` bzw. `basis-0`). Vorher
+  // richtete sich jedes nach seinem Wort, und weil „Alle", „Belegt" und
+  // „Frei" verschieden lang sind, sprang die Markierung in der Breite — der
+  // Umschalter wirkte dadurch schief.
   return (
     <div
       role="group"
       aria-label={ariaLabel}
       className={
         fullWidth
-          ? `flex w-full flex-wrap gap-1 rounded-lg bg-gray-100 p-1 ${className}`
-          : `inline-flex items-center overflow-hidden rounded-full border border-gray-200 bg-white ${className}`
+          ? `grid w-full auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`
+          : `inline-grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`
       }
     >
       {items.map((item) => {
@@ -119,7 +135,7 @@ export function SegmentedControl<T extends string>({
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={`${base} min-w-0 flex-[1_1_auto] rounded-md text-sm ${
+              className={`${base} rounded-md text-sm ${
                 active
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-500 hover:text-gray-700"
@@ -136,9 +152,9 @@ export function SegmentedControl<T extends string>({
             aria-pressed={active}
             disabled={item.disabled}
             onClick={() => onChange(item.value)}
-            className={`${base} ${
+            className={`${base} rounded-md ${
               active
-                ? "bg-gray-900 text-white"
+                ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >

@@ -196,9 +196,12 @@ export function FilterPanel({
   // Selected-pill treatment. Quiet mode swaps the near-black fill for the
   // app's calm blue-accent pill (same tokens as the active-filter badge in
   // PageHeaderWithSearch) so the panel matches the detail-modal language.
+  // Dieselbe Bauart wie ui/SegmentedControl: helle Spur, das gewählte Feld
+  // hell abgehoben. Vorher war es hier schwarz gefüllt und dort weiß — zwei
+  // Fassungen desselben Bedienelements, die sich beim Blättern widersprechen.
   const selectedOptionClass = isQuiet
     ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200 ring-inset"
-    : "bg-gray-900 text-white";
+    : "bg-white text-gray-900 shadow-sm";
 
   // One pill button, shared by the buttons/grid/dropdown-multi layouts. The
   // layouts differ only in their wrapper, an optional leading icon (grid) and
@@ -214,10 +217,10 @@ export function FilterPanel({
       key={option.value}
       type="button"
       onClick={() => selectOption(filter, option.value, selectedValues)}
-      className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${extraClass} ${
+      className={`flex h-9 min-w-[84px] items-center justify-center rounded-md px-3 text-xs font-medium transition-all ${extraClass} ${
         selectedValues.includes(option.value)
           ? selectedOptionClass
-          : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+          : "bg-gray-100 text-gray-500 hover:text-gray-900"
       } `}
     >
       {content}
