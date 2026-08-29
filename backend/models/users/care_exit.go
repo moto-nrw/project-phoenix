@@ -36,7 +36,7 @@ var (
 	// ErrCareExitNoteNotAllowed means a categorised reason carried free text.
 	ErrCareExitNoteNotAllowed = errors.New("users: care exit reason note is only allowed for the other reason")
 	// ErrCareExitNoteTooLong means the optional explanation exceeds the limit.
-	ErrCareExitNoteTooLong = errors.New("die Begründung ist zu lang. Bitte kürzen Sie sie")
+	ErrCareExitNoteTooLong = errors.New("Die Begründung ist zu lang. Bitte kürzen Sie sie.") //nolint:staticcheck // user-facing German message
 )
 
 // CareExit records WHY a child's care ended and who wrote that down.
