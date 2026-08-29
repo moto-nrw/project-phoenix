@@ -1621,6 +1621,7 @@
     "subscribe": "Abononi në kalendar",
     "linkLabel": "Lidhja e abonimit (për kopjim)",
     "copy": "Kopjo",
+    "copiedButton": "U kopjua",
     "copied": "Lidhja u kopjua.",
     "copyFailed": "Kopjimi nuk është i mundur. Ju lutemi shënoni lidhjen me dorë.",
     "linkOnce": "Për arsye sigurie e shihni këtë lidhje vetëm tani. Kopjojeni menjëherë në kalendarin tuaj.",
@@ -1634,6 +1635,9 @@
     "rotateError": "Lidhja e abonimit nuk u rinovua dot.",
     "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
     "createNew": "Krijoni lidhje të re abonimi"
+  },
+  "staffCalendarSubscribe": {
+    "description": "Abononi një herë takimet tuaja në kalendarin e telefonit. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht. Nuk keni nevojë ta shtoni secilin takim veçmas. Ndryshimet në kalendarin e telefonit nuk kalojnë te moto."
   },
   "parentNews": {
     "kicker": "Postë nga OGS",

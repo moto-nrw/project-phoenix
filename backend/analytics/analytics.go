@@ -19,7 +19,6 @@ package analytics
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -71,15 +70,31 @@ func New(apiKey, host string, logger *slog.Logger) (Tracker, error) {
 	return &httpTracker{
 		endpoint: strings.TrimRight(host, "/") + "/batch/",
 		apiKey:   apiKey,
-		client:   &http.Client{Timeout: captureTimeout},
+		sender:   httpSender{client: &http.Client{Timeout: captureTimeout}},
 		logger:   logger,
 	}, nil
+}
+
+type batchSender interface {
+	Post(endpoint string, body []byte) (int, error)
+}
+
+type httpSender struct{ client *http.Client }
+
+func (s httpSender) Post(endpoint string, body []byte) (int, error) {
+	resp, err := s.client.Post(endpoint, "application/json", bytes.NewReader(body))
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode, nil
 }
 
 type httpTracker struct {
 	endpoint string
 	apiKey   string
-	client   *http.Client
+	sender   batchSender
 	logger   *slog.Logger
 	wg       sync.WaitGroup
 }
@@ -134,15 +149,13 @@ func (t *httpTracker) Capture(distinctID, event string, props map[string]any) {
 }
 
 func (t *httpTracker) send(event string, body []byte) {
-	resp, err := t.client.Post(t.endpoint, "application/json", bytes.NewReader(body))
+	status, err := t.sender.Post(t.endpoint, body)
 	if err != nil {
 		t.warnCaptureFailed(event, err)
 		return
 	}
-	defer func() { _ = resp.Body.Close() }()
-	_, _ = io.Copy(io.Discard, resp.Body)
-	if resp.StatusCode >= http.StatusMultipleChoices {
-		t.warnCaptureFailed(event, fmt.Errorf("posthog returned status %d", resp.StatusCode))
+	if status >= http.StatusMultipleChoices {
+		t.warnCaptureFailed(event, fmt.Errorf("posthog returned status %d", status))
 	}
 }
 
@@ -156,12 +169,15 @@ func (t *httpTracker) Close() error {
 }
 
 func (t *httpTracker) warnCaptureFailed(event string, err error) {
-	t.getLogger().Warn("posthog capture failed",
+	loggerOrDefault(t.logger).Warn("posthog capture failed",
 		slog.String("event", event),
 		slog.String("error", err.Error()),
 	)
 }
 
-func (t *httpTracker) getLogger() *slog.Logger {
-	return cmp.Or(t.logger, slog.Default())
+func loggerOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger != nil {
+		return logger
+	}
+	return slog.Default()
 }

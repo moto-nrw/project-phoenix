@@ -227,6 +227,16 @@ export function rotateParentCalendarFeed() {
   });
 }
 
+export function getStaffCalendarFeed() {
+  return fetchJSON<CalendarFeedInfo>("/api/calendar/feed");
+}
+
+export function rotateStaffCalendarFeed() {
+  return fetchJSON<CalendarFeedInfo>("/api/calendar/feed/rotate", {
+    method: "POST",
+  });
+}
+
 export function getParentAppointmentOverview(appointmentId: string) {
   return fetchJSON<CalendarAppointmentOverview>(
     `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,

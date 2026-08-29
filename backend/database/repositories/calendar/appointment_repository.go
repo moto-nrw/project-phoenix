@@ -123,6 +123,36 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 	return rows, nil
 }
 
+// ListCancellationTombstonesForStaff combines organizer and recipient
+// visibility with deletion and cancellation cutoffs; generic filters cannot
+// express the required OR and EXISTS clauses.
+func (r *AppointmentRepository) ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*calModels.Appointment, error) {
+	var rows []*calModels.Appointment
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`(
+			("appointment".deleted_at IS NOT NULL AND "appointment".deleted_at >= ?)
+			OR ("appointment".cancelled_at IS NOT NULL AND "appointment".cancelled_at >= ?)
+		)`, since, since).
+		Where(`("appointment".organizer_staff_id = ? OR EXISTS (
+			SELECT 1
+			FROM calendar.appointment_recipients ar
+			WHERE ar.appointment_id = "appointment".id
+			  AND ar.tenant_id = "appointment".tenant_id
+			  AND ar.recipient_type = ?
+			  AND ar.staff_id = ?
+		))`, staffID, calModels.RecipientTypeStaff, staffID).
+		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list cancellation staff calendar tombstones: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
 	if len(guardianProfileIDs) == 0 || len(studentIDs) == 0 {
 		return []*calModels.Appointment{}, nil
@@ -459,6 +489,25 @@ func (r *AppointmentRepository) SoftDelete(ctx context.Context, appointmentID in
 		return fmt.Errorf("soft-delete appointment: %w", err)
 	}
 	return nil
+}
+
+func (r *AppointmentRepository) DeleteFeedTombstonesBefore(ctx context.Context, before time.Time) (int, error) {
+	q := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*calModels.Appointment)(nil)).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`COALESCE("appointment".deleted_at, "appointment".cancelled_at) < ?`, before)
+	if where, value, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, value)
+	}
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("delete expired appointment tombstones: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("count deleted appointment tombstones: %w", err)
+	}
+	return int(count), nil
 }
 
 func applyAppointmentWindow(query *bun.SelectQuery, from, to timezone.Date) *bun.SelectQuery {

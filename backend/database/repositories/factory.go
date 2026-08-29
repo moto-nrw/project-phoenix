@@ -48,6 +48,7 @@ type Factory struct {
 	Account                authModels.AccountRepository
 	AccountParent          authModels.AccountParentRepository
 	AccountTenant          authModels.AccountTenantRepository
+	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
 	Role                   authModels.RoleRepository
 	Permission             authModels.PermissionRepository
 	RolePermission         authModels.RolePermissionRepository
@@ -176,7 +177,7 @@ type Factory struct {
 	// IoT domain
 	Device             iotModels.DeviceRepository
 	PushSubscription   iotModels.PushSubscriptionRepository
-	PWAStandaloneUsage iotModels.PWAStandaloneUsageRepository
+	PWAStandaloneUsage *iot.PWAStandaloneUsageRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -274,6 +275,7 @@ type Factory struct {
 	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
 	CalendarAppointmentTarget         calendarModels.AppointmentTargetRepository
 	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
+	CalendarStaffFeedTombstone        calendarModels.StaffFeedTombstoneRepository
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
@@ -287,6 +289,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Account:                auth.NewAccountRepository(db),
 		AccountParent:          auth.NewAccountParentRepository(db),
 		AccountTenant:          auth.NewAccountTenantRepository(db),
+		StaffCalendarFeedToken: auth.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   auth.NewRoleRepository(db),
 		Permission:             auth.NewPermissionRepository(db),
 		RolePermission:         auth.NewRolePermissionRepository(db),
@@ -508,6 +511,7 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
 		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
+		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
 }
