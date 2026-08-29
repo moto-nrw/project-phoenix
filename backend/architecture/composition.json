@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 545,
+          "line": 546,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 212,
+          "line": 213,
           "declaration": "New"
         }
       ]
@@ -481,7 +481,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 215,
+          "line": 216,
           "declaration": "New"
         }
       ]
@@ -16684,7 +16684,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        212
+        213
       ],
       "tables": []
     },
@@ -16694,7 +16694,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        215
+        216
       ],
       "tables": []
     },
@@ -31246,6 +31246,16 @@
       "target": "services.NewFactory",
       "lines": [
         1019
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/scheduler/outbox_worker_test.go",
+      "declaration": "TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence",
+      "target": "services/scheduler.NewScheduler",
+      "lines": [
+        38
       ],
       "tables": []
     },

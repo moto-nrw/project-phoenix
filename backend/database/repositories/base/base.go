@@ -560,8 +560,6 @@ func toSnakeCase(s string) string {
 // the lock releases automatically at COMMIT/ROLLBACK. Issue #584: shared helper
 // so services never run ExecContext themselves (Rule 11).
 func AcquireXactLock(ctx context.Context, db *bun.DB, key string) error {
-	started := time.Now()
-	defer func() { tenant.ObserveLockWait(ctx, time.Since(started)) }()
 	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
 	return err
 }
@@ -574,8 +572,6 @@ func AcquireXactLock(ctx context.Context, db *bun.DB, key string) error {
 // avoids serializing every reader behind the exclusive lock. Same tx/auto-release
 // semantics as AcquireXactLock.
 func AcquireXactLockShared(ctx context.Context, db *bun.DB, key string) error {
-	started := time.Now()
-	defer func() { tenant.ObserveLockWait(ctx, time.Since(started)) }()
 	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", key)
 	return err
 }

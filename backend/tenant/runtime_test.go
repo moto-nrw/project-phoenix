@@ -11,6 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type unknownCommitError struct{ error }
+
+func (unknownCommitError) CommitOutcomeUnknown() {}
+
+type transactionStartError struct{ error }
+
+func (transactionStartError) TransactionNotStarted() {}
+
 func TestUnitOfWorkRetriesOnlyOutermostRetrySafeCommand(t *testing.T) {
 	t.Parallel()
 	retryErr := errors.New("serialization failure")
@@ -113,6 +121,39 @@ func TestUnitOfWorkObservesRollbackDurationAndRetries(t *testing.T) {
 	assert.GreaterOrEqual(t, observed.Duration, time.Duration(0))
 }
 
+func TestUnitOfWorkDistinguishesUnstartedAndUnknownCommitOutcomes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		err    error
+		result tenant.UnitOfWorkResult
+	}{
+		{name: "transaction not started", err: transactionStartError{error: errors.New("begin failed")}, result: tenant.UnitOfWorkNotStarted},
+		{name: "commit unknown", err: unknownCommitError{error: errors.New("connection lost")}, result: tenant.UnitOfWorkCommitUnknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uow, err := tenant.NewUnitOfWork(
+				func(context.Context, int64, func(context.Context, any) error) error { return tt.err },
+				func(context.Context, func(context.Context, any) error) error { return tt.err },
+				func(context.Context, tenant.SavepointAction) error { return nil },
+				func(error) bool { return false },
+			)
+			require.NoError(t, err)
+			id, err := tenant.NewTenantID(42)
+			require.NoError(t, err)
+			var observed tenant.UnitOfWorkEvent
+			ctx := tenant.WithUnitOfWork(context.Background(), uow)
+			ctx = tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) { observed = event })
+
+			err = tenant.WithinTenant(ctx, id, func(context.Context) error { return nil })
+
+			require.ErrorIs(t, err, tt.err)
+			assert.Equal(t, tt.result, observed.Result)
+		})
+	}
+}
+
 func TestUnitOfWorkObservesPanicAndRepanics(t *testing.T) {
 	t.Parallel()
 	uow, err := tenant.NewUnitOfWork(
@@ -136,6 +177,34 @@ func TestUnitOfWorkObservesPanicAndRepanics(t *testing.T) {
 
 	assert.Equal(t, tenant.UnitOfWorkTransaction, observed.Kind)
 	assert.Equal(t, tenant.UnitOfWorkPanicked, observed.Result)
+}
+
+func TestUnitOfWorkDoesNotReportRollbackWhenAfterCommitHookPanics(t *testing.T) {
+	t.Parallel()
+	uow, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+			return fn(ctx, struct{}{})
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	var observed []tenant.UnitOfWorkEvent
+	ctx := tenant.WithUnitOfWork(context.Background(), uow)
+	ctx = tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) { observed = append(observed, event) })
+
+	assert.PanicsWithValue(t, "hook boom", func() {
+		_ = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+			tenant.RegisterAfterCommit(txCtx, func() { panic("hook boom") })
+			return nil
+		})
+	})
+
+	require.Len(t, observed, 1)
+	assert.Equal(t, tenant.UnitOfWorkCommitted, observed[0].Result)
 }
 
 func TestUnitOfWorkObserverReceivesPoolAndLockWaits(t *testing.T) {

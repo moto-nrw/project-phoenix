@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,22 @@ import (
 
 type tenantTxKey struct{}
 type adminTxKey struct{}
+
+type transactionStartError struct{ err error }
+
+func (e *transactionStartError) Error() string {
+	return "unit of work: start transaction: " + e.err.Error()
+}
+func (e *transactionStartError) Unwrap() error          { return e.err }
+func (e *transactionStartError) TransactionNotStarted() {}
+
+type commitOutcomeUnknownError struct{ err error }
+
+func (e *commitOutcomeUnknownError) Error() string {
+	return "unit of work: commit outcome unknown: " + e.err.Error()
+}
+func (e *commitOutcomeUnknownError) Unwrap() error         { return e.err }
+func (e *commitOutcomeUnknownError) CommitOutcomeUnknown() {}
 
 // PostgresUnitOfWork is the PostgreSQL adapter for transaction execution.
 // Tenant validation, retry ownership, and context propagation stay behind the
@@ -92,10 +109,36 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 	conn, err := r.db.Conn(ctx)
 	r.observePoolWait(ctx, time.Since(started))
 	if err != nil {
-		return err
+		return &transactionStartError{err: err}
 	}
 	defer func() { _ = conn.Close() }()
-	return conn.RunInTx(ctx, &sql.TxOptions{}, fn)
+
+	tx, err := conn.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return &transactionStartError{err: err}
+	}
+	finished := false
+	defer func() {
+		if !finished {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err := fn(ctx, tx); err != nil {
+		rollbackErr := tx.Rollback()
+		finished = true
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			return errors.Join(err, fmt.Errorf("unit of work: rollback: %w", rollbackErr))
+		}
+		return err
+	}
+
+	commitErr := tx.Commit()
+	finished = true
+	if commitErr == nil || IsRetryableTransactionError(commitErr) {
+		return commitErr
+	}
+	return &commitOutcomeUnknownError{err: commitErr}
 }
 
 // The three savepoint methods implement tenant.SavepointController.

@@ -6,11 +6,31 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+type UnitOfWorkEvidence struct {
+	Kind     string
+	Duration time.Duration
+}
+
+// CaptureUnitOfWorkEvidence exposes transaction evidence to repository tests
+// without making those packages import the tenant runtime directly.
+func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []UnitOfWorkEvidence) {
+	events := make([]UnitOfWorkEvidence, 0)
+	ctx = tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
+		events = append(events, UnitOfWorkEvidence{Kind: string(event.Kind), Duration: event.Duration})
+	})
+	return ctx, func() []UnitOfWorkEvidence { return append([]UnitOfWorkEvidence(nil), events...) }
+}
+
+func AttachLockWaitEvidence(db *bun.DB) {
+	db.AddQueryHook(database.NewLockWaitQueryHook(tenant.ObserveLockWait))
+}
 
 var packageTenantRuntime atomic.Pointer[tenant.UnitOfWork]
 

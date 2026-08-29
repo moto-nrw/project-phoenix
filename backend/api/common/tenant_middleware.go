@@ -1,7 +1,9 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -106,31 +108,47 @@ func runRequestTransaction(
 	within func(context.Context, func(context.Context) error) error,
 ) {
 	start := time.Now()
-	sw := &tenantStatusWriter{ResponseWriter: w}
+	sw := newTenantStatusWriter(w)
 
 	err := within(r.Context(), func(ctx context.Context) error {
 		ctx = tenant.WithRollbackMarker(ctx)
 		next.ServeHTTP(sw, r.WithContext(ctx))
 		if sw.status >= http.StatusInternalServerError {
-			return fmt.Errorf("tenant: handler returned %d; rolling back transaction", sw.status)
+			return &requestRollbackError{reason: fmt.Sprintf("handler returned %d", sw.status)}
 		}
 		if tenant.RollbackRequested(ctx) {
-			return fmt.Errorf("tenant: handler requested rollback after status %d", sw.statusCode())
+			return &requestRollbackError{reason: fmt.Sprintf("handler requested rollback after status %d", sw.statusCode())}
 		}
 		return nil
 	})
 
-	if err != nil && !sw.wroteHeader {
+	var requestRollback *requestRollbackError
+	if err != nil && !errors.As(err, &requestRollback) {
 		slog.ErrorContext(r.Context(), "tenant transaction failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.String("error", err.Error()),
 		)
+		sw.reset()
 		http.Error(sw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+	if writeErr := sw.commitResponse(); writeErr != nil {
+		slog.ErrorContext(r.Context(), "tenant response write failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("error", writeErr.Error()),
+		)
 	}
 
 	logTenantRequest(r, tenantID, sw, start, err)
+}
+
+type requestRollbackError struct{ reason string }
+
+func (e *requestRollbackError) Error() string {
+	return "tenant: " + e.reason + "; rolling back transaction"
 }
 
 func rejectTenantRequest(w http.ResponseWriter, r *http.Request, err error) {
@@ -173,18 +191,28 @@ func observeTenantRequest(r *http.Request, tenantID int64, status int, duration 
 }
 
 type tenantStatusWriter struct {
-	http.ResponseWriter
-	status       int
-	wroteHeader  bool
-	bytesWritten int64
+	target         http.ResponseWriter
+	header         http.Header
+	initialHeader  http.Header
+	body           bytes.Buffer
+	status         int
+	wroteHeader    bool
+	bytesWritten   int64
+	flushRequested bool
 }
+
+func newTenantStatusWriter(target http.ResponseWriter) *tenantStatusWriter {
+	initial := target.Header().Clone()
+	return &tenantStatusWriter{target: target, header: initial.Clone(), initialHeader: initial}
+}
+
+func (w *tenantStatusWriter) Header() http.Header { return w.header }
 
 func (w *tenantStatusWriter) WriteHeader(code int) {
 	if !w.wroteHeader {
 		w.status = code
 		w.wroteHeader = true
 	}
-	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *tenantStatusWriter) Write(body []byte) (int, error) {
@@ -192,17 +220,13 @@ func (w *tenantStatusWriter) Write(body []byte) (int, error) {
 		w.status = http.StatusOK
 		w.wroteHeader = true
 	}
-	n, err := w.ResponseWriter.Write(body)
+	n, err := w.body.Write(body)
 	w.bytesWritten += int64(n)
 	return n, err
 }
 
-func (w *tenantStatusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
-
 func (w *tenantStatusWriter) Flush() {
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
+	w.flushRequested = true
 }
 
 func (w *tenantStatusWriter) statusCode() int {
@@ -210,4 +234,31 @@ func (w *tenantStatusWriter) statusCode() int {
 		return w.status
 	}
 	return http.StatusOK
+}
+
+func (w *tenantStatusWriter) reset() {
+	w.header = w.initialHeader.Clone()
+	w.body.Reset()
+	w.status = 0
+	w.wroteHeader = false
+	w.bytesWritten = 0
+	w.flushRequested = false
+}
+
+func (w *tenantStatusWriter) commitResponse() error {
+	targetHeader := w.target.Header()
+	clear(targetHeader)
+	for key, values := range w.header {
+		targetHeader[key] = append([]string(nil), values...)
+	}
+	w.target.WriteHeader(w.statusCode())
+	if _, err := w.target.Write(w.body.Bytes()); err != nil {
+		return err
+	}
+	if w.flushRequested {
+		if flusher, ok := w.target.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	}
+	return nil
 }

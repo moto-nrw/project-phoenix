@@ -126,10 +126,9 @@ func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 func TestTenantStatusWriterTracksStatusAndBytes(t *testing.T) {
 	t.Parallel()
 	recorder := httptest.NewRecorder()
-	sw := &tenantStatusWriter{ResponseWriter: recorder}
+	sw := newTenantStatusWriter(recorder)
 
 	assert.Equal(t, http.StatusOK, sw.statusCode(), "unwritten response reports 200")
-	assert.Same(t, http.ResponseWriter(recorder), sw.Unwrap())
 
 	n, err := sw.Write([]byte("hello"))
 	require.NoError(t, err)
@@ -141,8 +140,38 @@ func TestTenantStatusWriterTracksStatusAndBytes(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, sw.statusCode(), "implicit 200 from Write is not overwritten")
 	assert.Equal(t, int64(11), sw.bytesWritten)
+	assert.Empty(t, recorder.Body.String(), "response stays buffered before commit")
+	require.NoError(t, sw.commitResponse())
 	assert.True(t, recorder.Flushed)
 	assert.Equal(t, "hello world", recorder.Body.String())
+}
+
+func TestTenantTxMiddlewareDiscardsSuccessWhenCommitFails(t *testing.T) {
+	t.Parallel()
+	commitErr := assert.AnError
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		if err := fn(ctx, struct{}{}); err != nil {
+			return err
+		}
+		return commitErr
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
+	ctx := tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request.WithContext(ctx))
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
+	assert.NotContains(t, recorder.Body.String(), `"ok":true`)
 }
 
 func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {

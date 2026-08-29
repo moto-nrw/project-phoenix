@@ -25,9 +25,11 @@ const (
 type UnitOfWorkResult string
 
 const (
-	UnitOfWorkCommitted  UnitOfWorkResult = "commit"
-	UnitOfWorkRolledBack UnitOfWorkResult = "rollback"
-	UnitOfWorkPanicked   UnitOfWorkResult = "panic"
+	UnitOfWorkCommitted     UnitOfWorkResult = "commit"
+	UnitOfWorkRolledBack    UnitOfWorkResult = "rollback"
+	UnitOfWorkPanicked      UnitOfWorkResult = "panic"
+	UnitOfWorkNotStarted    UnitOfWorkResult = "not_started"
+	UnitOfWorkCommitUnknown UnitOfWorkResult = "commit_unknown"
 )
 
 type UnitOfWorkEvent struct {
@@ -182,14 +184,12 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 
 	started := time.Now()
 	retries := 0
+	committed := false
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
-			observeUnitOfWork(ctx, UnitOfWorkEvent{
-				Kind:     UnitOfWorkTransaction,
-				Result:   UnitOfWorkPanicked,
-				Duration: time.Since(started),
-				Retries:  retries,
-			})
+			if !committed {
+				observeTransaction(ctx, UnitOfWorkPanicked, nil, started, retries)
+			}
 			panic(panicValue)
 		}
 	}()
@@ -198,27 +198,39 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 		attemptCtx, commitHooks := withAfterCommitHooks(ctx)
 		err = run(attemptCtx)
 		if err == nil {
-			observeUnitOfWork(ctx, UnitOfWorkEvent{
-				Kind:     UnitOfWorkTransaction,
-				Result:   UnitOfWorkCommitted,
-				Duration: time.Since(started),
-				Retries:  retries,
-			})
+			committed = true
+			observeTransaction(ctx, UnitOfWorkCommitted, nil, started, retries)
 			runAfterCommitHooks(commitHooks)
 			return nil
 		}
 		if !retry || attempt == maxTransactionRetries || !uow.retryable(err) {
-			observeUnitOfWork(ctx, UnitOfWorkEvent{
-				Kind:     UnitOfWorkTransaction,
-				Result:   UnitOfWorkRolledBack,
-				Err:      err,
-				Duration: time.Since(started),
-				Retries:  retries,
-			})
+			observeTransaction(ctx, transactionResult(err), err, started, retries)
 			return err
 		}
 		retries++
 	}
+}
+
+func observeTransaction(ctx context.Context, result UnitOfWorkResult, err error, started time.Time, retries int) {
+	observeUnitOfWork(ctx, UnitOfWorkEvent{
+		Kind:     UnitOfWorkTransaction,
+		Result:   result,
+		Err:      err,
+		Duration: time.Since(started),
+		Retries:  retries,
+	})
+}
+
+func transactionResult(err error) UnitOfWorkResult {
+	var notStarted interface{ TransactionNotStarted() }
+	if errors.As(err, &notStarted) {
+		return UnitOfWorkNotStarted
+	}
+	var unknownCommit interface{ CommitOutcomeUnknown() }
+	if errors.As(err, &unknownCommit) {
+		return UnitOfWorkCommitUnknown
+	}
+	return UnitOfWorkRolledBack
 }
 
 func withinTenant(ctx context.Context, id TenantID, retry bool, fn func(context.Context) error) error {

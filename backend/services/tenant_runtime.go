@@ -28,6 +28,10 @@ func ObserveUnitOfWorkPoolWait(ctx context.Context, duration time.Duration) {
 	tenant.ObservePoolWait(ctx, duration)
 }
 
+func ObserveUnitOfWorkLockWait(ctx context.Context, duration time.Duration) {
+	tenant.ObserveLockWait(ctx, duration)
+}
+
 type tenantRuntimeSetter interface {
 	SetTenantRuntime(tenant.UnitOfWork)
 }
