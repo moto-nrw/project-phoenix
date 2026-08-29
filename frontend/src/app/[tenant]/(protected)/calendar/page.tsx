@@ -12,6 +12,7 @@ import {
   PersonalCalendar,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
+import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -686,32 +687,38 @@ function StaffCalendarPageInner() {
   };
 
   const personalCalendar = (
-    <PersonalCalendar
-      title="Mein Kalender"
-      subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
-      // On a load error SWR may still hold the previous range's data; don't
-      // render stale appointments under the new date label.
-      events={calendarError ? [] : (data?.events ?? [])}
-      referenceDate={referenceDate}
-      viewMode={viewMode}
-      loading={isLoading}
-      error={
-        calendarError
-          ? errorMessage(calendarError, "Kalender konnte nicht geladen werden.")
-          : null
-      }
-      onDateChange={setReferenceDate}
-      onViewModeChange={setViewMode}
-      onCreate={canManageCalendar ? handleCreate : undefined}
-      onShowOverview={handleShowOverview}
-      onRespond={handleRespond}
-      respondingRecipientId={respondingRecipientId}
-      onEdit={canManageCalendar ? handleEdit : undefined}
-      onCancel={canManageCalendar ? handleCancel : undefined}
-      onDelete={canManageCalendar ? handleDelete : undefined}
-      busyAppointmentId={busyAppointmentId}
-      icsHrefBase="/api/calendar/appointments"
-    />
+    <div className="space-y-6">
+      <PersonalCalendar
+        title="Mein Kalender"
+        subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
+        // On a load error SWR may still hold the previous range's data; don't
+        // render stale appointments under the new date label.
+        events={calendarError ? [] : (data?.events ?? [])}
+        referenceDate={referenceDate}
+        viewMode={viewMode}
+        loading={isLoading}
+        error={
+          calendarError
+            ? errorMessage(
+                calendarError,
+                "Kalender konnte nicht geladen werden.",
+              )
+            : null
+        }
+        onDateChange={setReferenceDate}
+        onViewModeChange={setViewMode}
+        onCreate={canManageCalendar ? handleCreate : undefined}
+        onShowOverview={handleShowOverview}
+        onRespond={handleRespond}
+        respondingRecipientId={respondingRecipientId}
+        onEdit={canManageCalendar ? handleEdit : undefined}
+        onCancel={canManageCalendar ? handleCancel : undefined}
+        onDelete={canManageCalendar ? handleDelete : undefined}
+        busyAppointmentId={busyAppointmentId}
+        icsHrefBase="/api/calendar/appointments"
+      />
+      <CalendarSubscribePanel audience="staff" />
+    </div>
   );
 
   return (

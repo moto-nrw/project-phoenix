@@ -165,6 +165,11 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
+// Delete makes an authenticated DELETE request.
+func (c *Client) Delete(path string) ([]byte, error) {
+	return c.doRequestWithHeaders("DELETE", path, nil, true, nil)
+}
+
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
 	authRef := phoenixapi.AuthRef{}
 	if auth {

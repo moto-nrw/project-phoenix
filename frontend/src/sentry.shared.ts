@@ -3,7 +3,7 @@ import type { ErrorEvent } from "@sentry/nextjs";
 const routerStateParseMessage =
   "The router state header was sent but could not be parsed.";
 
-// The parent calendar-feed capability token rides in the URL path
+// Parent and staff calendar-feed capability tokens ride in the URL path
 // (/api/calendar-feed/{token}, proxied to /public/calendar/{token}). Redact it
 // from any recorded URL/path so a Sentry event can't leak a replayable token —
 // mirrors the backend request-log redactor.
