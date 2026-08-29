@@ -32,7 +32,7 @@ const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
 export default function ActivitiesPage() {
   return (
-    <NfcModeGuard>
+    <NfcModeGuard title="Aktivitäten">
       <Suspense fallback={null}>
         <ActivitiesPageContent />
       </Suspense>

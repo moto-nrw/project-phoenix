@@ -758,7 +758,7 @@ function RoomsPageContent() {
 // surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
 export default function RoomsPage() {
   return (
-    <BinaryModeGuard>
+    <BinaryModeGuard title="Räume">
       <Suspense fallback={<RoomsGridSkeleton />}>
         <RoomsPageContent />
       </Suspense>

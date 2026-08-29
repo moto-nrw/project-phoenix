@@ -58,8 +58,8 @@ interface ActivitiesPageData {
 // page's main function — React rules forbid conditional hooks.
 export default function ActivitiesPage() {
   return (
-    <NfcModeGuard>
-      <BinaryModeGuard>
+    <NfcModeGuard title="Aktivitäten">
+      <BinaryModeGuard title="Aktivitäten">
         <ActivitiesPageContent />
       </BinaryModeGuard>
     </NfcModeGuard>

@@ -44,7 +44,7 @@ interface TokenModalState {
 // on a tenant that hasn't enabled the feature.
 export default function InfoDisplaysPage() {
   return (
-    <DisplayModeGuard>
+    <DisplayModeGuard title="Info-Displays">
       <InfoDisplaysPageContent />
     </DisplayModeGuard>
   );

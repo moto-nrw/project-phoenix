@@ -56,7 +56,7 @@ function parseDevicesGrouping(value: string | null): DevicesGroupingMode {
 
 export default function DevicesPage() {
   return (
-    <NfcModeGuard>
+    <NfcModeGuard title="Geräte">
       <Suspense fallback={null}>
         <DevicesPageContent />
       </Suspense>
