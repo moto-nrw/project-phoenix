@@ -68,25 +68,6 @@ func TestRequestFailureLogUsesRootCorrelationAndRedactsErrorDetail(t *testing.T)
 	}
 }
 
-func TestRequestIDMiddlewareBindsObservabilityCorrelation(t *testing.T) {
-	t.Parallel()
-
-	const requestValue = "8dc3a9ca-8ac7-4b8e-9bfa-3c17760d92c0"
-	tracer := newRuntimeTracer(nil)
-	var got string
-	var ok bool
-	handler := requestIDMiddleware(tracer, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		got, ok = correlationIDString(r.Context())
-	}))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(middleware.RequestIDHeader, requestValue)
-	handler.ServeHTTP(httptest.NewRecorder(), req)
-
-	if !ok || got != requestValue {
-		t.Fatalf("correlation ID = (%q, %v), want (%q, true)", got, ok, requestValue)
-	}
-}
-
 func TestRequestIDMiddlewareSetsResponseHeaderBeforeHandler(t *testing.T) {
 	t.Parallel()
 

@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 func TestRecordHTTPRuntimeEventCountsMissingTenant(t *testing.T) {
 	t.Parallel()
 	before := httpMissingTenantRuntimeEvents(t)
-	tracer := newRuntimeTracer(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tracer := newRuntimeTracer(slog.New(slog.DiscardHandler))
 
 	recordHTTPRuntimeEvent(context.Background(), tracer, tenant.RuntimeEvent{Kind: tenant.RuntimeMissingTenant, Err: tenant.ErrInvalidTenantID})
 
@@ -25,7 +24,7 @@ func TestRecordHTTPRuntimeEventCountsMissingTenant(t *testing.T) {
 
 func TestRuntimeFailureMetricCardinalityIgnoresCorrelationAndErrorText(t *testing.T) {
 	t.Parallel()
-	tracer := newRuntimeTracer(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	tracer := newRuntimeTracer(slog.New(slog.DiscardHandler))
 
 	for _, entryPoint := range []string{"http", "worker"} {
 		ctx, _, err := tracer.StartRequest(context.Background(), entryPoint+"-correlation-one")

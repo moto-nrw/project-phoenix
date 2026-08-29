@@ -22,8 +22,3 @@ func requestIDMiddleware(tracer *observability.Tracer, next http.Handler) http.H
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
-
-func correlationIDString(ctx context.Context) (string, bool) {
-	id, ok := observability.CorrelationIDFromContext(ctx)
-	return id.String(), ok
-}

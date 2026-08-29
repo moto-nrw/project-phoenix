@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -92,7 +91,7 @@ func TestRunCleanupJobsStartsCorrelationBeforeEmptyJobExit(t *testing.T) {
 		},
 		Logger: func(ctx context.Context) *slog.Logger {
 			correlatedLog, _ = ctx.Value(workerCorrelationKey{}).(bool)
-			return slog.New(slog.NewTextHandler(io.Discard, nil))
+			return slog.New(slog.DiscardHandler)
 		},
 	})
 
