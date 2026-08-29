@@ -273,7 +273,13 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	if err != nil {
 		return nil, err
 	}
-	err = tenant.WithinTenantRetry(ctx, tenantID, func(txCtx context.Context) error {
+	// Caregiver disable holds table locks in an order that can deadlock with
+	// concurrent supervision writes. It must own the transaction it retries:
+	// an ambient request transaction is already aborted after a deadlock and
+	// cannot be replayed. Its after-commit hooks also belong to that request,
+	// not to this independently committed operation.
+	retryCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	err = tenant.WithinTenantRetry(retryCtx, tenantID, func(txCtx context.Context) error {
 		tx, ok := modelBase.TxFromContext(txCtx)
 		if !ok {
 			return fmt.Errorf("disable caregiver capability: unit of work did not provide a transaction")
