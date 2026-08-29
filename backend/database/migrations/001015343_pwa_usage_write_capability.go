@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	pwaUsageWriteCapabilityVersion     = "1.15.341"
+	pwaUsageWriteCapabilityVersion     = "1.15.343"
 	pwaUsageWriteCapabilityDescription = "Encapsulate PWA usage writes behind database capabilities (#2644)"
 )
 
