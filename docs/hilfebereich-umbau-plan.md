@@ -61,9 +61,14 @@ Der Prototyp beantwortet diese Frage:
 Er liegt isoliert unter `/help/prototype` und verändert die vier bestehenden Hilfe- und PDF-Routen
 nicht. Drei deutlich verschiedene Varianten lassen sich über `?variant=a|b|c` vergleichen:
 
-- **A · Seitenleiste:** dauerhafte Navigation mit einer kurzen Seite pro Thema.
+- **A · Seitenleiste:** feste Navigation am linken Fensterrand mit einer kurzen Seite pro Thema.
 - **B · Aufgaben:** Einstieg über konkrete Fragen aus dem Arbeitsalltag.
 - **C · Schnelle Hilfe:** suche-zentrierter, schmaler Einstieg für wenig Zeit und kleine Bildschirme.
+
+**Arbeitsentscheidung für den Prototyp:** Variante A wird weiterverfolgt. Auf Desktop bleibt die
+Seitenleiste am linken Fensterrand stehen und scrollt unabhängig vom Artikel. Sie ist keine Karte im
+Inhaltsbereich. Auf kleinen Bildschirmen wird sie zu einer ausklappbaren Themenliste. B und C bleiben
+auf dem Prototyp-Branch als Vergleich erhalten, bis das Team die Entscheidung bestätigt.
 
 Rolle, Thema und NFC-Variante sind teilbar. Beispiele:
 

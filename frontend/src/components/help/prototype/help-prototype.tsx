@@ -87,18 +87,32 @@ function InlineCode({ text }: Readonly<{ text: string }>) {
 function PrototypeHeader({
   role,
   modeChoice,
+  edgeSidebar,
   onRoleChange,
   onModeChange,
 }: Readonly<{
   role: PrototypeRole;
   modeChoice: ModeChoice;
+  edgeSidebar: boolean;
   onRoleChange: (role: PrototypeRole) => void;
   onModeChange: (mode: ModeChoice) => void;
 }>) {
   return (
-    <header className="border-b border-gray-200 bg-white/95 print:hidden">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div className="flex items-center gap-3">
+    <header
+      className={cn(
+        "sticky top-0 z-20 border-b border-gray-200 bg-white/95 print:hidden",
+        edgeSidebar && "lg:ml-72",
+      )}
+    >
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8",
+          edgeSidebar && "lg:max-w-none",
+        )}
+      >
+        <div
+          className={cn("flex items-center gap-3", edgeSidebar && "lg:hidden")}
+        >
           <Link
             href="/help/prototype"
             className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
@@ -254,9 +268,22 @@ function VariantA({
     </nav>
   );
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[17rem_minmax(0,1fr)] lg:px-8">
-      <aside className="hidden lg:sticky lg:top-4 lg:block lg:self-start">
-        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="w-full lg:pl-72">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-200 bg-white lg:flex">
+        <div className="flex h-20 shrink-0 items-center gap-3 border-b border-gray-200 px-6">
+          <Link
+            href="/help/prototype"
+            className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <span className="text-xl font-bold tracking-tight text-gray-950">
+              moto Hilfe
+            </span>
+          </Link>
+          <span className="bg-moto-orange/12 text-moto-orange-strong rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase">
+            Prototyp
+          </span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
           <p className="text-moto-blue-strong text-xs font-bold tracking-wide uppercase">
             Themen
           </p>
@@ -264,7 +291,7 @@ function VariantA({
         </div>
       </aside>
 
-      <main>
+      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-12">
         <details className="moto-content-surface mb-6 rounded-2xl border p-4 shadow-sm lg:hidden">
           <summary className="cursor-pointer text-sm font-semibold text-gray-900">
             {topic ? `Thema: ${topic.title}` : "Themen öffnen"}
@@ -763,11 +790,17 @@ export function HelpPrototype() {
       <PrototypeHeader
         role={role}
         modeChoice={modeChoice}
+        edgeSidebar={variant === "a"}
         onRoleChange={(nextRole) => replaceState({ role: nextRole })}
         onModeChange={handleModeChange}
       />
 
-      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pt-4 text-xs text-gray-500 sm:px-6 lg:px-8">
+      <div
+        className={cn(
+          "mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pt-4 text-xs text-gray-500 sm:px-6 lg:px-8",
+          variant === "a" && "lg:ml-72 lg:max-w-none",
+        )}
+      >
         <p>
           Testzustand: {PROTOTYPE_VARIANTS[variant]} ·{" "}
           {role === "lead" ? "Leitung" : "Betreuung"} ·{" "}
