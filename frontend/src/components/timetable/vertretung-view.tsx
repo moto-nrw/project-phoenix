@@ -857,13 +857,6 @@ function VertretungContent() {
         dienstplanHref={dienstplanHref}
       />
 
-      {planningTrackLegend.length > 0 && (
-        <PlanLegend
-          entries={planningTrackLegend}
-          aria-label="Planungsspuren in der sichtbaren Vertretung"
-        />
-      )}
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
         {isWeekView ? (
           // Die Wochenliste darf die Seite nicht länger machen als das
@@ -914,6 +907,16 @@ function VertretungContent() {
             Wochenansicht bekommt es fünf Tagesspalten statt einer. */}
         <div>
           <WeeklyCalendarGrid
+            // Bauart 3, Regel 3 + Teil 3: die Legende sitzt als Fussband im
+            // Raster, nicht frei auf dem gemusterten Grund.
+            legend={
+              planningTrackLegend.length > 0 ? (
+                <PlanLegend
+                  entries={planningTrackLegend}
+                  aria-label="Planungsspuren in der sichtbaren Vertretung"
+                />
+              ) : null
+            }
             weekDays={isWeekView ? weekDays : [parseISODate(dayISO)]}
             instances={isWeekView ? weekdayInstances : dayInstances}
             selectedId={selectedInstanceId}

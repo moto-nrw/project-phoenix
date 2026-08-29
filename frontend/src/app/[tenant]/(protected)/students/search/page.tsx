@@ -17,6 +17,7 @@ import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
@@ -3391,20 +3392,23 @@ function SearchPageContent() {
                 return (
                   <div className="space-y-6">
                     {groupedStudents.map((group) => (
-                      <section key={group.key} data-testid="student-group">
-                        <div className="mb-3 flex items-center gap-3">
-                          <h2 className="text-sm font-semibold text-gray-900">
-                            {group.label}
-                          </h2>
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                            {group.items.length}
-                          </span>
-                          <div className="h-px min-w-8 flex-1 bg-gray-200" />
-                        </div>
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-                          {group.items.map(renderStudentCard)}
-                        </div>
-                      </section>
+                      // Der Gruppentitel steht auf der Fläche seiner Karte,
+                      // nicht frei auf dem gemusterten Grund (BAUARTEN-SPEC,
+                      // Teil 3).
+                      <div key={group.key} data-testid="student-group">
+                        <SectionCard
+                          title={group.label}
+                          action={
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                              {group.items.length}
+                            </span>
+                          }
+                        >
+                          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                            {group.items.map(renderStudentCard)}
+                          </div>
+                        </SectionCard>
+                      </div>
                     ))}
                   </div>
                 );

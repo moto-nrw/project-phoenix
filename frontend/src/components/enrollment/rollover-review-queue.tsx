@@ -11,6 +11,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 
 const logger = createLogger({ component: "RolloverReviewQueue" });
@@ -129,9 +130,12 @@ export function RolloverReviewQueue({ phaseID }: Props) {
           : null
       }
     >
-      <p className="text-sm leading-6 text-gray-600">
-        {REVIEW_QUEUE_DESCRIPTION}
-      </p>
+      {/* Der Erklärsatz steht auf einer Fläche, nicht frei auf dem Grund. */}
+      <SectionCard className="px-5 py-3">
+        <p className="text-sm leading-6 text-gray-600">
+          {REVIEW_QUEUE_DESCRIPTION}
+        </p>
+      </SectionCard>
 
       {error ? <Alert type="error" message={error} /> : null}
       {info ? <Alert type="success" message={info} /> : null}

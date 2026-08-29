@@ -244,6 +244,35 @@ function MeinRaumPageContent() {
   });
   const totalSupervisions =
     roomsOutsideStatus.length + (schulhofTabAvailable ? 1 : 0);
+  const allSupervisionTabItems = [
+    // Reguläre Aufsichten, einschließlich einer parallelen
+    // Schulhof-Gruppe, die der feste Reiter nicht abbildet.
+    ...roomsOutsideStatus.map((room) => ({
+      value: room.id,
+      label: supervisionTabLabel(
+        room,
+        dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
+      ),
+    })),
+    // Fester Schulhof-Reiter, nur mit spontaner Aufsicht (#2161).
+    ...(schulhofTabAvailable
+      ? [{ value: SCHULHOF_TAB_ID, label: SCHULHOF_ROOM_NAME }]
+      : []),
+  ];
+  // Höchstens vier Reiter: ab der fünften Aufsicht bündelt ein Reiter mit
+  // Menü den Rest. Mehr Reiter nebeneinander sind eine Werkzeugleiste, keine
+  // Orientierung.
+  const supervisionTabItems =
+    allSupervisionTabItems.length > 4
+      ? [
+          ...allSupervisionTabItems.slice(0, 3),
+          {
+            value: "weitere-aufsichten",
+            label: "Weitere Aufsichten",
+            menu: allSupervisionTabItems.slice(3),
+          },
+        ]
+      : allSupervisionTabItems;
   const supervisionTabs =
     totalSupervisions >= 2 && !isDesktop
       ? {
@@ -251,21 +280,7 @@ function MeinRaumPageContent() {
             ? SCHULHOF_TAB_ID
             : (currentRoom?.id ?? ""),
           onChange: handleTabChange,
-          items: [
-            // Reguläre Aufsichten, einschließlich einer parallelen
-            // Schulhof-Gruppe, die der feste Reiter nicht abbildet.
-            ...roomsOutsideStatus.map((room) => ({
-              value: room.id,
-              label: supervisionTabLabel(
-                room,
-                dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
-              ),
-            })),
-            // Fester Schulhof-Reiter, nur mit spontaner Aufsicht (#2161).
-            ...(schulhofTabAvailable
-              ? [{ value: SCHULHOF_TAB_ID, label: SCHULHOF_ROOM_NAME }]
-              : []),
-          ],
+          items: supervisionTabItems,
           label: "Meine Aufsichten",
         }
       : undefined;

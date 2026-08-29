@@ -180,7 +180,8 @@ describe("/staff — Berechtigungs-Split", () => {
     // Das Änderungsprotokoll liegt seit der Bündelung hinter dem Reiter
     // „Verwaltung"; erreichbar bleibt es unverändert — genau das prüft dieser
     // Test, nicht die Stelle im Reiterband.
-    fireEvent.click(screen.getByRole("button", { name: "Verwaltung" }));
+    // Der gebündelte Reiter meldet sich als Reiter, nicht als Schaltfläche.
+    fireEvent.click(screen.getByRole("tab", { name: "Verwaltung" }));
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Änderungsprotokoll" }),
     );
@@ -259,7 +260,8 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getDocumentDirectory).not.toHaveBeenCalled();
     expect(getTimeAccounts).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Verwaltung" }));
+    // Der gebündelte Reiter meldet sich als Reiter, nicht als Schaltfläche.
+    fireEvent.click(screen.getByRole("tab", { name: "Verwaltung" }));
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Personalunterlagen" }),
     );

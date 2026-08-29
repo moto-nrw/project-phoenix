@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import type { ReactNode } from "react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
@@ -31,6 +32,12 @@ interface MonthPlannerGridProps {
   closingDays?: ReadonlyMap<string, string>;
   onDayClick: (dateISO: string) => void;
   onInstanceClick?: (instance: EnrichedInstance) => void;
+  /**
+   * Legende der Farbcodierung dieses Rasters (Bauart 3, Regel 3). Sie sitzt
+   * als Fußband INNERHALB der Rasterfläche: auf dem gemusterten Grund der
+   * Planungsseiten steht kein Text (BAUARTEN-SPEC Teil 3).
+   */
+  legend?: ReactNode;
 }
 
 export function MonthPlannerGrid({
@@ -41,6 +48,7 @@ export function MonthPlannerGrid({
   closingDays,
   onDayClick,
   onInstanceClick,
+  legend,
 }: MonthPlannerGridProps) {
   const grouped = groupInstancesByDate(instances);
   const currentMonth = monthDate.getMonth();
@@ -223,6 +231,12 @@ export function MonthPlannerGrid({
           );
         })}
       </div>
+
+      {legend ? (
+        <div className="border-t border-gray-200 bg-white px-3 py-2">
+          {legend}
+        </div>
+      ) : null}
     </div>
   );
 }

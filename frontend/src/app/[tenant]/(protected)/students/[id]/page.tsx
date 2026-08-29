@@ -236,6 +236,35 @@ function studentTabs(
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
 }
 
+/**
+ * Reiter der Kindakte für die Kopfkarte: höchstens vier (BAUARTEN-SPEC,
+ * Teil 3). Was täglich gebraucht wird, bleibt ein sichtbarer Reiter; die
+ * Aktenreiter (Erziehungsberechtigte, Betreuungszeiten, Anmeldungen,
+ * Dokumente, Änderungsprotokoll, Historie) bündeln sich hinter „Verwaltung"
+ * und tragen dort den Namen des offenen Untereintrags. Ist ohnehin nichts zu
+ * bündeln, bleiben alle Reiter einzeln stehen.
+ */
+const PRIMARY_TABS: StudentTabId[] = [
+  "stammdaten",
+  "nachrichten",
+  "betreuungsplan",
+];
+
+function buildStudentTabItems(tabs: StudentTabId[]) {
+  const toItem = (tab: StudentTabId) => ({
+    value: tab as string,
+    label: TAB_LABELS[tab],
+  });
+  if (tabs.length <= 4) return tabs.map(toItem);
+  const primary = tabs.filter((tab) => PRIMARY_TABS.includes(tab));
+  const rest = tabs.filter((tab) => !PRIMARY_TABS.includes(tab));
+  if (rest.length === 0) return tabs.map(toItem);
+  return [
+    ...primary.map(toItem),
+    { value: "verwaltung", label: "Verwaltung", menu: rest.map(toItem) },
+  ];
+}
+
 // Shared classes for every tab panel. Every panel stays mounted; the inactive
 // ones are hidden via CSS (`data-[state=inactive]:hidden` → display:none, which
 // also removes them from the a11y tree). This is deliberate: the panel children
@@ -1188,10 +1217,7 @@ function StudentDetailPageContent() {
         tabs={{
           value: activeTab,
           onChange: handleTabChange,
-          items: visibleTabs.map((tab) => ({
-            value: tab,
-            label: TAB_LABELS[tab],
-          })),
+          items: buildStudentTabItems(visibleTabs),
           label: "Bereiche der Kindakte",
         }}
         overlays={

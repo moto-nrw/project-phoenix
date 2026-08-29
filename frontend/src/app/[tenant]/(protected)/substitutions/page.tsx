@@ -106,37 +106,25 @@ function MetaLine({ parts }: Readonly<{ parts: (string | null)[] }>) {
   );
 }
 
-/** Gemeinsame Listenfläche: eine weiße Karte mit Trennlinien statt einzelner Karten. */
+/**
+ * Gemeinsame Listenfläche INNERHALB einer Karte: Trennlinien statt einzelner
+ * Karten. Die Karte darum bringt die Abschnittskarte mit, damit kein Titel
+ * frei auf dem Grund steht.
+ */
 function ListSurface({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <SectionCard className="overflow-hidden p-0" bodyClassName="">
-      <ul className="divide-y divide-gray-200">{children}</ul>
-    </SectionCard>
+    <ul className="divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200">
+      {children}
+    </ul>
   );
 }
 
-function SectionHeading({
-  icon,
-  title,
-  count,
-  hint,
-}: Readonly<{
-  icon: ReactNode;
-  title: string;
-  count: number;
-  hint?: string;
-}>) {
+/** Zahl der Einträge, rechts im Kopf der Abschnittskarte. */
+function SectionCount({ count }: Readonly<{ count: number }>) {
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 md:mb-4">
-      <span className="text-gray-500" aria-hidden="true">
-        {icon}
-      </span>
-      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-      <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold text-gray-700 tabular-nums">
-        {count}
-      </span>
-      {hint ? <span className="text-xs text-gray-500">{hint}</span> : null}
-    </div>
+    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold text-gray-700 tabular-nums">
+      {count}
+    </span>
   );
 }
 
@@ -511,11 +499,7 @@ function SubstitutionPageContent() {
     // das ist eine Liste ohne Einträge, kein leerer Seitenbereich, für den
     // EmptyState mit seiner grossen zentrierten Überschrift gedacht ist.
     if (substitutions.length === 0) {
-      return (
-        <SectionCard>
-          <p className="text-sm text-gray-500">{emptyText}</p>
-        </SectionCard>
-      );
+      return <p className="text-sm text-gray-500">{emptyText}</p>;
     }
 
     return (
@@ -764,22 +748,19 @@ function SubstitutionPageContent() {
         </>
       }
     >
-      {/* Die Trefferzahl steht bereits als Zähler im Seitenkopf, deshalb
-            hier eine schlichte Überschrift ohne Zählpille. */}
-      <div>
-        <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4">
-          Verfügbare pädagogische Fachkräfte
-        </h2>
+      {/* Jeder Abschnitt sitzt auf einer eigenen Karte: der Titel steht
+          damit auf einer Fläche und nicht frei auf dem Grund. Die
+          Trefferzahl der Fachkräfte steht bereits als Zähler im Seitenkopf. */}
+      <SectionCard title="Verfügbare pädagogische Fachkräfte">
         {renderTeacherList()}
-      </div>
+      </SectionCard>
 
-      <section>
-        <SectionHeading
-          icon={<Clock className="h-5 w-5" />}
-          title="Tagesübergaben"
-          count={transfers.length}
-          hint="(enden heute 23:59)"
-        />
+      <SectionCard
+        title="Tagesübergaben"
+        description="Enden heute um 23:59 Uhr."
+        icon={Clock}
+        action={<SectionCount count={transfers.length} />}
+      >
         {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
               steht bereits in der Überschrift. */}
         {renderAccessSection(
@@ -787,15 +768,14 @@ function SubstitutionPageContent() {
           "Keine aktiven Tagesübergaben",
           () => null,
         )}
-      </section>
+      </SectionCard>
 
-      <section>
-        <SectionHeading
-          icon={<MotoConceptIcon concept="calendar" size={20} />}
-          title="Längerfristige Zugriffe"
-          count={longTermAccess.length}
-          hint="(mehrtägig)"
-        />
+      <SectionCard
+        title="Längerfristige Zugriffe"
+        description="Gelten über mehrere Tage."
+        leading={<MotoConceptIcon concept="calendar" size={20} />}
+        action={<SectionCount count={longTermAccess.length} />}
+      >
         {renderAccessSection(
           longTermAccess,
           "Keine aktiven längerfristigen Zugriffe",
@@ -806,7 +786,7 @@ function SubstitutionPageContent() {
               month: "2-digit",
             })}`,
         )}
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }

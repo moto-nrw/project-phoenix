@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSettingsTabs } from "~/components/settings/settings-page";
@@ -32,19 +33,33 @@ function SettingsContent() {
   // Berechtigungen, Geräte, Info-Displays, Exporte, Jahrgangswechsel), standen
   // im aufgelösten Bereich „Datenverwaltung". Sie sind jetzt Reiter hier und
   // führen auf ihre bestehenden Routen.
-  const tabItems = useMemo(
-    () => [
-      ...(settingsTabs?.tabs ?? []).map((tab) => ({
-        value: tab.id,
-        label: tab.label,
-      })),
-      ...SETTINGS_REGISTER_TABS.map((tab) => ({
-        value: tab.href,
-        label: tab.label,
-      })),
-    ],
-    [settingsTabs],
-  );
+  //
+  // Höchstens vier Seitenreiter: die ersten Einstellungsbereiche stehen
+  // sichtbar, alles Seltenere (weitere Bereiche und die Register) bündelt ein
+  // Reiter „Verwaltung" mit Menü. Mehr Reiter wären eine Werkzeugleiste,
+  // keine Orientierung.
+  const { tabItems, flatTabItems } = useMemo(() => {
+    const schemaItems = (settingsTabs?.tabs ?? []).map((tab) => ({
+      value: tab.id,
+      label: tab.label,
+    }));
+    const registerItems = SETTINGS_REGISTER_TABS.map((tab) => ({
+      value: tab.href,
+      label: tab.label,
+    }));
+    const visibleSchemaItems = schemaItems.slice(0, 3);
+    const menuItems = [...schemaItems.slice(3), ...registerItems];
+    const items = [
+      ...visibleSchemaItems,
+      ...(menuItems.length > 0
+        ? [{ value: "verwaltung", label: "Verwaltung", menu: menuItems }]
+        : []),
+    ];
+    return {
+      tabItems: items,
+      flatTabItems: [...schemaItems, ...registerItems],
+    };
+  }, [settingsTabs]);
 
   // Statuszeile: wie viele Bereiche es gibt und wie viele Einstellungen von
   // der Vorgabe abweichen — beides aus dem ohnehin geladenen Schema.
@@ -73,7 +88,7 @@ function SettingsContent() {
     redirect("/");
   }
 
-  if (!settingsTabs || tabItems.length === 0) {
+  if (!settingsTabs || flatTabItems.length === 0) {
     return (
       <TenantPage
         title="Einstellungen"
@@ -88,14 +103,14 @@ function SettingsContent() {
   }
 
   const activeTab =
-    selectedTab && tabItems.some((tab) => tab.value === selectedTab)
+    selectedTab && flatTabItems.some((tab) => tab.value === selectedTab)
       ? selectedTab
-      : (tabItems[0]?.value ?? "");
+      : (flatTabItems[0]?.value ?? "");
 
   return (
     <TenantPage
       title="Einstellungen"
-      stats={`${tabItems.length} ${tabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe`}
+      stats={`${flatTabItems.length} ${flatTabItems.length === 1 ? "Bereich" : "Bereiche"} · ${overrides} abweichend von der Vorgabe`}
       tabs={{
         value: activeTab,
         onChange: (value) => {
@@ -111,11 +126,14 @@ function SettingsContent() {
       }}
     >
       {/* Bauart „Einstellungen": die einzige Flaeche, die automatisch
-          speichert. Das Verhalten steht einmal ruhig im Kopf der Flaeche und
-          nicht als Banner ueber jeder Karte. */}
-      <p className="text-sm leading-5 text-gray-500">
-        Änderungen werden sofort gespeichert.
-      </p>
+          speichert. Das Verhalten steht einmal ruhig auf einer eigenen
+          Flaeche und nicht als Banner ueber jeder Karte — und nicht als
+          freier Text auf dem Grund. */}
+      <SectionCard className="px-5 py-3">
+        <p className="text-sm leading-5 text-gray-500">
+          Änderungen werden sofort gespeichert.
+        </p>
+      </SectionCard>
       {settingsTabs.renderTab(activeTab)}
     </TenantPage>
   );

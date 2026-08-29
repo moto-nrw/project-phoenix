@@ -14,7 +14,13 @@
  * positioning by time is the whole point of a week view.
  */
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
@@ -99,6 +105,12 @@ interface WeeklyCalendarGridProps {
    * Kopfzeile.
    */
   showDayHeader?: boolean;
+  /**
+   * Legende der Farbcodierung dieses Rasters (Bauart 3, Regel 3). Sie sitzt
+   * als Fußband INNERHALB der Rasterfläche: auf dem gemusterten Grund der
+   * Planungsseiten steht kein Text (BAUARTEN-SPEC Teil 3).
+   */
+  legend?: ReactNode;
 }
 
 export function WeeklyCalendarGrid({
@@ -115,6 +127,7 @@ export function WeeklyCalendarGrid({
   closingDays,
   emptyState,
   showDayHeader = false,
+  legend,
 }: WeeklyCalendarGridProps) {
   const gridColsClass = GRID_COLS_CLASS;
   const grouped = useMemo(() => groupInstancesByDate(instances), [instances]);
@@ -487,6 +500,12 @@ export function WeeklyCalendarGrid({
           </div>
         )}
       </div>
+
+      {legend ? (
+        <div className="border-t border-gray-200 bg-white px-3 py-2">
+          {legend}
+        </div>
+      ) : null}
     </div>
   );
 }

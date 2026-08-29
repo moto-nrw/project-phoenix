@@ -508,7 +508,11 @@ export default function OpeningBalanceImportPage() {
 
   return (
     <TenantPage title="Eröffnungssalden" stats={statusLine} back>
-      <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
+      {/* Der Erklärtext steht auf einer Fläche, nicht auf dem gemusterten
+          Grund (BAUARTEN-SPEC, Teil 3). */}
+      <SectionCard>
+        <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
+      </SectionCard>
 
       {error && (
         <div className="relative">

@@ -793,6 +793,18 @@ function TimetablesContent() {
   );
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
 
+  // Legende der Planungsspuren als Fussband IM Raster (BAUARTEN-SPEC Teil 3:
+  // auf dem gemusterten Grund steht kein Text).
+  const planningTrackLegendNode =
+    shouldLoadInstances &&
+    !isInstanceDataLoading &&
+    planningTrackLegend.length > 0 ? (
+      <PlanLegend
+        entries={planningTrackLegend}
+        aria-label="Planungsspuren im sichtbaren Betreuungsplan"
+      />
+    ) : null;
+
   // Bedarfsquellen-Zuordnung (06 §3.2), reine Funktion.
   const demandOrigin = useMemo(
     () => resolveDemandOrigin(phases, visiblePeriod?.id ?? null, dayISO),
@@ -1616,17 +1628,11 @@ function TimetablesContent() {
         />
       )}
 
-      {shouldLoadInstances &&
-        !isInstanceDataLoading &&
-        planningTrackLegend.length > 0 && (
-          <PlanLegend
-            entries={planningTrackLegend}
-            aria-label="Planungsspuren im sichtbaren Betreuungsplan"
-          />
-        )}
-
       {view === "month" && (
         <MonthPlannerGrid
+          // Bauart 3, Regel 3 + Teil 3: die Legende gehoert auf die Flaeche
+          // des Rasters, das sie erklaert — nicht frei auf den Grund.
+          legend={planningTrackLegendNode}
           days={monthDays}
           monthDate={visibleDate}
           instances={visibleInstances}
@@ -1639,6 +1645,7 @@ function TimetablesContent() {
 
       {view === "week" && (
         <WeeklyCalendarGrid
+          legend={planningTrackLegendNode}
           weekDays={weekDays}
           instances={visibleInstances}
           selectedId={selectedInstanceId}

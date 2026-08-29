@@ -453,9 +453,9 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Get the teacher section
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
+      const teacherSection = screen
+        .getByText("Verfügbare pädagogische Fachkräfte")
+        .closest("section")!;
 
       fireEvent.change(screen.getByTestId("search-input"), {
         target: { value: "nonexistent" },
@@ -486,9 +486,9 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Get the teacher section (the section with "Verfügbare pädagogische Fachkräfte" heading)
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
+      const teacherSection = screen
+        .getByText("Verfügbare pädagogische Fachkräfte")
+        .closest("section")!;
 
       // Verify Anna is shown initially in teacher section
       expect(
@@ -528,9 +528,9 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Get the teacher section
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
+      const teacherSection = screen
+        .getByText("Verfügbare pädagogische Fachkräfte")
+        .closest("section")!;
 
       // Apply search filter
       fireEvent.change(screen.getByTestId("search-input"), {
@@ -905,9 +905,9 @@ describe("SubstitutionsPage", () => {
     it("filters by available status", async () => {
       render(<SubstitutionsPage />);
 
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
+      const teacherSection = screen
+        .getByText("Verfügbare pädagogische Fachkräfte")
+        .closest("section")!;
 
       // Initially all teachers shown
       expect(
@@ -930,9 +930,9 @@ describe("SubstitutionsPage", () => {
     it("filters by substitution status", async () => {
       render(<SubstitutionsPage />);
 
-      const teacherSection = screen.getByText(
-        "Verfügbare pädagogische Fachkräfte",
-      ).parentElement!;
+      const teacherSection = screen
+        .getByText("Verfügbare pädagogische Fachkräfte")
+        .closest("section")!;
 
       // Click substitution filter
       fireEvent.click(screen.getByTestId("filter-substitution"));

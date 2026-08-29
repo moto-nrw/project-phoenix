@@ -161,6 +161,28 @@ function GroupAbsenceOverview({
   );
 }
 
+/**
+ * Gruppenreiter für die Kopfkarte. Bis zu vier Gruppen stehen einzeln; ab der
+ * fünften bleiben die ersten drei sichtbar und der Rest bündelt sich hinter
+ * „Weitere Gruppen". Mehr Reiter wären eine Werkzeugleiste, keine
+ * Orientierung (BAUARTEN-SPEC, Teil 3).
+ */
+function buildGroupTabItems(groups: readonly OGSGroup[]) {
+  const toItem = (group: OGSGroup) => ({
+    value: group.id,
+    label: formatGroupLabelWithAttendance(group),
+  });
+  if (groups.length <= 4) return groups.map(toItem);
+  return [
+    ...groups.slice(0, 3).map(toItem),
+    {
+      value: "weitere-gruppen",
+      label: "Weitere Gruppen",
+      menu: groups.slice(3).map(toItem),
+    },
+  ];
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -1099,10 +1121,10 @@ function OGSGroupPageContent() {
                     switchToGroup(tabId);
                   }
                 },
-                items: allGroups.map((group) => ({
-                  value: group.id,
-                  label: formatGroupLabelWithAttendance(group),
-                })),
+                // Höchstens vier Reiter (BAUARTEN-SPEC, Teil 3): ab der
+                // fünften Gruppe stehen die weiteren gebündelt hinter einem
+                // Reiter mit Menü, der den Namen der offenen Gruppe zeigt.
+                items: buildGroupTabItems(allGroups),
                 label: "Meine Gruppen",
               }
             : undefined

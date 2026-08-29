@@ -1870,27 +1870,40 @@ describe("StudentDetailPage", () => {
     };
 
     // Die Reiter des Seitengerüsts sind einfache Schaltflächen und schalten
-    // auf click (kein Radix, das auf pointerDown reagiert).
+    // auf click (kein Radix, das auf pointerDown reagiert). Seit der Kindakte
+    // höchstens vier Seitenreiter trägt (BAUARTEN-SPEC, Teil 3), stehen die
+    // selten gebrauchten als Menüeinträge hinter dem Reiter „Verwaltung" —
+    // die Helfer unten finden einen Bereich in beiden Formen.
+    const openBundledTabs = () => {
+      // Der gebündelte Reiter meldet sich als Reiter, nicht als Schaltfläche.
+      const trigger = screen.queryByRole("tab", { name: "Verwaltung" });
+      if (trigger && trigger.getAttribute("aria-expanded") !== "true") {
+        fireEvent.click(trigger);
+      }
+    };
+    const queryTab = (name: string) => {
+      const direct = screen.queryByRole("tab", { name });
+      if (direct) return direct;
+      openBundledTabs();
+      return screen.queryByRole("menuitem", { name });
+    };
+    const getTab = (name: string) => {
+      const found = queryTab(name);
+      if (!found) throw new Error(`Bereich "${name}" nicht gefunden`);
+      return found;
+    };
     const selectTab = (name: string) => {
-      fireEvent.click(screen.getByRole("tab", { name }));
+      fireEvent.click(getTab(name));
     };
 
     it("renders all section tabs in the full access view", () => {
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Stammdaten" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Erziehungsberechtigte" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Betreuungszeiten" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Anmeldungen" }),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(getTab("Erziehungsberechtigte")).toBeInTheDocument();
+      expect(getTab("Betreuungszeiten")).toBeInTheDocument();
+      expect(getTab("Anmeldungen")).toBeInTheDocument();
+      expect(getTab("Historie")).toBeInTheDocument();
     });
 
     it("shows the Änderungsprotokoll tab with users:update", () => {
@@ -1906,9 +1919,7 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Änderungsprotokoll" }),
-      ).toBeInTheDocument();
+      expect(getTab("Änderungsprotokoll")).toBeInTheDocument();
     });
 
     it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
@@ -1916,9 +1927,7 @@ describe("StudentDetailPage", () => {
       // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       render(<StudentDetailPage />);
 
-      expect(
-        screen.queryByRole("tab", { name: "Änderungsprotokoll" }),
-      ).not.toBeInTheDocument();
+      expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
     it("hides the enrollment tab without config:manage", () => {
@@ -1929,9 +1938,7 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.queryByRole("tab", { name: "Anmeldungen" }),
-      ).not.toBeInTheDocument();
+      expect(queryTab("Anmeldungen")).not.toBeInTheDocument();
     });
 
     it("hides the Betreuungsplan tab without schedules:read", () => {
@@ -2054,9 +2061,10 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.getByRole("tab", { name: "Betreuungszeiten" }),
-      ).toHaveAttribute("aria-selected", "true");
+      // Der gebündelte Reiter zeigt den Namen des offenen Untereintrags.
+      expect(screen.getByRole("tab", { name: "Verwaltung" })).toHaveTextContent(
+        "Betreuungszeiten",
+      );
     });
 
     it("updates the URL with the tab param when a tab is selected", () => {
@@ -2099,13 +2107,9 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(
-        screen.queryByRole("tab", { name: "Betreuungszeiten" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("tab", { name: "Stammdaten" }),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+      expect(queryTab("Betreuungszeiten")).not.toBeInTheDocument();
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(getTab("Historie")).toBeInTheDocument();
     });
 
     it("falls back to the default tab when deep-linking a tab the access level lacks", () => {

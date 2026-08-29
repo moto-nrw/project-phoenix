@@ -68,6 +68,13 @@ interface OverflowMenuProps {
   readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
+  /**
+   * Rolle und Auswahlzustand des Auslösers. Nötig für den gebündelten
+   * Seitenreiter (`TenantPageTab.menu`): er sieht aus wie ein Reiter und
+   * verhält sich so, meldete sich Hilfstechnik aber als reine Schaltfläche.
+   */
+  readonly triggerRole?: "tab";
+  readonly triggerAriaSelected?: boolean;
   /** Called when the menu is opened from its trigger. */
   readonly onOpen?: () => void;
   /**
@@ -104,6 +111,8 @@ interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
+  triggerRole,
+  triggerAriaSelected,
   onOpen,
   triggerSize = "default",
   triggerClassName = "",
@@ -276,6 +285,8 @@ export function OverflowMenu({
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
+        role={triggerRole}
+        aria-selected={triggerAriaSelected}
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={isOpen}

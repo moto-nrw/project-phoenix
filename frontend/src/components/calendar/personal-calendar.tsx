@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -475,6 +475,18 @@ export function PersonalCalendar({
         ? visibleMonthDays
         : visibleWeekDays;
 
+  // Die Legende sitzt als Fussband IN der jeweiligen Rasterflaeche. Frei
+  // darunter stuende sie auf dem gemusterten Grund (BAUARTEN-SPEC Teil 3).
+  const legendBand =
+    visibleSortedEvents.length > 0 ? (
+      <div className="border-t border-gray-200 bg-white px-3 py-2">
+        <PlanLegend
+          entries={calendarLegendEntries}
+          aria-label="Legende Terminarten"
+        />
+      </div>
+    ) : null;
+
   return (
     <div className="w-full space-y-6">
       {error ? <Alert type="error" message={error} /> : null}
@@ -500,6 +512,7 @@ export function PersonalCalendar({
               events={events}
               actions={actions}
             />
+            {legendBand}
           </div>
         ) : null}
 
@@ -510,29 +523,31 @@ export function PersonalCalendar({
               events={events}
               actions={actions}
             />
+            {legendBand}
           </div>
         ) : null}
 
         {viewMode === "month" ? (
-          <div
-            className={`moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:grid ${
-              showWeekend ? "lg:grid-cols-7" : "lg:grid-cols-5"
-            }`}
-          >
-            {visibleMonthDays.map((day) => {
-              const inMonth = day.getMonth() === referenceDate.getMonth();
-              return (
-                <CalendarDayColumn
-                  key={toISODate(day)}
-                  day={day}
-                  events={eventsForDay(events, day)}
-                  actions={actions}
-                  compact
-                  muted={!inMonth}
-                  className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
-                />
-              );
-            })}
+          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm lg:block">
+            <div
+              className={`grid ${showWeekend ? "grid-cols-7" : "grid-cols-5"}`}
+            >
+              {visibleMonthDays.map((day) => {
+                const inMonth = day.getMonth() === referenceDate.getMonth();
+                return (
+                  <CalendarDayColumn
+                    key={toISODate(day)}
+                    day={day}
+                    events={eventsForDay(events, day)}
+                    actions={actions}
+                    compact
+                    muted={!inMonth}
+                    className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
+                  />
+                );
+              })}
+            </div>
+            {legendBand}
           </div>
         ) : null}
 
@@ -542,6 +557,7 @@ export function PersonalCalendar({
             events={events}
             viewMode={viewMode}
             actions={actions}
+            legend={legendBand}
           />
         </div>
 
@@ -551,14 +567,6 @@ export function PersonalCalendar({
           </div>
         ) : null}
       </div>
-
-      {visibleSortedEvents.length > 0 ? (
-        <PlanLegend
-          className="px-1"
-          entries={calendarLegendEntries}
-          aria-label="Legende Terminarten"
-        />
-      ) : null}
 
       <SlideOver
         open={selectedEvent !== null}
@@ -597,11 +605,13 @@ function MobileAgenda({
   events,
   viewMode,
   actions,
+  legend,
 }: Readonly<{
   days: readonly Date[];
   events: readonly CalendarEvent[];
   viewMode: CalendarViewMode;
   actions: CalendarEventActions;
+  legend?: ReactNode;
 }>) {
   const groups = days
     .map((day) => {
@@ -640,6 +650,7 @@ function MobileAgenda({
           ))}
         </section>
       ))}
+      {legend}
     </div>
   );
 }

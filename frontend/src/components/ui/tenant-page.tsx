@@ -468,6 +468,8 @@ function TenantPageTabs({
               <OverflowMenu
                 key={item.value}
                 ariaLabel={item.label}
+                triggerRole="tab"
+                triggerAriaSelected={active}
                 triggerClassName={tabClass}
                 // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die
                 // Zeilenhöhe um ein Pixel und der Reiter steht einen Hauch

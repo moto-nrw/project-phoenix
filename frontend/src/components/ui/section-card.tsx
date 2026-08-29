@@ -31,6 +31,7 @@ export function SectionCard({
   action,
   actions,
   bare = false,
+  testId,
   collapsible = false,
   defaultCollapsed = false,
   onCollapsedChange,
@@ -64,6 +65,8 @@ export function SectionCard({
    * Entscheidung trifft das Eltern-Portal mit `ParentSection bare`.
    */
   bare?: boolean;
+  /** Testanker; erspart eine zusätzliche Hülle nur für den Selektor. */
+  testId?: string;
   collapsible?: boolean;
   defaultCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
@@ -94,6 +97,7 @@ export function SectionCard({
   return (
     <section
       id={id}
+      data-testid={testId}
       className={
         bare
           ? cn("space-y-4", className)

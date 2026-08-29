@@ -23,6 +23,7 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
 import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -170,11 +171,16 @@ export default function DatabaseExportsPage() {
   return (
     <TenantPage title="Exporte" stats={statusLine} back>
       <div className="min-h-[60vh] space-y-6">
-        <p className="text-sm text-gray-600">
-          Jeder Export enthält nur die Daten, die für die jeweilige Liste nötig
-          sind. Bitte behandeln Sie die erzeugten Dateien wie jede andere
-          personenbezogene Unterlage.
-        </p>
+        {/* Der Hinweis steht auf einer Fläche, nicht auf dem Grund
+            (BAUARTEN-SPEC, Teil 3). Eine Karte ohne Titel ist die reine
+            Inhaltsfläche. */}
+        <SectionCard>
+          <p className="text-sm text-gray-600">
+            Jeder Export enthält nur die Daten, die für die jeweilige Liste
+            nötig sind. Bitte behandeln Sie die erzeugten Dateien wie jede
+            andere personenbezogene Unterlage.
+          </p>
+        </SectionCard>
 
         <ExportSection title="Kinderlisten">
           {STUDENT_EXPORT_PRESETS.map((preset) => (
@@ -406,13 +412,15 @@ function ExportSection({
   title,
   children,
 }: Readonly<{ title: string; children: ReactNode }>) {
+  // Der Abschnittstitel gehört auf eine Fläche: eine Überschrift, die frei auf
+  // dem gemusterten Grund steht, ist der häufigste Verstoß gegen Teil 3 des
+  // BAUARTEN-SPEC.
   return (
-    <section className="space-y-3">
-      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+    <SectionCard title={title}>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {children}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

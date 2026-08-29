@@ -8,6 +8,7 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -112,11 +113,14 @@ export function EmptyRoomsView({
         currentStaffId={currentStaffId}
       />
 
-      <EmptyState
-        icon={<MotoConceptIcon concept="rooms" size={48} />}
-        title="Keine aktive Raum-Aufsicht"
-        description="Sie beaufsichtigen aktuell keinen Raum."
-      />
+      {/* Der Zustand sitzt auf einer Fläche, nicht frei auf dem Grund. */}
+      <SectionCard>
+        <EmptyState
+          icon={<MotoConceptIcon concept="rooms" size={48} />}
+          title="Keine aktive Raum-Aufsicht"
+          description="Sie beaufsichtigen aktuell keinen Raum."
+        />
+      </SectionCard>
     </>
   );
 }
@@ -167,25 +171,27 @@ export function SchulhofNotSupervisingView({
   onToggle,
 }: SchulhofNotSupervisingViewProps) {
   return (
-    <EmptyState
-      icon={<MotoConceptIcon concept="schoolyard" size={48} />}
-      title="Schulhof ohne Aufsicht"
-      description={
-        supervisorCount > 0
-          ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-          : "Übernehmen Sie die Aufsicht, um Kinder zu sehen."
-      }
-      action={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={onToggle}
-          disabled={isToggling}
-        >
-          {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
-        </Button>
-      }
-    />
+    <SectionCard>
+      <EmptyState
+        icon={<MotoConceptIcon concept="schoolyard" size={48} />}
+        title="Schulhof ohne Aufsicht"
+        description={
+          supervisorCount > 0
+            ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
+            : "Übernehmen Sie die Aufsicht, um Kinder zu sehen."
+        }
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onToggle}
+            disabled={isToggling}
+          >
+            {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
+          </Button>
+        }
+      />
+    </SectionCard>
   );
 }
