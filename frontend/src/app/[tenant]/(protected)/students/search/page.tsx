@@ -73,17 +73,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import {
-  useAttendanceWebEnabled,
-  useOpenCareGroupMode,
-} from "~/lib/tenant-context";
-import { hasRole } from "~/lib/auth-utils";
-import { useOptionalSupervision } from "~/lib/supervision-context";
-import { useCollectionTabs } from "~/components/dashboard/use-collection-tabs";
-import {
-  getTabsForCollection,
-  STAFF_FLAT_PAGES,
-} from "~/lib/section-navigation";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import type { SchoolCheckinAction } from "~/lib/student-api";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
@@ -966,28 +956,6 @@ function SearchPageContent() {
     },
   });
   const searchParams = useSearchParams();
-
-  // Reiter der Sammlung: die Stammdaten des Kindes sind ein Reiter hier, kein
-  // zweiter Baum („Datenverwaltung"). „Meine Gruppen" hing bis zum
-  // Navigationsumbau als dynamische Liste in der Seitenleiste.
-  const openCareGroupMode = useOpenCareGroupMode();
-  const { hasGroups } = useOptionalSupervision();
-  const collectionTabs = useMemo(() => {
-    const tabs = [];
-    if (hasGroups && !openCareGroupMode) {
-      tabs.push({ href: "/ogs-groups", label: "Meine Gruppen" });
-    }
-    if (hasRole(session, "admin")) {
-      tabs.push(...getTabsForCollection(STAFF_FLAT_PAGES.studentSearch.href));
-    }
-    return tabs;
-  }, [session, hasGroups, openCareGroupMode]);
-  const pageTabs = useCollectionTabs(
-    STAFF_FLAT_PAGES.studentSearch.href,
-    STAFF_FLAT_PAGES.studentSearch.label,
-    collectionTabs,
-    "Bereiche der Kinder",
-  );
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const storageKey = useMemo(
     () => buildSearchFilterStorageKey(session?.user),
@@ -2800,7 +2768,6 @@ function SearchPageContent() {
         title="Kinder"
         stats={studentSummary}
         statsLoading={!hasFetchedOnce || isDateTransition}
-        tabs={pageTabs}
         actions={
           <>
             <OverflowMenu

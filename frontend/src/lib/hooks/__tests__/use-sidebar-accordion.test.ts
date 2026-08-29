@@ -40,9 +40,47 @@ describe("useSidebarAccordion", () => {
       });
   });
 
+  it("expands 'groups' section for /ogs-groups path", () => {
+    const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
+    expect(result.current.expanded).toBe("groups");
+  });
+
+  it("expands 'supervisions' section for /active-supervisions path", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/active-supervisions"),
+    );
+    expect(result.current.expanded).toBe("supervisions");
+  });
+
+  it("expands 'database' section for /database path", () => {
+    const { result } = renderHook(() => useSidebarAccordion("/database"));
+    expect(result.current.expanded).toBe("database");
+  });
+
   it("returns null for unrelated paths", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
     expect(result.current.expanded).toBe(null);
+  });
+
+  it("expands 'groups' from fromParam on child pages", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/ogs-groups"),
+    );
+    expect(result.current.expanded).toBe("groups");
+  });
+
+  it("expands 'supervisions' from fromParam on child pages", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/active-supervisions"),
+    );
+    expect(result.current.expanded).toBe("supervisions");
+  });
+
+  it("expands 'database' from fromParam on child pages", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/database"),
+    );
+    expect(result.current.expanded).toBe("database");
   });
 
   it("expands 'eltern' section for /eltern hub path", () => {
@@ -71,41 +109,22 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("eltern");
   });
 
-  it("expands 'eltern' for the enrollment block", () => {
-    // Die Anmeldungen sind seit dem Navigationsumbau ein Block im
-    // Eltern-Bereich, kein eigener Bereich mehr.
+  it("expands 'enrollments' section for enrollment paths", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/admin/enrollments"),
     );
-    expect(result.current.expanded).toBe("eltern");
+    expect(result.current.expanded).toBe("enrollments");
   });
 
-  it("expands 'eltern' from an enrollment fromParam on child pages", () => {
+  it("expands 'enrollments' from fromParam on child pages", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/students/123", "/care-offerings"),
     );
-    expect(result.current.expanded).toBe("eltern");
-  });
-
-  it("expands 'team' and 'reports' for their sections", () => {
-    expect(
-      renderHook(() => useSidebarAccordion("/team-chat")).result.current
-        .expanded,
-    ).toBe("team");
-    expect(
-      renderHook(() => useSidebarAccordion("/dateien")).result.current.expanded,
-    ).toBe("team");
-    expect(
-      renderHook(() => useSidebarAccordion("/statistics")).result.current
-        .expanded,
-    ).toBe("reports");
-    expect(
-      renderHook(() => useSidebarAccordion("/payroll")).result.current.expanded,
-    ).toBe("reports");
+    expect(result.current.expanded).toBe("enrollments");
   });
 
   it("expands 'planning' for all planning paths incl. legacy redirects (#1946)", () => {
-    // Betreuungsplan, Dienstplan, Vertretung und Zeiträume sind
+    // Betreuungsplan, Dienstplan, Vertretung und Kalenderzeiträume sind
     // Unterpunkte des Planung-Akkordeons; die Redirect-Stubs zählen dazu.
     for (const path of [
       "/calendar-periods",
@@ -137,6 +156,14 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("eltern");
   });
 
+  it("restores 'enrollments' from localStorage when pathname does not determine section", () => {
+    localStorageMock.getItem.mockReturnValueOnce("enrollments");
+
+    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
+
+    expect(result.current.expanded).toBe("enrollments");
+  });
+
   it("returns null when fromParam is unrelated", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/students/123", "/dashboard"),
@@ -148,12 +175,12 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("team");
+      result.current.toggle("groups");
     });
-    expect(result.current.expanded).toBe("team");
+    expect(result.current.expanded).toBe("groups");
 
     act(() => {
-      result.current.toggle("team");
+      result.current.toggle("groups");
     });
     expect(result.current.expanded).toBe(null);
   });
@@ -162,21 +189,21 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("team");
+      result.current.toggle("groups");
     });
-    expect(result.current.expanded).toBe("team");
+    expect(result.current.expanded).toBe("groups");
 
     act(() => {
-      result.current.toggle("reports");
+      result.current.toggle("database");
     });
-    expect(result.current.expanded).toBe("reports");
+    expect(result.current.expanded).toBe("database");
   });
 
   it("persists expanded section to localStorage", () => {
-    renderHook(() => useSidebarAccordion("/team-chat"));
+    renderHook(() => useSidebarAccordion("/ogs-groups"));
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       "sidebar-accordion-expanded",
-      "team",
+      "groups",
     );
   });
 
@@ -184,11 +211,11 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("team");
+      result.current.toggle("groups");
     });
 
     act(() => {
-      result.current.toggle("team");
+      result.current.toggle("groups");
     });
 
     expect(localStorageMock.removeItem).toHaveBeenCalledWith(
@@ -197,21 +224,21 @@ describe("useSidebarAccordion", () => {
   });
 
   it("restores from localStorage when pathname does not determine section", () => {
-    localStorageMock.getItem.mockReturnValueOnce("reports");
+    localStorageMock.getItem.mockReturnValueOnce("supervisions");
 
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     // After useEffect runs, it should restore from localStorage
-    expect(result.current.expanded).toBe("reports");
+    expect(result.current.expanded).toBe("supervisions");
   });
 
   it("does not restore from localStorage when pathname determines section", () => {
-    localStorageMock.getItem.mockReturnValueOnce("reports");
+    localStorageMock.getItem.mockReturnValueOnce("database");
 
-    const { result } = renderHook(() => useSidebarAccordion("/team-chat"));
+    const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
 
     // Should use pathname, not localStorage
-    expect(result.current.expanded).toBe("team");
+    expect(result.current.expanded).toBe("groups");
   });
 
   it("ignores invalid localStorage values", () => {
@@ -230,20 +257,20 @@ describe("useSidebarAccordion", () => {
 
     expect(result.current.expanded).toBe(null);
 
-    rerender({ pathname: "/team-chat" });
-    expect(result.current.expanded).toBe("team");
+    rerender({ pathname: "/ogs-groups" });
+    expect(result.current.expanded).toBe("groups");
 
-    rerender({ pathname: "/statistics" });
-    expect(result.current.expanded).toBe("reports");
+    rerender({ pathname: "/active-supervisions" });
+    expect(result.current.expanded).toBe("supervisions");
   });
 
   it("collapses when navigating to unrelated page", () => {
     const { result, rerender } = renderHook(
       ({ pathname }) => useSidebarAccordion(pathname),
-      { initialProps: { pathname: "/team-chat" } },
+      { initialProps: { pathname: "/ogs-groups" } },
     );
 
-    expect(result.current.expanded).toBe("team");
+    expect(result.current.expanded).toBe("groups");
 
     rerender({ pathname: "/dashboard" });
     expect(result.current.expanded).toBe(null);

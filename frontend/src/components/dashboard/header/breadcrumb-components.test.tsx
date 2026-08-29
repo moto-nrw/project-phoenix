@@ -233,10 +233,8 @@ describe("EnrollmentBreadcrumb", () => {
       />,
     );
 
-    // Die Anmeldungen wohnen im Bereich Eltern; die Brotkrume nennt ihn
-    // zuerst, dann die Anmeldungen, dann die Phase.
-    expect(screen.getByText("Eltern")).toBeInTheDocument();
     expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("Überblick")).toBeInTheDocument();
     expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
   });
 });

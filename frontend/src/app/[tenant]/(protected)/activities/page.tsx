@@ -25,12 +25,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { hasRole } from "~/lib/auth-utils";
-import { useCollectionTabs } from "~/components/dashboard/use-collection-tabs";
-import {
-  getTabsForCollection,
-  STAFF_FLAT_PAGES,
-} from "~/lib/section-navigation";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 import {
@@ -90,22 +84,6 @@ function ActivitiesPageContent() {
       router.push("/");
     },
   });
-
-  // Reiter der Sammlung: die Stammdaten der Aktivität sind ein Reiter hier,
-  // kein zweiter Baum („Datenverwaltung").
-  const activityTabs = useMemo(
-    () =>
-      hasRole(session, "admin")
-        ? getTabsForCollection(STAFF_FLAT_PAGES.activities.href)
-        : [],
-    [session],
-  );
-  const pageTabs = useCollectionTabs(
-    STAFF_FLAT_PAGES.activities.href,
-    STAFF_FLAT_PAGES.activities.label,
-    activityTabs,
-    "Bereiche der Aktivitäten",
-  );
 
   // The session callback can keep status "authenticated" while clearing the
   // token and setting session.error (expired refresh token). useSWRAuth never
@@ -325,7 +303,6 @@ function ActivitiesPageContent() {
         title="Aktivitäten"
         stats={stats}
         statsLoading={showSkeleton}
-        tabs={pageTabs}
         actions={
           <Button
             type="button"

@@ -29,6 +29,7 @@ export const ExpandedWithChildren: Story = {
   args: {
     isExpanded: true,
     isActive: true,
+    activeColor: "text-moto-green",
     isIconActive: true,
     hasChildren: true,
     children: (

@@ -2,12 +2,14 @@
 
 import type { ReactNode } from "react";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {
   readonly icon: string;
   readonly concept?: MotoConceptKey;
   readonly label: string;
+  readonly activeColor?: string;
   readonly isExpanded: boolean;
   readonly onToggle: () => void;
   readonly isActive: boolean;
@@ -25,6 +27,7 @@ export function SidebarAccordionSection({
   icon,
   concept,
   label,
+  activeColor,
   isExpanded,
   onToggle,
   isActive,
@@ -43,6 +46,8 @@ export function SidebarAccordionSection({
 
   const iconBase =
     "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
+  const iconColorClass =
+    (isIconActive ?? isActive) && activeColor ? activeColor : "";
   const conceptDefinition = concept ? MOTO_CONCEPTS[concept] : null;
   const ConceptIcon = conceptDefinition?.icon;
   const showActiveIcon = isIconActive ?? isActive;
@@ -63,15 +68,24 @@ export function SidebarAccordionSection({
         aria-expanded={isExpanded}
       >
         {conceptDefinition && ConceptIcon ? (
-          <ConceptIcon
-            size={22}
-            weight={showActiveIcon ? "fill" : "regular"}
-            className={iconBase}
-            aria-hidden="true"
-          />
+          showActiveIcon ? (
+            <MotoDuotoneIcon
+              icon={conceptDefinition.icon}
+              tone={conceptDefinition.tone}
+              size={22}
+              className={iconBase}
+            />
+          ) : (
+            <ConceptIcon
+              size={22}
+              weight="regular"
+              className={iconBase}
+              aria-hidden="true"
+            />
+          )
         ) : (
           <svg
-            className={iconBase}
+            className={`${iconBase} ${iconColorClass}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

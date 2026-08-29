@@ -22,7 +22,6 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
-  useAttendanceLogEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
   useStaffMessagingEnabled,
@@ -34,18 +33,17 @@ import { getSettingValue } from "~/lib/settings-api";
 import {
   getPlanningMobileActivePaths,
   isPlanningPageHref,
-  isPlanningPageIndependentOfTimetable,
   PLANNING_SUB_PAGES,
   type PlanningPageHref,
 } from "~/lib/planning-navigation";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  DATABASE_SECTION,
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
   STAFF_FLAT_PAGES,
-  TEAM_SUB_PAGES,
 } from "~/lib/section-navigation";
 import {
   Drawer,
@@ -133,56 +131,60 @@ interface NavItem {
 
 // Static base definitions; actual main items are computed per session
 // Admins don't have assigned groups or supervision duties (#608)
-export const ADMIN_MAIN_ITEMS: NavItem[] = [
+const ADMIN_MAIN_ITEMS: NavItem[] = [
   {
-    ...STAFF_FLAT_PAGES.dashboard,
+    href: "/dashboard",
+    label: "Home",
     iconKey: "home",
     concept: "dashboard",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.studentSearch,
+    href: "/students/search",
+    label: "Suchen",
     iconKey: "search",
-    concept: "children",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.activities,
+    href: "/activities",
+    label: "Aktivitäten",
     iconKey: "activities",
     concept: "activities",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.rooms,
+    href: "/rooms",
+    label: "Räume",
     iconKey: "rooms",
     concept: "rooms",
     alwaysShow: true,
   },
 ];
 
-export const STAFF_MAIN_ITEMS: NavItem[] = [
+const STAFF_MAIN_ITEMS: NavItem[] = [
   {
     href: "/ogs-groups",
-    label: "Meine Gruppen",
+    label: "Gruppe",
     iconKey: "group",
     concept: "groups",
     alwaysShow: true,
   },
   {
     href: "/active-supervisions",
-    label: "Aufsicht heute",
+    label: "Aufsicht",
     iconKey: "supervision",
     concept: "supervision",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.studentSearch,
+    href: "/students/search",
+    label: "Suchen",
     iconKey: "search",
-    concept: "children",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.activities,
+    href: "/activities",
+    label: "Aktivitäten",
     iconKey: "activities",
     concept: "activities",
     alwaysShow: true,
@@ -297,7 +299,7 @@ const PLANNING_ICON_KEYS: Record<
   "/vertretung": "vertretung",
   "/lists": "calendar",
   "/calendar-periods": "calendar",
-  "/calendar": "calendar",
+  "/payroll": "chart",
 };
 
 const PLANNING_CONCEPT_KEYS: Record<PlanningPageHref, MotoConceptKey> = {
@@ -306,7 +308,7 @@ const PLANNING_CONCEPT_KEYS: Record<PlanningPageHref, MotoConceptKey> = {
   "/vertretung": "substitution",
   "/lists": "lists",
   "/calendar-periods": "calendarPeriods",
-  "/calendar": "calendar",
+  "/payroll": "payroll",
 };
 
 const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
@@ -320,46 +322,73 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
     activePaths: getPlanningMobileActivePaths(page.href),
   }));
 
-export const additionalNavItems: AdditionalNavItem[] = [
+const additionalNavItems: AdditionalNavItem[] = [
   {
-    ...STAFF_FLAT_PAGES.activities,
+    href: "/activities",
+    label: "Aktivitäten",
     iconKey: "activities",
     concept: "activities",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.staff,
+    href: "/staff",
+    label: "Mitarbeiter",
     iconKey: "staff",
     concept: "staff",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.rooms,
+    // Team-Chat (#2598). Ohne diesen Eintrag ist die Flaeche auf kleinen
+    // Bildschirmen ueber die Oberflaeche gar nicht erreichbar - die
+    // Seitenleiste gibt es dort nicht. Gating unten in
+    // filteredAdditionalItems: der Chat ist Opt-in (Default aus).
+    href: "/team-chat",
+    label: "Team-Chat",
+    iconKey: "chat",
+    concept: "messages",
+  },
+  {
+    // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
+    // canOpenRequestsPage: requiresPermission kann das
+    // users:absence+users:read-Paar nicht ausdrücken.
+    href: "/anfragen",
+    label: "Anfragen",
+    iconKey: "tray",
+    concept: "requests",
+  },
+  {
+    href: "/calendar",
+    label: "Mein Kalender",
+    iconKey: "calendar",
+    concept: "calendar",
+    // Match the backend calendar:own gate on GET /api/calendar/my.
+    requiresPermission: "calendar:own",
+  },
+  {
+    href: "/rooms",
+    label: "Räume",
     iconKey: "rooms",
     concept: "rooms",
     alwaysShow: true,
   },
-  // Planung — im Telefon-Menü flach. Der geteilte Katalog liefert die
-  // Legacy-Pfade gleich mit.
-  ...PLANNING_ADDITIONAL_ITEMS,
-  // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
-  // canOpenRequestsPage: requiresPermission kann das
-  // users:absence+users:read-Paar nicht ausdrücken.
   {
-    ...STAFF_FLAT_PAGES.anfragen,
-    iconKey: "tray",
-    concept: "requests",
+    // Alt-Bereich für temporären Gruppen-Datenzugriff (#1940) — nur bei
+    // festen Gruppen sichtbar (Filter unten).
+    href: "/substitutions",
+    label: "Gruppenzugriff",
+    iconKey: "substitutions",
+    concept: "groupAccess",
+    requiresAdmin: true,
   },
-  // Eltern — ein Eintrag auf den Überblick. Das Telefon hat keine
-  // Akkordeons; die Unterseiten erreicht man über die Karten dort, und der
-  // Überblick zeigt nur, was der Person offensteht.
+  // Planning is flattened in the mobile drawer. The shared catalog omits the
+  // desktop-only calendar-period editor and supplies all legacy active paths.
+  ...PLANNING_ADDITIONAL_ITEMS,
   {
-    href: PARENT_SECTION.href,
-    label: PARENT_SECTION.label,
-    iconKey: "parents",
-    concept: "parents",
-    alwaysShow: true,
-    activePaths: PARENT_SUB_PAGES.map((page) => page.href),
+    href: DATABASE_SECTION.href,
+    label: DATABASE_SECTION.label,
+    iconKey: "database",
+    concept: "database",
+    requiresAdmin: true,
   },
   {
     href: ENROLLMENT_SECTION.href,
@@ -369,62 +398,55 @@ export const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
     activePaths: ENROLLMENT_SUB_PAGES.map((page) => page.href),
   },
-  // Team
-  ...TEAM_SUB_PAGES.map((page) => ({
-    href: page.href,
-    label: page.label,
-    iconKey: (page.href === STAFF_FLAT_PAGES.teamChat.href
-      ? "chat"
-      : "database") as keyof typeof navigationIcons,
-    concept:
-      page.href === STAFF_FLAT_PAGES.teamChat.href
-        ? ("messages" as const)
-        : ("files" as const),
-    alwaysShow: page.href !== STAFF_FLAT_PAGES.teamChat.href,
-  })),
-  // Auswertung
   {
-    ...STAFF_FLAT_PAGES.statistics,
-    iconKey: "chart",
-    concept: "reports",
-    requiresAllPermissions: ["config:read", "users:read"],
-  },
-  {
-    ...STAFF_FLAT_PAGES.timeTracking,
+    href: "/time-tracking",
+    label: "Zeiterfassung",
     iconKey: "clock",
     concept: "timeTracking",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.payroll,
-    iconKey: "chart",
-    concept: "payroll",
-    requiresPermission: "config:manage",
-  },
-  {
-    ...STAFF_FLAT_PAGES.dayLog,
-    iconKey: "chart",
-    concept: "dayReport",
-    requiresPermission: "users:read",
-  },
-  {
-    ...STAFF_FLAT_PAGES.emergency,
+    href: "/emergency",
+    label: "Notfall",
     iconKey: "emergency",
     concept: "emergency",
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.help,
+    href: "/help",
+    label: "Hilfe",
     iconKey: "book",
     concept: "help",
     alwaysShow: true,
     newTab: true,
   },
   {
-    ...STAFF_FLAT_PAGES.settings,
+    href: "/settings",
+    label: "Einstellungen",
     iconKey: "settings",
     concept: "settings",
     requiresAdmin: true,
+  },
+  // Eltern hub — mirrors the desktop "Eltern" accordion. Mobile has no
+  // accordions, so a single overflow entry points at the /eltern overview and
+  // the sub-pages are reached from its cards (same treatment as
+  // Datenverwaltung / Anmeldungen). Shown to all staff; the overview itself
+  // renders only the cards the caller may access.
+  {
+    href: PARENT_SECTION.href,
+    label: PARENT_SECTION.label,
+    iconKey: "parents",
+    concept: "parents",
+    alwaysShow: true,
+    activePaths: PARENT_SUB_PAGES.map((page) => page.href),
+  },
+  // Reminders live in the header bell (always visible on desktop + mobile),
+  // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
+  {
+    ...STAFF_FLAT_PAGES.statistics,
+    iconKey: "chart",
+    concept: "reports",
+    requiresAllPermissions: ["config:read", "users:read"],
   },
 ];
 
@@ -575,7 +597,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           ...baseMain.slice(0, 1),
           {
             href: "/active-supervisions",
-            label: "Aufsicht heute",
+            label: "Aufsicht",
             iconKey: "supervision" as const,
             concept: "supervision" as const,
             alwaysShow: true,
@@ -596,7 +618,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
   const staffMessagingEnabled = useStaffMessagingEnabled();
-  const attendanceLogEnabled = useAttendanceLogEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
   // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
@@ -625,9 +646,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
-    if (item.href === STAFF_FLAT_PAGES.anfragen.href) {
-      return canOpenRequestsPage(session);
-    }
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
@@ -635,23 +654,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (
       isPlanningPageHref(item.href) &&
-      !isPlanningPageIndependentOfTimetable(item.href) &&
+      item.href !== "/calendar-periods" &&
+      item.href !== "/payroll" &&
       !timetableEnabled
     ) {
       // Gilt auch für Nicht-Admins mit nonAdminPermission (#2283): die
       // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
       return false;
     }
+    if (item.href === "/substitutions" && openCareGroupMode) return false;
     // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
     // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
     // Seitenleiste.
-    if (item.href === STAFF_FLAT_PAGES.teamChat.href) {
-      return staffMessagingEnabled;
-    }
-    // Tagesbericht (#1456) hängt am Anwesenheitsprotokoll-Gate.
-    if (item.href === STAFF_FLAT_PAGES.dayLog.href && !attendanceLogEnabled) {
-      return false;
-    }
+    if (item.href === "/team-chat" && !staffMessagingEnabled) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresAllPermissions) {
@@ -772,15 +787,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
                   const isActive = isActiveRoute(item.href, item.activePaths);
-                  // Jede Fläche im Menü ist eine tenant-eigene [tenant]/…
-                  // Route: im Path-Routing-Modus würde ein blanker Pfad als
-                  // Mandanten-Kürzel gelesen. Nur die Hilfe bleibt bar, sie
-                  // liegt außerhalb des Mandanten. (No-op im
-                  // Subdomain-Modus.)
+                  // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
+                  // path-routing mode a bare "/eltern" href is captured as the
+                  // tenant slug, so prefix it the same way the /eltern page
+                  // prefixes its card links. Anfragen is also tenant-scoped.
+                  // Other entries stay bare — /help is host-agnostic and must
+                  // not carry the slug.
                   const href =
-                    item.newTab || mode === "operator"
-                      ? item.href
-                      : tenantPath(item.href);
+                    item.href === "/eltern" ||
+                    item.href === "/anfragen" ||
+                    item.href === "/team-chat" ||
+                    isPlanningPageHref(item.href)
+                      ? tenantPath(item.href)
+                      : item.href;
 
                   // Coming soon items are not clickable
                   if (item.comingSoon) {

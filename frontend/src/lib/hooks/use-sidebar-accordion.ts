@@ -3,13 +3,16 @@
 import { useState, useCallback, useEffect } from "react";
 
 import { isPlanningPath } from "~/lib/planning-navigation";
-import {
-  isElternPath,
-  isReportsPath,
-  isTeamPath,
-} from "~/lib/section-navigation";
+import { isElternPath, isEnrollmentPath } from "~/lib/section-navigation";
 
-type AccordionSection = "planning" | "eltern" | "team" | "reports" | null;
+type AccordionSection =
+  | "groups"
+  | "supervisions"
+  | "database"
+  | "planning"
+  | "enrollments"
+  | "eltern"
+  | null;
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
 
@@ -22,16 +25,24 @@ function sectionFromPathname(
   pathname: string,
   fromParam?: string | null,
 ): AccordionSection {
-  const match = (path: string): AccordionSection => {
-    if (isPlanningPath(path)) return "planning";
-    if (isElternPath(path)) return "eltern";
-    if (isTeamPath(path)) return "team";
-    if (isReportsPath(path)) return "reports";
-    return null;
-  };
+  if (pathname.startsWith("/ogs-groups")) return "groups";
+  if (pathname.startsWith("/active-supervisions")) return "supervisions";
+  if (pathname.startsWith("/database")) return "database";
+  if (isPlanningPath(pathname)) return "planning";
+  if (isEnrollmentPath(pathname)) return "enrollments";
+  if (isElternPath(pathname)) return "eltern";
 
   // Child pages: keep the originating accordion section open
-  return match(pathname) ?? (fromParam ? match(fromParam) : null);
+  if (fromParam) {
+    if (fromParam.startsWith("/ogs-groups")) return "groups";
+    if (fromParam.startsWith("/active-supervisions")) return "supervisions";
+    if (fromParam.startsWith("/database")) return "database";
+    if (isPlanningPath(fromParam)) return "planning";
+    if (isEnrollmentPath(fromParam)) return "enrollments";
+    if (isElternPath(fromParam)) return "eltern";
+  }
+
+  return null;
 }
 
 /**
@@ -58,10 +69,12 @@ export function useSidebarAccordion(
     if (sectionFromPathname(pathname, fromParam)) return; // pathname already decided
     const stored = localStorage.getItem(STORAGE_KEY);
     if (
+      stored === "groups" ||
+      stored === "supervisions" ||
+      stored === "database" ||
       stored === "planning" ||
-      stored === "eltern" ||
-      stored === "team" ||
-      stored === "reports"
+      stored === "enrollments" ||
+      stored === "eltern"
     ) {
       setExpanded(stored);
     }

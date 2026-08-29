@@ -7,7 +7,6 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSettingsTabs } from "~/components/settings/settings-page";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { SETTINGS_REGISTER_TABS } from "~/lib/section-navigation";
 
 function SettingsContent() {
   const { data: session, status } = useSession({
@@ -28,36 +27,14 @@ function SettingsContent() {
     setSelectedTab(requestedTabId);
   }, [requestedTabId]);
 
-  // Die Register, die reine Konfiguration sind (Gruppen, Rollen,
-  // Berechtigungen, Geräte, Info-Displays, Exporte, Jahrgangswechsel), standen
-  // im aufgelösten Bereich „Datenverwaltung". Sie sind jetzt Reiter hier und
-  // führen auf ihre bestehenden Routen.
-  //
-  // Höchstens vier Seitenreiter: die ersten Einstellungsbereiche stehen
-  // sichtbar, alles Seltenere (weitere Bereiche und die Register) bündelt ein
-  // Reiter „Verwaltung" mit Menü. Mehr Reiter wären eine Werkzeugleiste,
-  // keine Orientierung.
+  // Alle Bereiche stehen als Reiter da. Was nicht in die Zeile passt, raeumt
+  // das Seitengeruest selbst unter „Mehr" -- gemessen, nicht geraten.
   const { tabItems, flatTabItems } = useMemo(() => {
     const schemaItems = (settingsTabs?.tabs ?? []).map((tab) => ({
       value: tab.id,
       label: tab.label,
     }));
-    const registerItems = SETTINGS_REGISTER_TABS.map((tab) => ({
-      value: tab.href,
-      label: tab.label,
-    }));
-    const visibleSchemaItems = schemaItems.slice(0, 3);
-    const menuItems = [...schemaItems.slice(3), ...registerItems];
-    const items = [
-      ...visibleSchemaItems,
-      ...(menuItems.length > 0
-        ? [{ value: "verwaltung", label: "Verwaltung", menu: menuItems }]
-        : []),
-    ];
-    return {
-      tabItems: items,
-      flatTabItems: [...schemaItems, ...registerItems],
-    };
+    return { tabItems: schemaItems, flatTabItems: schemaItems };
   }, [settingsTabs]);
 
   // Statuszeile: wie viele Bereiche es gibt und wie viele Einstellungen von

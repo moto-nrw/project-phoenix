@@ -211,12 +211,14 @@ describe("MobileBottomNav", () => {
     it("names icon-only staff nav controls for assistive technology", () => {
       render(<MobileBottomNav />);
 
-      expect(
-        screen.getByRole("link", { name: "Meine Gruppen" }),
-      ).toHaveAttribute("href", "/ogs-groups");
-      expect(
-        screen.getByRole("link", { name: "Aufsicht heute" }),
-      ).toHaveAttribute("href", "/active-supervisions");
+      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+        "href",
+        "/ogs-groups",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
       expect(screen.getByRole("button", { name: "Mehr" })).toBeInTheDocument();
     });
 
@@ -289,7 +291,7 @@ describe("MobileBottomNav", () => {
         .getAllByRole("link")
         .find((link) => link.getAttribute("href") === "/dashboard");
       expect(dashboardLink).toHaveClass("bg-gray-100");
-      expect(screen.getByText("Start")).toBeInTheDocument();
+      expect(screen.getByText("Home")).toBeInTheDocument();
     });
 
     it("highlights dashboard for root path", () => {
@@ -299,8 +301,8 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // Should show "Start" label since dashboard is active
-      expect(screen.getByText("Start")).toBeInTheDocument();
+      // Should show "Home" label since dashboard is active
+      expect(screen.getByText("Home")).toBeInTheDocument();
     });
 
     it("detects active route from search params 'from' parameter", () => {
@@ -310,7 +312,7 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // Should highlight the "Meine Gruppen" item since from=/ogs-groups/5
+      // Should highlight the "Gruppe" item since from=/ogs-groups/5
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
@@ -344,7 +346,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Home must NOT be active (its label only renders when active)…
-      expect(screen.queryByText("Start")).not.toBeInTheDocument();
+      expect(screen.queryByText("Home")).not.toBeInTheDocument();
       // …and the Eltern group ("Mehr") is active via its /messages activePath.
       expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
         "bg-gray-100",
@@ -375,7 +377,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Admin main items include Home, Suchen, Aktivitäten, Räume
-      expect(screen.getByText("Start")).toBeInTheDocument();
+      expect(screen.getByText("Home")).toBeInTheDocument();
     });
 
     it("shows admin-only items in overflow menu", () => {
@@ -394,30 +396,32 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretung")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      // Der Vertretungszugriff ist ein Reiter bei den Mitarbeitenden und die
-      // Datenverwaltung ist aufgelöst; beide haben keinen eigenen
-      // Navigationseintrag mehr.
-      expect(screen.queryByText("Vertretungszugriff")).not.toBeInTheDocument();
-      expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
-      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+      // "Übergaben" heißt jetzt "Gruppenzugriff" (#1940).
+      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
-    it("labels the staff calendar entry 'Kalender' in the overflow menu", () => {
-      // Ein Begriff, ein Wort: der Eintrag heißt überall „Kalender" — in der
-      // Seitenleiste, in der Kopfzeile und hier.
+    it("labels the staff calendar entry 'Mein Kalender' in the overflow menu", () => {
+      // Der Staff-Eintrag auf /calendar heißt wie die H1 der Seite. Der
+      // gleichnamige Eltern-Eintrag (/parents/calendar) bleibt "Kalender" —
+      // siehe "parent mode navigation" unten.
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
-      expect(screen.getByText("Kalender").closest("a")).toHaveAttribute(
+      // Nur Planungs- und Eltern-Hub-Links tragen das Tenant-Präfix; /calendar
+      // bleibt bar.
+      expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
         "href",
-        "/test-tenant/calendar",
+        "/calendar",
       );
-      expect(screen.queryByText("Mein Kalender")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
 
-    it("lists Abrechnung in the overflow menu", () => {
-      // Abrechnung steht im Auswertungs-Bereich und damit auch mobil in der
-      // flachen Navigation.
+    it("lists Abrechnung in the overflow menu like every other planning page", () => {
+      // Abrechnung ist jetzt Unterpunkt des Planung-Bereichs und steht damit
+      // auch mobil in der flachen Navigation — PLANNING_SUB_PAGES verlangt das
+      // für jede Planungsseite (siehe planning-navigation.test.ts).
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
@@ -501,7 +505,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       const dienstplanLink = screen.getByText("Dienstplan").closest("a");
-      const staffLink = screen.getByText("Mitarbeitende").closest("a");
+      const staffLink = screen.getByText("Mitarbeiter").closest("a");
       expect(dienstplanLink).toHaveClass("bg-gray-100");
       expect(staffLink).not.toHaveClass("bg-gray-100");
     });
@@ -517,8 +521,8 @@ describe("MobileBottomNav", () => {
       );
     });
 
-    it("highlights Zeiträume as its own overflow entry", () => {
-      // Zeiträume und Tageslisten waren mobil ausgeblendet und liehen
+    it("highlights Kalenderzeiträume as its own overflow entry", () => {
+      // Kalenderzeiträume und Tageslisten waren mobil ausgeblendet und liehen
       // sich die Hervorhebung vom Betreuungsplan. Erreichbar waren sie dadurch
       // nicht: es gibt keinen Verweis vom Betreuungsplan dorthin. Beide sind
       // jetzt eigene Einträge und markieren sich selbst.
@@ -533,7 +537,7 @@ describe("MobileBottomNav", () => {
       expect(moreButton).toBeDefined();
       fireEvent.click(moreButton!);
 
-      expect(screen.getByText("Zeiträume").closest("a")).toHaveClass(
+      expect(screen.getByText("Kalenderzeiträume").closest("a")).toHaveClass(
         "bg-gray-100",
       );
       expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
@@ -565,7 +569,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Staff main item should show label when active
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Gruppe")).toBeInTheDocument();
     });
 
     it("shows active supervision label when on that route", () => {
@@ -573,8 +577,8 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // Should show the supervision label when active
-      expect(screen.getByText("Aufsicht heute")).toBeInTheDocument();
+      // Should show Aufsicht label when active
+      expect(screen.getByText("Aufsicht")).toBeInTheDocument();
     });
 
     it("renders staff nav links correctly", () => {
@@ -664,14 +668,11 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton);
 
       // Click a navigation item
-      const staffLink = screen.getByText("Mitarbeitende");
+      const staffLink = screen.getByText("Mitarbeiter");
       fireEvent.click(staffLink);
 
       // The link should exist and be clickable
-      expect(staffLink.closest("a")).toHaveAttribute(
-        "href",
-        "/test-tenant/staff",
-      );
+      expect(staffLink.closest("a")).toHaveAttribute("href", "/staff");
     });
 
     it("displays additional nav items in drawer", () => {
@@ -711,7 +712,7 @@ describe("MobileBottomNav", () => {
 
       const link = screen.getByText("Statistik").closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/test-tenant/statistics");
+      expect(link).toHaveAttribute("href", "/statistics");
       expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
       expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
     });
@@ -729,7 +730,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(getMoreButton());
       expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
         "href",
-        "/test-tenant/statistics",
+        "/statistics",
       );
     });
 
@@ -744,7 +745,7 @@ describe("MobileBottomNav", () => {
       const zeiterfassungElement = screen.getByText("Zeiterfassung");
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/test-tenant/time-tracking");
+      expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {
@@ -950,8 +951,8 @@ describe("MobileBottomNav", () => {
         await vi.advanceTimersByTimeAsync(150);
       });
 
-      // The active link should show the "Meine Gruppen" label after timers complete
-      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      // The active link should show the "Gruppe" label after timers complete
+      expect(screen.getByText("Gruppe")).toBeInTheDocument();
 
       vi.useRealTimers();
     });
@@ -1104,15 +1105,13 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
     }
 
-    it("keeps the planning entries for open-care tenants", () => {
-      // Der Vertretungszugriff ist seit dem Navigationsumbau ein Reiter bei
-      // den Mitarbeitenden; das Telefon-Menü führt ihn nicht mehr.
+    it("hides Gruppenzugriff for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(screen.queryByText("Vertretungszugriff")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppenzugriff")).not.toBeInTheDocument();
       // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
     });
@@ -1168,8 +1167,10 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
-      expect(screen.getByText("Zeiträume")).toBeInTheDocument();
+      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
+      // Gruppenzugriff bleibt sichtbar (fixed_groups default).
+      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
     });
 
     it("reads timetable.enabled from the tenant-scoped SWR key", () => {

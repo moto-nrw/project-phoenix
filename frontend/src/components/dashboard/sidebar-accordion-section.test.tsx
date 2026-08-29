@@ -125,11 +125,55 @@ describe("SidebarAccordionSection", () => {
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
   });
 
-  it("marks the active section without a colour of its own", () => {
-    // Farbe je Bereich gibt es nicht mehr; der aktive Eintrag wird über
-    // Fläche und Schriftschnitt markiert (BAUARTEN-SPEC, Teil 2).
-    render(<SidebarAccordionSection {...defaultProps} isActive={true} />);
+  it("applies activeColor when isActive is true", () => {
+    render(
+      <SidebarAccordionSection
+        {...defaultProps}
+        isActive={true}
+        activeColor="text-blue-500"
+      />,
+    );
     const svg = document.querySelector("svg");
-    expect(svg?.getAttribute("class")).not.toMatch(/\btext-[a-z]+-\d00\b/);
+    expect(svg?.getAttribute("class")).toContain("text-blue-500");
+  });
+
+  it("applies activeColor when isIconActive is true (overrides isActive)", () => {
+    render(
+      <SidebarAccordionSection
+        {...defaultProps}
+        isActive={false}
+        isIconActive={true}
+        activeColor="text-green-500"
+      />,
+    );
+    const svg = document.querySelector("svg");
+    expect(svg?.getAttribute("class")).toContain("text-green-500");
+  });
+
+  it("does not apply activeColor when neither isActive nor isIconActive", () => {
+    render(
+      <SidebarAccordionSection
+        {...defaultProps}
+        isActive={false}
+        isIconActive={false}
+        activeColor="text-red-500"
+      />,
+    );
+    const svg = document.querySelector("svg");
+    const classAttr = svg?.getAttribute("class") ?? "";
+    expect(classAttr).not.toContain("text-red-500");
+  });
+
+  it("does not apply activeColor when activeColor is undefined", () => {
+    render(
+      <SidebarAccordionSection
+        {...defaultProps}
+        isActive={true}
+        activeColor={undefined}
+      />,
+    );
+    // Should not crash and icon should not have any color class beyond base
+    const svg = document.querySelector("svg");
+    expect(svg).toBeInTheDocument();
   });
 });

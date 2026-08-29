@@ -35,10 +35,6 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
-import {
-  getTabsForCollection,
-  STAFF_FLAT_PAGES,
-} from "~/lib/section-navigation";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
@@ -690,30 +686,15 @@ function StaffPageContent() {
   // Seitenreiter: Status (Karten), Zeitkonten (Tabelle), Änderungsprotokoll
   // und Personalunterlagen beantworten verschiedene Fragen. Nur mit
   // time_tracking:manage gibt es überhaupt etwas zu wechseln.
-  // Register der aufgelösten Datenverwaltung: „Stammdaten" und
-  // „Vertretungszugriff" stehen als Reiter hier, nicht als eigener Zweig in
-  // der Seitenleiste. Sie führen auf ihre bestehenden Routen.
-  const linkedTabs = userIsAdmin
-    ? getTabsForCollection(STAFF_FLAT_PAGES.staff.href)
-    : [];
-
-  // Was man selten braucht, steht gebündelt hinter „Verwaltung": Protokoll,
-  // Unterlagen, Stammdaten und Vertretungszugriff sind Verwaltungsflächen und
-  // gehören nicht gleichrangig neben die tägliche Ansicht. Sechs Reiter
-  // nebeneinander sind eine Werkzeugleiste, keine Orientierung.
-  const verwaltungItems = [
-    { value: "audit", label: "Änderungsprotokoll" },
-    ...(canAccessDocuments
-      ? [{ value: "documents", label: "Personalunterlagen" }]
-      : []),
-    ...linkedTabs.map((tab) => ({ value: tab.href, label: tab.label })),
-  ];
-
+  // Was man selten braucht, steht gebündelt hinter „Verwaltung": Protokoll
+  // und Unterlagen sind Verwaltungsflächen und gehören nicht gleichrangig
+  // neben die tägliche Ansicht.
   const tabItems = [
     ...(canReadUsers ? [{ value: "status", label: "Status" }] : []),
     { value: "accounts", label: "Zeitkonten" },
-    ...(verwaltungItems.length > 0
-      ? [{ value: "verwaltung", label: "Verwaltung", menu: verwaltungItems }]
+    { value: "audit", label: "Änderungsprotokoll" },
+    ...(canAccessDocuments
+      ? [{ value: "documents", label: "Personalunterlagen" }]
       : []),
   ];
 
@@ -744,16 +725,10 @@ function StaffPageContent() {
         setShowCustomSaldo(false);
       }}
       tabs={
-        canManageTimeTracking || linkedTabs.length > 0
+        canManageTimeTracking
           ? {
               value: view,
               onChange: (value) => {
-                // Ein Reiter, der auf eine andere Route zeigt, navigiert
-                // dorthin; die übrigen schalten die Ansicht dieser Seite um.
-                if (value.startsWith("/")) {
-                  router.push(value);
-                  return;
-                }
                 setSelectedView(
                   value as "status" | "accounts" | "audit" | "documents",
                 );
