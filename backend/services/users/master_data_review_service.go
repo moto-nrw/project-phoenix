@@ -131,10 +131,6 @@ type RequestReviewPolicy interface {
 	Allows(context.Context, []string, *userModels.Student) (bool, error)
 }
 
-func (s *masterDataReviewService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
-	s.reviewPolicy = policy
-}
-
 // NewMasterDataReviewServiceWithAudit wires the staff review service and the
 // per-child change recorder used for approved departure-plan requests.
 func NewMasterDataReviewServiceWithAudit(
@@ -147,7 +143,26 @@ func NewMasterDataReviewServiceWithAudit(
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
-	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, logger, broadcasters...)
+	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, nil, logger, broadcasters...)
+}
+
+// NewMasterDataReviewServiceWithAuditAndPolicy requires the production review
+// policy at construction, so missing wiring cannot widen reviewer access.
+func NewMasterDataReviewServiceWithAuditAndPolicy(
+	changeRequestRepo userModels.StudentDataChangeRequestRepository,
+	studentRepo userModels.StudentRepository,
+	personRepo userModels.PersonRepository,
+	userCtx authorize.StudentAccessUserContext,
+	emitter *parentmessaging.Emitter,
+	studentAudit StudentChangeRecorder,
+	reviewPolicy RequestReviewPolicy,
+	logger *slog.Logger,
+	broadcasters ...realtime.Broadcaster,
+) MasterDataReviewService {
+	if reviewPolicy == nil {
+		panic("master data review policy is required")
+	}
+	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, reviewPolicy, logger, broadcasters...)
 }
 
 func newMasterDataReviewService(
@@ -157,6 +172,7 @@ func newMasterDataReviewService(
 	userCtx authorize.StudentAccessUserContext,
 	emitter *parentmessaging.Emitter,
 	studentAudit StudentChangeRecorder,
+	reviewPolicy RequestReviewPolicy,
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
@@ -175,6 +191,7 @@ func newMasterDataReviewService(
 		broadcaster:       broadcaster,
 		emitter:           emitter,
 		studentAudit:      studentAudit,
+		reviewPolicy:      reviewPolicy,
 		logger:            logger,
 	}
 }

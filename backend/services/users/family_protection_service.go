@@ -52,7 +52,19 @@ func (s *FamilyProtectionService) Current(ctx context.Context, studentIDs []int6
 	if s == nil || s.events == nil {
 		return nil, errors.New("parent requests: family protection service is not configured")
 	}
-	return s.events.CurrentForStudents(ctx, studentIDs)
+	unique := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if studentID <= 0 {
+			return nil, ErrFamilyProtectionInvalid
+		}
+		if _, exists := seen[studentID]; exists {
+			continue
+		}
+		seen[studentID] = struct{}{}
+		unique = append(unique, studentID)
+	}
+	return s.events.CurrentForStudents(ctx, unique)
 }
 
 func (s *FamilyProtectionService) Set(ctx context.Context, input SetFamilyProtectionInput) (*userModels.FamilyProtectionEvent, error) {

@@ -136,7 +136,7 @@ export function ChildMasterDataRequestModal({
               variant="outline"
               size="md"
               className="hidden sm:inline-flex"
-              disabled={submitting || !sharingReady}
+              disabled={submitting}
               onClick={onClose}
             >
               {t("identityModal.cancel")}
@@ -145,7 +145,7 @@ export function ChildMasterDataRequestModal({
               type="button"
               size="md"
               className="w-full gap-2 sm:w-auto"
-              disabled={submitting}
+              disabled={submitting || !sharingReady}
               onClick={() => void submit()}
             >
               {submitting && (

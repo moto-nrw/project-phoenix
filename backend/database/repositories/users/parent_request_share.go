@@ -13,13 +13,18 @@ import (
 const parentRequestShareTable = "users.parent_request_share_events"
 
 type ParentRequestShareEventRepository struct {
-	db *bun.DB
+	*base.Repository[*userModels.ParentRequestShareEvent]
 }
 
 func NewParentRequestShareEventRepository(db *bun.DB) userModels.ParentRequestShareEventRepository {
-	return &ParentRequestShareEventRepository{db: db}
+	repo := base.NewRepository[*userModels.ParentRequestShareEvent](db, parentRequestShareTable, "ParentRequestShareEvent")
+	repo.TenantScoped = true
+	return &ParentRequestShareEventRepository{Repository: repo}
 }
 
+// Create overrides the generic insert so created_at uses clock_timestamp().
+// Sharing and protection events live in separate tables, and visibility compares
+// their real creation order even when both are written in one transaction.
 func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *userModels.ParentRequestShareEvent) error {
 	if event == nil {
 		return fmt.Errorf("parent request share event cannot be nil")
@@ -28,7 +33,7 @@ func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *u
 	if event.RecipientAccountIDs == nil {
 		event.RecipientAccountIDs = []int64{}
 	}
-	if _, err := base.GetDB(ctx, r.db).NewInsert().Model(event).
+	if _, err := base.GetDB(ctx, r.DB).NewInsert().Model(event).
 		ModelTableExpr(parentRequestShareTable).
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
@@ -38,9 +43,11 @@ func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *u
 	return nil
 }
 
+// CurrentForStudent uses DISTINCT ON because the generic filter API cannot
+// select the newest immutable event for each request type and request ID.
 func (r *ParentRequestShareEventRepository) CurrentForStudent(ctx context.Context, studentID int64) ([]*userModels.ParentRequestShareEvent, error) {
 	rows := make([]*userModels.ParentRequestShareEvent, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.parent_request_share_events AS "parent_request_share_event"`).
 		Where(`"parent_request_share_event".student_id = ?`, studentID).

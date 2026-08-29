@@ -14,19 +14,24 @@ import (
 const familyProtectionTable = "users.student_family_protection_events"
 
 type FamilyProtectionEventRepository struct {
-	db *bun.DB
+	*base.Repository[*userModels.FamilyProtectionEvent]
 }
 
 func NewFamilyProtectionEventRepository(db *bun.DB) userModels.FamilyProtectionEventRepository {
-	return &FamilyProtectionEventRepository{db: db}
+	repo := base.NewRepository[*userModels.FamilyProtectionEvent](db, familyProtectionTable, "FamilyProtectionEvent")
+	repo.TenantScoped = true
+	return &FamilyProtectionEventRepository{Repository: repo}
 }
 
+// Create overrides the generic insert so created_at uses clock_timestamp().
+// Sharing and protection events live in separate tables, and visibility compares
+// their real creation order even when both are written in one transaction.
 func (r *FamilyProtectionEventRepository) Create(ctx context.Context, event *userModels.FamilyProtectionEvent) error {
 	if event == nil {
 		return fmt.Errorf("family protection event cannot be nil")
 	}
 	base.EnsureTenantID(ctx, event)
-	if _, err := base.GetDB(ctx, r.db).NewInsert().Model(event).
+	if _, err := base.GetDB(ctx, r.DB).NewInsert().Model(event).
 		ModelTableExpr(familyProtectionTable).
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
@@ -36,13 +41,15 @@ func (r *FamilyProtectionEventRepository) Create(ctx context.Context, event *use
 	return nil
 }
 
+// CurrentForStudents uses DISTINCT ON because the generic filter API cannot
+// select the newest immutable event independently for each child.
 func (r *FamilyProtectionEventRepository) CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*userModels.FamilyProtectionEvent, error) {
 	result := make(map[int64]*userModels.FamilyProtectionEvent, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
 	var rows []*userModels.FamilyProtectionEvent
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.student_family_protection_events AS "family_protection_event"`).
 		Where(`"family_protection_event".student_id IN (?)`, bun.List(studentIDs)).

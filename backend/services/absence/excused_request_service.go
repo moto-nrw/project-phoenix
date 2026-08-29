@@ -199,7 +199,31 @@ func NewExcusedAbsenceRequestServiceWithPartialAbsences(
 ) ExcusedAbsenceRequestService {
 	return newExcusedAbsenceRequestService(
 		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
-		userContext, emitter, broadcaster, logger, db,
+		userContext, emitter, broadcaster, nil, logger, db,
+	)
+}
+
+// NewExcusedAbsenceRequestServiceWithPolicy requires the production review
+// policy at construction, so missing wiring cannot widen reviewer access.
+func NewExcusedAbsenceRequestServiceWithPolicy(
+	requestRepo activeModels.ExcusedAbsenceRequestRepository,
+	statusDayRepo activeModels.StudentStatusDayRepository,
+	pickupRepo scheduleModels.StudentPickupExceptionRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	logger *slog.Logger,
+	db *bun.DB,
+) ExcusedAbsenceRequestService {
+	if reviewPolicy == nil {
+		panic("excused absence request review policy is required")
+	}
+	return newExcusedAbsenceRequestService(
+		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
+		userContext, emitter, broadcaster, reviewPolicy, logger, db,
 	)
 }
 
@@ -212,6 +236,7 @@ func newExcusedAbsenceRequestService(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
 	logger *slog.Logger,
 	db *bun.DB,
 ) ExcusedAbsenceRequestService {
@@ -227,6 +252,7 @@ func newExcusedAbsenceRequestService(
 		userContext:   userContext,
 		emitter:       emitter,
 		broadcaster:   broadcaster,
+		reviewPolicy:  reviewPolicy,
 		logger:        logger,
 		db:            db,
 	}
@@ -243,10 +269,6 @@ func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) (fun
 		return nil, fmt.Errorf("active: resolve request reviewer scope: %w", err)
 	}
 	return filter, nil
-}
-
-func (s *excusedAbsenceRequestService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
-	s.reviewPolicy = policy
 }
 
 func (s *excusedAbsenceRequestService) ListExcusedBulkCandidates(ctx context.Context) ([]usersService.ExcusedBulkCandidate, error) {

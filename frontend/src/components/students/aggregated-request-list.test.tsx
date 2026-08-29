@@ -438,7 +438,7 @@ describe("AggregatedRequestList", () => {
     expect(screen.getByText("Die Betreuung wurde beendet.")).toBeVisible();
   });
 
-  it("pages withdrawals without hiding the next page", async () => {
+  it("loads every open withdrawal before grouping child cases", async () => {
     const firstPage = Array.from({ length: 25 }, (_, index) => ({
       id: `withdrawal-${index + 1}`,
       studentId: `${index + 1}`,
@@ -470,14 +470,6 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
-    await waitFor(() =>
-      expect(
-        screen.getAllByRole("button", { name: /Anfrage für Mia Muster/ }),
-      ).toHaveLength(25),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Weitere Einträge laden" }),
-    );
     await waitFor(() =>
       expect(
         screen.getAllByRole("button", { name: /Anfrage für Mia Muster/ }),
@@ -829,26 +821,47 @@ describe("AggregatedRequestList", () => {
     expect(await screen.findByText("excused-item-neu")).toBeInTheDocument();
   });
 
-  it("begrenzt die erste offene Seite und lädt weitere Fälle nur auf Wunsch", async () => {
+  it("lädt alle offenen Seiten vor der Fallbündelung", async () => {
     mockListOpen
       .mockResolvedValueOnce({
-        items: Array.from({ length: 25 }, (_, index) =>
-          openItem("excused", String(index + 1)),
+        items: Array.from(
+          { length: 25 },
+          (_, index) =>
+            ({
+              request_type: "excused",
+              occurred_at: `2026-08-29T09:${String(index).padStart(2, "0")}:00Z`,
+              student_id: "10",
+              student_name: "Mia Muster",
+              expected_version: `v${index + 1}`,
+              urgent_today: false,
+              bulk_eligible: true,
+              family_protected: false,
+              data: { id: String(index + 1), dates: ["2026-09-01"] },
+            }) as never,
         ),
         next_cursor: "cursor-1",
       })
       .mockResolvedValueOnce({
-        items: [openItem("excused", "26")],
+        items: [
+          {
+            request_type: "excused",
+            occurred_at: "2026-08-28T09:00:00Z",
+            student_id: "10",
+            student_name: "Mia Muster",
+            expected_version: "v26",
+            urgent_today: false,
+            bulk_eligible: true,
+            family_protected: false,
+            data: { id: "26", dates: ["2026-09-01"] },
+          } as never,
+        ],
       });
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 
     await screen.findByText("excused-item-1");
-    expect(screen.queryByText("excused-item-26")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Weitere Einträge laden" }),
-    );
     expect(await screen.findByText("excused-item-26")).toBeInTheDocument();
+    expect(screen.getByText("26 offene Anfragen")).toBeVisible();
     expect(mockListOpen).toHaveBeenLastCalledWith(
       expect.objectContaining({ cursor: "cursor-1" }),
     );

@@ -14,9 +14,11 @@ import (
 type familyProtectionRepoStub struct {
 	current map[int64]*userModels.FamilyProtectionEvent
 	created []*userModels.FamilyProtectionEvent
+	loaded  []int64
 }
 
-func (s *familyProtectionRepoStub) CurrentForStudents(context.Context, []int64) (map[int64]*userModels.FamilyProtectionEvent, error) {
+func (s *familyProtectionRepoStub) CurrentForStudents(_ context.Context, studentIDs []int64) (map[int64]*userModels.FamilyProtectionEvent, error) {
+	s.loaded = append([]int64(nil), studentIDs...)
 	return s.current, nil
 }
 
@@ -50,6 +52,20 @@ func TestFamilyProtectionServiceRequiresConfigurationPermission(t *testing.T) {
 
 	require.ErrorIs(t, err, ErrFamilyProtectionForbidden)
 	assert.Empty(t, repo.created)
+}
+
+func TestFamilyProtectionServiceValidatesAndDeduplicatesStudentIDs(t *testing.T) {
+	t.Parallel()
+
+	repo := &familyProtectionRepoStub{current: map[int64]*userModels.FamilyProtectionEvent{}}
+	service := NewFamilyProtectionService(repo, &familyProtectionStudentStub{})
+
+	_, err := service.Current(context.Background(), []int64{10, 10, 11})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{10, 11}, repo.loaded)
+
+	_, err = service.Current(context.Background(), []int64{0})
+	require.ErrorIs(t, err, ErrFamilyProtectionInvalid)
 }
 
 func TestFamilyProtectionServiceAppendsAuditedStateChange(t *testing.T) {

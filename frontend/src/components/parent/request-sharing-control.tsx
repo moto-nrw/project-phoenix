@@ -243,9 +243,8 @@ function SharingFooter({
   );
 }
 
-export function RequestSharingControl(props: RequestSharingControlProps) {
+function useRequestSharingControl(props: RequestSharingControlProps) {
   const { studentId, requestType, requestId, isSelf } = props;
-  const t = useTranslations("parentRequestSharing");
   const [open, setOpen] = useState(false);
   const [refreshCount, setRefreshCount] = useState(0);
   const sharing = useSharingState(
@@ -271,7 +270,72 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
     saved,
     failed,
   });
-  if (!isSelf) return null;
+  const toggle = (id: string) =>
+    sharing.setSelected((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
+    );
+  const show = () => {
+    setRefreshCount((current) => current + 1);
+    setOpen(true);
+  };
+  return { open, setOpen, sharing, save, saving, toggle, show };
+}
+
+function SharingDialog({
+  control,
+  t,
+}: Readonly<{
+  control: ReturnType<typeof useRequestSharingControl>;
+  t: ReturnType<typeof useTranslations>;
+}>) {
+  const { sharing, saving } = control;
+  const footer =
+    sharing.state && !sharing.state.family_protected ? (
+      <SharingFooter
+        saving={saving}
+        close={() => control.setOpen(false)}
+        save={() => void control.save()}
+        t={t}
+      />
+    ) : undefined;
+  return (
+    <Modal
+      isOpen={control.open}
+      onClose={() => control.setOpen(false)}
+      title={t("title")}
+      closeLabel={t("close")}
+      backdropLabel={t("close")}
+      mobileSheet
+      isDismissDisabled={saving}
+      footer={footer}
+    >
+      <div className="space-y-4">
+        {sharing.loading ? (
+          <p className="text-sm text-gray-500">{t("loading")}</p>
+        ) : null}
+        {sharing.error ? <Alert type="error" message={t("error")} /> : null}
+        {sharing.state ? (
+          <SharingRecipients
+            state={sharing.state}
+            selected={sharing.selected}
+            saving={saving}
+            hint={t("privacyHint")}
+            toggle={control.toggle}
+            t={t}
+          />
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+export function RequestSharingControl(props: RequestSharingControlProps) {
+  const t = useTranslations("parentRequestSharing");
+  const control = useRequestSharingControl(props);
+  const { sharing } = control;
+  if (!props.isSelf) return null;
   if (sharing.loading)
     return <p className="text-sm text-gray-500">{t("loading")}</p>;
   if (sharing.error && !sharing.state)
@@ -279,61 +343,17 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   if (sharing.state?.family_protected)
     return <Alert type="info" message={t("protected")} />;
   if (!sharing.state) return null;
-  const toggle = (id: string) =>
-    sharing.setSelected((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
-  const footer =
-    sharing.state && !sharing.state.family_protected ? (
-      <SharingFooter
-        saving={saving}
-        close={() => setOpen(false)}
-        save={() => void save()}
-        t={t}
-      />
-    ) : undefined;
   return (
     <>
       <Button
         type="button"
         variant="ghost"
         size="compact"
-        onClick={() => {
-          setRefreshCount((current) => current + 1);
-          setOpen(true);
-        }}
+        onClick={control.show}
       >
         {t("button")}
       </Button>
-      <Modal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        title={t("title")}
-        closeLabel={t("close")}
-        backdropLabel={t("close")}
-        mobileSheet
-        isDismissDisabled={saving}
-        footer={footer}
-      >
-        <div className="space-y-4">
-          {sharing.loading && (
-            <p className="text-sm text-gray-500">{t("loading")}</p>
-          )}
-          {sharing.error && <Alert type="error" message={t("error")} />}
-          {sharing.state && (
-            <SharingRecipients
-              state={sharing.state}
-              selected={sharing.selected}
-              saving={saving}
-              hint={t("privacyHint")}
-              toggle={toggle}
-              t={t}
-            />
-          )}
-        </div>
-      </Modal>
+      <SharingDialog control={control} t={t} />
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Shield, ShieldCheck } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -146,13 +146,102 @@ function ProtectionDescription() {
   );
 }
 
-export function FamilyProtectionControl({
-  studentId,
-  canManage,
-  initialEnabled,
-  compact = false,
-  onChanged,
-}: FamilyProtectionControlProps) {
+function ProtectionErrors({
+  load,
+  save,
+}: Readonly<{ load: boolean; save: boolean }>) {
+  return (
+    <>
+      {load ? (
+        <p className="text-moto-red text-sm">
+          Der Familienschutz konnte nicht geladen werden.
+        </p>
+      ) : null}
+      {save ? (
+        <p className="text-moto-red text-sm">
+          Die Änderung konnte nicht gespeichert werden.
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function ProtectionAction({
+  enabled,
+  compact,
+  open,
+}: Readonly<{ enabled: boolean | null; compact: boolean; open: () => void }>) {
+  if (enabled === null) return null;
+  return (
+    <Button
+      type="button"
+      variant={compact ? "ghost" : "outline"}
+      size={compact ? "compact" : "md"}
+      className={compact ? "gap-1.5" : undefined}
+      onClick={open}
+    >
+      {compact ? (
+        enabled ? (
+          <ShieldCheck className="size-4" aria-hidden="true" />
+        ) : (
+          <Shield className="size-4" aria-hidden="true" />
+        )
+      ) : null}
+      {compact
+        ? enabled
+          ? "Schutz aufheben"
+          : "Angaben schützen"
+        : enabled
+          ? "Aufheben"
+          : "Einschalten"}
+    </Button>
+  );
+}
+
+interface ProtectionViewProps {
+  enabled: boolean | null;
+  canManage: boolean;
+  loadError: boolean;
+  saveError: boolean;
+  open: () => void;
+  modal: ReactNode;
+}
+
+function CompactProtectionView(props: ProtectionViewProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <ProtectionStatus enabled={props.enabled} compact />
+      {props.canManage ? (
+        <ProtectionAction enabled={props.enabled} compact open={props.open} />
+      ) : null}
+      <ProtectionErrors load={props.loadError} save={props.saveError} />
+      {props.modal}
+    </div>
+  );
+}
+
+function FullProtectionView(props: ProtectionViewProps) {
+  return (
+    <div className="space-y-3">
+      <ProtectionDescription />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ProtectionStatus enabled={props.enabled} compact={false} />
+        {props.canManage ? (
+          <ProtectionAction
+            enabled={props.enabled}
+            compact={false}
+            open={props.open}
+          />
+        ) : null}
+      </div>
+      <ProtectionErrors load={props.loadError} save={props.saveError} />
+      {props.modal}
+    </div>
+  );
+}
+
+function useProtectionControl(props: FamilyProtectionControlProps) {
+  const { studentId, canManage, initialEnabled, onChanged } = props;
   const { enabled, setEnabled, loadError } = useProtectionValue(
     studentId,
     initialEnabled,
@@ -185,68 +274,22 @@ export function FamilyProtectionControl({
       save={() => void save(reason)}
     />
   );
-  if (compact) {
-    return (
-      <div className="flex flex-wrap items-center gap-1.5">
-        <ProtectionStatus enabled={enabled} compact />
-        {canManage && enabled !== null ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            className="gap-1.5"
-            onClick={() => setModalOpen(true)}
-          >
-            {enabled ? (
-              <ShieldCheck className="size-4" aria-hidden="true" />
-            ) : (
-              <Shield className="size-4" aria-hidden="true" />
-            )}
-            {enabled ? "Schutz aufheben" : "Angaben schützen"}
-          </Button>
-        ) : null}
-        {loadError ? (
-          <p className="text-moto-red text-sm">
-            Der Familienschutz konnte nicht geladen werden.
-          </p>
-        ) : null}
-        {saveError ? (
-          <p className="text-moto-red text-sm">
-            Die Änderung konnte nicht gespeichert werden.
-          </p>
-        ) : null}
-        {modal}
-      </div>
-    );
-  }
-  const content = (
-    <>
-      <ProtectionDescription />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ProtectionStatus enabled={enabled} compact={false} />
-        {canManage && enabled !== null ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => setModalOpen(true)}
-          >
-            {enabled ? "Aufheben" : "Einschalten"}
-          </Button>
-        ) : null}
-      </div>
-      {loadError ? (
-        <p className="text-moto-red text-sm">
-          Der Familienschutz konnte nicht geladen werden.
-        </p>
-      ) : null}
-      {saveError ? (
-        <p className="text-moto-red text-sm">
-          Die Änderung konnte nicht gespeichert werden.
-        </p>
-      ) : null}
-      {modal}
-    </>
+  const viewProps = {
+    enabled,
+    canManage,
+    loadError,
+    saveError,
+    modal,
+    open: () => setModalOpen(true),
+  };
+  return viewProps;
+}
+
+export function FamilyProtectionControl(props: FamilyProtectionControlProps) {
+  const viewProps = useProtectionControl(props);
+  return props.compact ? (
+    <CompactProtectionView {...viewProps} />
+  ) : (
+    <FullProtectionView {...viewProps} />
   );
-  return <div className="space-y-3">{content}</div>;
 }

@@ -555,9 +555,18 @@ const PAGE_SIZE = 25;
 async function takeInitialFeed(
   sources: readonly FeedSource<AnyItem>[],
   feed: FeedState<AnyItem>,
-  _view: "open" | "history",
+  view: "open" | "history",
 ) {
-  return takeMergedPage(sources, feed, PAGE_SIZE);
+  const first = await takeMergedPage(sources, feed, PAGE_SIZE);
+  if (view === "history" || !first.hasMore) return first;
+  const items = [...first.items];
+  let hasMore: boolean = first.hasMore;
+  while (hasMore) {
+    const page = await takeMergedPage(sources, feed, PAGE_SIZE);
+    items.push(...page.items);
+    hasMore = page.hasMore;
+  }
+  return { items, hasMore: false };
 }
 
 function BulkApprovalPanel({
@@ -1085,6 +1094,21 @@ async function fetchWithdrawalPage(
   });
 }
 
+async function fetchInitialWithdrawals(
+  view: "open" | "history",
+  filters: AggregatedRequestFilters,
+) {
+  const first = await fetchWithdrawalPage(view, filters, 1);
+  if (view === "history" || first.items.length >= first.total) return first;
+  const items = [...first.items];
+  for (let page = 2; items.length < first.total; page += 1) {
+    const next = await fetchWithdrawalPage(view, filters, page);
+    if (next.items.length === 0) break;
+    items.push(...next.items);
+  }
+  return { ...first, items };
+}
+
 function useWithdrawalFeed(
   view: "open" | "history",
   filters: AggregatedRequestFilters,
@@ -1099,7 +1123,7 @@ function useWithdrawalFeed(
   const load = useCallback(async () => {
     const generation = ++generationRef.current;
     try {
-      const page = await fetchWithdrawalPage(view, filters, 1);
+      const page = await fetchInitialWithdrawals(view, filters);
       if (generation !== generationRef.current) return;
       setItems(page.items);
       setHasMore(page.items.length < page.total);

@@ -248,10 +248,6 @@ type RequestReviewPolicy interface {
 	Allows(context.Context, []string, *usersModels.Student) (bool, error)
 }
 
-func (s *careScheduleRequestService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
-	s.reviewPolicy = policy
-}
-
 // NewCareScheduleRequestServiceWithPickupChanges wires one-day pickup requests
 // in addition to the recurring weekly schedule requests.
 func NewCareScheduleRequestServiceWithPickupChanges(
@@ -269,7 +265,7 @@ func NewCareScheduleRequestServiceWithPickupChanges(
 	logger *slog.Logger,
 	studentAudits ...usersService.StudentChangeRecorder,
 ) CareScheduleRequestService {
-	svc := NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		requestRepo,
 		studentRepo,
 		personRepo,
@@ -278,12 +274,45 @@ func NewCareScheduleRequestServiceWithPickupChanges(
 		userContext,
 		emitter,
 		broadcaster,
+		nil,
 		logger,
 		studentAudits...,
 	)
-	svc.(*careScheduleRequestService).pickupExceptions = pickupExceptions
-	svc.(*careScheduleRequestService).attendance = attendance
-	svc.(*careScheduleRequestService).pickupAutoExcusal = pickupAutoExcusal
+	svc.pickupExceptions = pickupExceptions
+	svc.attendance = attendance
+	svc.pickupAutoExcusal = pickupAutoExcusal
+	return svc
+}
+
+// NewCareScheduleRequestServiceWithPickupChangesAndPolicy requires the
+// production review policy at construction, so missing wiring cannot widen
+// reviewer access.
+func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	arrival ArrivalScheduleService,
+	pickup PickupScheduleService,
+	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
+	attendance activeModels.AttendanceRepository,
+	pickupAutoExcusal *PickupAutoExcusalSyncer,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	logger *slog.Logger,
+	studentAudits ...usersService.StudentChangeRecorder,
+) CareScheduleRequestService {
+	if reviewPolicy == nil {
+		panic("care schedule request review policy is required")
+	}
+	svc := newCareScheduleRequestService(
+		requestRepo, studentRepo, personRepo, arrival, pickup, userContext,
+		emitter, broadcaster, reviewPolicy, logger, studentAudits...,
+	)
+	svc.pickupExceptions = pickupExceptions
+	svc.attendance = attendance
+	svc.pickupAutoExcusal = pickupAutoExcusal
 	return svc
 }
 
@@ -300,6 +329,25 @@ func NewCareScheduleRequestService(
 	logger *slog.Logger,
 	studentAudits ...usersService.StudentChangeRecorder,
 ) CareScheduleRequestService {
+	return newCareScheduleRequestService(
+		requestRepo, studentRepo, personRepo, arrival, pickup, userContext,
+		emitter, broadcaster, nil, logger, studentAudits...,
+	)
+}
+
+func newCareScheduleRequestService(
+	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	arrival ArrivalScheduleService,
+	pickup PickupScheduleService,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	logger *slog.Logger,
+	studentAudits ...usersService.StudentChangeRecorder,
+) *careScheduleRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -317,6 +365,7 @@ func NewCareScheduleRequestService(
 		emitter:      emitter,
 		broadcaster:  broadcaster,
 		studentAudit: studentAudit,
+		reviewPolicy: reviewPolicy,
 		logger:       logger,
 	}
 }

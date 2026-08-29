@@ -451,8 +451,17 @@ func NewOfferingChangeRequestService(cfg OfferingChangeRequestServiceConfig) Off
 	return &offeringChangeRequestService{OfferingChangeRequestServiceConfig: cfg}
 }
 
-func (s *offeringChangeRequestService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
-	s.ReviewPolicy = policy
+// NewOfferingChangeRequestServiceWithPolicy requires the production review
+// policy at construction, so missing wiring cannot widen reviewer access.
+func NewOfferingChangeRequestServiceWithPolicy(
+	cfg OfferingChangeRequestServiceConfig,
+	policy RequestReviewPolicy,
+) OfferingChangeRequestService {
+	if policy == nil {
+		panic("offering change request review policy is required")
+	}
+	cfg.ReviewPolicy = policy
+	return NewOfferingChangeRequestService(cfg)
 }
 
 // OfferingChangeLeadDaysDefault mirrors the registry default so a caller

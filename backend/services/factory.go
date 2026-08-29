@@ -1964,11 +1964,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
+	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(
+		settingsService,
+		userContextService,
+		configModels.KeyParentRequestGroupLeaderReviewEnabled,
+	)
 
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChanges(
+	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -1980,6 +1985,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		userContextService,
 		pillEmitter,
 		realtimeHub,
+		requestReviewPolicy,
 		logger.With("service", "care-requests"),
 		studentAuditService,
 	)
@@ -1991,7 +1997,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	if !ok {
 		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
 	}
-	offeringChangeRequestService := enrollment.NewOfferingChangeRequestService(enrollment.OfferingChangeRequestServiceConfig{
+	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
 		ChangeRepo:               repos.OfferingChangeRequest,
 		RequestChildRepo:         repos.RequestChild,
 		RequestRepo:              repos.Request,
@@ -2009,7 +2015,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,
 		Logger:                   logger.With("service", "offering-change-requests"),
-	})
+	}, requestReviewPolicy)
 	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
 	if !ok {
 		return nil, fmt.Errorf("offering change service does not implement direct pickup adjustment coordination")
@@ -2031,7 +2037,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	// gate for parent-submitted excused absences. Reuses the same review queue,
 	// badge and pill machinery as the care-schedule requests above; on approval
 	// it writes the excused status days directly.
-	excusedRequestService := absence.NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	excusedRequestService := absence.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -2040,6 +2046,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		userContextService,
 		pillEmitter,
 		realtimeHub,
+		requestReviewPolicy,
 		logger.With("service", "excused-requests"),
 		db,
 	)
@@ -2048,20 +2055,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	// group leaders are opt-in and limited to their current groups. Attach it
 	// to every request service so the unified queue and the legacy per-type
 	// decision routes cannot disagree about who may see or decide a request.
-	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(
-		settingsService,
-		userContextService,
-		configModels.KeyParentRequestGroupLeaderReviewEnabled,
-	)
-	careRequestService.(interface {
-		SetRequestReviewPolicy(schedule.RequestReviewPolicy)
-	}).SetRequestReviewPolicy(requestReviewPolicy)
-	offeringChangeRequestService.(interface {
-		SetRequestReviewPolicy(enrollment.RequestReviewPolicy)
-	}).SetRequestReviewPolicy(requestReviewPolicy)
-	excusedRequestService.(interface {
-		SetRequestReviewPolicy(absence.RequestReviewPolicy)
-	}).SetRequestReviewPolicy(requestReviewPolicy)
 	// The notification router and the consent service are built here, ahead of
 	// their consumers: messaging, the calendar (#1671) and the announcement
 	// producer all need them, and messaging is constructed first.
@@ -2448,19 +2441,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		InstanceService: instanceService,
 		TimetableData:   timetableDataService,
 	})
-	masterDataReviewService := users.NewMasterDataReviewServiceWithAudit(
+	masterDataReviewService := users.NewMasterDataReviewServiceWithAuditAndPolicy(
 		repos.StudentDataChangeRequest,
 		repos.Student,
 		repos.Person,
 		userContextService,
 		pillEmitter,
 		studentAuditService,
+		requestReviewPolicy,
 		logger.With("service", "master-data-review"),
 		realtimeHub,
 	)
-	masterDataReviewService.(interface {
-		SetRequestReviewPolicy(users.RequestReviewPolicy)
-	}).SetRequestReviewPolicy(requestReviewPolicy)
 	parentRequestCoordinator := users.NewParentRequestCoordinator(
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
 		excusedRequestService,
