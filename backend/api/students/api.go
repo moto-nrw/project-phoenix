@@ -28,7 +28,6 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -351,7 +350,7 @@ func (rs *Resource) Router() chi.Router {
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil))
-		r.Use(tenant.TenantTxMiddleware(rs.DB))
+		r.Use(common.TenantTxMiddleware)
 
 		// RFID tag assignment endpoint
 		r.Post("/{id}/rfid", rs.assignRFIDTag)

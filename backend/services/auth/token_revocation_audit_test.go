@@ -12,7 +12,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,8 +87,9 @@ func TestRevocationRollsBackWhenAuditInsertFails(t *testing.T) {
 	repoFactory.AuthEvent = failingAuthEventRepository{AuthEventRepository: repoFactory.AuthEvent}
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
-	err = serviceFactory.Auth.RevokeAllTokensWithReason(tenant.WithTenantID(context.Background(), tenantID), int(account.ID), "password_reset")
+	err = serviceFactory.Auth.RevokeAllTokensWithReason(testpkg.TenantContext(tenantID), int(account.ID), "password_reset")
 	require.ErrorContains(t, err, "forced audit failure")
 
 	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)

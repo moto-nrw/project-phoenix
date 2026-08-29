@@ -140,7 +140,7 @@ func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
 	channel := &recordingChannel{name: "recording"}
 	svc := notifications.NewService(enabledSettings(true), nil, channel)
 	rollbackErr := errors.New("force rollback")
-	err = tenant.WithTenantTx(context.Background(), db, 41, func(ctx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, testpkg.WithTenantRuntime(t, context.Background(), db), db, 41, func(ctx context.Context, _ bun.Tx) error {
 		require.NoError(t, svc.Notify(ctx, tenantEvent(41)))
 		assert.Empty(t, channel.events, "notification must remain queued inside the transaction")
 		return rollbackErr

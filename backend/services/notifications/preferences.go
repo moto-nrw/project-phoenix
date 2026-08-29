@@ -93,6 +93,18 @@ type preferenceService struct {
 	settings       configService.SettingsService
 	db             *bun.DB
 	accountTenants authModel.AccountTenantRepository
+	tenantRuntime  *tenant.Runtime
+}
+
+func (s *preferenceService) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *s.tenantRuntime)
 }
 
 // NewPreferenceService builds the consent service. db and accountTenants are
@@ -348,6 +360,7 @@ func (s *preferenceService) FilterNotOptedOut(ctx context.Context, notificationT
 // change to all schools, so a mixed state must read as off rather than claiming
 // that a newly added school may deliver when it has no consent row.
 func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (*PreferenceOverview, error) {
+	ctx = s.withTenantRuntime(ctx)
 	if accountID <= 0 {
 		return nil, errors.New("account id is required")
 	}
@@ -412,6 +425,7 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 
 // SetForParent applies one decision to every school the guardian belongs to.
 func (s *preferenceService) SetForParent(ctx context.Context, accountID int64, notificationType string, enabled bool) error {
+	ctx = s.withTenantRuntime(ctx)
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
@@ -439,6 +453,7 @@ func (s *preferenceService) SetForParent(ctx context.Context, accountID int64, n
 // DisableAllForParent switches every stored parent-portal decision off at
 // every school.
 func (s *preferenceService) DisableAllForParent(ctx context.Context, accountID int64) error {
+	ctx = s.withTenantRuntime(ctx)
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}

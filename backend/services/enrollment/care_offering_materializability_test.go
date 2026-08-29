@@ -11,7 +11,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -298,7 +297,7 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 func inCareTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
 	var inner error
-	require.NoError(t, tenant.WithTenantTx(testpkg.Ctx(t), db, testpkg.Tenant(t),
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t),
 		func(txCtx context.Context, _ bun.Tx) error {
 			inner = fn(txCtx)
 			return nil

@@ -16,7 +16,6 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -311,7 +310,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	t.Helper()
 	acquired, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 	go func() {
-		done <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 			if err := scheduleService.LockTenantRecurrenceWrites(ctx, env.db); err != nil {
 				return err
 			}
@@ -334,7 +333,7 @@ func startPickupReset(t *testing.T, env *decisionTestEnv, resetter enrollmentSer
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {
-		done <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 			return resetter.ResetStudentPickupDayToOffering(ctx, studentID, date)
 		})
 	}()

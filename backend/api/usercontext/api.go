@@ -53,7 +53,7 @@ func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 	r.router.Use(jwt.TenantMiddleware)
-	withTx := tenant.TenantTxMiddleware(r.db)
+	withTx := common.TenantTxMiddleware
 
 	// User profile endpoints
 	r.router.With(withTx).Get("/", r.getCurrentUser)

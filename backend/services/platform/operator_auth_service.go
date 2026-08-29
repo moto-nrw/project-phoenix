@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	emailpkg "github.com/moto-nrw/project-phoenix/email"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -79,12 +80,31 @@ type OperatorAuthService interface {
 
 type operatorAuthService struct {
 	OperatorAuthServiceConfig
-	tokenAuth *jwt.TokenAuth
+	tokenAuth     *jwt.TokenAuth
+	tenantRuntime *tenant.Runtime
 	// mfaService is optional. When non-nil the LoginWithMFAGate path uses it
 	// to gate token issuance behind a second factor. Wired post-construction
 	// via SetMFAService to break the OperatorAuthService ↔ OperatorMFAService
 	// cycle in the services factory.
 	mfaService OperatorMFAService
+}
+
+// SetTenantRuntime wires the transaction runtime used by operator auth flows.
+func (s *operatorAuthService) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *operatorAuthService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+}
+
+func detachedOperatorContext(ctx context.Context) context.Context {
+	ctx = context.WithoutCancel(ctx)
+	ctx = modelBase.ContextWithoutTx(ctx)
+	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 
 // SetMFAService wires the optional MFA gate. Idempotent — calling with nil
@@ -447,7 +467,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 	var refreshToken string
 	var rejectAfterCommit bool
 	var recovered bool
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		dbToken, err := s.RefreshTokenRepo.FindByTokenForUpdate(txCtx, refreshTokenValue)
 		if err != nil {
 			return fmt.Errorf("failed to find operator refresh token: %w", err)
@@ -686,7 +706,7 @@ func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int
 	// Atomically update the password and invalidate outstanding bearer-style
 	// controls. A surviving email-change link or refresh session after a
 	// password rotation would let an attacker re-take or keep the account.
-	return tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.OperatorRepo.Update(txCtx, operator); err != nil {
 			return fmt.Errorf("failed to update password: %w", err)
 		}

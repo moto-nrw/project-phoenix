@@ -32,7 +32,7 @@ func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 	group.Name = "rollback-renamed"
 	nonexistentStaffID := int64(999999999)
 
-	txErr := tenant.WithTenantTx(ctx, db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := service.UpdateGroupWithDetails(txCtx, group, 0, true, []int64{nonexistentStaffID}, nil)
 		return err
 	})
@@ -60,7 +60,7 @@ func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.
 	group.Name = "with-details-renamed"
 
 	var updated *activitiesModels.Group
-	txErr := tenant.WithTenantTx(ctx, db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, group.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		updated, err = service.UpdateGroupWithDetails(txCtx, group, 0, true, []int64{staff.ID}, nil)
 		return err

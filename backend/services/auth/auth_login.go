@@ -469,7 +469,7 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		if err := s.applyMintGuard(ctx, account, guard); err != nil {
 			return err
 		}
@@ -572,7 +572,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	// happens inside tenant-scoped transactions. Without BYPASSRLS the role/permission
 	// queries return zero rows and the JWT gets empty permissions.
 	var result *accountMetadata
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 
 		// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
 		tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
@@ -623,7 +623,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 // re-resolving via slug or default fallback could silently switch to a different tenant.
 func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
 	var result *accountMetadata
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, _ bun.Tx) error {
 		var err error
 		result, err = s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
 		return err
@@ -1139,17 +1139,8 @@ func (s *Service) RegisterSchoolAccount(
 	}
 	var role *auth.Role
 	if roleID != nil && *roleID > 0 {
-		var roleErr error
-		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			// System roles have tenant_id NULL. Clear only the Go context tenant
-			// for this lookup; the surrounding transaction and its RLS context stay
-			// intact for the subsequent account creation. The resolved role is
-			// also what the identity provisioning below is decided on — inside the
-			// tenant transaction a system role would be invisible.
-			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
-			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
-			return roleErr
-		})
+		var err error
+		role, err = s.resolveAssignableSchoolRole(ctx, *roleID, tenantID)
 		if err != nil {
 			return nil, nil, &AuthError{Op: "register", Err: err}
 		}
@@ -1231,13 +1222,13 @@ func (s *Service) persistAccountWithRole(
 ) (*SchoolIdentity, error) {
 	if tenantID <= 0 {
 		// No tenant context (e.g. tests) — fall back to admin tx for the account insert only.
-		return nil, tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		return nil, tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 			return s.repos.Account.Create(ctx, account)
 		})
 	}
 
 	var schoolIdentity *SchoolIdentity
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 
 		// Create account (auth.accounts has no tenant_id, no RLS — plain INSERT)
 		if err := s.repos.Account.Create(ctx, account); err != nil {
@@ -1354,15 +1345,8 @@ func (s *Service) LinkSchoolAccount(
 	// to a different school (issue #1021).
 	var role *auth.Role
 	if roleID != nil && *roleID > 0 {
-		var roleErr error
-		// System roles have tenant_id NULL. Clear only the Go context tenant for
-		// this lookup; the admin transaction and the target-school policy remain
-		// in force.
-		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
-			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
-			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
-			return roleErr
-		})
+		var err error
+		role, err = s.resolveAssignableSchoolRole(ctx, *roleID, tenantID)
 		if err != nil {
 			return nil, nil, &AuthError{Op: op, Err: err}
 		}
@@ -1396,6 +1380,29 @@ func (s *Service) LinkSchoolAccount(
 	return account, schoolIdentity, nil
 }
 
+// resolveAssignableSchoolRole reuses an ambient request or operator
+// transaction. Opening an admin transaction inside a tenant transaction is a
+// privilege escalation and the runtime correctly rejects it; opening another
+// transaction is unnecessary because auth.roles exposes system roles to every
+// tenant and the policy validator rejects roles from another school.
+func (s *Service) resolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error) {
+	lookup := func(lookupCtx context.Context) (*auth.Role, error) {
+		return ValidateAssignableSchoolRole(lookupCtx, s.repos.Role, roleID, tenantID)
+	}
+
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		return lookup(ctx)
+	}
+
+	var role *auth.Role
+	err := tenant.WithAdminTxOrDirect(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context) error {
+		var lookupErr error
+		role, lookupErr = lookup(adminCtx)
+		return lookupErr
+	})
+	return role, err
+}
+
 // performAccountTenantLink creates a tenant mapping, role assignment and school
 // identity for an existing account.
 func (s *Service) performAccountTenantLink(
@@ -1407,7 +1414,7 @@ func (s *Service) performAccountTenantLink(
 	identity *SchoolAccountIdentity,
 ) (*SchoolIdentity, error) {
 	var schoolIdentity *SchoolIdentity
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 
 		if err := s.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
 			return err
@@ -1523,7 +1530,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	var rejectAfterCommit error
 	var revokedForPush *auth.Token
 
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		var err error
 		now := time.Now()
 
@@ -2057,7 +2064,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
 	var revoked *auth.Token
-	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
 		if err != nil {

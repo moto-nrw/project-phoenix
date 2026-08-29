@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +35,7 @@ func TestLockStaffShiftWritesTakesAdvisoryLock(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		return LockStaffShiftWrites(ctx, db, 7)
 	})
 	require.NoError(t, err)

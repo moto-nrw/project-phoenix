@@ -91,10 +91,10 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// The school-wide announcement reaches the linked guardian, unread.
 	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
@@ -139,10 +139,10 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	// A published_at the client never actually saw (wrong version) is rejected as
 	// stale, not silently recorded.
 	stale := ann.PublishedAt.Add(-time.Hour)
@@ -158,10 +158,10 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	err := svc.AcknowledgeAnnouncement(ctx, chain.AccountID, ann.ID, *ann.PublishedAt)
 	assert.ErrorIs(t, err, parentService.ErrAnnouncementAckNotRequired)
 }
@@ -173,7 +173,7 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 	svc, db, _ := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	// A high id that does not exist collapses to not-found (never leaks existence).
 	err := svc.MarkAnnouncementRead(ctx, chain.AccountID, 999999999, time.Now())
 	assert.ErrorIs(t, err, parentService.ErrAnnouncementNotFound)
@@ -187,10 +187,10 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, false) // feature OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	seedCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	// With the school's news feature off, the feed and badge are empty and a
 	// direct read/ack collapses to not-found so no stats accrue for a hidden feed.
 	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
@@ -209,7 +209,7 @@ func TestAnnouncementFeed_RejectsNonPositiveAccount(t *testing.T) {
 	t.Parallel()
 
 	svc, _, _ := buildAnnouncementService(t, true)
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	_, err := svc.ListAnnouncements(ctx, 0)
 	assert.Error(t, err)

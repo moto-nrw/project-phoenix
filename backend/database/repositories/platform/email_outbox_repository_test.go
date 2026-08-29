@@ -32,7 +32,7 @@ func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxClean
 // enrollment test helpers.
 func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
 	})
 }
@@ -42,7 +42,7 @@ func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context
 // query.
 func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
 	})
 }

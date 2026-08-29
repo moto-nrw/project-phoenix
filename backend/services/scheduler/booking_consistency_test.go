@@ -38,13 +38,12 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 		TenantID:                    42,
 		PickupProjectionMissingDays: 3,
 	}}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		})),
-	}
+		}))})
 
 	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
 
@@ -65,18 +64,17 @@ func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
 	var output bytes.Buffer
 	want := errors.New("query failed")
 	auditor := &stubBookingConsistencyAudit{err: want}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		})),
-	}
+		}))})
 
 	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
 
 	require.Equal(t, 1, auditor.calls)
-	assert.Contains(t, output.String(), `"msg":"booking consistency audit failed"`)
+	assert.Contains(t, output.String(), `"msg":"tenant operation failed, continuing to next tenant"`)
 	assert.Contains(t, output.String(), `"error":"query failed"`)
 }
 
@@ -88,13 +86,12 @@ func TestBookingConsistencyAuditTreatsOptionalNoOfferingAsReview(t *testing.T) {
 		TenantID:                        42,
 		ApprovedWithoutOptionalOffering: 2,
 	}}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
 		tasks:              make(map[string]*ScheduledTask),
 		logger: slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
-		})),
-	}
+		}))})
 
 	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
 

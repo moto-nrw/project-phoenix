@@ -26,7 +26,6 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -201,7 +200,7 @@ func assertOfferingAdjustmentWaitsForRecurrenceGate(
 	releaseHolder := make(chan struct{})
 	holderDone := make(chan error, 1)
 	go func() {
-		holderDone <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		holderDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			if err := scheduleService.LockTenantRecurrenceWrites(txCtx, env.db); err != nil {
 				return err
 			}
@@ -221,7 +220,7 @@ func assertOfferingAdjustmentWaitsForRecurrenceGate(
 
 	adjustmentDone := make(chan error, 1)
 	go func() {
-		adjustmentDone <- tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		adjustmentDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 			_, err := decision.UpdateChildOfferings(txCtx, input)
 			return err
 		})
@@ -763,7 +762,7 @@ func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDi
 		go func() {
 			defer wg.Done()
 			<-start
-			errs <- tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+			errs <- testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 				_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 					RequestID:  submitted.Request.ID,
 					ChildID:    childID,
@@ -2701,7 +2700,7 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 
 	// Drive Decide inside a tenant tx (production wraps it via middleware) so a
 	// returned error actually rolls the schedule delete back.
-	decideErr := tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := env.decision.Decide(txCtx, enrollmentService.DecideInput{
 			RequestID:  reqID,
 			ChildID:    childID,
@@ -2771,7 +2770,7 @@ func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWit
 		WithdrawalConfirmedAt: time.Now(),
 	}))
 
-	err := tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := env.decision.Decide(txCtx, enrollmentService.DecideInput{
 			RequestID: requestID, ChildID: childID,
 			Status: enrollmentService.DecisionApproved, ReviewedBy: actorID,

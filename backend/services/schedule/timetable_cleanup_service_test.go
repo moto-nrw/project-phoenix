@@ -574,7 +574,7 @@ func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
 
 	rollbackErr := errors.New("simulated caller-side failure after cleanup")
 	txCtx := tenant.WithTenantID(context.Background(), f.tenantID)
-	err := tenant.WithTenantTx(txCtx, f.db, f.tenantID, func(innerCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, txCtx, f.db, f.tenantID, func(innerCtx context.Context, _ bun.Tx) error {
 		// Cleanup succeeds inside the tx: audit row is written, both
 		// instances are DELETEd (CASCADE removes the instance_students rows).
 		result, cErr := svc.CleanupExpiredTimetableData(innerCtx)

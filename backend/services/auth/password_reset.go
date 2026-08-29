@@ -56,6 +56,7 @@ func (s *Service) InitiateSchoolPasswordReset(ctx context.Context, emailAddress 
 }
 
 func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string, opts passwordResetOptions) (*auth.PasswordResetToken, error) {
+	ctx = s.withTenantRuntime(ctx)
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
@@ -232,8 +233,8 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	baseRetry := resetToken.EmailRetryCount
 
-	// WithoutCancel: async delivery must outlive the HTTP request.
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	// Async delivery must outlive the HTTP request without retaining its tx.
+	s.dispatcher.Dispatch(detachedTenantContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
@@ -246,6 +247,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 // ResetPassword resets a password using a reset token
 func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) error {
+	ctx = s.withTenantRuntime(ctx)
 	// Find valid token
 	resetToken, err := s.repos.PasswordResetToken.FindValidByToken(ctx, token)
 	if err != nil {
@@ -266,7 +268,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// Uses WithAdminTx (BYPASSRLS) because password reset is a pre-authentication flow
 	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
 	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
-	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Update account password
 		if err := s.repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
 			return err

@@ -60,7 +60,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		},
 		slog.Default(),
 	)
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		db:              db,
 		schoolRepo:      platformRepo.NewSchoolRepository(db),
 		pwaUsageCleanup: cleanup,
@@ -75,8 +75,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 				configModel.KeyDataCleanupTimeoutMinutes: 30,
 			},
 		},
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
 
 	s.checkAndRunPWAUsageCleanup(&ScheduledTask{Name: "pwa-usage-cleanup"})
 

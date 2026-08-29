@@ -576,7 +576,7 @@ func TestOperatorProvisioningService_CreateSchool_AllowsDuplicateSlugAcrossOrgan
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -629,7 +629,7 @@ func TestOperatorProvisioningService_CreateOrganization_Success(t *testing.T) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
@@ -657,7 +657,7 @@ func TestOperatorProvisioningService_CreateOrganization_Success(t *testing.T) {
 func TestOperatorProvisioningService_CreateOrganization_Conflict(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
@@ -683,7 +683,7 @@ func TestOperatorProvisioningService_ListOrganizations(t *testing.T) {
 	expected := []*platformModels.Organization{
 		{Model: base.Model{ID: 1}, Name: "Org A", Slug: "org-a", Active: true},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			listFn: func(context.Context) ([]*platformModels.Organization, error) {
@@ -703,7 +703,7 @@ func TestOperatorProvisioningService_ListSchools(t *testing.T) {
 	expected := []*platformModels.School{
 		{Model: base.Model{ID: 2}, OrganizationID: 1, Name: "School A", Slug: "school-a", Subdomain: "school-a", Active: true},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			ListFn: func(context.Context) ([]*platformModels.School, error) {
@@ -751,7 +751,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreator
 			}, nil
 		},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -780,7 +780,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreator
 func TestOperatorProvisioningService_CreateSchool_OrganizationNotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo:       &testpkg.SchoolRepoMock{},
@@ -803,7 +803,7 @@ func TestOperatorProvisioningService_CreateSchool_OrganizationDeleted(t *testing
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -832,7 +832,7 @@ func TestOperatorProvisioningService_CreateSchool_OrganizationDeleted(t *testing
 func TestOperatorProvisioningService_CreateSchool_SlugConflict(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -862,7 +862,7 @@ func TestOperatorProvisioningService_CreateSchool_SlugConflict(t *testing.T) {
 func TestOperatorProvisioningService_CreateSchool_SubdomainConflict(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -915,7 +915,7 @@ func TestOperatorProvisioningService_ListSchoolAccounts_Success(t *testing.T) {
 	expected := []authModels.TenantAccountInfo{
 		{AccountID: 1, Email: "admin@example.com", Active: true, FirstName: "Admin", LastName: "User", RoleName: "admin", Status: "active"},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -939,7 +939,7 @@ func TestOperatorProvisioningService_ListSchoolAccounts_Success(t *testing.T) {
 func TestOperatorProvisioningService_ListSchoolAccounts_SchoolNotFound_NilReturn(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo:    &testpkg.SchoolRepoMock{},
 	})
@@ -954,7 +954,7 @@ func TestOperatorProvisioningService_ListSchoolAccounts_SchoolNotFound_NilReturn
 func TestOperatorProvisioningService_ListSchoolAccounts_SchoolNotFound_SqlErrNoRows(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -997,7 +997,7 @@ func TestOperatorProvisioningService_ListOrganizationAccounts_Success(t *testing
 			SchoolName:        "School A",
 		},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1021,7 +1021,7 @@ func TestOperatorProvisioningService_ListOrganizationAccounts_Success(t *testing
 func TestOperatorProvisioningService_ListOrganizationAccounts_OrgNotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 	})
@@ -1064,7 +1064,7 @@ func TestOperatorProvisioningService_ListAllAccounts_Success(t *testing.T) {
 			SchoolName:        "School B",
 		},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		AccountTenantRepo: &mockAccountTenantRepo{
 			listAllAccountsFn: func(_ context.Context) ([]authModels.OrgAccountInfo, error) {
@@ -1084,7 +1084,7 @@ func TestOperatorProvisioningService_ListAllAccounts_Success(t *testing.T) {
 func TestOperatorProvisioningService_ListSchoolDevices_SchoolNotFound_NilReturn(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo:    &testpkg.SchoolRepoMock{},
 	})
@@ -1099,7 +1099,7 @@ func TestOperatorProvisioningService_ListSchoolDevices_SchoolNotFound_NilReturn(
 func TestOperatorProvisioningService_ListSchoolDevices_SchoolNotFound_SqlErrNoRows(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -1120,7 +1120,7 @@ func TestOperatorProvisioningService_ListSchoolDevices_SchoolNotFound_SqlErrNoRo
 func TestOperatorProvisioningService_ListOrganizationDevices_OrgNotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 	})
@@ -1151,7 +1151,7 @@ func TestOperatorProvisioningService_CreateOrganization_UniqueViolationOnCreate(
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
@@ -1180,7 +1180,7 @@ func TestOperatorProvisioningService_CreateOrganization_UniqueViolationOnCreate(
 func TestOperatorProvisioningService_CreateSchool_NilInput(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 	})
 
@@ -1194,7 +1194,7 @@ func TestOperatorProvisioningService_CreateSchool_NilInput(t *testing.T) {
 func TestOperatorProvisioningService_CreateSchool_ValidationError(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 	})
 
@@ -1228,7 +1228,7 @@ func TestOperatorProvisioningService_CreateSchool_DeviceCreateError(t *testing.T
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -1272,7 +1272,7 @@ func TestOperatorProvisioningService_CreateSchool_DeviceCreateError(t *testing.T
 func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
@@ -1312,7 +1312,7 @@ func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T
 func TestOperatorProvisioningService_InviteSchoolAdmin_SchoolNotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo:    &testpkg.SchoolRepoMock{},
 		RoleRepo:      &mockRoleRepo{role: &authModels.Role{Model: base.Model{ID: 4}, Name: "admin", IsSystem: true}},
@@ -1330,7 +1330,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_SchoolNotFound(t *testing
 func TestOperatorProvisioningService_InviteSchoolAdmin_InactiveSchool(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -1352,7 +1352,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_InactiveSchool(t *testing
 func TestOperatorProvisioningService_InviteSchoolAdmin_AdminRoleMissing(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -1393,7 +1393,7 @@ func TestOperatorProvisioningService_UpdateOrganization_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	var updatedOrg *platformModels.Organization
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1442,7 +1442,7 @@ func TestOperatorProvisioningService_UpdateOrganization_NotFound(t *testing.T) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1482,7 +1482,7 @@ func TestOperatorProvisioningService_UpdateOrganization_AlreadyDeleted(t *testin
 	mock.ExpectRollback()
 
 	deletedAt := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1532,7 +1532,7 @@ func TestOperatorProvisioningService_UpdateOrganization_SlugConflict(t *testing.
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1575,7 +1575,7 @@ func TestOperatorProvisioningService_UpdateOrganization_SameSlugNoConflict(t *te
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1625,7 +1625,7 @@ func TestOperatorProvisioningService_UpdateSchool_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	var updatedSchool *platformModels.School
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
@@ -1693,7 +1693,7 @@ func TestOperatorProvisioningService_UpdateSchool_NotFound(t *testing.T) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
@@ -1735,7 +1735,7 @@ func TestOperatorProvisioningService_UpdateSchool_SlugConflict(t *testing.T) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
@@ -1788,7 +1788,7 @@ func TestOperatorProvisioningService_UpdateSchool_SubdomainConflict(t *testing.T
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
@@ -1844,7 +1844,7 @@ func TestOperatorProvisioningService_UpdateSchool_OrganizationNotFound(t *testin
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1900,7 +1900,7 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization_Deleted(t *
 	now := time.Now()
 	newOrgID := int64(5)
 	updateCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -1966,7 +1966,7 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization(t *testing.
 
 	newOrgID := int64(5) // nolint: target organization for the move
 	var updatedSchool *platformModels.School
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -2033,7 +2033,7 @@ func TestOperatorProvisioningService_UpdateOrganization_UpdateError(t *testing.T
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -2076,7 +2076,7 @@ func TestOperatorProvisioningService_UpdateSchool_UpdateError(t *testing.T) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
@@ -2140,7 +2140,7 @@ func TestCreateSchoolAccount_Success(t *testing.T) {
 	var createdStaff *userModels.Staff
 	var createdTeacher *userModels.Teacher
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2234,7 +2234,7 @@ func TestCreateSchoolAccount_RejectsLehrkraftCaregiverCombo(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2300,7 +2300,7 @@ func TestCreateSchoolAccount_DefaultsToAdminRole(t *testing.T) {
 
 	var registeredRoleID *int64
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2363,7 +2363,7 @@ func TestCreateSchoolAccount_DefaultsToAdminRole(t *testing.T) {
 func TestCreateSchoolAccount_SchoolNotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo:    &testpkg.SchoolRepoMock{},
 	})
@@ -2383,7 +2383,7 @@ func TestCreateSchoolAccount_SchoolNotFound(t *testing.T) {
 func TestCreateSchoolAccount_InactiveSchool(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2432,7 +2432,7 @@ func TestCreateSchoolAccount_RegisterFails(t *testing.T) {
 	registerErr := errors.New("email already exists")
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2485,7 +2485,7 @@ func TestCreateSchoolAccount_PersonCreateFails(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2544,7 +2544,7 @@ func TestCreateSchoolAccount_LinkPersonFails(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2607,7 +2607,7 @@ func TestCreateSchoolAccount_StaffCreateFails(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2676,7 +2676,7 @@ func TestCreateSchoolAccount_TeacherCreateFails(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2737,7 +2737,7 @@ func TestCreateSchoolAccount_NonSystemRole_Rejected(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2776,7 +2776,7 @@ func TestCreateSchoolAccount_GuardianRole_Rejected(t *testing.T) {
 
 	roleID := int64(6)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2815,7 +2815,7 @@ func TestCreateSchoolAccount_TeacherRole_Rejected(t *testing.T) {
 
 	roleID := int64(7)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2854,7 +2854,7 @@ func TestCreateSchoolAccount_RoleNotFound_Rejected(t *testing.T) {
 
 	roleID := int64(999)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2889,7 +2889,7 @@ func TestCreateSchoolAccount_RoleLookupError_Propagated(t *testing.T) {
 
 	roleID := int64(5)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -2937,7 +2937,7 @@ func TestCreateSchoolAccount_AdminRole_NoTeacher(t *testing.T) {
 	roleID := int64(4)
 	teacherCreated := false
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -3014,7 +3014,7 @@ func TestCreateSchoolAccount_WithPosition(t *testing.T) {
 	roleID := int64(5)
 	var createdTeacher *userModels.Teacher
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
@@ -3099,7 +3099,7 @@ func TestListSystemRoles_Success(t *testing.T) {
 		{Model: base.Model{ID: 2}, Name: "user", IsSystem: true},
 	}
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		RoleRepo:      &mockRoleRepo{roles: expected},
 		DB:            bunDB,
@@ -3113,7 +3113,7 @@ func TestListSystemRoles_Success(t *testing.T) {
 func TestListSystemRoles_Error(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		RoleRepo:      &mockRoleRepo{},
 	})
@@ -3130,7 +3130,7 @@ func TestListSystemRoles_Error(t *testing.T) {
 func TestOperatorProvisioningService_SoftDeletePerson_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 	})
 
@@ -3143,7 +3143,7 @@ func TestOperatorProvisioningService_SoftDeletePerson_InvalidID(t *testing.T) {
 func TestOperatorProvisioningService_SoftDeletePerson_NegativeID(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 	})
 
@@ -3158,7 +3158,7 @@ func TestOperatorProvisioningService_SoftDeletePerson_NegativeID(t *testing.T) {
 func TestOperatorProvisioningService_ListSchoolPersons_SchoolNotFound_NilReturn(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo:    &testpkg.SchoolRepoMock{},
 	})
@@ -3173,7 +3173,7 @@ func TestOperatorProvisioningService_ListSchoolPersons_SchoolNotFound_NilReturn(
 func TestOperatorProvisioningService_ListSchoolPersons_SchoolNotFound_SqlErrNoRows(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3193,7 +3193,7 @@ func TestOperatorProvisioningService_SoftDeleteSchool_Success(t *testing.T) {
 	t.Parallel()
 
 	softDeleteCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3218,7 +3218,7 @@ func TestOperatorProvisioningService_SoftDeleteSchool_Success(t *testing.T) {
 func TestOperatorProvisioningService_SoftDeleteSchool_NotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo:    &testpkg.SchoolRepoMock{},
 		AuditLogRepo:  &mockAuditLogRepoShared{},
@@ -3234,7 +3234,7 @@ func TestOperatorProvisioningService_SoftDeleteSchool_AlreadyDeleted(t *testing.
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3258,7 +3258,7 @@ func TestOperatorProvisioningService_RestoreSchool_Success(t *testing.T) {
 
 	restoreCalled := false
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3293,7 +3293,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgDeleted(t *testing.T
 
 	now := time.Now()
 	restoreCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3329,7 +3329,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgDeleted(t *testing.T
 func TestOperatorProvisioningService_RestoreSchool_NotDeleted(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3356,7 +3356,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_Success(t *testing.T
 	t.Parallel()
 
 	softDeleteCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3385,7 +3385,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_Success(t *testing.T
 func TestOperatorProvisioningService_SoftDeleteOrganization_NotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo:       &testpkg.SchoolRepoMock{},
@@ -3402,7 +3402,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_AlreadyDeleted(t *te
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3424,7 +3424,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_AlreadyDeleted(t *te
 func TestOperatorProvisioningService_SoftDeleteOrganization_HasActiveSchools(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3453,7 +3453,7 @@ func TestOperatorProvisioningService_RestoreOrganization_Success(t *testing.T) {
 
 	restoreCalled := false
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3478,7 +3478,7 @@ func TestOperatorProvisioningService_RestoreOrganization_Success(t *testing.T) {
 func TestOperatorProvisioningService_RestoreOrganization_NotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo:    &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{},
 		SchoolRepo:       &testpkg.SchoolRepoMock{},
@@ -3494,7 +3494,7 @@ func TestOperatorProvisioningService_RestoreOrganization_NotFound(t *testing.T) 
 func TestOperatorProvisioningService_RestoreOrganization_NotDeleted(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3521,7 +3521,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgLookupFails(t *testi
 	now := time.Now()
 	lookupErr := errors.New("db connection lost")
 	restoreCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3556,7 +3556,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgMissing(t *testing.T
 	// OrganizationNotFoundError and not attempt to restore.
 	now := time.Now()
 	restoreCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3595,7 +3595,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_CountSchoolsFails(t 
 	// and the org must not be soft-deleted.
 	countErr := errors.New("count query failed")
 	softDeleteCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3627,7 +3627,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_RepoErrorFallsThroug
 	// Covers the non-rows-mismatch branch of SoftDeleteOrganization: a raw
 	// repo error (not a rows-affected mismatch) must propagate unchanged.
 	softDeleteErr := errors.New("unexpected db error")
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3658,7 +3658,7 @@ func TestOperatorProvisioningService_RestoreOrganization_RepoErrorFallsThrough(t
 	// repo error (not a rows-affected mismatch) must propagate unchanged.
 	now := time.Now()
 	restoreErr := errors.New("unexpected db error")
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
@@ -3703,7 +3703,7 @@ func TestOperatorProvisioningService_UpdateSchool_RejectsDeletedSchool(t *testin
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3738,7 +3738,7 @@ func TestOperatorProvisioningService_ListSchoolAccounts_RejectsDeletedSchool(t *
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3767,7 +3767,7 @@ func TestOperatorProvisioningService_ListSchoolDevices_RejectsDeletedSchool(t *t
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3796,7 +3796,7 @@ func TestOperatorProvisioningService_CreateDevice_RejectsDeletedSchool(t *testin
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -3829,7 +3829,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsDeletedSchool(t *tes
 	schoolID := int64(500)
 	apiKey := "dev_testkey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
@@ -3873,7 +3873,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsNilSchool(t *testing
 	schoolID := int64(500)
 	apiKey := "dev_testkey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
@@ -3909,7 +3909,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsInactiveSchool(t *te
 	schoolID := int64(500)
 	apiKey := "dev_testkey1234567890abcdef1234567890abcdef1234567890abcdef12345678"
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
@@ -3959,7 +3959,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsBlockers(t *
 	}
 	device.SetTenantID(10)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return device, nil
@@ -3981,7 +3981,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsBlockers(t *
 func TestOperatorProvisioningService_GetDeviceTransferStatus_RejectsInvalidID(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 	})
 
@@ -4000,7 +4000,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsProtectedDev
 		DeviceID: iotModels.WebManualDeviceID,
 	}
 	device.SetTenantID(10)
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return device, nil
@@ -4021,7 +4021,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 	startedAt := time.Now().Add(-time.Hour)
 	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
 	device.SetTenantID(10)
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return device, nil
@@ -4050,7 +4050,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 func TestOperatorProvisioningService_GetDeviceTransferStatus_NotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return nil, sql.ErrNoRows
@@ -4067,7 +4067,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_NotFound(t *testing
 func TestOperatorProvisioningService_GetDeviceTransferStatus_NilDeviceIsNotFound(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return nil, nil
@@ -4086,7 +4086,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_SessionLookupFailur
 
 	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
 	device.SetTenantID(10)
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return device, nil
@@ -4111,7 +4111,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_UsesTenantOnlineWin
 
 	var resolvedTenantID int64
 	var resolvedKey string
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return device, nil
@@ -4142,7 +4142,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_OnlineWindowResolve
 	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
 	device.SetTenantID(10)
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepoWithFind{findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return device, nil
@@ -4203,7 +4203,7 @@ func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesId
 			OrganizationID: 1, OrganizationName: "Talent OGS", CreatedAt: time.Now(), UpdatedAt: time.Now(),
 		}}, nil
 	}}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: summaries,
 		DeviceRepo:    deviceRepo,
 		SchoolRepo: &testpkg.SchoolRepoMock{FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
@@ -4241,7 +4241,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsDifferentOrganization
 
 	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", DeviceType: "terminal", Status: iotModels.DeviceStatusActive}
 	source.SetTenantID(10)
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepo{findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) {
 			return source, nil
@@ -4270,7 +4270,7 @@ func TestOperatorProvisioningService_TransferDevice_OnlineDeviceDoesNotWrite(t *
 	}
 	source.SetTenantID(10)
 	writes := 0
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepo{
 			findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) { return source, nil },
@@ -4303,7 +4303,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsSameSchool(t *testing
 
 	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
 	source.SetTenantID(10)
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepo{findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) {
 			return source, nil
@@ -4322,7 +4322,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsProtectedDevice(t *te
 
 	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: iotModels.WebManualDeviceID}
 	source.SetTenantID(10)
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepo{findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) {
 			return source, nil
@@ -4339,7 +4339,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsProtectedDevice(t *te
 func TestOperatorProvisioningService_TransferDevice_RejectsInvalidIDs(t *testing.T) {
 	t.Parallel()
 
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 	})
 
@@ -4356,7 +4356,7 @@ func TestOperatorProvisioningService_TransferDevice_ActiveSessionDoesNotWrite(t 
 	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
 	source.SetTenantID(10)
 	writes := 0
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		DeviceRepo: &mockDeviceRepo{
 			findByIDForUpdateFn: func(context.Context, int64) (*iotModels.Device, error) { return source, nil },
@@ -4393,7 +4393,7 @@ func TestOperatorProvisioningService_LoadActiveSchool_RejectsDeletedSchool(t *te
 	t.Parallel()
 
 	now := time.Now()
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {

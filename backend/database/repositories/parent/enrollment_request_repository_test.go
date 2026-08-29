@@ -52,7 +52,7 @@ func insertEnrollment(t *testing.T, db *bun.DB, row enrollmentRow) int64 {
 	}
 
 	var requestID int64
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, tx bun.Tx) error {
 		if err := tx.NewRaw(`
 			INSERT INTO enrollment.requests
 			  (tenant_id, phase_id, guardian_account_id, guardian_first_name,
@@ -87,7 +87,7 @@ func insertEnrollmentChild(
 	createdStudentID *int64,
 ) {
 	t.Helper()
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, tx bun.Tx) error {
 		_, e := tx.NewRaw(`
 			INSERT INTO enrollment.request_children
 			  (tenant_id, request_id, first_name, last_name, date_of_birth,
@@ -106,7 +106,7 @@ func insertEnrollmentChild(
 func insertTestPhase(t *testing.T, db *bun.DB, tenantID int64, name string) int64 {
 	t.Helper()
 	var id int64
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, tx bun.Tx) error {
 		return tx.NewRaw(`
 			INSERT INTO enrollment.phases
 			  (tenant_id, name, kind, service_start_date, service_end_date,
@@ -126,7 +126,7 @@ func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.En
 	t.Helper()
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
 	var out []*parentModels.EnrollmentRequestSummary
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, listErr := repo.ListByAccount(ctx, accountID)
 		out = got
 		return listErr
@@ -141,7 +141,7 @@ func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	t.Helper()
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
 	var n int
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, bErr := repo.BackfillGuardianAccountID(ctx, accountID, email)
 		n = got
 		return bErr
@@ -157,7 +157,7 @@ func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 func readGuardianAccountID(t *testing.T, db *bun.DB, requestID int64) *int64 {
 	t.Helper()
 	var raw *int64
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, tx bun.Tx) error {
 		scanErr := tx.NewRaw(`SELECT guardian_account_id FROM enrollment.requests WHERE id = ?`, requestID).
 			Scan(ctx, &raw)
 		if errors.Is(scanErr, sql.ErrNoRows) {
@@ -495,7 +495,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 	db := testpkg.SetupTestDB(t)
 
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, listErr := repo.ListByAccount(ctx, 0)
 		return listErr
 	})
@@ -727,7 +727,7 @@ func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, bErr := repo.BackfillGuardianAccountID(ctx, 0, "x@example.com")
 		return bErr
 	})

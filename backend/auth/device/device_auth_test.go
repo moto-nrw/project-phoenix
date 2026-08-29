@@ -44,6 +44,9 @@ func newMockIoTService() *mockIoTService {
 }
 
 func (m *mockIoTService) addDevice(apiKey string, device *iot.Device) {
+	if device.TenantID == 0 {
+		device.TenantID = 7
+	}
 	m.devices[apiKey] = device
 }
 
@@ -298,6 +301,49 @@ func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.True(t, mockService.updateCalled, "Should update device last seen")
+}
+
+func TestDeviceAuthenticators_ZeroTenantID_IsReportedAndRejected(t *testing.T) {
+	t.Parallel()
+	const apiKey = "zero-tenant-api-key"
+	for _, tc := range []struct {
+		name       string
+		middleware func(iotSvc.Service, func(context.Context, error)) func(http.Handler) http.Handler
+	}{
+		{
+			name: "device only",
+			middleware: func(service iotSvc.Service, observer func(context.Context, error)) func(http.Handler) http.Handler {
+				return deviceOnlyAuthenticator(service, nil, observer)
+			},
+		},
+		{
+			name: "device and PIN",
+			middleware: func(service iotSvc.Service, observer func(context.Context, error)) func(http.Handler) http.Handler {
+				return deviceAuthenticator(service, nil, nil, nil, observer)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockService := newMockIoTService()
+			mockService.devices[apiKey] = &iot.Device{
+				DeviceID:   "device-zero-tenant",
+				DeviceType: "terminal",
+				Status:     iot.DeviceStatusActive,
+			}
+			var observedErr error
+			handler := tc.middleware(mockService, func(_ context.Context, err error) { observedErr = err })(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("zero-tenant device must not reach the wrapped handler")
+			}))
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, req)
+
+			assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+			assert.Error(t, observedErr)
+		})
+	}
 }
 
 func TestDeviceOnlyAuthenticator_MissingAuthHeader(t *testing.T) {

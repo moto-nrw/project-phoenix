@@ -53,7 +53,7 @@ func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
 	provisioningErr := errors.New("staff insert failed")
-	service := NewInvitationService(InvitationServiceConfig{
+	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
 		AccountTenantRepo: repos.AccountTenant,

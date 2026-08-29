@@ -21,7 +21,7 @@ func TestOperatorProvisioningService_GetSchoolPWAUsage(t *testing.T) {
 	t.Run("maps portal rows into the response shape", func(t *testing.T) {
 		var gotTenantID int64
 		var gotWindow time.Duration
-		service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 			SummariesRepo: &mockSummariesRepo{
 				pwaUsageFn: func(_ context.Context, tenantID int64, window time.Duration) ([]platformModels.SchoolPWAUsageRow, error) {
 					gotTenantID = tenantID
@@ -47,7 +47,7 @@ func TestOperatorProvisioningService_GetSchoolPWAUsage(t *testing.T) {
 	})
 
 	t.Run("missing buckets stay zero", func(t *testing.T) {
-		service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 			SummariesRepo: &mockSummariesRepo{},
 			SchoolRepo: &testpkg.SchoolRepoMock{
 				FindByIDFn: func(context.Context, int64) (*platformModels.School, error) { return school, nil },
@@ -60,7 +60,7 @@ func TestOperatorProvisioningService_GetSchoolPWAUsage(t *testing.T) {
 	})
 
 	t.Run("unknown school returns SchoolNotFoundError", func(t *testing.T) {
-		service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+		service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 			SummariesRepo: &mockSummariesRepo{},
 			SchoolRepo:    &testpkg.SchoolRepoMock{},
 		})

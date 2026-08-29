@@ -50,7 +50,7 @@ func shiftCoverageRouter(parentCtx context.Context, resource *Resource) chi.Rout
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			ctx := tenant.WithTenantID(request.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(request.Context()), tenantID)
 			next.ServeHTTP(w, request.WithContext(ctx))
 		})
 	})

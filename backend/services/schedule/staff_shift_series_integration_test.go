@@ -13,7 +13,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,14 +71,14 @@ func (e *seriesTestEnv) createPeriod(t *testing.T, start, end timezone.Date, cyc
 // HTTP handlers provide (the advisory lock requires a transaction).
 func (e *seriesTestEnv) inTx(t *testing.T, fn func(ctx context.Context) error) {
 	t.Helper()
-	require.NoError(t, tenant.WithTenantTx(context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	}))
 }
 
 func (e *seriesTestEnv) inTxExpectErr(t *testing.T, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithTenantTx(context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	return testpkg.WithTenantTx(t, context.Background(), e.db, e.scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return fn(txCtx)
 	})
 }

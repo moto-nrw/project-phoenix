@@ -91,7 +91,7 @@ func studentRouter(parentCtx context.Context, res *Resource, perms []string) chi
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})

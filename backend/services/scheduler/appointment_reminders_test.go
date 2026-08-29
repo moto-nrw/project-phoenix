@@ -39,7 +39,7 @@ func TestAppointmentReminderWindow(t *testing.T) {
 	t.Parallel()
 
 	t.Run("the first window after boot recovers the bounded lookback", func(t *testing.T) {
-		s := &Scheduler{logger: slog.Default()}
+		s := unitScheduler(&Scheduler{logger: slog.Default()})
 		now := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 
 		from, to := s.appointmentReminderWindow(7, now)
@@ -50,7 +50,7 @@ func TestAppointmentReminderWindow(t *testing.T) {
 	})
 
 	t.Run("consecutive ticks cover adjacent windows", func(t *testing.T) {
-		s := &Scheduler{logger: slog.Default()}
+		s := unitScheduler(&Scheduler{logger: slog.Default()})
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		second := first.Add(7 * time.Minute)
 
@@ -63,7 +63,7 @@ func TestAppointmentReminderWindow(t *testing.T) {
 	})
 
 	t.Run("a window is clamped after downtime", func(t *testing.T) {
-		s := &Scheduler{logger: slog.Default()}
+		s := unitScheduler(&Scheduler{logger: slog.Default()})
 		bootTime := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		s.markAppointmentReminderScanned(7, bootTime)
 
@@ -76,7 +76,7 @@ func TestAppointmentReminderWindow(t *testing.T) {
 	})
 
 	t.Run("a failed tenant scan is retried without advancing its boundary", func(t *testing.T) {
-		s := &Scheduler{logger: slog.Default()}
+		s := unitScheduler(&Scheduler{logger: slog.Default()})
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		second := first.Add(appointmentReminderInterval)
 
@@ -88,7 +88,7 @@ func TestAppointmentReminderWindow(t *testing.T) {
 	})
 
 	t.Run("each tenant has an independent successful boundary", func(t *testing.T) {
-		s := &Scheduler{logger: slog.Default()}
+		s := unitScheduler(&Scheduler{logger: slog.Default()})
 		first := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 		s.markAppointmentReminderScanned(7, first)
 
@@ -106,11 +106,10 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 
 	t.Run("an increased lead scans only the active configuration window", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             appointmentReminderSettings(24, true),
-		}
+			settings:             appointmentReminderSettings(24, true)})
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 		require.Len(t, queuer.calls, 1)
@@ -120,11 +119,10 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 
 	t.Run("the lead time shifts the window into the future", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             appointmentReminderSettings(12, true),
-		}
+			settings:             appointmentReminderSettings(12, true)})
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
@@ -137,11 +135,10 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 
 	t.Run("a school that switched reminders off is not scanned at all", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             appointmentReminderSettings(24, false),
-		}
+			settings:             appointmentReminderSettings(24, false)})
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
@@ -150,11 +147,10 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 
 	t.Run("a registry-resolved default applies", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             appointmentReminderSettings(24, true),
-		}
+			settings:             appointmentReminderSettings(24, true)})
 
 		require.NoError(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 
@@ -164,11 +160,10 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 
 	t.Run("a failing tenant is logged, not fatal", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{callErr: assertAnError{}}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             appointmentReminderSettings(24, true),
-		}
+			settings:             appointmentReminderSettings(24, true)})
 
 		assert.Error(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo),
 			"the caller must leave the failed tenant's checkpoint unchanged")
@@ -176,11 +171,10 @@ func TestRunAppointmentRemindersForTenant(t *testing.T) {
 
 	t.Run("a failed reminder-enabled resolution fails closed", func(t *testing.T) {
 		queuer := &fakeReminderQueuer{}
-		s := &Scheduler{
+		s := unitScheduler(&Scheduler{
 			logger:               slog.Default(),
 			appointmentReminders: queuer,
-			settings:             &fakeSettingsResolver{},
-		}
+			settings:             &fakeSettingsResolver{}})
 
 		assert.Error(t, s.runAppointmentRemindersForTenant(context.Background(), 7, scanFrom, scanTo))
 

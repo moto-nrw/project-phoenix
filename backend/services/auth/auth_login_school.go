@@ -308,7 +308,7 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	// tx (same RLS constraints as the login flows — there is no tenant
 	// transaction yet).
 	var targetTenantID int64
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		tenantID, _, resolveErr := s.resolveAccountTenantBySlug(adminCtx, accountID, tenantSlug)
 		if resolveErr != nil {
 			return resolveErr
@@ -788,7 +788,7 @@ func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *auth
 		school        *platformModels.School
 		activeMapping bool
 	)
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, err = s.repos.School.FindByID(adminCtx, tenantID)
 		if err != nil {
 			return fmt.Errorf("lookup school %d for school metadata: %w", tenantID, err)
@@ -844,7 +844,7 @@ func (s *Service) schoolClaimsPayloadInTx(ctx context.Context, account *authMode
 // log the user out for good).
 func (s *Service) hasSchoolPortalRoleAtTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	var hasRole bool
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		accountRoles, rolesErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, tenantID)
 		if rolesErr != nil {
 			if isNotFoundError(rolesErr) {
@@ -879,7 +879,7 @@ func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountI
 	hasPortalRole := false
 	var firstPortalTenantID int64
 
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		mappings, listErr := s.repos.AccountTenant.FindActiveByAccountID(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
@@ -976,7 +976,7 @@ func (s *Service) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID
 		school        *platformModels.School
 		activeMapping bool
 	)
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, err = s.repos.School.FindByID(adminCtx, tenantID)
 		if err != nil {
 			if isNotFoundError(err) {

@@ -34,7 +34,7 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	// so the deciding admin needs a real staff record behind their account.
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
 
-	tenantCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	upsertPickup := func(hour, minute int) {
 		require.NoError(t, tc.services.PickupSchedule.UpsertStudentPickupSchedule(
 			tenantCtx,

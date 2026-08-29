@@ -41,6 +41,7 @@ func buildAuthService(t *testing.T, db *bun.DB) platformSvc.OperatorAuthService 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory.OperatorAuth
 }
 

@@ -98,7 +98,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 	// regardless of whether the address exists.
 	var emailTaken bool
 	maskedEmail := maskEmail(newEmail)
-	err = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// Lock the operator row to serialize concurrent email-change requests
 		// for the same operator. Without this, two parallel transactions under
 		// READ COMMITTED could both pass the rate-limit count and both insert,
@@ -226,7 +226,7 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 	var operatorID int64
 	var displayName string
 
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// a. Atomically consume the token (UPDATE ... WHERE used = FALSE RETURNING *).
 		// Only one concurrent transaction can succeed — the loser sees zero rows
 		// and gets EmailChangeTokenInvalidError. If a later step fails, the entire
@@ -371,7 +371,7 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 
 	baseRetry := token.EmailRetryCount
 
-	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(detachedOperatorContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},
@@ -404,7 +404,7 @@ func (s *operatorAuthService) dispatchNotificationEmail(ctx context.Context, ope
 		},
 	}
 
-	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(detachedOperatorContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      email.DeliveryMetadata{Recipient: operator.Email},
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},
@@ -431,7 +431,7 @@ func (s *operatorAuthService) dispatchChangeConfirmedEmail(ctx context.Context, 
 		},
 	}
 
-	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(detachedOperatorContext(s.withTenantRuntime(ctx)), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      email.DeliveryMetadata{Recipient: oldEmail},
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},

@@ -15,7 +15,6 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
@@ -191,7 +190,7 @@ func (rs *Resource) Router() chi.Router {
 		// TenantTxMiddleware wraps each request in a DB transaction as phoenix_tenant
 		// with RLS scoping (SET LOCAL ROLE + set_config). Without this, queries run
 		// as phoenix_auth which only has SELECT on auth tables.
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		withTx := common.TenantTxMiddleware
 		r.Group(func(r chi.Router) {
 			r.Use(withTx)
 

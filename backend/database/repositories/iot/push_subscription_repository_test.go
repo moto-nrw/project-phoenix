@@ -294,7 +294,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, tenantOneSub))
 		require.NoError(t, repo.Upsert(otherSchoolCtx, tenantTwoSub))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteParentByEndpoint(adminCtx, sharedEndpoint)
 		}))
 
@@ -320,7 +320,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.Upsert(otherSchoolCtx, schoolThere))
 		require.NoError(t, repo.Upsert(ctx, staffHere))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteSchoolByEndpointAcrossTenants(adminCtx, sharedEndpoint)
 		}))
 
@@ -493,7 +493,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, staffEndpoint)))
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalParent, parentEndpoint)))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteStaffByAccountID(adminCtx, account.ID)
 		}))
 
@@ -520,7 +520,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, keep))
 		require.NoError(t, repo.Upsert(ctx, drop))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "family-drop")
 		}))
 
@@ -543,11 +543,11 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		there.TokenFamilyID = ""
 		there.SetTenantID(otherSchool.ID)
 		require.NoError(t, repo.Upsert(ctx, here))
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.Upsert(adminCtx, there)
 		}))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteStaffUnboundByAccount(adminCtx, account.ID, tenant.FromContext(ctx))
 		}))
 
@@ -572,7 +572,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, keep))
 		require.NoError(t, repo.Upsert(ctx, drop))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "parent-family-drop")
 		}))
 
@@ -595,11 +595,11 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		there.TokenFamilyID = ""
 		there.SetTenantID(otherSchool.ID)
 		require.NoError(t, repo.Upsert(ctx, here))
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.Upsert(adminCtx, there)
 		}))
 
-		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteParentUnboundByAccount(adminCtx, account.ID, tenant.FromContext(ctx))
 		}))
 
@@ -698,7 +698,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	assert.Empty(t, subscriptionsForAccount(subs, ordinary.ID), "ordinary staff must not receive admin push")
 
 	var tenantRoleSubs []*iotModels.PushSubscription
-	err = tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		tenantRoleSubs, err = repo.FindForTenantAdmins(txCtx)
 		return err
 	})

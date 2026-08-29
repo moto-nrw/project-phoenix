@@ -16,7 +16,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -263,7 +262,7 @@ func TestPickupChangeApprovalRollsBackWhenAutoExcusalFails(t *testing.T) {
 	require.NoError(t, err)
 
 	releaseSlot := holdInstanceStudentLock(t, f, slotID)
-	err = tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, tx bun.Tx) error {
 		if _, timeoutErr := tx.ExecContext(txCtx, `SET LOCAL lock_timeout = '100ms'`); timeoutErr != nil {
 			return timeoutErr
 		}
