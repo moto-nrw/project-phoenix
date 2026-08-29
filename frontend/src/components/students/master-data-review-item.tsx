@@ -112,10 +112,18 @@ export function MasterDataReviewItem({
   row,
   onDecided,
   grouped = false,
+  expectedVersion,
+  decisionDisabledReason,
+  approveReasonRequired = false,
 }: Readonly<{
   row: StaffMasterDataChange;
   onDecided: (notice: string) => void;
   grouped?: boolean;
+  /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
+  expectedVersion?: string;
+  /** Warum hier gerade nicht einzeln entschieden werden kann (#2267). */
+  decisionDisabledReason?: string;
+  approveReasonRequired?: boolean;
 }>) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -128,6 +136,8 @@ export function MasterDataReviewItem({
         row.id,
         approve,
         reason.trim() || undefined,
+        // Nur mitschicken, wenn die Liste eine Fassung kennt.
+        ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
       onDecided(approve ? "Änderung übernommen" : "Änderung abgelehnt");
     } catch (err) {
@@ -152,7 +162,11 @@ export function MasterDataReviewItem({
       submittedAt={row.created_at}
       reason={reason}
       onReasonChange={setReason}
-      reasonPlaceholder="Begründung (optional)"
+      reasonPlaceholder={
+        approveReasonRequired ? "Begründung" : "Begründung (optional)"
+      }
+      approveReasonRequired={approveReasonRequired}
+      decisionDisabledReason={decisionDisabledReason}
       busy={busy}
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}

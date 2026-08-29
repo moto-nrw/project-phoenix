@@ -43,6 +43,12 @@ func (p *ParentRequestReviewPolicy) StudentFilter(
 	if authorize.HasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
 		return func(student *users.Student) bool { return student != nil }, nil
 	}
+	// users:absence alone never unlocks a read surface (#2232). Refusing here
+	// keeps the queue consistent with the write gate instead of returning an
+	// empty list that looks like "no work".
+	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
+		return nil, authorize.ErrAbsenceReadRequired
+	}
 	if p == nil || p.settings == nil || p.groups == nil || p.settingKey == "" {
 		return nil, fmt.Errorf("parent request review policy is not configured")
 	}
@@ -83,4 +89,36 @@ func (p *ParentRequestReviewPolicy) Allows(
 		return false, err
 	}
 	return filter(student), nil
+}
+
+// Review access levels reported by AccessLevel. They tell a client WHY its
+// queue may be empty, which is the difference between "nothing to do" and
+// "your school has not given you this".
+const (
+	ReviewAccessAdmin       = "admin"
+	ReviewAccessGroupLeader = "group_leader"
+	ReviewAccessNone        = "none"
+)
+
+// AccessLevel reports the caller's coarse review reach. It is the same
+// decision StudentFilter makes, without the per-child part, so a client can
+// explain an empty queue instead of only showing it.
+func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions []string) (string, error) {
+	if authorize.HasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+		return ReviewAccessAdmin, nil
+	}
+	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
+		return "", authorize.ErrAbsenceReadRequired
+	}
+	if p == nil || p.settings == nil || p.settingKey == "" {
+		return "", fmt.Errorf("parent request review policy is not configured")
+	}
+	enabled, err := p.settings.ResolveBool(ctx, p.settingKey)
+	if err != nil {
+		return "", fmt.Errorf("resolve group-leader request review setting: %w", err)
+	}
+	if !enabled {
+		return ReviewAccessNone, nil
+	}
+	return ReviewAccessGroupLeader, nil
 }

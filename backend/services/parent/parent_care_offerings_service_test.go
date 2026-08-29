@@ -620,7 +620,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	assert.Equal(t, int64(99), catalog.PhaseID)
 
 	selections := []enrollmentSvc.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
-	view, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, selections, today.AddDays(20), "Bitte", false)
+	view, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, selections, today.AddDays(20), "Bitte", false, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, view)
 	assert.Equal(t, int64(22), changes.createdInput.StudentID)
@@ -628,27 +628,6 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	assert.Equal(t, selections, changes.createdInput.Selections)
 	assert.Equal(t, "Bitte", changes.createdInput.Note)
 
-	view, err = svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 77)
-	require.NoError(t, err)
-	assert.NotNil(t, view)
-	assert.Equal(t, [3]int64{77, 11, 22}, changes.withdrawn)
-}
-
-func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *testing.T) {
-	t.Parallel()
-
-	db := careOfferingsTestDB(t)
-	child := permittedCareOfferingsChild(t)
-	child.GuardianPermissions = map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
-	}
-	changes := &offeringChangesStub{}
-	svc := careOfferingsService(db, child, changes)
-	svc.RequestChildRepo = carePeriodRepoStub{}
-
-	_, err := svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 77)
-	require.NoError(t, err)
-	assert.Equal(t, [3]int64{77, 11, 22}, changes.withdrawn)
 }
 
 func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateErrors(t *testing.T) {
@@ -675,16 +654,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			name:  "create no service",
 			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
-				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false)
-				return err
-			},
-			want: enrollmentSvc.ErrOfferingChangeDisabled,
-		},
-		{
-			name:  "withdraw no service",
-			child: permittedCareOfferingsChild(t),
-			call: func(svc *service) error {
-				_, err := svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 1)
+				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false, nil)
 				return err
 			},
 			want: enrollmentSvc.ErrOfferingChangeDisabled,
@@ -714,17 +684,10 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{createErr: delegateErr},
 			call: func(svc *service) error {
-				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false)
-				return err
-			},
-			want: delegateErr,
-		},
-		{
-			name:   "withdraw delegate",
-			child:  permittedCareOfferingsChild(t),
-			change: &offeringChangesStub{withdrawErr: delegateErr},
-			call: func(svc *service) error {
-				_, err := svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 1)
+				// #2267: reason policy defaults to "both" — an empty note is
+				// now refused before the delegate is reached, so this case
+				// carries one to keep testing the delegate's error.
+				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "Bitte", false, nil)
 				return err
 			},
 			want: delegateErr,

@@ -497,9 +497,11 @@ describe("ChildMasterDataView", () => {
     await submitIdentityRequest();
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        { target: "person", field_key: "first_name", value: "Lea" },
-      ]),
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [{ target: "person", field_key: "first_name", value: "Lea" }],
+        [],
+      ),
     );
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
 
@@ -585,17 +587,21 @@ describe("ChildMasterDataView", () => {
     );
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        {
-          target: "departure",
-          field_key: "allowed_departure_modes",
-          value: {
-            mon: ["pickup"],
-            tue: ["alone", "bus"],
-            wed: ["pickup"],
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: {
+              mon: ["pickup"],
+              tue: ["alone", "bus"],
+              wed: ["pickup"],
+            },
           },
-        },
-      ]),
+        ],
+        [],
+      ),
     );
   });
 
@@ -683,9 +689,11 @@ describe("ChildMasterDataView", () => {
     await submitIdentityRequest();
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        { target: "student", field_key: "school_class", value: "3b" },
-      ]),
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [{ target: "student", field_key: "school_class", value: "3b" }],
+        [],
+      ),
     );
   });
 

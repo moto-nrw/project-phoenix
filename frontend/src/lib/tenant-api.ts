@@ -94,6 +94,12 @@ export interface TenantInfo {
    * request on its own. Unknown values collapse to "own".
    */
   operationalOverviewScope?: OperationalOverviewScope;
+  /**
+   * Wer eine Begründung eintragen muss, damit eine Elternanfrage entschieden
+   * werden kann (operations.parent_request_reason_policy, #2267). Unbekanntes
+   * gilt als „both" — die strengste Fassung.
+   */
+  parentRequestReasonPolicy?: ParentRequestReasonPolicy;
   showTimetableCounts?: boolean;
   waitlistEnabled?: boolean;
   /**
@@ -142,6 +148,7 @@ interface TenantResolveResponse {
   attendance_log_enabled?: boolean;
   group_mode?: string;
   operational_overview_scope?: string;
+  parent_request_reason_policy?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
   emergency_list_health_info_enabled?: boolean;
@@ -158,6 +165,30 @@ export type OperationalOverviewScope = "own" | "admins" | "all_staff";
  */
 export function normalizeOverviewScope(raw: unknown): OperationalOverviewScope {
   return raw === "admins" || raw === "all_staff" ? raw : "own";
+}
+
+/** Werte von operations.parent_request_reason_policy (#2267). */
+export type ParentRequestReasonPolicy =
+  "nobody" | "guardians" | "staff" | "both";
+
+/**
+ * Normalisiert die Begründungs-Pflicht des Backends. Alles Unbekannte wird zu
+ * "both", der strengsten Fassung: ein älteres Backend ohne dieses Feld darf die
+ * Pflicht nie stillschweigend abschalten. Gegenstück zu
+ * normalizeOverviewScope, das aus demselben Grund auf "own" fällt.
+ */
+function normalizeReasonPolicy(raw: unknown): ParentRequestReasonPolicy {
+  return raw === "nobody" || raw === "guardians" || raw === "staff"
+    ? raw
+    : "both";
+}
+
+/** Muss beim Freigeben einer Elternanfrage eine Begründung eingetragen werden? */
+export function staffReasonRequired(
+  policy: ParentRequestReasonPolicy | undefined,
+): boolean {
+  const normalized = normalizeReasonPolicy(policy);
+  return normalized === "staff" || normalized === "both";
 }
 
 /**
@@ -209,6 +240,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
       operationalOverviewScope: normalizeOverviewScope(
         data.operational_overview_scope,
+      ),
+      parentRequestReasonPolicy: normalizeReasonPolicy(
+        data.parent_request_reason_policy,
       ),
       showTimetableCounts: data.show_timetable_counts !== false,
       waitlistEnabled: data.waitlist_enabled !== false,

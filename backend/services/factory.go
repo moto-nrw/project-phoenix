@@ -181,9 +181,13 @@ type Factory struct {
 	ExcusedRequests   absence.ExcusedAbsenceRequestService
 	ParentRequests    *users.ParentRequestCoordinator
 	FamilyProtection  *users.FamilyProtectionService
-	StudentStatusDays *active.StudentStatusDayService
-	AbsenceOverview   *active.StudentStatusDayOverviewService
-	StudentHistory    active.StudentHistoryService
+	// RequestReviewPolicy is the one cross-domain decision about WHO may see
+	// and decide parent requests. The API layer reads it to explain an empty
+	// queue; the four request services enforce it per child.
+	RequestReviewPolicy *usercontext.ParentRequestReviewPolicy
+	StudentStatusDays   *active.StudentStatusDayService
+	AbsenceOverview     *active.StudentStatusDayOverviewService
+	StudentHistory      active.StudentHistoryService
 	// Statistics is the Statistik report (#2606).
 	Statistics              statistics.Service
 	OGSGroupLive            ogsgrouplive.Getter
@@ -1970,6 +1974,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		configModels.KeyParentRequestGroupLeaderReviewEnabled,
 	)
 
+	// One append-only ledger for every parent request, shared by all four
+	// domains so a request's history survives edits, decisions and corrections
+	// the request rows themselves overwrite (#2267).
+	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
+
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
@@ -1986,6 +1995,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		pillEmitter,
 		realtimeHub,
 		requestReviewPolicy,
+		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
 	)
@@ -2015,6 +2025,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,
 		Logger:                   logger.With("service", "offering-change-requests"),
+		EventRecorder:            parentRequestEvents,
 	}, requestReviewPolicy)
 	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
 	if !ok {
@@ -2047,6 +2058,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		pillEmitter,
 		realtimeHub,
 		requestReviewPolicy,
+		parentRequestEvents,
 		logger.With("service", "excused-requests"),
 		db,
 	)
@@ -2196,6 +2208,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		OfferingChangeRequestRepo: repos.OfferingChangeRequest,
 		FamilyProtectionEvents:    repos.FamilyProtection,
 		ParentRequestShares:       repos.ParentRequestShare,
+		ParentRequestEvents:       parentRequestEvents,
 		StudentAudit:              studentAuditService,
 		MessageThreadRepo:         repos.ParentMessageThread,
 		MessageRepo:               repos.ParentMessage,
@@ -2449,13 +2462,49 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		pillEmitter,
 		studentAuditService,
 		requestReviewPolicy,
+		parentRequestEvents,
 		logger.With("service", "master-data-review"),
 		realtimeHub,
 	)
+	// Co-guardian notices (#2267, story 47). A staff decision on one parent.s
+	// request tells the OTHER guardians that the child.s care changed. Whoever
+	// the parent explicitly shared the request with gets the full pill; every
+	// other guardian gets a neutral line with no reason and no author.
+	//
+	// Wired by setter, and deliberately AFTER all four services and
+	// parentService exist: the sharing rules live in the parents domain, and
+	// the four request domains must not import it just to ask who a request
+	// was shared with.
+	if resolver, ok := parentService.(parentmessaging.ShareVisibilityResolver); ok {
+		for _, service := range []any{
+			excusedRequestService,
+			careRequestService,
+			offeringChangeRequestService,
+			masterDataReviewService,
+		} {
+			if sink, ok := service.(interface {
+				SetRequestShareVisibility(parentmessaging.ShareVisibilityResolver)
+			}); ok {
+				sink.SetRequestShareVisibility(resolver)
+			}
+		}
+	}
+
 	parentRequestCoordinator := users.NewParentRequestCoordinator(
 		masterDataReviewService.(users.MasterDataBulkReviewPort),
 		excusedRequestService,
 	)
+	// Conflict-resolution ports (#2267, stories 6-10) — injected by setter, so
+	// adding a domain to the resolver never rewrites the bulk-approval
+	// constructor above. All five request kinds are wired here or the resolve
+	// route answers conflict_kind_unsupported for the missing one.
+	parentRequestCoordinator.SetMasterDataConflictPort(masterDataReviewService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetExcusedConflictPort(excusedRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
+	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
+	// The resolver records ONLY the staff-entered result. Every verdict it
+	// takes goes through a domain Decide, which writes its own decided event.
+	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
 	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
 	factory := &Factory{
@@ -2570,6 +2619,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,
 		FamilyProtection:     familyProtectionService,
+		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),

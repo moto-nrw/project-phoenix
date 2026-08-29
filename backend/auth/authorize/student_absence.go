@@ -101,3 +101,15 @@ func CanReviewExcusedAbsenceRequests(userPermissions []string) bool {
 	return HasPermission(permissions.UsersAbsence, userPermissions) &&
 		HasPermission(permissions.UsersRead, userPermissions)
 }
+
+// AbsenceReadPrerequisiteUnmet reports whether the caller's only claim on
+// absence work is users:absence while users:read is missing — the pair
+// CanManageStudentAbsence requires. Exported so the parent-request review
+// policy can refuse the same callers the write gate would refuse, instead of
+// silently serving them an empty queue.
+func AbsenceReadPrerequisiteUnmet(userPermissions []string) bool {
+	if HasAdminWildcard(userPermissions) {
+		return false
+	}
+	return absenceOnlyAuthority(userPermissions) && !HasPermission(permissions.UsersRead, userPermissions)
+}

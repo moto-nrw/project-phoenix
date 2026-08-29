@@ -107,7 +107,7 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
-func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string) (*parentService.SickNoteResult, error) {
+func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil
 }
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
@@ -116,7 +116,22 @@ func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone
 func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) WithdrawExcusedRequest(context.Context, int64, int64, int64) (*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*activeModels.ExcusedAbsenceRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditCareScheduleRequest(context.Context, int64, int64, int64, map[string]any, string) (*parentService.ChildCareSchedule, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditMasterDataRequest(context.Context, int64, int64, int64, json.RawMessage, string) (*userModels.StudentDataChangeRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) EditOfferingChangeRequest(context.Context, int64, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool, string) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, string, int64) ([]parentService.ParentRequestEventView, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
@@ -163,10 +178,6 @@ func (f *fakeParentService) CreateCareScheduleRequest(context.Context, int64, in
 	return nil, nil
 }
 
-func (f *fakeParentService) WithdrawCareScheduleRequest(context.Context, int64, int64, int64) (*parentService.ChildCareSchedule, error) {
-	return nil, nil
-}
-
 // Offering change requests (#1665). Zero-value stubs: these handlers have their
 // own tests; the fake only has to satisfy the interface.
 func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64) (*parentService.ChildCareOfferings, error) {
@@ -182,12 +193,8 @@ func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, in
 }
 
 func (f *fakeParentService) CreateOfferingChangeRequest(
-	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool,
+	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool, []int64,
 ) (*parentService.ChildCareOfferings, error) {
-	return nil, nil
-}
-
-func (f *fakeParentService) WithdrawOfferingChangeRequest(context.Context, int64, int64, int64) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }
 
@@ -200,7 +207,7 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	return f.careException, f.careExceptionErr
 }
 
-func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error) {
+func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string, _ []int64) (*scheduleModels.CareScheduleChangeRequest, error) {
 	f.gotCareAccount = accountID
 	f.gotCareStudent = studentID
 	f.gotCareDate = date
@@ -216,10 +223,6 @@ func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, account
 }
 
 func (f *fakeParentService) ListPickupChangeRequests(context.Context, int64, int64) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	return nil, nil
-}
-
-func (f *fakeParentService) WithdrawPickupChangeRequest(context.Context, int64, int64, int64) (*scheduleModels.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
 
@@ -244,7 +247,7 @@ func (f *fakeParentService) UpdateMasterDataField(_ context.Context, accountID, 
 	return f.updateMasterData, f.updateMasterErr
 }
 
-func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange) ([]*userModels.StudentDataChangeRequest, error) {
+func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange, _ []int64) ([]*userModels.StudentDataChangeRequest, error) {
 	f.gotMasterAccount = accountID
 	f.gotMasterStudent = studentID
 	f.gotSubmitChanges = changes

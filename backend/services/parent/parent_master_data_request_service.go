@@ -15,6 +15,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -41,7 +42,7 @@ var trackBRequestableFields = map[string]bool{
 // SubmitMasterDataChangeRequest records one or more pending Track B change
 // requests for staff approval. Fields whose proposed value equals the current
 // value are skipped; a field with an already-pending request is rejected.
-func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error) {
+func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*usersModels.StudentDataChangeRequest, error) {
 	if len(changes) == 0 {
 		return nil, ErrMasterDataNoChanges
 	}
@@ -116,6 +117,27 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 					return ErrMasterDataDuplicatePending
 				}
 				return createErr
+			}
+			if eventErr := usersSvc.RecordParentRequestEvent(txCtx, s.ParentRequestEvents, usersSvc.ParentRequestEventInput{
+				StudentID:      studentID,
+				RequestType:    usersModels.ParentRequestTypeMasterData,
+				RequestID:      row.ID,
+				EventType:      usersModels.ParentRequestEventSubmitted,
+				ActorAccountID: accountID,
+				UpdatedAt:      row.UpdatedAt,
+				Payload:        map[string]any{"target": c.Target, "field": c.FieldKey},
+			}); eventErr != nil {
+				return eventErr
+			}
+			// Same transaction as the request row: a refused share rolls the
+			// whole submit back rather than leaving requests nobody the family
+			// picked can see (#2267). A multi-field submit shares every row it
+			// created — the guardian chose recipients for the submission, not
+			// for one field of it.
+			if shareErr := s.ShareRequestInTx(
+				txCtx, accountID, studentID, RequestShareMasterData, row.ID, recipientGuardianProfileIDs,
+			); shareErr != nil {
+				return shareErr
 			}
 			created = append(created, row)
 		}
@@ -204,6 +226,95 @@ func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 
 // trackBFieldState validates the proposed value, computes the current value as
 // JSON for the audit row, and reports whether the value actually changes.
+// EditMasterDataRequest rewrites the proposed value of the caller's own
+// still-pending Stammdaten request (#2267, story 37). It replaces the withdraw
+// flow, so the request keeps its id, its share and its history. Target and
+// field stay fixed — changing those is a different request.
+func (s *service) EditMasterDataRequest(
+	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
+) (*usersModels.StudentDataChangeRequest, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMasterDataRequest)
+	if err != nil {
+		return nil, err
+	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	var out *usersModels.StudentDataChangeRequest
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
+		if editErr != nil {
+			return editErr
+		}
+		out = row
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
+	return out, nil
+}
+
+func (s *service) editMasterDataRequestInTx(
+	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
+) (*usersModels.StudentDataChangeRequest, error) {
+	req, err := s.ChangeRequestRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	// A request that is not the caller's own is reported as missing, never as
+	// forbidden: a stranger must not learn that the id exists.
+	if req.SubmittedBy != accountID || req.StudentID != studentID {
+		return nil, usersModels.ErrChangeRequestNotFound
+	}
+	if req.Status != usersModels.DataChangeStatusPending {
+		return nil, usersModels.ErrChangeRequestNotPending
+	}
+	if expectedVersion != "" && usersSvc.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return nil, usersSvc.ErrParentRequestStale
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return nil, ErrChildCareEnded
+	}
+	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	// Same validator the create path runs, against the CURRENT record: an edit
+	// may not propose a value the submit path would have refused, and one that
+	// meanwhile equals the live value is no request at all.
+	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, person, student, newValue)
+	if err != nil {
+		return nil, err
+	}
+	if !changed {
+		return nil, ErrMasterDataNoChanges
+	}
+	if err := s.ChangeRequestRepo.UpdatePending(ctx, req.ID, newRaw); err != nil {
+		return nil, err
+	}
+	row, err := s.ChangeRequestRepo.FindByID(ctx, req.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := usersSvc.RecordParentRequestEvent(ctx, s.ParentRequestEvents, usersSvc.ParentRequestEventInput{
+		StudentID:      row.StudentID,
+		RequestType:    usersModels.ParentRequestTypeMasterData,
+		RequestID:      row.ID,
+		EventType:      usersModels.ParentRequestEventGuardianEdit,
+		ActorAccountID: accountID,
+		UpdatedAt:      row.UpdatedAt,
+		Payload:        map[string]any{"target": row.Target, "field": row.FieldKey},
+	}); err != nil {
+		return nil, err
+	}
+	return row, nil
+}
+
 func trackBFieldState(target, field string, person *usersModels.Person, student *usersModels.Student, value json.RawMessage) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
 	switch target {
 	case usersModels.DataChangeTargetPerson:

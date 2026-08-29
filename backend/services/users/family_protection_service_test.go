@@ -98,7 +98,10 @@ func TestFamilyProtectionServiceDoesNotAppendUnchangedState(t *testing.T) {
 		StudentID: 10, Enabled: true, Reason: "noch einmal", ActorAccountID: 77,
 	})
 
-	require.NoError(t, err)
+	// Repeating a switch is not an error the caller has to fix, but it is not a
+	// state change either: the sentinel travels with the current event so the
+	// API can answer 200 and say "unchanged" (#2267).
+	require.ErrorIs(t, err, ErrFamilyProtectionUnchanged)
 	assert.Same(t, existing, event)
 	assert.Empty(t, repo.created)
 }

@@ -16,6 +16,11 @@ var (
 	ErrFamilyProtectionForbidden = errors.New("parent requests: family protection requires configuration permission")
 	ErrFamilyProtectionInvalid   = errors.New("parent requests: invalid family protection change")
 	ErrFamilyProtectionNotFound  = errors.New("parent requests: student not found")
+	// ErrFamilyProtectionUnchanged says the child is already in the requested
+	// state, so the append-only ledger stays untouched. It travels with the
+	// current event, not instead of it: the caller renders the state it asked
+	// for and tells the user nothing changed.
+	ErrFamilyProtectionUnchanged = errors.New("parent requests: family protection is already in the requested state")
 )
 
 type familyProtectionStudentLocker interface {
@@ -68,12 +73,11 @@ func (s *FamilyProtectionService) Current(ctx context.Context, studentIDs []int6
 }
 
 func (s *FamilyProtectionService) Set(ctx context.Context, input SetFamilyProtectionInput) (*userModels.FamilyProtectionEvent, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
 	if !authorize.HasPermission(permissions.ConfigManage, jwt.PermissionsFromCtx(ctx)) {
 		return nil, ErrFamilyProtectionForbidden
 	}
 	reason := strings.TrimSpace(input.Reason)
-	if input.StudentID <= 0 || input.ActorAccountID <= 0 || int64(claims.ID) != input.ActorAccountID || reason == "" || len([]rune(reason)) > 500 {
+	if input.StudentID <= 0 || input.ActorAccountID <= 0 || reason == "" || len([]rune(reason)) > 500 {
 		return nil, ErrFamilyProtectionInvalid
 	}
 	if s == nil || s.events == nil || s.students == nil {
@@ -91,7 +95,7 @@ func (s *FamilyProtectionService) Set(ctx context.Context, input SetFamilyProtec
 		return nil, fmt.Errorf("parent requests: load family protection: %w", err)
 	}
 	if existing := current[input.StudentID]; existing != nil && existing.Enabled == input.Enabled {
-		return existing, nil
+		return existing, ErrFamilyProtectionUnchanged
 	}
 	event := &userModels.FamilyProtectionEvent{
 		StudentID: input.StudentID, Enabled: input.Enabled, Reason: reason, ActorAccountID: input.ActorAccountID,

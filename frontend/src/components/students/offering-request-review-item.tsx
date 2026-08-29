@@ -137,10 +137,18 @@ export function OfferingRequestReviewItem({
   row,
   onDecided,
   grouped = false,
+  expectedVersion,
+  decisionDisabledReason,
+  approveReasonRequired = false,
 }: Readonly<{
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
   grouped?: boolean;
+  /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
+  expectedVersion?: string;
+  /** Warum hier gerade nicht einzeln entschieden werden kann (#2267). */
+  decisionDisabledReason?: string;
+  approveReasonRequired?: boolean;
 }>) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -181,7 +189,16 @@ export function OfferingRequestReviewItem({
         excludedIds,
         approve ? effectiveFrom : undefined,
       ] as const;
-      if (confirmWithdrawal) {
+      // Die hinteren Argumente nur anhängen, wenn es sie gibt: eine Anfrage
+      // ohne Komplett-Abmeldung und ohne bekannte Fassung schickt denselben
+      // Aufruf wie vorher.
+      if (expectedVersion) {
+        await decideOfferingChangeRequest(
+          ...args,
+          confirmWithdrawal,
+          expectedVersion,
+        );
+      } else if (confirmWithdrawal) {
         await decideOfferingChangeRequest(...args, true);
       } else {
         await decideOfferingChangeRequest(...args);
@@ -381,6 +398,8 @@ export function OfferingRequestReviewItem({
       }
       busy={busy}
       approveDisabled={blocked !== null}
+      approveReasonRequired={approveReasonRequired}
+      decisionDisabledReason={decisionDisabledReason}
       onApprove={() => void prepareApproval()}
       onReject={() => void decide(false)}
     >

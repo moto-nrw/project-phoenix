@@ -93,7 +93,7 @@ function buildCare(
     sickDays: [],
     excusedRequests: [],
     reportSick: vi.fn(),
-    withdrawExcused: vi.fn(),
+    refresh: vi.fn(),
     saveCareException: vi.fn(),
     removeCareException: vi.fn(),
   };

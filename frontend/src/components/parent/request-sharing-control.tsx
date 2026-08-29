@@ -7,9 +7,9 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Modal } from "~/components/ui/modal";
+import { useSharingOptions } from "~/components/parent/sharing-options-context";
 import {
   getRequestSharing,
-  getRequestSharingOptions,
   setRequestSharing,
   type ParentRequestShareType,
   type RequestSharingState,
@@ -26,41 +26,27 @@ interface RequestSharingSelectorProps {
   readonly studentId: string;
   readonly selected: readonly string[];
   readonly onChange: (ids: string[]) => void;
-  readonly onReadyChange?: (ready: boolean) => void;
 }
 
-function useSharingOptions(studentId: string) {
-  const [state, setState] = useState<RequestSharingState | null>(null);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const next = await getRequestSharingOptions(studentId);
-        if (active) setState(next);
-      } catch {
-        if (active) setError(true);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [studentId]);
-  return { state, error };
-}
-
+/**
+ * Optional recipient picker shown inside a request form. It never blocks
+ * sending: while the list loads, when it fails, and under Familienschutz the
+ * selection is simply empty, and the request goes out without recipients.
+ */
 export function RequestSharingSelector({
   studentId,
   selected,
   onChange,
-  onReadyChange,
 }: RequestSharingSelectorProps) {
   const t = useTranslations("parentRequestSharing");
   const { state, error } = useSharingOptions(studentId);
+  // No choice possible means no recipients: report an empty selection so a
+  // stale pick from an earlier state can never travel with the request.
+  const unavailable = error || state?.family_protected === true;
   useEffect(() => {
-    onReadyChange?.(state !== null && !error);
-  }, [error, onReadyChange, state]);
-  if (error) return <Alert type="error" message={t("error")} />;
+    if (unavailable) onChange([]);
+  }, [onChange, unavailable]);
+  if (error) return <Alert type="warning" message={t("optionsError")} />;
   if (!state) return <p className="text-sm text-gray-500">{t("loading")}</p>;
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
@@ -134,34 +120,34 @@ function applySharingState(
   );
 }
 
-function useSharingSave(
-  props: Readonly<{
-    studentId: string;
-    requestType: ParentRequestShareType;
-    requestId: string;
-    selected: string[];
-    saved: (state: RequestSharingState) => void;
-    failed: () => void;
-  }>,
-) {
+function useSharingSave({
+  studentId,
+  requestType,
+  requestId,
+  selected,
+  saved,
+  failed,
+}: Readonly<{
+  studentId: string;
+  requestType: ParentRequestShareType;
+  requestId: string;
+  selected: string[];
+  saved: (state: RequestSharingState) => void;
+  failed: () => void;
+}>) {
   const [saving, setSaving] = useState(false);
   const save = useCallback(async () => {
     setSaving(true);
     try {
-      props.saved(
-        await setRequestSharing(
-          props.studentId,
-          props.requestType,
-          props.requestId,
-          props.selected,
-        ),
+      saved(
+        await setRequestSharing(studentId, requestType, requestId, selected),
       );
     } catch {
-      props.failed();
+      failed();
     } finally {
       setSaving(false);
     }
-  }, [props]);
+  }, [failed, requestId, requestType, saved, selected, studentId]);
   return { save, saving };
 }
 
@@ -348,7 +334,8 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
       <Button
         type="button"
         variant="ghost"
-        size="compact"
+        size="md"
+        className="max-sm:min-h-11"
         onClick={control.show}
       >
         {t("button")}

@@ -168,6 +168,9 @@ func (rs *Resource) updateMasterDataField(w http.ResponseWriter, r *http.Request
 // MasterDataChangeRequestBody is the wire shape for POST .../master-data/requests.
 type MasterDataChangeRequestBody struct {
 	Changes []MasterDataChangeInput `json:"changes"`
+	// RecipientGuardianProfileIDs travel with the creation so the share is
+	// written in the same transaction (#2267); empty shares with nobody.
+	RecipientGuardianProfileIDs []string `json:"recipient_guardian_profile_ids"`
 }
 
 // MasterDataChangeInput is one proposed Track B field change.
@@ -219,9 +222,13 @@ func (rs *Resource) submitMasterDataRequest(w http.ResponseWriter, r *http.Reque
 		})
 	}
 
-	rows, err := rs.ParentService.SubmitMasterDataChangeRequest(r.Context(), accountID, studentID, changes)
+	recipients, ok := parseCreateRecipients(w, r, body.RecipientGuardianProfileIDs)
+	if !ok {
+		return
+	}
+	rows, err := rs.ParentService.SubmitMasterDataChangeRequest(r.Context(), accountID, studentID, changes, recipients)
 	if err != nil {
-		renderParentWriteError(w, r, err)
+		renderParentRequestError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toMasterDataChangeResponses(rows, accountID), "Change request submitted")

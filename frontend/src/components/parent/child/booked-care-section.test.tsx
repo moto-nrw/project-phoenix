@@ -9,7 +9,6 @@ vi.mock("~/lib/parent-api", () => ({
   getChildCareOfferings: vi.fn(),
   getChildCareSchedule: vi.fn(),
   submitOfferingChangeRequest: vi.fn(),
-  withdrawOfferingChangeRequest: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({

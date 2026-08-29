@@ -86,6 +86,7 @@ type Factory struct {
 	PrivacyConsent      userModels.PrivacyConsentRepository
 	FamilyProtection    userModels.FamilyProtectionEventRepository
 	ParentRequestShare  userModels.ParentRequestShareEventRepository
+	ParentRequestEvent  userModels.ParentRequestEventRepository
 
 	// Staff Stammdaten (#1423)
 	StaffMasterData    userModels.StaffMasterDataRepository
@@ -329,6 +330,7 @@ func NewFactory(db *bun.DB) *Factory {
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
+		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
 
 		// Staff Stammdaten (#1423)
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),

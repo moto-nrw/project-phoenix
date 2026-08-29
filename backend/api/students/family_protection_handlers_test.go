@@ -19,6 +19,9 @@ import (
 type familyProtectionManagerStub struct {
 	input   userService.SetFamilyProtectionInput
 	current map[int64]*userModels.FamilyProtectionEvent
+	// setErr is what Set returns alongside the event, so the unchanged
+	// sentinel can be exercised.
+	setErr error
 }
 
 func (s *familyProtectionManagerStub) Current(context.Context, []int64) (map[int64]*userModels.FamilyProtectionEvent, error) {
@@ -45,7 +48,7 @@ func TestGetFamilyProtectionReturnsCurrentState(t *testing.T) {
 
 func (s *familyProtectionManagerStub) Set(_ context.Context, input userService.SetFamilyProtectionInput) (*userModels.FamilyProtectionEvent, error) {
 	s.input = input
-	return &userModels.FamilyProtectionEvent{StudentID: input.StudentID, Enabled: input.Enabled, Reason: input.Reason}, nil
+	return &userModels.FamilyProtectionEvent{StudentID: input.StudentID, Enabled: input.Enabled, Reason: input.Reason}, s.setErr
 }
 
 func TestSetFamilyProtectionForwardsActorAndReason(t *testing.T) {
@@ -75,4 +78,26 @@ func TestSetFamilyProtectionRejectsMissingReason(t *testing.T) {
 	rs.setFamilyProtection(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// Switching a protection to the state it already has is not a failure the
+// staff member has to fix: the request succeeds, the answer states the current
+// state and says that nothing changed (#2267).
+func TestSetFamilyProtectionUnchangedAnswersOk(t *testing.T) {
+	t.Parallel()
+	svc := &familyProtectionManagerStub{setErr: userService.ErrFamilyProtectionUnchanged}
+	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtectionService: svc}}
+	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "42")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.setFamilyProtection(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t,
+		`{"status":"success","data":{"student_id":"42","enabled":true,"unchanged":true},"message":"Family protection updated"}`,
+		w.Body.String())
 }

@@ -92,6 +92,7 @@ export async function decideCareScheduleChangeRequest(
   approve: boolean,
   reason: string | undefined,
   impactToken: string,
+  expectedVersion?: string,
 ): Promise<StaffCareRequest> {
   const response = await fetch(
     `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}/decide`,
@@ -102,6 +103,7 @@ export async function decideCareScheduleChangeRequest(
         approve,
         reason: reason ?? "",
         impact_token: impactToken,
+        ...(expectedVersion ? { expected_version: expectedVersion } : {}),
       }),
     },
   );

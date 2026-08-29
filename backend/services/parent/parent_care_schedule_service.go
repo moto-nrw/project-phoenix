@@ -183,53 +183,6 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	return view, nil
 }
 
-// WithdrawCareScheduleRequest flips the caller's own pending request to
-// withdrawn and returns the refreshed view. It does not require the messaging
-// flag or parent_portal.request.submit: a parent
-// must be able to wind down their OWN outstanding request even after the school
-// disables the feature or revokes their submit permission — GetChildCareSchedule
-// still surfaces such a request as submitted_by_self and renders a withdraw
-// button, so the write path must match that read gate while care is running. Ownership and the
-// pending-status check are enforced inside careRequests.WithdrawRequest, which
-// binds the request to this accountID and studentID.
-func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if err := child.requireCareRunning(); err != nil {
-		return nil, err
-	}
-	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
-	view := &ChildCareSchedule{CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
-		if err != nil {
-			return err
-		}
-		if student.CareEndedOn(timezone.TodayDate()) {
-			return ErrChildCareEnded
-		}
-		if _, err := s.CareRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
-			return err
-		}
-		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
-	})
-	if txErr != nil {
-		return nil, mapCareRequestError(txErr, "withdraw care schedule request")
-	}
-	s.Logger.Info("parent withdrew care schedule request",
-		slog.Int64("account_id", accountID),
-		slog.Int64("student_id", studentID),
-		slog.Int64("request_id", requestID),
-		slog.Int64("tenant_id", child.tenantID),
-	)
-	return view, nil
-}
-
 func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, tenantID int64) (CareScheduleRequestCapabilities, error) {
 	resolve := func(key string) (bool, error) {
 		if s.Settings == nil {
@@ -382,6 +335,56 @@ func (s *service) hasActiveAbsenceToday(ctx context.Context, studentID int64, to
 // mapCareRequestError translates the schedule-domain sentinels into this
 // package's parent-facing sentinels (which the handler maps to HTTP codes);
 // anything else is wrapped as an internal error.
+// EditCareScheduleRequest rewrites the caller's own pending weekly-plan
+// request (#2267, story 37). It replaces withdrawal, so the request keeps its
+// id and its share. Like the withdraw it replaces it does not re-check the
+// per-field capability switches: a request already filed must stay
+// correctable even after the school turns a field off — otherwise the parent
+// is left with an open request they can neither fix nor retract.
+func (s *service) EditCareScheduleRequest(
+	ctx context.Context, accountID, studentID, requestID int64,
+	payload map[string]any, expectedVersion string,
+) (*ChildCareSchedule, error) {
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
+	if s.CareRequests == nil {
+		return nil, ErrCareRequestNotFound
+	}
+	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
+	}
+	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
+		if _, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{
+			RequestID:         requestID,
+			StudentID:         studentID,
+			GuardianAccountID: accountID,
+			ExpectedVersion:   expectedVersion,
+			Payload:           payload,
+		}); editErr != nil {
+			return editErr
+		}
+		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
+	})
+	if txErr != nil {
+		return nil, mapCareRequestError(txErr, "edit care schedule request")
+	}
+	return view, nil
+}
+
 func mapCareRequestError(err error, op string) error {
 	switch {
 	case errors.Is(err, scheduleModels.ErrCareRequestNotFound):

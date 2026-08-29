@@ -81,14 +81,23 @@ type ResourceConfig struct {
 	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
 	ExcusedRequestService    absenceService.ExcusedAbsenceRequestService
 	ParentRequestBulkService userService.ParentRequestBulkService
-	FamilyProtectionService  userService.FamilyProtectionManager
-	StudentStatusDayService  *activeService.StudentStatusDayService
-	AbsenceOverview          *activeService.StudentStatusDayOverviewService
-	StudentHistoryService    activeService.StudentHistoryService
-	OGSGroupLiveService      ogsGroupLiveService.Getter
-	ActivityService          activityService.ActivityService
-	EnrollmentDecision       enrollmentService.DecisionService
-	EnrollmentFormSchema     enrollmentService.FormSchemaService
+	// ParentRequestConflictService resolves a whole conflict group at once
+	// (#2267). Optional: a bare test Resource answers 500 rather than
+	// silently deciding requests one by one, which is the bug the group
+	// exists to prevent.
+	ParentRequestConflictService userService.ParentRequestConflictService
+	FamilyProtectionService      userService.FamilyProtectionManager
+	// RequestReviewAccess reports the caller's coarse reach over the parent
+	// request queues so the empty list can explain itself. Optional: a nil
+	// policy omits the field (bare test Resources).
+	RequestReviewAccess     ParentRequestReviewAccess
+	StudentStatusDayService *activeService.StudentStatusDayService
+	AbsenceOverview         *activeService.StudentStatusDayOverviewService
+	StudentHistoryService   activeService.StudentHistoryService
+	OGSGroupLiveService     ogsGroupLiveService.Getter
+	ActivityService         activityService.ActivityService
+	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	// OfferingSourceResyncer re-reconciles Jahrgang-filtered offering-sourced
 	// Regeltermine after a direct school_class edit, in the same transaction —
 	// the same hook a grade transition uses (#2147 review round 10). Optional:
@@ -213,6 +222,21 @@ func (rs *Resource) Router() chi.Router {
 		// users:absence.
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests", rs.listAggregatedChangeRequests)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/change-requests/bulk-approve", rs.bulkApproveParentRequests)
+		// Gemeinsames Ergebnis festlegen (#2267): decide a whole conflict
+		// group in one transaction. Same route gate as the list; the per-kind
+		// permission and the per-child scope are re-checked inside the
+		// coordinator and the domain services.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).
+			Post("/change-requests/conflicts/resolve", rs.resolveRequestConflict)
+		// Als erledigt markieren (#2267): the third verdict for a request whose
+		// days have all passed. Same route gate as the list; the per-child
+		// scope and the per-kind gate are re-checked inside the service.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).
+			Post("/change-requests/{kind}/{requestId}/mark-done", rs.markParentRequestDone)
+		// Entscheidung korrigieren (#2267): rewrite a decision staff already
+		// took. The old decision stays in the ledger.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).
+			Post("/change-requests/{kind}/{requestId}/correct", rs.correctParentRequestDecision)
 		r.With(authorize.RequiresPermission(permissions.ConfigManage), withTx).Get("/{id}/family-protection", rs.getFamilyProtection)
 		r.With(authorize.RequiresPermission(permissions.ConfigManage), withTx).Put("/{id}/family-protection", rs.setFamilyProtection)
 

@@ -48,6 +48,7 @@ func (rs *Resource) bulkApproveParentRequests(w http.ResponseWriter, r *http.Req
 	claims := jwt.ClaimsFromCtx(r.Context())
 	err := rs.ParentRequestBulkService.BulkApprove(r.Context(), userService.BulkApproveParentRequestsInput{
 		Requests: refs, Reason: strings.TrimSpace(body.Reason), ReviewerID: int64(claims.ID),
+		ReasonRequired: rs.staffReasonRequired(r),
 	})
 	if err != nil {
 		tenant.MarkRollback(r.Context())

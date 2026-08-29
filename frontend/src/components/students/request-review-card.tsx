@@ -188,6 +188,8 @@ export function RequestReviewCard({
   reasonError,
   busy,
   approveDisabled,
+  approveReasonRequired = false,
+  decisionDisabledReason,
   onApprove,
   onReject,
   grouped = false,
@@ -226,6 +228,19 @@ export function RequestReviewCard({
    * umsetzbar ist, muss abgelehnt werden können.
    */
   approveDisabled?: boolean;
+  /**
+   * Verlangt die Schule eine Begründung, bevor freigegeben werden darf
+   * (operations.parent_request_reason_policy, #2267)? Ablehnen verlangt sie
+   * unabhängig davon — das regelt die jeweilige Karte selbst.
+   */
+  approveReasonRequired?: boolean;
+  /**
+   * Warum hier gerade nicht einzeln entschieden werden kann (#2267), etwa
+   * weil die Anfrage einer anderen widerspricht. Statt der Schaltflächen
+   * steht dann dieser Satz da: eine ausgegraute Schaltfläche ohne Grund ist
+   * eine Sackgasse.
+   */
+  decisionDisabledReason?: string;
   onApprove?: () => void;
   onReject?: () => void;
   /** Der umgebende Fall nennt das Kind bereits. */
@@ -233,6 +248,9 @@ export function RequestReviewCard({
 }>) {
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
+  // Nur für die Pflicht-Begründung beim Freigeben: der Fehler entsteht hier,
+  // beim Klick, und nicht in der aufrufenden Karte.
+  const [approveReasonMissing, setApproveReasonMissing] = useState(false);
 
   // Die aktuelle Zeit erst im Browser lesen: ein während SSR erzeugtes
   // "heute" kann beim Hydrieren nach Mitternacht schon nicht mehr stimmen.
@@ -381,39 +399,62 @@ export function RequestReviewCard({
             </p>
           )}
           {children}
-          <div className="mt-4 space-y-2">
-            <Input
-              aria-label="Begründung"
-              controlSize="compact"
-              value={reason ?? ""}
-              placeholder={reasonPlaceholder}
-              disabled={busy}
-              onChange={(e) => onReasonChange?.(e.target.value)}
-            />
-            {reasonError && (
-              <p className="text-moto-red-strong text-xs">{reasonError}</p>
-            )}
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
+          {decisionDisabledReason ? (
+            <p className="mt-4 text-sm text-gray-600">
+              {decisionDisabledReason}
+            </p>
+          ) : (
+            <div className="mt-4 space-y-2">
+              <Input
+                aria-label="Begründung"
+                controlSize="compact"
+                value={reason ?? ""}
+                placeholder={
+                  approveReasonRequired
+                    ? "Begründung (Pflicht)"
+                    : reasonPlaceholder
+                }
                 disabled={busy}
-                onClick={onReject}
-              >
-                Ablehnen
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                disabled={busy === true || approveDisabled === true}
-                onClick={onApprove}
-              >
-                Freigeben
-              </Button>
+                onChange={(e) => {
+                  setApproveReasonMissing(false);
+                  onReasonChange?.(e.target.value);
+                }}
+              />
+              {(reasonError ?? approveReasonMissing) && (
+                <p className="text-moto-red-strong text-xs">
+                  {reasonError ?? "Bitte tragen Sie eine Begründung ein."}
+                </p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="max-sm:min-h-11"
+                  disabled={busy}
+                  onClick={onReject}
+                >
+                  Ablehnen
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  className="max-sm:min-h-11"
+                  disabled={busy === true || approveDisabled === true}
+                  onClick={() => {
+                    if (approveReasonRequired && (reason ?? "").trim() === "") {
+                      setApproveReasonMissing(true);
+                      return;
+                    }
+                    onApprove?.();
+                  }}
+                >
+                  Freigeben
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

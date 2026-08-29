@@ -860,3 +860,111 @@ func TestAggregatedChangeRequests_AbsenceOnlyCallerSeesNoDirectCorrections(t *te
 	assert.Empty(t, aggTypes(page))
 	assert.Zero(t, fakes.offering.correctionsCalls)
 }
+
+// conflictPage decodes just the conflict/current-value fields, so this test
+// keeps working when the shared aggPage grows.
+type conflictPage struct {
+	Items []struct {
+		RequestType         string            `json:"request_type"`
+		ConflictKeys        []string          `json:"conflict_keys"`
+		ConflictKey         string            `json:"conflict_key"`
+		ConflictGroupSize   int               `json:"conflict_group_size"`
+		CurrentValueChanged *bool             `json:"current_value_changed"`
+		CurrentStatusByDate map[string]string `json:"current_status_by_date"`
+		Past                bool              `json:"past"`
+	} `json:"items"`
+	ReviewAccess string `json:"review_access"`
+}
+
+func execConflictPage(t *testing.T, rs *Resource, rawQuery string, perms []string) conflictPage {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	rs.listAggregatedChangeRequests(rr, aggRequest(t, rawQuery, perms))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var env struct {
+		Data conflictPage `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	return env.Data
+}
+
+// #2267 A12: two absence requests for the same child on the same day
+// contradict each other and must be offered as ONE decision. Deciding them in
+// sequence lets the second silently overwrite the first.
+func TestAggregatedChangeRequests_GroupsContradictingAbsencesOnOneDay(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	day := timezone.TodayDate().AddDays(3)
+	first := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	first.Request.Dates = []timezone.Date{day}
+	first.Request.AbsenceStatus = "excused"
+	second := aggExcusedPending(2, "Mia", "Muster", aggBase.Add(-time.Hour))
+	second.Request.StudentID = first.Request.StudentID
+	second.Request.Dates = []timezone.Date{day}
+	second.Request.AbsenceStatus = "sick"
+	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{first, second}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 2)
+	for _, item := range page.Items {
+		assert.Equal(t, []string{"absence:" + day.String()}, item.ConflictKeys)
+		assert.Equal(t, "absence:"+day.String(), item.ConflictKey,
+			"both requests must group on the same key whatever status they ask for")
+		assert.Equal(t, 2, item.ConflictGroupSize)
+	}
+}
+
+// A lone request has nothing to resolve, and says so by omitting the group.
+func TestAggregatedChangeRequests_LoneRequestReportsNoConflictGroup(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	only := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	only.Request.Dates = []timezone.Date{timezone.TodayDate().AddDays(3)}
+	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{only}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 1)
+	assert.Empty(t, page.Items[0].ConflictKey)
+	assert.Zero(t, page.Items[0].ConflictGroupSize)
+}
+
+// current_status_by_date and current_value_changed travel from the excused
+// service to the wire unchanged — the review card shows „Aktuell“ from them.
+func TestAggregatedChangeRequests_EmitsCurrentStatusPerDate(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	day := timezone.TodayDate().AddDays(3)
+	changed := true
+	item := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	item.Request.Dates = []timezone.Date{day}
+	item.CurrentStatusByDate = map[string]string{day.String(): "sick"}
+	item.CurrentValueChanged = &changed
+	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{item}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, map[string]string{day.String(): "sick"}, page.Items[0].CurrentStatusByDate)
+	require.NotNil(t, page.Items[0].CurrentValueChanged)
+	assert.True(t, *page.Items[0].CurrentValueChanged)
+}
+
+// A request covering only days that have gone by is marked past, so the client
+// can offer „Als erledigt markieren“ instead of a Freigeben that does nothing.
+func TestAggregatedChangeRequests_MarksPastRequests(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	past := aggExcusedPending(1, "Mia", "Muster", aggBase)
+	past.Request.Dates = []timezone.Date{timezone.TodayDate().AddDays(-2)}
+	future := aggExcusedPending(2, "Nils", "Neu", aggBase.Add(-time.Hour))
+	future.Request.Dates = []timezone.Date{timezone.TodayDate().AddDays(2)}
+	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{past, future}
+
+	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
+	require.Len(t, page.Items, 2)
+	assert.True(t, page.Items[0].Past)
+	assert.False(t, page.Items[1].Past)
+}

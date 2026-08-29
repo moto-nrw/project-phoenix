@@ -2,7 +2,7 @@ package schedule_test
 
 // Integration tests for the care-schedule change-request lifecycle
 // (services/schedule/care_request_service.go): CreateRequest, Decide
-// (approve/reject + apply), WithdrawRequest, GetPendingForStudent. These port
+// (approve/reject + apply), GetPendingForStudent. These port
 // the scenarios that previously lived on the chat-request path
 // (services/messaging/requests*.go) onto the decoupled schedule-domain service
 // — the apply/merge/canonicalize/validate business rules are unchanged, only
@@ -66,7 +66,7 @@ func newCareScheduleRequestService(
 	return schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		requestRepo, studentRepo, personRepo, arrival, pickup, nil, nil, nil,
 		factory.UserContext, emitter, broadcaster,
-		testpkg.RequestReviewPolicy{UserContext: factory.UserContext}, logger,
+		testpkg.RequestReviewPolicy{UserContext: factory.UserContext}, nil, logger,
 		factory.StudentAudit,
 	)
 }
@@ -110,6 +110,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
 		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
+		nil,
 		slog.Default(),
 		sf.StudentAudit,
 	)
@@ -884,42 +885,6 @@ func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
 	require.ErrorIs(t, err, schedule.ErrCareRequestAlreadyPending)
 }
 
-// --- Withdraw --------------------------------------------------------------
-
-// TestWithdraw_BySubmitterAndGuards: the submitter withdraws their own pending
-// request; a second withdraw of the now-terminal row fails; and a withdraw by a
-// DIFFERENT guardian account is reported not-found (id space is not probeable).
-func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
-	t.Parallel()
-
-	f := newCareFixture(t)
-	ctx := f.staffCtx(f.chain.AccountID)
-	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
-
-	// A different guardian account cannot withdraw it.
-	other := testpkg.CreateTestAccount(t, f.db, "other-guardian")
-	t.Cleanup(func() {
-		_, _ = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, other.ID)
-	})
-	_, err := f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, other.ID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound, "a foreign account cannot withdraw the request")
-
-	// The submitter withdraws it.
-	withdrawn, err := f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
-	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Status)
-
-	// A second withdraw of the terminal row fails.
-	_, err = f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotPending)
-
-	// A foreign account probing the now-TERMINAL row must still get not-found,
-	// not the not-pending the submitter gets: ownership is checked before the
-	// pending-status distinction, so a decided request's id stays unprobeable.
-	_, err = f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, other.ID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound, "a foreign account cannot probe a decided request's id")
-}
-
 // --- GetPendingForStudent --------------------------------------------------
 
 // TestGetPendingForStudent_NoneReturnsNil pins that a child with no open request
@@ -1104,22 +1069,6 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	require.NoError(t, f.repos.StudentCompanion.ReplaceForStudent(ctx, f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
-// TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock
-// branch: withdrawing an id that exists in no tenant returns not-found (never a
-// panic or a leak of another child's row). The id is derived from a real
-// fixture request, then offset past any real row, to stay hermetic.
-func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
-	t.Parallel()
-
-	f := newCareFixture(t)
-	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
-	bogusID := req.ID + 1_000_000
-
-	_, err := f.svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), bogusID, f.chain.StudentID, f.chain.AccountID)
-	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound,
-		"withdrawing a non-existent request must be not-found")
-}
-
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:
 // the pending-row lookup returns not-found, so Decide surfaces it instead of
 // dereferencing a nil request.
@@ -1185,11 +1134,15 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 	require.NoError(t, err)
 	assertWoke(t, "creating a care request")
 
-	// withdraw (submitter withdraws own pending request) → wake
+	// reject → wake. This step used to be the guardian withdrawal, which #2267
+	// retired; a staff rejection is the remaining way an open request closes
+	// without being applied.
 	broadcaster.Reset()
-	_, err = svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), req.ID, f.chain.StudentID, f.chain.AccountID)
+	_, err = svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
+	})
 	require.NoError(t, err)
-	assertWoke(t, "withdrawing a care request")
+	assertWoke(t, "rejecting a care request")
 
 	// re-file, then approve (applies the weekly plan) → wake
 	req2, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,

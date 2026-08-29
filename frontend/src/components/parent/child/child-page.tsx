@@ -35,6 +35,8 @@ import {
   type ChildToday,
 } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
+import { requiresGuardianReason } from "~/lib/parent-request-reason";
+import { SharingOptionsProvider } from "~/components/parent/sharing-options-context";
 import {
   ParentPage,
   ParentPageHeader,
@@ -187,7 +189,11 @@ export function ChildPage({
       />
       {/* key: ein Kindwechsel setzt alle Abschnitte zurueck, damit nie Daten
           des vorigen Kindes unter dem neuen Namen stehen. */}
-      <ChildSections key={active.student_id} child={active} />
+      {/* Eine Freigabe-Liste pro Kind: alle Abschnitte teilen sich einen
+          einzigen Abruf der möglichen Empfänger. */}
+      <SharingOptionsProvider>
+        <ChildSections key={active.student_id} child={active} />
+      </SharingOptionsProvider>
     </ParentPage>
   );
 }
@@ -313,7 +319,8 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         careEnded={careEnded}
         sickDays={care.sickDays}
         excusedRequests={care.excusedRequests}
-        onWithdrawExcused={care.withdrawExcused}
+        reasonRequired={requiresGuardianReason(care.features)}
+        onCareRefresh={care.refresh}
       />
 
       {modal === "sick" && (
@@ -322,6 +329,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
           sickRequiresApproval={care.features.sick_requires_approval}
+          reasonRequired={requiresGuardianReason(care.features)}
           excusedRequiresApproval={care.features.excused_requires_approval}
         />
       )}
@@ -338,6 +346,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
           onClose={() => setModal(null)}
           onSubmit={care.saveCareException}
           onRemove={care.removeCareException}
+          reasonRequired={requiresGuardianReason(care.features)}
         />
       )}
     </>
@@ -354,7 +363,8 @@ function ChildAreaTabs({
   careEnded,
   sickDays,
   excusedRequests,
-  onWithdrawExcused,
+  reasonRequired,
+  onCareRefresh,
 }: Readonly<{
   child: Child;
   childName: string;
@@ -365,7 +375,8 @@ function ChildAreaTabs({
   careEnded: boolean;
   sickDays: import("~/lib/parent-api").StatusDay[];
   excusedRequests: import("~/lib/parent-api").ExcusedRequest[];
-  onWithdrawExcused: (requestId: string) => Promise<void>;
+  reasonRequired: boolean;
+  onCareRefresh: () => void;
 }>) {
   const t = useTranslations("parentChild");
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
@@ -413,7 +424,8 @@ function ChildAreaTabs({
               studentId={child.student_id}
               sickDays={sickDays}
               excusedRequests={excusedRequests}
-              onWithdraw={onWithdrawExcused}
+              reasonRequired={reasonRequired}
+              onEdited={onCareRefresh}
             />
           </ParentSection>
         )}
@@ -422,6 +434,7 @@ function ChildAreaTabs({
           childFirstName={child.first_name}
           careEnded={careEnded}
           enrolledUntil={child.enrolled_until}
+          reasonRequired={reasonRequired}
         />
       </TabsContent>
 

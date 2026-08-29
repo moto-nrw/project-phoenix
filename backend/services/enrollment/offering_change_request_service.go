@@ -48,9 +48,8 @@ const offeringChangeMaxNoteLen = 2000
 // German pill texts. The staff portal renders these directly; the parents
 // portal localizes from the structured event fields.
 const (
-	offeringChangeCreatedBody   = "Anfrage: Betreuungsangebote ändern"
-	offeringChangeRejectedBody  = "Anfrage abgelehnt"
-	offeringChangeWithdrawnBody = "Anfrage zurückgezogen"
+	offeringChangeCreatedBody  = "Anfrage: Betreuungsangebote ändern"
+	offeringChangeRejectedBody = "Anfrage abgelehnt"
 )
 
 // offeringChangeApprovedBody names the date the office confirmed, so the pill
@@ -353,6 +352,12 @@ type DecideOfferingChangeInput struct {
 	// CompleteWithdrawalConfirmed is the reviewer's explicit confirmation of
 	// the current fully materialized target state.
 	CompleteWithdrawalConfirmed bool
+	// ExpectedVersion pins the request row the caller decided on. Empty skips
+	// the check (internal callers); a mismatch is ErrParentRequestStale.
+	ExpectedVersion string
+	// ReasonRequired says the school's reason policy asks the deciding staff
+	// member for a reason on an APPROVAL; a rejection always needs one (#2267).
+	ReasonRequired bool
 }
 
 // OfferingChangeRequestService is the lifecycle contract. Every method runs
@@ -371,9 +376,6 @@ type OfferingChangeRequestService interface {
 	// Create stores a pending request after validating it exactly as an
 	// approval would, so a request that cannot be applied is never accepted.
 	Create(ctx context.Context, input CreateOfferingChangeInput) (*enrollmentModels.OfferingChangeRequest, error)
-
-	// Withdraw flips the submitting guardian's own pending request to withdrawn.
-	Withdraw(ctx context.Context, requestID, accountID, studentID int64) error
 
 	// ListPending backs the working list, newest submission first. The filters
 	// narrow and page the query in SQL; their zero value returns the whole
@@ -401,6 +403,10 @@ type OfferingChangeRequestService interface {
 
 	// Decide approves (and applies) or rejects a pending request.
 	Decide(ctx context.Context, input DecideOfferingChangeInput) error
+
+	// Edit lets the submitting guardian correct their own still-pending
+	// request instead of withdrawing and refiling it (#2267).
+	Edit(ctx context.Context, requestID int64, input CreateOfferingChangeInput, expectedVersion string) (*enrollmentModels.OfferingChangeRequest, error)
 
 	// EarliestEffectiveFrom is the first date a switch may take effect under
 	// the school's configured lead time.
@@ -430,8 +436,14 @@ type OfferingChangeRequestServiceConfig struct {
 	DirectApplier DirectOfferingAdjustmentApplier
 	Settings      DecisionSettingsResolver
 	Emitter       *parentmessaging.Emitter
-	Logger        *slog.Logger
-	ReviewPolicy  RequestReviewPolicy
+	// shareVisibility answers who the parent explicitly shared a request
+	// with; nil means nobody was, so every co-guardian gets the neutral line.
+	shareVisibility parentmessaging.ShareVisibilityResolver
+	Logger          *slog.Logger
+	ReviewPolicy    RequestReviewPolicy
+	// EventRecorder appends to the parent-request ledger inside the ambient
+	// transaction. Nil skips recording (tests, older wiring).
+	EventRecorder usersService.ParentRequestEventRecorder
 }
 
 type RequestReviewPolicy interface {
@@ -980,6 +992,34 @@ func (s *offeringChangeRequestService) Create(
 	ctx context.Context,
 	input CreateOfferingChangeInput,
 ) (*enrollmentModels.OfferingChangeRequest, error) {
+	proposal, err := s.validateOfferingChangeProposal(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: check pending: %w", err)
+	}
+	if existing != nil {
+		return nil, enrollmentModels.ErrOfferingChangeAlreadyPending
+	}
+	return s.createOfferingChangeRow(ctx, input, proposal)
+}
+
+// offeringChangeProposal is the validated result of a guardian's proposal —
+// shared by the create and the guardian edit path so an edit can never store
+// something the create path would have refused.
+type offeringChangeProposal struct {
+	note               string
+	requestChildID     int64
+	selections         []OfferingChangeSelection
+	completeWithdrawal bool
+}
+
+func (s *offeringChangeRequestService) validateOfferingChangeProposal(
+	ctx context.Context,
+	input CreateOfferingChangeInput,
+) (*offeringChangeProposal, error) {
 	if err := s.changesEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -1036,28 +1076,35 @@ func (s *offeringChangeRequestService) Create(
 	if completeWithdrawal && !input.CompleteWithdrawalConfirmed {
 		return nil, ErrCompleteWithdrawalConfirmationRequired
 	}
-	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: check pending: %w", err)
-	}
-	if existing != nil {
-		return nil, enrollmentModels.ErrOfferingChangeAlreadyPending
-	}
+	return &offeringChangeProposal{
+		note:               note,
+		requestChildID:     period.RequestChildID,
+		selections:         selections,
+		completeWithdrawal: completeWithdrawal,
+	}, nil
+}
+
+func (s *offeringChangeRequestService) createOfferingChangeRow(
+	ctx context.Context,
+	input CreateOfferingChangeInput,
+	proposal *offeringChangeProposal,
+) (*enrollmentModels.OfferingChangeRequest, error) {
 	row := &enrollmentModels.OfferingChangeRequest{
 		StudentID:                   input.StudentID,
-		RequestChildID:              period.RequestChildID,
+		RequestChildID:              proposal.requestChildID,
 		SubmittedBy:                 input.AccountID,
-		Payload:                     payloadFromSelections(selections),
+		Payload:                     payloadFromSelections(proposal.selections),
 		EffectiveFrom:               input.EffectiveFrom,
 		Status:                      enrollmentModels.OfferingChangeStatusPending,
-		CompleteWithdrawalConfirmed: completeWithdrawal,
+		CompleteWithdrawalConfirmed: proposal.completeWithdrawal,
 	}
-	if completeWithdrawal {
+	if proposal.completeWithdrawal {
 		now := time.Now()
 		row.WithdrawalConfirmedBy = &input.AccountID
 		row.WithdrawalConfirmedAt = &now
 	}
-	if note != "" {
+	if proposal.note != "" {
+		note := proposal.note
 		row.ParentNote = &note
 	}
 	if err := s.ChangeRepo.Create(ctx, row); err != nil {
@@ -1065,6 +1112,12 @@ func (s *offeringChangeRequestService) Create(
 			return nil, enrollmentModels.ErrOfferingChangeAlreadyPending
 		}
 		return nil, fmt.Errorf("offering change: create: %w", err)
+	}
+	if err := s.recordOfferingRequestEvent(
+		ctx, row, usersModels.ParentRequestEventSubmitted, input.AccountID,
+		map[string]any{"effective_from": row.EffectiveFrom.String()},
+	); err != nil {
+		return nil, err
 	}
 	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
@@ -1076,37 +1129,62 @@ func (s *offeringChangeRequestService) Create(
 	})
 	s.Logger.Info("offering change request created",
 		slog.Int64("student_id", input.StudentID),
-		slog.Int64("request_child_id", period.RequestChildID),
+		slog.Int64("request_child_id", proposal.requestChildID),
 		slog.String("effective_from", input.EffectiveFrom.String()),
-		slog.Int("offering_count", len(selections)),
+		slog.Int("offering_count", len(proposal.selections)),
 	)
 	return row, nil
 }
 
-func (s *offeringChangeRequestService) Withdraw(ctx context.Context, requestID, accountID, studentID int64) error {
+// Edit rewrites the submitter's own still-pending offering change (#2267,
+// story 37). It replaces the withdraw flow, so the request keeps its id, its
+// share and its history; the proposal runs through the same validators the
+// create path uses. A request that is not the caller's own is reported as
+// missing, never as forbidden.
+func (s *offeringChangeRequestService) Edit(
+	ctx context.Context,
+	requestID int64,
+	input CreateOfferingChangeInput,
+	expectedVersion string,
+) (*enrollmentModels.OfferingChangeRequest, error) {
 	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// Ownership first, so a foreign request's id cannot be probed for status.
-	if row.StudentID != studentID || row.SubmittedBy != accountID {
-		return ErrOfferingChangeForbidden
+	if row.StudentID != input.StudentID || row.SubmittedBy != input.AccountID {
+		return nil, enrollmentModels.ErrOfferingChangeNotFound
 	}
 	if row.IsTerminal() {
-		return enrollmentModels.ErrOfferingChangeNotPending
+		return nil, enrollmentModels.ErrOfferingChangeNotPending
 	}
-	if err := s.ChangeRepo.Decide(ctx, requestID, enrollmentModels.OfferingChangeStatusWithdrawn, nil, nil, false); err != nil {
-		return err
+	if expectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != expectedVersion {
+		return nil, usersService.ErrParentRequestStale
 	}
-	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
-		ActorAccountID: accountID,
-		Body:           offeringChangeWithdrawnBody,
-		RequestType:    OfferingChangeRequestType,
-		RequestStatus:  usersModels.ParentMessageRequestStatusWithdrawn,
-	})
-	return nil
+	proposal, err := s.validateOfferingChangeProposal(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	var note *string
+	if proposal.note != "" {
+		text := proposal.note
+		note = &text
+	}
+	if err := s.ChangeRepo.UpdatePending(
+		ctx, row.ID, payloadFromSelections(proposal.selections), input.EffectiveFrom, note,
+	); err != nil {
+		return nil, err
+	}
+	edited, err := s.ChangeRepo.FindByID(ctx, row.ID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: reload edited request: %w", err)
+	}
+	if err := s.recordOfferingRequestEvent(
+		ctx, edited, usersModels.ParentRequestEventGuardianEdit, input.AccountID,
+		map[string]any{"effective_from": edited.EffectiveFrom.String()},
+	); err != nil {
+		return nil, err
+	}
+	return edited, nil
 }
 
 func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*OfferingChangeView, *usersService.HistoryCursor, error) {
@@ -1581,12 +1659,22 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		// whole feature exists to avoid.
 		return fmt.Errorf("%w: a rejection needs a reason", ErrOfferingChangeInvalid)
 	}
+	// An approval needs a reason only while the school's policy asks staff for
+	// one (#2267, story 28).
+	if input.Approve && input.ReasonRequired && reason == "" {
+		return usersService.ErrParentRequestReasonRequired
+	}
 	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return err
 	}
 	if row.IsTerminal() {
 		return enrollmentModels.ErrOfferingChangeNotPending
+	}
+	// Staleness is decided under the row lock and before any authorization or
+	// apply work, so a decision taken on an outdated view never lands (#2267).
+	if input.ExpectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != input.ExpectedVersion {
+		return usersService.ErrParentRequestStale
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
 	if err != nil {
@@ -1626,9 +1714,20 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if err := s.storeDecisionSnapshot(ctx, row.ID, diff); err != nil {
 			return err
 		}
+		if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, false, reason); err != nil {
+			return err
+		}
 		s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeRejectedBody,
 			usersModels.ParentMessageRequestStatusRejected, reason, nil)
 		return nil
+	}
+	// Approving a switch whose effective date has passed would book offerings
+	// into a settled past. Staff either reject it or mark it done (#2267,
+	// story 14). Rejecting stays allowed, and so does moving the date forward
+	// with an explicit EffectiveFrom.
+	if input.EffectiveFrom == nil &&
+		usersService.ParentRequestIsPast(row.EffectiveFrom, timezone.TodayDate()) {
+		return usersService.ErrParentRequestPast
 	}
 	applied, err := s.applyApproved(ctx, row, input)
 	if err != nil {
@@ -1648,6 +1747,9 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	if err := s.storeDecisionSnapshot(ctx, row.ID, diff); err != nil {
 		return err
 	}
+	if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, true, reason); err != nil {
+		return err
+	}
 	s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody(row.EffectiveFrom),
 		usersModels.ParentMessageRequestStatusDone, reason,
 		map[string]any{"effective_from": row.EffectiveFrom.String()})
@@ -1657,6 +1759,45 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		slog.String("effective_from", row.EffectiveFrom.String()),
 	)
 	return nil
+}
+
+// recordOfferingRequestEvent appends one ledger entry inside the ambient
+// transaction of the change it describes.
+func (s *offeringChangeRequestService) recordOfferingRequestEvent(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+	eventType string,
+	actorAccountID int64,
+	payload map[string]any,
+) error {
+	if err := usersService.RecordParentRequestEvent(ctx, s.EventRecorder, usersService.ParentRequestEventInput{
+		StudentID:      row.StudentID,
+		RequestType:    usersModels.ParentRequestTypeOffering,
+		RequestID:      row.ID,
+		EventType:      eventType,
+		ActorAccountID: actorAccountID,
+		UpdatedAt:      row.UpdatedAt,
+		Payload:        payload,
+	}); err != nil {
+		return fmt.Errorf("offering change: record request event: %w", err)
+	}
+	return nil
+}
+
+// recordOfferingDecision reloads the decided row so the ledger carries the
+// version the decision produced, then appends the "decided" entry.
+func (s *offeringChangeRequestService) recordOfferingDecision(
+	ctx context.Context, requestID, reviewedBy int64, approve bool, reason string,
+) error {
+	if s.EventRecorder == nil {
+		return nil
+	}
+	row, err := s.ChangeRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("offering change: reload decided request: %w", err)
+	}
+	return s.recordOfferingRequestEvent(ctx, row, usersModels.ParentRequestEventDecided, reviewedBy,
+		map[string]any{"approve": approve, "reason": reason})
 }
 
 func (s *offeringChangeRequestService) PreviewDecision(
@@ -2975,7 +3116,7 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 	body, status, reason string,
 	payload map[string]any,
 ) {
-	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
+	ev := parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: reviewedBy,
@@ -2984,7 +3125,11 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 		RequestStatus:  status,
 		DecisionReason: reason,
 		Payload:        payload,
-	})
+	}
+	s.emitPillAfterCommit(ctx, row, ev)
+	// Every other guardian of this child hears about the decision: the full
+	// pill for explicit share recipients, a neutral line for the rest.
+	s.notifyOtherGuardiansAfterCommit(ctx, row, ev)
 }
 
 // emitPillAfterCommit posts the notification pill into the child's parent-OGS
@@ -3186,3 +3331,140 @@ func cmpOr(value, fallback string) string {
 func isPendingOfferingChangeConflict(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "uq_offering_change_requests_pending")
 }
+
+// parentRequestDoneBody is the neutral close for a request whose effective
+// date has passed: nothing was applied and nothing was refused.
+const parentRequestDoneBody = "Anfrage abgeschlossen"
+
+// MarkDone closes an offering-change request whose effective date has passed.
+// See the excused twin for why this is its own terminal state; it applies
+// nothing.
+func (s *offeringChangeRequestService) MarkDone(
+	ctx context.Context,
+	requestID int64,
+	expectedVersion, reason string,
+	reviewedBy int64,
+) error {
+	if requestID <= 0 || reviewedBy <= 0 {
+		return fmt.Errorf("%w: request and reviewer are required", ErrOfferingChangeInvalid)
+	}
+	trimmed := strings.TrimSpace(reason)
+	if utf8.RuneCountInString(trimmed) > offeringChangeMaxNoteLen {
+		return fmt.Errorf("%w: reason is too long", ErrOfferingChangeInvalid)
+	}
+	row, err := s.ChangeRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	if row.IsTerminal() {
+		return enrollmentModels.ErrOfferingChangeNotPending
+	}
+	if expectedVersion != "" && usersService.ParentRequestVersion(row.UpdatedAt) != expectedVersion {
+		return usersService.ErrParentRequestStale
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
+	if err != nil {
+		return fmt.Errorf("offering change: load student for completion: %w", err)
+	}
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
+		return ErrOfferingChangeForbidden
+	}
+	if !usersService.ParentRequestIsPast(row.EffectiveFrom, timezone.TodayDate()) {
+		return usersService.ErrParentRequestNotPast
+	}
+	if err := s.ChangeRepo.Decide(
+		ctx, row.ID, enrollmentModels.OfferingChangeStatusDone, optionalString(trimmed), &reviewedBy, false,
+	); err != nil {
+		return err
+	}
+	if err := s.recordOfferingRequestEvent(ctx, row, usersModels.ParentRequestEventMarkedDone,
+		reviewedBy, map[string]any{"reason": trimmed}); err != nil {
+		return err
+	}
+	s.emitDecisionPill(ctx, row, reviewedBy, parentRequestDoneBody,
+		usersModels.ParentMessageRequestStatusDone, trimmed, nil)
+	return nil
+}
+
+// Co-guardian notices (#2267, story 47). A staff decision on one parent's
+// request changes the child's bookings for the whole family. See the excused
+// twin for the full rationale; the split is identical.
+
+// SetRequestShareVisibility wires the sharing resolver after construction.
+func (s *offeringChangeRequestService) SetRequestShareVisibility(resolver parentmessaging.ShareVisibilityResolver) {
+	if s != nil {
+		s.shareVisibility = resolver
+	}
+}
+
+// sharedRecipients resolves the explicit recipients, tolerating an unwired
+// resolver. On error everyone falls back to the neutral line — seeing less
+// than you were entitled to is a nuisance, seeing more is a leak.
+func (s *offeringChangeRequestService) sharedRecipients(
+	ctx context.Context, row *enrollmentModels.OfferingChangeRequest,
+) []int64 {
+	if s.shareVisibility == nil {
+		return nil
+	}
+	accountIDs, err := s.shareVisibility.SharedRecipientAccountIDs(
+		ctx, row.StudentID, usersModels.ParentRequestTypeOffering, row.ID,
+	)
+	if err != nil {
+		s.Logger.Warn("resolving explicit request recipients failed, falling back to neutral notices",
+			slog.Int64("request_id", row.ID),
+			slog.Int64("student_id", row.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return accountIDs
+}
+
+// notifyOtherGuardiansAfterCommit posts the decision to the child's other
+// guardians. The audience is resolved inside the transaction; the pills go out
+// after commit.
+func (s *offeringChangeRequestService) notifyOtherGuardiansAfterCommit(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+	ev parentmessaging.ChildEvent,
+) {
+	if s.Emitter == nil {
+		return
+	}
+	audience, err := s.Emitter.ResolveDecisionAudience(
+		ctx, row.StudentID, row.SubmittedBy, s.sharedRecipients(ctx, row),
+	)
+	if err != nil {
+		s.Logger.Warn("co-guardian notice: resolving guardians failed",
+			slog.Int64("request_id", row.ID),
+			slog.Int64("student_id", row.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
+		return
+	}
+	tenantID := row.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+	neutral := ev
+	neutral.Body = "Betreuungsstand geändert: Angebote ab " + row.EffectiveFrom.Format("02.01.2006")
+	studentID := row.StudentID
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.Emitter.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
+	})
+}
+
+// The factory wires the co-guardian resolver by type assertion, so a service
+// that silently stopped satisfying this setter would leave its domain's
+// co-guardians hearing nothing, with nothing failing. This makes that a
+// compile error instead (#2267, story 47).
+var _ interface {
+	SetRequestShareVisibility(parentmessaging.ShareVisibilityResolver)
+} = (*offeringChangeRequestService)(nil)

@@ -9,11 +9,12 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
+import { useRequestVersion } from "~/components/parent/request-edit-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   getChildOfferingCatalog,
   ParentApiError,
-  setRequestSharing,
+  updateOfferingChangeRequest,
   type OfferingCatalog,
   type OfferingCatalogItem,
   type OfferingChangeSelectionInput,
@@ -100,19 +101,33 @@ export function OfferingChangeRequestModal({
   childName,
   onClose,
   onSubmit,
+  onEdited,
+  editRequestId,
+  reasonRequired = true,
 }: Readonly<{
   studentId: string;
   childName?: string;
   onClose: () => void;
-  onSubmit: (input: {
-    offerings: OfferingChangeSelectionInput[];
-    effective_from: string;
-    note?: string;
-    complete_withdrawal_confirmed?: boolean;
-  }) => Promise<void | string>;
+  onSubmit?: (
+    input: {
+      offerings: OfferingChangeSelectionInput[];
+      effective_from: string;
+      note?: string;
+      complete_withdrawal_confirmed?: boolean;
+    },
+    recipientGuardianProfileIds: string[],
+  ) => Promise<void | string>;
+  /** Nach dem Ändern einer offenen Anfrage: die Ansicht neu laden. */
+  onEdited?: () => void;
+  /**
+   * Gesetzt, wenn eine noch offene Anfrage geändert wird. Die Auswahl ersetzt
+   * dann die bisherige Anfrage, statt eine neue zu senden.
+   */
+  editRequestId?: string;
+  /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
+  reasonRequired?: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
-  const ts = useTranslations("parentRequestSharing");
   const locale = useLocale();
   const [catalog, setCatalog] = useState<OfferingCatalog | null>(null);
   const [draft, setDraft] = useState<DraftMap>({});
@@ -122,12 +137,16 @@ export function OfferingChangeRequestModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [requestSaved, setRequestSaved] = useState(false);
-  const [sharingReady, setSharingReady] = useState(false);
   const [confirmCompleteWithdrawal, setConfirmCompleteWithdrawal] =
     useState(false);
   const editedOfferingIDs = useRef(new Set<string>());
   const catalogRequestID = useRef(0);
+  const { version, editedAt } = useRequestVersion(
+    studentId,
+    "offering",
+    editRequestId ?? "",
+    editRequestId !== undefined,
+  );
 
   const load = useCallback(async () => {
     const requestID = ++catalogRequestID.current;
@@ -239,31 +258,40 @@ export function OfferingChangeRequestModal({
         selected_days: item.days_of_week_mode === "parent_choice" ? days : [],
       });
     }
+    if (reasonRequired && note.trim() === "") {
+      setError(t("careOfferingsModal.noteRequired"));
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const requestId = await onSubmit({
-        offerings,
-        effective_from: effectiveFrom,
-        note: note.trim() === "" ? undefined : note.trim(),
-        ...(completeWithdrawalConfirmed
-          ? { complete_withdrawal_confirmed: true }
-          : {}),
-      });
-      if (requestId) {
-        try {
-          await setRequestSharing(
-            studentId,
-            "offering",
-            requestId,
-            recipientIds,
-          );
-        } catch {
-          setRequestSaved(true);
-          setError(ts("savedButNotShared"));
-          return;
-        }
+      if (editRequestId) {
+        // Gleiche Form wie beim Anlegen: dieselbe Auswahl, nur an eine
+        // bestehende Anfrage geschickt.
+        await updateOfferingChangeRequest(studentId, editRequestId, {
+          offerings,
+          effective_from: effectiveFrom,
+          note: note.trim() === "" ? undefined : note.trim(),
+          ...(completeWithdrawalConfirmed
+            ? { complete_withdrawal_confirmed: true }
+            : {}),
+          expectedVersion: version,
+        });
+        onEdited?.();
+        onClose();
+        return;
       }
+      await onSubmit?.(
+        {
+          offerings,
+          effective_from: effectiveFrom,
+          note: note.trim() === "" ? undefined : note.trim(),
+          ...(completeWithdrawalConfirmed
+            ? { complete_withdrawal_confirmed: true }
+            : {}),
+        },
+        recipientIds,
+      );
       onClose();
     } catch (err) {
       if (
@@ -274,9 +302,11 @@ export function OfferingChangeRequestModal({
         return;
       }
       setError(
-        err instanceof Error
-          ? err.message
-          : t("careOfferingsModal.submitError"),
+        err instanceof ParentApiError && err.code === "change_request_stale"
+          ? t("careOfferingsModal.staleError")
+          : err instanceof Error
+            ? err.message
+            : t("careOfferingsModal.submitError"),
       );
     } finally {
       setSubmitting(false);
@@ -287,7 +317,11 @@ export function OfferingChangeRequestModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={t("careOfferingsModal.title")}
+      title={
+        editRequestId
+          ? t("careOfferingsModal.editTitle")
+          : t("careOfferingsModal.title")
+      }
       mobileSheet
       footer={
         <>
@@ -303,29 +337,33 @@ export function OfferingChangeRequestModal({
           <Button
             type="button"
             size="md"
-            className="w-full gap-2 sm:w-auto"
+            className="w-full gap-2 max-sm:min-h-11 sm:w-auto"
             onClick={() => void handleSubmit()}
-            disabled={
-              submitting ||
-              loading ||
-              !catalog ||
-              emptyCatalog ||
-              requestSaved ||
-              !sharingReady
-            }
+            disabled={submitting || loading || !catalog || emptyCatalog}
           >
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             )}
-            {t("careOfferingsModal.submit")}
+            {editRequestId
+              ? t("careOfferingsModal.saveEdit")
+              : t("careOfferingsModal.submit")}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">
-          {t("careOfferingsModal.intro")}
+          {editRequestId
+            ? t("careOfferingsModal.editIntro")
+            : t("careOfferingsModal.intro")}
         </p>
+        {editedAt && (
+          <p className="text-sm text-gray-600">
+            {t("careOfferingsModal.editedAt", {
+              date: formatDate(editedAt, false, locale),
+            })}
+          </p>
+        )}
 
         {loading && (
           <div className="space-y-2">
@@ -461,22 +499,25 @@ export function OfferingChangeRequestModal({
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700">
                 {t("careOfferingsModal.noteLabel")}
+                {reasonRequired && <span aria-hidden="true"> *</span>}
               </span>
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
                 rows={3}
                 maxLength={2000}
+                required={reasonRequired}
                 placeholder={t("careOfferingsModal.notePlaceholder")}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
               />
             </label>
-            <RequestSharingSelector
-              studentId={studentId}
-              selected={recipientIds}
-              onChange={setRecipientIds}
-              onReadyChange={setSharingReady}
-            />
+            {!editRequestId && (
+              <RequestSharingSelector
+                studentId={studentId}
+                selected={recipientIds}
+                onChange={setRecipientIds}
+              />
+            )}
           </>
         )}
 

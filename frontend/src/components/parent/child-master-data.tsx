@@ -22,7 +22,6 @@ import {
   getChildFeatures,
   getChildMasterData,
   submitMasterDataRequest,
-  setRequestSharing,
   updateMasterDataField,
 } from "~/lib/parent-api";
 import { ParentSection } from "~/components/parent/shell/parent-section";
@@ -34,6 +33,7 @@ import {
   RequestSharingControl,
   RequestSharingSelector,
 } from "~/components/parent/request-sharing-control";
+import { RequestEditModal } from "~/components/parent/request-edit-modal";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -313,6 +313,19 @@ function IdentitySection({
   const locale = useLocale();
   const [modalOpen, setModalOpen] = useState(false);
 
+  const refresh = useCallback(() => {
+    void (async () => {
+      try {
+        onApplied(await getChildMasterData(studentId));
+      } catch (err) {
+        logger.warn("master_data_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: studentId,
+        });
+      }
+    })();
+  }, [onApplied, studentId]);
+
   const requestable = features.master_data_request_enabled;
   const firstNamePending = pendingByField.get("person/first_name");
   const lastNamePending = pendingByField.get("person/last_name");
@@ -323,26 +336,15 @@ function IdentitySection({
     changes: MasterDataChangeInput[],
     recipientIds: string[],
   ) => {
-    const submitted = await submitMasterDataRequest(studentId, changes);
+    const submitted = await submitMasterDataRequest(
+      studentId,
+      changes,
+      recipientIds,
+    );
     onApplied({
       ...data,
       pending_changes: mergePendingChanges(data.pending_changes, submitted),
     });
-    let sharingSaved = true;
-    try {
-      await Promise.all(
-        [...new Set(submitted.map((change) => change.id))].map((requestId) =>
-          setRequestSharing(studentId, "master_data", requestId, recipientIds),
-        ),
-      );
-    } catch (sharingErr) {
-      sharingSaved = false;
-      logger.warn("master_data_request_sharing_failed", {
-        error:
-          sharingErr instanceof Error ? sharingErr.message : String(sharingErr),
-        student_id: studentId,
-      });
-    }
     try {
       onApplied(await getChildMasterData(studentId));
     } catch (refreshErr) {
@@ -353,7 +355,6 @@ function IdentitySection({
         student_id: studentId,
       });
     }
-    return sharingSaved;
   };
 
   const pendingFields = new Set<IdentityFieldKey>();
@@ -388,12 +389,14 @@ function IdentitySection({
           label={t("fields.firstName")}
           value={data.first_name}
           pending={firstNamePending}
+          onEdited={refresh}
         />
         <IdentityFact
           studentId={studentId}
           label={t("fields.lastName")}
           value={data.last_name}
           pending={lastNamePending}
+          onEdited={refresh}
         />
         <IdentityFact
           studentId={studentId}
@@ -404,12 +407,14 @@ function IdentitySection({
               : t("notSet")
           }
           pending={birthdayPending}
+          onEdited={refresh}
         />
         <IdentityFact
           studentId={studentId}
           label={t("fields.schoolClass")}
           value={data.school_class || t("notSet")}
           pending={schoolClassPending}
+          onEdited={refresh}
         />
       </dl>
       {!requestable && (
@@ -436,16 +441,23 @@ function IdentityFact({
   label,
   value,
   pending,
+  onEdited,
 }: Readonly<{
   studentId: string;
   label: string;
   value: string;
   pending?: MasterDataChange;
+  onEdited?: () => void;
 }>) {
   const t = useTranslations("parentMasterData");
+  const [editing, setEditing] = useState(false);
+  // Nur Textwerte lassen sich hier ändern. Die Abholarten sind eine Tabelle
+  // und werden im eigenen Abschnitt geändert.
+  const editableValue =
+    typeof pending?.new_value === "string" ? pending.new_value : null;
   return (
     <div className="min-w-0">
-      <dt className="flex min-h-6 items-center gap-2 text-sm text-gray-500">
+      <dt className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-gray-500">
         <span>{label}</span>
         {pending && (
           <div className="flex flex-wrap items-center gap-2">
@@ -456,9 +468,33 @@ function IdentityFact({
               requestId={pending.id}
               isSelf={pending.is_self === true}
             />
+            {pending.is_self === true && editableValue !== null && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="max-sm:min-h-11"
+                onClick={() => setEditing(true)}
+              >
+                {t("requestEdit")}
+              </Button>
+            )}
           </div>
         )}
       </dt>
+      {pending && editing && editableValue !== null && (
+        <RequestEditModal
+          studentId={studentId}
+          request={{
+            type: "master_data",
+            id: pending.id,
+            label,
+            value: editableValue,
+          }}
+          onClose={() => setEditing(false)}
+          onSaved={() => onEdited?.()}
+        />
+      )}
       <dd className="mt-1 text-base font-medium break-words text-gray-900">
         {value}
       </dd>
@@ -482,14 +518,12 @@ function DepartureSection({
   onApplied: (next: ChildMasterData) => void;
 }>) {
   const t = useTranslations("parentMasterData");
-  const sharingCopy = useTranslations("parentRequestSharing");
   const [modes, setModes] = useState(() =>
     normalizeDepartureModes(data.allowed_departure_modes),
   );
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [sharingReady, setSharingReady] = useState(false);
   const [requestSaved, setRequestSaved] = useState(false);
   const current = useMemo(
     () => normalizeDepartureModes(data.allowed_departure_modes),
@@ -532,35 +566,24 @@ function DepartureSection({
     setStatus("saving");
     setMessage(null);
     try {
-      const submitted = await submitMasterDataRequest(studentId, [
-        {
-          target: "departure",
-          field_key: "allowed_departure_modes",
-          value: modes,
-        },
-      ]);
+      const submitted = await submitMasterDataRequest(
+        studentId,
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: modes,
+          },
+        ],
+        recipientIds,
+      );
       onApplied({
         ...data,
         pending_changes: mergePendingChanges(data.pending_changes, submitted),
       });
       setRequestSaved(true);
-      try {
-        await Promise.all(
-          submitted.map((request) =>
-            setRequestSharing(
-              studentId,
-              "master_data",
-              request.id,
-              recipientIds,
-            ),
-          ),
-        );
-        setStatus("saved");
-        setMessage(t("requestSubmitted"));
-      } catch {
-        setStatus("saved");
-        setMessage(sharingCopy("savedButNotShared"));
-      }
+      setStatus("saved");
+      setMessage(t("requestSubmitted"));
       try {
         const next = await getChildMasterData(studentId);
         onApplied(next);
@@ -633,7 +656,6 @@ function DepartureSection({
           studentId={studentId}
           selected={recipientIds}
           onChange={setRecipientIds}
-          onReadyChange={setSharingReady}
         />
       )}
       {features.master_data_request_enabled ? (
@@ -656,11 +678,7 @@ function DepartureSection({
             size="md"
             className="min-h-11 sm:min-h-0"
             disabled={
-              !changed ||
-              !requestable ||
-              status === "saving" ||
-              !sharingReady ||
-              requestSaved
+              !changed || !requestable || status === "saving" || requestSaved
             }
             onClick={() => void submit()}
           >

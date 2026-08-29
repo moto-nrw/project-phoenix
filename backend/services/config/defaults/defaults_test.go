@@ -1740,3 +1740,32 @@ func TestPayrollSettings(t *testing.T) {
 	assert.True(t, mandant.Validation.AllowEmpty)
 	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
 }
+
+// TestParentRequestReasonPolicySetting pins the switch that decides who has to
+// write a reason for a parent request (#2267). The four option values are a
+// wire contract with the enforcement in the request services and with both
+// clients, so a rename must fail here.
+func TestParentRequestReasonPolicySetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentRequestReasonPolicy)
+	require.NotNil(t, def, "operations.parent_request_reason_policy should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.ReasonPolicyBoth, def.Default, "both sides explain themselves by default")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 4)
+	values := make([]any, 0, 4)
+	for _, opt := range def.Options.Static {
+		values = append(values, opt.Value)
+		assert.NotEmpty(t, opt.Label, "every option needs a German label")
+	}
+	assert.Contains(t, values, config.ReasonPolicyNobody)
+	assert.Contains(t, values, config.ReasonPolicyGuardians)
+	assert.Contains(t, values, config.ReasonPolicyStaff)
+	assert.Contains(t, values, config.ReasonPolicyBoth)
+}

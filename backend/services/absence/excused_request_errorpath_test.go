@@ -150,7 +150,7 @@ func (r *fakeStatusRepo) UpsertReported(ctx context.Context, e *activeModels.Stu
 // newFakeService builds the service over the supplied fakes with no emitter,
 // broadcaster or DB — every path is deterministic.
 func newFakeService(req *fakeReqRepo, status *fakeStatusRepo, student *fakeStudentRepo, person *fakePersonRepo) absenceSvc.ExcusedAbsenceRequestService {
-	return absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(req, status, nil, student, person, nil, nil, nil, testpkg.AbsenceRequestReviewPolicy{}, nil, nil)
+	return absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(req, status, nil, student, person, nil, nil, nil, testpkg.AbsenceRequestReviewPolicy{}, nil, nil, nil)
 }
 
 // okStatusRepo returns a status repo whose writes all succeed.
@@ -264,20 +264,6 @@ func TestErrorPath_PendingByStudentForDate_RepoErrors(t *testing.T) {
 	}, &fakePersonRepo{})
 	_, err = svc.PendingByStudentForDate(adminCtx(), today)
 	require.Error(t, err)
-}
-
-func TestErrorPath_WithdrawRequest_DecideError(t *testing.T) {
-	t.Parallel()
-
-	row := pendingRow(5, 9, timezone.TodayDate())
-	row.SubmittedBy = 3
-	svc := newFakeService(&fakeReqRepo{
-		findByIDForUpdate: func(context.Context, int64) (*activeModels.ExcusedAbsenceRequest, error) { return row, nil },
-		decide:            func(context.Context, int64, string, *string, *int64, bool) error { return errBoom },
-	}, okStatusRepo(), &fakeStudentRepo{}, &fakePersonRepo{})
-
-	_, err := svc.WithdrawRequest(adminCtx(), 5, 9, 3)
-	require.ErrorIs(t, err, errBoom)
 }
 
 func TestErrorPath_Decide_StudentLoadError(t *testing.T) {

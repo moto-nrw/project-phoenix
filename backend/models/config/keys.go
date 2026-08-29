@@ -124,6 +124,7 @@ const (
 	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
+	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
 	KeySickClearMode                         = "operations.sick_clear_mode"
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
@@ -227,6 +228,22 @@ const (
 	// to every verified staff member of the tenant. Role permissions still
 	// decide WHICH actions those callers may perform.
 	OverviewScopeAllStaff = "all_staff"
+)
+
+// ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
+// setting says who has to write a reason for a parent request: the guardian
+// when submitting it, the staff member when approving it, both, or nobody. A
+// rejection always needs a reason and is not covered here — a family must
+// always learn why a request was refused.
+const (
+	// ReasonPolicyNobody asks nobody for a reason.
+	ReasonPolicyNobody = "nobody"
+	// ReasonPolicyGuardians requires a reason only from the submitting family.
+	ReasonPolicyGuardians = "guardians"
+	// ReasonPolicyStaff requires a reason only from the deciding staff member.
+	ReasonPolicyStaff = "staff"
+	// ReasonPolicyBoth requires a reason on both sides; it is the default.
+	ReasonPolicyBoth = "both"
 )
 
 // CareConcept option values for KeyCareConcept.

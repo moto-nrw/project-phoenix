@@ -217,8 +217,9 @@ func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testi
 		Where("id = ?", pending.ID).Exec(t.Context())
 	require.NoError(t, err)
 
+	// #2267: reason policy defaults to "both"
 	body := strings.NewReader(fmt.Sprintf(
-		`{"approve":true,"effective_from":%q,"complete_withdrawal_confirmed":true}`,
+		`{"approve":true,"reason":"Passt so","effective_from":%q,"complete_withdrawal_confirmed":true}`,
 		pending.EffectiveFrom.String(),
 	))
 	response := authExec(t, tc,

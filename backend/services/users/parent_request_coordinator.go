@@ -43,9 +43,14 @@ type ParentRequestRef struct {
 }
 
 type BulkApproveParentRequestsInput struct {
-	Requests   []ParentRequestRef
-	Reason     string
-	ReviewerID int64
+	Requests []ParentRequestRef
+	Reason   string
+	// ReasonRequired says the school's reason policy
+	// (operations.parent_request_reason_policy) asks the deciding staff member
+	// for a reason. A bulk command only ever approves, so this is the only
+	// gate on its reason (#2267, story 28).
+	ReasonRequired bool
+	ReviewerID     int64
 }
 
 type ParentRequestBulkService interface {
@@ -79,6 +84,16 @@ type MasterDataBulkReviewPort interface {
 type ParentRequestCoordinator struct {
 	masterData MasterDataBulkReviewPort
 	excused    ExcusedBulkReviewPort
+	// conflictPorts carry the resolve command (#2267, stories 6-10). They are
+	// injected by setter rather than by constructor parameter so that adding a
+	// domain to the conflict resolver never rewrites the bulk-approval
+	// constructor. See parent_request_conflict_resolve.go.
+	conflictPorts map[ParentRequestKind]ParentRequestConflictPort
+	// events records the ONE thing the domain services cannot record for the
+	// resolver: the staff member's own result. Every verdict on a request goes
+	// through a domain Decide, which writes its own `decided` event. Injected
+	// by setter for the same reason as the ports.
+	events ParentRequestEventRecorder
 }
 
 func NewParentRequestCoordinator(
@@ -273,8 +288,13 @@ func authorizeBulkParentRequestKinds(ctx context.Context, refs []ParentRequestRe
 }
 
 func validateBulkParentRequestInput(input BulkApproveParentRequestsInput) error {
-	if len(input.Requests) < 2 || len(input.Requests) > maxBulkParentRequests || input.ReviewerID <= 0 || strings.TrimSpace(input.Reason) == "" {
+	if len(input.Requests) < 2 || len(input.Requests) > maxBulkParentRequests || input.ReviewerID <= 0 {
 		return ErrInvalidBulkRequest
+	}
+	// The shared reason is mandatory only while the school's policy asks staff
+	// for one (#2267, story 28).
+	if input.ReasonRequired && strings.TrimSpace(input.Reason) == "" {
+		return ErrParentRequestReasonRequired
 	}
 	type requestKey struct {
 		kind ParentRequestKind

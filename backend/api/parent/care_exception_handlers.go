@@ -56,6 +56,9 @@ type SubmitCareExceptionRequest struct {
 	PickupTime  *string `json:"pickup_time"`  // HH:MM, required
 	ArrivalTime *string `json:"arrival_time"` // Unsupported for parents
 	Reason      string  `json:"reason"`
+	// RecipientGuardianProfileIDs travel with the creation so the share is
+	// written in the same transaction (#2267); empty shares with nobody.
+	RecipientGuardianProfileIDs []string `json:"recipient_guardian_profile_ids"`
 }
 
 // CareExceptionResponse is one day's merged pickup/arrival override, projected
@@ -162,9 +165,13 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		renderParentWriteError(w, r, parentService.ErrNoCareException)
 		return
 	}
-	result, err := rs.ParentService.SubmitPickupChangeRequest(r.Context(), accountID, studentID, date, *pickup, req.Reason)
+	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
+	if !ok {
+		return
+	}
+	result, err := rs.ParentService.SubmitPickupChangeRequest(r.Context(), accountID, studentID, date, *pickup, req.Reason, recipients)
 	if err != nil {
-		renderParentWriteError(w, r, err)
+		renderParentRequestError(w, r, err)
 		return
 	}
 	response, err := toPickupChangeRequestResponse(result, accountID)
@@ -199,32 +206,6 @@ func (rs *Resource) listPickupChangeRequests(w http.ResponseWriter, r *http.Requ
 		out = append(out, response)
 	}
 	common.Respond(w, r, http.StatusOK, out, "Pickup change requests retrieved")
-}
-
-func (rs *Resource) withdrawPickupChangeRequest(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
-	if !ok {
-		return
-	}
-	result, err := rs.ParentService.WithdrawPickupChangeRequest(r.Context(), accountID, studentID, requestID)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	response, err := toPickupChangeRequestResponse(result, accountID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, response, "Pickup change request withdrawn")
 }
 
 // listCareExceptions returns the child's pickup/arrival overrides in the

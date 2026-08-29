@@ -6,7 +6,6 @@ import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
 import {
@@ -22,7 +21,6 @@ import {
   getChildCareOfferings,
   getChildCareSchedule,
   submitOfferingChangeRequest,
-  withdrawOfferingChangeRequest,
   type ChildCareOfferings,
   type ChildCareSchedule,
   type OfferingChangesDisabledReason,
@@ -67,11 +65,14 @@ export function BookedCareSection({
   childFirstName,
   careEnded,
   enrolledUntil,
+  reasonRequired = true,
 }: Readonly<{
   studentId: string;
   childFirstName: string;
   careEnded: boolean;
   enrolledUntil?: string;
+  /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
+  reasonRequired?: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
   const tc = useTranslations("parentChild");
@@ -82,9 +83,7 @@ export function BookedCareSection({
   const [offeringsError, setOfferingsError] = useState(false);
   const [scheduleError, setScheduleError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [editRequest, setEditRequest] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -190,24 +189,6 @@ export function BookedCareSection({
     offerings.changes_disabled_reason !== undefined &&
     offerings.changes_disabled_reason !== "no_permission" &&
     offerings.changes_disabled_reason !== "no_enrollment";
-
-  const handleWithdraw = async () => {
-    if (!pending) return;
-    setWithdrawing(true);
-    setWithdrawError(null);
-    try {
-      setOfferings(await withdrawOfferingChangeRequest(studentId, pending.id));
-      setConfirmWithdraw(false);
-    } catch (err) {
-      logger.warn("booked_care_withdraw_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        student_id: studentId,
-      });
-      setWithdrawError(t("careOfferings.withdrawError"));
-    } finally {
-      setWithdrawing(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -372,24 +353,15 @@ export function BookedCareSection({
                 isSelf={pending.submitted_by_self}
               />
               {!careEnded && pending.submitted_by_self && (
-                <div>
-                  <Button
-                    type="button"
-                    variant="outline_danger"
-                    size="md"
-                    onClick={() => {
-                      setWithdrawError(null);
-                      setConfirmWithdraw(true);
-                    }}
-                  >
-                    {t("careOfferings.withdraw")}
-                  </Button>
-                  {withdrawError && (
-                    <p className="text-parent-red-strong mt-1 text-sm">
-                      {withdrawError}
-                    </p>
-                  )}
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="max-sm:min-h-11"
+                  onClick={() => setEditRequest(pending.id)}
+                >
+                  {t("careOfferings.edit")}
+                </Button>
               )}
             </ParentSubsection>
           )}
@@ -495,30 +467,30 @@ export function BookedCareSection({
         <OfferingChangeRequestModal
           studentId={studentId}
           childName={childFirstName}
+          reasonRequired={reasonRequired}
           onClose={() => setModalOpen(false)}
-          onSubmit={async (input) => {
-            const next = await submitOfferingChangeRequest(studentId, input);
+          onSubmit={async (input, recipientIds) => {
+            const next = await submitOfferingChangeRequest(
+              studentId,
+              input,
+              recipientIds,
+            );
             setOfferings(next);
             return next.pending_request?.id;
           }}
         />
       )}
 
-      <ConfirmationModal
-        mobileSheet
-        isOpen={confirmWithdraw}
-        onClose={() => setConfirmWithdraw(false)}
-        onConfirm={() => void handleWithdraw()}
-        title={t("careOfferings.withdrawConfirmTitle")}
-        confirmText={t("careOfferings.withdraw")}
-        cancelText={t("back")}
-        isConfirmLoading={withdrawing}
-        confirmButtonClass="bg-parent-red hover:bg-parent-red-strong"
-      >
-        <p className="text-sm text-gray-600">
-          {t("careOfferings.withdrawConfirmBody")}
-        </p>
-      </ConfirmationModal>
+      {editRequest && (
+        <OfferingChangeRequestModal
+          studentId={studentId}
+          childName={childFirstName}
+          reasonRequired={reasonRequired}
+          editRequestId={editRequest}
+          onClose={() => setEditRequest(null)}
+          onEdited={refresh}
+        />
+      )}
     </div>
   );
 }

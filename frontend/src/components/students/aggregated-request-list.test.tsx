@@ -21,14 +21,23 @@ import {
 } from "~/lib/change-request-list-api";
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
-vi.mock("~/lib/change-request-list-api", () => ({
-  bulkApproveParentRequests: vi.fn(),
-  getFamilyProtection: vi.fn(),
-  listAggregatedOpenRequests: vi.fn(),
-  listAggregatedRequestHistory: vi.fn(),
-  listEnrollmentChangeRequests: vi.fn(),
-  setFamilyProtection: vi.fn(),
-}));
+// Nur die Netzaufrufe ersetzen, den Rest des Moduls stehen lassen: die Liste
+// braucht von dort auch Fehlerklassen und reine Hilfsfunktionen, und ein
+// vollständig ersetztes Modul lässt sie beim nächsten Zusatz still abstürzen.
+vi.mock("~/lib/change-request-list-api", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/lib/change-request-list-api")
+  >("~/lib/change-request-list-api");
+  return {
+    ...actual,
+    bulkApproveParentRequests: vi.fn(),
+    getFamilyProtection: vi.fn(),
+    listAggregatedOpenRequests: vi.fn(),
+    listAggregatedRequestHistory: vi.fn(),
+    listEnrollmentChangeRequests: vi.fn(),
+    setFamilyProtection: vi.fn(),
+  };
+});
 
 vi.mock("~/lib/care-exit-api", () => ({
   fetchCareWithdrawals: vi.fn(),
@@ -115,13 +124,35 @@ const NO_FILTERS: AggregatedRequestFilters = {
   statuses: [],
 };
 
+/**
+ * Eine offene Anfrage desselben Kindes. Seit #2267 zeigt der Detailbereich
+ * die Anfragen EINES Kindes; für Reihenfolge-Prüfungen müssen die Zeilen
+ * deshalb zu einem Fall gehören.
+ */
 function openItem(type: string, id: string) {
-  return { request_type: type, data: { id } } as never;
+  return {
+    request_type: type,
+    student_id: "10",
+    student_name: "Mia Muster",
+    expected_version: `v${id}`,
+    urgent_today: false,
+    bulk_eligible: true,
+    data: { id },
+  } as never;
 }
 
 /** Wie openItem, aber mit dem Zeitpunkt, nach dem Quellen verschränkt werden. */
 function stampedItem(type: string, id: string, occurredAt: string) {
-  return { request_type: type, occurred_at: occurredAt, data: { id } } as never;
+  return {
+    request_type: type,
+    occurred_at: occurredAt,
+    student_id: "10",
+    student_name: "Mia Muster",
+    expected_version: `v${id}`,
+    urgent_today: false,
+    bulk_eligible: true,
+    data: { id },
+  } as never;
 }
 
 describe("AggregatedRequestList", () => {
@@ -176,7 +207,8 @@ describe("AggregatedRequestList", () => {
           expected_version: "v3",
           urgent_today: false,
           bulk_eligible: false,
-          bulk_ineligible_reason:
+          bulk_ineligible_reason: "single_only",
+          bulk_ineligible_text:
             "Betreuungszeiten müssen einzeln geprüft werden.",
           data: { id: "3" },
         },
@@ -195,14 +227,22 @@ describe("AggregatedRequestList", () => {
       urgentHeading.compareDocumentPosition(laterHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getAllByText("Heute Kind")).toHaveLength(1);
-    expect(screen.getByText("2 offene Anfragen")).toBeVisible();
+    // Ein Fall je Kind: eine Listenzeile, egal wie viele Anfragen darin
+    // stecken. Der Name steht zusätzlich über dem Detailbereich (#2267).
+    expect(screen.getAllByRole("button", { name: /^Heute Kind/ })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByText("2 offene Anfragen").length).toBeGreaterThan(0);
     expect(screen.getByText("Füchse")).toBeVisible();
     expect(screen.getByText("Betrifft: 29.08.2026")).toBeVisible();
     expect(screen.queryByText(/Keine Widersprüche/)).not.toBeInTheDocument();
     expect(screen.getByText("Anfrage 1 von 2")).toBeVisible();
     expect(screen.getByText("Anfrage 2 von 2")).toBeVisible();
-    expect(screen.getByText("Nur einzeln freigeben")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Nur einzeln entscheiden: Diese Art wird immer einzeln geprüft.",
+      ),
+    ).toBeVisible();
     expect(screen.getByText("Später Kind")).toBeVisible();
   });
 
@@ -216,6 +256,9 @@ describe("AggregatedRequestList", () => {
         expected_version: `v${index}`,
         urgent_today: false,
         bulk_eligible: true,
+        // Widerspruch und Gruppengröße kommen seit #2267 vom Backend.
+        conflict_key: "md:student:departure_mode_mon",
+        conflict_group_size: 2,
         data: {
           id: `${index + 1}`,
           target: "student",
@@ -268,9 +311,16 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
-    expect(await screen.findByText("2 offene Anfragen")).toBeVisible();
+    // Die Anmeldung erzeugt für jedes betroffene Kind einen eigenen Fall:
+    // Mia mit zwei Anfragen, Noah mit einer.
+    expect(
+      (await screen.findAllByText("2 offene Anfragen")).length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Noah Muster")).toBeVisible();
-    expect(screen.getAllByText("enrollment-item-9")).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: /^Noah Muster/ }),
+    ).toHaveLength(1);
+    expect(screen.getAllByText("enrollment-item-9").length).toBeGreaterThan(0);
   });
 
   it("bestätigt eine Sammelfreigabe mit gemeinsamer Begründung", async () => {
@@ -289,8 +339,10 @@ describe("AggregatedRequestList", () => {
         {
           request_type: "excused",
           occurred_at: "2026-08-29T09:00:00Z",
-          student_id: "20",
-          student_name: "Noah Beispiel",
+          // Seit #2267 werden Anfragen im Detailbereich EINES Kindes
+          // ausgewählt; die Sammelfreigabe wirkt also innerhalb eines Falls.
+          student_id: "10",
+          student_name: "Mia Muster",
           expected_version: "v2",
           urgent_today: false,
           bulk_eligible: true,
@@ -301,10 +353,12 @@ describe("AggregatedRequestList", () => {
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
 
-    expect(screen.queryByText("Gemeinsam freigeben")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Gemeinsam freigeben" }),
+    ).not.toBeInTheDocument();
 
     const selections = await screen.findAllByRole("checkbox", {
-      name: /für gemeinsame Freigabe auswählen/,
+      name: /^Gemeinsam freigeben:/,
     });
     fireEvent.click(selections[0]!);
     expect(
@@ -388,7 +442,8 @@ describe("AggregatedRequestList", () => {
         "Schutz nötig",
       ),
     );
-    expect(await screen.findByText("Familienschutz")).toBeVisible();
+    // Zweimal: als Zustand in der Listenzeile und am Schalter im Detail.
+    expect((await screen.findAllByText("Familienschutz")).length).toBe(2);
     expect(
       screen.getByRole("button", { name: "Schutz aufheben" }),
     ).toBeVisible();
@@ -457,7 +512,9 @@ describe("AggregatedRequestList", () => {
         pageSize: 25,
       })
       .mockResolvedValueOnce({
-        items: [{ ...firstPage[0]!, id: "withdrawal-26" }],
+        // Eigenes Kind: sonst fiele die 26. Abmeldung in den Fall von Kind 1
+        // und die Liste zeigte weiterhin 25 Zeilen.
+        items: [{ ...firstPage[0]!, id: "withdrawal-26", studentId: "26" }],
         total: 26,
         page: 2,
         pageSize: 25,
@@ -470,9 +527,11 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
+    // 26 Kinder, 26 Fälle: seit #2267 zeigt die Liste einen Eintrag je Kind
+    // und die Abmeldekarte selbst erst im Detailbereich.
     await waitFor(() =>
       expect(
-        screen.getAllByRole("button", { name: /Anfrage für Mia Muster/ }),
+        screen.getAllByRole("button", { name: /^Mia Muster/ }),
       ).toHaveLength(26),
     );
     expect(mockListWithdrawals).toHaveBeenNthCalledWith(2, {
@@ -924,7 +983,7 @@ describe("AggregatedRequestList", () => {
               student_id: "10",
               student_name: "Mia Muster",
               expected_version: `v${index + 1}`,
-              urgent_today: false,
+              urgent_today: true,
               bulk_eligible: true,
               family_protected: false,
               data: { id: String(index + 1), dates: ["2026-09-01"] },
@@ -940,7 +999,7 @@ describe("AggregatedRequestList", () => {
             student_id: "10",
             student_name: "Mia Muster",
             expected_version: "v26",
-            urgent_today: false,
+            urgent_today: true,
             bulk_eligible: true,
             family_protected: false,
             data: { id: "26", dates: ["2026-09-01"] },
@@ -971,7 +1030,7 @@ describe("AggregatedRequestList", () => {
           student_id: "10",
           student_name: "Mia Muster",
           expected_version: `v${index + 1}`,
-          urgent_today: false,
+          urgent_today: true,
           bulk_eligible: true,
           data: { id: String(index + 1), dates: ["2026-09-01"] },
         }) as never,
@@ -987,7 +1046,7 @@ describe("AggregatedRequestList", () => {
             student_id: "10",
             student_name: "Mia Muster",
             expected_version: "v26",
-            urgent_today: false,
+            urgent_today: true,
             bulk_eligible: true,
             data: { id: "26", dates: ["2026-09-01"] },
           } as never,

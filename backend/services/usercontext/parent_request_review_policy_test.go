@@ -94,3 +94,56 @@ func TestParentRequestReviewerPolicyFailsClosedWhenPolicyCannotBeResolved(t *tes
 	_, err = policy.StudentFilter(context.Background(), []string{"users:update"})
 	assert.ErrorIs(t, err, groupsErr)
 }
+
+// The authorize sentinel cannot be imported here (module boundary), so the
+// tests pin its message; the handler-side test pins the wire code.
+// #2267 A4: users:absence is a write scope that never unlocks a read surface.
+// A caller holding it without users:read is refused here, exactly as the write
+// gate refuses them — an empty queue would read as "no work" instead.
+func TestParentRequestReviewerPolicyRefusesAbsenceWithoutRead(t *testing.T) {
+	t.Parallel()
+
+	settings := &reviewSettingStub{err: errors.New("must not be called")}
+	groups := &reviewGroupStub{err: errors.New("must not be called")}
+	policy := NewParentRequestReviewPolicy(settings, groups, "review.enabled")
+
+	_, err := policy.StudentFilter(context.Background(), []string{"users:absence"})
+	require.ErrorContains(t, err, "users:read permission is required")
+
+	_, allowErr := policy.Allows(context.Background(), []string{"users:absence"}, &users.Student{})
+	require.ErrorContains(t, allowErr, "users:read permission is required")
+
+	_, levelErr := policy.AccessLevel(context.Background(), []string{"users:absence"})
+	require.ErrorContains(t, levelErr, "users:read permission is required")
+
+	assert.Zero(t, groups.calls)
+}
+
+func TestParentRequestReviewerPolicyAcceptsAbsenceWithRead(t *testing.T) {
+	t.Parallel()
+
+	settings := &reviewSettingStub{enabled: true}
+	policy := NewParentRequestReviewPolicy(settings, &reviewGroupStub{}, "review.enabled")
+
+	_, err := policy.StudentFilter(context.Background(), []string{"users:absence", "users:read"})
+	require.NoError(t, err)
+}
+
+func TestParentRequestReviewerPolicyAccessLevel(t *testing.T) {
+	t.Parallel()
+
+	admin := NewParentRequestReviewPolicy(&reviewSettingStub{err: errors.New("must not be called")}, &reviewGroupStub{}, "review.enabled")
+	level, err := admin.AccessLevel(context.Background(), []string{"admin:*"})
+	require.NoError(t, err)
+	assert.Equal(t, ReviewAccessAdmin, level)
+
+	disabled := NewParentRequestReviewPolicy(&reviewSettingStub{}, &reviewGroupStub{}, "review.enabled")
+	level, err = disabled.AccessLevel(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.Equal(t, ReviewAccessNone, level)
+
+	enabled := NewParentRequestReviewPolicy(&reviewSettingStub{enabled: true}, &reviewGroupStub{}, "review.enabled")
+	level, err = enabled.AccessLevel(context.Background(), []string{"users:update"})
+	require.NoError(t, err)
+	assert.Equal(t, ReviewAccessGroupLeader, level)
+}

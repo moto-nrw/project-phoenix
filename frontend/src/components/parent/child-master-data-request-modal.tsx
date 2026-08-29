@@ -31,10 +31,9 @@ export function ChildMasterDataRequestModal({
   onSubmit: (
     changes: MasterDataChangeInput[],
     recipientIds: string[],
-  ) => Promise<boolean>;
+  ) => Promise<void>;
 }>) {
   const t = useTranslations("parentMasterData");
-  const ts = useTranslations("parentRequestSharing");
   const datePicker = useLocalizedDatePicker();
   const [firstName, setFirstName] = useState(data.first_name);
   const [lastName, setLastName] = useState(data.last_name);
@@ -43,8 +42,6 @@ export function ChildMasterDataRequestModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [sharingFailed, setSharingFailed] = useState(false);
-  const [sharingReady, setSharingReady] = useState(false);
 
   const fields = useMemo(
     () => [
@@ -93,7 +90,7 @@ export function ChildMasterDataRequestModal({
     }
     setSubmitting(true);
     try {
-      const sharingSaved = await onSubmit(
+      await onSubmit(
         changed.map((field) => ({
           target: field.target,
           field_key: field.key,
@@ -101,8 +98,7 @@ export function ChildMasterDataRequestModal({
         })),
         recipientIds,
       );
-      if (sharingSaved) onClose();
-      else setSharingFailed(true);
+      onClose();
     } catch {
       setError(t("requestError"));
     } finally {
@@ -125,137 +121,124 @@ export function ChildMasterDataRequestModal({
       isDismissDisabled={submitting}
       mobileSheet
       footer={
-        sharingFailed ? (
-          <Button type="button" size="md" onClick={onClose}>
-            {t("identityModal.close")}
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="hidden sm:inline-flex"
+            disabled={submitting}
+            onClick={onClose}
+          >
+            {t("identityModal.cancel")}
           </Button>
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="hidden sm:inline-flex"
-              disabled={submitting}
-              onClick={onClose}
-            >
-              {t("identityModal.cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              className="w-full gap-2 sm:w-auto"
-              disabled={submitting || !sharingReady}
-              onClick={() => void submit()}
-            >
-              {submitting && (
-                <CircleNotchIcon
-                  weight="bold"
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
-                />
-              )}
-              {submitting
-                ? t("identityModal.submitting")
-                : t("identityModal.submit")}
-            </Button>
-          </>
-        )
+          <Button
+            type="button"
+            size="md"
+            className="w-full gap-2 sm:w-auto"
+            disabled={submitting}
+            onClick={() => void submit()}
+          >
+            {submitting && (
+              <CircleNotchIcon
+                weight="bold"
+                className="size-4 animate-spin"
+                aria-hidden="true"
+              />
+            )}
+            {submitting
+              ? t("identityModal.submitting")
+              : t("identityModal.submit")}
+          </Button>
+        </>
       }
     >
       <div className="space-y-4">
-        {sharingFailed ? (
-          <Alert type="warning" message={ts("savedButNotShared")} />
-        ) : (
-          <>
-            <p className="text-sm leading-6 text-gray-600">
-              {t("identityModal.intro")}
+        <p className="text-sm leading-6 text-gray-600">
+          {t("identityModal.intro")}
+        </p>
+        <div className="bg-moto-blue-soft flex items-start gap-2.5 rounded-xl p-3">
+          <InfoIcon
+            size={20}
+            weight="bold"
+            className="text-moto-blue-strong mt-0.5 shrink-0"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900">
+              {t("identityModal.noticeTitle")}
             </p>
-            <div className="bg-moto-blue-soft flex items-start gap-2.5 rounded-xl p-3">
-              <InfoIcon
-                size={20}
-                weight="bold"
-                className="text-moto-blue-strong mt-0.5 shrink-0"
-                aria-hidden="true"
-              />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900">
-                  {t("identityModal.noticeTitle")}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-gray-700">
-                  {t("identityModal.noticeBody")}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <ModalField
-                label={t("fields.firstName")}
-                badge={pendingBadge("first_name")}
-              >
-                <Input
-                  name="first_name"
-                  aria-label={t("fields.firstName")}
-                  autoComplete="off"
-                  controlSize="compact"
-                  value={firstName}
-                  disabled={isPending("first_name") || submitting}
-                  onChange={(event) => setFirstName(event.target.value)}
-                />
-              </ModalField>
-              <ModalField
-                label={t("fields.lastName")}
-                badge={pendingBadge("last_name")}
-              >
-                <Input
-                  name="last_name"
-                  aria-label={t("fields.lastName")}
-                  autoComplete="off"
-                  controlSize="compact"
-                  value={lastName}
-                  disabled={isPending("last_name") || submitting}
-                  onChange={(event) => setLastName(event.target.value)}
-                />
-              </ModalField>
-              <ModalField
-                label={t("fields.birthday")}
-                badge={pendingBadge("birthday")}
-              >
-                <ISODatePicker
-                  {...datePicker}
-                  ariaLabel={t("fields.birthday")}
-                  value={birthday}
-                  disabled={isPending("birthday") || submitting}
-                  onChange={setBirthday}
-                  monthYearNavigation
-                  max={todayISO()}
-                  calendarLayout="popover"
-                  controlSize="md"
-                />
-              </ModalField>
-              <ModalField
-                label={t("fields.schoolClass")}
-                badge={pendingBadge("school_class")}
-              >
-                <Input
-                  name="school_class"
-                  aria-label={t("fields.schoolClass")}
-                  autoComplete="off"
-                  controlSize="compact"
-                  value={schoolClass}
-                  disabled={isPending("school_class") || submitting}
-                  onChange={(event) => setSchoolClass(event.target.value)}
-                />
-              </ModalField>
-            </div>
-            <RequestSharingSelector
-              studentId={studentId}
-              selected={recipientIds}
-              onChange={setRecipientIds}
-              onReadyChange={setSharingReady}
+            <p className="mt-1 text-sm leading-6 text-gray-700">
+              {t("identityModal.noticeBody")}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ModalField
+            label={t("fields.firstName")}
+            badge={pendingBadge("first_name")}
+          >
+            <Input
+              name="first_name"
+              aria-label={t("fields.firstName")}
+              autoComplete="off"
+              controlSize="compact"
+              value={firstName}
+              disabled={isPending("first_name") || submitting}
+              onChange={(event) => setFirstName(event.target.value)}
             />
-            {error && <Alert type="error" message={error} />}
-          </>
-        )}
+          </ModalField>
+          <ModalField
+            label={t("fields.lastName")}
+            badge={pendingBadge("last_name")}
+          >
+            <Input
+              name="last_name"
+              aria-label={t("fields.lastName")}
+              autoComplete="off"
+              controlSize="compact"
+              value={lastName}
+              disabled={isPending("last_name") || submitting}
+              onChange={(event) => setLastName(event.target.value)}
+            />
+          </ModalField>
+          <ModalField
+            label={t("fields.birthday")}
+            badge={pendingBadge("birthday")}
+          >
+            <ISODatePicker
+              {...datePicker}
+              ariaLabel={t("fields.birthday")}
+              value={birthday}
+              disabled={isPending("birthday") || submitting}
+              onChange={setBirthday}
+              monthYearNavigation
+              max={todayISO()}
+              calendarLayout="popover"
+              controlSize="md"
+            />
+          </ModalField>
+          <ModalField
+            label={t("fields.schoolClass")}
+            badge={pendingBadge("school_class")}
+          >
+            <Input
+              name="school_class"
+              aria-label={t("fields.schoolClass")}
+              autoComplete="off"
+              controlSize="compact"
+              value={schoolClass}
+              disabled={isPending("school_class") || submitting}
+              onChange={(event) => setSchoolClass(event.target.value)}
+            />
+          </ModalField>
+        </div>
+        <RequestSharingSelector
+          studentId={studentId}
+          selected={recipientIds}
+          onChange={setRecipientIds}
+        />
+        {error && <Alert type="error" message={error} />}
       </div>
     </Modal>
   );

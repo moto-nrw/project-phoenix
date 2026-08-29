@@ -78,7 +78,7 @@ describe("RequestSharingControl", () => {
       name: "Mara Muster",
     });
     fireEvent.click(checkbox);
-    fireEvent.click(screen.getByText("Freigabe speichern"));
+    fireEvent.click(screen.getByText("Auswahl speichern"));
 
     await waitFor(() =>
       expect(setSharing).toHaveBeenCalledWith("42", "excused", "9", ["7"]),
@@ -128,6 +128,28 @@ describe("RequestSharingControl", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     expect(getSharing).toHaveBeenCalledTimes(2);
+  });
+
+  // Faellt der Abruf der Empfaenger aus, blockiert das die Anfrage nicht: der
+  // Hinweis erklaert es, und die Auswahl wird als leer gemeldet (#2267).
+  it("warns and reports no recipients when the options fail to load", async () => {
+    getOptions.mockRejectedValue(new Error("offline"));
+    const onChange = vi.fn();
+    render(
+      <RequestSharingSelector
+        studentId="42"
+        selected={["7"]}
+        onChange={onChange}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Empfänger konnten nicht geladen werden. Sie können die Anfrage trotzdem senden und später teilen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith([]));
   });
 
   it("shows named recipients before a request is submitted", async () => {

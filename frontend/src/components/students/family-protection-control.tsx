@@ -5,6 +5,8 @@ import { Shield, ShieldCheck } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { LockIcon } from "@phosphor-icons/react/ssr";
+
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import {
@@ -85,7 +87,15 @@ function ProtectionStatus({
     : enabled
       ? "Eingeschaltet"
       : "Ausgeschaltet";
-  return <StatusBadge tone={enabled ? "red" : "gray"} label={label} />;
+  // Blau statt rot (#2267): Familienschutz ist kein Fehler und kein
+  // Widerspruch. Rot gehoert in dieser Liste den Widersprüchen; zwei
+  // verschiedene Zustände duerfen nie denselben Farbton tragen.
+  return (
+    <span className="inline-flex items-center gap-1">
+      {enabled ? <LockIcon size={14} weight="fill" aria-hidden="true" /> : null}
+      <StatusBadge tone={enabled ? "blue" : "gray"} label={label} />
+    </span>
+  );
 }
 
 interface ProtectionModalProps {
@@ -176,8 +186,8 @@ function ProtectionAction({
     <Button
       type="button"
       variant={compact ? "ghost" : "outline"}
-      size={compact ? "compact" : "md"}
-      className={compact ? "gap-1.5" : undefined}
+      size="md"
+      className={compact ? "gap-1.5 max-sm:min-h-11" : "max-sm:min-h-11"}
       onClick={open}
     >
       {compact ? (

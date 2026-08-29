@@ -35,6 +35,29 @@ type SubmitSickNoteRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason"`
 	Status string   `json:"status"`
+	// RecipientGuardianProfileIDs are the co-guardians the family picked for
+	// this request. They travel WITH the creation so the share is written in
+	// the same transaction (#2267); empty shares with nobody.
+	RecipientGuardianProfileIDs []string `json:"recipient_guardian_profile_ids"`
+}
+
+// SickNoteEnvelopeResponse is the ?envelope=1 shape of the sick-note create.
+// The bare status-day array stays the default so a tab loaded before this
+// change keeps working; a client that wants to know whether the school gated
+// the absence into a pending request asks for the envelope (#2267).
+type SickNoteEnvelopeResponse struct {
+	StatusDays     []StatusDayResponse           `json:"status_days"`
+	PendingRequest *ParentExcusedRequestResponse `json:"pending_request"`
+}
+
+// pendingSickNoteRequest projects the created request, or nil when the school
+// applied the absence directly.
+func pendingSickNoteRequest(result *parentService.SickNoteResult, accountID int64) *ParentExcusedRequestResponse {
+	if result == nil || result.PendingRequest == nil {
+		return nil
+	}
+	response := toParentExcusedRequestResponse(result.PendingRequest, accountID)
+	return &response
 }
 
 // StatusDayResponse mirrors the staff status-day shape but is the
@@ -74,9 +97,9 @@ type ParentExcusedRequestResponse struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
 	// IsSelf is true only when the CALLING guardian submitted this request. In a
-	// multi-guardian family only the submitter may withdraw it (the backend
-	// rejects a non-submitter's withdrawal), so the UI shows the withdraw action
-	// only for own requests.
+	// multi-guardian family only the submitter may edit it (the backend rejects
+	// a non-submitter as not-found), so the UI shows the edit action only for
+	// own requests.
 	IsSelf bool `json:"is_self"`
 }
 
@@ -131,15 +154,30 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		status = activeModels.StudentStatusDaySick
 	}
 
-	result, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason, status)
+	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
+	if !ok {
+		return
+	}
+
+	result, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason, status, recipients)
 	if err != nil {
-		renderParentWriteError(w, r, err)
+		renderParentRequestError(w, r, err)
 		return
 	}
 
 	statusDays := make([]StatusDayResponse, 0, len(result.StatusDays))
 	for _, d := range result.StatusDays {
 		statusDays = append(statusDays, toStatusDayResponse(d))
+	}
+
+	// ?envelope=1 is the new client's opt-in to the full result. Old tabs keep
+	// the bare array below, which is what they call .map() on (#2267).
+	if r.URL.Query().Get("envelope") == "1" {
+		common.Respond(w, r, http.StatusCreated, SickNoteEnvelopeResponse{
+			StatusDays:     statusDays,
+			PendingRequest: pendingSickNoteRequest(result, accountID),
+		}, "Absence submitted")
+		return
 	}
 
 	// Backward-compatibility (#1845 review): ALWAYS respond with the bare
@@ -178,30 +216,6 @@ func (rs *Resource) listExcusedRequests(w http.ResponseWriter, r *http.Request) 
 		out = append(out, toParentExcusedRequestResponse(req, accountID))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Excused requests retrieved")
-}
-
-// withdrawExcusedRequest withdraws the caller's own pending excused approval
-// request (#1845).
-func (rs *Resource) withdrawExcusedRequest(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
-	if !ok {
-		return
-	}
-
-	req, err := rs.ParentService.WithdrawExcusedRequest(r.Context(), accountID, studentID, requestID)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toParentExcusedRequestResponse(req, accountID), "Excused request withdrawn")
 }
 
 // listSickDays returns the child's active sick days in the requested
@@ -289,6 +303,10 @@ type ChildFeaturesResponse struct {
 	// Stammdaten entry.
 	HasOpenChangeRequest bool `json:"has_open_change_request"`
 	NewsEnabled          bool `json:"parent_news_enabled"`
+	// ReasonRequired says this school makes the family state a reason for a
+	// request (operations.parent_request_reason_policy, #2267), so the portal
+	// marks the note field as required up front.
+	ReasonRequired bool `json:"reason_required"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -326,6 +344,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MealPlanEnabled:              flags.MealPlanEnabled,
 		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
 		NewsEnabled:                  flags.NewsEnabled,
+		ReasonRequired:               flags.ReasonRequired,
 	}, "Child features retrieved")
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -149,12 +150,62 @@ func (s *service) changeRequestSharingInTx(
 	return s.requestSharingState(ctx, studentID, requestType, requestID, protected, protectedAt, recipients)
 }
 
+// ShareRequestInTx writes the guardian's recipient choice for a request that
+// was just created, inside the SAME transaction as the request row (#2267,
+// finding 4). Sharing at creation used to be a second HTTP call, so a rejected
+// or dropped share left the request visible to nobody the family had picked;
+// here a refused share rolls the request back with it and the family sees one
+// clean failure instead of a half-done submission.
+//
+// An empty recipient list writes no share event at all — "shared with nobody"
+// is the default state, not something to record.
+func (s *service) ShareRequestInTx(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64, recipientProfileIDs []int64,
+) error {
+	if len(recipientProfileIDs) == 0 {
+		return nil
+	}
+	if !s.requestSharingConfigured() {
+		return errors.New("parent: request sharing service is not configured")
+	}
+	protected, _, err := s.currentFamilyProtection(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	// shareRecipients validates that every id is a co-guardian of THIS child
+	// with portal access — a forged id is refused here, before the share.
+	_, accountIDs, err := s.shareRecipients(ctx, accountID, studentID, recipientProfileIDs, true)
+	if err != nil {
+		return err
+	}
+	if protected && len(accountIDs) > 0 {
+		return ErrRequestSharingForbidden
+	}
+	if len(accountIDs) == 0 {
+		return nil
+	}
+	return s.createRequestShare(ctx, accountID, studentID, requestType, requestID, accountIDs)
+}
+
 func (s *service) createRequestShare(ctx context.Context, accountID, studentID int64, requestType string, requestID int64, recipients []int64) error {
 	event := &userModels.ParentRequestShareEvent{
 		StudentID: studentID, RequestType: requestType, RequestID: requestID,
 		AuthorAccountID: accountID, RecipientAccountIDs: recipients,
 	}
-	return s.ParentRequestShares.Create(ctx, event)
+	if err := s.ParentRequestShares.Create(ctx, event); err != nil {
+		return err
+	}
+	// The ledger records WHETHER a request was shared and with how many
+	// co-guardians. The recipient account ids stay in the share event itself,
+	// which is the row the visibility rules read.
+	return usersSvc.RecordParentRequestEvent(ctx, s.ParentRequestEvents, usersSvc.ParentRequestEventInput{
+		StudentID:      studentID,
+		RequestType:    requestType,
+		RequestID:      requestID,
+		EventType:      userModels.ParentRequestEventShared,
+		ActorAccountID: accountID,
+		Payload:        map[string]any{"recipient_count": len(recipients)},
+	})
 }
 
 func (s *service) requestSharingState(
@@ -172,6 +223,12 @@ func (s *service) requestSharingState(
 	return &RequestSharingState{FamilyProtected: protected, Recipients: recipients}, nil
 }
 
+// effectiveRecipientSet answers who may currently see one request. A share is
+// effective only while the child is unprotected AND the share is newer than the
+// newest protection event: protection voids every earlier share permanently,
+// and after protection is switched off the guardian must share again. Nothing
+// here revives a voided share.
+// Pinned by TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares.
 func effectiveRecipientSet(event *userModels.ParentRequestShareEvent, protected bool, protectedAt time.Time) map[int64]bool {
 	selected := map[int64]bool{}
 	if event == nil || protected || (!protectedAt.IsZero() && !event.CreatedAt.After(protectedAt)) {
@@ -198,6 +255,15 @@ func (s *service) currentRequestShares(ctx context.Context, studentID int64) (ma
 	return result, nil
 }
 
+// currentFamilyProtection returns whether the child is protected right now and
+// the timestamp of the newest protection event, which is the cut-off date for
+// shares.
+//
+// Familienschutz voids every earlier share PERMANENTLY. Switching it off does
+// not bring those shares back — the guardian has to share again, deliberately.
+// That is why the timestamp travels even when protection is off: the disable
+// event is the newest event, so every share older than it stays void.
+// Pinned by TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares.
 func (s *service) currentFamilyProtection(ctx context.Context, studentID int64) (bool, time.Time, error) {
 	if s.FamilyProtectionEvents == nil {
 		return false, time.Time{}, nil
@@ -287,6 +353,55 @@ func sortSharingRecipients(recipients []RequestSharingRecipient, accountIDs []in
 		return strings.ToLower(recipients[i].LastName+recipients[i].FirstName) < strings.ToLower(recipients[j].LastName+recipients[j].FirstName)
 	})
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
+}
+
+// ParentRequestEventView is one line of a request's history as the parents
+// portal shows it ("Geändert am …"). Deliberately narrow: no actor, no
+// payload — a co-guardian's name or a staff reason belongs to the pill, not
+// to this list.
+type ParentRequestEventView struct {
+	EventType string    `json:"event_type"`
+	CreatedAt time.Time `json:"created_at"`
+	Version   string    `json:"version"`
+}
+
+// ListRequestEvents returns the ledger of one request, for the guardian who
+// submitted it. Anyone else — including a co-guardian the request was shared
+// with — gets the same not-found the sharing surface returns, so a request id
+// cannot be probed.
+func (s *service) ListRequestEvents(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
+) ([]ParentRequestEventView, error) {
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if s.ParentRequestEvents == nil {
+		return nil, errors.New("parent: request event ledger is not configured")
+	}
+	var out []ParentRequestEventView
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireOwnedShareableRequest(txCtx, accountID, studentID, requestType, requestID); err != nil {
+			return err
+		}
+		rows, listErr := s.ParentRequestEvents.ListForRequest(txCtx, requestType, requestID)
+		if listErr != nil {
+			return listErr
+		}
+		out = make([]ParentRequestEventView, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, ParentRequestEventView{
+				EventType: row.EventType,
+				CreatedAt: row.CreatedAt,
+				Version:   row.Version,
+			})
+		}
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
+	return out, nil
 }
 
 func (s *service) requireOwnedShareableRequest(
@@ -390,4 +505,41 @@ func (v *requestShareVisibility) allows(requestType string, requestID, accountID
 	}
 	event := v.current[requestShareKey{typ: requestType, id: requestID}]
 	return effectiveRecipientSet(event, v.protected, v.protectedAt)[accountID]
+}
+
+// SharedRecipientAccountIDs names the guardians the submitting parent
+// explicitly shared ONE request with (#2267, story 47). It exists so the staff
+// decide services can give those recipients the full decision pill while every
+// other co-guardian gets only the neutral „Betreuungsstand geändert“ line —
+// without the schedule, absence and enrollment domains having to import this
+// package or re-derive sharing rules they do not own.
+//
+// Familienschutz is honoured by construction: effectiveRecipientSet returns an
+// empty set while the child is protected, and also voids any share chosen
+// before protection was switched on. A protected child therefore has no full
+// recipients at all, only neutral ones.
+//
+// Call it inside the caller's tenant transaction.
+func (s *service) SharedRecipientAccountIDs(
+	ctx context.Context,
+	studentID int64,
+	requestType string,
+	requestID int64,
+) ([]int64, error) {
+	visibility, err := s.loadRequestShareVisibility(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	recipients := effectiveRecipientSet(
+		visibility.current[requestShareKey{typ: requestType, id: requestID}],
+		visibility.protected, visibility.protectedAt,
+	)
+	accountIDs := make([]int64, 0, len(recipients))
+	for accountID := range recipients {
+		if accountID > 0 {
+			accountIDs = append(accountIDs, accountID)
+		}
+	}
+	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
+	return accountIDs, nil
 }

@@ -25,6 +25,9 @@ func ApplyRequestQueueFilters(q *bun.SelectQuery, alias, keysetColumn string, f 
 	if f.StudentID > 0 {
 		q = q.Where(studentCol+" = ?", f.StudentID)
 	}
+	if len(f.StudentIDs) > 0 {
+		q = q.Where(studentCol+" IN (?)", bun.List(f.StudentIDs))
+	}
 	if search := strings.TrimSpace(f.Search); search != "" {
 		// The child's name lives two tables away. A subquery leaves the outer
 		// row count untouched (a join would need a DISTINCT), and correlating

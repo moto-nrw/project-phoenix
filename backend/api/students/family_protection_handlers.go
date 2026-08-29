@@ -20,6 +20,10 @@ type setFamilyProtectionBody struct {
 type familyProtectionResponse struct {
 	StudentID string `json:"student_id"`
 	Enabled   bool   `json:"enabled"`
+	// Unchanged says the child was already in the requested state, so no new
+	// ledger entry was written. The request still succeeded — repeating a
+	// switch is not an error the user has to fix.
+	Unchanged bool `json:"unchanged,omitempty"`
 }
 
 func (rs *Resource) getFamilyProtection(w http.ResponseWriter, r *http.Request) {
@@ -62,12 +66,13 @@ func (rs *Resource) setFamilyProtection(w http.ResponseWriter, r *http.Request) 
 	event, err := rs.FamilyProtectionService.Set(r.Context(), userService.SetFamilyProtectionInput{
 		StudentID: studentID, Enabled: *body.Enabled, Reason: body.Reason, ActorAccountID: int64(claims.ID),
 	})
-	if err != nil {
+	unchanged := errors.Is(err, userService.ErrFamilyProtectionUnchanged)
+	if err != nil && !unchanged {
 		renderError(w, r, familyProtectionErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, familyProtectionResponse{
-		StudentID: strconv.FormatInt(event.StudentID, 10), Enabled: event.Enabled,
+		StudentID: strconv.FormatInt(event.StudentID, 10), Enabled: event.Enabled, Unchanged: unchanged,
 	}, "Family protection updated")
 }
 

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -26,6 +27,9 @@ const excusedRequestLockClass int32 = 0x65786162
 // under the current tenant — it was already decided (lost race) or does not
 // exist. Services map this to a 409/404.
 var ErrExcusedRequestNotPending = activeModels.ErrExcusedRequestNotPending
+
+// ErrExcusedRequestNotDecided is the repository alias of the model sentinel.
+var ErrExcusedRequestNotDecided = activeModels.ErrExcusedRequestNotDecided
 
 // ErrExcusedRequestNotFound is returned when no request row exists under the
 // current tenant.
@@ -234,6 +238,34 @@ func (r *ExcusedAbsenceRequestRepository) FindByIDForUpdate(ctx context.Context,
 // Decide transitions a pending row to its final state. reviewed_at is stamped
 // for staff decisions; applied_at only when the excused status days were
 // actually written (approvals). Guardian withdrawals pass reviewedBy = nil.
+// UpdatePending rewrites a pending request's payload. The status guard is in
+// the WHERE clause, so an edit racing a staff decision loses without a second
+// read: zero rows affected means the request was decided in between.
+func (r *ExcusedAbsenceRequestRepository) UpdatePending(
+	ctx context.Context, id int64, dates []timezone.Date, note, absenceStatus string,
+) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*activeModels.ExcusedAbsenceRequest)(nil)).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Set("dates = ?", dates).
+		Set("note = ?", note).
+		Set("absence_status = ?", absenceStatus).
+		Set("updated_at = ?", time.Now()).
+		Where(`"excused_absence_request".id = ?`, id).
+		Where(`"excused_absence_request".status = ?`, activeModels.ExcusedRequestStatusPending)
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		q = q.Where(where, val)
+	}
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update pending excused absence request", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrExcusedRequestNotPending
+	}
+	return nil
+}
+
 func (r *ExcusedAbsenceRequestRepository) Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error {
 	now := time.Now()
 	q := base.GetDB(ctx, r.DB).NewUpdate().
@@ -262,6 +294,45 @@ func (r *ExcusedAbsenceRequestRepository) Decide(ctx context.Context, id int64, 
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
 		return ErrExcusedRequestNotPending
+	}
+	return nil
+}
+
+// Redecide rewrites an already decided row. The WHERE clause names the two
+// states a correction may start from, so a concurrent withdrawal, care-end
+// close or mark-done cannot be silently overwritten by a correction that was
+// prepared before it landed.
+func (r *ExcusedAbsenceRequestRepository) Redecide(
+	ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool,
+) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*activeModels.ExcusedAbsenceRequest)(nil)).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Set("status = ?", newStatus).
+		Set("decision_reason = ?", reason).
+		Set("reviewed_by = ?", reviewedBy).
+		Set("reviewed_at = ?", now).
+		Set("updated_at = ?", now).
+		Where(`"excused_absence_request".id = ?`, id).
+		Where(`"excused_absence_request".status IN (?)`, bun.List([]string{
+			activeModels.ExcusedRequestStatusApproved,
+			activeModels.ExcusedRequestStatusRejected,
+		}))
+	if applied {
+		q = q.Set("applied_at = ?", now)
+	} else {
+		q = q.Set("applied_at = NULL")
+	}
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		q = q.Where(where, val)
+	}
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "correct excused absence request", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrExcusedRequestNotDecided
 	}
 	return nil
 }

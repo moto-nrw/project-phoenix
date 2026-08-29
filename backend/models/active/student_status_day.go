@@ -12,6 +12,10 @@ const (
 	StudentStatusDaySick      = "sick"
 	StudentStatusDayExcused   = "excused"
 	StudentStatusDayClassTrip = "class_trip"
+	// StudentStatusDayPresent is not a stored status: it is what a day with no
+	// active status row means. Named here so every reader that has to answer
+	// "what does this day look like now" says the same word.
+	StudentStatusDayPresent = "present"
 )
 
 func StudentStatusDayStatuses() []string {

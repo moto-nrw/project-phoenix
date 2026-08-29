@@ -205,6 +205,36 @@ func (r *OfferingChangeRequestRepository) UpdateApprovedCompleteWithdrawal(
 
 // Decide transitions a pending row to its final state. The pending predicate
 // lives in the WHERE clause so two concurrent reviewers cannot both win.
+// UpdatePending rewrites a pending request's selections, effective date and
+// note — the guardian edit path (#2267). The pending guard sits in the WHERE
+// clause, so an edit racing a staff decision loses.
+func (r *OfferingChangeRequestRepository) UpdatePending(
+	ctx context.Context,
+	id int64,
+	payload map[string]any,
+	effectiveFrom timezone.Date,
+	note *string,
+) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*enrollment.OfferingChangeRequest)(nil)).
+		ModelTableExpr(tableExprOfferingChangeRequestsAsReq).
+		Set("payload = ?", payload).
+		Set("effective_from = ?", effectiveFrom).
+		Set("parent_note = ?", note).
+		Set("updated_at = ?", time.Now()).
+		Where(`"offering_change_request".id = ?`, id).
+		Where(`"offering_change_request".status = ?`, enrollment.OfferingChangeStatusPending)
+	q = base.WithTenantFilter(ctx, q, "offering_change_request")
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update pending offering change request", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return enrollment.ErrOfferingChangeNotPending
+	}
+	return nil
+}
+
 func (r *OfferingChangeRequestRepository) Decide(
 	ctx context.Context,
 	id int64,
