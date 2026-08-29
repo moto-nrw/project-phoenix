@@ -1318,13 +1318,15 @@
       "7": "Sun"
     },
     "careSchedule": {
+      "arrival": "Arrival time",
       "pickup": "Pick-up time",
       "modes": "Way home",
       "loadError": "The care times could not be loaded. Please refresh the page.",
+      "readOnlyNotice": "You cannot change the weekly plan here. Changes to booked offerings are in the next section.",
       "requestButton": "Request changes",
       "requestTitle": "Request a weekly schedule change",
       "close": "Close dialog",
-      "requestIntro": "Choose what should apply regularly on each weekday from now on.",
+      "requestIntro": "Change care days, pick-up times, or ways home. You only see changes your OGS allows.",
       "requestNoticeTitle": "Request to the OGS",
       "requestNoticeBody": "This is a permanent change that applies every week. The OGS reviews your request. Your current weekly schedule remains valid until it is approved.",
       "requestSubmit": "Send request to OGS",
@@ -1335,7 +1337,7 @@
       "requestError": "The request could not be sent.",
       "requestAlreadyPending": "A change for this child is already being reviewed.",
       "requestDisabled": "This change is not enabled by your OGS.",
-      "requestInvalid": "Please check the selected care days, pick-up times, and ways home.",
+      "requestInvalid": "Please check the care days, pick-up times, and ways home.",
       "modeUnchanged": "Choose way home",
       "modeCurrent": "Current: {modes}",
       "careDay": "Care on this day",
@@ -1360,7 +1362,7 @@
       "withdraw": "Withdraw request",
       "withdrawError": "The request could not be withdrawn.",
       "withdrawConfirmTitle": "Withdraw request?",
-      "withdrawConfirmBody": "Do you really want to withdraw the pick-up change request?"
+      "withdrawConfirmBody": "Do you really want to withdraw the weekly plan request?"
     }
   },
   "parentOgsMessaging": {

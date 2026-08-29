@@ -1318,13 +1318,15 @@
       "7": "So"
     },
     "careSchedule": {
+      "arrival": "Ankunftszeit",
       "pickup": "Abholzeit",
       "modes": "Abholart",
       "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "readOnlyNotice": "Den Wochenplan können Sie hier nicht ändern. Änderungen an gebuchten Angeboten finden Sie im nächsten Abschnitt.",
       "requestButton": "Änderungen anfragen",
       "requestTitle": "Änderung am Wochenplan anfragen",
       "close": "Dialog schließen",
-      "requestIntro": "Wählen Sie, was künftig an jedem Wochentag regelmäßig gelten soll.",
+      "requestIntro": "Ändern Sie Betreuungstage, Abholzeiten oder Abholarten. Sie sehen nur Änderungen, die Ihre OGS erlaubt.",
       "requestNoticeTitle": "Anfrage an die OGS",
       "requestNoticeBody": "Die Änderung ist dauerhaft und gilt jede Woche. Die OGS prüft Ihre Anfrage. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
       "requestSubmit": "Anfrage an OGS senden",
@@ -1335,7 +1337,7 @@
       "requestError": "Die Anfrage konnte nicht gesendet werden.",
       "requestAlreadyPending": "Für dieses Kind wird bereits eine Änderung geprüft.",
       "requestDisabled": "Diese Änderung ist für Ihre OGS nicht freigeschaltet.",
-      "requestInvalid": "Bitte prüfen Sie die ausgewählten Betreuungstage, Abholzeiten und Abholarten.",
+      "requestInvalid": "Bitte prüfen Sie die Betreuungstage, Abholzeiten und Abholarten.",
       "modeUnchanged": "Abholart wählen",
       "modeCurrent": "Aktuell: {modes}",
       "careDay": "Betreuung an diesem Tag",
@@ -1360,7 +1362,7 @@
       "withdraw": "Anfrage zurückziehen",
       "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
       "withdrawConfirmTitle": "Anfrage zurückziehen?",
-      "withdrawConfirmBody": "Möchten Sie die Anfrage zur Änderung der Abholung wirklich zurückziehen?"
+      "withdrawConfirmBody": "Möchten Sie die Anfrage zum Wochenplan wirklich zurückziehen?"
     }
   },
   "parentOgsMessaging": {

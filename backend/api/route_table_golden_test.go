@@ -71,8 +71,6 @@ func newGoldenAPI(t *testing.T) *API {
 	_, err := db.ExecContext(t.Context(), "ALTER ROLE phoenix_auth PASSWORD '"+password+"'")
 	require.NoError(t, err, "sync phoenix_auth password for the API test database")
 
-	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
-
 	goldenAPIOnce.Do(func() {
 		server, err := NewServer(slog.Default())
 		if err != nil {

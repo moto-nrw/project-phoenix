@@ -237,6 +237,13 @@ func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, te
 		}
 		return s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
 	}
+	bookingsAuthoritative, err := resolve(configModels.KeyEnrollmentBookingsAuthoritative)
+	if err != nil {
+		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve bookings-authoritative setting: %w", err)
+	}
+	if bookingsAuthoritative {
+		return CareScheduleRequestCapabilities{}, nil
+	}
 	pickup, err := resolve(configModels.KeyParentCarePickupRequestEnabled)
 	if err != nil {
 		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve pickup request setting: %w", err)
