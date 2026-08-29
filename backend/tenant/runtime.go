@@ -96,14 +96,6 @@ func SavepointFunc(controller SavepointController) func(context.Context, Savepoi
 	}
 }
 
-func NewRuntime(
-	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
-	withinAdmin func(context.Context, func(context.Context, any) error) error,
-	savepoint func(context.Context, SavepointAction) error,
-) (UnitOfWork, error) {
-	return NewUnitOfWork(withinTenant, withinAdmin, savepoint, func(error) bool { return false })
-}
-
 func NewUnitOfWork(
 	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
 	withinAdmin func(context.Context, func(context.Context, any) error) error,

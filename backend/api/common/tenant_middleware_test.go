@@ -13,10 +13,11 @@ import (
 
 func testRuntime(t *testing.T, within func(context.Context, int64, func(context.Context, any) error) error) tenant.UnitOfWork {
 	t.Helper()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		within,
 		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	return runtime
@@ -63,7 +64,7 @@ func TestTenantTxMiddlewareUsesValidatedTenantAndRollbackMarker(t *testing.T) {
 func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 	t.Parallel()
 	adminCalled := false
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(context.Context, int64, func(context.Context, any) error) error {
 			t.Fatal("platform request must not open a tenant transaction")
 			return nil
@@ -73,6 +74,7 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 
@@ -95,7 +97,7 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 	t.Parallel()
 	var gotTenant int64
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, rawID int64, fn func(context.Context, any) error) error {
 			gotTenant = rawID
 			return fn(ctx, struct{}{})
@@ -105,6 +107,7 @@ func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 			return nil
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
@@ -214,12 +217,13 @@ func TestTenantOperationMiddlewareObservesServiceOwnedTransactionFailure(t *test
 	t.Parallel()
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, func(context.Context, any) error) error { return assert.AnError },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	var observed tenant.RuntimeEvent

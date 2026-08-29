@@ -131,10 +131,11 @@ func TestForEachTenantSettings_MissingRuntimeSkipsWork(t *testing.T) {
 
 func TestForEachKnownTenantObservesMissingTenantAndTransactionFailure(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(context.Context, int64, func(context.Context, any) error) error { return assert.AnError },
 		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 

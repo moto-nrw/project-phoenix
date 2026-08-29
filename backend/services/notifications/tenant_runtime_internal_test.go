@@ -17,7 +17,7 @@ func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.UnitOfWork {
 	if db != nil {
 		return testpkg.TenantRuntime(t, db)
 	}
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, bun.Tx{})
 		},
@@ -25,6 +25,7 @@ func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.UnitOfWork {
 			return fn(ctx, bun.Tx{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	if err != nil {
 		panic(err)

@@ -226,7 +226,7 @@ func TestUnitOfWorkObserverReceivesPoolAndLockWaits(t *testing.T) {
 
 func TestWithinTenantDrainsNestedAfterCommitHooksOnlyAfterOutermostSuccess(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
@@ -234,6 +234,7 @@ func TestWithinTenantDrainsNestedAfterCommitHooksOnlyAfterOutermostSuccess(t *te
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
@@ -257,7 +258,7 @@ func TestWithinTenantDrainsNestedAfterCommitHooksOnlyAfterOutermostSuccess(t *te
 
 func TestWithinAdminDrainsNestedAfterCommitHooksOnlyAfterOutermostSuccess(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
@@ -265,6 +266,7 @@ func TestWithinAdminDrainsNestedAfterCommitHooksOnlyAfterOutermostSuccess(t *tes
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(context.Background(), runtime)
@@ -287,10 +289,11 @@ func TestWithinAdminDrainsNestedAfterCommitHooksOnlyAfterOutermostSuccess(t *tes
 func TestRuntimeObserverReceivesActualTransactionResult(t *testing.T) {
 	t.Parallel()
 	runtimeErr := assert.AnError
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(context.Context, int64, func(context.Context, any) error) error { return runtimeErr },
 		func(context.Context, func(context.Context, any) error) error { return nil },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
@@ -311,7 +314,7 @@ func TestRuntimeObserverReceivesActualTransactionResult(t *testing.T) {
 
 func TestRuntimeObserverIgnoresHandledNestedError(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
@@ -319,6 +322,7 @@ func TestRuntimeObserverIgnoresHandledNestedError(t *testing.T) {
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
