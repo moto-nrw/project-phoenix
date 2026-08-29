@@ -158,9 +158,13 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Check deterministic architecture ratchet
         env:
+          BASE_REF: ${{ github.base_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CUTOVER_BASE_SHA: 1c66eb9233fb398b186420b4ffb36004a8a83c6c
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             if git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
@@ -174,6 +178,11 @@ jobs:
                 echo "$unexpected"
                 exit 1
               fi
+              scripts/backend-architecture.sh check
+            elif [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+              # The first release that carries the ratchet cannot compare
+              # against main because main does not have a baseline yet. Only
+              # the repository's development branch may take this path.
               scripts/backend-architecture.sh check
             else
               echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."

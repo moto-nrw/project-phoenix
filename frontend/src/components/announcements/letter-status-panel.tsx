@@ -146,7 +146,7 @@ export function LetterStatusPanel({
       setLoadError(
         getApiErrorMessage(
           error,
-          action === "remind" ? "senden" : "senden",
+          "senden",
           action === "remind" ? "Erinnerung" : "E-Mail",
           "Aktion konnte nicht ausgeführt werden.",
         ),

@@ -5,6 +5,8 @@
 package school_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -105,8 +107,15 @@ func TestSchoolPushSubscriptionIsRecordedAsSchoolDevice(t *testing.T) {
 	}
 
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/school-%d", time.Now().UnixNano())
-	body := fmt.Sprintf(`{"endpoint":%q,"keys":{"p256dh":"key","auth":"auth"}}`, endpoint)
-	req := httptest.NewRequest(http.MethodPost, "/notifications/push/subscriptions", strings.NewReader(body))
+	body, err := json.Marshal(map[string]any{
+		"endpoint": endpoint,
+		"keys": map[string]string{
+			"p256dh": "key",
+			"auth":   "auth",
+		},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/notifications/push/subscriptions", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	if rec.Code == http.StatusConflict {
