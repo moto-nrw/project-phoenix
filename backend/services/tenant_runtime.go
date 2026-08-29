@@ -25,13 +25,17 @@ func (f *Factory) SetTenantRuntime(runtime tenant.Runtime) error {
 		target any
 	}{
 		{"auth", f.Auth},
+		{"settings", f.Settings},
 		{"invitation", f.Invitation},
+		{"guardian invitation", f.GuardianInvitation},
 		{"operator auth", f.OperatorAuth},
 		{"operator invitation", f.OperatorInvitation},
 		{"operator provisioning", f.OperatorProvisioning},
+		{"operator MFA", f.OperatorMFA},
 		{"notifications", f.Notifications},
 		{"push subscriptions", f.PushSubscriptions},
 		{"notification preferences", f.NotificationPreferences},
+		{"absence notifier", f.AbsenceNotifier},
 		{"PWA usage", f.PWAUsage},
 		{"MFA", f.MFA},
 	}

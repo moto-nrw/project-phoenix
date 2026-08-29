@@ -275,7 +275,7 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 	adminCtx := tenant.ContextWithoutTenant(modelBase.ContextWithoutTx(ctx))
 	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
 	var tokens []*authModels.Token
-	err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(adminCtx), s.db, func(txCtx context.Context, _ bun.Tx) error {
 		skip, innerErr := s.shouldSkipAccountWideWipe(txCtx, accountID, reason)
 		if innerErr != nil {
 			return innerErr
@@ -359,7 +359,7 @@ func (s *Service) finishScheduledAccountWideWipe(ctx context.Context, accountID 
 		return s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, pushReason)
 	}
 	adminCtx := s.independentCleanupCtx(ctx)
-	if err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(adminCtx), s.db, func(txCtx context.Context, _ bun.Tx) error {
 		return run(txCtx)
 	}); err != nil {
 		return err
@@ -515,7 +515,7 @@ func (s *Service) withStaffPushAdminTx(ctx context.Context, fn func(context.Cont
 	if _, ok := modelBase.TxFromContext(ctx); ok {
 		return fn(ctx)
 	}
-	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(s.withTenantRuntime(modelBase.ContextWithoutTx(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return fn(adminCtx)
 	})
 }

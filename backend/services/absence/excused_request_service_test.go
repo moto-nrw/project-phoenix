@@ -88,6 +88,7 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		bc,
 		slog.Default(),
 	)
+	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,

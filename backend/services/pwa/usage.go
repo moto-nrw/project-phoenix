@@ -106,6 +106,9 @@ func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {
 }
 
 func (s *usageService) ReportParent(ctx context.Context, accountID int64) error {
+	if s.tenantRuntime != nil {
+		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+	}
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
 		if err != nil {

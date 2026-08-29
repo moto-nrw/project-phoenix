@@ -76,6 +76,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 		m(&cfg)
 	}
 	service := authService.NewGuardianInvitationService(cfg)
+	testpkg.SetTenantRuntime(t, service, db)
 
 	cleanup := func() {
 	}
@@ -646,6 +647,7 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		DB:                   db,
 		Logger:               slog.Default(),
 	})
+	testpkg.SetTenantRuntime(t, service, db)
 
 	cleanup := func() {}
 

@@ -389,7 +389,8 @@ func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
-	ctx := context.WithValue(r.Context(), jwt.CtxClaims, claims)
+	ctx := testpkg.WithPackageTenantRuntime(r.Context())
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	if claims.TenantID != 0 {
 		ctx = tenant.WithTenantID(ctx, claims.TenantID)
 	}

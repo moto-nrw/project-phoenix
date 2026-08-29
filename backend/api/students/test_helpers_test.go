@@ -49,6 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 		broadcaster,
 		slog.Default(),
 	)
+	testpkg.SetTenantRuntime(t, parentEventEmitter, db)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,

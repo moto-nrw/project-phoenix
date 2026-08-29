@@ -72,3 +72,20 @@ func TestTenantRuntimeRejectsAdminElevationInsideTenantTransaction(t *testing.T)
 
 	require.ErrorContains(t, err, "ambient transaction is not administrative")
 }
+
+func TestTenantContextIncludesPackageRuntimeAfterDatabaseSetup(t *testing.T) {
+	t.Parallel()
+	db := SetupTestDB(t)
+	tenantID := Tenant(t)
+	ctx := TenantContext(tenantID)
+
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		current, currentErr := tenant.TenantFromContext(txCtx)
+		require.NoError(t, currentErr)
+		assert.Equal(t, tenantID, current.Int64())
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, db)
+}

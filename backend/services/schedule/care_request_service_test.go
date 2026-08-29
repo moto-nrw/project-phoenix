@@ -52,12 +52,25 @@ type careFixture struct {
 	autoExcusal  *schedule.PickupAutoExcusalSyncer
 }
 
+func (f *careFixture) emitter(
+	t *testing.T,
+	messageRepo usersModels.ParentMessageRepository,
+	settings parentmessaging.TenantSettingsResolver,
+	broadcaster parentmessaging.Broadcaster,
+) *parentmessaging.Emitter {
+	t.Helper()
+	emitter := parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
+	testpkg.SetTenantRuntime(t, emitter, f.db)
+	return emitter
+}
+
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
@@ -100,7 +113,7 @@ func newCareFixture(t *testing.T) *careFixture {
 // write check passes) and the given account id (resolved as the acting staff on
 // approve).
 func (f *careFixture) staffCtx(accountID int64) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
 	return ctx
@@ -134,7 +147,7 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.
 // account behind the id holding a staff record (#2329): the fixture's staff
 // account passes, the guardian account does not.
 func (f *careFixture) nonAdminCtx(accountID int64) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
 	return ctx
@@ -498,7 +511,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, nil, nil, nil, slog.Default()),
+		f.emitter(t, nil, nil, nil),
 		nil,
 		slog.Default(),
 	)
@@ -570,7 +583,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, settings, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, settings, nil),
 		nil,
 		slog.Default(),
 	)
@@ -623,7 +636,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -678,7 +691,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, fakeDisabledSettings{}, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -714,7 +727,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, fakeDisabledSettings{}, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -1130,7 +1143,7 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),
 	)

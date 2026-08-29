@@ -34,7 +34,7 @@ func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
 	if s.db == nil {
 		return nil
 	}
-	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(s.withTenantRuntime(modelBase.ContextWithoutTx(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		seen := map[int64]struct{}{}
 		queue := func(ids []int64) {
 			for _, id := range ids {
@@ -215,7 +215,7 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 		)
 		defer cancel()
 
-		err := tenant.WithTenantTx(logCtx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		err := tenant.WithTenantTx(s.withTenantRuntime(logCtx), s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return s.repos.AuthEvent.Create(ctx, event)
 		})
 		if err != nil {

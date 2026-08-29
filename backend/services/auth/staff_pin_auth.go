@@ -32,7 +32,7 @@ func (s *Service) AuthenticateStaffPIN(
 	}
 
 	var result staffPINAuthenticationResult
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		staff, account, err := s.loadStaffPINAccount(txCtx, tenantID, staffID)
 		if err != nil {
 			return result.captureError(err)

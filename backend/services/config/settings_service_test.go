@@ -2058,6 +2058,7 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	svc := configSvc.NewSettingsService(
 		newMockValueRepo(), &mockAuditRepo{}, schoolRepo, db, slog.Default(),
 	)
+	testpkg.SetTenantRuntime(t, svc, db)
 
 	cleanup := func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, school.ID)

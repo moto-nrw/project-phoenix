@@ -73,17 +73,22 @@ func TenantOperationMiddleware(next http.Handler) http.Handler {
 // Serve root. Missing tenant or runtime context fails closed before next runs.
 func TenantTxMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenantValue, err := tenant.TenantFromContext(r.Context())
-		if err != nil {
-			observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
-			rejectTenantRequest(w, r, err)
-			return
+		tenantID := int64(0)
+		within := tenant.WithinAdmin
+		if tenant.ScopeFromContext(r.Context()) != tenant.ScopePlatform {
+			tenantValue, err := tenant.TenantFromContext(r.Context())
+			if err != nil {
+				observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
+				rejectTenantRequest(w, r, err)
+				return
+			}
+			tenantID = tenantValue.Int64()
+			within = tenant.WithinCurrentTenant
 		}
-		tenantID := tenantValue.Int64()
 		start := time.Now()
 		sw := &tenantStatusWriter{ResponseWriter: w}
 
-		err = tenant.WithinCurrentTenant(r.Context(), func(ctx context.Context) error {
+		err := within(r.Context(), func(ctx context.Context) error {
 			ctx = tenant.WithRollbackMarker(ctx)
 			next.ServeHTTP(sw, r.WithContext(ctx))
 			if sw.status >= http.StatusInternalServerError {

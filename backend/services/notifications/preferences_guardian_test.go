@@ -48,6 +48,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 		},
 	}
 	svc := notifications.NewPreferenceService(repos.NotificationPreference, settings, db, repos.AccountTenant)
+	testpkg.SetTenantRuntime(t, svc, db)
 
 	t.Run("starts empty", func(t *testing.T) {
 		overview, err := svc.GetForParent(ctx, chain.AccountID)

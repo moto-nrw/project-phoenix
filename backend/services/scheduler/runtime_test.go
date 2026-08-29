@@ -6,6 +6,7 @@ import (
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 const schedulerUnitTenantID int64 = 1
@@ -53,6 +54,16 @@ func newUnitScheduler(
 
 func unitScheduler(scheduler *Scheduler) *Scheduler {
 	configured := newUnitScheduler(nil, nil, nil, nil, nil, nil, scheduler.logger)
+	if scheduler.db != nil {
+		runtime, ok := testpkg.PackageTenantRuntime()
+		if !ok {
+			panic("tenant runtime is not configured for the scheduler test package")
+		}
+		scheduler.SetTenantRuntime(runtime)
+		if setter, ok := scheduler.settings.(interface{ SetTenantRuntime(tenant.Runtime) }); ok {
+			setter.SetTenantRuntime(runtime)
+		}
+	}
 	if !scheduler.tenantRuntimeConfigured {
 		scheduler.tenantRuntime = configured.tenantRuntime
 		scheduler.tenantRuntimeConfigured = true

@@ -30,8 +30,8 @@ type PushSubscriptionInput struct {
 	TokenFamilyID string
 }
 
-// PushSubscriptionService manages Web Push device registrations. Staff
-// methods run inside tenant middleware (tenant tx present). Parent operations
+// PushSubscriptionService manages Web Push device registrations. Staff and
+// school methods open a transaction for the current tenant. Parent operations
 // span every active tenant mapping in one admin transaction so mapping reads
 // and device-row changes share the same RLS context and commit atomically.
 type PushSubscriptionService interface {

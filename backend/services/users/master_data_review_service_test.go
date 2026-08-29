@@ -552,6 +552,7 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
+	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -583,6 +584,7 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
+	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

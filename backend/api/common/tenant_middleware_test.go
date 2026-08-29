@@ -60,6 +60,38 @@ func TestTenantTxMiddlewareUsesValidatedTenantAndRollbackMarker(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 }
 
+func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
+	t.Parallel()
+	adminCalled := false
+	runtime, err := tenant.NewRuntime(
+		func(context.Context, int64, func(context.Context, any) error) error {
+			t.Fatal("platform request must not open a tenant transaction")
+			return nil
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error {
+			adminCalled = true
+			return fn(ctx, struct{}{})
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+	)
+	require.NoError(t, err)
+
+	handlerCalled := false
+	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+		assert.True(t, tenant.IsAdminTx(r.Context()))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/auth/accounts", nil)
+	ctx := tenant.WithRuntime(tenant.WithScope(request.Context(), tenant.ScopePlatform), runtime)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request.WithContext(ctx))
+
+	assert.True(t, adminCalled)
+	assert.True(t, handlerCalled)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
 func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {
 	t.Parallel()
 	runtimeErr := assert.AnError

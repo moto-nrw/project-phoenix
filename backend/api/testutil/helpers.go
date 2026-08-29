@@ -74,6 +74,7 @@ func SetupAPITest(t *testing.T, statisticsClocks ...func() time.Time) (*bun.DB, 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), statisticsClocks...)
 	require.NoError(t, err, "Failed to create service factory")
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
 
 	return db, serviceFactory
 }
@@ -277,7 +278,7 @@ func NewTenantRouter(db *bun.DB) chi.Router {
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req.WithContext(testpkg.WithPackageTenantRuntime(req.Context())))
 	return rr
 }
 

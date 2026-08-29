@@ -1529,7 +1529,7 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t))))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), testpkg.Tenant(t))))
 		})
 	})
 	router.Use(testpkg.TenantTxMiddleware(db))
@@ -1588,7 +1588,7 @@ func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), tenantID)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
 	router.Use(testpkg.TenantTxMiddleware(db))

@@ -45,7 +45,7 @@ func conversionRouterWithOpts(parentCtx context.Context, res *Resource, withTena
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
@@ -399,7 +399,7 @@ func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := tenant.WithRollbackMarker(tenant.WithTenantID(r.Context(), tenant.FromContext(s.ctx)))
+			ctx := tenant.WithRollbackMarker(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(r.Context()), tenant.FromContext(s.ctx)))
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})

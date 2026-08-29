@@ -132,6 +132,7 @@ func TestResolveBoolForTenant_RegistryDefault_NoOverride(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	svc := configSvc.NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, db, slog.Default())
+	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveBoolForTenant(context.Background(), tenantID, "test.tenant_bool")
 	require.NoError(t, err)
 	assert.True(t, val, "registry default must be returned when no tenant override exists")
@@ -160,6 +161,7 @@ func TestResolveBoolForTenant_TenantOverrideWins(t *testing.T) {
 	require.NoError(t, repo.Upsert(context.Background(), sv))
 
 	svc := configSvc.NewSettingsService(repo, noopAuditRepo{}, nil, db, slog.Default())
+	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveBoolForTenant(context.Background(), tenantID, "test.tenant_bool_override")
 	require.NoError(t, err)
 	assert.False(t, val, "tenant override (false) must beat the registry default (true)")
@@ -179,6 +181,7 @@ func TestResolveIntForTenant_RegistryDefault_NoOverride(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	svc := configSvc.NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, db, slog.Default())
+	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveIntForTenant(context.Background(), tenantID, "test.tenant_int")
 	require.NoError(t, err)
 	assert.Equal(t, 17, val)
@@ -206,6 +209,7 @@ func TestResolveIntForTenant_TenantOverrideWins(t *testing.T) {
 	require.NoError(t, repo.Upsert(context.Background(), sv))
 
 	svc := configSvc.NewSettingsService(repo, noopAuditRepo{}, nil, db, slog.Default())
+	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveIntForTenant(context.Background(), tenantID, "test.tenant_int_override")
 	require.NoError(t, err)
 	assert.Equal(t, 42, val, "tenant override (42) must beat the registry default (17)")
@@ -221,6 +225,7 @@ func TestResolveIntForTenant_UnknownKey_ReturnsError(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	svc := configSvc.NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, db, slog.Default())
+	testpkg.SetTenantRuntime(t, svc, db)
 	_, err := svc.ResolveIntForTenant(context.Background(), tenantID, "unregistered.key")
 	require.Error(t, err, "an unknown setting must propagate as an error even through the tenant-tx wrapper")
 }

@@ -121,6 +121,7 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 }
 
 func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
 	result := &schedulerMinuteSnapshot{}
 	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		schools, listErr := s.schoolRepo.ListActive(txCtx)

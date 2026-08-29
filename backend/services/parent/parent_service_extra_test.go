@@ -92,7 +92,7 @@ func TestService_ListChildrenForAccount_PassesAccountIDThrough(t *testing.T) {
 	}
 	svc := newSvcWithChild(t, repo)
 
-	got, err := svc.ListChildrenForAccount(context.Background(), 4321)
+	got, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 4321)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "Lara", got[0].FirstName)
@@ -105,7 +105,7 @@ func TestService_ListChildrenForAccount_RejectsZeroAccount(t *testing.T) {
 	repo := &stubChildRepo{}
 	svc := newSvcWithChild(t, repo)
 
-	_, err := svc.ListChildrenForAccount(context.Background(), 0)
+	_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
 	assert.Equal(t, int64(0), repo.gotAccountID, "repo must not be called for invalid input")
@@ -117,7 +117,7 @@ func TestService_ListChildrenForAccount_RejectsNegativeAccount(t *testing.T) {
 	repo := &stubChildRepo{}
 	svc := newSvcWithChild(t, repo)
 
-	_, err := svc.ListChildrenForAccount(context.Background(), -42)
+	_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -42)
 	require.Error(t, err)
 }
 
@@ -128,7 +128,7 @@ func TestService_ListChildrenForAccount_PropagatesRepoError(t *testing.T) {
 	repo := &stubChildRepo{err: want}
 	svc := newSvcWithChild(t, repo)
 
-	_, err := svc.ListChildrenForAccount(context.Background(), 1)
+	_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, want, "service must wrap, not swallow, repo errors")
 }
@@ -139,7 +139,7 @@ func TestService_ListChildrenForAccount_EmptyResultPropagates(t *testing.T) {
 	repo := &stubChildRepo{result: []*parentModels.ChildSummary{}}
 	svc := newSvcWithChild(t, repo)
 
-	got, err := svc.ListChildrenForAccount(context.Background(), 1)
+	got, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.NoError(t, err)
 	assert.NotNil(t, got)
 	assert.Empty(t, got)
@@ -157,7 +157,7 @@ func TestService_ListEnrollableForAccount_PassesAccountIDThrough(t *testing.T) {
 	}
 	svc := newSvcWithEnrollable(t, repo)
 
-	got, err := svc.ListEnrollableForAccount(context.Background(), 999)
+	got, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 999)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(7007), got[0].PhaseID)
@@ -171,7 +171,7 @@ func TestService_ListEnrollableForAccount_RejectsZeroAccount(t *testing.T) {
 	repo := &stubEnrollableRepo{}
 	svc := newSvcWithEnrollable(t, repo)
 
-	_, err := svc.ListEnrollableForAccount(context.Background(), 0)
+	_, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
 	assert.Equal(t, int64(0), repo.gotAccountID)
@@ -183,7 +183,7 @@ func TestService_ListEnrollableForAccount_RejectsNegativeAccount(t *testing.T) {
 	repo := &stubEnrollableRepo{}
 	svc := newSvcWithEnrollable(t, repo)
 
-	_, err := svc.ListEnrollableForAccount(context.Background(), -1)
+	_, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -1)
 	require.Error(t, err)
 }
 
@@ -194,7 +194,7 @@ func TestService_ListEnrollableForAccount_PropagatesRepoError(t *testing.T) {
 	repo := &stubEnrollableRepo{err: want}
 	svc := newSvcWithEnrollable(t, repo)
 
-	_, err := svc.ListEnrollableForAccount(context.Background(), 1)
+	_, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, want)
 }
@@ -205,7 +205,7 @@ func TestService_ListEnrollableForAccount_EmptyResultPropagates(t *testing.T) {
 	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{}}
 	svc := newSvcWithEnrollable(t, repo)
 
-	got, err := svc.ListEnrollableForAccount(context.Background(), 1)
+	got, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.NoError(t, err)
 	assert.NotNil(t, got)
 	assert.Empty(t, got)
@@ -230,6 +230,6 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	require.NotNil(t, svc)
 
 	// Round-trip a call so the nil-logger path actually executes.
-	_, err := svc.ListChildrenForAccount(context.Background(), 1)
+	_, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.NoError(t, err)
 }

@@ -69,6 +69,12 @@ func observeRuntime(ctx context.Context, event RuntimeEvent) {
 	}
 }
 
+// ObserveMissingTenant reports an entry-point rejection that happens before a
+// tenant runtime operation can start, such as an invalid tenant ID in a token.
+func ObserveMissingTenant(ctx context.Context, err error) {
+	observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeMissingTenant, Err: err})
+}
+
 func runtimeFromContext(ctx context.Context) (Runtime, error) {
 	runtime, ok := ctx.Value(runtimeKey{}).(Runtime)
 	if !ok || runtime.withinTenant == nil || runtime.withinAdmin == nil || runtime.savepoint == nil {

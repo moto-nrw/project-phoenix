@@ -35,6 +35,7 @@ func setupRequestCacheDBTest(t *testing.T) (*bun.DB, int64, configService.Settin
 	repository := configRepository.NewSettingValueRepository(db)
 	auditRepository := configRepository.NewSettingAuditRepository(db)
 	service := configService.NewSettingsService(repository, auditRepository, nil, db, slog.Default())
+	testpkg.SetTenantRuntime(t, service, db)
 	return db, tenantID, service
 }
 

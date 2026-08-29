@@ -381,7 +381,7 @@ func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *
 	require.NoError(t, err)
 
 	require.NoError(t, tenant.WithAdminTx(testpkg.WithTenantRuntime(t, ctx, db), db, func(adminCtx context.Context, _ bun.Tx) error {
-		deleted, delErr := repo.DeleteByAccountIDReturning(adminCtx, account.ID)
+		deleted, delErr := repo.DeleteByAccountIDReturning(tenant.WithTenantID(adminCtx, tenantID), account.ID)
 		require.NoError(t, delErr)
 		require.Len(t, deleted, 1)
 		require.Equal(t, local.ID, deleted[0].ID)

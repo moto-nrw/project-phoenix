@@ -103,7 +103,7 @@ func TestSubmitSick_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate()
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest, "a sick report must become a pending request when approval is on")
@@ -115,7 +115,7 @@ func TestSubmitSick_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 		Table("users.students").
 		Column("sick").
 		Where("id = ?", chain.StudentID).
-		Scan(context.Background(), &sick))
+		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.False(t, sick, "the child stays expected until the OGS approves the sick request")
 }
 
@@ -126,7 +126,7 @@ func TestSubmitSick_ApprovalOff_WritesDirectly(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(2)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	require.Nil(t, res.PendingRequest)
@@ -141,7 +141,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	today := timezone.TodayDate()
 
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{today}, "Fieber", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
@@ -155,7 +155,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, today, today)
+	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, today, today)
 	require.NoError(t, err)
 	require.Len(t, absences, 1)
 	assert.Equal(t, activeModels.StudentStatusDaySick, absences[0].Status)
@@ -165,14 +165,14 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 		Table("users.students").
 		Column("sick").
 		Where("id = ?", chain.StudentID).
-		Scan(context.Background(), &sick))
+		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &sick))
 	assert.True(t, sick, "approving today's sick request must mark the child sick")
 }
 
 // adminCtx returns a context carrying wildcard-admin permissions so the staff
 // decide gate authorizes without a wired userContext.
 func adminCtx() context.Context {
-	return context.WithValue(context.Background(), jwt.CtxPermissions, []string{"admin:*"})
+	return context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), jwt.CtxPermissions, []string{"admin:*"})
 }
 
 // TestSubmitExcused_ApprovalOn_CreatesPendingRequest verifies that with the
@@ -185,7 +185,7 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(3)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest, "an excused report must become a pending request when approval is on")
@@ -197,12 +197,12 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	// The absence list (status days) stays empty — the child is still expected.
 	from := timezone.TodayDate()
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
-	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a pending excused request must not appear as a confirmed absence")
 
 	// It DOES appear in the parent's excused-requests view.
-	reqs, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+	reqs, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, reqs, 1)
 	assert.Equal(t, activeModels.ExcusedRequestStatusPending, reqs[0].Status)
@@ -217,7 +217,7 @@ func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(3)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	require.Nil(t, res.PendingRequest, "no request is created when the gate is off")
@@ -235,7 +235,7 @@ func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 		day := timezone.TodayDate().AddDays(3)
-		_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 			[]timezone.Date{day}, "   ", activeModels.StudentStatusDayExcused)
 		assert.ErrorIs(t, err, parentService.ErrEmptyNote, "excused with blank note must be rejected (gate=%v)", gate)
 
@@ -251,7 +251,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(3)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
@@ -274,7 +274,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	// The approved absence now shows as a confirmed excused status day.
 	from := timezone.TodayDate()
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
-	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, absences, 1, "approving the request writes the excused status day")
 	assert.Equal(t, activeModels.StudentStatusDayExcused, absences[0].Status)
@@ -291,7 +291,7 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(3)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
@@ -308,7 +308,7 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 
 	from := timezone.TodayDate()
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
-	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a rejected request must not write a status day")
 }
@@ -326,7 +326,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(3)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
@@ -339,7 +339,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 		Set("created_at = ?", old).
 		Set("updated_at = ?", old).
 		Where("id = ?", requestID).
-		Exec(context.Background())
+		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 
 	// Staff reject it today — reviewed_at is stamped now, inside the window.
@@ -353,7 +353,7 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	reqs, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+	reqs, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, reqs, 1, "a long-pending request rejected today must stay visible so the parent learns the outcome")
 	assert.Equal(t, activeModels.ExcusedRequestStatusRejected, reqs[0].Status)
@@ -375,7 +375,7 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 
 	// A date well beyond the parent's ~2-month status-day window.
 	far := timezone.TodayDate().AddDays(120)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{far}, "Urlaub", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
@@ -392,12 +392,12 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 	// The status-day view (today..+1 month here) does NOT include the far date.
 	from := timezone.TodayDate()
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
-	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "the confirmed day is outside the parent's status-day window")
 
 	// But the approved request is still listed, so the parent sees the outcome.
-	reqs, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+	reqs, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, reqs, 1, "an approved out-of-window request must stay visible so the parent sees the confirmation")
 	assert.Equal(t, activeModels.ExcusedRequestStatusApproved, reqs[0].Status)
@@ -416,7 +416,7 @@ func TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	day := timezone.TodayDate().AddDays(3)
-	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
@@ -427,10 +427,10 @@ func TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked(t *testing.T) {
 		Table("users.students_guardians").
 		Set("permissions = ?", `{"parent_portal.access": true}`).
 		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, chain.GuardianProfileID).
-		Exec(context.Background())
+		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 
-	out, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID, requestID)
+	out, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, requestID)
 	require.NoError(t, err, "portal access alone must permit withdrawing one's own pending request")
 	require.NotNil(t, out)
 	assert.Equal(t, activeModels.ExcusedRequestStatusWithdrawn, out.Status)

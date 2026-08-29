@@ -325,6 +325,7 @@ func serveAuthenticatedDeviceRequest(
 	schools SchoolLookup,
 	staffPINAuthenticator StaffPINAuthenticator,
 	pinResolver PINResolver,
+	observeMissingTenant func(context.Context, error),
 ) {
 	device, errResp := extractAndValidateAPIKey(r, iotService)
 	if errResp != nil {
@@ -339,13 +340,14 @@ func serveAuthenticatedDeviceRequest(
 		return
 	}
 
-	if errResp := validateDevicePIN(r, device, pinResolver); errResp != nil {
-		renderDeviceAuthError(w, r, errResp)
-		return
-	}
 	tenantID, err := tenant.NewTenantID(device.TenantID)
 	if err != nil {
+		observeMissingTenant(r.Context(), err)
 		renderDeviceAuthError(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey))
+		return
+	}
+	if errResp := validateDevicePIN(r, device, pinResolver); errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
 		return
 	}
 
@@ -381,6 +383,16 @@ func DeviceAuthenticator(
 	staffPINAuthenticator StaffPINAuthenticator,
 	pinResolver PINResolver,
 ) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService, schools, staffPINAuthenticator, pinResolver, tenant.ObserveMissingTenant)
+}
+
+func deviceAuthenticator(
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	staffPINAuthenticator StaffPINAuthenticator,
+	pinResolver PINResolver,
+	observeMissingTenant func(context.Context, error),
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serveAuthenticatedDeviceRequest(
@@ -391,6 +403,7 @@ func DeviceAuthenticator(
 				schools,
 				staffPINAuthenticator,
 				pinResolver,
+				observeMissingTenant,
 			)
 		})
 	}
@@ -403,6 +416,14 @@ func DeviceAuthenticator(
 // such as getting the list of available teachers for login selection.
 // Rejects requests for devices belonging to soft-deleted schools.
 func DeviceOnlyAuthenticator(iotService iotSvc.Service, schools SchoolLookup) func(http.Handler) http.Handler {
+	return deviceOnlyAuthenticator(iotService, schools, tenant.ObserveMissingTenant)
+}
+
+func deviceOnlyAuthenticator(
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	observeMissingTenant func(context.Context, error),
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -424,6 +445,7 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service, schools SchoolLookup) fu
 
 			tenantID, err := tenant.NewTenantID(device.TenantID)
 			if err != nil {
+				observeMissingTenant(r.Context(), err)
 				if renderErr := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidAPIKey)); renderErr != nil {
 					slog.Error("failed to render device auth error", slog.String("error", renderErr.Error()))
 				}

@@ -306,7 +306,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	svc.CareOfferingRepo = careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{
 		firstOffering, nil, secondOffering, futureOffering,
 	}}
-	view, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
+	view, err := svc.GetChildCareOfferings(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Schuljahr 2026/27", view.PeriodName)
@@ -330,7 +330,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	// A decided request has no open Request, but its result remains visible for
 	// the recency window.
 	changes.view.Request = nil
-	view, err = svc.GetChildCareOfferings(context.Background(), 11, 22)
+	view, err = svc.GetChildCareOfferings(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 	require.NoError(t, err)
 	assert.Nil(t, view.PendingRequest)
 	assert.Equal(t, changes.view.LastDecision, view.LastDecision)
@@ -343,7 +343,7 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 	svc := careOfferingsService(db, permittedCareOfferingsChild(t), nil)
 	svc.RequestChildRepo = carePeriodRepoStub{}
 
-	view, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
+	view, err := svc.GetChildCareOfferings(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 	require.NoError(t, err)
 	assert.Empty(t, view.Offerings)
 	assert.NotNil(t, view.Offerings)
@@ -374,7 +374,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 	}}
 	view := &ChildCareOfferings{Offerings: []CareOfferingSelection{}}
 
-	_, err := svc.loadChildCareOfferings(context.Background(), 22, today, view)
+	_, err := svc.loadChildCareOfferings(testpkg.WithPackageTenantRuntime(context.Background()), 22, today, view)
 	require.NoError(t, err)
 	assert.Equal(t, 1, links.historyCalls)
 	assert.Empty(t, links.dates)
@@ -440,7 +440,7 @@ func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
 			svc := careOfferingsService(db, permittedCareOfferingsChild(t), nil)
 			tt.setup(svc)
 
-			_, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
+			_, err := svc.GetChildCareOfferings(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, dependencyErr)
 		})
@@ -509,7 +509,7 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &service{ServiceConfig: ServiceConfig{RequestChildRepo: tt.repo}}
-			got, err := svc.currentCarePeriod(context.Background(), 22, today)
+			got, err := svc.currentCarePeriod(testpkg.WithPackageTenantRuntime(context.Background()), 22, today)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -583,7 +583,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &service{ServiceConfig: ServiceConfig{Settings: tt.settings, Logger: slog.Default()}}
 			got, reason := svc.resolveOfferingChangeAvailabilityForStudent(
-				context.Background(),
+				testpkg.WithPackageTenantRuntime(context.Background()),
 				tt.child,
 				0,
 				tt.period,
@@ -608,12 +608,12 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	svc := careOfferingsService(db, child, changes)
 	svc.RequestChildRepo = carePeriodRepoStub{}
 
-	catalog, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
+	catalog, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 	require.NoError(t, err)
 	assert.Equal(t, int64(99), catalog.PhaseID)
 
 	selections := []enrollmentSvc.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
-	view, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, selections, today.AddDays(20), "Bitte", false)
+	view, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, selections, today.AddDays(20), "Bitte", false)
 	require.NoError(t, err)
 	assert.NotNil(t, view)
 	assert.Equal(t, int64(22), changes.createdInput.StudentID)
@@ -621,7 +621,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	assert.Equal(t, selections, changes.createdInput.Selections)
 	assert.Equal(t, "Bitte", changes.createdInput.Note)
 
-	view, err = svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 77)
+	view, err = svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 77)
 	require.NoError(t, err)
 	assert.NotNil(t, view)
 	assert.Equal(t, [3]int64{77, 11, 22}, changes.withdrawn)
@@ -639,7 +639,7 @@ func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *test
 	svc := careOfferingsService(db, child, changes)
 	svc.RequestChildRepo = carePeriodRepoStub{}
 
-	_, err := svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 77)
+	_, err := svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 77)
 	require.NoError(t, err)
 	assert.Equal(t, [3]int64{77, 11, 22}, changes.withdrawn)
 }
@@ -659,7 +659,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			name:  "catalog no service",
 			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
-				_, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
+				_, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 				return err
 			},
 			want: enrollmentSvc.ErrOfferingChangeDisabled,
@@ -668,7 +668,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			name:  "create no service",
 			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
-				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "", false)
+				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false)
 				return err
 			},
 			want: enrollmentSvc.ErrOfferingChangeDisabled,
@@ -677,7 +677,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			name:  "withdraw no service",
 			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
-				_, err := svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 1)
+				_, err := svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 1)
 				return err
 			},
 			want: enrollmentSvc.ErrOfferingChangeDisabled,
@@ -687,7 +687,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			child:  &parentModels.ChildSummary{StudentID: 22, TenantID: testpkg.Tenant(t)},
 			change: &offeringChangesStub{},
 			call: func(svc *service) error {
-				_, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
+				_, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 				return err
 			},
 			want: ErrGuardianPermissionDenied,
@@ -697,7 +697,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{catalogErr: delegateErr},
 			call: func(svc *service) error {
-				_, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
+				_, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
 				return err
 			},
 			want: delegateErr,
@@ -707,7 +707,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{createErr: delegateErr},
 			call: func(svc *service) error {
-				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "", false)
+				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false)
 				return err
 			},
 			want: delegateErr,
@@ -717,7 +717,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{withdrawErr: delegateErr},
 			call: func(svc *service) error {
-				_, err := svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 1)
+				_, err := svc.WithdrawOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, 1)
 				return err
 			},
 			want: delegateErr,

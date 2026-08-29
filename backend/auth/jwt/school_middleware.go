@@ -43,6 +43,7 @@ func SchoolMiddleware(next http.Handler) http.Handler {
 		// letting RLS return empty results downstream.
 		tenantID, err := tenant.NewTenantID(claims.TenantID)
 		if err != nil {
+			tenant.ObserveMissingTenant(r.Context(), err)
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}

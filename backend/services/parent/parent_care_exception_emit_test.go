@@ -33,6 +33,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
+	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -61,7 +62,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	date := today.AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
-	exc, err := svc.SubmitCareExceptionWithReason(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
+	exc, err := svc.SubmitCareExceptionWithReason(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
 	require.NoError(t, err)
 	require.NotNil(t, exc)
 
@@ -71,7 +72,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		"a submitted care exception drops a self-service mirror pill")
 
 	// Deleting the exception drops a correction pill (self-service mirror again).
-	require.NoError(t, svc.DeleteCareException(context.Background(), chain.AccountID, chain.StudentID, date))
+	require.NoError(t, svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date))
 	_, msgs = loadThreadPills(t, db, repos, chain)
 	assert.GreaterOrEqual(t, len(msgs), 2,
 		"deleting the exception drops a correction pill onto the thread")
@@ -95,6 +96,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	emitterBC := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
+	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -121,7 +123,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	date := timezone.TodayDate().AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
-	_, err := svc.SubmitCareExceptionWithReason(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
+	_, err := svc.SubmitCareExceptionWithReason(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
 	require.NoError(t, err)
 
 	guardianCalls := emitterBC.CallsByMethod("guardian")
@@ -146,7 +148,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c te
 	t.Helper()
 	var threadID int64
 	var msgs []*usersModels.ParentMessage
-	err := testpkg.WithTenantTx(t, context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr

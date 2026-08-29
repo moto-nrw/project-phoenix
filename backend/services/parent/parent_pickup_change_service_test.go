@@ -171,7 +171,7 @@ func TestPickupChangeRejectsASecondOpenRequestForTheSameDay(t *testing.T) {
 	svc, db, _ := buildPickupChangeServiceWithRequests(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	date := timezone.TodayDate().AddDays(4)
 	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
 
@@ -192,17 +192,17 @@ func TestSubmitPickupChangeRequestRejectsBadInput(t *testing.T) {
 	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 
 	t.Run("ohne Uhrzeit", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(context.Background(), 1, 1, tomorrow, time.Time{}, "Arzttermin")
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, time.Time{}, "Arzttermin")
 		require.ErrorIs(t, err, parentService.ErrNoCareException)
 	})
 
 	t.Run("ohne Grund", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(context.Background(), 1, 1, tomorrow, pickup, "   ")
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup, "   ")
 		require.ErrorIs(t, err, parentService.ErrCareExceptionReasonRequired)
 	})
 
 	t.Run("Grund zu lang", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(context.Background(), 1, 1, tomorrow, pickup,
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup,
 			strings.Repeat("a", 256))
 		require.ErrorIs(t, err, parentService.ErrCareExceptionReasonTooLong)
 	})
@@ -210,7 +210,7 @@ func TestSubmitPickupChangeRequestRejectsBadInput(t *testing.T) {
 	// 255 runes is the limit, and it counts runes, not bytes: an Umlaut must not
 	// cost two characters of a parent's explanation.
 	t.Run("255 Umlaute sind kein zu langer Grund", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(context.Background(), 1, 1, tomorrow, pickup,
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, pickup,
 			strings.Repeat("ä", 255))
 		assert.NotErrorIs(t, err, parentService.ErrCareExceptionReasonTooLong)
 	})
@@ -225,7 +225,7 @@ func TestSubmitPickupChangeRequestRejectsForeignChild(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
-	_, err := svc.SubmitPickupChangeRequest(context.Background(), chain.AccountID,
+	_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
 		chain.StudentID+999999, timezone.TodayDate().AddDays(1), pickup, "Arzttermin")
 
 	require.Error(t, err, "ein nicht verknuepftes Kind muss abgewiesen werden")
@@ -239,7 +239,7 @@ func TestSubmitPickupChangeRequestRespectsSchoolSetting(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
-	_, err := svc.SubmitPickupChangeRequest(context.Background(), chain.AccountID,
+	_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
 		chain.StudentID, timezone.TodayDate().AddDays(1), pickup, "Arzttermin")
 
 	require.ErrorIs(t, err, parentService.ErrPickupChangeDisabled)
@@ -257,13 +257,13 @@ func TestSubmitPickupChangeRequestBoundsTheDate(t *testing.T) {
 	today := timezone.TodayDate()
 
 	t.Run("gestern", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(context.Background(), chain.AccountID,
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
 			chain.StudentID, today.AddDays(-1), pickup, "Arzttermin")
 		require.ErrorIs(t, err, parentService.ErrPastCareDate)
 	})
 
 	t.Run("zu weit voraus", func(t *testing.T) {
-		_, err := svc.SubmitPickupChangeRequest(context.Background(), chain.AccountID,
+		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
 			chain.StudentID, today.AddDays(200), pickup, "Arzttermin")
 		require.ErrorIs(t, err, parentService.ErrCareDateTooFar)
 	})
@@ -279,12 +279,12 @@ func TestPickupChangeReadAndWithdrawRejectForeignChild(t *testing.T) {
 	foreign := chain.StudentID + 999999
 
 	t.Run("list", func(t *testing.T) {
-		_, err := svc.ListPickupChangeRequests(context.Background(), chain.AccountID, foreign)
+		_, err := svc.ListPickupChangeRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, foreign)
 		require.Error(t, err)
 	})
 
 	t.Run("withdraw", func(t *testing.T) {
-		_, err := svc.WithdrawPickupChangeRequest(context.Background(), chain.AccountID, foreign, 1)
+		_, err := svc.WithdrawPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, foreign, 1)
 		require.Error(t, err)
 	})
 }
@@ -297,7 +297,7 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.ListPickupChangeRequests(context.Background(), chain.AccountID, chain.StudentID)
+	_, err := svc.ListPickupChangeRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
 }

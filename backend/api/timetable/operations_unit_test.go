@@ -424,7 +424,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(tenant.WithTenantID(r.Context(), testpkg.Tenant(t))))
+			next.ServeHTTP(w, r.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(r.Context()), testpkg.Tenant(t))))
 		})
 	})
 	router.Use(testpkg.TenantTxMiddleware(db))

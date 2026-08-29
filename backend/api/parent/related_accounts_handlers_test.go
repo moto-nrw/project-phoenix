@@ -84,7 +84,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
-	return rs.Router()
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 
 func TestRelatedAccountsEndpoint_List(t *testing.T) {
@@ -188,7 +188,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.G
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
-	return rs.Router()
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 
 func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {

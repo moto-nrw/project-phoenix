@@ -470,9 +470,9 @@ func (s *mfaService) resolvePolicy(ctx context.Context, accountID, tenantID int6
 	}
 	var txErr error
 	if inTx {
-		txErr = tenant.WithAdminTxOrDirect(ctx, s.DB, loadOverrides)
+		txErr = tenant.WithAdminTxOrDirect(s.withTenantRuntime(ctx), s.DB, loadOverrides)
 	} else {
-		txErr = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		txErr = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 			return loadOverrides(txCtx)
 		})
 	}
@@ -986,7 +986,7 @@ func (s *mfaService) Enroll(ctx context.Context, accountID int64) error {
 // account in a half-disabled state (e.g. credential gone but devices
 // still trusted).
 func (s *mfaService) Disable(ctx context.Context, accountID int64) error {
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.Repos.MFACredential.DeleteByAccountID(txCtx, accountID); err != nil {
 			return fmt.Errorf("delete credential: %w", err)
 		}
@@ -1375,7 +1375,7 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 	}
 
 	previous := MFAAdminOverrideNone
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 			return err
 		}
@@ -1510,7 +1510,7 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 	}
 
 	previous := MFAAdminOverrideNone
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
 			return err
 		}
@@ -1976,7 +1976,7 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 			5*time.Second,
 		)
 		defer cancel()
-		err := tenant.WithTenantTx(logCtx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		err := tenant.WithTenantTx(s.withTenantRuntime(logCtx), s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 			return s.Repos.AuthEvent.Create(ctx, event)
 		})
 		if err != nil {

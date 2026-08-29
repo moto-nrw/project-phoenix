@@ -24,6 +24,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // fakeParentService implements parentService.Service. Only the profile methods
@@ -295,7 +296,8 @@ func (f *fakeParentService) RespondToAnnouncement(context.Context, int64, int64,
 // withClaims attaches a parent account id to the request context the way the
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {
-	ctx := context.WithValue(r.Context(), jwt.CtxClaims, jwt.AppClaims{ID: accountID})
+	ctx := testpkg.WithPackageTenantRuntime(r.Context())
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: accountID})
 	return r.WithContext(ctx)
 }
 

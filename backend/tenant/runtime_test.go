@@ -135,3 +135,14 @@ func TestRuntimeObserverClassifiesMissingTenant(t *testing.T) {
 	assert.Equal(t, tenant.RuntimeMissingTenant, observed.Outcome)
 	require.ErrorIs(t, observed.Err, tenant.ErrInvalidTenantID)
 }
+
+func TestObserveMissingTenantReportsEntryPointRejection(t *testing.T) {
+	t.Parallel()
+	var observed tenant.RuntimeEvent
+	ctx := tenant.WithRuntimeObserver(context.Background(), func(event tenant.RuntimeEvent) { observed = event })
+
+	tenant.ObserveMissingTenant(ctx, tenant.ErrInvalidTenantID)
+
+	assert.Equal(t, tenant.RuntimeMissingTenant, observed.Outcome)
+	require.ErrorIs(t, observed.Err, tenant.ErrInvalidTenantID)
+}

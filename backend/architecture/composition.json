@@ -631,7 +631,7 @@
       "locations": [
         {
           "file": "test/e2e/timetable/shared_setup.go",
-          "line": 50,
+          "line": 49,
           "declaration": "type scenario"
         }
       ]
@@ -641,7 +641,7 @@
       "locations": [
         {
           "file": "test/e2e/timetable/shared_setup.go",
-          "line": 75,
+          "line": 74,
           "declaration": "newScenario"
         }
       ]
@@ -651,7 +651,7 @@
       "locations": [
         {
           "file": "test/e2e/timetable/shared_setup.go",
-          "line": 49,
+          "line": 48,
           "declaration": "type scenario"
         }
       ]
@@ -16858,7 +16858,7 @@
       "declaration": "TestResolveTenant_DeletedSchool_ReturnsNotFound",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        2234
+        2233
       ],
       "tables": [
         "platform.schools"
@@ -17303,7 +17303,7 @@
       "declaration": "TestDisplayFeatureGate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        667
+        669
       ],
       "tables": []
     },
@@ -17323,7 +17323,7 @@
       "declaration": "newDisplayRouter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        65
+        66
       ],
       "tables": []
     },
@@ -17843,7 +17843,7 @@
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1531
+        1532
       ],
       "tables": []
     },
@@ -17853,10 +17853,10 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1464,
-        1494,
-        1500,
-        1517
+        1465,
+        1495,
+        1501,
+        1518
       ],
       "tables": [
         "config.work_time_models",
@@ -18147,7 +18147,7 @@
       "declaration": "TestAbsenceMutations_RollBackWritesOnConflictResponses",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1681
+        1682
       ],
       "tables": []
     },
@@ -26221,7 +26221,7 @@
       "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        731
+        732
       ],
       "tables": []
     },
@@ -26231,7 +26231,7 @@
       "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        689
+        690
       ],
       "tables": []
     },
@@ -26251,7 +26251,7 @@
       "declaration": "insertStatusDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        585
+        586
       ],
       "tables": []
     },
@@ -26860,7 +26860,7 @@
       "declaration": "setupInvitationService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        54
+        55
       ],
       "tables": []
     },
@@ -26870,7 +26870,7 @@
       "declaration": "setupInvitationService",
       "target": "services.NewFactory",
       "lines": [
-        55
+        56
       ],
       "tables": []
     },
@@ -26917,7 +26917,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        743
+        745
       ],
       "tables": []
     },
@@ -26937,7 +26937,7 @@
       "declaration": "setupGuardianInviteWithBackfiller",
       "target": "database/repositories.NewFactory",
       "lines": [
-        630
+        631
       ],
       "tables": []
     },
@@ -26976,7 +26976,7 @@
       "declaration": "TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        241
+        242
       ],
       "tables": []
     },
@@ -27086,7 +27086,7 @@
       "declaration": "TestRevocationRollsBackWhenAuditInsertFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        87
+        86
       ],
       "tables": [
         "auth.tokens"
@@ -27098,7 +27098,7 @@
       "declaration": "TestRevocationRollsBackWhenAuditInsertFails",
       "target": "services.NewFactory",
       "lines": [
-        89
+        88
       ],
       "tables": [
         "auth.tokens"
@@ -29396,7 +29396,7 @@
       "declaration": "TestSubmitCareException_WakesEveryGuardian",
       "target": "database/repositories.NewFactory",
       "lines": [
-        91
+        92
       ],
       "tables": []
     },
@@ -30388,7 +30388,7 @@
       "declaration": "newCareFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        58
+        70
       ],
       "tables": []
     },
@@ -30398,7 +30398,7 @@
       "declaration": "newCareFixture",
       "target": "services.NewFactory",
       "lines": [
-        59
+        71
       ],
       "tables": []
     },
@@ -30428,7 +30428,7 @@
       "declaration": "TestDetectStartConflicts_EmptyInstance_NoWarnings",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2197
+        2198
       ],
       "tables": []
     },
@@ -30438,7 +30438,7 @@
       "declaration": "TestInstance_Cancel_FromActive_DoesNotTouchAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2172
+        2173
       ],
       "tables": []
     },
@@ -30448,7 +30448,7 @@
       "declaration": "TestInstance_Complete_MarksRemainingExpectedAsAbsent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2041
+        2042
       ],
       "tables": []
     },
@@ -31277,7 +31277,7 @@
       "declaration": "newUnitScheduler",
       "target": "services/scheduler.NewScheduler",
       "lines": [
-        22
+        23
       ],
       "tables": []
     },
@@ -31987,7 +31987,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        620
+        622
       ],
       "tables": []
     },
@@ -32047,7 +32047,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        581
+        582
       ],
       "tables": []
     },
@@ -32452,7 +32452,7 @@
       "declaration": "newScenario",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        67
+        66
       ],
       "tables": [
         "active.group_supervisors",
@@ -32482,7 +32482,7 @@
       "declaration": "newScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        75
+        74
       ],
       "tables": [
         "active.group_supervisors",
