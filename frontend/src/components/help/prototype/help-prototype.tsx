@@ -12,6 +12,7 @@ import {
   MessageCircleQuestion,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { ButtonLink } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import {
@@ -148,17 +149,35 @@ function RelatedTopics({
   topic,
   topicsById,
   hrefFor,
+  sectionId,
+  title = "Das passt dazu",
+  documentationStyle = false,
 }: Readonly<{
   topic: PrototypeTopic;
   topicsById: ReadonlyMap<string, PrototypeTopic>;
   hrefFor: (topicId?: string) => string;
+  sectionId?: string;
+  title?: string;
+  documentationStyle?: boolean;
 }>) {
   const related = topic.related
     .map((id) => topicsById.get(id))
     .filter((item): item is PrototypeTopic => item != null);
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-gray-950">Das passt dazu</h2>
+    <section
+      id={sectionId}
+      className={cn("scroll-mt-8", documentationStyle ? "pt-12" : "mt-8")}
+    >
+      <h2
+        className={cn(
+          "font-semibold text-gray-950",
+          documentationStyle
+            ? "text-2xl tracking-tight text-balance"
+            : "text-lg",
+        )}
+      >
+        {title}
+      </h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {related.map((item) => (
           <Link
@@ -185,18 +204,145 @@ function RelatedTopics({
   );
 }
 
+function DocumentationArticlePrototype({
+  topic,
+  topicsById,
+  hrefFor,
+}: Readonly<{
+  topic: PrototypeTopic;
+  topicsById: ReadonlyMap<string, PrototypeTopic>;
+  hrefFor: (topicId?: string) => string;
+}>) {
+  const tableOfContents = [
+    { id: "anleitung", label: "So finden Sie ein Kind", show: true },
+    { id: "tipp", label: "Tipp", show: Boolean(topic.note) },
+    {
+      id: "beispiel",
+      label: "So sieht die Suche aus",
+      show: Boolean(topic.image),
+    },
+    { id: "weitere-themen", label: "Weitere Themen", show: true },
+  ].filter((item) => item.show);
+
+  return (
+    <div className="xl:grid xl:grid-cols-[minmax(0,42rem)_12rem] xl:gap-16">
+      <article className="max-w-2xl min-w-0">
+        <nav aria-label="Brotkrümelnavigation" className="mb-8">
+          <ol className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+            <li>
+              <Link href={hrefFor()} className="hover:text-gray-950">
+                Hilfe
+              </Link>
+            </li>
+            <li aria-hidden="true">/</li>
+            <li>{PROTOTYPE_GROUP_LABELS[topic.group]}</li>
+            <li aria-hidden="true">/</li>
+            <li className="font-medium text-gray-900">{topic.title}</li>
+          </ol>
+        </nav>
+
+        <header>
+          <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
+            {PROTOTYPE_GROUP_LABELS[topic.group]}
+          </p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-balance text-gray-950 sm:text-5xl">
+            {topic.question}
+          </h1>
+          <p className="mt-5 text-lg leading-8 text-pretty text-gray-600">
+            {topic.summary}
+          </p>
+        </header>
+
+        <section id="anleitung" className="scroll-mt-8 pt-14">
+          <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
+            So finden Sie ein Kind
+          </h2>
+          <ol className="marker:text-moto-green-strong mt-6 list-decimal space-y-4 pl-6 marker:font-semibold">
+            {topic.steps.map((step) => (
+              <li key={step} className="pl-2 text-base leading-7 text-gray-700">
+                <InlineCode text={step} />
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {topic.note && (
+          <section id="tipp" className="scroll-mt-8 pt-12">
+            <h2 className="mb-5 text-2xl font-semibold tracking-tight text-gray-950">
+              Tipp
+            </h2>
+            <Alert
+              type="info"
+              title="Gut zu wissen"
+              message={topic.note.replaceAll("`", "")}
+              announce="off"
+            />
+          </section>
+        )}
+
+        {topic.image && (
+          <section id="beispiel" className="scroll-mt-8 pt-12">
+            <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
+              So sieht die Suche aus
+            </h2>
+            <p className="mt-3 text-base leading-7 text-pretty text-gray-600">
+              Im Suchfeld und in den Filtern grenzen Sie die Kinderliste ein.
+            </p>
+            <div className="mt-6">
+              <TopicImage topic={topic} />
+            </div>
+          </section>
+        )}
+
+        <RelatedTopics
+          topic={topic}
+          topicsById={topicsById}
+          hrefFor={hrefFor}
+          sectionId="weitere-themen"
+          title="Weitere Themen"
+          documentationStyle
+        />
+      </article>
+
+      <aside className="hidden xl:block" aria-label="Auf dieser Seite">
+        <div className="sticky top-8 border-l border-gray-200 pl-5">
+          <p className="text-sm font-semibold text-gray-950">
+            Auf dieser Seite
+          </p>
+          <nav className="mt-4" aria-label="Abschnitte auf dieser Seite">
+            <ul className="space-y-3">
+              {tableOfContents.map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`#${item.id}`}
+                    className="text-sm leading-5 text-gray-500 hover:text-gray-950"
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function SidebarPrototype({
   topic,
   topics,
   role,
   hrefFor,
   chatGptHref,
+  documentationStyle = false,
 }: Readonly<{
   topic?: PrototypeTopic;
   topics: readonly PrototypeTopic[];
   role: PrototypeRole;
   hrefFor: (topicId?: string) => string;
   chatGptHref: string;
+  documentationStyle?: boolean;
 }>) {
   const topicsById = new Map(topics.map((item) => [item.id, item]));
   const groupOrder =
@@ -266,7 +412,12 @@ function SidebarPrototype({
         </div>
       </aside>
 
-      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 lg:px-12">
+      <main
+        className={cn(
+          "mx-auto w-full px-4 py-8 sm:px-6 lg:px-12",
+          documentationStyle ? "max-w-6xl" : "max-w-5xl",
+        )}
+      >
         <details className="moto-content-surface mb-6 rounded-2xl border p-4 shadow-sm lg:hidden">
           <summary className="cursor-pointer text-sm font-semibold text-gray-900">
             {topic ? `Thema: ${topic.title}` : "Themen öffnen"}
@@ -275,7 +426,13 @@ function SidebarPrototype({
             {topicNavigation}
           </div>
         </details>
-        {topic ? (
+        {topic && documentationStyle ? (
+          <DocumentationArticlePrototype
+            topic={topic}
+            topicsById={topicsById}
+            hrefFor={hrefFor}
+          />
+        ) : topic ? (
           <article className="max-w-3xl">
             <Link
               href={hrefFor()}
@@ -393,6 +550,8 @@ export function HelpPrototype() {
   );
   const topicId = params.topic?.[0];
   const topic = topics.find((item) => item.id === topicId);
+  const documentationStyle =
+    topic?.id === "kindersuche" && searchParams.get("article_style") === "docs";
 
   const hrefFor = useCallback(
     (nextTopicId?: string) => {
@@ -422,7 +581,6 @@ export function HelpPrototype() {
     () => chatGptUrlFor(documentationUrl, topic),
     [documentationUrl, topic],
   );
-
   useEffect(() => {
     if (!topicId && window.location.hash) {
       const legacyTopicId = window.location.hash.slice(1);
@@ -439,7 +597,14 @@ export function HelpPrototype() {
   const invalidTopic = topicId != null && topic == null;
 
   return (
-    <div className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen bg-gray-50 pb-12">
+    <div
+      className={cn(
+        "min-h-screen pb-12",
+        documentationStyle
+          ? "bg-white"
+          : "moto-dotted-background moto-dotted-background--fullscreen bg-gray-50",
+      )}
+    >
       <PrototypeMobileHeader chatGptHref={chatGptHref} />
       {invalidTopic ? (
         <main className="mx-auto w-full max-w-2xl px-4 py-16 text-center sm:px-6">
@@ -467,6 +632,7 @@ export function HelpPrototype() {
           role={role}
           hrefFor={hrefFor}
           chatGptHref={chatGptHref}
+          documentationStyle={documentationStyle}
         />
       )}
     </div>

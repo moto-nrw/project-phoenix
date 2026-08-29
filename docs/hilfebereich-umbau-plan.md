@@ -87,6 +87,16 @@ dient nur als Startpunkt; Fragen zur gesamten moto-Hilfe bleiben ausdrücklich m
 API-Anbindung erproben. Der Parameter `prompt` ist in der offiziellen OpenAI-Dokumentation nicht
 beschrieben und bleibt deshalb vorerst eine Prototyp-Annahme.
 
+Nur die Beispielseite „Ein Kind finden“ lässt sich zusätzlich in einem typischen
+Dokumentationsstil öffnen. `article_style=docs` zeigt eine ruhige Artikeldarstellung mit klarer
+Typografie, gegliederten Abschnitten und einer Navigation „Auf dieser Seite“. Die feste
+Themenseitenleiste und die moto-Farben bleiben erhalten. Die normale Darstellung und alle anderen
+Themen bleiben unverändert. Beispiel:
+
+```text
+/help/prototype/kindersuche?role=caregiver&article_style=docs
+```
+
 ## 3. Arbeitspakete
 
 ### Strang P — klickbarer Prototyp für #2229
@@ -106,14 +116,20 @@ Prototyp clientseitig auf die passende Themenseite übertragen.
 
 **P4 · Responsive Prüfung** — Größe S
 Die ausgewählte Seitenleisten-Lösung wird auf Desktop, Tablet und Smartphone geprüft. Navigation,
-Direktlinks, Querverweise und der ChatGPT-Einstieg müssen anklickbar sein. Es gibt keine
-schreibenden Aktionen.
+Direktlinks, Querverweise, der ChatGPT-Einstieg und die beispielhafte Dokumentationsdarstellung
+müssen anklickbar sein. Es gibt keine schreibenden Aktionen.
 
 **P4a · ChatGPT-Einstieg erproben** — Größe S
 Ein kompakter Link oben prüft Platzierung, Beschriftung und den Wechsel zu einem externen Chat. Der
 Prompt übergibt die aktuelle Hilfe-Adresse und, falls vorhanden, das Thema. ChatGPT muss die
 öffentliche Hilfeseite selbst aufrufen können. Der Link überträgt keine Daten aus dem angemeldeten
 Bereich.
+
+**P4b · Dokumentationsstil an einer Seite erproben** — Größe S
+Die Seite „Ein Kind finden“ erhält über `article_style=docs` eine zweite Artikeldarstellung nach dem
+Muster typischer Dokumentationsseiten. Sie nutzt weiterhin die typisierten Prototyp-Daten. Die
+anderen Themen und die normale Darstellung bleiben unverändert, bis das Team über die Übernahme
+entscheidet.
 
 **P5 · Entscheidung dokumentieren** — extern abhängig
 Das Team bestätigt die ausgewählte Seitenleiste oder benennt nötige Anpassungen. Ergebnis und
