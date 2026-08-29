@@ -14,13 +14,15 @@ import (
 )
 
 type tenantRequestObserverKey struct{}
+type tenantRuntimeObserverKey struct{}
 
 type TenantRuntime = tenant.UnitOfWork
 type TenantRuntimeEvent = tenant.RuntimeEvent
 
 const (
-	TenantRuntimeTransaction   = tenant.RuntimeTransaction
-	TenantRuntimeMissingTenant = tenant.RuntimeMissingTenant
+	TenantRuntimeTransaction                              = tenant.RuntimeTransaction
+	TenantRuntimeMissingTenant                            = tenant.RuntimeMissingTenant
+	TenantRuntimeResponseWrite tenant.UnitOfWorkEventKind = "response_write"
 )
 
 type TenantRequestEvent struct {
@@ -40,11 +42,22 @@ func TenantRuntimeMiddleware(runtime tenant.UnitOfWork) func(http.Handler) http.
 	}
 }
 
-func TenantRuntimeObserverMiddleware(observer func(TenantRuntimeEvent)) func(http.Handler) http.Handler {
+func TenantRuntimeObserverMiddleware(observer func(context.Context, TenantRuntimeEvent)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(tenant.WithRuntimeObserver(r.Context(), observer)))
+			requestCtx := context.WithValue(r.Context(), tenantRuntimeObserverKey{}, observer)
+			withObserver := tenant.WithRuntimeObserver(requestCtx, func(event TenantRuntimeEvent) {
+				observer(requestCtx, event)
+			})
+			next.ServeHTTP(w, r.WithContext(withObserver))
 		})
+	}
+}
+
+func observeTenantRuntime(ctx context.Context, event TenantRuntimeEvent) {
+	observer, _ := ctx.Value(tenantRuntimeObserverKey{}).(func(context.Context, TenantRuntimeEvent))
+	if observer != nil {
+		observer(ctx, event)
 	}
 }
 
@@ -63,6 +76,7 @@ func TenantOperationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := tenant.TenantFromContext(r.Context())
 		if err != nil {
+			tenant.ObserveMissingTenant(r.Context(), err)
 			observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
 			rejectTenantRequest(w, r, err)
 			return
@@ -89,6 +103,7 @@ func TenantTxMiddleware(next http.Handler) http.Handler {
 			runRequestTransaction(w, r, next, 0, platformAdminTransaction)
 			return
 		}
+		tenant.ObserveMissingTenant(r.Context(), err)
 		observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
 		rejectTenantRequest(w, r, err)
 	})
@@ -126,22 +141,11 @@ func runRequestTransaction(
 
 	_, requestRollback := err.(*requestRollbackError)
 	if err != nil && !requestRollback {
-		slog.ErrorContext(r.Context(), "tenant transaction failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.String("error", err.Error()),
-		)
 		sw.reset()
 		http.Error(sw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 	if writeErr := sw.commitResponse(); writeErr != nil {
-		slog.ErrorContext(r.Context(), "tenant response write failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("method", r.Method),
-			slog.String("path", r.URL.Path),
-			slog.String("error", writeErr.Error()),
-		)
+		observeTenantRuntime(r.Context(), TenantRuntimeEvent{Kind: TenantRuntimeResponseWrite, Err: writeErr})
 	}
 
 	logTenantRequest(r, tenantID, sw, start, err)
@@ -154,12 +158,6 @@ func (e *requestRollbackError) Error() string {
 }
 
 func rejectTenantRequest(w http.ResponseWriter, r *http.Request, err error) {
-	slog.ErrorContext(r.Context(), "tenant request rejected",
-		slog.String("entry_point", "http"),
-		slog.String("method", r.Method),
-		slog.String("path", r.URL.Path),
-		slog.String("error", err.Error()),
-	)
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
