@@ -9,8 +9,16 @@ auszuführen, bleibt beim Suchen und Filtern erhalten und wird nicht gespeichert
 ## Gruppe
 
 Eine **Gruppe** ist eine dauerhaft gespeicherte OGS-Zuordnung eines Kindes.
-Gruppen strukturieren Berechtigungen und den Betreuungsalltag. Eine Auswahl
-erstellt oder verändert keine Gruppe.
+Gruppen strukturieren den Betreuungsalltag, aber nicht die Sichtbarkeit von
+Kinderdaten. Eine Auswahl erstellt oder verändert keine Gruppe.
+
+Eine **Gruppenübergabe** ordnet eine Gruppe einer weiteren Betreuungskraft
+zeitlich begrenzt als eigene Zuständigkeit zu. Sie erweitert nicht die
+Sichtbarkeit von Kinderdaten.
+
+Der **Sichtbereich** legt fest, ob Betreuungskräfte alle oder nur ihre eigenen
+und übergebenen Gruppen und laufenden Betreuungen sehen. Admins sehen immer
+alles; der Sichtbereich erteilt keine zusätzlichen Handlungsrechte.
 
 ## Rücknahme
 
@@ -91,6 +99,14 @@ Ersatzperson eingetragen ist.
 
 Eine **Vertretung** ordnet einer abwesenden Person für ausgewählte Termine eine
 Ersatzperson zu. Sie kann alle oder nur einen Teil ihrer Abwesenheit abdecken.
+
+Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
+weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
+weder Gruppenübergaben noch geplante Termine.
+
+Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
+Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
+bleiben trotz der gemeinsamen Arbeitsfläche fachlich getrennt.
 
 ## Anmeldungsänderung
 
