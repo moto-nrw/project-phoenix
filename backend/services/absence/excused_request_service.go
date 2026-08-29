@@ -183,26 +183,6 @@ type RequestReviewPolicy interface {
 	Allows(context.Context, []string, *usersModels.Student) (bool, error)
 }
 
-// NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
-// variant that also serializes approvals with time-specific excusals.
-func NewExcusedAbsenceRequestServiceWithPartialAbsences(
-	requestRepo activeModels.ExcusedAbsenceRequestRepository,
-	statusDayRepo activeModels.StudentStatusDayRepository,
-	pickupRepo scheduleModels.StudentPickupExceptionRepository,
-	studentRepo usersModels.StudentRepository,
-	personRepo usersModels.PersonRepository,
-	userContext userContextService.UserContextService,
-	emitter *parentmessaging.Emitter,
-	broadcaster realtime.Broadcaster,
-	logger *slog.Logger,
-	db *bun.DB,
-) ExcusedAbsenceRequestService {
-	return newExcusedAbsenceRequestService(
-		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
-		userContext, emitter, broadcaster, nil, logger, db,
-	)
-}
-
 // NewExcusedAbsenceRequestServiceWithPolicy requires the production review
 // policy at construction, so missing wiring cannot widen reviewer access.
 func NewExcusedAbsenceRequestServiceWithPolicy(

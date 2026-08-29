@@ -131,21 +131,6 @@ type RequestReviewPolicy interface {
 	Allows(context.Context, []string, *userModels.Student) (bool, error)
 }
 
-// NewMasterDataReviewServiceWithAudit wires the staff review service and the
-// per-child change recorder used for approved departure-plan requests.
-func NewMasterDataReviewServiceWithAudit(
-	changeRequestRepo userModels.StudentDataChangeRequestRepository,
-	studentRepo userModels.StudentRepository,
-	personRepo userModels.PersonRepository,
-	userCtx authorize.StudentAccessUserContext,
-	emitter *parentmessaging.Emitter,
-	studentAudit StudentChangeRecorder,
-	logger *slog.Logger,
-	broadcasters ...realtime.Broadcaster,
-) MasterDataReviewService {
-	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, nil, logger, broadcasters...)
-}
-
 // NewMasterDataReviewServiceWithAuditAndPolicy requires the production review
 // policy at construction, so missing wiring cannot widen reviewer access.
 func NewMasterDataReviewServiceWithAuditAndPolicy(

@@ -116,7 +116,7 @@ func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
@@ -146,7 +146,7 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -174,8 +174,8 @@ func TestMasterDataReview_DecideRejectsStaleExpectedVersionAfterLock(t *testing.
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(
-		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default(),
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(
+		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default(),
 	)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
@@ -201,8 +201,8 @@ func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	realReview := userService.NewMasterDataReviewServiceWithAudit(
-		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default(),
+	realReview := userService.NewMasterDataReviewServiceWithAuditAndPolicy(
+		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default(),
 	)
 	review := &failSecondMasterReview{MasterDataReviewService: realReview}
 	coordinator := userService.NewParentRequestCoordinator(review, unusedExcusedBulkPort{})
@@ -238,7 +238,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -267,7 +267,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
@@ -292,7 +292,7 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -326,7 +326,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -382,7 +382,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, nil)
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
@@ -408,7 +408,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -435,7 +435,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
@@ -469,7 +469,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
@@ -495,7 +495,7 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
@@ -525,7 +525,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default(), broadcaster)
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
@@ -546,7 +546,7 @@ func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -568,7 +568,7 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -593,7 +593,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default())
 
 	tests := []struct {
 		name   string
@@ -665,7 +665,7 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
 	testpkg.SetTenantRuntime(t, emitter, db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, slog.Default(), broadcaster)
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, testpkg.RequestReviewPolicy{}, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -697,7 +697,7 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
 	testpkg.SetTenantRuntime(t, emitter, db)
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, slog.Default(), broadcaster)
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, nil, testpkg.RequestReviewPolicy{}, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -733,7 +733,7 @@ func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default(), bc)
+	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, slog.Default(), bc)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 

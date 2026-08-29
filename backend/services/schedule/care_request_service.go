@@ -248,42 +248,6 @@ type RequestReviewPolicy interface {
 	Allows(context.Context, []string, *usersModels.Student) (bool, error)
 }
 
-// NewCareScheduleRequestServiceWithPickupChanges wires one-day pickup requests
-// in addition to the recurring weekly schedule requests.
-func NewCareScheduleRequestServiceWithPickupChanges(
-	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
-	studentRepo usersModels.StudentRepository,
-	personRepo usersModels.PersonRepository,
-	arrival ArrivalScheduleService,
-	pickup PickupScheduleService,
-	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
-	attendance activeModels.AttendanceRepository,
-	pickupAutoExcusal *PickupAutoExcusalSyncer,
-	userContext userContextService.UserContextService,
-	emitter *parentmessaging.Emitter,
-	broadcaster realtime.Broadcaster,
-	logger *slog.Logger,
-	studentAudits ...usersService.StudentChangeRecorder,
-) CareScheduleRequestService {
-	svc := newCareScheduleRequestService(
-		requestRepo,
-		studentRepo,
-		personRepo,
-		arrival,
-		pickup,
-		userContext,
-		emitter,
-		broadcaster,
-		nil,
-		logger,
-		studentAudits...,
-	)
-	svc.pickupExceptions = pickupExceptions
-	svc.attendance = attendance
-	svc.pickupAutoExcusal = pickupAutoExcusal
-	return svc
-}
-
 // NewCareScheduleRequestServiceWithPickupChangesAndPolicy requires the
 // production review policy at construction, so missing wiring cannot widen
 // reviewer access.
@@ -314,25 +278,6 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	svc.attendance = attendance
 	svc.pickupAutoExcusal = pickupAutoExcusal
 	return svc
-}
-
-// NewCareScheduleRequestService wires the care-request service.
-func NewCareScheduleRequestService(
-	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
-	studentRepo usersModels.StudentRepository,
-	personRepo usersModels.PersonRepository,
-	arrival ArrivalScheduleService,
-	pickup PickupScheduleService,
-	userContext userContextService.UserContextService,
-	emitter *parentmessaging.Emitter,
-	broadcaster realtime.Broadcaster,
-	logger *slog.Logger,
-	studentAudits ...usersService.StudentChangeRecorder,
-) CareScheduleRequestService {
-	return newCareScheduleRequestService(
-		requestRepo, studentRepo, personRepo, arrival, pickup, userContext,
-		emitter, broadcaster, nil, logger, studentAudits...,
-	)
 }
 
 func newCareScheduleRequestService(

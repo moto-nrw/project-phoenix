@@ -126,17 +126,16 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
-	rejectingService := schedule.NewCareScheduleRequestService(
+	rejectingService := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
-		f.sf.UserContext,
+		f.sf,
 		nil,
 		nil,
 		slog.Default(),
-		f.sf.StudentAudit,
 	)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "pickup": "16:00"},
@@ -157,17 +156,16 @@ func TestListPending_FallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
 
 	f := newCareFixture(t)
 	readErr := errors.New("pickup plan unavailable")
-	service := schedule.NewCareScheduleRequestService(
+	service := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
-		f.sf.UserContext,
+		f.sf,
 		nil,
 		nil,
 		slog.Default(),
-		f.sf.StudentAudit,
 	)
 	f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "pickup": "16:00"},

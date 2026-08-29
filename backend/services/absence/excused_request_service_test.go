@@ -89,7 +89,7 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		slog.Default(),
 	)
 	testpkg.SetTenantRuntime(t, emitter, db)
-	svc := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	svc := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -98,6 +98,7 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		nil, // userContext: admin:* perms in the ctx short-circuit the write gate
 		emitter,
 		bc,
+		testpkg.AbsenceRequestReviewPolicy{},
 		nil, // logger: nil-safe, falls back to slog.Default()
 		db,
 	)

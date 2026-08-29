@@ -65,7 +65,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -74,6 +74,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 		nil, // userContext: admin perms in the ctx short-circuit the write gate
 		nil, // emitter: pill is best-effort and nil-safe
 		bc,
+		testpkg.AbsenceRequestReviewPolicy{},
 		slog.Default(),
 		db,
 	)

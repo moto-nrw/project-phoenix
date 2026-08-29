@@ -60,7 +60,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
 
-	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChanges(
+	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -77,6 +77,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		sf.UserContext,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
+		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
 		slog.Default(),
 		sf.StudentAudit,
 	)

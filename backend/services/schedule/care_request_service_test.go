@@ -52,6 +52,25 @@ type careFixture struct {
 	autoExcusal  *schedule.PickupAutoExcusalSyncer
 }
 
+func newCareScheduleRequestService(
+	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	arrival schedule.ArrivalScheduleService,
+	pickup schedule.PickupScheduleService,
+	factory *services.Factory,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+) schedule.CareScheduleRequestService {
+	return schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+		requestRepo, studentRepo, personRepo, arrival, pickup, nil, nil, nil,
+		factory.UserContext, emitter, broadcaster,
+		testpkg.RequestReviewPolicy{UserContext: factory.UserContext}, logger,
+		factory.StudentAudit,
+	)
+}
+
 func (f *careFixture) emitter(
 	t *testing.T,
 	messageRepo usersModels.ParentMessageRepository,
@@ -78,7 +97,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		repos.InstanceStudent,
 		db,
 	)
-	svc := schedule.NewCareScheduleRequestServiceWithPickupChanges(
+	svc := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -90,6 +109,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
+		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
 		slog.Default(),
 		sf.StudentAudit,
 	)
@@ -371,17 +391,16 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 	wantErr := errors.New("pickup delete failed")
-	failingService := schedule.NewCareScheduleRequestService(
+	failingService := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		failingPickupDeleteService{PickupScheduleService: f.sf.PickupSchedule, err: wantErr},
-		f.sf.UserContext,
+		f.sf,
 		nil,
 		nil,
 		slog.Default(),
-		f.sf.StudentAudit,
 	)
 
 	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -414,7 +433,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 	ctx := f.staffCtx(f.staffAccount)
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
-	service := schedule.NewCareScheduleRequestService(
+	service := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
@@ -424,11 +443,10 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 			studentID:             f.chain.StudentID,
 			weekday:               2,
 		},
-		f.sf.UserContext,
+		f.sf,
 		nil,
 		nil,
 		slog.Default(),
-		f.sf.StudentAudit,
 	)
 
 	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -504,13 +522,13 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	// The default fixture passes a nil emitter; wire one so the link gate is
 	// live. Only the thread repo is consulted for the access check — the pill
 	// path self-no-ops with the remaining deps nil.
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, nil, nil, nil),
 		nil,
 		slog.Default(),
@@ -576,13 +594,13 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
 	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
 	settings := &toggleSettings{enabled: true}
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, settings, nil),
 		nil,
 		slog.Default(),
@@ -629,13 +647,13 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	f := newCareFixture(t)
 	// Created pill (guardian) + status pill (staff) both reference auth.accounts
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
@@ -684,13 +702,13 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 	t.Parallel()
 
 	f := newCareFixture(t)
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
@@ -720,13 +738,13 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 	f := newCareFixture(t)
 	// Wire an emitter whose settings report messaging OFF; notification pills
 	// are dropped, but the request workflow remains available.
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
@@ -975,9 +993,9 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	))
 
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
 		nil, bc, slog.Default(),
 	)
 
@@ -1002,9 +1020,9 @@ func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
 
 	f := newCareFixture(t)
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
-		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf,
 		nil, bc, slog.Default(),
 	)
 
@@ -1136,13 +1154,13 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 	// without cascade; clear them LIFO-first, ahead of the auth cleanup.
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := schedule.NewCareScheduleRequestService(
+	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
 		f.repos.Person,
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
-		f.sf.UserContext,
+		f.sf,
 		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),

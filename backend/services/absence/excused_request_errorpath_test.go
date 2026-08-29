@@ -16,6 +16,7 @@ import (
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // errBoom is the injected repository failure used across the error-path tests.
@@ -149,7 +150,7 @@ func (r *fakeStatusRepo) UpsertReported(ctx context.Context, e *activeModels.Stu
 // newFakeService builds the service over the supplied fakes with no emitter,
 // broadcaster or DB — every path is deterministic.
 func newFakeService(req *fakeReqRepo, status *fakeStatusRepo, student *fakeStudentRepo, person *fakePersonRepo) absenceSvc.ExcusedAbsenceRequestService {
-	return absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(req, status, nil, student, person, nil, nil, nil, nil, nil)
+	return absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(req, status, nil, student, person, nil, nil, nil, testpkg.AbsenceRequestReviewPolicy{}, nil, nil)
 }
 
 // okStatusRepo returns a status repo whose writes all succeed.

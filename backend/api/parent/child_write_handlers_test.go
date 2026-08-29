@@ -58,13 +58,14 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		nil, nil, nil,
+		testpkg.AbsenceRequestReviewPolicy{},
 		slog.Default(),
 		db,
 	)
