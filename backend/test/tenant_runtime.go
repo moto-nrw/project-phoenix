@@ -19,7 +19,7 @@ func newTenantRuntime(db *bun.DB) (tenant.Runtime, error) {
 	if err != nil {
 		return tenant.Runtime{}, err
 	}
-	return tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, postgresRuntime.ControlSavepoint)
+	return tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, tenant.SavepointFunc(postgresRuntime))
 }
 
 func bindPackageTenantRuntime(db *bun.DB) error {
@@ -95,29 +95,37 @@ func WithAdminTx(tb testing.TB, ctx context.Context, db *bun.DB, fn func(context
 	return tenant.WithAdminTx(WithTenantRuntime(tb, ctx, db), db, fn)
 }
 
-// TenantTxMiddleware mirrors the production transaction boundary for API
-// tests without making api/testutil own database composition.
+// TenantTxMiddleware is the test stand-in for the production API root plus
+// api/common.TenantTxMiddleware, for tests that inject identity straight into
+// the request context. It decides exactly like production: a tenant runs in
+// its tenant transaction, a platform-scope request without a tenant runs
+// administratively, and an authenticated request without a usable tenant is
+// rejected with 500. A request carrying no scope at all is unauthenticated;
+// production mounts those routes outside TenantTxMiddleware, so they pass
+// through here as well.
 func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
-	postgresRuntime, err := database.NewTenantRuntime(db)
-	if err != nil {
-		panic(err)
-	}
-	runtime, err := tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, postgresRuntime.ControlSavepoint)
+	runtime, err := newTenantRuntime(db)
 	if err != nil {
 		panic(err)
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := tenant.WithRuntime(r.Context(), runtime)
+			within := tenant.WithinCurrentTenant
 			if _, tenantErr := tenant.TenantFromContext(ctx); tenantErr != nil {
-				// NewTenantRouter is also used to mount public routes. Production
-				// applies TenantTxMiddleware only after tenant authentication, so
-				// preserve that route shape by passing unscoped requests through.
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
+				switch tenant.ScopeFromContext(ctx) {
+				case tenant.ScopePlatform:
+					within = tenant.WithinAdmin
+				case "":
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				default:
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
+				}
 			}
 			status := http.StatusOK
-			err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+			err := within(ctx, func(txCtx context.Context) error {
 				txCtx = tenant.WithRollbackMarker(txCtx)
 				writer := &statusWriter{ResponseWriter: w, status: &status}
 				next.ServeHTTP(writer, r.WithContext(txCtx))

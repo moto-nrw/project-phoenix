@@ -18077,7 +18077,7 @@
       "declaration": "TestTenantTxMiddlewareMarkRollbackDiscardsWrite",
       "target": "database/repositories.NewFactory",
       "lines": [
-        32
+        33
       ],
       "tables": []
     },

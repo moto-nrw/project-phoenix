@@ -70,48 +70,67 @@ func TenantOperationMiddleware(next http.Handler) http.Handler {
 }
 
 // TenantTxMiddleware wraps a tenant-scoped route in the runtime bound by the
-// Serve root. Missing tenant or runtime context fails closed before next runs.
+// Serve root. A request with a validated tenant runs in that tenant's
+// transaction, whatever scope the token carries. Only a platform-scope token
+// without a tenant runs in the cross-tenant administrative transaction; the
+// operator portal uses it on shared routes such as /auth/permissions and
+// /auth/accounts. Everything else fails closed before next runs.
 func TenantTxMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenantID := int64(0)
-		within := tenant.WithinAdmin
-		if tenant.ScopeFromContext(r.Context()) != tenant.ScopePlatform {
-			tenantValue, err := tenant.TenantFromContext(r.Context())
-			if err != nil {
-				observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
-				rejectTenantRequest(w, r, err)
-				return
-			}
-			tenantID = tenantValue.Int64()
-			within = tenant.WithinCurrentTenant
+		tenantValue, err := tenant.TenantFromContext(r.Context())
+		if err == nil {
+			runRequestTransaction(w, r, next, tenantValue.Int64(), tenant.WithinCurrentTenant)
+			return
 		}
-		start := time.Now()
-		sw := &tenantStatusWriter{ResponseWriter: w}
-
-		err := within(r.Context(), func(ctx context.Context) error {
-			ctx = tenant.WithRollbackMarker(ctx)
-			next.ServeHTTP(sw, r.WithContext(ctx))
-			if sw.status >= http.StatusInternalServerError {
-				return fmt.Errorf("tenant: handler returned %d; rolling back transaction", sw.status)
-			}
-			if tenant.RollbackRequested(ctx) {
-				return fmt.Errorf("tenant: handler requested rollback after status %d", sw.statusCode())
-			}
-			return nil
-		})
-
-		if err != nil && !sw.wroteHeader {
-			slog.ErrorContext(r.Context(), "tenant transaction failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("error", err.Error()),
-			)
-			http.Error(sw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		if tenant.ScopeFromContext(r.Context()) == tenant.ScopePlatform {
+			runRequestTransaction(w, r, next, 0, platformAdminTransaction)
+			return
 		}
-
-		logTenantRequest(r, tenantID, sw, start, err)
+		observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
+		rejectTenantRequest(w, r, err)
 	})
+}
+
+// platformAdminTransaction is the one sanctioned BYPASSRLS path on tenant
+// routes. It exists as a named function so the branch is visible in traces
+// and cannot be confused with a missing-tenant fallback.
+func platformAdminTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.WithinAdmin(ctx, fn)
+}
+
+func runRequestTransaction(
+	w http.ResponseWriter,
+	r *http.Request,
+	next http.Handler,
+	tenantID int64,
+	within func(context.Context, func(context.Context) error) error,
+) {
+	start := time.Now()
+	sw := &tenantStatusWriter{ResponseWriter: w}
+
+	err := within(r.Context(), func(ctx context.Context) error {
+		ctx = tenant.WithRollbackMarker(ctx)
+		next.ServeHTTP(sw, r.WithContext(ctx))
+		if sw.status >= http.StatusInternalServerError {
+			return fmt.Errorf("tenant: handler returned %d; rolling back transaction", sw.status)
+		}
+		if tenant.RollbackRequested(ctx) {
+			return fmt.Errorf("tenant: handler requested rollback after status %d", sw.statusCode())
+		}
+		return nil
+	})
+
+	if err != nil && !sw.wroteHeader {
+		slog.ErrorContext(r.Context(), "tenant transaction failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("error", err.Error()),
+		)
+		http.Error(sw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+
+	logTenantRequest(r, tenantID, sw, start, err)
 }
 
 func rejectTenantRequest(w http.ResponseWriter, r *http.Request, err error) {

@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"fmt"
+	"reflect"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -10,50 +10,41 @@ import (
 func BindTenantRuntime(
 	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
 	withinAdmin func(context.Context, func(context.Context, any) error) error,
-	controlSavepoint func(context.Context, uint8) error,
+	savepoints tenant.SavepointController,
 ) (tenant.Runtime, error) {
-	return tenant.NewRuntime(withinTenant, withinAdmin, controlSavepoint)
+	return tenant.NewRuntime(withinTenant, withinAdmin, tenant.SavepointFunc(savepoints))
 }
 
 type tenantRuntimeSetter interface {
 	SetTenantRuntime(tenant.Runtime)
 }
 
+// SetTenantRuntime wires the runtime into every composed service that accepts
+// one. Fields are discovered by reflection so a new service with a
+// SetTenantRuntime method cannot be forgotten in a hand-maintained list.
 func (f *Factory) SetTenantRuntime(runtime tenant.Runtime) error {
-	bindings := []struct {
-		name   string
-		target any
-	}{
-		{"auth", f.Auth},
-		{"settings", f.Settings},
-		{"invitation", f.Invitation},
-		{"guardian invitation", f.GuardianInvitation},
-		{"operator auth", f.OperatorAuth},
-		{"operator invitation", f.OperatorInvitation},
-		{"operator provisioning", f.OperatorProvisioning},
-		{"operator MFA", f.OperatorMFA},
-		{"notifications", f.Notifications},
-		{"push subscriptions", f.PushSubscriptions},
-		{"notification preferences", f.NotificationPreferences},
-		{"absence notifier", f.AbsenceNotifier},
-		{"PWA usage", f.PWAUsage},
-		{"MFA", f.MFA},
-	}
-	for _, binding := range bindings {
-		if binding.target == nil {
+	fields := reflect.ValueOf(f).Elem()
+	for i := 0; i < fields.NumField(); i++ {
+		field := fields.Field(i)
+		if !field.CanInterface() || isNilValue(field) {
 			continue
 		}
-		setter, ok := binding.target.(tenantRuntimeSetter)
-		if !ok {
-			return fmt.Errorf("configure tenant runtime for %s: setter is missing", binding.name)
+		if setter, ok := field.Interface().(tenantRuntimeSetter); ok {
+			setter.SetTenantRuntime(runtime)
 		}
-		setter.SetTenantRuntime(runtime)
-	}
-	if f.EmailOutboxWorker != nil {
-		f.EmailOutboxWorker.SetTenantRuntime(runtime)
-	}
-	if f.ParentEventEmitter != nil {
-		f.ParentEventEmitter.SetTenantRuntime(runtime)
 	}
 	return nil
+}
+
+// isNilValue treats an interface holding a nil pointer as nil, matching the
+// "not composed" meaning of a nil field.
+func isNilValue(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Interface:
+		return v.IsNil() || isNilValue(v.Elem())
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

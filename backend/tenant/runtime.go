@@ -33,13 +33,41 @@ type Runtime struct {
 	savepoint    func(context.Context, SavepointAction) error
 }
 
-type SavepointAction = uint8
+// SavepointAction is private to this package's protocol with Runtime; the
+// transaction adapter never sees these values (see SavepointController).
+type SavepointAction uint8
 
 const (
 	CreateSavepoint SavepointAction = iota + 1
 	RollbackSavepoint
 	ReleaseSavepoint
 )
+
+// SavepointController is what a transaction adapter implements. The three
+// operations are named methods so the adapter shares no numeric constants
+// with this package; the architecture policy forbids either side importing
+// the other.
+type SavepointController interface {
+	CreateSavepoint(context.Context) error
+	RollbackSavepoint(context.Context) error
+	ReleaseSavepoint(context.Context) error
+}
+
+// SavepointFunc adapts a SavepointController to the function NewRuntime takes.
+func SavepointFunc(controller SavepointController) func(context.Context, SavepointAction) error {
+	return func(ctx context.Context, action SavepointAction) error {
+		switch action {
+		case CreateSavepoint:
+			return controller.CreateSavepoint(ctx)
+		case RollbackSavepoint:
+			return controller.RollbackSavepoint(ctx)
+		case ReleaseSavepoint:
+			return controller.ReleaseSavepoint(ctx)
+		default:
+			return fmt.Errorf("tenant: unknown savepoint action %d", action)
+		}
+	}
+}
 
 func NewRuntime(
 	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
@@ -239,6 +267,9 @@ func WithAdminTx[DB, TX any](ctx context.Context, _ DB, fn func(context.Context,
 // WithAdminTxOrDirect keeps nil-database unit compositions usable without
 // inventing an administrative transaction. A configured database always
 // requires Runtime; missing runtime wiring never degrades to a direct call.
+// An ambient admin transaction is reused; an ambient tenant transaction is
+// rejected by the adapter, so callers reachable from a tenant request must
+// check for an ambient transaction themselves before calling this.
 func WithAdminTxOrDirect[DB any](ctx context.Context, db DB, fn func(context.Context) error) error {
 	if isNil(db) {
 		if fn == nil {

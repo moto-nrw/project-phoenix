@@ -182,7 +182,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	tenantRuntime, err := services.BindTenantRuntime(
 		databaseTenantRuntime.WithinTenant,
 		databaseTenantRuntime.WithinAdmin,
-		databaseTenantRuntime.ControlSavepoint,
+		databaseTenantRuntime,
 	)
 	if err != nil {
 		return nil, err

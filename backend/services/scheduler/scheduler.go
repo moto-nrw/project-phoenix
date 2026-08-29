@@ -529,7 +529,7 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 	if err != nil {
 		// Older unit-test fakes implement only the narrow per-key resolver.
 		// Production SettingsService always implements the batch loader.
-		if errors.Is(err, errSchedulerSettingsBatchUnsupported) {
+		if errors.Is(err, errSchedulerSettingsBatchUnsupported) && minuteSnapshot != nil {
 			return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, fn)
 		}
 		s.observeTenantRuntime("transaction_failure")

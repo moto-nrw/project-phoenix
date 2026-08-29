@@ -12,12 +12,6 @@ import (
 type tenantTxKey struct{}
 type adminTxKey struct{}
 
-const (
-	createSavepoint uint8 = iota + 1
-	rollbackSavepoint
-	releaseSavepoint
-)
-
 // TenantRuntime implements the PostgreSQL half of tenant runtime execution.
 // Tenant validation and context propagation stay in package tenant.
 type TenantRuntime struct {
@@ -83,21 +77,39 @@ func (r *TenantRuntime) WithinAdmin(ctx context.Context, fn func(context.Context
 	})
 }
 
-func (r *TenantRuntime) ControlSavepoint(ctx context.Context, action uint8) error {
+// The three savepoint methods implement tenant.SavepointController.
+
+func (r *TenantRuntime) CreateSavepoint(ctx context.Context) error {
+	tx, err := savepointTx(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "SAVEPOINT phoenix_operation")
+	return err
+}
+
+func (r *TenantRuntime) RollbackSavepoint(ctx context.Context) error {
+	tx, err := savepointTx(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT phoenix_operation")
+	return err
+}
+
+func (r *TenantRuntime) ReleaseSavepoint(ctx context.Context) error {
+	tx, err := savepointTx(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "RELEASE SAVEPOINT phoenix_operation")
+	return err
+}
+
+func savepointTx(ctx context.Context) (*bun.Tx, error) {
 	tx, ok := modelBase.TxFromContext(ctx)
 	if !ok {
-		return fmt.Errorf("tenant runtime: transaction is required")
+		return nil, fmt.Errorf("tenant runtime: transaction is required")
 	}
-	var err error
-	switch action {
-	case createSavepoint:
-		_, err = tx.ExecContext(ctx, "SAVEPOINT phoenix_operation")
-	case rollbackSavepoint:
-		_, err = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT phoenix_operation")
-	case releaseSavepoint:
-		_, err = tx.ExecContext(ctx, "RELEASE SAVEPOINT phoenix_operation")
-	default:
-		return fmt.Errorf("tenant runtime: unknown savepoint action %d", action)
-	}
-	return err
+	return tx, nil
 }

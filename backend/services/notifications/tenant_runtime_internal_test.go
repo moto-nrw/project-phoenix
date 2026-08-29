@@ -24,7 +24,7 @@ func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.Runtime {
 		func(ctx context.Context, fn func(context.Context, any) error) error {
 			return fn(ctx, bun.Tx{})
 		},
-		func(context.Context, uint8) error { return nil },
+		func(context.Context, tenant.SavepointAction) error { return nil },
 	)
 	if err != nil {
 		panic(err)

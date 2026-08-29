@@ -92,6 +92,59 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 }
 
+func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
+	t.Parallel()
+	var gotTenant int64
+	runtime, err := tenant.NewRuntime(
+		func(ctx context.Context, rawID int64, fn func(context.Context, any) error) error {
+			gotTenant = rawID
+			return fn(ctx, struct{}{})
+		},
+		func(context.Context, func(context.Context, any) error) error {
+			t.Fatal("platform token carrying a tenant must not bypass RLS")
+			return nil
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+	)
+	require.NoError(t, err)
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.False(t, tenant.IsAdminTx(r.Context()))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/auth/accounts", nil)
+	ctx := tenant.WithScope(tenant.WithTenant(request.Context(), id), tenant.ScopePlatform)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request.WithContext(tenant.WithRuntime(ctx, runtime)))
+
+	assert.Equal(t, int64(42), gotTenant)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
+func TestTenantStatusWriterTracksStatusAndBytes(t *testing.T) {
+	t.Parallel()
+	recorder := httptest.NewRecorder()
+	sw := &tenantStatusWriter{ResponseWriter: recorder}
+
+	assert.Equal(t, http.StatusOK, sw.statusCode(), "unwritten response reports 200")
+	assert.Same(t, http.ResponseWriter(recorder), sw.Unwrap())
+
+	n, err := sw.Write([]byte("hello"))
+	require.NoError(t, err)
+	assert.Equal(t, 5, n)
+	sw.WriteHeader(http.StatusTeapot)
+	_, err = sw.Write([]byte(" world"))
+	require.NoError(t, err)
+	sw.Flush()
+
+	assert.Equal(t, http.StatusOK, sw.statusCode(), "implicit 200 from Write is not overwritten")
+	assert.Equal(t, int64(11), sw.bytesWritten)
+	assert.True(t, recorder.Flushed)
+	assert.Equal(t, "hello world", recorder.Body.String())
+}
+
 func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {
 	t.Parallel()
 	runtimeErr := assert.AnError

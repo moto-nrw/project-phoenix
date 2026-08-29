@@ -61,7 +61,7 @@ func newCleanupContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	tenantRuntime, err := tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, postgresRuntime.ControlSavepoint)
+	tenantRuntime, err := tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, tenant.SavepointFunc(postgresRuntime))
 	if err != nil {
 		_ = db.Close()
 		return nil, err
