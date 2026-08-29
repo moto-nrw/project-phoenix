@@ -26,7 +26,7 @@ const (
 	CareWithdrawalUrgencyOverdue = "overdue"
 )
 
-var ErrCareWithdrawalAlreadyResolved = errors.New("Die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell.") //nolint:staticcheck // user-facing German message
+var ErrCareWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
 
 // CareWithdrawalCompletion is the durable task created when a school removes
 // a child's final care day from authoritative bookings. It stores events only;
