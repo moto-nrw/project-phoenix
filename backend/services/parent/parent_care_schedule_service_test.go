@@ -29,6 +29,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -57,10 +58,13 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 	})
 }
 
-func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool) parentService.Service {
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool, requestService ...*scheduleService.CareScheduleRequestService) parentService.Service {
 	t.Helper()
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
+	if len(requestService) > 0 {
+		*requestService[0] = sf.CareRequests
+	}
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
