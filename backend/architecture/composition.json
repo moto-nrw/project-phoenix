@@ -20778,17 +20778,17 @@
       "declaration": "TestBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        155
+        154
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "database/repositories/audit/booking_consistency_test.go",
-      "declaration": "TestBookingConsistencyAuditFindsProjectionDrift",
+      "declaration": "TestBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        28
       ],
       "tables": []
     },

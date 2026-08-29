@@ -37,7 +37,6 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 	auditor := &stubBookingConsistencyAudit{report: &auditModel.BookingConsistencyReport{
 		TenantID:                    42,
 		PickupProjectionMissingDays: 3,
-		PlannedWithoutBookingRows:   2,
 	}}
 	s := unitScheduler(&Scheduler{
 		bookingConsistency: auditor,
@@ -53,8 +52,10 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 	assert.Contains(t, logOutput, `"msg":"booking consistency audit found drift"`)
 	assert.Contains(t, logOutput, `"tenant_id":42`)
 	assert.Contains(t, logOutput, `"pickup_projection_missing_days":3`)
-	assert.Contains(t, logOutput, `"planned_without_booking_rows":2`)
-	assert.Contains(t, logOutput, `"total_findings":5`)
+	assert.NotContains(t, logOutput, `"arrival_without_booking_days"`)
+	assert.NotContains(t, logOutput, `"booking_without_arrival_days"`)
+	assert.NotContains(t, logOutput, `"planned_without_booking_rows"`)
+	assert.Contains(t, logOutput, `"total_findings":3`)
 }
 
 func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
