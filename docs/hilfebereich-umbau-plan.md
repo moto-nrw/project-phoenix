@@ -59,23 +59,18 @@ Der Prototyp beantwortet diese Frage:
 > kommen?
 
 Er liegt isoliert unter `/help/prototype` und verändert die vier bestehenden Hilfe- und PDF-Routen
-nicht. Drei deutlich verschiedene Varianten lassen sich über `?variant=a|b|c` vergleichen:
-
-- **A · Seitenleiste:** feste Navigation am linken Fensterrand mit einer kurzen Seite pro Thema.
-- **B · Aufgaben:** Einstieg über konkrete Fragen aus dem Arbeitsalltag.
-- **C · Schnelle Hilfe:** suche-zentrierter, schmaler Einstieg für wenig Zeit und kleine Bildschirme.
-
-**Arbeitsentscheidung für den Prototyp:** Variante A wird weiterverfolgt. Auf Desktop bleibt die
-Seitenleiste am linken Fensterrand stehen und scrollt unabhängig vom Artikel. Sie ist keine Karte im
-Inhaltsbereich. Auf kleinen Bildschirmen wird sie zu einer ausklappbaren Themenliste. B und C bleiben
-auf dem Prototyp-Branch als Vergleich erhalten, bis das Team die Entscheidung bestätigt.
+nicht. Der erste Vergleich umfasste drei deutlich verschiedene Varianten. Ausgewählt wurde die
+Seitenleisten-Lösung: Auf Desktop bleibt die Navigation am linken Fensterrand stehen und scrollt
+unabhängig vom Artikel. Sie ist keine Karte im Inhaltsbereich. Auf kleinen Bildschirmen wird sie zu
+einer ausklappbaren Themenliste. Die verworfenen Aufgaben- und Sucheinstiege bleiben über die
+Commit-Historie des Prototyp-Branches nachvollziehbar, sind aber nicht mehr Teil der Route.
 
 Rolle, Thema und NFC-Variante sind teilbar. Beispiele:
 
 ```text
-/help/prototype/kindersuche?variant=a&role=caregiver
-/help/prototype/datenverwaltung?variant=b&role=lead
-/help/prototype/nfc-kinder-auschecken?variant=c&presence_mode=binary&schoolyard=enabled
+/help/prototype/kindersuche?role=caregiver
+/help/prototype/datenverwaltung?role=lead
+/help/prototype/nfc-kinder-auschecken?presence_mode=binary&schoolyard=enabled
 ```
 
 `presence_mode=detailed|binary` bildet den Anwesenheitsmodus ab. Im Binär-Modus unterscheidet
@@ -92,21 +87,22 @@ bleiben.
 Das lange Kapitel „Alltag und Aufsicht“ wird beispielhaft in kurze, direkt verlinkbare Fragen
 zerlegt. Einige Leitungs- und NFC-Themen zeigen zusätzlich die Rollen- und Moduslogik.
 
-**P2 · Drei Navigationsvarianten** — Größe M
-Seitenleiste, Aufgaben-Einstieg und Schnelle Hilfe liegen auf derselben Prototyp-Route. Ein
-Entwicklungs-Schalter und `?variant=` wechseln zwischen den Varianten.
+**P2 · Navigationsvarianten vergleichen** — Größe M, abgeschlossen
+Drei Varianten wurden verglichen. Die feste Seitenleiste wurde ausgewählt; die beiden verworfenen
+Varianten und der Entwicklungs-Schalter wurden danach aus der Route entfernt.
 
 **P3 · Teilbare Zustände** — Größe S
-Thema, Rolle, Variante, Anwesenheitsmodus und Schulhof-Schalter stehen in der URL. Alte Hash-Links
-werden im Prototyp clientseitig auf die passende Themenseite übertragen.
+Thema, Rolle, Anwesenheitsmodus und Schulhof-Schalter stehen in der URL. Rolle und Modus werden im
+Hilfebereich nicht als Auswahl gezeigt: Die App setzt sie beim Einstieg. Alte Hash-Links werden im
+Prototyp clientseitig auf die passende Themenseite übertragen.
 
 **P4 · Responsive Prüfung** — Größe S
 Alle Varianten werden auf Desktop, Tablet und Smartphone geprüft. Suche, Navigation, Direktlinks
 und Querverweise müssen anklickbar sein. Es gibt keine schreibenden Aktionen.
 
 **P5 · Entscheidung dokumentieren** — extern abhängig
-Das Team wählt eine Variante oder benennt die Bausteine, die kombiniert werden sollen. Ergebnis und
-Begründung kommen in #2229. Erst danach wird der Gewinner produktionsreif neu umgesetzt.
+Das Team bestätigt die ausgewählte Seitenleiste oder benennt nötige Anpassungen. Ergebnis und
+Begründung kommen in #2229. Erst danach wird die Lösung produktionsreif neu umgesetzt.
 
 ### Arbeitspakete der anschließenden Migration
 

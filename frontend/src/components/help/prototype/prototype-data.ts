@@ -13,7 +13,6 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 export type PrototypeRole = "caregiver" | "lead";
-export type PrototypeVariant = "a" | "b" | "c";
 export type PrototypePresenceMode = "detailed" | "binary";
 export type PrototypeSchoolyard = "enabled" | "disabled";
 
@@ -313,12 +312,6 @@ export function getPrototypeTopics(
       : binaryNfcTopics(schoolyard)),
   ];
 }
-
-export const PROTOTYPE_VARIANTS: Readonly<Record<PrototypeVariant, string>> = {
-  a: "Seitenleiste",
-  b: "Aufgaben",
-  c: "Schnelle Hilfe",
-};
 
 export const PROTOTYPE_GROUP_LABELS = {
   alltag: "Im OGS-Alltag",
