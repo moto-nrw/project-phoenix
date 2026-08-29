@@ -56,11 +56,15 @@ type PayrollStatusGetter interface {
 }
 
 type payrollStatusService struct {
-	settings       SettingsService
+	settings       payrollSettings
 	countPersonnel func(context.Context) (int, int, error)
 }
 
-func NewPayrollStatusService(settings SettingsService, countPersonnel func(context.Context) (int, int, error)) PayrollStatusGetter {
+type payrollSettings interface {
+	ResolveString(context.Context, string) (string, error)
+}
+
+func NewPayrollStatusService(settings payrollSettings, countPersonnel func(context.Context) (int, int, error)) PayrollStatusGetter {
 	return &payrollStatusService{settings: settings, countPersonnel: countPersonnel}
 }
 
@@ -185,7 +189,7 @@ func (s *payrollStatusService) resolveLodasHeader(ctx context.Context, snapshot 
 	return berater, mandant, nil
 }
 
-func resolvedPayrollString(ctx context.Context, settings SettingsService, snapshot *SettingsSnapshot, key string) (string, error) {
+func resolvedPayrollString(ctx context.Context, settings payrollSettings, snapshot *SettingsSnapshot, key string) (string, error) {
 	if snapshot != nil {
 		return snapshot.String(key)
 	}

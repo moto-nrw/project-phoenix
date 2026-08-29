@@ -1,12 +1,10 @@
-package config_test
+package config
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,14 +14,14 @@ func validModel() *configModels.WorkTimeModel {
 	return &configModels.WorkTimeModel{
 		Name:               "Validation test",
 		RotationLength:     1,
-		RotationAnchorDate: timezone.NewDate(2026, time.June, 1),
+		RotationAnchorDate: configModels.CalendarDate{Year: 2026, Month: time.June, Day: 1},
 	}
 }
 
 func TestValidateModelWithEntries_RejectsInvalidEntries(t *testing.T) {
 	t.Parallel()
 
-	svc := &configSvc.WorkTimeModelService{}
+	svc := &WorkTimeModelService{}
 
 	tests := []struct {
 		name  string
@@ -74,7 +72,7 @@ func TestValidateModelWithEntries_RejectsInvalidEntries(t *testing.T) {
 func TestValidateModelWithEntries_RejectsDuplicateEntries(t *testing.T) {
 	t.Parallel()
 
-	svc := &configSvc.WorkTimeModelService{}
+	svc := &WorkTimeModelService{}
 
 	err := svc.ValidateModelWithEntries(validModel(), []*configModels.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModels.DayMonday, TargetMinutes: 300},

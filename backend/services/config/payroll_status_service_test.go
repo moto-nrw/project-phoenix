@@ -1,35 +1,27 @@
-package config_test
+package config
 
 import (
+	"context"
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"context"
-
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 )
 
 // Payroll status (#1417): the same completeness verdict the /payroll page
 // shows and the later DATEV writers check before producing a file. Settings
-// come from a configtest.Mock (Rule 13); staff counts from real fixtures.
+// come from a narrow fake; staff counts use the injected port.
 
-func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.PayrollStatusGetter, *repositories.Factory, context.Context) {
+type personnelCounts struct{ total, missing int }
+
+func payrollStatusFixture(t *testing.T, values map[string]string) (PayrollStatusGetter, *personnelCounts, context.Context) {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
-
-	settings := &configtest.Mock{
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			return values[key], nil
-		},
-	}
-	return configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(repos.Staff)), repos, testpkg.Ctx(t)
+	settings := &fakeSettingsService{opts: fakeSettingsServiceOpts{}}
+	settings.resolveString = func(_ context.Context, key string) (string, error) { return values[key], nil }
+	counts := &personnelCounts{}
+	counter := func(context.Context) (int, int, error) { return counts.total, counts.missing, nil }
+	return NewPayrollStatusService(settings, counter), counts, context.Background()
 }
 
 func TestPayrollStatus_EmptyConfigurationIsReportedNotInvented(t *testing.T) {
@@ -85,18 +77,13 @@ func TestPayrollStatus_CompletenessCounting(t *testing.T) {
 func TestPayrollStatus_CountsStaffWithoutPersonnelNumber(t *testing.T) {
 	t.Parallel()
 
-	svc, repos, ctx := payrollStatusFixture(t, map[string]string{})
-	db := testpkg.SetupTestDB(t)
+	svc, counts, ctx := payrollStatusFixture(t, map[string]string{})
 
 	before, err := svc.GetPayrollStatus(ctx)
 	require.NoError(t, err)
 
-	withNumber := testpkg.CreateTestStaff(t, db, "Payroll", "MitNummer")
-	testpkg.CreateTestStaff(t, db, "Payroll", "OhneNummer")
-
-	number := "90040"
-	withNumber.PersonnelNumber = &number
-	require.NoError(t, repos.Staff.Update(ctx, withNumber))
+	counts.total += 2
+	counts.missing++
 
 	after, err := svc.GetPayrollStatus(ctx)
 	require.NoError(t, err)

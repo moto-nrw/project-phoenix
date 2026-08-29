@@ -20,6 +20,12 @@ type UnitOfWorkEvidence struct {
 	Duration time.Duration
 }
 
+type DB = bun.DB
+
+func ContextForTenant(ctx context.Context, tenantID int64) context.Context {
+	return tenant.WithTenantID(ctx, tenantID)
+}
+
 // CaptureUnitOfWorkEvidence exposes transaction evidence to repository tests
 // without making those packages import the tenant runtime directly.
 func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []UnitOfWorkEvidence) {
@@ -166,6 +172,13 @@ func WithinTenantContext(tb testing.TB, ctx context.Context, db *bun.DB, tenantI
 func WithAdminTx(tb testing.TB, ctx context.Context, db *bun.DB, fn func(context.Context, bun.Tx) error) error {
 	tb.Helper()
 	return tenant.WithAdminTx(WithTenantRuntime(tb, ctx, db), db, fn)
+}
+
+func WithinAdminContext(tb testing.TB, ctx context.Context, db *bun.DB, fn func(context.Context) error) error {
+	tb.Helper()
+	return WithAdminTx(tb, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		return fn(txCtx)
+	})
 }
 
 // TenantTxMiddleware is the test stand-in for the production API root plus
