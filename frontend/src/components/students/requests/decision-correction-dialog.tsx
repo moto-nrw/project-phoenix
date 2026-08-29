@@ -18,11 +18,22 @@ import { createLogger } from "~/lib/logger";
 import {
   ChangeRequestStaleError,
   correctRequestDecision,
+  type ParentRequestKind,
 } from "~/lib/change-request-list-api";
-import type { CorrectionTarget } from "./history-request-list";
 import { STALE_REQUEST_NOTICE } from "./request-copy";
 
 const logger = createLogger({ component: "DecisionCorrectionDialog" });
+
+export interface CorrectionTarget {
+  readonly kind: ParentRequestKind;
+  readonly requestID: string;
+  readonly expectedVersion: string;
+  readonly childName: string;
+  readonly priorStatus: string;
+  readonly priorDecidedAt?: string;
+  readonly priorDecidedBy?: string;
+  readonly priorReason?: string;
+}
 
 function priorLine(target: CorrectionTarget): string {
   const verb = target.priorStatus === "approved" ? "Freigegeben" : "Abgelehnt";

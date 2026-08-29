@@ -17,7 +17,10 @@ import type {
   ParentRequestKind,
 } from "~/lib/change-request-list-api";
 import { itemKey, type AnyItem } from "./case-model";
-import { DecisionCorrectionDialog } from "./decision-correction-dialog";
+import {
+  DecisionCorrectionDialog,
+  type CorrectionTarget,
+} from "./decision-correction-dialog";
 import { HistoryWithdrawalCard } from "./withdrawal-cards";
 
 const CORRECTABLE_KINDS: readonly string[] = [
@@ -59,17 +62,6 @@ function mayCorrect(
     DECIDED_STATUSES.includes(status ?? "") &&
     !UNCORRECTABLE_KINDS.includes(requestType)
   );
-}
-
-export interface CorrectionTarget {
-  readonly kind: ParentRequestKind;
-  readonly requestID: string;
-  readonly expectedVersion: string;
-  readonly childName: string;
-  readonly priorStatus: string;
-  readonly priorDecidedAt?: string;
-  readonly priorDecidedBy?: string;
-  readonly priorReason?: string;
 }
 
 function correctionTarget(item: AnyItem): CorrectionTarget | null {
