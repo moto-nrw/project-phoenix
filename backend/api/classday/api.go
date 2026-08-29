@@ -16,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -73,8 +72,8 @@ func (rs *Resource) SchoolRouter() chi.Router {
 }
 
 func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
-	r.With(authorize.RequiresPermission(permissions.ClassDayRead), withTx).Get("/classes", rs.getMyClasses)
-	r.With(authorize.RequiresPermission(permissions.ClassDayRead), withTx).Get("/", rs.getClassDay)
+	r.With(common.RequiresPermission(permissions.ClassDayRead), withTx).Get("/classes", rs.getMyClasses)
+	r.With(common.RequiresPermission(permissions.ClassDayRead), withTx).Get("/", rs.getClassDay)
 }
 
 // ClassesResponse lists the caller's assigned school classes.

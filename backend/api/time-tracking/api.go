@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	staffshifts "github.com/moto-nrw/project-phoenix/api/staff-shifts"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -76,50 +75,50 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// All time-tracking endpoints require TimeTrackingOwn permission
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
 		// The Stundenkonto anchor is a tenant-wide setting, not caller-scoped
 		// data. Admin views resolve a staff member's Monatskarte from it, so a
 		// manage-only role must be able to read it — the staff summary
 		// endpoints it pairs with gate on TimeTrackingManage alone.
-		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
-		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/holidays", rs.getHolidays)
-		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/closing-days", rs.getClosingDays)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
+		r.With(common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
+		r.With(common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/holidays", rs.getHolidays)
+		r.With(common.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/closing-days", rs.getClosingDays)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
 
 		// Break management
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/start", rs.startBreak)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/end", rs.endBreak)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/breaks/{sessionId}", rs.getBreaks)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/start", rs.startBreak)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/end", rs.endBreak)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/breaks/{sessionId}", rs.getBreaks)
 
 		// Export
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/export", rs.exportSessions)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/export", rs.exportSessions)
 
 		// Own planned shifts (Dienstplan, #1376/#1798)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
 		// Own Monatskarte (#1842)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/month-summary", rs.getOwnMonthSummary)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/schedule-targets", rs.getOwnScheduleTargets)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/month-summary", rs.getOwnMonthSummary)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/schedule-targets", rs.getOwnScheduleTargets)
 		// Own Betreuungsplan blocks for the day (Ort/Aufgabe + Vertretungen, #1844)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
 
 		// Absence management
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences", rs.createAbsence)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences", rs.createAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
 
 		// Vacation workflow (Tranche 4), MA-side
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/resubmit", rs.resubmitAbsence)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/resubmit", rs.resubmitAbsence)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
 
 		// Presence map - for internal use by staff page
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
 	})
 
 	return r

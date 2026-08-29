@@ -979,7 +979,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
+	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, viper.GetString("app_env"))
 }
 
 // listPendingInvitations handles listing all pending guardian invitations

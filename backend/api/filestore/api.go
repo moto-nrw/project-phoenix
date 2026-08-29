@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	apiDocuments "github.com/moto-nrw/project-phoenix/api/common/documents"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -61,7 +60,7 @@ func (rs *Resource) getLogger() *slog.Logger {
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
-		manage := authorize.RequiresPermission(permissions.FilesManage)
+		manage := common.RequiresPermission(permissions.FilesManage)
 
 		r.With(withTx).Get("/folders", rs.listFolders)
 		r.With(manage, withTx).Post("/folders", rs.createFolder)

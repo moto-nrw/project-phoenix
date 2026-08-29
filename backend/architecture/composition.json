@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 564,
+          "line": 567,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -16848,7 +16848,7 @@
       "declaration": "TestListTenants",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        1948
+        1949
       ],
       "tables": []
     },
@@ -16858,7 +16858,7 @@
       "declaration": "TestResolveTenant_DeletedSchool_ReturnsNotFound",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        2233
+        2234
       ],
       "tables": [
         "platform.schools"
@@ -16880,7 +16880,7 @@
       "declaration": "setupTestContextWithSchoolRepo",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        2021
+        2022
       ],
       "tables": []
     },
@@ -16900,7 +16900,7 @@
       "declaration": "TestPlatformScopeCanMutateGlobalPermissionCatalog",
       "target": "database/repositories.NewFactory",
       "lines": [
-        100
+        103
       ],
       "tables": []
     },
@@ -16910,7 +16910,7 @@
       "declaration": "TestPlatformScopeCanMutateGlobalPermissionCatalog",
       "target": "services.NewFactory",
       "lines": [
-        101
+        104
       ],
       "tables": []
     },
@@ -17533,7 +17533,7 @@
       "declaration": "setupTestContext",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        28
+        56
       ],
       "tables": []
     },
@@ -18315,7 +18315,7 @@
       "declaration": "TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures",
       "target": "database/repositories.NewFactory",
       "lines": [
-        367
+        378
       ],
       "tables": []
     },
@@ -32480,7 +32480,7 @@
       "declaration": "TestStudentDocumentService_AuthorizeUploadWritesNothing",
       "target": "database/repositories.NewFactory",
       "lines": [
-        720
+        724
       ],
       "tables": []
     },
@@ -32490,7 +32490,7 @@
       "declaration": "TestStudentDocumentService_NonStaffCallerIsUnreachable",
       "target": "database/repositories.NewFactory",
       "lines": [
-        361
+        365
       ],
       "tables": []
     },
@@ -32500,7 +32500,7 @@
       "declaration": "TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        446
+        450
       ],
       "tables": []
     },
@@ -32510,7 +32510,7 @@
       "declaration": "newStudentDocumentScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        59
+        63
       ],
       "tables": []
     },

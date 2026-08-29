@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -47,17 +46,17 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations require feedback:read permission
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/", rs.listFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/{id}", rs.getFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/student/{id}", rs.getStudentFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date/{date}", rs.getDateFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/mensa", rs.getMensaFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date-range", rs.getDateRangeFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackRead), withTx).Get("/", rs.listFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackRead), withTx).Get("/{id}", rs.getFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackRead), withTx).Get("/student/{id}", rs.getStudentFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date/{date}", rs.getDateFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackRead), withTx).Get("/mensa", rs.getMensaFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackRead), withTx).Get("/date-range", rs.getDateRangeFeedback)
 
 		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/", rs.createFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/batch", rs.createBatchFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackDelete), withTx).Delete("/{id}", rs.deleteFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/", rs.createFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackCreate), withTx).Post("/batch", rs.createBatchFeedback)
+		r.With(common.RequiresPermission(permissions.FeedbackDelete), withTx).Delete("/{id}", rs.deleteFeedback)
 	})
 
 	return r
