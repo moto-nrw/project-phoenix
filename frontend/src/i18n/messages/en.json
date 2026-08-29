@@ -1621,6 +1621,7 @@
     "subscribe": "Subscribe in the calendar",
     "linkLabel": "Subscription link (to copy)",
     "copy": "Copy",
+    "copiedButton": "Copied",
     "copied": "Link copied.",
     "copyFailed": "Copying is not possible. Please select the link by hand.",
     "linkOnce": "For security reasons you only see this link now. Copy it into your calendar right away.",
@@ -1634,6 +1635,9 @@
     "rotateError": "The subscription link could not be renewed.",
     "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
     "createNew": "Create a new subscription link"
+  },
+  "staffCalendarSubscribe": {
+    "description": "Subscribe to your appointments once in your phone calendar. New, changed and cancelled appointments then appear automatically. You do not need to add each appointment separately. Changes made in your phone calendar do not reach moto."
   },
   "parentNews": {
     "kicker": "Post from the OGS",

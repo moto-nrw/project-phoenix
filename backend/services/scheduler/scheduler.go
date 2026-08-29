@@ -86,6 +86,10 @@ type OperatorInvitationCleaner interface {
 	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
 }
 
+type CalendarFeedCleaner interface {
+	CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
+}
+
 // FeedbackCleaner exposes the cleanup routine for old feedback entries.
 type FeedbackCleaner interface {
 	DeleteEntriesOlderThan(ctx context.Context, days int) (int, error)
@@ -137,6 +141,7 @@ type Scheduler struct {
 	fileStoreCleaner           FileStoreCleaner
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
+	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
@@ -339,6 +344,12 @@ func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
 // the opt-in shape of SetMaterializer.
 func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService) {
 	s.timetableCleanup = svc
+}
+
+// SetCalendarFeedCleanup adds calendar tombstone retention to the nightly
+// tenant cleanup window shared with the timetable.
+func (s *Scheduler) SetCalendarFeedCleanup(svc CalendarFeedCleaner) {
+	s.calendarFeedCleanup = svc
 }
 
 // SetTimeTrackingCleanup wires the time-tracking retention cleanup service
@@ -610,9 +621,8 @@ func (s *Scheduler) Start() {
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
 
-	// Schedule daily timetable GDPR cleanup (WP-B14). Shares the same toggle
-	// and time as scheduleCleanupTask so admins configure one nightly window
-	// for all retention jobs.
+	// Schedule daily timetable and calendar-feed cleanup. Both share the same
+	// toggle and time as scheduleCleanupTask.
 	s.scheduleTimetableCleanupTask()
 
 	// Schedule daily time-tracking GDPR cleanup (Tranche 0b). Same toggle
@@ -2356,11 +2366,11 @@ func combineDayAndTime(day timezone.Date, tod time.Time) time.Time {
 // and activity_exceptions older than the tenant's gdpr.timetable_retention_days.
 // Per-tenant iteration via forEachTenantSettings; dedupe via lastTimetableCleanup.
 
-// scheduleTimetableCleanupTask registers the daily timetable cleanup task
-// when a TimetableCleanupService has been wired in. Nil service → no task.
+// scheduleTimetableCleanupTask registers the shared daily timetable/calendar
+// cleanup task when either cleanup service has been wired in.
 func (s *Scheduler) scheduleTimetableCleanupTask() {
-	if s.timetableCleanup == nil {
-		s.getLogger().Info("timetable GDPR cleanup not configured (no TimetableCleanupService)")
+	if s.timetableCleanup == nil && s.calendarFeedCleanup == nil {
+		s.getLogger().Info("timetable cleanup not configured")
 		return
 	}
 
@@ -2391,24 +2401,39 @@ func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		result, err := s.timetableCleanup.CleanupExpiredTimetableData(cleanupCtx)
-		if err != nil {
-			s.getLogger().Error("timetable cleanup failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return fmt.Errorf("timetable cleanup for tenant %d: %w", tenantID, err)
+		if s.timetableCleanup != nil {
+			result, err := s.timetableCleanup.CleanupExpiredTimetableData(cleanupCtx)
+			if err != nil {
+				s.getLogger().Error("timetable cleanup failed for tenant",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				return fmt.Errorf("timetable cleanup for tenant %d: %w", tenantID, err)
+			}
+
+			if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
+				s.getLogger().Info("timetable cleanup completed for tenant",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int("instances_deleted", result.InstancesDeleted),
+					slog.Int("exceptions_deleted", result.ExceptionsDeleted),
+					slog.Int("students_affected", result.StudentsAffected),
+					slog.Int("retention_days", result.RetentionDays),
+					slog.Int64("duration_ms", result.DurationMS),
+				)
+			}
 		}
 
-		if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
-			s.getLogger().Info("timetable cleanup completed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("instances_deleted", result.InstancesDeleted),
-				slog.Int("exceptions_deleted", result.ExceptionsDeleted),
-				slog.Int("students_affected", result.StudentsAffected),
-				slog.Int("retention_days", result.RetentionDays),
-				slog.Int64("duration_ms", result.DurationMS),
-			)
+		if s.calendarFeedCleanup != nil {
+			deleted, err := s.calendarFeedCleanup.CleanupExpiredFeedTombstones(cleanupCtx)
+			if err != nil {
+				return fmt.Errorf("calendar feed cleanup for tenant %d: %w", tenantID, err)
+			}
+			if deleted > 0 {
+				s.getLogger().Info("calendar feed cleanup completed for tenant",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int("tombstones_deleted", deleted),
+				)
+			}
 		}
 		return nil
 	})

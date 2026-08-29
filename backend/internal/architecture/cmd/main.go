@@ -139,7 +139,7 @@ func compareWithBase(options checkOptions, policy *architecture.Policy, manifest
 		return err
 	}
 	return errors.Join(
-		architecture.ComparePolicyStrictness(basePolicy, policy),
+		architecture.CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy),
 		architecture.CompareLegacyBaselines(manifest, baseManifest),
 	)
 }

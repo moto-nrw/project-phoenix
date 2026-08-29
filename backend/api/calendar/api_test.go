@@ -40,10 +40,13 @@ type fakeCalendarService struct {
 	gotCancelOccID  int64
 	gotCancelOccDay timezone.Date
 
-	icsFilename string
-	icsContent  string
-	icsErr      error
-	gotICSID    int64
+	icsFilename     string
+	icsContent      string
+	icsErr          error
+	gotICSID        int64
+	staffFeedURL    string
+	staffFeedWebcal string
+	staffFeedErr    error
 
 	respondErr       error
 	gotRespondID     int64
@@ -114,6 +117,18 @@ func (f *fakeCalendarService) RotateParentCalendarFeed(context.Context, int64) (
 }
 
 func (f *fakeCalendarService) ParentCalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeCalendarService) StaffCalendarFeedURL(context.Context) (string, string, error) {
+	return f.staffFeedURL, f.staffFeedWebcal, f.staffFeedErr
+}
+
+func (f *fakeCalendarService) RotateStaffCalendarFeed(context.Context) (string, string, error) {
+	return f.staffFeedURL, f.staffFeedWebcal, f.staffFeedErr
+}
+
+func (f *fakeCalendarService) StaffCalendarFeedByToken(context.Context, string) (string, string, error) {
 	return "", "", nil
 }
 
@@ -190,6 +205,38 @@ func TestListMyRejectsMissingRange(t *testing.T) {
 	rs.listMy(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCalendarFeedURLReturnsSubscriptionLinks(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeCalendarService{
+		staffFeedURL:    "https://moto.test/api/calendar-feed/token",
+		staffFeedWebcal: "webcal://moto.test/api/calendar-feed/token",
+	}
+	rs := &Resource{service: service}
+	w := httptest.NewRecorder()
+
+	rs.calendarFeedURL(w, httptest.NewRequest(http.MethodGet, "/feed", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"status":"success","message":"Calendar feed URL retrieved","data":{"url":"https://moto.test/api/calendar-feed/token","webcal_url":"webcal://moto.test/api/calendar-feed/token"}}`, w.Body.String())
+}
+
+func TestRotateCalendarFeedReturnsFreshLinks(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeCalendarService{
+		staffFeedURL:    "https://moto.test/api/calendar-feed/new-token",
+		staffFeedWebcal: "webcal://moto.test/api/calendar-feed/new-token",
+	}
+	rs := &Resource{service: service}
+	w := httptest.NewRecorder()
+
+	rs.rotateCalendarFeed(w, httptest.NewRequest(http.MethodPost, "/feed/rotate", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "new-token")
 }
 
 func TestCreateAppointmentParsesPayload(t *testing.T) {

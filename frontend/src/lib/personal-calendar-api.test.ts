@@ -12,9 +12,11 @@ import {
   getStaffAppointmentDetail,
   getStaffAppointmentOverview,
   getStaffCalendar,
+  getStaffCalendarFeed,
   respondParentCalendar,
   respondStaffCalendar,
   rotateParentCalendarFeed,
+  rotateStaffCalendarFeed,
   updateStaffAppointment,
 } from "./personal-calendar-api";
 
@@ -311,6 +313,44 @@ describe("personal calendar API", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/parent/calendar/feed/rotate",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("reads and rotates the staff calendar subscription feed", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            url: "https://moto.test/api/calendar-feed/abc",
+            webcal_url: "webcal://moto.test/api/calendar-feed/abc",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            url: "https://moto.test/api/calendar-feed/new",
+            webcal_url: "webcal://moto.test/api/calendar-feed/new",
+          },
+        }),
+      );
+
+    await expect(getStaffCalendarFeed()).resolves.toMatchObject({
+      webcal_url: "webcal://moto.test/api/calendar-feed/abc",
+    });
+    await expect(rotateStaffCalendarFeed()).resolves.toMatchObject({
+      url: "https://moto.test/api/calendar-feed/new",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/calendar/feed",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/calendar/feed/rotate",
       expect.objectContaining({ method: "POST" }),
     );
   });

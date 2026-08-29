@@ -621,7 +621,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 253,
+          "line": 254,
           "declaration": "NewFactory"
         }
       ]
@@ -27143,7 +27143,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        471
+        472
       ],
       "tables": []
     },
@@ -27153,7 +27153,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        426
       ],
       "tables": []
     },
@@ -27163,9 +27163,23 @@
       "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        1212
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1005
+      ],
+      "tables": [
+        "calendar.appointments",
+        "calendar.recurrence_rules",
+        "calendar.staff_feed_tombstones"
+      ]
     },
     {
       "scope": "test",
@@ -27173,7 +27187,7 @@
       "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
       "target": "database/repositories.NewFactory",
       "lines": [
-        679
+        1098
       ],
       "tables": []
     },
@@ -27183,7 +27197,7 @@
       "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        749
+        1168
       ],
       "tables": []
     },
@@ -27193,7 +27207,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1658
+        2077
       ],
       "tables": [
         "auth.accounts"
@@ -27205,7 +27219,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2252
+        2671
       ],
       "tables": []
     },
@@ -27215,7 +27229,7 @@
       "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1337
+        1756
       ],
       "tables": []
     },
@@ -27225,7 +27239,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2315
+        2734
       ],
       "tables": []
     },
@@ -27235,7 +27249,81 @@
       "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1470
+        1889
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        730
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        678
+      ],
+      "tables": [
+        "auth.account_tenants"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        752
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        799
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        955
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        903
+      ],
+      "tables": [
+        "schedule.activity_instances"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        856
       ],
       "tables": []
     },
@@ -27245,7 +27333,7 @@
       "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        575
+        576
       ],
       "tables": [
         "auth.accounts"
@@ -27257,7 +27345,7 @@
       "declaration": "calendarTestConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        35
+        36
       ],
       "tables": []
     },

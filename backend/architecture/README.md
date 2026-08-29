@@ -127,6 +127,15 @@ Candidate entries must be a subset of the base entries, unchanged entries must
 keep their issue, and candidate policy, package classification, and ownership
 changes may not weaken the checks enforced by the base policy.
 
+One additive ownership case is allowed because otherwise the ratchet would
+freeze the database schema: a candidate may add a `data_objects` entry when a
+new Go file under `database/migrations/` in the same candidate creates that
+exact schema-qualified table through a literal `NewRaw(... CREATE TABLE ...)`
+statement. The table must not be mentioned by any migration at the base SHA,
+the write owner must already exist, and changing or newly assigning ownership
+for an existing table remains a policy loosening. Modified historical
+migrations never qualify for this exception.
+
 `audit-issues` performs the network-dependent GitHub liveness check separately.
 The wrapper supplies the committed baseline; callers must provide `--api-url`,
 and `GITHUB_TOKEN` is optional for authenticated requests. A GitHub or network
