@@ -441,12 +441,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 118,
+          "line": 119,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 546,
+          "line": 564,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 213,
+          "line": 214,
           "declaration": "New"
         }
       ]
@@ -466,12 +466,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 115,
+          "line": 116,
           "declaration": "type API"
         },
         {
           "file": "api/server.go",
-          "line": 99,
+          "line": 121,
           "declaration": "configureSchedulerServices"
         }
       ]
@@ -481,7 +481,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 216,
+          "line": 217,
           "declaration": "New"
         }
       ]
@@ -16684,7 +16684,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        213
+        214
       ],
       "tables": []
     },
@@ -16694,7 +16694,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        216
+        217
       ],
       "tables": []
     },
@@ -16704,7 +16704,7 @@
       "declaration": "NewServer",
       "target": "api.New",
       "lines": [
-        31
+        32
       ],
       "tables": []
     },
@@ -16714,7 +16714,7 @@
       "declaration": "newScheduler",
       "target": "services/scheduler.NewScheduler",
       "lines": [
-        75
+        87
       ],
       "tables": []
     },

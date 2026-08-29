@@ -50,6 +50,16 @@ type CleanupJob struct {
 	Run         func(context.Context) (int, error)
 }
 
+// WorkerTracer is injected by the Worker composition root. The scheduler owns
+// job names and outcomes; the adapter owns correlation, logs, and metrics.
+type WorkerTracer struct {
+	StartJob func(context.Context, string) (context.Context, error)
+	Logger   func(context.Context) *slog.Logger
+	Failure  func(context.Context, string, string, error)
+}
+
+var errWorkerTraceStart = errors.New("start worker trace")
+
 // WorkSessionCleaner exposes the cleanup routine for stale work sessions.
 type WorkSessionCleaner interface {
 	CleanupOpenSessions(ctx context.Context) (int, error)
@@ -147,6 +157,7 @@ type Scheduler struct {
 	tenantRuntimeConfigured    bool
 	tenantRuntimeObserver      func(entryPoint, outcome string)
 	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
+	workerTracer               WorkerTracer
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
 	minuteSnapshotNow          func() time.Time
@@ -416,6 +427,32 @@ func (s *Scheduler) SetTenantRuntimeObserver(observer func(entryPoint, outcome s
 // evidence for worker commands.
 func (s *Scheduler) SetUnitOfWorkObserver(observer func(entryPoint, kind, result string, duration time.Duration, retries int)) {
 	s.unitOfWorkObserver = observer
+}
+
+func (s *Scheduler) SetWorkerTracer(tracer WorkerTracer) {
+	s.workerTracer = tracer
+}
+
+func (s *Scheduler) startWorkerJob(ctx context.Context, operation string) (context.Context, error) {
+	if s.workerTracer.StartJob == nil {
+		return ctx, nil
+	}
+	return s.workerTracer.StartJob(ctx, operation)
+}
+
+func (s *Scheduler) traceWorkerFailure(ctx context.Context, operation, outcome string, err error) bool {
+	if s.workerTracer.Failure != nil {
+		s.workerTracer.Failure(ctx, operation, outcome, err)
+		return true
+	}
+	return false
+}
+
+func (s *Scheduler) workerLogger(ctx context.Context) *slog.Logger {
+	if s.workerTracer.Logger != nil {
+		return s.workerTracer.Logger(ctx)
+	}
+	return s.getLogger()
 }
 
 func (s *Scheduler) withUnitOfWork(ctx context.Context) context.Context {
@@ -1061,32 +1098,37 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	s.getLogger().Info("running scheduled token cleanup")
-	startTime := time.Now()
-
-	// Use reflection to call CleanupExpiredTokens method
-	if err := s.RunCleanupJobs(); err != nil {
-		s.getLogger().Error("token cleanup failed", "error", err)
-		return
+	if err := s.RunCleanupJobs(); errors.Is(err, errWorkerTraceStart) {
+		s.getLogger().Error("token cleanup trace setup failed")
 	}
-
-	duration := time.Since(startTime)
-	s.getLogger().Info("token cleanup completed",
-		slog.Duration("duration", duration.Round(time.Millisecond)))
 }
 
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.
 func (s *Scheduler) RunCleanupJobs() error {
+	started := time.Now()
+	ctx, err := s.startWorkerJob(context.Background(), "cleanup-jobs")
+	if err != nil {
+		return fmt.Errorf("%w: %v", errWorkerTraceStart, err)
+	}
+	logger := s.workerLogger(ctx)
+	logger.InfoContext(ctx, "running scheduled token cleanup")
 	if len(s.cleanupJobs) == 0 {
-		s.getLogger().Info("no cleanup jobs registered, skipping token cleanup")
+		logger.InfoContext(ctx, "no cleanup jobs registered, skipping token cleanup")
 		return nil
 	}
 
 	if !s.tenantRuntimeConfigured {
-		s.observeTenantRuntime("missing_tenant")
+		if !s.traceWorkerFailure(ctx, "cleanup-jobs", "missing_tenant", tenant.ErrRuntimeRequired) {
+			s.observeTenantRuntime("missing_tenant")
+			logger.ErrorContext(ctx, "runtime operation failed",
+				slog.String("entry_point", "worker"),
+				slog.String("operation", "cleanup-jobs"),
+				slog.String("outcome", "missing_tenant"),
+			)
+		}
 		return tenant.ErrRuntimeRequired
 	}
-	ctx := s.withUnitOfWork(context.Background())
+	ctx = s.withUnitOfWork(ctx)
 	var firstErr error
 
 	for _, job := range s.cleanupJobs {
@@ -1106,19 +1148,21 @@ func (s *Scheduler) RunCleanupJobs() error {
 			count, err = job.Run(ctx)
 		}
 		if err != nil {
-			s.getLogger().Error("cleanup job failed",
-				slog.String("job", job.Description),
-				slog.Any("error", err),
-			)
+			if !s.traceWorkerFailure(ctx, job.Description, "transaction_failure", err) {
+				logger.ErrorContext(ctx, "cleanup job failed", slog.String("job", job.Description))
+			}
 			if firstErr == nil {
 				firstErr = err
 			}
 			continue
 		}
 
-		s.getLogger().Info("cleanup job completed",
+		logger.InfoContext(ctx, "cleanup job completed",
 			slog.String("job", job.Description),
 			slog.Int("records_deleted", count))
+	}
+	if firstErr == nil {
+		logger.InfoContext(ctx, "token cleanup completed", slog.Duration("duration", time.Since(started).Round(time.Millisecond)))
 	}
 
 	return firstErr
