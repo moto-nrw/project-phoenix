@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"testing"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -153,7 +152,6 @@ func TestResolveBoolForTenant_TenantOverrideWins(t *testing.T) {
 
 	repo := newInMemoryValueRepo()
 	sv := &config.SettingValue{
-		Model:      modelBase.Model{},
 		SettingKey: "test.tenant_bool_override",
 		Value:      json.RawMessage(`false`),
 	}

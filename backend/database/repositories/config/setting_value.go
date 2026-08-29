@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
@@ -42,10 +41,7 @@ func (r *SettingValueRepository) FindByTenantAndKey(ctx context.Context, tenantI
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{
-			Op:  "find setting value by tenant and key",
-			Err: err,
-		}
+		return nil, fmt.Errorf("find setting value by tenant and key: %w", err)
 	}
 	return sv, nil
 }
@@ -65,10 +61,7 @@ func (r *SettingValueRepository) FindByTenantAndKeys(ctx context.Context, tenant
 		Where(`"setting_value".setting_key IN (?)`, bun.List(keys)).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find setting values by tenant and keys",
-			Err: err,
-		}
+		return nil, fmt.Errorf("find setting values by tenant and keys: %w", err)
 	}
 	return values, nil
 }
@@ -89,10 +82,7 @@ func (r *SettingValueRepository) FindByTenantsAndKeys(ctx context.Context, tenan
 		Where(`"setting_value".setting_key IN (?)`, bun.List(keys)).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find setting values by tenants and keys",
-			Err: err,
-		}
+		return nil, fmt.Errorf("find setting values by tenants and keys: %w", err)
 	}
 	return values, nil
 }
@@ -116,10 +106,7 @@ func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingV
 		Exec(ctx)
 
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "upsert setting value",
-			Err: err,
-		}
+		return fmt.Errorf("upsert setting value: %w", err)
 	}
 	return nil
 }
@@ -134,10 +121,7 @@ func (r *SettingValueRepository) Delete(ctx context.Context, tenantID int64, key
 		Exec(ctx)
 
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "delete setting value",
-			Err: err,
-		}
+		return fmt.Errorf("delete setting value: %w", err)
 	}
 	return nil
 }

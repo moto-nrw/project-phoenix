@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
@@ -39,10 +38,7 @@ func (r *SettingAuditRepository) Create(ctx context.Context, entry *config.Setti
 		Exec(ctx)
 
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create setting audit entry",
-			Err: err,
-		}
+		return fmt.Errorf("create setting audit entry: %w", err)
 	}
 	return nil
 }
