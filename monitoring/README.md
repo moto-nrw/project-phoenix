@@ -1,6 +1,7 @@
 # Phoenix Monitoring
 
-This directory versions the capacity-monitoring layer for production and staging.
+This directory versions the capacity and data-integrity monitoring layer for
+production and staging.
 
 ## Services
 
@@ -8,6 +9,8 @@ This directory versions the capacity-monitoring layer for production and staging
 - Node Exporter captures host CPU, load, RAM, swap, disk, network, and file-descriptor pressure.
 - cAdvisor captures Docker container CPU, memory, network, filesystem I/O, restarts, and OOM signals.
 - Existing Grafana can import the Prometheus datasource and dashboard provisioning files from `grafana/provisioning`.
+- Grafana provisions the Loki datasource, booking-consistency dashboard, and
+  booking-consistency alert rules from `grafana/provisioning`.
 
 The stack does not run `postgres_exporter`. Phoenix exports connection-pool
 metrics from the backend process. Do not enable the exporter's table-statistics
@@ -28,6 +31,42 @@ docker compose restart grafana
 `prometheus-compose.yml` is an additive Compose overlay. Keep the server's existing `/root/monitoring/docker-compose.yml` as the base file because it owns Loki, Grafana, Alloy, and the healthcheck containers.
 
 The Prometheus container reads `METRICS_BEARER_TOKEN` from `/root/monitoring/.env`. Add that key to the existing file next to `GRAFANA_ADMIN_PASSWORD`, using the same value deployed to the production and staging app `.env` files.
+
+Copy the complete `grafana/provisioning` directory before restarting Grafana.
+The alert rules use the existing `Phoenix Alerts` folder and the existing
+default notification policy; they do not provision or overwrite contact points
+or notification policies.
+
+## Booking consistency
+
+Deploy the backend containing the reduced audit log contract before provisioning
+the dashboard and rules. The monitoring configuration intentionally ignores the
+removed counters and uses only:
+
+- `pickup_projection_missing_days`
+- `approved_without_required_offering`
+- `approved_without_optional_offering` (review only)
+- `total_findings`
+
+The drift rule compares the latest result with the documented Production
+baseline in the runbook. Tenants without a documented non-zero baseline use
+zero. It excludes tenants where bookings are not the authoritative source, so
+their projection counters remain visible in the dashboard without triggering
+an alarm. Update both the rule and the runbook when an accepted baseline or the
+authoritative tenant set changes.
+The runbook is
+[`runbooks/booking-consistency.md`](runbooks/booking-consistency.md).
+
+After copying the files and restarting Grafana, verify provisioning without
+printing credentials:
+
+```bash
+docker compose logs grafana | grep -E "provision|alert"
+curl -s http://localhost:3100/ready
+```
+
+Then follow the post-deployment checks in the runbook. Test alert delivery in
+staging; never inject a synthetic audit failure into Production data.
 
 ## Caddy
 
