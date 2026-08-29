@@ -56,9 +56,11 @@ func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 
 func careScheduleParentToken(t *testing.T, chain testpkg.ParentChain) string {
 	t.Helper()
+	// Parent-scope principals are not tenant-bound; the security principal
+	// seam rejects a parent token that carries a tenant (#2645).
 	return testutil.MintTestJWT(t, jwt.AppClaims{
 		ID: int(chain.AccountID), Sub: chain.Email, Roles: []string{"guardian"},
-		Scope: tenant.ScopeParent, TenantID: chain.TenantID,
+		Scope: tenant.ScopeParent,
 	})
 }
 
