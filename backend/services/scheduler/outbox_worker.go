@@ -44,6 +44,11 @@ func (s *Scheduler) resolveOutboxInterval() time.Duration {
 // `enrollment.outbox_max_attempts` setting on each tick — admins can
 // tune retry budget without restart.
 func (s *Scheduler) runOutboxOnce(task *ScheduledTask) {
+	if !s.tenantRuntimeConfigured {
+		s.observeTenantRuntime("missing_tenant")
+		s.getLogger().Error("outbox worker runtime is not configured")
+		return
+	}
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -62,6 +67,7 @@ func (s *Scheduler) runOutboxOnce(task *ScheduledTask) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
+	ctx = s.withUnitOfWork(ctx)
 
 	const batchSize = 25
 	processed, err := s.outboxWorker.RunOnce(ctx, batchSize)

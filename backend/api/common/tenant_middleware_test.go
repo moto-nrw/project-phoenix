@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,12 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testRuntime(t *testing.T, within func(context.Context, int64, func(context.Context, any) error) error) tenant.Runtime {
+func testRuntime(t *testing.T, within func(context.Context, int64, func(context.Context, any) error) error) tenant.UnitOfWork {
 	t.Helper()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		within,
 		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	return runtime
@@ -52,7 +54,7 @@ func TestTenantTxMiddlewareUsesValidatedTenantAndRollbackMarker(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
-	ctx := tenant.WithRuntime(tenant.WithTenant(request.Context(), id), runtime)
+	ctx := tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
@@ -63,7 +65,7 @@ func TestTenantTxMiddlewareUsesValidatedTenantAndRollbackMarker(t *testing.T) {
 func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 	t.Parallel()
 	adminCalled := false
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(context.Context, int64, func(context.Context, any) error) error {
 			t.Fatal("platform request must not open a tenant transaction")
 			return nil
@@ -73,6 +75,7 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 
@@ -83,7 +86,7 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	request := httptest.NewRequest(http.MethodGet, "/auth/accounts", nil)
-	ctx := tenant.WithRuntime(tenant.WithScope(request.Context(), tenant.ScopePlatform), runtime)
+	ctx := tenant.WithUnitOfWork(tenant.WithScope(request.Context(), tenant.ScopePlatform), runtime)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
@@ -95,7 +98,7 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 	t.Parallel()
 	var gotTenant int64
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, rawID int64, fn func(context.Context, any) error) error {
 			gotTenant = rawID
 			return fn(ctx, struct{}{})
@@ -105,6 +108,7 @@ func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 			return nil
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
@@ -117,7 +121,7 @@ func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/auth/accounts", nil)
 	ctx := tenant.WithScope(tenant.WithTenant(request.Context(), id), tenant.ScopePlatform)
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request.WithContext(tenant.WithRuntime(ctx, runtime)))
+	handler.ServeHTTP(recorder, request.WithContext(tenant.WithUnitOfWork(ctx, runtime)))
 
 	assert.Equal(t, int64(42), gotTenant)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
@@ -126,10 +130,9 @@ func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 func TestTenantStatusWriterTracksStatusAndBytes(t *testing.T) {
 	t.Parallel()
 	recorder := httptest.NewRecorder()
-	sw := &tenantStatusWriter{ResponseWriter: recorder}
+	sw := newTenantStatusWriter(recorder)
 
 	assert.Equal(t, http.StatusOK, sw.statusCode(), "unwritten response reports 200")
-	assert.Same(t, http.ResponseWriter(recorder), sw.Unwrap())
 
 	n, err := sw.Write([]byte("hello"))
 	require.NoError(t, err)
@@ -141,8 +144,73 @@ func TestTenantStatusWriterTracksStatusAndBytes(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, sw.statusCode(), "implicit 200 from Write is not overwritten")
 	assert.Equal(t, int64(11), sw.bytesWritten)
+	assert.Empty(t, recorder.Body.String(), "response stays buffered before commit")
+	require.NoError(t, sw.commitResponse())
 	assert.True(t, recorder.Flushed)
 	assert.Equal(t, "hello world", recorder.Body.String())
+}
+
+func TestTenantTxMiddlewareDiscardsSuccessWhenCommitFails(t *testing.T) {
+	t.Parallel()
+	commitErr := assert.AnError
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		if err := fn(ctx, struct{}{}); err != nil {
+			return err
+		}
+		return commitErr
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
+	ctx := tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request.WithContext(ctx))
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, "text/plain; charset=utf-8", recorder.Header().Get("Content-Type"))
+	assert.NotContains(t, recorder.Body.String(), `"ok":true`)
+}
+
+func TestTenantTxMiddlewareReportsRollbackFailure(t *testing.T) {
+	t.Parallel()
+	runtime := testRuntime(t, func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return errors.Join(fn(ctx, struct{}{}), assert.AnError)
+	})
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+
+	handler := TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tenant.MarkRollback(r.Context())
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
+	request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+}
+
+func TestTenantStatusWriterSpoolsLargeResponse(t *testing.T) {
+	t.Parallel()
+	recorder := httptest.NewRecorder()
+	sw := newTenantStatusWriter(recorder)
+	body := make([]byte, tenantResponseMemoryLimit+1)
+
+	_, err := sw.Write(body)
+	require.NoError(t, err)
+	assert.NotNil(t, sw.bodyFile)
+	assert.LessOrEqual(t, sw.body.Len(), tenantResponseMemoryLimit)
+	require.NoError(t, sw.commitResponse())
+	assert.Len(t, recorder.Body.Bytes(), len(body))
 }
 
 func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {
@@ -159,7 +227,7 @@ func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {
 	}))
 	handler = TenantRequestObserverMiddleware(func(event TenantRequestEvent) { observed = event })(handler)
 	request := httptest.NewRequest(http.MethodGet, "/api/rooms", nil)
-	ctx := tenant.WithRuntime(tenant.WithTenant(request.Context(), id), runtime)
+	ctx := tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
@@ -185,12 +253,13 @@ func TestTenantOperationMiddlewareObservesServiceOwnedTransactionFailure(t *test
 	t.Parallel()
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, func(context.Context, any) error) error { return assert.AnError },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	var observed tenant.RuntimeEvent
@@ -204,12 +273,12 @@ func TestTenantOperationMiddlewareObservesServiceOwnedTransactionFailure(t *test
 	}))
 	handler = TenantRuntimeObserverMiddleware(func(event tenant.RuntimeEvent) { observed = event })(handler)
 	request := httptest.NewRequest(http.MethodPost, "/api/notifications/push/subscriptions", nil)
-	request = request.WithContext(tenant.WithRuntime(tenant.WithTenant(request.Context(), id), runtime))
+	request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, tenant.RuntimeTransaction, observed.Outcome)
+	assert.Equal(t, tenant.RuntimeTransaction, observed.Kind)
 	require.ErrorIs(t, observed.Err, assert.AnError)
 }
 

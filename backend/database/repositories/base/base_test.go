@@ -49,6 +49,29 @@ func newSettingValue(tb testing.TB, key, value string, updatedBy *int64) *config
 	return sv
 }
 
+func TestAcquireXactLockReportsContendedWait(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	key := uniqueKey("lock_wait")
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	require.NoError(t, err)
+	ctx, evidence := testpkg.CaptureUnitOfWorkEvidence(ctx)
+	testpkg.AttachLockWaitEvidence(db)
+	release := time.AfterFunc(20*time.Millisecond, func() { _ = holder.Rollback() })
+	defer release.Stop()
+
+	require.NoError(t, base.AcquireXactLock(ctx, db, key))
+
+	events := evidence()
+	require.Len(t, events, 1)
+	assert.Equal(t, "lock_wait", events[0].Kind)
+	assert.GreaterOrEqual(t, events[0].Duration, 15*time.Millisecond)
+}
+
 // TestNewRepository tests repository creation
 func TestNewRepository(t *testing.T) {
 	t.Parallel()

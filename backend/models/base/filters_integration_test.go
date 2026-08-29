@@ -701,35 +701,33 @@ func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
-
 	calls := 0
-	err := handler.RunInTxWithRetry(ctx, func(ctx context.Context, _ bun.Tx) error {
+
+	err := handler.RunInTxWithRetry(testpkg.Ctx(t), func(context.Context, bun.Tx) error {
 		calls++
 		return nil
 	})
+
 	require.NoError(t, err)
-	assert.Equal(t, 1, calls, "a successful transaction runs exactly once")
+	assert.Equal(t, 1, calls)
 }
 
 func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
-
 	expected := errors.New("business rule violation")
 	calls := 0
-	err := handler.RunInTxWithRetry(ctx, func(ctx context.Context, _ bun.Tx) error {
+
+	err := handler.RunInTxWithRetry(testpkg.Ctx(t), func(context.Context, bun.Tx) error {
 		calls++
 		return expected
 	})
+
 	require.ErrorIs(t, err, expected)
-	assert.Equal(t, 1, calls, "a non-retryable error must NOT be retried")
+	assert.Equal(t, 1, calls)
 }
 
 // The grade filter is the reason FirstNumberIn exists: a school year is the

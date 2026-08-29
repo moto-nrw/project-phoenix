@@ -13,7 +13,7 @@ func TestRecordHTTPRuntimeEventCountsMissingTenant(t *testing.T) {
 	t.Parallel()
 	before := httpMissingTenantRuntimeEvents(t)
 
-	recordHTTPRuntimeEvent(tenant.RuntimeEvent{Outcome: tenant.RuntimeMissingTenant, Err: tenant.ErrInvalidTenantID})
+	recordHTTPRuntimeEvent(tenant.RuntimeEvent{Kind: tenant.RuntimeMissingTenant, Err: tenant.ErrInvalidTenantID})
 
 	assert.GreaterOrEqual(t, httpMissingTenantRuntimeEvents(t), before+1)
 }

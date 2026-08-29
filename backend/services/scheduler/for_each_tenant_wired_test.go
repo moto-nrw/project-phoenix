@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -130,18 +131,25 @@ func TestForEachTenantSettings_MissingRuntimeSkipsWork(t *testing.T) {
 
 func TestForEachKnownTenantObservesMissingTenantAndTransactionFailure(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(context.Context, int64, func(context.Context, any) error) error { return assert.AnError },
 		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 
 	var outcomes []string
+	var unitOfWorkResults []string
 	s := &Scheduler{tenantRuntime: runtime, tenantRuntimeConfigured: true}
 	s.SetTenantRuntimeObserver(func(entryPoint, outcome string) {
 		assert.Equal(t, "worker", entryPoint)
 		outcomes = append(outcomes, outcome)
+	})
+	s.SetUnitOfWorkObserver(func(entryPoint, kind, result string, _ time.Duration, _ int) {
+		assert.Equal(t, "worker", entryPoint)
+		assert.Equal(t, "transaction", kind)
+		unitOfWorkResults = append(unitOfWorkResults, result)
 	})
 
 	s.forEachKnownTenant(context.Background(), []int64{0, 42}, "observe", func(context.Context, int64) error {
@@ -150,4 +158,5 @@ func TestForEachKnownTenantObservesMissingTenantAndTransactionFailure(t *testing
 	})
 
 	assert.Equal(t, []string{"missing_tenant", "transaction_failure"}, outcomes)
+	assert.Equal(t, []string{"rollback"}, unitOfWorkResults)
 }
