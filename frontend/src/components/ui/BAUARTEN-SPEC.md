@@ -296,21 +296,35 @@ enthält und selbst weder Titel noch Text trägt.
 
 ## 2. Die Kopfkarte ist eine geschlossene Fläche
 
-Titel, Statuszeile, Suche und Reiter gehören in EINE Karte, in dieser
-Reihenfolge. Die Reiter sind ihre letzte Zeile, abgesetzt durch eine
-Trennlinie über die volle Kartenbreite, mit Luft zur Unterkante. Die Karte
-bleibt unten gerundet und gerahmt — eine offene Kante hängt in der Luft,
-solange der Inhalt erst 24 px darunter beginnt.
+Titel, Statuszeile, Reiter und Suche gehören in EINE Karte, in genau dieser
+Reihenfolge (zur Stelle der Reiter siehe unten). Die Karte ist rundum gerahmt
+und gerundet — eine offene Kante hängt in der Luft, solange der Inhalt erst
+24 px darunter beginnt.
 
 Verboten ist die frühere Bauart: eine Reiterzeile zwischen Kopf und Inhalt,
 frei auf dem Grund, mit einer Haarlinie, die im Nichts endet.
 
-**Der aktive Reiter ist eine Fläche, kein Unterstrich.** Ein Unterstrich
-existiert nur am aktiven Reiter; die Zeile richtet sich dann optisch an etwas
-aus, das den übrigen Reitern fehlt, und unter deren Text steht fast doppelt so
-viel Luft. Als gleich große Kästen (36 px, je 13 px Luft über und unter der
-Reihe) hängt der Abstand an nichts mehr. Es ist zugleich dieselbe Sprache wie
-in der Seitenleiste: aktiv ist Fläche und Schriftschnitt, nicht Farbe.
+**Die Reiter stehen ÜBER der Suchzeile**, direkt unter Titel und Statuszeile.
+Der Reiter bestimmt, WAS man ansieht; die Suche filtert DARIN. Unter der Suche
+sitzt er in derselben Zone wie Suchfeld und Filter und wird als ein weiteres
+Filterelement gelesen — daran ändert weder Farbe noch Größe etwas.
+
+**Die Grundlinie gehört dem Band, nicht dem einzelnen Reiter.** Eine Haarlinie
+läuft über die volle Kartenbreite; der aktive Reiter färbt nur sein Stück davon
+grün ein (`border-b-[3px]`, `text-base`, `pb-3`, Abstand untereinander `gap-6`).
+Zwei Gründe:
+
+- *Abstände.* Trägt nur der aktive Reiter einen Strich, richtet sich die Zeile
+  an etwas aus, das den übrigen fehlt: unter deren Text steht fast doppelt so
+  viel Luft. Mit der Linie am Band sind alle Reiter gleich hohe Kästen.
+- *Verständlichkeit.* Die Linie verbindet den Reiter sichtbar mit dem Inhalt
+  darunter. Eine getönte Pille oder eine geschlossene Segment-Spur sagt das
+  nicht — beide lesen sich als „wähle einen Wert", nicht als „wechsle die
+  Ansicht". Genau daran scheiterten die ersten beiden Fassungen.
+
+Kein `-mb-px` an den Reitern. Der gebündelte Reiter (`menu`) rendert eine
+zusätzliche Hülle um seine Schaltfläche; ein negativer Rand greift dort an der
+inneren Schaltfläche und verschiebt genau diesen einen Reiter um ein Pixel.
 
 ## 3. Höchstens vier Seitenreiter
 

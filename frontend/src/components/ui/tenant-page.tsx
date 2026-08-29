@@ -287,15 +287,8 @@ export function TenantPage({
           reservierter Leerraum darunter — genau der war der tote Streifen. */}
       {/* Eine Fläche von Titel bis Reiter. Die Reiter lagen vorher frei auf
           dem gemusterten Grund und sahen aus wie nachträglich dazwischen
-          geschoben; sie sind jetzt die letzte Zeile des Kopfes. Die Karte
-          bleibt dabei unten geschlossen und gerundet — der Inhalt beginnt
-          erst 24 px darunter, eine offene Kante hinge in der Luft. */}
-      <header
-        className={cn(
-          "moto-content-surface rounded-2xl border shadow-sm",
-          tabs ? "px-5 pt-5 pb-0" : "p-5",
-        )}
-      >
+          geschoben; sie sind jetzt die letzte Zeile des Kopfes. */}
+      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <div className="flex min-w-0 items-center gap-3">
             {leading}
@@ -339,6 +332,11 @@ export function TenantPage({
           )}
         </div>
 
+        {/* Der Reiter bestimmt, WAS man ansieht; die Suche filtert DARIN.
+            Deshalb steht er über der Suchzeile — darunter liest er sich als
+            ein weiteres Filterelement. */}
+        {tabs && <TenantPageTabs {...tabs} />}
+
         {(searchSlot ?? hasSearchRow) && (
           <div className={cn("mt-4", CONTROL_HEIGHT)}>
             {searchSlot}
@@ -362,10 +360,6 @@ export function TenantPage({
             )}
           </div>
         )}
-        {/* Kein eigener Außenabstand: den Abstand über der Trennlinie setzt
-            die Reiterzeile selbst, sonst stapeln sich zwei Werte und die
-            Zeile rutscht nach unten. */}
-        {tabs && <TenantPageTabs {...tabs} />}
       </header>
 
       <div className={cn("space-y-6", tabs ? "mt-6" : "mt-6")}>
@@ -397,14 +391,12 @@ function TenantPageTabs({
   label = "Seitenbereiche",
 }: NonNullable<TenantPageProps["tabs"]>) {
   return (
-    // Die Trennlinie braucht oben dieselbe Luft wie die Reiter unten,
-    // sonst klebt sie an der Suchzeile und die Zeile wirkt nach unten gerutscht.
     <div className="-mx-5 mt-4">
       {/* Unter sm eine Auswahlliste: sieben Reiter nebeneinander wären auf
           einem Telefon eine Scrollleiste, in der die Hälfte der Bereiche
           unsichtbar bleibt. Dieselbe Bauart, andere Form — kein Sonderweg
           pro Seite. */}
-      <div className="border-t border-gray-200 px-5 pt-3 pb-3 sm:hidden">
+      <div className="sm:hidden">
         <label className="sr-only" htmlFor="tenant-page-tabs">
           {label}
         </label>
@@ -430,13 +422,17 @@ function TenantPageTabs({
         </select>
       </div>
 
-      {/* Volle Kartenbreite: die Trennlinie über den Reitern läuft von Rand
-          zu Rand, sonst schwebt sie in der Polsterung. Die aktive Marke sitzt
-          auf der Unterkante der Karte, dort wo der Inhalt anschließt. */}
+      {/* Die Grundlinie gehört dem BAND, nicht dem einzelnen Reiter: eine
+          Haarlinie über die volle Kartenbreite, der aktive Reiter färbt nur
+          sein Stück davon ein. Dadurch sind alle Reiter gleich hohe Kästen
+          und der Abstand hängt nicht mehr an einem Strich, den nur einer von
+          ihnen trägt — der Fehler der ersten Fassung. Die Linie verbindet den
+          Reiter zugleich sichtbar mit dem Inhalt darunter; eine einzeln
+          getönte Pille sagt das nicht, sie liest sich als Filter. */}
       <div
         role="tablist"
         aria-label={label}
-        className="hidden gap-1 overflow-x-auto border-t border-gray-200 px-5 pt-3 pb-3 sm:flex"
+        className="hidden items-end gap-6 overflow-x-auto border-b border-gray-200 px-5 sm:flex"
       >
         {items.map((item) => {
           const active = item.menu
@@ -450,10 +446,10 @@ function TenantPageTabs({
           // ist dieselbe Sprache wie in der Seitenleiste: aktiv ist Fläche und
           // Schriftschnitt, nicht Farbe.
           const tabClass = cn(
-            "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors",
+            "flex shrink-0 items-center gap-1.5 border-b-[3px] pb-3 text-base whitespace-nowrap transition-colors",
             active
-              ? "bg-gray-100 font-semibold text-gray-900"
-              : "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900",
+              ? "border-moto-green font-semibold text-gray-900"
+              : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900",
             item.disabled && "cursor-not-allowed opacity-50",
           );
           const inner = (
@@ -473,8 +469,11 @@ function TenantPageTabs({
                 key={item.value}
                 ariaLabel={item.label}
                 triggerClassName={tabClass}
+                // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die
+                // Zeilenhöhe um ein Pixel und der Reiter steht einen Hauch
+                // tiefer als seine Nachbarn.
                 triggerContent={
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 leading-6">
                     {openEntry ? openEntry.label : item.label}
                     <ChevronDown className="size-3.5" aria-hidden />
                   </span>
