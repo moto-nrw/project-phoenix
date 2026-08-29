@@ -17603,7 +17603,7 @@
       "declaration": "newDisabledWriteRouter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        217
       ],
       "tables": []
     },
@@ -26265,7 +26265,7 @@
       "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        771
+        772
       ],
       "tables": []
     },
@@ -26275,7 +26275,7 @@
       "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        724
+        725
       ],
       "tables": []
     },
@@ -26295,7 +26295,7 @@
       "declaration": "insertStatusDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        615
+        616
       ],
       "tables": []
     },
@@ -30543,7 +30543,7 @@
       "declaration": "newCareFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        89
       ],
       "tables": []
     },
@@ -30553,7 +30553,7 @@
       "declaration": "newCareFixture",
       "target": "services.NewFactory",
       "lines": [
-        71
+        90
       ],
       "tables": []
     },
