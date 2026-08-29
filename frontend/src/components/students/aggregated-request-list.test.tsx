@@ -438,7 +438,7 @@ describe("AggregatedRequestList", () => {
     expect(screen.getByText("Die Betreuung wurde beendet.")).toBeVisible();
   });
 
-  it("loads every open withdrawal before grouping child cases", async () => {
+  it("loads every open withdrawal progressively for complete child cases", async () => {
     const firstPage = Array.from({ length: 25 }, (_, index) => ({
       id: `withdrawal-${index + 1}`,
       studentId: `${index + 1}`,
@@ -821,7 +821,7 @@ describe("AggregatedRequestList", () => {
     expect(await screen.findByText("excused-item-neu")).toBeInTheDocument();
   });
 
-  it("lädt alle offenen Seiten vor der Fallbündelung", async () => {
+  it("ergänzt offene Seiten im Hintergrund zu vollständigen Fällen", async () => {
     mockListOpen
       .mockResolvedValueOnce({
         items: Array.from(

@@ -125,6 +125,14 @@ function masterData(overrides: Partial<ChildMasterData> = {}): ChildMasterData {
   };
 }
 
+async function submitIdentityRequest() {
+  const button = screen.getByRole("button", {
+    name: "Anfrage an OGS senden",
+  });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
+
 describe("ChildMasterDataView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -486,9 +494,7 @@ describe("ChildMasterDataView", () => {
     );
     const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith("42", [
@@ -527,9 +533,7 @@ describe("ChildMasterDataView", () => {
     );
     const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(
@@ -676,9 +680,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Klasse"), {
       target: { value: "3b" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith("42", [
@@ -697,9 +699,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
       target: { value: "" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(
       await screen.findByText("Eine geänderte Angabe darf nicht leer sein."),
@@ -844,9 +844,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Lea" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(
       await screen.findByText("Die Anfrage konnte nicht gesendet werden."),
