@@ -81,9 +81,10 @@ bleiben.
 
 Ein kompakter Einstieg „Frag ChatGPT“ steht oben in der festen Seitenleiste und im mobilen Kopf.
 Er öffnet ChatGPT mit einem vorausgefüllten Prompt. Der Prompt nennt die Adresse der aktuell
-geöffneten Hilfeseite und das aktuelle Thema. Damit lässt sich der Übergang ohne eigenen GPT und
-ohne API-Anbindung erproben. Der Parameter `prompt` ist in der offiziellen OpenAI-Dokumentation
-nicht beschrieben und bleibt deshalb vorerst eine Prototyp-Annahme.
+geöffneten Hilfeseite und das aktuelle Thema. Das Thema dient nur als Startpunkt; Fragen zu anderen
+Themen bleiben ausdrücklich möglich. Damit lässt sich der Übergang ohne eigenen GPT und ohne
+API-Anbindung erproben. Der Parameter `prompt` ist in der offiziellen OpenAI-Dokumentation nicht
+beschrieben und bleibt deshalb vorerst eine Prototyp-Annahme.
 
 ## 3. Arbeitspakete
 
