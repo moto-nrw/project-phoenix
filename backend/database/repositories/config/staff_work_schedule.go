@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
@@ -45,7 +44,7 @@ func (r *StaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, s
 }
 
 // GetByStaffIDAndDate returns schedule entries valid for a specific date
-func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*config.StaffWorkSchedule, error) {
+func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date config.CalendarDate) ([]*config.StaffWorkSchedule, error) {
 	var entries []*config.StaffWorkSchedule
 	query := r.runtime.DB(ctx).NewSelect().
 		Model(&entries).
@@ -70,7 +69,7 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 // FindByStaffIDsValidInRange returns every schedule entry for the given staff
 // members whose validity window intersects [from, to] (valid_until exclusive,
 // matching GetByStaffIDAndDate).
-func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*config.StaffWorkSchedule, error) {
+func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to config.CalendarDate) ([]*config.StaffWorkSchedule, error) {
 	if len(staffIDs) == 0 {
 		return nil, nil
 	}
@@ -116,14 +115,14 @@ func (r *StaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, st
 
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
-func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor timezone.Date) error {
+func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor config.CalendarDate) error {
 	if err := r.runtime.LockStaffBalance(ctx, staffID); err != nil {
 		return err
 	}
 	db := r.runtime.DB(ctx)
 	tenantID := r.runtime.TenantID(ctx)
 	now := time.Now()
-	today := timezone.TodayDate()
+	today := r.runtime.Today()
 
 	for _, e := range entries {
 		e.StaffID = staffID

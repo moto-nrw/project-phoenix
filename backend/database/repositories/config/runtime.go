@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
 
@@ -12,4 +13,5 @@ type Runtime interface {
 	DB(context.Context) bun.IDB
 	TenantID(context.Context) int64
 	LockStaffBalance(context.Context, int64) error
+	Today() configModels.CalendarDate
 }

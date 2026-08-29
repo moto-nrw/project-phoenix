@@ -3,6 +3,7 @@ package base
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -17,3 +18,4 @@ func (r ConfigRuntime) TenantID(ctx context.Context) int64 { return tenant.FromC
 func (r ConfigRuntime) LockStaffBalance(ctx context.Context, staffID int64) error {
 	return AcquireStaffBalanceLock(ctx, r.db, staffID)
 }
+func (r ConfigRuntime) Today() timezone.Date { return timezone.TodayDate() }

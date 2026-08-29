@@ -8,6 +8,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
+// CalendarDate is the shared calendar-day value used by workforce schedules.
+type CalendarDate = timezone.Date
+
 // Day of week constants (ISO: 0=Monday, 6=Sunday)
 const (
 	DayMonday    = 0
