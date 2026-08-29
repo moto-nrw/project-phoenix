@@ -344,7 +344,7 @@ func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantI
 	var claims *accountMetadata
 	guard := service.schoolMintGuard(accountID, tenantID, &claims)
 	var guardErr error
-	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithAdminTx(t, context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
 		// nil account: schoolMintGuard re-reads and locks the row itself,
 		// exactly as it does behind persistTokenInTransaction.
 		guardErr = guard(ctx, nil)
@@ -545,7 +545,7 @@ func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
 	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 
 	var payload *accountMetadata
-	require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 		payload, err = service.schoolClaimsPayloadInTx(adminCtx, account, tenantID)
 		return err
 	}), "the in-rotation claims load must not re-gate: the guard just authorized this mint")
@@ -708,7 +708,7 @@ func runMintGuardWithOptions(t *testing.T, service *Service, db *bun.DB, account
 	var claims *accountMetadata
 	guard := service.schoolMintGuard(accountID, tenantID, &claims, opts...)
 	var guardErr error
-	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithAdminTx(t, context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
 		guardErr = guard(ctx, nil)
 		return nil
 	})

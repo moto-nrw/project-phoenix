@@ -782,7 +782,8 @@ func executeStatusDayHandler(tb testing.TB, router chi.Router, req *http.Request
 	// Claims carrying the bootstrap tenant follow the test into its own
 	// tenant (#2419), mirroring testutil.WithClaims.
 	claims.TenantID = testpkg.RebaseTenantID(tb, claims.TenantID)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx := testpkg.WithPackageTenantRuntime(req.Context())
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
 	ctx = tenant.WithTenantID(ctx, claims.TenantID)
 	req = req.WithContext(ctx)

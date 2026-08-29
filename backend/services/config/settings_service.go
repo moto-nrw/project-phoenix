@@ -20,11 +20,12 @@ import (
 )
 
 type settingsService struct {
-	valueRepo  config.SettingValueRepository
-	auditRepo  config.SettingAuditRepository
-	schoolRepo platform.SchoolRepository
-	db         *bun.DB
-	logger     *slog.Logger
+	valueRepo     config.SettingValueRepository
+	auditRepo     config.SettingAuditRepository
+	schoolRepo    platform.SchoolRepository
+	db            *bun.DB
+	logger        *slog.Logger
+	tenantRuntime *tenant.Runtime
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
 	// eligibility to specific school classes. It gates disabling the
@@ -48,6 +49,17 @@ type settingsService struct {
 	// leaves that phase unable to accept any submission (#1663). Optional in
 	// the same way as the two probes above; injected via SetGradeCapGuard.
 	gradeCapGuard func(ctx context.Context) (int, error)
+}
+
+func (s *settingsService) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *settingsService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *s.tenantRuntime)
 }
 
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used
@@ -160,6 +172,7 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*Sett
 // query when a scheduler already prefetched the values, and a full
 // request-cache hit skips the tenant transaction entirely (issue #2065).
 func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error) {
+	ctx = s.withTenantRuntime(ctx)
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		return snapshot, nil
 	}
@@ -223,7 +236,7 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 
 	var stored []*config.SettingValue
 	if len(keys) > 0 {
-		err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(txCtx context.Context, _ bun.Tx) error {
 			var findErr error
 			stored, findErr = s.valueRepo.FindByTenantsAndKeys(txCtx, uniqueTenantIDs, keys)
 			return findErr
@@ -1127,7 +1140,7 @@ func (s *settingsService) ClearLoginImageURL(ctx context.Context, tenantID int64
 // Uses WithAdminTx because platform.schools requires the phoenix_admin role.
 // Pass nil imageURL to remove the key.
 func (s *settingsService) updateSchoolSetting(ctx context.Context, tenantID int64, imageURL *string) (oldURL string, err error) {
-	err = tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		// Use FOR UPDATE lock to serialize concurrent read-modify-write on the JSONB settings.
 		// FOR SHARE is insufficient here: two transactions could both acquire the shared lock,
 		// read the same JSONB, and then deadlock when both try to UPDATE the row.

@@ -41,7 +41,7 @@ func TestOperatorAuthService_Login_OperatorNotFound(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -64,7 +64,7 @@ func TestOperatorAuthService_Login_RepositoryError(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -95,7 +95,7 @@ func TestOperatorAuthService_Login_InactiveOperator(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -118,7 +118,7 @@ func TestOperatorAuthService_ValidateOperator_NotFound(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -149,7 +149,7 @@ func TestOperatorAuthService_ValidateOperator_Inactive(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -179,7 +179,7 @@ func TestOperatorAuthService_GetOperator_Success(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -204,7 +204,7 @@ func TestOperatorAuthService_GetOperator_NotFound(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -227,7 +227,7 @@ func TestOperatorAuthService_GetOperator_RepositoryError(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -261,7 +261,7 @@ func TestOperatorAuthService_ListOperators_Success(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -286,7 +286,7 @@ func TestOperatorAuthService_ListOperators_Empty(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -309,7 +309,7 @@ func TestOperatorAuthService_ListOperators_RepositoryError(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -342,7 +342,7 @@ func TestOperatorAuthService_UpdateProfile_Success(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -362,7 +362,7 @@ func TestOperatorAuthService_UpdateProfile_EmptyName(t *testing.T) {
 	operatorRepo := &mockOperatorRepo{}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -381,7 +381,7 @@ func TestOperatorAuthService_UpdateProfile_WhitespaceName(t *testing.T) {
 	operatorRepo := &mockOperatorRepo{}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -400,7 +400,7 @@ func TestOperatorAuthService_UpdateProfile_NameTooLong(t *testing.T) {
 	operatorRepo := &mockOperatorRepo{}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -428,7 +428,7 @@ func TestOperatorAuthService_UpdateProfile_OperatorNotFound(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -460,7 +460,7 @@ func TestOperatorAuthService_UpdateProfile_UpdateError(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -483,7 +483,7 @@ func TestOperatorAuthService_ChangePassword_OperatorNotFound(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -506,7 +506,7 @@ func TestOperatorAuthService_ChangePassword_RepositoryError(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -564,7 +564,7 @@ func TestOperatorAuthService_Login_Success(t *testing.T) {
 	refreshRepo := &mockOperatorRefreshTokenRepo{}
 
 	// Create service AFTER setting env var
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     auditLogRepo,
 		RefreshTokenRepo: refreshRepo,
@@ -613,7 +613,7 @@ func TestOperatorAuthService_Login_WrongPassword(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     auditLogRepo,
 		RefreshTokenRepo: &mockOperatorRefreshTokenRepo{},
@@ -650,7 +650,7 @@ func TestOperatorAuthService_ValidateOperator_Success(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -688,7 +688,7 @@ func TestOperatorAuthService_ValidateOperator_WrongPassword(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -711,7 +711,7 @@ func TestOperatorAuthService_ValidateOperator_RepositoryError(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -798,7 +798,7 @@ func TestOperatorAuthService_ChangePassword_WrongCurrentPassword(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -834,7 +834,7 @@ func TestOperatorAuthService_ChangePassword_WeakNewPassword(t *testing.T) {
 	}
 	auditLogRepo := &mockAuditLogRepoShared{}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: auditLogRepo,
 		DB:           &bun.DB{},
@@ -900,7 +900,7 @@ func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
 		},
 	}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     auditLogRepo,
 		RefreshTokenRepo: &mockOperatorRefreshTokenRepo{},
@@ -948,7 +948,7 @@ func countOperatorRefreshTokens(t *testing.T, db *bun.DB, operatorID int64, toke
 func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
 	t.Parallel()
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           &bun.DB{},
@@ -966,7 +966,7 @@ func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
 func TestOperatorAuthService_RefreshToken_MissingRefreshTokenRepo(t *testing.T) {
 	t.Parallel()
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           &bun.DB{},
@@ -1002,7 +1002,7 @@ func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T
 		},
 	}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: operatorRepo,
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           &bun.DB{},
@@ -1225,7 +1225,7 @@ func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
 		},
 	}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     &mockAuditLogRepoShared{},
 		RefreshTokenRepo: refreshRepo,
@@ -1270,7 +1270,7 @@ func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
 		},
 	}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     &mockAuditLogRepoShared{},
 		RefreshTokenRepo: refreshRepo,
@@ -1310,7 +1310,7 @@ func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
 		},
 	}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     operatorRepo,
 		AuditLogRepo:     &mockAuditLogRepoShared{},
 		RefreshTokenRepo: refreshRepo,
@@ -1357,7 +1357,7 @@ func TestOperatorAuthService_RefreshToken_HandoffLookupErrorDoesNotRevokeFamily(
 		},
 	}
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:     &mockOperatorRepo{},
 		AuditLogRepo:     &mockAuditLogRepoShared{},
 		RefreshTokenRepo: refreshRepo,

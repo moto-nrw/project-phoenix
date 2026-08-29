@@ -60,6 +60,7 @@ func TestWebPushDeliverSynchronouslyReportsMissingSubscribers(t *testing.T) {
 		db, mock := mockTenantTx(t)
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), guardianSyncEvent()),
 			ErrNoWebPushSubscribers)
@@ -89,6 +90,7 @@ func TestWebPushDeliverSynchronouslyReportsMissingSubscribers(t *testing.T) {
 
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), guardianSyncEvent()), beginErr)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -105,6 +107,7 @@ func TestWebPushDeliverSynchronouslySendsToRegisteredDevices(t *testing.T) {
 	sender := &fakeSender{}
 	channel := testChannel(repo, sender)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	require.NoError(t, channel.DeliverSynchronously(context.Background(), guardianSyncEvent()))
 

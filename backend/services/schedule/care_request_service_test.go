@@ -52,12 +52,25 @@ type careFixture struct {
 	autoExcusal  *schedule.PickupAutoExcusalSyncer
 }
 
+func (f *careFixture) emitter(
+	t *testing.T,
+	messageRepo usersModels.ParentMessageRepository,
+	settings parentmessaging.TenantSettingsResolver,
+	broadcaster parentmessaging.Broadcaster,
+) *parentmessaging.Emitter {
+	t.Helper()
+	emitter := parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
+	testpkg.SetTenantRuntime(t, emitter, f.db)
+	return emitter
+}
+
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
@@ -100,7 +113,7 @@ func newCareFixture(t *testing.T) *careFixture {
 // write check passes) and the given account id (resolved as the acting staff on
 // approve).
 func (f *careFixture) staffCtx(accountID int64) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
 	return ctx
@@ -109,7 +122,7 @@ func (f *careFixture) staffCtx(accountID int64) context.Context {
 func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.Date, pickupTime time.Time) {
 	t.Helper()
 	ctx := f.staffCtx(f.staffAccount)
-	require.NoError(t, tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := schedule.LockCareExceptionDay(txCtx, f.db, f.chain.StudentID, date); err != nil {
 			return err
 		}
@@ -134,7 +147,7 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.
 // account behind the id holding a staff record (#2329): the fixture's staff
 // account passes, the guardian account does not.
 func (f *careFixture) nonAdminCtx(accountID int64) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
 	return ctx
@@ -331,7 +344,7 @@ func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
 	seedCareDay(t, f, ctx, 2)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
 
-	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := f.svc.Decide(txCtx, schedule.CareRequestDecideInput{
 			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		})
@@ -371,7 +384,7 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 		f.sf.StudentAudit,
 	)
 
-	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := failingService.Decide(txCtx, schedule.CareRequestDecideInput{
 			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		})
@@ -418,7 +431,7 @@ func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
 		f.sf.StudentAudit,
 	)
 
-	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, decideErr := service.Decide(txCtx, schedule.CareRequestDecideInput{
 			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
 		})
@@ -498,7 +511,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, nil, nil, nil, slog.Default()),
+		f.emitter(t, nil, nil, nil),
 		nil,
 		slog.Default(),
 	)
@@ -570,7 +583,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, settings, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, settings, nil),
 		nil,
 		slog.Default(),
 	)
@@ -623,7 +636,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -678,7 +691,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, fakeDisabledSettings{}, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -714,7 +727,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, fakeDisabledSettings{}, nil, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -1130,7 +1143,7 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster, slog.Default()),
+		f.emitter(t, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),
 	)

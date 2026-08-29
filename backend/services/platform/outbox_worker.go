@@ -48,12 +48,25 @@ func pickBackoff(attempts int) time.Duration {
 // running multiple workers in parallel is safe. We currently run one
 // per process — see scheduler.go for the polling loop.
 type OutboxWorker struct {
-	repo        platformModels.EmailOutboxRepository
-	registry    *TemplateRegistry
-	mailer      email.Mailer
-	maxAttempts int
-	logger      *slog.Logger
-	db          *bun.DB
+	repo          platformModels.EmailOutboxRepository
+	registry      *TemplateRegistry
+	mailer        email.Mailer
+	maxAttempts   int
+	logger        *slog.Logger
+	db            *bun.DB
+	tenantRuntime *tenant.Runtime
+}
+
+// SetTenantRuntime wires the transaction runtime used by this cross-tenant worker.
+func (w *OutboxWorker) SetTenantRuntime(runtime tenant.Runtime) {
+	w.tenantRuntime = &runtime
+}
+
+func (w *OutboxWorker) withTenantRuntime(ctx context.Context) context.Context {
+	if w.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithRuntime(ctx, *w.tenantRuntime)
 }
 
 // OutboxWorkerConfig is the dep-injection bundle for NewOutboxWorker.
@@ -119,6 +132,7 @@ func (w *OutboxWorker) SetMaxAttempts(n int) {
 // caught and surfaced as MarkRetry/MarkFailed; one bad row never
 // stalls the rest of the batch.
 func (w *OutboxWorker) RunOnce(ctx context.Context, batchSize int) (int, error) {
+	ctx = w.withTenantRuntime(ctx)
 	if w.repo == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing repo)")
 	}

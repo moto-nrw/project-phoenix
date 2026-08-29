@@ -77,6 +77,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		passwordResetExpiry: 30 * time.Minute,
 		txHandler:           modelBase.NewTxHandler(bunDB),
 		db:                  bunDB,
+		tenantRuntime:       newMockTenantRuntime(t, bunDB),
 	}
 
 	cleanup := func() {

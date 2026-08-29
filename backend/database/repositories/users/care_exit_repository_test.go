@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +51,7 @@ func TestCareExitRepository_RecordedAtUsesTheBerlinDay(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t),
+	err = testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t),
 		func(txCtx context.Context, tx bun.Tx) error {
 			// Pin a non-Berlin session timezone: without it the assertion would
 			// pass on a machine that happens to run its database in Berlin.
@@ -86,12 +85,12 @@ func TestCareExitCleanupRepository_LocksPersonImpactRows(t *testing.T) {
 	repo := repositories.NewFactory(db).CareExitCleanup
 	result := make(chan error, 1)
 
-	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		if err := repo.LockImpactRowsForCareExit(txCtx, []int64{student.ID}); err != nil {
 			return err
 		}
 		go func() {
-			result <- tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(otherCtx context.Context, tx bun.Tx) error {
+			result <- testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(otherCtx context.Context, tx bun.Tx) error {
 				if _, err := tx.ExecContext(otherCtx, `SET LOCAL lock_timeout = '100ms'`); err != nil {
 					return err
 				}

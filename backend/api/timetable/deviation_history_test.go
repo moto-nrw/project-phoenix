@@ -24,7 +24,7 @@ func historyRouter(s *devSetup) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), tenantID)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
 	r.Get("/deviations/history", s.res.getDeviationHistory)

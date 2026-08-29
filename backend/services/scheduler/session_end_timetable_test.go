@@ -48,19 +48,16 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 
 	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
 	instanceStudentRepo := scheduleRepo.NewInstanceStudentRepository(db)
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
-		// Completion runs through the shared bridge now, so the nightly job and
-		// the force-start path leave identical rows behind (#1747). Care days
-		// stay unwired here: with no care plans in play every expected row is
-		// stamped absent, exactly as this test asserts below.
+
 		timetableBridge: scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{
 			Instances:        instanceRepo,
 			InstanceStudents: instanceStudentRepo,
 		}),
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &activeSvc.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},
 	})

@@ -2,6 +2,8 @@ package jwt_test
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,11 +20,13 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	var gotTenantID int64
 	var gotOrgID int64
 	var gotScope string
+	var gotTLSVersion uint16
 
 	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotTenantID = tenant.FromContext(r.Context())
 		gotOrgID = tenant.OrgFromContext(r.Context())
 		gotScope = tenant.ScopeFromContext(r.Context())
+		gotTLSVersion = r.TLS.Version
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -36,6 +40,7 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	}
 	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+	req.TLS = &tls.ConnectionState{Version: tls.VersionTLS13}
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -44,6 +49,7 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	assert.Equal(t, int64(100), gotTenantID)
 	assert.Equal(t, int64(10), gotOrgID)
 	assert.Equal(t, "tenant", gotScope)
+	assert.Equal(t, uint16(tls.VersionTLS13), gotTLSVersion)
 }
 
 func TestTenantMiddleware_NoClaims_Unauthorized(t *testing.T) {
@@ -61,16 +67,12 @@ func TestTenantMiddleware_NoClaims_Unauthorized(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 }
 
-func TestTenantMiddleware_ZeroTenantID_StillPasses(t *testing.T) {
+func TestTenantMiddleware_ZeroTenantID_IsRejected(t *testing.T) {
 	t.Parallel()
-
-	// Old tokens without tenant_id should still be allowed through
-	// (the middleware sets 0, which is the default)
-	var gotTenantID int64
+	var observed tenant.RuntimeEvent
 
 	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotTenantID = tenant.FromContext(r.Context())
-		w.WriteHeader(http.StatusOK)
+		t.Fatal("handler should not be called with a zero tenant ID")
 	}))
 
 	claims := jwtpkg.AppClaims{
@@ -79,13 +81,15 @@ func TestTenantMiddleware_ZeroTenantID_StillPasses(t *testing.T) {
 		// No TenantID set (defaults to 0)
 	}
 	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx = tenant.WithRuntimeObserver(ctx, func(event tenant.RuntimeEvent) { observed = event })
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
 
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, int64(0), gotTenantID)
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, tenant.RuntimeMissingTenant, observed.Outcome)
+	assert.True(t, errors.Is(observed.Err, tenant.ErrInvalidTenantID))
 }
 
 func TestTenantMiddleware_PlatformScope(t *testing.T) {

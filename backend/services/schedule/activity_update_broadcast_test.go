@@ -29,7 +29,7 @@ func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
 	}
 	instance.ID = 456
 
-	err := tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		svc.QueueActivityUpdates(ctx, map[int64]*scheduleModel.ActivityInstance{123: instance})
 		assert.Empty(t, broadcaster.Calls(), "event must not escape an uncommitted transaction")
 		return nil
@@ -54,7 +54,7 @@ func TestQueueActivityUpdates_DropsEventOnRollback(t *testing.T) {
 	instance := &scheduleModel.ActivityInstance{Date: timezone.NewDate(2026, 7, 15)}
 	rollback := errors.New("rollback")
 
-	err := tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		svc.QueueActivityUpdates(ctx, map[int64]*scheduleModel.ActivityInstance{123: instance})
 		return rollback
 	})

@@ -37,6 +37,7 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 		DB:        db,
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 	return svc, repos, db
 }
 

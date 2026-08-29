@@ -7,7 +7,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CareScheduleManager } from "./care-schedule-manager";
-import type { ArrivalData } from "~/lib/student-arrival-api";
+import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
+import type {
+  ArrivalData,
+  ArrivalScheduleInput,
+} from "~/lib/student-arrival-api";
 import type { PickupData } from "~/lib/pickup-schedule-helpers";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
@@ -80,6 +84,7 @@ vi.mock("./care-plan-editor-modal", () => ({
     isOpen,
     date,
     careDaysSource,
+    weeklyArrival,
     onClose,
     onSubmitWeekly,
     onSubmitException,
@@ -87,6 +92,7 @@ vi.mock("./care-plan-editor-modal", () => ({
     isOpen: boolean;
     date: Date | null;
     careDaysSource: string;
+    weeklyArrival: ArrivalScheduleFormEntry[];
     onClose: () => void;
     onSubmitWeekly: (data: {
       arrivalSchedules: Array<{
@@ -136,16 +142,17 @@ vi.mock("./care-plan-editor-modal", () => ({
         </button>
         <button
           type="button"
-          onClick={() =>
+          disabled={!weeklyArrival.find((day) => day.weekday === 1)?.inCare}
+          onClick={() => {
+            const monday = weeklyArrival.find((day) => day.weekday === 1);
+            if (!monday?.inCare) return;
             void onSubmitWeekly({
-              arrivalSchedules: [
-                { weekday: 1, expected_arrival: "08:45", notes: "Tor" },
-              ],
+              arrivalSchedules: [{ ...monday, expected_arrival: "08:45" }],
               pickupSchedules: [
                 { weekday: 1, pickupTime: "15:00", notes: "Bus" },
               ],
-            }).catch(() => undefined)
-          }
+            }).catch(() => undefined);
+          }}
         >
           Nur Ankunft im Test speichern
         </button>
@@ -742,6 +749,58 @@ describe("CareScheduleManager", () => {
 
     await waitFor(() => {
       expect(mockUpdateArrivalSchedules).toHaveBeenCalled();
+    });
+    expect(mockPreviewStudentPickupAdjustment).not.toHaveBeenCalled();
+    expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();
+  });
+
+  it("saves and reloads an own arrival time on a booked care day", async () => {
+    const bookedArrivalData = { ...arrivalData, exceptions: [] };
+    let savedArrivalData: ArrivalData | undefined;
+    mockFetchArrivalSettings.mockResolvedValue({
+      care_days_source: "bookings",
+    });
+    mockFetchArrivalData.mockImplementation(() =>
+      Promise.resolve(savedArrivalData ?? bookedArrivalData),
+    );
+    mockUpdateArrivalSchedules.mockImplementation(
+      (_studentId: string, schedules: ArrivalScheduleInput[]) => {
+        savedArrivalData = {
+          ...bookedArrivalData,
+          schedules: schedules.map((schedule, index) => ({
+            id: index + 1,
+            student_id: 42,
+            weekday: schedule.weekday,
+            weekday_name: "Montag",
+            expected_arrival: schedule.expected_arrival,
+            notes: schedule.notes ?? null,
+            source: "staff",
+            created_by: 1,
+            created_at: "2026-05-01T00:00:00Z",
+            updated_at: "2026-05-27T12:00:00Z",
+          })),
+        };
+        return Promise.resolve(schedules);
+      },
+    );
+
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungszeiten");
+
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "bookings",
+    );
+    const saveArrival = screen.getByText("Nur Ankunft im Test speichern");
+    expect(saveArrival).toBeEnabled();
+    fireEvent.click(saveArrival);
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalSchedules).toHaveBeenCalledWith("42", [
+        { weekday: 1, expected_arrival: "08:45", notes: "Tor" },
+      ]);
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(screen.getAllByText("08:45").length).toBeGreaterThan(0);
     });
     expect(mockPreviewStudentPickupAdjustment).not.toHaveBeenCalled();
     expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();

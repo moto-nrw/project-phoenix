@@ -68,6 +68,7 @@ func setupAPI(t *testing.T) *apiContext {
 	db, svc := testutil.SetupAPITest(t)
 	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())
 	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/files", resource.Router())
 
 	suffix := time.Now().UnixNano()

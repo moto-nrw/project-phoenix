@@ -48,7 +48,7 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), tenantID)))
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)))
 		})
 	})
 	r.Post("/periods", res.createPeriod)

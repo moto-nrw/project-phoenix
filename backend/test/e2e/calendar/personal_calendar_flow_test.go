@@ -29,8 +29,10 @@ func setupCalendarE2ERouter(t *testing.T, db *bun.DB) (*services.Factory, chi.Ro
 	repos := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	resource := calendarAPI.NewResource(serviceFactory.Calendar, db, slog.Default())
 	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/calendar", resource.Router())
 	return serviceFactory, router
 }

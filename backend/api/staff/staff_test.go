@@ -53,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := staffAPI.NewResource(svc.Users, svc.StaffDocuments, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 
 	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/staff", resource.Router())
 
 	return &testContext{

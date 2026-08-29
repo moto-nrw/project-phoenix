@@ -95,7 +95,9 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 
 	// Push subscription management for the logged-in user's own devices — no
 	// extra permission beyond a valid session.
-	r.With(withTx).Route("/push", func(r chi.Router) {
+	// Push services open their own tenant/admin transactions. In particular,
+	// school endpoint rebinding must not try to elevate an ambient tenant tx.
+	r.With(common.TenantOperationMiddleware).Route("/push", func(r chi.Router) {
 		r.Get("/public-key", rs.getPushPublicKey)
 		r.Post("/subscriptions", rs.subscribePush)
 		r.Delete("/subscriptions", rs.unsubscribePush)

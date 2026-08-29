@@ -26,12 +26,13 @@ func (s *Service) AuthenticateStaffPIN(
 	tenantID, staffID int64,
 	pin string,
 ) (*userModels.Staff, error) {
+	ctx = s.withTenantRuntime(ctx)
 	if tenantID <= 0 || staffID <= 0 || pin == "" {
 		return nil, ErrInvalidStaffPINCredentials
 	}
 
 	var result staffPINAuthenticationResult
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		staff, account, err := s.loadStaffPINAccount(txCtx, tenantID, staffID)
 		if err != nil {
 			return result.captureError(err)

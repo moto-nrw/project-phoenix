@@ -86,7 +86,7 @@ func TestOperatorProvisioningService_GetProvisioningStats(t *testing.T) {
 		KontenCount:  12,
 		GeraeteCount: 4,
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{
 			statsFn: func(context.Context) (*platformModels.ProvisioningStats, error) {
 				return expected, nil
@@ -103,7 +103,7 @@ func TestOperatorProvisioningService_GetProvisioningStats_RepoError(t *testing.T
 	t.Parallel()
 
 	repoErr := errors.New("db boom")
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{
 			statsFn: func(context.Context) (*platformModels.ProvisioningStats, error) {
 				return nil, repoErr
@@ -122,7 +122,7 @@ func TestOperatorProvisioningService_ListOrganizationSummaries(t *testing.T) {
 	expected := []*platformModels.OrganizationSummary{
 		{ID: 1, Name: "Org A", Slug: "org-a", Active: true, SchulenCount: 2, KontenCount: 5},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{
 			orgsFn: func(context.Context) ([]*platformModels.OrganizationSummary, error) {
 				return expected, nil
@@ -141,7 +141,7 @@ func TestOperatorProvisioningService_ListSchoolSummaries(t *testing.T) {
 	expected := []*platformModels.SchoolSummary{
 		{ID: 11, OrganizationID: 1, OrganizationName: "Org A", Name: "School 1", Slug: "school-1", Subdomain: "s1", Active: true, KontenCount: 4},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{
 			schoolsFn: func(context.Context) ([]*platformModels.SchoolSummary, error) {
 				return expected, nil
@@ -160,7 +160,7 @@ func TestOperatorProvisioningService_ListOrganizationSchoolSummaries(t *testing.
 	expected := []*platformModels.SchoolSummary{
 		{ID: 21, OrganizationID: 9, Name: "School", Slug: "school", Subdomain: "school", Active: true},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Name: "Org", Slug: "org", Active: true}, nil
@@ -186,7 +186,7 @@ func TestOperatorProvisioningService_ListOrganizationSchoolSummaries_NotFound(t 
 	// invoking the summaries repo, so a missing org never produces a leaky
 	// empty list that the operator UI would render as "this org has no schools".
 	repoCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, nil
@@ -215,7 +215,7 @@ func TestOperatorProvisioningService_ListOrganizationPersons(t *testing.T) {
 	expected := []platformModels.OperatorPersonInfo{
 		{ID: 101, FirstName: "Anna", LastName: "Schmidt", SchoolID: 11, OrganizationID: 9, OrganizationName: "Org"},
 	}
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Name: "Org", Slug: "org", Active: true}, nil
@@ -238,7 +238,7 @@ func TestOperatorProvisioningService_ListOrganizationPersons_NotFound(t *testing
 	t.Parallel()
 
 	repoCalled := false
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, nil
@@ -265,7 +265,7 @@ func TestOperatorProvisioningService_ListOrganizationPersons_OrgRepoError(t *tes
 	t.Parallel()
 
 	repoErr := errors.New("org lookup failed")
-	service := platformSvc.NewOperatorProvisioningService(platformSvc.OperatorProvisioningServiceConfig{
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		OrganizationRepo: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, repoErr

@@ -319,7 +319,7 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		if _, err := svc.CheckOutStudent(txCtx, f.studentID, f.staffID, true); err != nil {
 			return err
 		}
@@ -516,7 +516,7 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		if _, err := svc.CheckInStudent(txCtx, f.studentID, f.staffID, 0, true); err != nil {
 			return err
 		}
