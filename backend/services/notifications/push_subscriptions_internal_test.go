@@ -110,29 +110,30 @@ func validPushInput() PushSubscriptionInput {
 func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 	t.Parallel()
 	t.Run("reports configuration state", func(t *testing.T) {
-		unconfigured := NewPushSubscriptionService(nil, nil, nil, VAPIDConfig{}, nil)
+		unconfigured := newMockPushSubscriptionService(t, nil, nil, nil, VAPIDConfig{}, nil)
 		_, err := unconfigured.PublicKey()
 		require.ErrorIs(t, err, ErrWebPushNotConfigured)
 
-		configured := NewPushSubscriptionService(nil, nil, nil, testVAPID(), nil)
+		configured := newMockPushSubscriptionService(t, nil, nil, nil, testVAPID(), nil)
 		key, err := configured.PublicKey()
 		require.NoError(t, err)
 		assert.Equal(t, "pub", key)
 	})
 
 	t.Run("rejects subscribe without VAPID keys", func(t *testing.T) {
-		service := NewPushSubscriptionService(nil, nil, nil, VAPIDConfig{}, nil)
+		service := newMockPushSubscriptionService(t, nil, nil, nil, VAPIDConfig{}, nil)
 		err := service.Subscribe(context.Background(), 42, validPushInput())
 		require.ErrorIs(t, err, ErrWebPushNotConfigured)
 	})
 
 	t.Run("validates and stores staff subscription", func(t *testing.T) {
 		repo := &recordingPushRepository{}
-		service := NewPushSubscriptionService(nil, repo, nil, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, nil, repo, nil, testVAPID(), nil)
+		ctx := tenant.WithTenantID(context.Background(), 42)
 
 		input := validPushInput()
 		input.TokenFamilyID = "family-1"
-		require.NoError(t, service.Subscribe(context.Background(), 42, input))
+		require.NoError(t, service.Subscribe(ctx, 42, input))
 		require.Len(t, repo.upserted, 1)
 		assert.Equal(t, int64(42), repo.upserted[0].AccountID)
 		assert.Equal(t, iot.PushPortalStaff, repo.upserted[0].Portal)
@@ -148,11 +149,12 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 
 	t.Run("forwards repository errors and unsubscribe", func(t *testing.T) {
 		repo := &recordingPushRepository{err: errPushRepository}
-		service := NewPushSubscriptionService(nil, repo, nil, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, nil, repo, nil, testVAPID(), nil)
+		ctx := tenant.WithTenantID(context.Background(), 42)
 
-		require.ErrorIs(t, service.Subscribe(context.Background(), 42, validPushInput()), errPushRepository)
-		require.ErrorIs(t, service.Unsubscribe(context.Background(), 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
-		require.ErrorIs(t, service.UnsubscribeSchool(context.Background(), 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
+		require.ErrorIs(t, service.Subscribe(ctx, 42, validPushInput()), errPushRepository)
+		require.ErrorIs(t, service.Unsubscribe(ctx, 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
+		require.ErrorIs(t, service.UnsubscribeSchool(ctx, 42, "https://fcm.googleapis.com/fcm/send/device"), errPushRepository)
 		assert.Equal(t, int64(42), repo.deletedAccount)
 		assert.Equal(t, "https://fcm.googleapis.com/fcm/send/device", repo.deletedEndpoint)
 	})
@@ -161,7 +163,7 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	t.Parallel()
 	t.Run("rejects subscribe without VAPID keys", func(t *testing.T) {
-		service := NewPushSubscriptionService(nil, nil, nil, VAPIDConfig{}, nil)
+		service := newMockPushSubscriptionService(t, nil, nil, nil, VAPIDConfig{}, nil)
 		err := service.SubscribeParent(context.Background(), 42, validPushInput())
 		require.ErrorIs(t, err, ErrWebPushNotConfigured)
 	})
@@ -182,19 +184,19 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	}
 
 	t.Run("reports mapping lookup errors and missing mappings", func(t *testing.T) {
-		service := NewPushSubscriptionService(db, nil, accountTenantRepositoryStub{err: errPushRepository}, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, db, nil, accountTenantRepositoryStub{err: errPushRepository}, testVAPID(), nil)
 		err := service.SubscribeParent(context.Background(), 42, validPushInput())
 		require.ErrorIs(t, err, errPushRepository)
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
 
-		service = NewPushSubscriptionService(db, nil, accountTenantRepositoryStub{}, testVAPID(), nil)
+		service = newMockPushSubscriptionService(t, db, nil, accountTenantRepositoryStub{}, testVAPID(), nil)
 		err = service.SubscribeParent(context.Background(), 42, validPushInput())
 		require.EqualError(t, err, "account has no active school mapping")
 	})
 
 	t.Run("stores and removes a parent subscription in each tenant", func(t *testing.T) {
 		repo := &recordingPushRepository{}
-		service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, db, repo, mappings, testVAPID(), nil)
 
 		require.NoError(t, service.SubscribeParent(context.Background(), 42, validPushInput()))
 		require.Len(t, repo.upserted, 1)
@@ -210,7 +212,7 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 
 	t.Run("reports validation and tenant repository errors", func(t *testing.T) {
 		repo := &recordingPushRepository{}
-		service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, db, repo, mappings, testVAPID(), nil)
 		invalid := validPushInput()
 		invalid.Endpoint = "invalid"
 		err := service.SubscribeParent(context.Background(), 42, invalid)
@@ -229,7 +231,7 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 
 	t.Run("reports previous binding cleanup errors", func(t *testing.T) {
 		repo := &recordingPushRepository{deleteParentErr: errPushRepository}
-		service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, db, repo, mappings, testVAPID(), nil)
 
 		err := service.SubscribeParent(context.Background(), 42, validPushInput())
 		require.ErrorIs(t, err, errPushRepository)
@@ -238,7 +240,7 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	})
 
 	t.Run("reports unsubscribe mapping lookup errors", func(t *testing.T) {
-		service := NewPushSubscriptionService(db, nil, accountTenantRepositoryStub{err: errPushRepository}, testVAPID(), nil)
+		service := newMockPushSubscriptionService(t, db, nil, accountTenantRepositoryStub{err: errPushRepository}, testVAPID(), nil)
 		err := service.UnsubscribeParent(context.Background(), 42, validPushInput().Endpoint)
 		require.ErrorIs(t, err, errPushRepository)
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
@@ -277,7 +279,7 @@ func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
 	require.NoError(t, err)
 
 	repo := &recordingPushRepository{}
-	service := NewPushSubscriptionService(
+	service := newMockPushSubscriptionService(t,
 		db,
 		repo,
 		authRepo.NewAccountTenantRepository(db),
@@ -317,7 +319,7 @@ func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 			}, nil
 		},
 	}
-	service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+	service := newMockPushSubscriptionService(t, db, repo, mappings, testVAPID(), nil)
 
 	err = service.SubscribeParent(context.Background(), 77, validPushInput())
 
@@ -353,7 +355,7 @@ func TestPushSubscriptionServiceParentUnsubscribeIsAtomic(t *testing.T) {
 			}, nil
 		},
 	}
-	service := NewPushSubscriptionService(db, repo, mappings, testVAPID(), nil)
+	service := newMockPushSubscriptionService(t, db, repo, mappings, testVAPID(), nil)
 
 	err = service.UnsubscribeParent(context.Background(), 77, validPushInput().Endpoint)
 

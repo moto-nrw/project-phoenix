@@ -58,7 +58,7 @@ func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.
 	ctx := testpkg.Ctx(t)
 
 	var result *announcement.CareCancellationResult
-	err := tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		result, err = svc.PublishCareCancellation(txCtx, announcement.CareCancellationInput{
 			StudentIDs: []int64{chain.StudentID, chain.StudentID},
@@ -73,7 +73,7 @@ func TestPublishCareCancellation_PublishesSystemRowForBookedChildren(t *testing.
 	assert.Equal(t, 1, result.RecipientCount, "the one linked guardian is reached")
 
 	var stored *usersModels.ParentAnnouncement
-	require.NoError(t, tenant.WithTenantTx(ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, ctx, db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		stored, err = repos.ParentAnnouncement.FindByID(txCtx, result.Announcement.ID)
 		if err != nil {
@@ -103,7 +103,7 @@ func TestPublishCareCancellation_RefusesWhenSchoolSwitchedItOff(t *testing.T) {
 	svc, db, _ := buildNoticeService(t, noticeSettings(false, false))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := tenant.WithTenantTx(testpkg.Ctx(t), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := svc.PublishCareCancellation(txCtx, announcement.CareCancellationInput{
 			StudentIDs: []int64{chain.StudentID},
 			Title:      "Entfällt",
@@ -120,7 +120,7 @@ func TestPublishCareCancellation_RejectsEmptyText(t *testing.T) {
 	svc, db, _ := buildNoticeService(t, noticeSettings(true, false))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	err := tenant.WithTenantTx(testpkg.Ctx(t), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, err := svc.PublishCareCancellation(txCtx, announcement.CareCancellationInput{
 			StudentIDs: []int64{chain.StudentID},
 			Title:      "   ",
@@ -140,7 +140,7 @@ func TestCareCancellationReachFor_CountsLinkedGuardians(t *testing.T) {
 	orphan := testpkg.CreateTestStudent(t, db, "Ohne", "Eltern", "1a")
 
 	var reach *announcement.CareCancellationReach
-	require.NoError(t, tenant.WithTenantTx(testpkg.Ctx(t), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		reach, err = svc.CareCancellationReachFor(txCtx, []int64{chain.StudentID, orphan.ID})
 		return err
@@ -157,7 +157,7 @@ func TestCareCancellationReachFor_DisabledSchoolReportsNoReach(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	var reach *announcement.CareCancellationReach
-	require.NoError(t, tenant.WithTenantTx(testpkg.Ctx(t), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, tenant.WithTenantTx(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		reach, err = svc.CareCancellationReachFor(txCtx, []int64{chain.StudentID})
 		return err

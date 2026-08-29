@@ -34,6 +34,7 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 		DB:        db,
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-extra")
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })

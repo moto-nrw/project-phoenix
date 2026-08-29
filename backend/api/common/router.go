@@ -7,7 +7,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Middleware is the standard chi middleware shape.
@@ -34,7 +33,7 @@ func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		// requests that later 403 costs one map allocation each.
 		gr.Use(RequestSettingsCacheMiddleware)
 		gr.Use(RequestIdentityCacheMiddleware)
-		fn(gr, tenant.TenantTxMiddleware(db))
+		fn(gr, TenantTxMiddleware)
 	})
 }
 
@@ -52,6 +51,6 @@ func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		gr.Use(jwt.SchoolMiddleware)
 		gr.Use(RequestSettingsCacheMiddleware)
 		gr.Use(RequestIdentityCacheMiddleware)
-		fn(gr, tenant.TenantTxMiddleware(db))
+		fn(gr, TenantTxMiddleware)
 	})
 }

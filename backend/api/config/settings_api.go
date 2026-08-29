@@ -154,14 +154,14 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		// login-image metadata — the frontend depends on this GET to enable upload/delete controls.
 		settingsReadOrWrite := authorize.RequiresAnyPermission(permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
 		r.With(settingsReadOrWrite, withTx).Get("/login-image", rs.getLoginImage)
-		r.With(settingsWrite).Post("/login-image", rs.uploadLoginImage)
-		r.With(settingsWrite).Delete("/login-image", rs.deleteLoginImage)
+		r.With(settingsWrite, common.TenantOperationMiddleware).Post("/login-image", rs.uploadLoginImage)
+		r.With(settingsWrite, common.TenantOperationMiddleware).Delete("/login-image", rs.deleteLoginImage)
 
 		// AGB document writes manage a file-system side effect. Like login-image
 		// writes, they open their own tenant tx so file cleanup only runs after
 		// the DB write has committed.
-		r.With(settingsWrite).Post("/enrollment/legal-agb-document", rs.uploadEnrollmentLegalAGBDocument)
-		r.With(settingsWrite).Delete("/enrollment/legal-agb-document", rs.deleteEnrollmentLegalAGBDocument)
+		r.With(settingsWrite, common.TenantOperationMiddleware).Post("/enrollment/legal-agb-document", rs.uploadEnrollmentLegalAGBDocument)
+		r.With(settingsWrite, common.TenantOperationMiddleware).Delete("/enrollment/legal-agb-document", rs.deleteEnrollmentLegalAGBDocument)
 	})
 
 	return r

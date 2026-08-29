@@ -8,6 +8,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -46,6 +47,7 @@ func TestPlanningTrackServiceReorderReturnsRepositoryError(t *testing.T) {
 	repo.updateSortOrdersErr = wantErr
 	tenantID := time.Now().UnixNano()
 	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	ctx = testpkg.WithTenantRuntime(t, ctx, db)
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))

@@ -37,6 +37,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -63,15 +64,17 @@ const (
 
 // SetupAPITest initializes test database and service factory for API tests.
 // Returns the shared package database pool and a service factory. Tests must
-// not close the pool — it is shared by every test in the binary.
-func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
+// not close the pool — it is shared by every test in the binary. The optional
+// statistics clock pins calendar-day semantics in time-dependent API tests.
+func SetupAPITest(t *testing.T, statisticsClocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), statisticsClocks...)
 	require.NoError(t, err, "Failed to create service factory")
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
 
 	return db, serviceFactory
 }
@@ -257,25 +260,23 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 	return req
 }
 
-// NewTenantRouter creates a chi.Router pre-configured with TenantTxMiddleware.
-// Use this in integration tests instead of chi.NewRouter() to match production
-// middleware behavior (RLS enforcement via SET LOCAL ROLE + set_config).
-//
-// NOTE: Production routers apply TenantTxMiddleware per-route (via .With(withTx))
-// so that permission checks reject unauthorized requests before a DB transaction
-// is opened. Tests keep group-level r.Use() for simplicity since test helpers
-// control their own request context and don't have the same connection-waste concern.
+// NewTenantRouter creates a chi.Router with the test transaction boundary
+// (testpkg.TenantTxMiddleware) at the root. Tests that inject identity into
+// the request context get the same transaction decision as production;
+// resource routers that apply the production jwt + TenantTxMiddleware chain
+// themselves run it unchanged underneath, since their requests arrive here
+// unauthenticated and pass through.
 func NewTenantRouter(db *bun.DB) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Use(tenant.TenantTxMiddleware(db))
+	router.Use(testpkg.TenantTxMiddleware(db))
 	return router
 }
 
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req.WithContext(testpkg.WithPackageTenantRuntime(req.Context())))
 	return rr
 }
 

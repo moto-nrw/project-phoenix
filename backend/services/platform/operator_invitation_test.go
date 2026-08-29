@@ -140,7 +140,7 @@ func newInvitationTestService(
 	// Dispatcher is required by InviteOperator and ResendOperatorInvitation guards.
 	// Tests that exercise dispatch behavior use newTestServiceWithDispatcher instead.
 	dispatcher := email.NewDispatcher(email.NewMockMailer(), slog.Default())
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:        operatorRepo,
 		AuditLogRepo:        auditLogRepo,
 		InvitationTokenRepo: invitationTokenRepo,
@@ -334,7 +334,7 @@ func TestInviteOperator_NilInvitationTokenRepo(t *testing.T) {
 	bunDB, _ := setupSqlMock(t)
 
 	// Service with nil invitation token repo
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,
@@ -353,7 +353,7 @@ func TestInviteOperator_MissingFrontendURL(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo:        &mockOperatorRepo{},
 		AuditLogRepo:        &mockAuditLogRepoShared{},
 		InvitationTokenRepo: &mockInvitationTokenRepo{},
@@ -645,7 +645,7 @@ func TestValidateOperatorInvitation_NilRepo(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,
@@ -840,7 +840,7 @@ func TestAcceptOperatorInvitation_NilRepo(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,
@@ -988,7 +988,7 @@ func TestRevokeOperatorInvitation_NilRepo(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,
@@ -1119,7 +1119,7 @@ func TestResendOperatorInvitation_NilRepo(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,
@@ -1163,7 +1163,7 @@ func TestListPendingOperatorInvitations_NilRepo(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,
@@ -1203,7 +1203,7 @@ func TestCleanupExpiredOperatorInvitations_NilRepo(t *testing.T) {
 
 	bunDB, _ := setupSqlMock(t)
 
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+	service, err := newTestOperatorAuthService(t, platformSvc.OperatorAuthServiceConfig{
 		OperatorRepo: &mockOperatorRepo{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 		DB:           bunDB,

@@ -46,7 +46,7 @@ func TestStaffBalanceWritersShareAdvisoryLock(t *testing.T) {
 			releaseLock := make(chan struct{})
 			holderDone := make(chan error, 1)
 			go func() {
-				holderDone <- tenant.WithTenantTx(context.Background(), db, staff.TenantID, func(ctx context.Context, _ bun.Tx) error {
+				holderDone <- tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, staff.TenantID, func(ctx context.Context, _ bun.Tx) error {
 					if err := adjustments.LockStaffBalanceWrites(ctx, staff.ID); err != nil {
 						return err
 					}
@@ -65,7 +65,7 @@ func TestStaffBalanceWritersShareAdvisoryLock(t *testing.T) {
 
 			writerDone := make(chan error, 1)
 			go func() {
-				writerDone <- tenant.WithTenantTx(context.Background(), db, staff.TenantID, func(ctx context.Context, _ bun.Tx) error {
+				writerDone <- tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, staff.TenantID, func(ctx context.Context, _ bun.Tx) error {
 					return tt.lock(ctx)
 				})
 			}()

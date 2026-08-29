@@ -125,6 +125,16 @@ func TestPrometheusRecordersUseStableLabels(t *testing.T) {
 	assert.Equal(t, "success", outcomeForStatus(http.StatusOK))
 }
 
+func TestRecordTenantRuntimeEventCountsByEntryPointAndOutcome(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(tenantRuntimeEvents.WithLabelValues("worker", "missing_tenant"))
+
+	RecordTenantRuntimeEvent("worker", "missing_tenant")
+
+	after := testutil.ToFloat64(tenantRuntimeEvents.WithLabelValues("worker", "missing_tenant"))
+	assert.Equal(t, before+1, after)
+}
+
 func TestRoutePatternFallsBackToUnmatched(t *testing.T) {
 	t.Parallel()
 

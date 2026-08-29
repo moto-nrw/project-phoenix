@@ -150,7 +150,7 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 // Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
+	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
 }
 
 // TenantScope owns a unique tenant for a test and provides the matching context.

@@ -143,10 +143,14 @@ type Scheduler struct {
 	settings                   SettingsResolver
 	db                         *bun.DB
 	schoolRepo                 platform.SchoolRepository
+	tenantRuntime              tenant.Runtime
+	tenantRuntimeConfigured    bool
+	tenantRuntimeObserver      func(entryPoint, outcome string)
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
 	minuteSnapshotNow          func() time.Time
 	minuteSnapshotLoader       func(context.Context) (*schedulerMinuteSnapshot, error)
+	allTenantIDsLoader         func(context.Context) ([]int64, error)
 	cleanupJobs                []CleanupJob
 	tasks                      map[string]*ScheduledTask
 	mu                         sync.RWMutex
@@ -396,6 +400,23 @@ func (s *Scheduler) SetSchoolRepo(repo platform.SchoolRepository) {
 	s.schoolRepo = repo
 }
 
+// SetTenantRuntime wires the fail-fast tenant execution seam used by workers.
+func (s *Scheduler) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = runtime
+	s.tenantRuntimeConfigured = true
+}
+
+// SetTenantRuntimeObserver records fail-closed worker entry and transaction outcomes.
+func (s *Scheduler) SetTenantRuntimeObserver(observer func(entryPoint, outcome string)) {
+	s.tenantRuntimeObserver = observer
+}
+
+func (s *Scheduler) observeTenantRuntime(outcome string) {
+	if s.tenantRuntimeObserver != nil {
+		s.tenantRuntimeObserver("worker", outcome)
+	}
+}
+
 // SetSettingsService sets the settings resolver for per-tenant configuration.
 // When set, the scheduler reads per-tenant settings instead of global env vars.
 func (s *Scheduler) SetSettingsService(svc SettingsResolver) {
@@ -442,19 +463,19 @@ func (s *Scheduler) SetStudentStatusDayRepo(repo activeModel.StudentStatusDayRep
 	s.studentStatusDayRepo = repo
 }
 
-// forEachTenant executes fn for each active tenant inside a WithTenantTx.
-// If schoolRepo or db is not set, falls back to running fn with plain ctx (non-tenant-aware mode).
+// forEachTenant executes fn for each active tenant inside its tenant runtime.
+// Missing runtime wiring fails closed before fn can reach a repository.
 // Active tenant IDs share the same minute snapshot as settings-aware jobs so
 // concurrent polling goroutines do not repeat the platform.schools query.
 func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
-	if s.db == nil || s.schoolRepo == nil {
-		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
-			slog.String("operation", opName))
-		return fn(ctx)
+	if !s.tenantRuntimeConfigured || (s.minuteSnapshotLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		s.observeTenantRuntime("missing_tenant")
+		return fmt.Errorf("tenant runtime is not configured for %s", opName)
 	}
 
 	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
 	if err != nil && (minuteSnapshot == nil || len(minuteSnapshot.tenantIDs) == 0) {
+		s.observeTenantRuntime("transaction_failure")
 		return fmt.Errorf("load active tenants for %s: %w", opName, err)
 	}
 	s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, _ int64) error {
@@ -467,23 +488,34 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 // non-deleted tenant. It is reserved for recovery work that must continue
 // after a school has been deactivated.
 func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
-	if s.db == nil || s.schoolRepo == nil {
-		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
-			slog.String("operation", opName))
-		return fn(ctx)
+	if !s.tenantRuntimeConfigured || (s.allTenantIDsLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		s.observeTenantRuntime("missing_tenant")
+		return fmt.Errorf("tenant runtime is not configured for %s", opName)
 	}
 
-	var schools []platform.School
-	if err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		var listErr error
-		schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
-		return listErr
-	}); err != nil {
-		return fmt.Errorf("load tenants for %s: %w", opName, err)
-	}
-	tenantIDs := make([]int64, 0, len(schools))
-	for _, school := range schools {
-		tenantIDs = append(tenantIDs, school.ID)
+	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	var tenantIDs []int64
+	if s.allTenantIDsLoader != nil {
+		var err error
+		tenantIDs, err = s.allTenantIDsLoader(ctx)
+		if err != nil {
+			s.observeTenantRuntime("transaction_failure")
+			return fmt.Errorf("load tenants for %s: %w", opName, err)
+		}
+	} else {
+		var schools []platform.School
+		if err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
+			var listErr error
+			schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
+			return listErr
+		}); err != nil {
+			s.observeTenantRuntime("transaction_failure")
+			return fmt.Errorf("load tenants for %s: %w", opName, err)
+		}
+		tenantIDs = make([]int64, 0, len(schools))
+		for _, school := range schools {
+			tenantIDs = append(tenantIDs, school.ID)
+		}
 	}
 	s.forEachKnownTenant(ctx, tenantIDs, opName, func(txCtx context.Context, _ int64) error {
 		return fn(txCtx)
@@ -492,38 +524,26 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 }
 
 // forEachTenantSettings executes fn for each active tenant, passing tenant ID for settings resolution.
-// Falls back to non-tenant-aware mode if schoolRepo/db is not set (tests, local dev without
-// seeded schools). Production jobs share one cross-tenant settings snapshot per minute.
+// Missing runtime wiring skips work rather than invoking fn as tenant zero.
+// Production jobs share one cross-tenant settings snapshot per minute.
 func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn func(ctx context.Context, tenantID int64) error) []int64 {
-	if s.db == nil || s.schoolRepo == nil {
-		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
-			slog.String("operation", opName))
-		if err := fn(ctx, 0); err != nil {
-			return nil
-		}
-		return []int64{0}
+	if !s.tenantRuntimeConfigured || (s.minuteSnapshotLoader == nil && (s.db == nil || s.schoolRepo == nil)) {
+		s.observeTenantRuntime("missing_tenant")
+		s.getLogger().Error("tenant runtime is not configured",
+			slog.String("entry_point", "worker"),
+			slog.String("operation", opName),
+		)
+		return nil
 	}
 
 	minuteSnapshot, err := s.getMinuteSnapshot(ctx)
 	if err != nil {
 		// Older unit-test fakes implement only the narrow per-key resolver.
 		// Production SettingsService always implements the batch loader.
-		if errors.Is(err, errSchedulerSettingsBatchUnsupported) {
-			completed := make([]int64, 0)
-			if iterationErr := tenant.ForEachActive(ctx, s.db, s.schoolRepo, s.getLogger(), opName, func(txCtx context.Context, tenantID int64) error {
-				if fnErr := fn(txCtx, tenantID); fnErr != nil {
-					return fnErr
-				}
-				completed = append(completed, tenantID)
-				return nil
-			}); iterationErr != nil {
-				s.getLogger().Error("failed to list active tenants",
-					slog.String("operation", opName),
-					slog.String("error", iterationErr.Error()),
-				)
-			}
-			return completed
+		if errors.Is(err, errSchedulerSettingsBatchUnsupported) && minuteSnapshot != nil {
+			return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, fn)
 		}
+		s.observeTenantRuntime("transaction_failure")
 		s.getLogger().Error("scheduler settings snapshot unavailable",
 			slog.String("operation", opName),
 			slog.String("error", err.Error()),
@@ -938,7 +958,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 //
 // The active service owns active.groups/visits/supervisors; timetable
 // instances live in schedule.*, so the scheduler bridges the two inside the
-// tenant transaction created by ForEachActive. If this sync fails, callers
+// tenant transaction created by the scheduler runtime. If this sync fails, callers
 // return the error so the active close rolls back too instead of leaving the
 // planner in a stale "active" state.
 func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *active.DailySessionCleanupResult) (int, error) {
@@ -1045,7 +1065,11 @@ func (s *Scheduler) RunCleanupJobs() error {
 		return nil
 	}
 
-	ctx := context.Background()
+	if !s.tenantRuntimeConfigured {
+		s.observeTenantRuntime("missing_tenant")
+		return tenant.ErrRuntimeRequired
+	}
+	ctx := tenant.WithRuntime(context.Background(), s.tenantRuntime)
 	var firstErr error
 
 	for _, job := range s.cleanupJobs {

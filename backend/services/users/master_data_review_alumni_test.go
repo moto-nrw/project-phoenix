@@ -21,7 +21,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,7 +36,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 	row := insertPendingChange(t, db, repos, chain,
 		userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
-	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID,
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
 			items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 			require.NoError(t, e)
@@ -54,7 +53,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID,
+	err = testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
 			items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 			require.NoError(t, e)

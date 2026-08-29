@@ -745,7 +745,7 @@ func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
-	testutil.AssertErrorResponse(t, rr, http.StatusBadRequest)
+	testutil.AssertErrorResponse(t, rr, http.StatusUnauthorized)
 }
 
 // =============================================================================

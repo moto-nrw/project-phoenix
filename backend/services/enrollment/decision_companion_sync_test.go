@@ -14,7 +14,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -203,7 +202,7 @@ func narrowChildToBusMonday(t *testing.T, env *decisionTestEnv, childID int64) {
 // they only materialize when the transaction actually commits.
 func syncApprovedChild(t *testing.T, env *decisionTestEnv, applier enrollmentService.ChangeRequestDecisionApplier, requestID, childID int64) error {
 	t.Helper()
-	return tenant.WithTenantTx(testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	return testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, err := applier.SyncApprovedChildData(txCtx, enrollmentService.SyncApprovedChildDataInput{
 			RequestID:           requestID,
 			ChildID:             childID,

@@ -5,7 +5,6 @@
 package filestore
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -19,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	filestoreSvc "github.com/moto-nrw/project-phoenix/services/filestore"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -87,11 +85,10 @@ func (rs *Resource) coordinator() (*apiDocuments.Coordinator, error) {
 		return nil, err
 	}
 	return &apiDocuments.Coordinator{
-		Kind:             storageKind,
-		Backend:          backend,
-		Store:            rs.Service,
-		NewTenantContext: func(tenantID int64) context.Context { return tenant.WithTenantID(context.Background(), tenantID) },
-		Logger:           rs.getLogger(),
+		Kind:    storageKind,
+		Backend: backend,
+		Store:   rs.Service,
+		Logger:  rs.getLogger(),
 	}, nil
 }
 

@@ -97,7 +97,7 @@ func TestCreateCareScheduleRequest_Happy(t *testing.T) {
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	view, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	view, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	require.NotNil(t, view.PendingRequest, "the created request surfaces on the read view")
 	assert.True(t, view.PendingRequest.SubmittedBySelf)
@@ -112,7 +112,7 @@ func TestGetChildCareScheduleKeepsCareDayWithoutArrivalTime(t *testing.T) {
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Plan", "OhneZeit")
 	testpkg.CreateTestArrivalSchedule(t, db, chain.StudentID, 1, staff.ID, "")
 
-	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, view.Weekdays, 5)
 	assert.Equal(t, "scheduled", string(view.Weekdays[0].Status))
@@ -130,14 +130,14 @@ func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// Grant chat (notes.write) + visibility but explicitly NOT request.submit.
-	_, err := db.ExecContext(context.Background(), `
+	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE users.students_guardians
 		SET permissions = '{"parent_portal.access": true, "parent_portal.notes.write": true}'::jsonb
 		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied,
 		"submitting a care-schedule change request requires request.submit, not just notes.write")
 }
@@ -150,7 +150,7 @@ func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 	svc, db, _ := buildCareScheduleService(t, false) // messaging OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	view, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	view, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	require.NotNil(t, view.PendingRequest)
 }
@@ -166,7 +166,7 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 		configModels.KeyParentCarePickupRequestEnabled:  true,
 		configModels.KeyParentCareModeRequestEnabled:    true,
 	})
-	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, view.RequestCapabilities.Arrival)
 	assert.True(t, view.RequestCapabilities.Pickup)
@@ -175,14 +175,14 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 	payload := map[string]any{"weekdays": []any{map[string]any{
 		"weekday": 1, "arrival": "08:00", "pickup": "16:00",
 	}}}
-	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, payload)
+	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, payload)
 	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
 
 	var count int
 	require.NoError(t, db.NewRaw(`
 		SELECT COUNT(*) FROM schedule.care_schedule_change_requests
 		WHERE tenant_id = ? AND student_id = ?
-	`, chain.TenantID, chain.StudentID).Scan(context.Background(), &count))
+	`, chain.TenantID, chain.StudentID).Scan(testpkg.WithPackageTenantRuntime(context.Background()), &count))
 	assert.Zero(t, count, "an arrival change must be rejected atomically")
 }
 
@@ -193,12 +193,12 @@ func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
-	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, view.CanRequest)
 	assert.Equal(t, parentService.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
 
-	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
 }
 
@@ -212,14 +212,14 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 	svc, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	created, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	reqID := created.PendingRequest.ID
 
 	// Rebuild against the SAME db/repos with every permanent-care field disabled.
 	disabled := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
 
-	view, err := disabled.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, reqID)
+	view, err := disabled.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, reqID)
 	require.NoError(t, err, "withdraw must stay available after request fields are disabled")
 	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
 }
@@ -238,13 +238,13 @@ func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	created, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	reqID := created.PendingRequest.ID
 
 	// Revoke request.submit but keep parent_portal.access (mirrors a school
 	// tightening permissions while a request is already open).
-	_, err = db.ExecContext(context.Background(), `
+	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE users.students_guardians
 		SET permissions = '{"parent_portal.access": true}'::jsonb
 		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
@@ -253,7 +253,7 @@ func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
 
 	// The read view still surfaces the request as the caller's own (withdraw
 	// button visible) even though CanRequest has dropped.
-	read, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	read, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, read.PendingRequest)
 	assert.True(t, read.PendingRequest.SubmittedBySelf, "the open request is still shown as the caller's own")
@@ -261,7 +261,7 @@ func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
 
 	// Withdraw must succeed on portal access + ownership despite the missing
 	// request.submit permission.
-	view, err := svc.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, reqID)
+	view, err := svc.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, reqID)
 	require.NoError(t, err, "the owning guardian withdraws on portal access + ownership, not request.submit")
 	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
 }
@@ -278,17 +278,17 @@ func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
 
 	// Before any request: the view loads and, with messaging on + request.submit,
 	// invites the guardian to request a change.
-	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, view)
 	assert.Nil(t, view.PendingRequest, "no request has been filed yet")
 	assert.True(t, view.CanRequest, "messaging on + request.submit enables the request action")
 
 	// After filing a request, the read view surfaces it with its diff.
-	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 
-	view, err = svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	view, err = svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, view.PendingRequest, "the open request appears on the read view")
 	assert.True(t, view.PendingRequest.SubmittedBySelf)
@@ -303,14 +303,14 @@ func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// Strip every parent_portal permission, including access.
-	_, err := db.ExecContext(context.Background(), `
+	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE users.students_guardians
 		SET permissions = '{}'::jsonb
 		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	_, err = svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.Error(t, err, "reading the care schedule requires parent_portal.access")
 }
 
@@ -325,7 +325,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// No status day yet: the tile has no absence to report.
 	view, err := svc.GetChildCareSchedule(ctx, chain.AccountID, chain.StudentID)
@@ -342,7 +342,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 		activeModels.StudentStatusDayClassTrip, activeModels.StudentStatusSourcePlanned)
 	require.NoError(t, err)
 	defer func() {
-		_, _ = db.ExecContext(context.Background(),
+		_, _ = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()),
 			`DELETE FROM active.student_status_days WHERE student_id = ?`, chain.StudentID)
 	}()
 
@@ -372,17 +372,17 @@ func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
 
 	// No request yet: the badge is clear, and request/notes features resolve
 	// enabled from the default guardian permissions + messaging on.
-	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, flags.HasOpenChangeRequest, "no pending request → no badge")
 	assert.True(t, flags.RequestSubmitEnabled, "default guardian holds request.submit with messaging on")
 	assert.True(t, flags.NotesEnabled, "default guardian holds notes.write with messaging on")
 
 	// File a care-schedule request; the open-request badge now lights up.
-	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 
-	flags, err = svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	flags, err = svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.HasOpenChangeRequest, "a pending care request badges the Stammdaten entry")
 }
@@ -397,11 +397,11 @@ func TestWithdrawCareScheduleRequest_NotFound(t *testing.T) {
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	created, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
 	require.NoError(t, err)
 	bogusID := created.PendingRequest.ID + 1_000_000
 
-	_, err = svc.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, bogusID)
+	_, err = svc.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, bogusID)
 	require.ErrorIs(t, err, parentService.ErrCareRequestNotFound,
 		"withdrawing an unknown request id maps to the parent not-found sentinel")
 }

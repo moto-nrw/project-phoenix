@@ -250,8 +250,8 @@ type Factory struct {
 	StudentPhotos users.StudentPhotoService
 }
 
-// NewFactory creates a new services factory
-func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*Factory, error) {
+// NewFactory creates a new services factory; tests may pass one statistics clock.
+func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, statisticsClocks ...func() time.Time) (*Factory, error) {
 
 	mailer, err := email.NewMailer()
 	if err != nil {
@@ -2548,6 +2548,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			Settings:        settingsService,
 			PrivacyConsents: repos.PrivacyConsent,
 			Logger:          logger.With("service", "statistics"),
+			Now:             optionalStatisticsClock(statisticsClocks),
 		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,
@@ -2601,6 +2602,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "shift_plan_sync"),
 	))
 	return factory, nil
+}
+
+func optionalStatisticsClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	if len(clocks) > 1 {
+		panic("services.NewFactory accepts at most one statistics clock")
+	}
+	return clocks[0]
 }
 
 // StudentPhotoBootstrap aggregates the dependencies api/base.go must

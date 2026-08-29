@@ -32,6 +32,7 @@ func setupParentE2ERouter(t *testing.T, db *bun.DB) chi.Router {
 	repos := repositories.NewFactory(db)
 	factory, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
+	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	staffResource := calendarAPI.NewResource(factory.Calendar, db, slog.Default())
 	parentResource := parentAPI.NewResource(
@@ -45,6 +46,7 @@ func setupParentE2ERouter(t *testing.T, db *bun.DB) chi.Router {
 	parentResource.SetCalendarService(factory.Calendar)
 
 	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/calendar", staffResource.Router())
 	router.Mount("/parent", parentResource.Router())
 	return router

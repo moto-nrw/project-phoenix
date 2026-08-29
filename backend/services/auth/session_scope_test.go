@@ -212,7 +212,7 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/tx-school-a", "family-a")
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/tx-school-b", "family-b")
 
-	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return service.RevokeAllTokens(txCtx, int(account.ID))
 	}))
 
@@ -298,7 +298,7 @@ func TestDeactivateAccountFromAdminTxRemovesPush(t *testing.T) {
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/admin-deact-a", "family-a")
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/admin-deact-b", "family-b")
 
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return service.DeactivateAccount(adminCtx, int(account.ID))
 	}))
 
@@ -522,7 +522,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 
 	role, err := service.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
 	require.NoError(t, err)
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return service.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), int(account.ID), int(role.ID))
 	}))
 
@@ -874,7 +874,7 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
-	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
 		return service.RevokeAllTokens(adminCtx, int(account.ID))
 	}))
 
@@ -901,7 +901,7 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 		testpkg.CleanupTestTenant(t, db, tenantID)
 	})
 
-	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return service.DeactivateAccount(txCtx, int(account.ID))
 	}))
 	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))

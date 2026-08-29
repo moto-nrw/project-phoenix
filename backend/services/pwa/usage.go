@@ -64,10 +64,15 @@ type usageService struct {
 	accountTenants authModels.AccountTenantRepository
 	settings       config.SettingsService
 	logger         *slog.Logger
+	tenantRuntime  *tenant.Runtime
 
 	snapshotMu   sync.Mutex
 	snapshot     []platformModels.SchoolPWAUsageRow
 	snapshotTime time.Time
+}
+
+func (s *usageService) SetTenantRuntime(runtime tenant.Runtime) {
+	s.tenantRuntime = &runtime
 }
 
 // NewUsageService builds the PWA usage service.
@@ -101,6 +106,9 @@ func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {
 }
 
 func (s *usageService) ReportParent(ctx context.Context, accountID int64) error {
+	if s.tenantRuntime != nil {
+		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+	}
 	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
 		if err != nil {
@@ -165,7 +173,11 @@ func (s *usageService) SnapshotUsage() ([]platformModels.SchoolPWAUsageRow, erro
 	}
 
 	var rows []platformModels.SchoolPWAUsageRow
-	err := tenant.WithAdminTxOrDirect(context.Background(), s.db, func(adminCtx context.Context) error {
+	ctx := context.Background()
+	if s.tenantRuntime != nil {
+		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+	}
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		var qErr error
 		rows, qErr = s.summaries.PWAUsage(adminCtx, 0, UsageWindow)
 		return qErr

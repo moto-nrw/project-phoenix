@@ -144,13 +144,15 @@ func testSub(id, tenantID int64, endpoint string) *iot.PushSubscription {
 }
 
 func testChannel(repo *fakePushRepo, sender *fakeSender) *webPushChannel {
-	return &webPushChannel{
+	channel := &webPushChannel{
 		repo:      repo,
 		vapid:     testVAPID(),
 		sender:    sender,
 		logger:    slog.Default(),
 		sendSlots: make(chan struct{}, maxConcurrentPushSends),
 	}
+	channel.SetTenantRuntime(newMockTenantRuntime(nil, nil))
+	return channel
 }
 
 func TestWebPushPayloadIsGDPRSafe(t *testing.T) {
@@ -488,6 +490,7 @@ func TestWebPushDeliverCommitsBeforeAsyncSend(t *testing.T) {
 	}}
 	channel := testChannel(repo, sender)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	deliveryDone := make(chan error, 1)
 	go func() {
@@ -536,6 +539,7 @@ func TestWebPushDeliverSynchronouslyRequiresPushAcceptance(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		db, mock := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 		require.ErrorIs(t, channel.DeliverSynchronously(context.Background(), event), ErrNoWebPushSubscribers)
 		require.NoError(t, mock.ExpectationsWereMet())
@@ -550,6 +554,7 @@ func TestWebPushDeliverSynchronouslyPreservesCallerDeadline(t *testing.T) {
 	}}, &fakeSender{})
 	db, mock := mockTenantTx(t)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	deadline := time.Now().Add(time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
@@ -638,6 +643,7 @@ func TestWebPushDeliverBatchResolvesOnceAndSendsPerRecipient(t *testing.T) {
 	channel := testChannel(repo, sender)
 	db, mock := mockTenantTx(t)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{
 		staffEventFor(11, "Abholung steht an"),
@@ -690,6 +696,7 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 		channel := testChannel(repo, sender)
 		db, _ := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{
 			staffEventFor(11, "erreicht"),
@@ -707,6 +714,7 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		db, _ := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 		require.NoError(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
 	})
 
@@ -714,6 +722,7 @@ func TestWebPushDeliverBatchEdgeCases(t *testing.T) {
 		channel := testChannel(&fakePushRepo{staffAccountsErr: errors.New("boom")}, &fakeSender{})
 		db, _ := mockTenantTx(t)
 		channel.db = db
+		channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 		require.Error(t, channel.DeliverBatch(context.Background(), []Event{staffEventFor(11, "x")}))
 	})
 }
@@ -730,6 +739,7 @@ func TestWebPushDeliverBatchFallsBackForOtherScopes(t *testing.T) {
 	channel := testChannel(repo, sender)
 	db, _ := mockTenantTx(t)
 	channel.db = db
+	channel.SetTenantRuntime(newMockTenantRuntime(t, db))
 
 	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
 		Type:     "test",

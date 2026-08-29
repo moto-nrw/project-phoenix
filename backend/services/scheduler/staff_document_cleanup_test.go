@@ -23,11 +23,11 @@ func TestStaffDocumentFileCleanupRunsWithoutUITraffic(t *testing.T) {
 	t.Parallel()
 
 	cleaner := &staffDocumentFileCleanerStub{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		staffDocumentFileCleaner: cleaner,
 		done:                     make(chan struct{}),
-		logger:                   slog.Default(),
-	}
+		logger:                   slog.Default()})
+
 	task := &ScheduledTask{Name: "staff-document-file-cleanup"}
 
 	s.checkAndRunStaffDocumentFileCleanup(task)
@@ -40,11 +40,10 @@ func TestStaffDocumentFileCleanupKeepsPartialProgress(t *testing.T) {
 	t.Parallel()
 
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		staffDocumentFileCleaner: cleaner,
 		done:                     make(chan struct{}),
-		logger:                   slog.Default(),
-	}
+		logger:                   slog.Default()})
 
 	// A failed file removal must not abort the tenant transaction: the marks
 	// for the files that were removed have to commit.
@@ -58,11 +57,11 @@ func TestStaffDocumentFileCleanupAllowsRetryAfterFailure(t *testing.T) {
 	t.Parallel()
 
 	cleaner := &staffDocumentFileCleanerStub{err: errors.New("remove failed")}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		staffDocumentFileCleaner: cleaner,
 		done:                     make(chan struct{}),
-		logger:                   slog.Default(),
-	}
+		logger:                   slog.Default()})
+
 	task := &ScheduledTask{Name: "staff-document-file-cleanup"}
 
 	s.checkAndRunStaffDocumentFileCleanup(task)

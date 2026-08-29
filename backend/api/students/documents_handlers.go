@@ -40,11 +40,10 @@ func (rs *Resource) studentDocumentCoordinator() (*apiDocuments.Coordinator, err
 		return nil, err
 	}
 	return &apiDocuments.Coordinator{
-		Kind:             studentDocumentKind,
-		Backend:          backend,
-		Store:            rs.StudentDocumentService,
-		NewTenantContext: func(tenantID int64) context.Context { return tenant.WithTenantID(context.Background(), tenantID) },
-		Logger:           rs.getLogger(),
+		Kind:    studentDocumentKind,
+		Backend: backend,
+		Store:   rs.StudentDocumentService,
+		Logger:  rs.getLogger(),
 	}, nil
 }
 
@@ -210,8 +209,10 @@ func (rs *Resource) retryStudentDocumentCleanups(ctx context.Context, studentID 
 	}
 	for _, document := range documents {
 		docID, storedName := document.ID, document.FilenameStored
+		cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(ctx))
+		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(ctx, func() {
-			coordinator.CleanupDocument(tenantID, studentID, docID, storedName, source)
+			coordinator.CleanupDocument(cleanupCtx, tenantID, studentID, docID, storedName, source)
 		})
 	}
 }
@@ -436,8 +437,10 @@ func (rs *Resource) deleteStudentDocument(w http.ResponseWriter, r *http.Request
 	if !doc.IsFileDeleted() {
 		tenantID := tenant.FromContext(r.Context())
 		documentID, storedName := doc.ID, doc.FilenameStored
+		cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(r.Context()))
+		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(r.Context(), func() {
-			coordinator.CleanupDocument(tenantID, id, documentID, storedName, "delete")
+			coordinator.CleanupDocument(cleanupCtx, tenantID, id, documentID, storedName, "delete")
 		})
 	}
 	common.Respond(w, r, http.StatusOK, map[string]int64{"student_id": id}, "Student document deleted successfully")

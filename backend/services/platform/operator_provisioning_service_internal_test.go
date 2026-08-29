@@ -1274,7 +1274,7 @@ func TestQueryDevices_NoWhereClause(t *testing.T) {
 		"school_id", "school_name", "organization_id", "organization_name",
 	}))
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1298,7 +1298,7 @@ func TestQueryDevices_WithWhereClause(t *testing.T) {
 		"school_id", "school_name", "organization_id", "organization_name",
 	}))
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{SchoolID: testpkg.Int64Ptr(42)})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1318,7 +1318,7 @@ func TestQueryDevices_ScanError(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -1348,7 +1348,7 @@ func TestQueryDevices_UsesTxFromContext(t *testing.T) {
 		"school_id", "school_name", "organization_id", "organization_name",
 	}))
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(ctx, platformModels.OperatorDeviceFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1383,7 +1383,7 @@ func TestListAllDevices_Success(t *testing.T) {
 	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.ListAllDevices(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1425,7 +1425,7 @@ func TestListSchoolDevices_Success(t *testing.T) {
 				Active:         true,
 			}, nil
 		},
-	}}, txHandler: modelBase.NewTxHandler(bunDB),
+	}}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 	result, err := svc.ListSchoolDevices(context.Background(), 42)
 	require.NoError(t, err)
@@ -1461,7 +1461,7 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
 		},
-	}}, txHandler: modelBase.NewTxHandler(bunDB),
+	}}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 	result, err := svc.ListOrganizationDevices(context.Background(), 5)
 	require.NoError(t, err)
@@ -1635,7 +1635,7 @@ func TestCreateDevice_Success_AutoKey(t *testing.T) {
 			device.ID = 10
 			return nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.CreateDevice(context.Background(), 42, "dev-1", "rfid", &deviceName, nil, 1, net.IPv4(127, 0, 0, 1))
@@ -1703,7 +1703,7 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 			device.ID = 11
 			return nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.CreateDevice(context.Background(), 42, "dev-2", "rfid", nil, &manualKey, 1, net.IPv4(127, 0, 0, 1))
@@ -1800,7 +1800,7 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 			device.ID = 10
 			return nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.CreateDevice(context.Background(), 42, "dev-1", "rfid", nil, nil, 1, net.IPv4(127, 0, 0, 1))
@@ -1963,7 +1963,7 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.SetDeviceAPIKey(context.Background(), 10, nil, 1, net.IPv4(127, 0, 0, 1))
@@ -2026,7 +2026,7 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.SetDeviceAPIKey(context.Background(), 10, &manualKey, 1, net.IPv4(127, 0, 0, 1))
@@ -2090,7 +2090,7 @@ func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
 
 	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 
 	result, err := svc.queryDeviceSingle(context.Background(), "CreateDevice", int64(10))
 	require.Nil(t, result)
@@ -2117,7 +2117,7 @@ func TestQueryDeviceSingle_NoRows(t *testing.T) {
 		"school_id", "school_name", "organization_id", "organization_name",
 	}))
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 
 	result, err := svc.queryDeviceSingle(context.Background(), "SetDeviceAPIKey", int64(10))
 	require.Nil(t, result)

@@ -20,7 +20,6 @@ import (
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource bundles the display handlers and their dependencies.
@@ -56,7 +55,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		withTx := common.TenantTxMiddleware
 
 		// Listing is readable with either permission: display:read enables
 		// view-only roles, display:manage must not lock its holders out of

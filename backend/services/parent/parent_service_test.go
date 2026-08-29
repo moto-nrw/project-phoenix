@@ -71,7 +71,7 @@ func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) 
 	}
 	svc := buildParentService(t, repo)
 
-	result, err := svc.ListEnrollmentsForAccount(context.Background(), 1234)
+	result, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.Equal(t, int64(42), result[0].RequestID)
@@ -85,7 +85,7 @@ func TestService_ListEnrollmentsForAccount_RejectsZeroAccount(t *testing.T) {
 	repo := &stubEnrollmentRequestRepo{}
 	svc := buildParentService(t, repo)
 
-	_, err := svc.ListEnrollmentsForAccount(context.Background(), 0)
+	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
 	assert.Equal(t, int64(0), repo.gotAccountID, "repo must not be called for invalid input")
@@ -97,7 +97,7 @@ func TestService_ListEnrollmentsForAccount_RejectsNegativeAccount(t *testing.T) 
 	repo := &stubEnrollmentRequestRepo{}
 	svc := buildParentService(t, repo)
 
-	_, err := svc.ListEnrollmentsForAccount(context.Background(), -5)
+	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), -5)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
 }
@@ -109,7 +109,7 @@ func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
 	repo := &stubEnrollmentRequestRepo{listErr: want}
 	svc := buildParentService(t, repo)
 
-	_, err := svc.ListEnrollmentsForAccount(context.Background(), 1)
+	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, want, "service must wrap, not swallow, repo errors")
 }
@@ -124,7 +124,7 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 		Logger:                slog.Default(),
 	})
 
-	_, err := svc.ListEnrollmentsForAccount(context.Background(), 1)
+	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enrollment request repo not wired")
 }
@@ -137,7 +137,7 @@ func TestService_ListEnrollmentsForAccount_EmptyResultPropagates(t *testing.T) {
 	}
 	svc := buildParentService(t, repo)
 
-	result, err := svc.ListEnrollmentsForAccount(context.Background(), 1)
+	result, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
@@ -164,7 +164,7 @@ func TestService_ListEnrollmentsForAccount_RedactsReasonWhenPhaseDisablesIt(t *t
 	}
 	svc := buildParentService(t, repo)
 
-	result, err := svc.ListEnrollmentsForAccount(context.Background(), 1234)
+	result, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Children, 1)
@@ -191,7 +191,7 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 	}
 	svc := buildParentService(t, repo)
 
-	result, err := svc.ListEnrollmentsForAccount(context.Background(), 1234)
+	result, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	require.Len(t, result[0].Children, 1)
@@ -293,7 +293,7 @@ func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	profile, err := svc.GetProfile(context.Background(), 1234)
+	profile, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	require.NotNil(t, profile)
 	assert.True(t, profile.Explicit, "a stored portal_locale must be reported as an explicit choice")
@@ -311,7 +311,7 @@ func TestService_GetProfile_NormalizesRegionSubtag(t *testing.T) {
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	profile, err := svc.GetProfile(context.Background(), 1234)
+	profile, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	assert.True(t, profile.Explicit)
 	assert.Equal(t, "en", profile.Locale, "region subtag must be stripped to the base locale")
@@ -325,7 +325,7 @@ func TestService_GetProfile_NullLocaleIsNotExplicit(t *testing.T) {
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	profile, err := svc.GetProfile(context.Background(), 1234)
+	profile, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	require.NotNil(t, profile)
 	assert.False(t, profile.Explicit,
@@ -341,7 +341,7 @@ func TestService_GetProfile_EmptyLocaleIsNotExplicit(t *testing.T) {
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	profile, err := svc.GetProfile(context.Background(), 1234)
+	profile, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err)
 	assert.False(t, profile.Explicit, "an empty stored value is treated as unset, not as a choice")
 	assert.Equal(t, "de", profile.Locale)
@@ -355,7 +355,7 @@ func TestService_GetProfile_MissingProfileIsBenign(t *testing.T) {
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	profile, err := svc.GetProfile(context.Background(), 1234)
+	profile, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.NoError(t, err, "a parent without a guardian-profile row is benign, not an error")
 	require.NotNil(t, profile)
 	assert.False(t, profile.Explicit)
@@ -369,7 +369,7 @@ func TestService_GetProfile_PropagatesRealRepoError(t *testing.T) {
 	repo := &stubGuardianProfileRepo{findErr: want}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	_, err := svc.GetProfile(context.Background(), 1234)
+	_, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, want, "a genuine repo fault must surface, not be masked as an unset preference")
 }
@@ -380,7 +380,7 @@ func TestService_GetProfile_RejectsNonPositiveAccount(t *testing.T) {
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	_, err := svc.GetProfile(context.Background(), 0)
+	_, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
 	assert.Equal(t, int64(0), repo.gotFindAccountIDArg, "repo must not be called for invalid input")
@@ -396,7 +396,7 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 		Logger:              slog.Default(),
 	})
 
-	_, err := svc.GetProfile(context.Background(), 1234)
+	_, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "guardian profile repo not wired")
 }
@@ -407,7 +407,7 @@ func TestService_UpdatePortalLocale_NormalizesAndPersists(t *testing.T) {
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	profile, err := svc.UpdatePortalLocale(context.Background(), 1234, "en-US")
+	profile, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en-US")
 	require.NoError(t, err)
 	require.NotNil(t, profile)
 	assert.True(t, profile.Explicit, "a write is always an explicit choice")
@@ -423,7 +423,7 @@ func TestService_UpdatePortalLocale_RejectsNonPositiveAccount(t *testing.T) {
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	_, err := svc.UpdatePortalLocale(context.Background(), -1, "en")
+	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), -1, "en")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account_id must be positive")
 	assert.Equal(t, 0, repo.updateCallCount, "repo must not be called for invalid input")
@@ -436,7 +436,7 @@ func TestService_UpdatePortalLocale_PropagatesRepoError(t *testing.T) {
 	repo := &stubGuardianProfileRepo{updateErr: want}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	_, err := svc.UpdatePortalLocale(context.Background(), 1234, "en")
+	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, want)
 }
@@ -451,7 +451,7 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 		Logger:              slog.Default(),
 	})
 
-	_, err := svc.UpdatePortalLocale(context.Background(), 1234, "en")
+	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "guardian profile repo not wired")
 }
@@ -462,7 +462,7 @@ func TestService_UpdatePortalLocale_RejectsUnsupportedLocale(t *testing.T) {
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	_, err := svc.UpdatePortalLocale(context.Background(), 1234, "xx")
+	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "xx")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported locale")
 	assert.Equal(t, 0, repo.updateCallCount,
@@ -479,7 +479,7 @@ func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
 	repo := &stubGuardianProfileRepo{updateErr: userModels.ErrGuardianProfileNotFound}
 	svc := buildParentServiceWithGuardian(t, repo)
 
-	_, err := svc.UpdatePortalLocale(context.Background(), 1234, "en")
+	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound)
 }

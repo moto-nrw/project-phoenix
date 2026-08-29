@@ -10,6 +10,7 @@ var ErrTenantRequired = errors.New("tenant: tenant ID is required")
 
 // contextKey is a private type for tenant context keys to prevent collisions.
 type contextKey string
+type noTenant struct{}
 
 const (
 	tenantKey  contextKey = "tenant_id"
@@ -31,16 +32,16 @@ const (
 
 // WithTenantID returns a new context with the tenant ID set.
 func WithTenantID(ctx context.Context, id int64) context.Context {
-	// Zero remains the legacy marker for explicitly unscoped admin work until
-	// #2642 removes the primitive helper and its callers.
-	if id == 0 {
-		return context.WithValue(ctx, tenantKey, id)
-	}
 	validated, err := NewTenantID(id)
 	if err != nil {
 		panic(err)
 	}
 	return WithTenant(ctx, validated)
+}
+
+// ContextWithoutTenant explicitly masks an inherited tenant for admin work.
+func ContextWithoutTenant(ctx context.Context) context.Context {
+	return context.WithValue(ctx, tenantKey, noTenant{})
 }
 
 // WithTenant returns a new context containing a validated tenant ID.
@@ -62,19 +63,10 @@ func FromContext(ctx context.Context) int64 {
 }
 
 // TenantFromContext returns the validated tenant ID or ErrTenantRequired.
-// The int64 branch keeps legacy contexts readable until #2642 cuts every
-// request and worker caller over to WithTenant.
 func TenantFromContext(ctx context.Context) (TenantID, error) {
-	switch id := ctx.Value(tenantKey).(type) {
-	case TenantID:
-		if !id.IsZero() {
-			return id, nil
-		}
-	case int64:
-		validated, err := NewTenantID(id)
-		if err == nil {
-			return validated, nil
-		}
+	id, ok := ctx.Value(tenantKey).(TenantID)
+	if ok && !id.IsZero() {
+		return id, nil
 	}
 	return TenantID{}, ErrTenantRequired
 }

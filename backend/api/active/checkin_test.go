@@ -224,6 +224,7 @@ func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Education, serviceFactory.Schulhof, serviceFactory.UserContext, serviceFactory.Settings, db, slog.Default())
 }
@@ -242,7 +243,7 @@ func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token s
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	return req
+	return req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 }
 
 func TestCheckinStudent_Integration(t *testing.T) {
@@ -305,6 +306,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		bodyBytes, _ := json.Marshal(body)
 
 		req := httptest.NewRequest(http.MethodPost, "/visits/student/invalid/checkin", bytes.NewReader(bodyBytes))
+		req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
 

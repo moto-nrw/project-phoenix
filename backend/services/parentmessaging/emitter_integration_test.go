@@ -36,7 +36,7 @@ func threadPills(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpk
 	t.Helper()
 	var thread *usersModels.ParentMessageThread
 	var msgs []*usersModels.ParentMessage
-	err := tenant.WithTenantTx(context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr
@@ -75,7 +75,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 
 	settings := &toggleSettings{enabled: true}
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage, settings, bc, slog.Default())
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage, settings, bc, slog.Default())
 
 	// 1) Guardian files a request → request_created pill, thread born.
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -145,7 +145,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -172,7 +172,7 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -199,7 +199,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := newMockEmitter(t, db, repos.ParentMessageThread, repos.ParentMessage,
 		&toggleSettings{enabled: true}, bc, slog.Default())
 
 	// A request_created pill exists (thread born while the guardian had access).

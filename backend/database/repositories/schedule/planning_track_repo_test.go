@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,7 +81,7 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	err := service.ReorderPlanningTracks(scope.Context(), []int64{first.ID})
 	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
 
-	err = tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, repo.UpdateSortOrders(txCtx, nil))
 		return repo.UpdateSortOrders(txCtx, []int64{first.ID, first.ID + second.ID + 1000})
 	})

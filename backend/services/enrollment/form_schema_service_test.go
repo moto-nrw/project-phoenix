@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -518,7 +517,7 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 	// survives every publish (versions are never deleted) and every rename
 	// (rename keeps row ids), so both operations can reference it forever.
 	var lineageID int64
-	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		created, err := svc.CreateSchema(ctx, "Konzert", field, creatorID)
 		if err != nil {
 			return err
@@ -534,14 +533,14 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 		var renameErr, publishErr error
 		go func() {
 			defer wg.Done()
-			renameErr = tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			renameErr = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 				_, err := svc.RenameSchema(ctx, lineageID, target)
 				return err
 			})
 		}()
 		go func() {
 			defer wg.Done()
-			publishErr = tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			publishErr = testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 				_, err := svc.UpdateSchema(ctx, lineageID, field, creatorID)
 				return err
 			})
@@ -551,7 +550,7 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 		require.NoError(t, publishErr, "iteration %d: publish", i)
 
 		names := make(map[string]struct{})
-		require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 			versions, err := svc.ListVersions(ctx)
 			if err != nil {
 				return err
@@ -584,7 +583,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 	}
 
 	var lineageID int64
-	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		created, err := svc.CreateSchema(ctx, "Sommerfest", field, creatorID)
 		if err != nil {
 			return err
@@ -596,7 +595,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 	// One transaction, mirroring updateSchema's runInTenantTx: rename succeeds,
 	// then the publish fails on a reserved core key. The closure returns that
 	// error, so WithTenantTx rolls the whole transaction back.
-	txErr := tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	txErr := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if _, err := svc.RenameSchema(ctx, lineageID, "Herbstfest"); err != nil {
 			return err
 		}
@@ -609,7 +608,7 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 
 	// Neither change committed: the name is still the original and no new
 	// version row was inserted.
-	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		versions, err := svc.ListVersions(ctx)
 		if err != nil {
 			return err

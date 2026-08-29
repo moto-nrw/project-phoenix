@@ -85,7 +85,7 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 			svc, db := buildParentServiceWithExcused(t, stubExcused{createErr: tc.in})
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-			_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+			_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 				[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
 			require.Error(t, err)
 			if tc.want != nil {
@@ -106,7 +106,7 @@ func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
 	svc, db := buildParentServiceWithExcused(t, nil)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", activeModels.StudentStatusDayExcused)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "not configured")
@@ -121,7 +121,7 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		_, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID+999999)
+		_, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID+999999)
 		require.Error(t, err, "a student the account does not guard must be refused")
 	})
 
@@ -129,7 +129,7 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, nil)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		out, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+		out, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
@@ -138,7 +138,7 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{listErr: errors.New("db down")})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		_, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+		_, err := svc.ListExcusedRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "db down")
 	})
@@ -153,7 +153,7 @@ func TestWithdrawExcusedRequest_Errors(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		_, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID+999999, 1)
+		_, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID+999999, 1)
 		require.Error(t, err)
 	})
 
@@ -161,7 +161,7 @@ func TestWithdrawExcusedRequest_Errors(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, nil)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-		_, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID, 1)
+		_, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, 1)
 		assert.ErrorIs(t, err, parentService.ErrExcusedRequestNotFound)
 	})
 
@@ -179,7 +179,7 @@ func TestWithdrawExcusedRequest_Errors(t *testing.T) {
 			svc, db := buildParentServiceWithExcused(t, stubExcused{withdrawErr: tc.in})
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-			_, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID, 1)
+			_, err := svc.WithdrawExcusedRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, 1)
 			require.Error(t, err)
 			if tc.want != nil {
 				assert.ErrorIs(t, err, tc.want)

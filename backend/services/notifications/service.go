@@ -195,6 +195,14 @@ type router struct {
 	logger   *slog.Logger
 }
 
+func (r *router) SetTenantRuntime(runtime tenant.Runtime) {
+	for _, channel := range r.channels {
+		if setter, ok := channel.(interface{ SetTenantRuntime(tenant.Runtime) }); ok {
+			setter.SetTenantRuntime(runtime)
+		}
+	}
+}
+
 // TypeTest is the notification an admin can fire to verify the setup. It is
 // the one type exempt from the delivery window.
 const TypeTest = "test"
@@ -323,7 +331,7 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 
 	// Channels run after commit, so they must not inherit the closed transaction.
 	// Snapshot the mutable payload before the callback outlives this call.
-	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
 	event.Data = maps.Clone(event.Data)
 	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
 	event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
@@ -360,7 +368,7 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 			return ErrOutsideActiveWindow
 		}
 	}
-	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
 	// The durable producer waits for one channel, not for all of them. Every
 	// other channel stays fire-and-forget exactly as in Notify — a parent with
 	// the portal open must see the in-app notification even though only Web
@@ -445,7 +453,7 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 		}
 	}
 
-	dispatchCtx := modelBase.ContextWithoutTx(ctx)
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
 	tenant.RegisterAfterCommit(ctx, func() {
 		r.deliverBatch(dispatchCtx, prepared)
 	})
