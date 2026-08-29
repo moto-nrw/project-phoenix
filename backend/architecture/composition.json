@@ -441,12 +441,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 111,
+          "line": 118,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 537,
+          "line": 545,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 204,
+          "line": 212,
           "declaration": "New"
         }
       ]
@@ -466,12 +466,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 108,
+          "line": 115,
           "declaration": "type API"
         },
         {
           "file": "api/server.go",
-          "line": 98,
+          "line": 99,
           "declaration": "configureSchedulerServices"
         }
       ]
@@ -481,7 +481,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 207,
+          "line": 215,
           "declaration": "New"
         }
       ]
@@ -546,7 +546,7 @@
       "locations": [
         {
           "file": "cmd/cleanup_helpers.go",
-          "line": 86,
+          "line": 91,
           "declaration": "newCleanupContextWithServices"
         }
       ]
@@ -16684,7 +16684,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        204
+        212
       ],
       "tables": []
     },
@@ -16694,7 +16694,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        207
+        215
       ],
       "tables": []
     },
@@ -16734,7 +16734,7 @@
       "declaration": "newCleanupContextWithServices",
       "target": "services.NewFactory",
       "lines": [
-        86
+        91
       ],
       "tables": []
     },
@@ -18078,6 +18078,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         33
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/students/tenant_middleware_integration_test.go",
+      "declaration": "TestTenantTxMiddlewareServerErrorDiscardsWrite",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        64
       ],
       "tables": []
     },
@@ -32505,6 +32515,36 @@
         "schedule.student_pickup_schedules",
         "schedule.timeframes"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "test/tenant_runtime_test.go",
+      "declaration": "TestUnitOfWorkCommitsSuccessfulCommand",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        33
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/tenant_runtime_test.go",
+      "declaration": "TestUnitOfWorkRollsBackPanic",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        66
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/tenant_runtime_test.go",
+      "declaration": "TestUnitOfWorkRollsBackReturnedError",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        49
+      ],
+      "tables": []
     }
   ],
   "smoke_tests": [

@@ -12,7 +12,7 @@ import (
 
 type tenantRequestObserverKey struct{}
 
-type TenantRuntime = tenant.Runtime
+type TenantRuntime = tenant.UnitOfWork
 type TenantRuntimeEvent = tenant.RuntimeEvent
 
 const (
@@ -29,10 +29,10 @@ type TenantRequestEvent struct {
 	Outcome  string
 }
 
-func TenantRuntimeMiddleware(runtime tenant.Runtime) func(http.Handler) http.Handler {
+func TenantRuntimeMiddleware(runtime tenant.UnitOfWork) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(tenant.WithRuntime(r.Context(), runtime)))
+			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), runtime)))
 		})
 	}
 }

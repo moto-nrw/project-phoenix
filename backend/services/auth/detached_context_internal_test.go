@@ -25,7 +25,7 @@ func TestDetachedTenantContextDropsAmbientTransactionAndHooks(t *testing.T) {
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
-	ctx := tenant.WithRuntime(context.Background(), runtime)
+	ctx := tenant.WithUnitOfWork(context.Background(), runtime)
 
 	require.NoError(t, tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		var tx bun.Tx

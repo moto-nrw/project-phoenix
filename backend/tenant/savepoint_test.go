@@ -22,7 +22,7 @@ func savepointContext(t *testing.T, control func(tenant.SavepointAction) error) 
 		func(_ context.Context, action tenant.SavepointAction) error { return control(action) },
 	)
 	require.NoError(t, err)
-	return tenant.WithRuntime(context.Background(), runtime)
+	return tenant.WithUnitOfWork(context.Background(), runtime)
 }
 
 func TestWithSavepoint_Success(t *testing.T) {

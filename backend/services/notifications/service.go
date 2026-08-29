@@ -195,9 +195,9 @@ type router struct {
 	logger   *slog.Logger
 }
 
-func (r *router) SetTenantRuntime(runtime tenant.Runtime) {
+func (r *router) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	for _, channel := range r.channels {
-		if setter, ok := channel.(interface{ SetTenantRuntime(tenant.Runtime) }); ok {
+		if setter, ok := channel.(interface{ SetTenantRuntime(tenant.UnitOfWork) }); ok {
 			setter.SetTenantRuntime(runtime)
 		}
 	}

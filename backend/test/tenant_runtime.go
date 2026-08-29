@@ -12,14 +12,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var packageTenantRuntime atomic.Pointer[tenant.Runtime]
+var packageTenantRuntime atomic.Pointer[tenant.UnitOfWork]
 
-func newTenantRuntime(db *bun.DB) (tenant.Runtime, error) {
-	postgresRuntime, err := database.NewTenantRuntime(db)
+func newTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
+	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
 	if err != nil {
-		return tenant.Runtime{}, err
+		return tenant.UnitOfWork{}, err
 	}
-	return tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, tenant.SavepointFunc(postgresRuntime))
+	return tenant.NewUnitOfWork(
+		postgresRuntime.WithinTenant,
+		postgresRuntime.WithinAdmin,
+		tenant.SavepointFunc(postgresRuntime),
+		database.IsRetryableTransactionError,
+	)
 }
 
 func bindPackageTenantRuntime(db *bun.DB) error {
@@ -32,7 +37,7 @@ func bindPackageTenantRuntime(db *bun.DB) error {
 }
 
 // TenantRuntime builds the production tenant runtime against a test database.
-func TenantRuntime(tb testing.TB, db *bun.DB) tenant.Runtime {
+func TenantRuntime(tb testing.TB, db *bun.DB) tenant.UnitOfWork {
 	tb.Helper()
 	runtime, err := newTenantRuntime(db)
 	if err != nil {
@@ -49,15 +54,15 @@ func WithPackageTenantRuntime(ctx context.Context) context.Context {
 	if runtime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *runtime)
+	return tenant.WithUnitOfWork(ctx, *runtime)
 }
 
 // PackageTenantRuntime returns the runtime bound to this test binary's shared
 // database. It is available after SetupTestDB has initialized the package.
-func PackageTenantRuntime() (tenant.Runtime, bool) {
+func PackageTenantRuntime() (tenant.UnitOfWork, bool) {
 	runtime := packageTenantRuntime.Load()
 	if runtime == nil {
-		return tenant.Runtime{}, false
+		return tenant.UnitOfWork{}, false
 	}
 	return *runtime, true
 }
@@ -69,7 +74,7 @@ func TenantRuntimeMiddleware(tb testing.TB, db *bun.DB) func(http.Handler) http.
 	runtime := TenantRuntime(tb, db)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(tenant.WithRuntime(r.Context(), runtime)))
+			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), runtime)))
 		})
 	}
 }
@@ -78,7 +83,7 @@ func TenantRuntimeMiddleware(tb testing.TB, db *bun.DB) func(http.Handler) http.
 // import the tenant runtime package directly.
 func SetTenantRuntime(tb testing.TB, target any, db *bun.DB) {
 	tb.Helper()
-	setter, ok := target.(interface{ SetTenantRuntime(tenant.Runtime) })
+	setter, ok := target.(interface{ SetTenantRuntime(tenant.UnitOfWork) })
 	if !ok {
 		tb.Fatalf("%T does not accept a tenant runtime", target)
 	}
@@ -110,7 +115,7 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := tenant.WithRuntime(r.Context(), runtime)
+			ctx := tenant.WithUnitOfWork(r.Context(), runtime)
 			within := tenant.WithinCurrentTenant
 			if _, tenantErr := tenant.TenantFromContext(ctx); tenantErr != nil {
 				switch tenant.ScopeFromContext(ctx) {
@@ -153,5 +158,5 @@ func (w *statusWriter) WriteHeader(status int) {
 
 func WithTenantRuntime(tb testing.TB, ctx context.Context, db *bun.DB) context.Context {
 	tb.Helper()
-	return tenant.WithRuntime(ctx, TenantRuntime(tb, db))
+	return tenant.WithUnitOfWork(ctx, TenantRuntime(tb, db))
 }

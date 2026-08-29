@@ -101,12 +101,12 @@ type OperatorMFAServiceConfig struct {
 type operatorMFAService struct {
 	OperatorMFAServiceConfig
 	mfaSecret     []byte
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
 var _ OperatorMFAService = (*operatorMFAService)(nil)
 
-func (s *operatorMFAService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *operatorMFAService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -114,7 +114,7 @@ func (s *operatorMFAService) withTenantRuntime(ctx context.Context) context.Cont
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // NewOperatorMFAService constructs the service. Returns an error rather

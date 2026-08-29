@@ -65,10 +65,10 @@ type pushSubscriptionService struct {
 	accountTenants authModels.AccountTenantRepository
 	vapid          VAPIDConfig
 	logger         *slog.Logger
-	tenantRuntime  *tenant.Runtime
+	tenantRuntime  *tenant.UnitOfWork
 }
 
-func (s *pushSubscriptionService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *pushSubscriptionService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -76,7 +76,7 @@ func (s *pushSubscriptionService) withTenantRuntime(ctx context.Context) context
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // NewPushSubscriptionService builds the push subscription service.

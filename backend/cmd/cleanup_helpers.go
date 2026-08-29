@@ -44,7 +44,7 @@ type cleanupContext struct {
 	CleanupService             active.CleanupService
 	TimetableCleanupService    schedule.TimetableCleanupService
 	TimeTrackingCleanupService active.TimeTrackingCleanupService
-	TenantRuntime              tenant.Runtime
+	TenantRuntime              tenant.UnitOfWork
 }
 
 // newCleanupContext initializes database and repository factory.
@@ -56,12 +56,17 @@ func newCleanupContext() (*cleanupContext, error) {
 	}
 
 	repoFactory := repositories.NewFactory(db)
-	postgresRuntime, err := database.NewTenantRuntime(db)
+	postgresRuntime, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
 	if err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	tenantRuntime, err := tenant.NewRuntime(postgresRuntime.WithinTenant, postgresRuntime.WithinAdmin, tenant.SavepointFunc(postgresRuntime))
+	tenantRuntime, err := tenant.NewUnitOfWork(
+		postgresRuntime.WithinTenant,
+		postgresRuntime.WithinAdmin,
+		tenant.SavepointFunc(postgresRuntime),
+		database.IsRetryableTransactionError,
+	)
 	if err != nil {
 		_ = db.Close()
 		return nil, err

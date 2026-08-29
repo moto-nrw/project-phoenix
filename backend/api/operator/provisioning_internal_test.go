@@ -325,7 +325,7 @@ func withMockAdminRuntime(t *testing.T, req *http.Request, db *bun.DB) *http.Req
 		func(context.Context, tenant.SavepointAction) error { return nil },
 	)
 	require.NoError(t, err)
-	return req.WithContext(tenant.WithRuntime(req.Context(), runtime))
+	return req.WithContext(tenant.WithUnitOfWork(req.Context(), runtime))
 }
 
 func (m *mockCaregiverCapabilityService) EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {

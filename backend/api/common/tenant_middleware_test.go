@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testRuntime(t *testing.T, within func(context.Context, int64, func(context.Context, any) error) error) tenant.Runtime {
+func testRuntime(t *testing.T, within func(context.Context, int64, func(context.Context, any) error) error) tenant.UnitOfWork {
 	t.Helper()
 	runtime, err := tenant.NewRuntime(
 		within,
@@ -52,7 +52,7 @@ func TestTenantTxMiddlewareUsesValidatedTenantAndRollbackMarker(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	request := httptest.NewRequest(http.MethodPost, "/api/rooms", nil)
-	ctx := tenant.WithRuntime(tenant.WithTenant(request.Context(), id), runtime)
+	ctx := tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
@@ -83,7 +83,7 @@ func TestTenantTxMiddlewareUsesAdminTransactionForPlatformScope(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	request := httptest.NewRequest(http.MethodGet, "/auth/accounts", nil)
-	ctx := tenant.WithRuntime(tenant.WithScope(request.Context(), tenant.ScopePlatform), runtime)
+	ctx := tenant.WithUnitOfWork(tenant.WithScope(request.Context(), tenant.ScopePlatform), runtime)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
@@ -117,7 +117,7 @@ func TestTenantTxMiddlewarePrefersTenantOverPlatformScope(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/auth/accounts", nil)
 	ctx := tenant.WithScope(tenant.WithTenant(request.Context(), id), tenant.ScopePlatform)
 	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request.WithContext(tenant.WithRuntime(ctx, runtime)))
+	handler.ServeHTTP(recorder, request.WithContext(tenant.WithUnitOfWork(ctx, runtime)))
 
 	assert.Equal(t, int64(42), gotTenant)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
@@ -159,7 +159,7 @@ func TestTenantTxMiddlewareObservesTransactionFailure(t *testing.T) {
 	}))
 	handler = TenantRequestObserverMiddleware(func(event TenantRequestEvent) { observed = event })(handler)
 	request := httptest.NewRequest(http.MethodGet, "/api/rooms", nil)
-	ctx := tenant.WithRuntime(tenant.WithTenant(request.Context(), id), runtime)
+	ctx := tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime)
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request.WithContext(ctx))
 
@@ -204,12 +204,12 @@ func TestTenantOperationMiddlewareObservesServiceOwnedTransactionFailure(t *test
 	}))
 	handler = TenantRuntimeObserverMiddleware(func(event tenant.RuntimeEvent) { observed = event })(handler)
 	request := httptest.NewRequest(http.MethodPost, "/api/notifications/push/subscriptions", nil)
-	request = request.WithContext(tenant.WithRuntime(tenant.WithTenant(request.Context(), id), runtime))
+	request = request.WithContext(tenant.WithUnitOfWork(tenant.WithTenant(request.Context(), id), runtime))
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, tenant.RuntimeTransaction, observed.Outcome)
+	assert.Equal(t, tenant.RuntimeTransaction, observed.Kind)
 	require.ErrorIs(t, observed.Err, assert.AnError)
 }
 

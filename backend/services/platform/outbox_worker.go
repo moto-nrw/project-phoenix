@@ -54,11 +54,11 @@ type OutboxWorker struct {
 	maxAttempts   int
 	logger        *slog.Logger
 	db            *bun.DB
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
 // SetTenantRuntime wires the transaction runtime used by this cross-tenant worker.
-func (w *OutboxWorker) SetTenantRuntime(runtime tenant.Runtime) {
+func (w *OutboxWorker) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	w.tenantRuntime = &runtime
 }
 
@@ -66,7 +66,7 @@ func (w *OutboxWorker) withTenantRuntime(ctx context.Context) context.Context {
 	if w.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *w.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *w.tenantRuntime)
 }
 
 // OutboxWorkerConfig is the dep-injection bundle for NewOutboxWorker.

@@ -860,7 +860,7 @@ func forEachActiveTenant(
 	operation string,
 	fn func(context.Context, int64) error,
 ) error {
-	ctx = tenant.WithRuntime(ctx, cc.TenantRuntime)
+	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
 	tenantIDs, err := listActiveTenantIDsForCLI(ctx, cc)
 	if err != nil {
 		return err
@@ -961,7 +961,7 @@ func runCleanupTimeTrackingStats(_ *cobra.Command, _ []string) error {
 // "relation organizations does not exist". The same bug bites the timetable
 // CLI today — fixing it cleanly is out of scope for Tranche 0b.
 func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64, error) {
-	ctx = tenant.WithRuntime(ctx, cc.TenantRuntime)
+	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
 	var ids []int64
 	err := tenant.WithAdminTx(ctx, cc.DB, func(txCtx context.Context, tx bun.Tx) error {
 		rows, err := tx.QueryContext(txCtx, `

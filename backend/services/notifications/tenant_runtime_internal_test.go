@@ -13,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.Runtime {
+func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.UnitOfWork {
 	if db != nil {
 		return testpkg.TenantRuntime(t, db)
 	}
@@ -41,7 +41,7 @@ func newMockPushSubscriptionService(
 	logger *slog.Logger,
 ) PushSubscriptionService {
 	service := NewPushSubscriptionService(db, repo, accountTenants, vapid, logger)
-	service.(interface{ SetTenantRuntime(tenant.Runtime) }).SetTenantRuntime(newMockTenantRuntime(t, db))
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(newMockTenantRuntime(t, db))
 	return service
 }
 

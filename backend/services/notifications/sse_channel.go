@@ -29,10 +29,10 @@ type sseChannel struct {
 	db            *bun.DB
 	guardians     GuardianChildAccessRepository
 	logger        *slog.Logger
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
-func (c *sseChannel) SetTenantRuntime(runtime tenant.Runtime) {
+func (c *sseChannel) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	c.tenantRuntime = &runtime
 }
 
@@ -40,7 +40,7 @@ func (c *sseChannel) withTenantRuntime(ctx context.Context) context.Context {
 	if c.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *c.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *c.tenantRuntime)
 }
 
 // SSEChannelOption configures optional dependencies of the SSE channel.

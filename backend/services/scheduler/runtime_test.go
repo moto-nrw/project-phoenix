@@ -60,7 +60,7 @@ func unitScheduler(scheduler *Scheduler) *Scheduler {
 			panic("tenant runtime is not configured for the scheduler test package")
 		}
 		scheduler.SetTenantRuntime(runtime)
-		if setter, ok := scheduler.settings.(interface{ SetTenantRuntime(tenant.Runtime) }); ok {
+		if setter, ok := scheduler.settings.(interface{ SetTenantRuntime(tenant.UnitOfWork) }); ok {
 			setter.SetTenantRuntime(runtime)
 		}
 	}
