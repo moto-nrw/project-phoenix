@@ -50,9 +50,10 @@ removed counters and uses only:
 
 The drift rule compares the latest result with the documented Production
 baseline in the runbook. Tenants without a documented non-zero baseline use
-zero. It therefore catches new tenants and actionable findings above the known
-baseline per tenant and category without depending on regular scheduler start
-times. Update both the rule and the runbook when an accepted baseline changes.
+zero. It excludes tenants where bookings are not the authoritative source, so
+their projection counters remain visible in the dashboard without triggering
+an alarm. Update both the rule and the runbook when an accepted baseline or the
+authoritative tenant set changes.
 The runbook is
 [`runbooks/booking-consistency.md`](runbooks/booking-consistency.md).
 
