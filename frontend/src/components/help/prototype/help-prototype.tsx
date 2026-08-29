@@ -8,7 +8,6 @@ import {
   ChevronRight,
   CircleHelp,
   ExternalLink,
-  Info,
   MessageCircleQuestion,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -25,6 +24,13 @@ import {
 } from "./prototype-data";
 
 const CHATGPT_URL = "https://chatgpt.com/";
+const INTERNAL_APP_ORIGIN = "https://moto.invalid";
+const DOCUMENTATION_SECTIONS = {
+  instructions: { id: "anleitung", label: "So geht es" },
+  tip: { id: "tipp", label: "Tipp" },
+  example: { id: "beispiel", label: "So sieht es aus" },
+  related: { id: "weitere-themen", label: "Weitere Themen" },
+} as const;
 
 function chatGptUrlFor(
   documentationUrl: string,
@@ -59,6 +65,20 @@ function isPresenceMode(value: string | null): value is PrototypePresenceMode {
 
 function isSchoolyard(value: string | null): value is PrototypeSchoolyard {
   return value === "enabled" || value === "disabled";
+}
+
+function appHrefFrom(value: string | null): string {
+  if (!value) return "/";
+  try {
+    const target = new URL(value, INTERNAL_APP_ORIGIN);
+    if (target.origin !== INTERNAL_APP_ORIGIN) return "/";
+    if (target.pathname === "/help" || target.pathname.startsWith("/help/")) {
+      return "/";
+    }
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return "/";
+  }
 }
 
 function InlineCode({ text }: Readonly<{ text: string }>) {
@@ -101,26 +121,45 @@ function ChatGptPrototypeLink({
   );
 }
 
+function BackToAppPrototypeLink({
+  className,
+  href,
+}: Readonly<{ className?: string; href: string }>) {
+  return (
+    <ButtonLink
+      href={href}
+      variant="surface"
+      size="md"
+      className={cn("gap-2 whitespace-nowrap", className)}
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+      Zurück zur App
+    </ButtonLink>
+  );
+}
+
 function PrototypeMobileHeader({
+  appHref,
   chatGptHref,
-}: Readonly<{ chatGptHref: string }>) {
+}: Readonly<{ appHref: string; chatGptHref: string }>) {
   return (
     <header className="border-b border-gray-200 bg-white px-4 py-4 lg:hidden print:hidden">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link
-            href="/help/prototype"
-            className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
-          >
-            <span className="text-xl font-bold tracking-tight text-gray-950">
-              moto Hilfe
-            </span>
-          </Link>
-          <span className="bg-moto-orange/12 text-moto-orange-strong hidden rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase sm:inline-flex">
-            Prototyp
+      <div className="flex min-w-0 items-center gap-3">
+        <Link
+          href="/help/prototype"
+          className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <span className="text-xl font-bold tracking-tight text-gray-950">
+            moto Hilfe
           </span>
-        </div>
-        <ChatGptPrototypeLink href={chatGptHref} className="shrink-0 px-3" />
+        </Link>
+        <span className="bg-moto-orange/12 text-moto-orange-strong hidden rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase sm:inline-flex">
+          Prototyp
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
+        <BackToAppPrototypeLink href={appHref} className="w-full" />
+        <ChatGptPrototypeLink href={chatGptHref} className="w-full px-3" />
       </div>
     </header>
   );
@@ -149,34 +188,21 @@ function RelatedTopics({
   topic,
   topicsById,
   hrefFor,
-  sectionId,
-  title = "Das passt dazu",
-  documentationStyle = false,
 }: Readonly<{
   topic: PrototypeTopic;
   topicsById: ReadonlyMap<string, PrototypeTopic>;
   hrefFor: (topicId?: string) => string;
-  sectionId?: string;
-  title?: string;
-  documentationStyle?: boolean;
 }>) {
   const related = topic.related
     .map((id) => topicsById.get(id))
     .filter((item): item is PrototypeTopic => item != null);
   return (
     <section
-      id={sectionId}
-      className={cn("scroll-mt-8", documentationStyle ? "pt-12" : "mt-8")}
+      id={DOCUMENTATION_SECTIONS.related.id}
+      className="scroll-mt-8 pt-12"
     >
-      <h2
-        className={cn(
-          "font-semibold text-gray-950",
-          documentationStyle
-            ? "text-2xl tracking-tight text-balance"
-            : "text-lg",
-        )}
-      >
-        {title}
+      <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
+        {DOCUMENTATION_SECTIONS.related.label}
       </h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {related.map((item) => (
@@ -204,7 +230,7 @@ function RelatedTopics({
   );
 }
 
-function DocumentationArticlePrototype({
+function DocumentationArticle({
   topic,
   topicsById,
   hrefFor,
@@ -214,20 +240,19 @@ function DocumentationArticlePrototype({
   hrefFor: (topicId?: string) => string;
 }>) {
   const tableOfContents = [
-    { id: "anleitung", label: "So finden Sie ein Kind", show: true },
-    { id: "tipp", label: "Tipp", show: Boolean(topic.note) },
+    { ...DOCUMENTATION_SECTIONS.instructions, show: true },
+    { ...DOCUMENTATION_SECTIONS.tip, show: Boolean(topic.note) },
     {
-      id: "beispiel",
-      label: "So sieht die Suche aus",
+      ...DOCUMENTATION_SECTIONS.example,
       show: Boolean(topic.image),
     },
-    { id: "weitere-themen", label: "Weitere Themen", show: true },
+    { ...DOCUMENTATION_SECTIONS.related, show: true },
   ].filter((item) => item.show);
 
   return (
     <div className="xl:grid xl:grid-cols-[minmax(0,42rem)_12rem] xl:gap-16">
       <article className="max-w-2xl min-w-0">
-        <nav aria-label="Brotkrümelnavigation" className="mb-8">
+        <nav aria-label="Sie sind hier" className="mb-8">
           <ol className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
             <li>
               <Link href={hrefFor()} className="hover:text-gray-950">
@@ -249,13 +274,16 @@ function DocumentationArticlePrototype({
             {topic.question}
           </h1>
           <p className="mt-5 text-lg leading-8 text-pretty text-gray-600">
-            {topic.summary}
+            <InlineCode text={topic.summary} />
           </p>
         </header>
 
-        <section id="anleitung" className="scroll-mt-8 pt-14">
+        <section
+          id={DOCUMENTATION_SECTIONS.instructions.id}
+          className="scroll-mt-8 pt-14"
+        >
           <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
-            So finden Sie ein Kind
+            {DOCUMENTATION_SECTIONS.instructions.label}
           </h2>
           <ol className="marker:text-moto-green-strong mt-6 list-decimal space-y-4 pl-6 marker:font-semibold">
             {topic.steps.map((step) => (
@@ -267,13 +295,15 @@ function DocumentationArticlePrototype({
         </section>
 
         {topic.note && (
-          <section id="tipp" className="scroll-mt-8 pt-12">
+          <section
+            id={DOCUMENTATION_SECTIONS.tip.id}
+            className="scroll-mt-8 pt-12"
+          >
             <h2 className="mb-5 text-2xl font-semibold tracking-tight text-gray-950">
-              Tipp
+              {DOCUMENTATION_SECTIONS.tip.label}
             </h2>
             <Alert
               type="info"
-              title="Gut zu wissen"
               message={topic.note.replaceAll("`", "")}
               announce="off"
             />
@@ -281,13 +311,13 @@ function DocumentationArticlePrototype({
         )}
 
         {topic.image && (
-          <section id="beispiel" className="scroll-mt-8 pt-12">
+          <section
+            id={DOCUMENTATION_SECTIONS.example.id}
+            className="scroll-mt-8 pt-12"
+          >
             <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
-              So sieht die Suche aus
+              {DOCUMENTATION_SECTIONS.example.label}
             </h2>
-            <p className="mt-3 text-base leading-7 text-pretty text-gray-600">
-              Im Suchfeld und in den Filtern grenzen Sie die Kinderliste ein.
-            </p>
             <div className="mt-6">
               <TopicImage topic={topic} />
             </div>
@@ -298,9 +328,6 @@ function DocumentationArticlePrototype({
           topic={topic}
           topicsById={topicsById}
           hrefFor={hrefFor}
-          sectionId="weitere-themen"
-          title="Weitere Themen"
-          documentationStyle
         />
       </article>
 
@@ -334,15 +361,15 @@ function SidebarPrototype({
   topics,
   role,
   hrefFor,
+  appHref,
   chatGptHref,
-  documentationStyle = false,
 }: Readonly<{
   topic?: PrototypeTopic;
   topics: readonly PrototypeTopic[];
   role: PrototypeRole;
   hrefFor: (topicId?: string) => string;
+  appHref: string;
   chatGptHref: string;
-  documentationStyle?: boolean;
 }>) {
   const topicsById = new Map(topics.map((item) => [item.id, item]));
   const groupOrder =
@@ -350,7 +377,7 @@ function SidebarPrototype({
       ? (["alltag", "leitung", "nfc"] as const)
       : (["alltag", "nfc", "leitung"] as const);
   const topicNavigation = (
-    <nav aria-label="Themen im Prototyp" className="space-y-5">
+    <nav aria-label="Themen im Prototyp" className="space-y-7">
       {groupOrder.map((group) => {
         const groupTopics = topics.filter((item) => item.group === group);
         if (groupTopics.length === 0) return null;
@@ -360,7 +387,7 @@ function SidebarPrototype({
             : PROTOTYPE_GROUP_LABELS[group];
         return (
           <div key={group}>
-            <p className="mb-2 text-xs font-semibold text-gray-500">
+            <p className="mb-2 px-3 text-sm font-bold tracking-tight text-gray-950">
               {groupLabel}
             </p>
             <div className="space-y-1">
@@ -370,10 +397,10 @@ function SidebarPrototype({
                   href={hrefFor(item.id)}
                   aria-current={item.id === topic?.id ? "page" : undefined}
                   className={cn(
-                    "block rounded-lg px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none",
+                    "block rounded-lg px-3 py-1.5 text-sm leading-6 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none",
                     item.id === topic?.id
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-950",
+                      ? "bg-moto-green-soft text-moto-green-strong font-semibold"
+                      : "font-normal text-gray-600 hover:bg-gray-100 hover:text-gray-950",
                   )}
                 >
                   {item.title}
@@ -401,21 +428,19 @@ function SidebarPrototype({
             Prototyp
           </span>
         </div>
-        <div className="border-b border-gray-200 px-5 py-4">
+        <div className="space-y-2 border-b border-gray-200 px-5 py-4">
+          <BackToAppPrototypeLink href={appHref} className="w-full" />
           <ChatGptPrototypeLink href={chatGptHref} className="w-full" />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-          <p className="text-moto-blue-strong text-xs font-bold tracking-wide uppercase">
-            Themen
-          </p>
-          <div className="mt-4">{topicNavigation}</div>
+          {topicNavigation}
         </div>
       </aside>
 
       <main
         className={cn(
           "mx-auto w-full px-4 py-8 sm:px-6 lg:px-12",
-          documentationStyle ? "max-w-6xl" : "max-w-5xl",
+          topic ? "max-w-6xl" : "max-w-5xl",
         )}
       >
         <details className="moto-content-surface mb-6 rounded-2xl border p-4 shadow-sm lg:hidden">
@@ -426,62 +451,12 @@ function SidebarPrototype({
             {topicNavigation}
           </div>
         </details>
-        {topic && documentationStyle ? (
-          <DocumentationArticlePrototype
+        {topic ? (
+          <DocumentationArticle
             topic={topic}
             topicsById={topicsById}
             hrefFor={hrefFor}
           />
-        ) : topic ? (
-          <article className="max-w-3xl">
-            <Link
-              href={hrefFor()}
-              className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-950"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Zur Übersicht
-            </Link>
-            <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-              {PROTOTYPE_GROUP_LABELS[topic.group]}
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gray-950 sm:text-4xl">
-              {topic.question}
-            </h1>
-            <p className="mt-4 text-lg leading-8 text-gray-600">
-              {topic.summary}
-            </p>
-            <ol className="mt-8 space-y-4">
-              {topic.steps.map((step, index) => (
-                <li key={step} className="flex gap-4">
-                  <span className="bg-moto-green flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-gray-950">
-                    {index + 1}
-                  </span>
-                  <p className="pt-1 text-base leading-7 text-gray-800">
-                    <InlineCode text={step} />
-                  </p>
-                </li>
-              ))}
-            </ol>
-            {topic.note && (
-              <div className="border-moto-blue/25 bg-moto-blue/8 mt-8 flex gap-3 rounded-2xl border p-4 text-sm leading-6 text-gray-700">
-                <Info
-                  className="text-moto-blue-strong mt-0.5 h-5 w-5 shrink-0"
-                  aria-hidden="true"
-                />
-                <p>
-                  <InlineCode text={topic.note} />
-                </p>
-              </div>
-            )}
-            <div className="mt-8">
-              <TopicImage topic={topic} />
-            </div>
-            <RelatedTopics
-              topic={topic}
-              topicsById={topicsById}
-              hrefFor={hrefFor}
-            />
-          </article>
         ) : (
           <section className="max-w-4xl">
             <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
@@ -543,6 +518,7 @@ export function HelpPrototype() {
   const schoolyard: PrototypeSchoolyard = isSchoolyard(rawSchoolyard)
     ? rawSchoolyard
     : "enabled";
+  const appHref = appHrefFrom(searchParams.get("return_to"));
 
   const topics = useMemo(
     () => getPrototypeTopics(presenceMode, schoolyard),
@@ -550,13 +526,12 @@ export function HelpPrototype() {
   );
   const topicId = params.topic?.[0];
   const topic = topics.find((item) => item.id === topicId);
-  const documentationStyle =
-    topic?.id === "kindersuche" && searchParams.get("article_style") === "docs";
 
   const hrefFor = useCallback(
     (nextTopicId?: string) => {
       const queryParams = new URLSearchParams(searchParams.toString());
       queryParams.delete("variant");
+      queryParams.delete("article_style");
       queryParams.set("role", role);
       queryParams.set("presence_mode", presenceMode);
       queryParams.set("schoolyard", schoolyard);
@@ -589,7 +564,7 @@ export function HelpPrototype() {
         return;
       }
     }
-    if (searchParams.has("variant")) {
+    if (searchParams.has("variant") || searchParams.has("article_style")) {
       router.replace(hrefFor(topicId), { scroll: false });
     }
   }, [hrefFor, router, searchParams, topicId, topics]);
@@ -600,12 +575,12 @@ export function HelpPrototype() {
     <div
       className={cn(
         "min-h-screen pb-12",
-        documentationStyle
+        topic
           ? "bg-white"
           : "moto-dotted-background moto-dotted-background--fullscreen bg-gray-50",
       )}
     >
-      <PrototypeMobileHeader chatGptHref={chatGptHref} />
+      <PrototypeMobileHeader appHref={appHref} chatGptHref={chatGptHref} />
       {invalidTopic ? (
         <main className="mx-auto w-full max-w-2xl px-4 py-16 text-center sm:px-6">
           <CircleHelp
@@ -631,8 +606,8 @@ export function HelpPrototype() {
           topics={topics}
           role={role}
           hrefFor={hrefFor}
+          appHref={appHref}
           chatGptHref={chatGptHref}
-          documentationStyle={documentationStyle}
         />
       )}
     </div>
