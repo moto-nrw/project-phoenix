@@ -366,7 +366,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WorkTime", "Linkage")
 
 		modelRepo := configRepo.NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
-		anchor := timezone.NewDate(2026, time.January, 5)
+		anchor := configModel.NewCalendarDate(2026, time.January, 5)
 		model := &configModel.WorkTimeModel{
 			Name:               fmt.Sprintf("Linkage %d", staff.ID),
 			RotationLength:     2,
@@ -375,7 +375,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		require.NoError(t, modelRepo.Create(ctx, model, []*configModel.WorkTimeModelEntry{
 			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
 		}))
-		staffAnchor := anchor.AddDays(7)
+		staffAnchor := timezone.NewDate(2026, time.January, 12)
 		_, err := db.NewUpdate().
 			Table("users.staff").
 			Set("work_time_model_id = ?", model.ID).

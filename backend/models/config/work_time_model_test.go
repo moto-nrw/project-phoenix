@@ -6,7 +6,7 @@ import (
 )
 
 func newTestDate(year int, month time.Month, day int) CalendarDate {
-	return CalendarDate{Year: year, Month: month, Day: day}
+	return NewCalendarDate(year, month, day)
 }
 
 func TestResolveWeekIndex(t *testing.T) {

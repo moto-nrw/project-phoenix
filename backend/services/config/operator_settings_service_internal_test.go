@@ -32,7 +32,7 @@ func TestCheckPresenceModeSwitch_IgnoresOtherKeys(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyCheckoutSchulhofEnabled,
 		false,
 	)
@@ -45,7 +45,7 @@ func TestCheckPresenceModeSwitch_ForceBypass(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyPresenceMode,
 		true,
 	)
@@ -58,7 +58,7 @@ func TestCheckPresenceModeSwitch_NonPresenceForceIsNoop(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyCheckoutSchulhofEnabled,
 		true,
 	)
@@ -71,7 +71,7 @@ func TestCheckPresenceModeSwitch_NilCheckerIsNoop(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyPresenceMode,
 		false,
 	)
@@ -85,7 +85,7 @@ func TestCheckPresenceModeSwitch_BlocksWithOpenAttendance(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		checker,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyPresenceMode,
 		false,
 	)
@@ -100,7 +100,7 @@ func TestCheckPresenceModeSwitch_PassesWithNoOpenAttendance(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		checker,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyPresenceMode,
 		false,
 	)
@@ -116,7 +116,7 @@ func TestCheckPresenceModeSwitch_WrapsCheckerError(t *testing.T) {
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		checker,
-		configModel.CalendarDate{},
+		configModel.CalendarDate(""),
 		configModel.KeyPresenceMode,
 		false,
 	)

@@ -11,7 +11,7 @@ import (
 )
 
 func testCalendarDate(year int, month time.Month, day int) configModel.CalendarDate {
-	return configModel.CalendarDate{Year: year, Month: month, Day: day}
+	return configModel.NewCalendarDate(year, month, day)
 }
 
 func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) {
@@ -30,7 +30,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate{}))
+	}, configModel.CalendarDate("")))
 	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
 			DayOfWeek:      configModel.DayTuesday,
@@ -38,9 +38,9 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate{}))
+	}, configModel.CalendarDate("")))
 
-	today := testpkg.ConfigRuntime(db).Today()
+	today := configModel.CalendarDateFromTime(testpkg.ConfigRuntime(db).TodayTime())
 	entries, err := repo.GetByStaffIDAndDate(ctx, staff.ID, today)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
@@ -64,7 +64,7 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate{}))
+	}, configModel.CalendarDate("")))
 
 	err := repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
@@ -73,7 +73,7 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate{})
+	}, configModel.CalendarDate(""))
 	require.Error(t, err)
 
 	entries, err := repo.GetCurrentByStaffID(ctx, staff.ID)
@@ -153,7 +153,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 			DayOfWeek:      configModel.DayMonday,
 			TargetMinutes:  300,
 		},
-	}, configModel.CalendarDate{}))
+	}, configModel.CalendarDate("")))
 	_, err := db.NewUpdate().
 		Table("users.staff").
 		Set("work_time_model_id = ?", model.ID).

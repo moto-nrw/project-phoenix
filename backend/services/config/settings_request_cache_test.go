@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,12 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
+	var cachePaths []string
+	svc.(interface{ SetLookupObserver(SettingsLookupObserver) }).SetLookupObserver(
+		func(_ string, cache, outcome string, _ time.Duration) {
+			cachePaths = append(cachePaths, cache+":"+outcome)
+		},
+	)
 	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	first, err := svc.ResolveBool(ctx, "test.cached_flag")
@@ -27,6 +34,7 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 	assert.Equal(t, 1, repo.findManyCalls, "second resolve must be served from the request cache")
+	assert.Equal(t, []string{"miss:ok", "hit:ok"}, cachePaths)
 
 	// HasTenantOverride shares the cached entry too.
 	hasOverride, err := svc.HasTenantOverride(ctx, "test.cached_flag")

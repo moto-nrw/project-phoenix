@@ -15,7 +15,7 @@ type settingsRuntime struct {
 	unit *tenant.UnitOfWork
 }
 
-func newSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) configService.Runtime {
+func newSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) settingsRuntime {
 	return settingsRuntime{db: db, unit: unit}
 }
 
@@ -48,6 +48,10 @@ func (r settingsRuntime) AcquireLock(ctx context.Context, key string, shared boo
 		return repositoryBase.AcquireXactLockShared(ctx, r.db, key)
 	}
 	return repositoryBase.AcquireXactLock(ctx, r.db, key)
+}
+
+func (r settingsRuntime) AfterCommit(ctx context.Context, fn func()) {
+	tenant.RegisterAfterCommit(ctx, fn)
 }
 
 type schoolSettingsStore struct {

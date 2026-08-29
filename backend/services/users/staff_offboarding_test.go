@@ -880,7 +880,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 	model := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("offb-model-%d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
+		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
 	}
 	require.NoError(t, sc.repos.WorkTimeModel.Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},

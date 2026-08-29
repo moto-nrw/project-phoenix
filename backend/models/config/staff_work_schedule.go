@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
-// CalendarDate is the shared calendar-day value used by workforce schedules.
-type CalendarDate = timezone.Date
+type staffWorkScheduleTable struct{}
 
 // Day of week constants (ISO: 0=Monday, 6=Sunday)
 const (
@@ -27,6 +24,8 @@ const (
 // rotation (e.g. A/B-Wochen). Existing rows from the single-week era default to
 // week_index=0 / rotation_length=1 and behave exactly as before.
 type StaffWorkSchedule struct {
+	staffWorkScheduleTable `bun:"table:config.staff_work_schedules,alias:staff_work_schedule"`
+
 	ID             int64      `bun:"id,pk,autoincrement" json:"id"`
 	TenantID       int64      `bun:"tenant_id,notnull" json:"tenant_id"`
 	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
@@ -40,11 +39,11 @@ type StaffWorkSchedule struct {
 	// rows and inserts a new version carrying its own anchor, so past weeks
 	// keep the A/B parity they were computed with. NULL only on rows written
 	// before 1.15.203 with no staff-level anchor to backfill from.
-	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
-	ValidFrom          timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil         *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-	CreatedAt          time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt          time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	RotationAnchorDate *CalendarDate `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
+	ValidFrom          CalendarDate  `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil         *CalendarDate `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	CreatedAt          time.Time     `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt          time.Time     `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
 func (s *StaffWorkSchedule) Validate() error {
@@ -82,14 +81,14 @@ type StaffWorkScheduleRepository interface {
 	GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*StaffWorkSchedule, error)
 
 	// GetByStaffIDAndDate returns schedule entries valid for a specific date
-	GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*StaffWorkSchedule, error)
+	GetByStaffIDAndDate(ctx context.Context, staffID int64, date CalendarDate) ([]*StaffWorkSchedule, error)
 
 	// FindByStaffIDsValidInRange returns every schedule entry for the given
 	// staff members whose validity window intersects [from, to] (valid_until
 	// is exclusive). One batched read for cross-staff aggregations; the
 	// date-validity predicate is why this is not expressible via the generic
 	// filter-based List.
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*StaffWorkSchedule, error)
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to CalendarDate) ([]*StaffWorkSchedule, error)
 
 	// HasScheduleHistory reports whether the staff member has ever had a
 	// schedule snapshot, closed-out versions included. It separates "no
@@ -107,5 +106,5 @@ type StaffWorkScheduleRepository interface {
 	// with and is stamped onto every inserted row (#1842) — the closed-out
 	// rows keep theirs, so a schedule change can no longer re-parity the past.
 	// A zero anchor leaves the column NULL (rotation_length 1 has no parity).
-	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule, anchor timezone.Date) error
+	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule, anchor CalendarDate) error
 }

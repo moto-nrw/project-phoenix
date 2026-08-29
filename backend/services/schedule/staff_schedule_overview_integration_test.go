@@ -145,7 +145,8 @@ func insertWorkScheduleRow(t *testing.T, db *bun.DB, tenantID, staffID int64, da
 	t.Helper()
 	row := &configModel.StaffWorkSchedule{
 		StaffID: staffID, WeekIndex: 0, RotationLength: 1,
-		DayOfWeek: day, TargetMinutes: targetMinutes, ValidFrom: validFrom,
+		DayOfWeek: day, TargetMinutes: targetMinutes,
+		ValidFrom: configModel.NewCalendarDate(validFrom.Year, validFrom.Month, validFrom.Day),
 	}
 	row.SetTenantID(tenantID)
 	_, err := db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(testpkg.TenantContext(tenantID))
@@ -194,7 +195,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: monday,
+		RotationAnchorDate: configModel.NewCalendarDate(monday.Year, monday.Month, monday.Day),
 	}
 	require.NoError(t, modelRepo.Create(testpkg.TenantContext(tenantID), workModel, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 120},

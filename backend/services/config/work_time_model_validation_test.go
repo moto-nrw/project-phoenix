@@ -14,7 +14,7 @@ func validModel() *configModels.WorkTimeModel {
 	return &configModels.WorkTimeModel{
 		Name:               "Validation test",
 		RotationLength:     1,
-		RotationAnchorDate: configModels.CalendarDate{Year: 2026, Month: time.June, Day: 1},
+		RotationAnchorDate: configModels.NewCalendarDate(2026, time.June, 1),
 	}
 }
 

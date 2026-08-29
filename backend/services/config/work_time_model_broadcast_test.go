@@ -43,7 +43,7 @@ func TestWorkTimeModelUpdateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T
 		ID:                 7,
 		Name:               "Vollzeit",
 		RotationLength:     1,
-		RotationAnchorDate: configModels.CalendarDate{Year: 2026, Month: time.July, Day: 1},
+		RotationAnchorDate: configModels.NewCalendarDate(2026, time.July, 1),
 	}
 
 	updated, err := service.UpdateModel(context.Background(), model, nil)
@@ -55,6 +55,8 @@ func TestWorkTimeModelUpdateBroadcastsTimeTrackingChangeAfterCommit(t *testing.T
 }
 
 func TestWorkTimeModelUpdateDoesNotNotifyWhenRefreshFails(t *testing.T) {
+	t.Parallel()
+
 	sentinel := errors.New("refresh failed")
 	repo := &broadcastWorkTimeModelRepo{refreshErr: sentinel}
 	service := NewWorkTimeModelService(repo)
@@ -64,7 +66,7 @@ func TestWorkTimeModelUpdateDoesNotNotifyWhenRefreshFails(t *testing.T) {
 		ID:                 7,
 		Name:               "Vollzeit",
 		RotationLength:     1,
-		RotationAnchorDate: configModels.CalendarDate{Year: 2026, Month: time.July, Day: 1},
+		RotationAnchorDate: configModels.NewCalendarDate(2026, time.July, 1),
 	}
 
 	_, err := service.UpdateModel(context.Background(), model, nil)

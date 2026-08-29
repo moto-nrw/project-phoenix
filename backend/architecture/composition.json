@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 564,
+          "line": 568,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -621,7 +621,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 254,
+          "line": 273,
           "declaration": "NewFactory"
         }
       ]
@@ -16935,7 +16935,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_DefaultTrue",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        53
+        54
       ],
       "tables": []
     },
@@ -16945,7 +16945,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_OverrideFalse",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        79
+        80
       ],
       "tables": []
     },
@@ -16955,7 +16955,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -16965,7 +16965,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        133
+        134
       ],
       "tables": []
     },
@@ -17283,7 +17283,7 @@
       "declaration": "setupSettingsTest",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        69
+        25
       ],
       "tables": []
     },
@@ -27351,16 +27351,6 @@
     },
     {
       "scope": "test",
-      "file": "services/config/payroll_status_service_test.go",
-      "declaration": "payrollStatusFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        25
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/database/database_service_test.go",
       "declaration": "setupDatabaseService",
       "target": "database/repositories.NewFactory",
@@ -30994,8 +30984,8 @@
       "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        362,
-        452
+        363,
+        453
       ],
       "tables": []
     },
@@ -31016,7 +31006,7 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        306
+        307
       ],
       "tables": []
     },
@@ -31026,8 +31016,8 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        193,
-        220
+        194,
+        221
       ],
       "tables": [
         "users.staff"
@@ -31039,7 +31029,7 @@
       "declaration": "createOverviewShift",
       "target": "database/repositories.NewFactory",
       "lines": [
-        163
+        164
       ],
       "tables": []
     },

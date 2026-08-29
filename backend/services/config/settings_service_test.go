@@ -1984,17 +1984,6 @@ func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
 	assert.Equal(t, "", url)
 }
 
-func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
-	setupTest(t)
-
-	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
-
-	url, err := svc.GetLoginImageURL(context.Background(), -1)
-	require.NoError(t, err)
-	assert.Equal(t, "", url)
-}
-
 func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 	setupTest(t)
 

@@ -121,6 +121,21 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestRecordSettingsEvidence(t *testing.T) {
+	t.Parallel()
+	const key = "test.settings_evidence"
+	lookupBefore := testutil.ToFloat64(settingsLookups.WithLabelValues(key, "hit", "ok"))
+	failureBefore := testutil.ToFloat64(settingsSideEffectFailures.WithLabelValues(key))
+	durationBefore := testutil.CollectAndCount(settingsLookupDuration)
+
+	ObserveSettingsLookup(key, "hit", "ok", 2*time.Millisecond)
+	RecordSettingsSideEffectFailure(key)
+
+	assert.Equal(t, lookupBefore+1, testutil.ToFloat64(settingsLookups.WithLabelValues(key, "hit", "ok")))
+	assert.Equal(t, failureBefore+1, testutil.ToFloat64(settingsSideEffectFailures.WithLabelValues(key)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(settingsLookupDuration))
+}
+
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 	t.Parallel()
 

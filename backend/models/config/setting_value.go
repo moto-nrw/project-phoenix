@@ -18,11 +18,8 @@ type SettingValue struct {
 	UpdatedAt  time.Time       `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
-func (sv *SettingValue) GetID() interface{}      { return sv.ID }
-func (sv *SettingValue) GetTenantID() int64      { return sv.TenantID }
-func (sv *SettingValue) SetTenantID(id int64)    { sv.TenantID = id }
-func (sv *SettingValue) GetCreatedAt() time.Time { return sv.CreatedAt }
-func (sv *SettingValue) GetUpdatedAt() time.Time { return sv.UpdatedAt }
+func (sv *SettingValue) GetTenantID() int64   { return sv.TenantID }
+func (sv *SettingValue) SetTenantID(id int64) { sv.TenantID = id }
 
 // Validate checks that all required fields are set.
 func (sv *SettingValue) Validate() error {

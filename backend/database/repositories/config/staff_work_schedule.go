@@ -46,12 +46,13 @@ func (r *StaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, s
 // GetByStaffIDAndDate returns schedule entries valid for a specific date
 func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date config.CalendarDate) ([]*config.StaffWorkSchedule, error) {
 	var entries []*config.StaffWorkSchedule
+	dateValue := nullableCalendarDate(date)
 	query := r.runtime.DB(ctx).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
-		Where("valid_from <= ?", date).
-		Where("(valid_until IS NULL OR valid_until > ?)", date).
+		Where("valid_from <= ?", dateValue).
+		Where("(valid_until IS NULL OR valid_until > ?)", dateValue).
 		OrderExpr("day_of_week ASC")
 
 	tenantID := r.runtime.TenantID(ctx)
@@ -78,8 +79,8 @@ func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Con
 		Model(&entries).
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id IN (?)", bun.List(staffIDs)).
-		Where("valid_from <= ?", to).
-		Where("(valid_until IS NULL OR valid_until > ?)", from).
+		Where("valid_from <= ?", nullableCalendarDate(to)).
+		Where("(valid_until IS NULL OR valid_until > ?)", nullableCalendarDate(from)).
 		OrderExpr("staff_id ASC, day_of_week ASC")
 
 	tenantID := r.runtime.TenantID(ctx)
@@ -91,6 +92,13 @@ func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Con
 		return nil, fmt.Errorf("failed to get schedules for staff range: %w", err)
 	}
 	return entries, nil
+}
+
+func nullableCalendarDate(date config.CalendarDate) any {
+	if date.IsZero() {
+		return nil
+	}
+	return string(date)
 }
 
 // HasScheduleHistory reports whether the staff member has ever had a schedule
@@ -122,7 +130,7 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 	db := r.runtime.DB(ctx)
 	tenantID := r.runtime.TenantID(ctx)
 	now := time.Now()
-	today := r.runtime.Today()
+	today := config.CalendarDateFromTime(r.runtime.TodayTime())
 
 	for _, e := range entries {
 		e.StaffID = staffID

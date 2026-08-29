@@ -239,7 +239,7 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	}
 
 	now := time.Now()
-	today := r.runtime.Today()
+	today := config.CalendarDateFromTime(r.runtime.TodayTime())
 	closeQuery := db.NewUpdate().
 		TableExpr(tableStaffWorkSchedules).
 		Set("valid_until = ?", today).

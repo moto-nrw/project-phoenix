@@ -14,11 +14,12 @@ import (
 )
 
 type settingsService struct {
-	valueRepo   config.SettingValueRepository
-	auditRepo   config.SettingAuditRepository
-	schoolStore SchoolSettingsStore
-	runtime     Runtime
-	logger      *slog.Logger
+	valueRepo     config.SettingValueRepository
+	auditRepo     config.SettingAuditRepository
+	schoolStore   SchoolSettingsStore
+	runtime       Runtime
+	logger        *slog.Logger
+	observeLookup SettingsLookupObserver
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
 	// eligibility to specific school classes. It gates disabling the
@@ -42,6 +43,14 @@ type settingsService struct {
 	// leaves that phase unable to accept any submission (#1663). Optional in
 	// the same way as the two probes above; injected via SetGradeCapGuard.
 	gradeCapGuard func(ctx context.Context) (int, error)
+}
+
+// SettingsLookupObserver records bounded per-key lookup evidence. cache is
+// one of snapshot, hit, miss, or bypass; outcome is ok or error.
+type SettingsLookupObserver func(key, cache, outcome string, duration time.Duration)
+
+func (s *settingsService) SetLookupObserver(observer SettingsLookupObserver) {
+	s.observeLookup = observer
 }
 
 func (s *settingsService) SetRuntime(runtime Runtime) { s.runtime = runtime }
@@ -101,13 +110,25 @@ func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) 
 // the explicit snapshot sits the request-scoped memo cache (issue #2065):
 // within one request every (tenant_id, key) pair is loaded from PostgreSQL at
 // most once; only cache-missing keys reach the repository.
-func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*SettingsSnapshot, error) {
+func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (result *SettingsSnapshot, err error) {
+	started := time.Now()
+	cacheState := make(map[string]string, len(keys))
+	for _, key := range keys {
+		cacheState[key] = "bypass"
+	}
+	defer func() {
+		s.observeLookups(keys, cacheState, time.Since(started), err)
+	}()
+
 	tenantID := s.tenantID(ctx)
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		// Explicit snapshots are returned as-is and deliberately NEVER copied
 		// into the request cache: the scheduler's minute snapshot may be up to
 		// a minute old, and promoting its values into request scope would
 		// leak that staleness into paths that expect request freshness.
+		for _, key := range keys {
+			cacheState[key] = "snapshot"
+		}
 		return snapshot, nil
 	}
 
@@ -136,6 +157,12 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*Sett
 	}
 
 	resolved, missing := cache.lookup(tenantID, keys)
+	for _, key := range keys {
+		cacheState[key] = "hit"
+	}
+	for _, key := range missing {
+		cacheState[key] = "miss"
+	}
 	if len(missing) > 0 {
 		stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, missing)
 		if err != nil {
@@ -151,12 +178,26 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (*Sett
 	return newSettingsSnapshotFromValues(tenantID, resolved), nil
 }
 
+func (s *settingsService) observeLookups(keys []string, cacheState map[string]string, duration time.Duration, err error) {
+	if s.observeLookup == nil {
+		return
+	}
+	outcome := "ok"
+	if err != nil {
+		outcome = "error"
+	}
+	for _, key := range keys {
+		s.observeLookup(key, cacheState[key], outcome, duration)
+	}
+}
+
 // ResolveManyForTenant resolves several settings inside one tenant
 // transaction. A matching context snapshot avoids both the transaction and
 // query when a scheduler already prefetched the values, and a full
 // request-cache hit skips the tenant transaction entirely (issue #2065).
 func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*SettingsSnapshot, error) {
 	if snapshot := snapshotFromContext(ctx, tenantID, keys); snapshot != nil {
+		s.observeLookups(keys, lookupState(keys, "snapshot"), 0, nil)
 		return snapshot, nil
 	}
 
@@ -176,7 +217,10 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 				}
 			}
 			if resolved, missing := cache.lookup(tenantID, keys); len(missing) == 0 {
-				return newSettingsSnapshotFromValues(tenantID, resolved), nil
+				started := time.Now()
+				result := newSettingsSnapshotFromValues(tenantID, resolved)
+				s.observeLookups(keys, lookupState(keys, "hit"), time.Since(started), nil)
+				return result, nil
 			}
 		}
 	}
@@ -194,6 +238,14 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 		return nil, err
 	}
 	return result, nil
+}
+
+func lookupState(keys []string, state string) map[string]string {
+	states := make(map[string]string, len(keys))
+	for _, key := range keys {
+		states[key] = state
+	}
+	return states
 }
 
 // ResolveManyForTenants resolves all tenant/key pairs in one privileged query.

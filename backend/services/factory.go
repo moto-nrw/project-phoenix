@@ -106,6 +106,7 @@ type Factory struct {
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
+	TenantSettings           *settings.Operations
 	PayrollStatus            config.PayrollStatusGetter
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
@@ -252,6 +253,22 @@ type Factory struct {
 	StudentPhotos users.StudentPhotoService
 }
 
+// SetSettingsObservers wires delivery-owned metrics without coupling the
+// settings application layer to a metrics implementation.
+func (f *Factory) SetSettingsObservers(
+	lookup config.SettingsLookupObserver,
+	sideEffectFailure sideeffects.FailureObserver,
+) {
+	if observable, ok := f.Settings.(interface {
+		SetLookupObserver(config.SettingsLookupObserver)
+	}); ok {
+		observable.SetLookupObserver(lookup)
+	}
+	if f.SettingsSideEffects != nil {
+		f.SettingsSideEffects.SetFailureObserver(sideEffectFailure)
+	}
+}
+
 // NewFactory creates a new services factory; tests may pass one statistics clock.
 func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, statisticsClocks ...func() time.Time) (*Factory, error) {
 
@@ -393,11 +410,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	})
 
 	// Initialize settings service (new schema-driven settings system)
+	settingsRuntime := newSettingsRuntime(db, nil)
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
 		newSchoolSettingsStore(repos.School),
-		newSettingsRuntime(db, nil),
+		settingsRuntime,
 		logger,
 	)
 	// Wire the enrollment class-restriction probe so the settings service can
@@ -2605,6 +2623,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	tenantSettings := config.NewTenantOperations(
+		settingsService,
+		payrollStatusService,
+		settingsRuntime,
+		factory.SettingsSideEffects.Dispatch,
+		func(_ context.Context, tenantID int64, key string) {
+			event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
+			_ = realtimeHub.BroadcastToTenant(tenantID, event)
+		},
+	)
+	factory.TenantSettings = settings.NewOperations(tenantSettings)
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence

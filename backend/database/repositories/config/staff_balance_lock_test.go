@@ -49,7 +49,7 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 				RotationLength: 1,
 				DayOfWeek:      configModel.DayMonday,
 				TargetMinutes:  480,
-			}}, configModel.CalendarDate{})
+			}}, configModel.CalendarDate(""))
 		})
 	}()
 

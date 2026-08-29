@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -24,3 +25,4 @@ func (r ConfigRuntime) LockStaffBalance(ctx context.Context, staffID int64) erro
 	return AcquireStaffBalanceLock(ctx, r.db, staffID)
 }
 func (r ConfigRuntime) Today() timezone.Date { return timezone.TodayDate() }
+func (r ConfigRuntime) TodayTime() time.Time { return r.Today().UTCMidnight() }

@@ -4,30 +4,30 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 const (
-	tableWorkTimeModels       = "config.work_time_models"
-	tableWorkTimeModelEntries = "config.work_time_model_entries"
-	WorkTimeModelMaxRotation  = 4
+	WorkTimeModelMaxRotation = 4
 	// WorkTimeModelMaxDailyMinutes caps a single day's target working time at
 	// 12 hours (720 minutes). Shared with StaffWorkSchedule validation.
 	WorkTimeModelMaxDailyMinutes = 720
 )
 
+type workTimeModelTable struct{}
+
 // WorkTimeModel is a tenant-scoped, named template that captures a working-time
 // pattern (e.g. "Vollzeit 40h Mo-Fr" or "Teilzeit 30h A/B"). Multiple staff
 // members can share a model, and a model can span up to four rotation weeks.
 type WorkTimeModel struct {
-	ID                 int64         `bun:"id,pk,autoincrement" json:"id"`
-	TenantID           int64         `bun:"tenant_id,notnull" json:"tenant_id"`
-	Name               string        `bun:"name,notnull" json:"name"`
-	RotationLength     int           `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
-	RotationAnchorDate timezone.Date `bun:"rotation_anchor_date,notnull,type:date" json:"rotation_anchor_date"`
-	CreatedAt          time.Time     `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt          time.Time     `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	workTimeModelTable `bun:"table:config.work_time_models,alias:work_time_model"`
+
+	ID                 int64        `bun:"id,pk,autoincrement" json:"id"`
+	TenantID           int64        `bun:"tenant_id,notnull" json:"tenant_id"`
+	Name               string       `bun:"name,notnull" json:"name"`
+	RotationLength     int          `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
+	RotationAnchorDate CalendarDate `bun:"rotation_anchor_date,notnull,type:date" json:"rotation_anchor_date"`
+	CreatedAt          time.Time    `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt          time.Time    `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 
 	Entries []*WorkTimeModelEntry `bun:"rel:has-many,join:id=model_id" json:"entries,omitempty"`
 }
@@ -82,7 +82,7 @@ func (e *WorkTimeModelEntry) Validate() error {
 // result is always in [0, rotation_length). Callers pass week-start dates, so
 // the day difference is an exact multiple of 7 and DaysUntil/7 reproduces the
 // old truncating division exactly (DST-proof by Date's UTC anchoring).
-func ResolveWeekIndex(rotationLength int, anchor, date timezone.Date) int {
+func ResolveWeekIndex(rotationLength int, anchor, date CalendarDate) int {
 	if rotationLength <= 1 {
 		return 0
 	}

@@ -87,7 +87,20 @@ func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 	tenant.RegisterAfterCommit(ctx, fn)
 }
 
-func (operatorSettingsRuntime) Today() configModel.CalendarDate { return timezone.TodayDate() }
+func (operatorSettingsRuntime) Today() configModel.CalendarDate {
+	today := timezone.TodayDate()
+	return configModel.NewCalendarDate(today.Year, today.Month, today.Day)
+}
+
+type openAttendanceAdapter struct{ service activeSvc.Service }
+
+func (a openAttendanceAdapter) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {
+	if a.service == nil {
+		return false, nil
+	}
+	value := day.UTCMidnight()
+	return a.service.HasOpenAttendanceOn(ctx, timezone.NewDate(value.Year(), value.Month(), value.Day()))
+}
 
 // NewSettingsResource creates a new operator settings resource. broadcaster
 // emits the cross-origin tenant_settings_changed SSE event so open tenant
@@ -112,7 +125,7 @@ func NewSettingsResource(
 			svc,
 			operatorSettingsRuntime{db: db},
 			settingsChangedNotifier(broadcaster),
-			activeService,
+			openAttendanceAdapter{service: activeService},
 			slog.Default(),
 		),
 		schoolService: schoolService,
