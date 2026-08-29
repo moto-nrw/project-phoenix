@@ -1,0 +1,227 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Phoenix Booking Consistency Technical
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: booking-audit-technical-failure
+        title: Booking audit technical failure
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                (sum(count_over_time({env="prod",service="server"} |= "booking consistency audit failed" | json | msg="booking consistency audit failed" [5m])) or vector(0))
+                +
+                (sum(count_over_time({env="prod",service="server"} |= "booking-consistency-audit" | json | operation="booking-consistency-audit" | level="ERROR" [5m])) or vector(0))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: phoenix-booking-consistency
+        panelId: 7
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Buchungs-Audit meldet einen technischen Fehler in Production.
+          description: Prüfe den Fehler und den betroffenen Mandanten. Keine Daten ohne fachliche Prüfung reparieren.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
+        labels:
+          env: prod
+          issue: "2498"
+          service: booking-consistency-audit
+          severity: critical
+        isPaused: false
+
+  - orgId: 1
+    name: Phoenix Booking Consistency Schedule
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: booking-audit-missing-run
+        title: Booking audit missing for 26 hours
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 93540
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" [25h59m])) or vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: phoenix-booking-consistency
+        panelId: 1
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Seit rund 26 Stunden fehlt ein erfolgreicher Buchungs-Audit-Lauf in Production.
+          description: Prüfe Scheduler, Production-Server und Loki. Danach je aktivem Mandanten genau einen Ergebnis-Logeintrag erwarten.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
+        labels:
+          env: prod
+          issue: "2498"
+          service: booking-consistency-audit
+          severity: critical
+        isPaused: false
+
+  - orgId: 1
+    name: Phoenix Booking Consistency Drift
+    folder: Phoenix Alerts
+    interval: 1h
+    rules:
+      - uid: booking-audit-drift-increase
+        title: Booking audit actionable drift increased
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 93600
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                (
+                  max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id="4" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h])) - 10
+                )
+                or
+                (
+                  max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id="5" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h])) - 5
+                )
+                or
+                max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | tenant_id!~"4|5" | label_format category="pickup_projection_missing_days" | unwrap pickup_projection_missing_days [26h]))
+                or
+                max by (tenant_id, category) (last_over_time({env="prod",service="server"} |= "booking consistency audit" | json | msg=~"booking consistency audit (passed|found drift)" | label_format category="approved_without_required_offering" | unwrap approved_without_required_offering [26h]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: phoenix-booking-consistency
+        panelId: 5
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Mandant {{ $labels.tenant_id }} liegt über dem dokumentierten Ausgangswert des Buchungs-Audits.
+          description: Kategorie {{ $labels.category }} liegt um {{ $values.B.Value }} über dem dokumentierten Ausgangswert. Bekannte Abweichungen lösen keinen Alarm aus.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
+        labels:
+          env: prod
+          issue: "2498"
+          service: booking-consistency-audit
+          severity: warning
+        isPaused: false
