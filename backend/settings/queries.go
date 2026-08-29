@@ -142,5 +142,3 @@ func ClassifyError(err error) ErrorKind {
 	}
 	return ErrorInternal
 }
-
-func IsActiveLegalDocument(err error) bool { return errors.Is(err, configService.ErrActiveLegalAGBPDF) }
