@@ -154,6 +154,20 @@ func TestUnitOfWorkDistinguishesUnstartedAndUnknownCommitOutcomes(t *testing.T) 
 	}
 }
 
+func TestUnitOfWorkObservesMissingRuntimeAsNotStarted(t *testing.T) {
+	t.Parallel()
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	var observed tenant.UnitOfWorkEvent
+	ctx := tenant.WithUnitOfWorkObserver(context.Background(), func(event tenant.UnitOfWorkEvent) { observed = event })
+
+	err = tenant.WithinTenant(ctx, id, func(context.Context) error { return nil })
+
+	require.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	assert.Equal(t, tenant.UnitOfWorkTransaction, observed.Kind)
+	assert.Equal(t, tenant.UnitOfWorkNotStarted, observed.Result)
+}
+
 func TestUnitOfWorkObservesPanicAndRepanics(t *testing.T) {
 	t.Parallel()
 	uow, err := tenant.NewUnitOfWork(

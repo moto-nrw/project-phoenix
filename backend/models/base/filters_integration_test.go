@@ -697,6 +697,39 @@ func TestIsRetryableTxError(t *testing.T) {
 	assert.False(t, base.IsRetryableTxError(fmt.Errorf("wrap: %w", errors.New("inner"))), "non-pg wrapped errors are not retryable")
 }
 
+func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	handler := base.NewTxHandler(db)
+	calls := 0
+
+	err := handler.RunInTxWithRetry(testpkg.Ctx(t), func(context.Context, bun.Tx) error {
+		calls++
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+}
+
+func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	handler := base.NewTxHandler(db)
+	expected := errors.New("business rule violation")
+	calls := 0
+
+	err := handler.RunInTxWithRetry(testpkg.Ctx(t), func(context.Context, bun.Tx) error {
+		calls++
+		return expected
+	})
+
+	require.ErrorIs(t, err, expected)
+	assert.Equal(t, 1, calls)
+}
+
 // The grade filter is the reason FirstNumberIn exists: a school year is the
 // first number inside a free-text class name, and both the aliased and the
 // unaliased rendering must answer it in SQL. An operator missing from one of

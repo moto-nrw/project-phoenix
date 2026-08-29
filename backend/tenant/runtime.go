@@ -235,7 +235,7 @@ func withinTenant(ctx context.Context, id TenantID, retry bool, fn func(context.
 	}
 	runtime, err := unitOfWorkFromContext(ctx)
 	if err != nil {
-		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Result: UnitOfWorkNotStarted, Err: err})
 		return err
 	}
 
