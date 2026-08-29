@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -171,6 +172,7 @@ func logTenantRequest(r *http.Request, tenantID int64, sw *tenantStatusWriter, s
 	observeTenantRequest(r, tenantID, status, duration, outcome)
 
 	slog.InfoContext(r.Context(), "tenant request completed",
+		slog.String("correlation_id", middleware.GetReqID(r.Context())),
 		slog.Int64("tenant_id", tenantID),
 		slog.String("scope", tenant.ScopeFromContext(r.Context())),
 		slog.String("method", r.Method),
