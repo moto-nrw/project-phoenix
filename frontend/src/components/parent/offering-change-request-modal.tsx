@@ -8,10 +8,12 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   getChildOfferingCatalog,
   ParentApiError,
+  setRequestSharing,
   type OfferingCatalog,
   type OfferingCatalogItem,
   type OfferingChangeSelectionInput,
@@ -107,9 +109,10 @@ export function OfferingChangeRequestModal({
     effective_from: string;
     note?: string;
     complete_withdrawal_confirmed?: boolean;
-  }) => Promise<void>;
+  }) => Promise<void | string>;
 }>) {
   const t = useTranslations("parentMasterData");
+  const ts = useTranslations("parentRequestSharing");
   const locale = useLocale();
   const [catalog, setCatalog] = useState<OfferingCatalog | null>(null);
   const [draft, setDraft] = useState<DraftMap>({});
@@ -118,6 +121,9 @@ export function OfferingChangeRequestModal({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [requestSaved, setRequestSaved] = useState(false);
+  const [sharingReady, setSharingReady] = useState(false);
   const [confirmCompleteWithdrawal, setConfirmCompleteWithdrawal] =
     useState(false);
   const editedOfferingIDs = useRef(new Set<string>());
@@ -236,7 +242,7 @@ export function OfferingChangeRequestModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({
+      const requestId = await onSubmit({
         offerings,
         effective_from: effectiveFrom,
         note: note.trim() === "" ? undefined : note.trim(),
@@ -244,6 +250,20 @@ export function OfferingChangeRequestModal({
           ? { complete_withdrawal_confirmed: true }
           : {}),
       });
+      if (requestId) {
+        try {
+          await setRequestSharing(
+            studentId,
+            "offering",
+            requestId,
+            recipientIds,
+          );
+        } catch {
+          setRequestSaved(true);
+          setError(ts("savedButNotShared"));
+          return;
+        }
+      }
       onClose();
     } catch (err) {
       if (
@@ -285,7 +305,14 @@ export function OfferingChangeRequestModal({
             size="md"
             className="w-full gap-2 sm:w-auto"
             onClick={() => void handleSubmit()}
-            disabled={submitting || loading || !catalog || emptyCatalog}
+            disabled={
+              submitting ||
+              loading ||
+              !catalog ||
+              emptyCatalog ||
+              requestSaved ||
+              !sharingReady
+            }
           >
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -444,6 +471,12 @@ export function OfferingChangeRequestModal({
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
               />
             </label>
+            <RequestSharingSelector
+              studentId={studentId}
+              selected={recipientIds}
+              onChange={setRecipientIds}
+              onReadyChange={setSharingReady}
+            />
           </>
         )}
 

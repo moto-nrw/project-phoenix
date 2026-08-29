@@ -145,6 +145,59 @@ export interface ExcusedRequest {
   readonly is_self: boolean;
 }
 
+export type ParentRequestShareType =
+  "master_data" | "care_schedule" | "pickup_change" | "offering" | "excused";
+
+interface RequestSharingRecipient {
+  readonly guardian_profile_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly selected: boolean;
+}
+
+export interface RequestSharingState {
+  readonly family_protected: boolean;
+  readonly recipients: RequestSharingRecipient[];
+}
+
+export async function getRequestSharingOptions(
+  studentId: string,
+): Promise<RequestSharingState> {
+  return getJson<RequestSharingState>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/request-sharing-options`,
+  );
+}
+
+function requestSharingURL(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+): string {
+  return `/api/parent/me/children/${encodeURIComponent(studentId)}/request-sharing/${encodeURIComponent(requestType)}/${encodeURIComponent(requestId)}`;
+}
+
+export async function getRequestSharing(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+): Promise<RequestSharingState> {
+  return getJson<RequestSharingState>(
+    requestSharingURL(studentId, requestType, requestId),
+  );
+}
+
+export async function setRequestSharing(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+  recipientGuardianProfileIds: string[],
+): Promise<RequestSharingState> {
+  return putJson<RequestSharingState>(
+    requestSharingURL(studentId, requestType, requestId),
+    { recipient_guardian_profile_ids: recipientGuardianProfileIds },
+  );
+}
+
 // Normalized response of POST .../sick-note. Direct submissions carry the
 // recorded days; approval-gated submissions carry an empty array.
 export interface SickNoteSubmitResult {
@@ -235,6 +288,7 @@ export interface PickupChangeRequest {
   readonly decision_reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
+  readonly is_self?: boolean;
 }
 
 // A guardian linked to the child, with portal-access status.
@@ -1234,6 +1288,7 @@ interface OfferingDecision {
   readonly applied?: OfferingDiffLine[];
   /** Rule-added offerings the school excluded for this one request (#2370). */
   readonly overridden_names?: string[];
+  readonly submitted_by_self?: boolean;
 }
 
 /** Why the change button is unavailable. Stable identifiers from the backend. */
@@ -1364,6 +1419,7 @@ export interface MasterDataChange {
   readonly new_value: unknown;
   readonly status: "auto_applied" | "pending" | "approved" | "rejected";
   readonly created_at: string;
+  readonly is_self?: boolean;
 }
 
 // The structured Stammdaten view. Mirrors api/parent.MasterDataResponse.

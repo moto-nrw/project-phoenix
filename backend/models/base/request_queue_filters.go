@@ -11,6 +11,11 @@ import "time"
 // The zero value is "the whole queue from the top", which is what the
 // pending-count badge asks for.
 type RequestQueueFilters struct {
+	// UrgentOnly selects the open queue's urgency phase. Nil leaves urgency
+	// unrestricted (history and legacy callers); true/false select exactly one
+	// phase so each phase can keep using the existing created_at keyset.
+	UrgentOnly *bool
+	UrgentDate string
 	// StudentID limits the queue to one child — the Kinderkartei's
 	// Änderungsprotokoll (#2437). Zero means every child.
 	StudentID int64

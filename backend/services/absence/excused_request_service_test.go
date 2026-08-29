@@ -344,6 +344,29 @@ func TestDecide_ValidationErrors(t *testing.T) {
 	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestRejectReasonTooLong)
 }
 
+func TestDecide_RejectsStaleExpectedVersionAfterLock(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	day := timezone.TodayDate().AddDays(2)
+	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Privater Termin")
+
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+			RequestID: pending.ID, Approve: true, ExpectedVersion: "stale",
+		})
+		return decideErr
+	})
+	require.ErrorIs(t, err, activeModels.ErrExcusedRequestNotPending)
+
+	var count int
+	require.NoError(t, db.NewSelect().TableExpr("active.student_status_days").ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", chain.TenantID).Where("student_id = ?", chain.StudentID).
+		Where("date = ?", day).Scan(testpkg.Ctx(t), &count))
+	assert.Zero(t, count)
+}
+
 func TestDecide_ApproveRejectsDatesAfterPlannedCareEnd(t *testing.T) {
 	t.Parallel()
 
@@ -504,6 +527,12 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	require.NoError(t, err)
 
 	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, _, listErr := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
+		require.NoError(t, listErr)
+		require.Len(t, items, 1)
+		assert.False(t, items[0].BulkEligible)
+		assert.Contains(t, items[0].BulkIneligibleReason, "nicht mehr aktiv")
+
 		// Approving a request whose submitter lost access is refused, and the row
 		// stays pending so staff can still reject it.
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID}); e != absenceSvc.ErrExcusedRequestGuardianAccessRevoked {
@@ -666,6 +695,11 @@ func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
 	insertStatusDay(t, db, chain, day, activeModels.StudentStatusDaySick, time.Now().Add(time.Hour))
 
 	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, _, listErr := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
+		require.NoError(t, listErr)
+		require.Len(t, items, 1)
+		assert.False(t, items[0].BulkEligible)
+		assert.Contains(t, items[0].BulkIneligibleReason, "neueren Abwesenheitsstatus")
 		_, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
 		return e
 	})
@@ -709,6 +743,11 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
 
 	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, _, listErr := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
+		require.NoError(t, listErr)
+		require.Len(t, items, 1)
+		assert.False(t, items[0].BulkEligible)
+		assert.Contains(t, items[0].BulkIneligibleReason, "Teilabwesenheit")
 		_, decideErr := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID:  pending.ID,
 			Approve:    true,

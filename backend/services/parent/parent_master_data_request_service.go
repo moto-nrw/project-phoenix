@@ -184,7 +184,16 @@ func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		if listErr != nil {
 			return listErr
 		}
-		out = rows
+		visibility, visibilityErr := s.loadRequestShareVisibility(txCtx, studentID)
+		if visibilityErr != nil {
+			return visibilityErr
+		}
+		out = make([]*usersModels.StudentDataChangeRequest, 0, len(rows))
+		for _, row := range rows {
+			if row != nil && visibility.allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
+				out = append(out, row)
+			}
+		}
 		return nil
 	})
 	if txErr != nil {

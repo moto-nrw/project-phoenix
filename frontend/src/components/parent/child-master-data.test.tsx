@@ -13,6 +13,8 @@ import { ChildMasterDataView } from "./child-master-data";
 import {
   getChildFeatures,
   getChildMasterData,
+  getRequestSharingOptions,
+  setRequestSharing,
   submitMasterDataRequest,
   updateMasterDataField,
   type ChildFeatures,
@@ -63,6 +65,8 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     }),
     submitMasterDataRequest: vi.fn(),
     updateMasterDataField: vi.fn(),
+    getRequestSharingOptions: vi.fn(),
+    setRequestSharing: vi.fn(),
   };
 });
 
@@ -70,6 +74,8 @@ const mockGetFeatures = vi.mocked(getChildFeatures);
 const mockGetMasterData = vi.mocked(getChildMasterData);
 const mockSubmit = vi.mocked(submitMasterDataRequest);
 const mockUpdateField = vi.mocked(updateMasterDataField);
+const mockSharingOptions = vi.mocked(getRequestSharingOptions);
+const mockSetRequestSharing = vi.mocked(setRequestSharing);
 
 function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
   return {
@@ -126,6 +132,14 @@ describe("ChildMasterDataView", () => {
     mockGetMasterData.mockResolvedValue(masterData());
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
     mockSubmit.mockResolvedValue([]);
+    mockSharingOptions.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
+    mockSetRequestSharing.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
   });
 
   it("loads and renders the editable child details", async () => {

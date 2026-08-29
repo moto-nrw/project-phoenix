@@ -68,6 +68,12 @@ export interface EnrollmentChangeRequest {
   readonly origin: string;
   readonly status: string;
   readonly child_names: readonly string[];
+  readonly child_ids?: readonly string[];
+  readonly children?: readonly {
+    readonly case_id: string;
+    readonly student_id?: string;
+    readonly name: string;
+  }[];
   readonly guardian_name?: string;
   readonly parent_note?: string;
   readonly decision_note?: string;
@@ -95,6 +101,17 @@ interface Occurred {
   readonly occurred_at: string;
 }
 
+export interface RequestReviewMetadata {
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly group_name?: string;
+  readonly expected_version: string;
+  readonly urgent_today: boolean;
+  readonly bulk_eligible: boolean;
+  readonly bulk_ineligible_reason?: string;
+  readonly family_protected: boolean;
+}
+
 /** Eine Anmeldungsänderung als Zeile der gemeinsamen Liste. */
 export type EnrollmentRequestItem = Occurred & {
   request_type: "enrollment";
@@ -103,6 +120,7 @@ export type EnrollmentRequestItem = Occurred & {
 
 export type AggregatedOpenRequest =
   | (Occurred &
+      RequestReviewMetadata &
       (
         | { request_type: "master_data"; data: StaffMasterDataChange }
         | { request_type: "care_schedule"; data: StaffCareRequest }
@@ -209,6 +227,83 @@ export function listAggregatedRequestHistory(
   params: AggregatedRequestParams = {},
 ): Promise<AggregatedRequestPage<AggregatedHistoryRequest>> {
   return fetchPage<AggregatedHistoryRequest>("history", params);
+}
+
+export interface BulkApproveRequestRef {
+  readonly kind: "master_data" | "excused";
+  readonly id: string;
+  readonly expected_version: string;
+}
+
+export async function bulkApproveParentRequests(
+  requests: readonly BulkApproveRequestRef[],
+  reason: string,
+): Promise<number> {
+  const response = await fetch("/api/students/change-requests", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requests, reason }),
+  });
+  if (!response.ok) {
+    let message = "Die Sammelfreigabe konnte nicht gespeichert werden.";
+    try {
+      const body = (await response.json()) as { code?: string };
+      if (body.code === "change_request_stale") {
+        message =
+          "Mindestens eine Anfrage wurde geändert. Die Liste wird neu geladen.";
+      } else if (body.code === "bulk_approval_ineligible") {
+        message =
+          "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.";
+      } else if (response.status === 403) {
+        message =
+          "Sie dürfen mindestens eine ausgewählte Anfrage nicht entscheiden.";
+      }
+    } catch {
+      // Eine Nicht-JSON-Antwort behält die verständliche Standardmeldung.
+    }
+    throw new Error(message);
+  }
+  const envelope = (await response.json()) as Envelope<{
+    approved_count: number;
+  }>;
+  return envelope.data.approved_count;
+}
+
+export async function setFamilyProtection(
+  studentId: string,
+  enabled: boolean,
+  reason: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/students/${encodeURIComponent(studentId)}/family-protection`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled, reason }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error("Der Familienschutz konnte nicht gespeichert werden.");
+  }
+}
+
+export interface FamilyProtectionState {
+  readonly student_id: string;
+  readonly enabled: boolean;
+}
+
+export async function getFamilyProtection(
+  studentId: string,
+): Promise<FamilyProtectionState> {
+  const response = await fetch(
+    `/api/students/${encodeURIComponent(studentId)}/family-protection`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error("Der Familienschutz konnte nicht geladen werden.");
+  }
+  const envelope = (await response.json()) as Envelope<FamilyProtectionState>;
+  return envelope.data;
 }
 
 /**

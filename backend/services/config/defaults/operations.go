@@ -786,6 +786,20 @@ func init() {
 		SortOrder:       68,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyParentRequestGroupLeaderReviewEnabled,
+		Label:           "Gruppenleitungen dürfen Elternanfragen entscheiden",
+		Description:     "Aus: Nur OGS-Admins entscheiden. Ein: Aktuelle Gruppenleitungen und Vertretungen entscheiden zusätzlich für Kinder ihrer Gruppen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       69,
+		AccessPolicy:    config.AccessShared,
+	})
+
 	// Essensplan. Unlike the other parents-portal features this one is
 	// opt-out (default ON): every school gets the meal plan out of the box and
 	// can switch it off if it doesn't serve food. When on, staff maintain a

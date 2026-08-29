@@ -195,6 +195,38 @@ describe("PickupTimeModal — failed preload guard", () => {
     );
   });
 
+  it("does not invite a duplicate when sharing the saved request fails", async () => {
+    const options = vi
+      .spyOn(parentApi, "getRequestSharingOptions")
+      .mockResolvedValue({ family_protected: false, recipients: [] });
+    const sharing = vi
+      .spyOn(parentApi, "setRequestSharing")
+      .mockRejectedValue(new Error("offline"));
+    const onSubmit = vi.fn().mockResolvedValue("request-1");
+    const { pickupInput, reasonInput, onClose } = renderModal({
+      studentId: "1",
+      onSubmit,
+    });
+
+    fireEvent.change(pickupInput, { target: { value: "14:30" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    const submit = screen.getByRole("button", { name: "Anfrage senden" });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die Anfrage wurde gesendet. Die Freigabe konnte nicht gespeichert werden.",
+    );
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(sharing).toHaveBeenCalledWith("1", "pickup_change", "request-1", []);
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeDisabled();
+    expect(onClose).not.toHaveBeenCalled();
+    options.mockRestore();
+    sharing.mockRestore();
+  });
+
   it("does not offer an arrival-time field", () => {
     renderModal();
 
@@ -463,6 +495,32 @@ describe("SickNoteModal — Abmeldegrund", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("shows that the request is saved when only sharing failed", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("pending_sharing_failed");
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval
+      />,
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    expect(await screen.findByText("Anfrage gesendet")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Die Freigabe konnte nicht gespeichert werden/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("submits an excused absence with a note when Entschuldigt is chosen", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
@@ -487,6 +545,7 @@ describe("SickNoteModal — Abmeldegrund", () => {
       expect.any(Array),
       "Zahnarzttermin",
       "excused",
+      [],
     );
   });
 

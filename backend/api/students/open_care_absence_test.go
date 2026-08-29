@@ -254,9 +254,8 @@ func TestAbsenceWriter_DetailFlags(t *testing.T) {
 }
 
 // TestOpenCareAbsence_ParentExcusedRequestDecidable covers the parent-side
-// counterpart: a guardian's excused request is equally undecidable for every
-// non-admin in a school without groups, so the queue and the decision follow
-// the same absence gate (#2232).
+// counterpart: a guardian's excused request is visible and decidable for an
+// administrator holding the absence permission (#2232).
 func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	t.Parallel()
 
@@ -275,7 +274,7 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 		}))
 	require.NotNil(t, pending)
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	absencePerms := []string{"users:read", "users:absence"}
 
 	t.Run("request_is_visible_in_the_queue", func(t *testing.T) {
@@ -332,7 +331,7 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 
 	rr := authExec(t, tc,
 		testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil),
-		testutil.TeacherTestClaims(int(account.ID)),
+		testutil.AdminTestClaims(int(account.ID)),
 		[]string{"users:read", "users:absence"},
 	)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

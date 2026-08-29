@@ -597,6 +597,63 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 	assert.Equal(t, activeModels.StudentStatusDaySick, sick[0].Status)
 }
 
+func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	otherAccount := testpkg.CreateTestAccount(t, db, "other-absence-parent")
+	otherProfile := &userModels.GuardianProfile{
+		FirstName: "Andere", LastName: "Person", Email: &otherAccount.Email,
+		AccountID: &otherAccount.ID, HasAccount: true,
+		PreferredContactMethod: "email", LanguagePreference: "de",
+	}
+	otherProfile.SetTenantID(chain.TenantID)
+	_, err := db.NewInsert().Model(otherProfile).ModelTableExpr(`users.guardian_profiles`).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	link := &userModels.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleLegalGuardian)
+	link.SetTenantID(chain.TenantID)
+	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	day := timezone.TodayDate().AddDays(3)
+	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
+		[]timezone.Date{day}, "Vertraulicher Grund", activeModels.StudentStatusDaySick)
+	require.NoError(t, err)
+	var storedAuthor *int64
+	require.NoError(t, db.NewRaw(`
+		SELECT guardian_account_id FROM active.student_status_days
+		WHERE tenant_id = ? AND student_id = ? AND date = ?
+	`, chain.TenantID, chain.StudentID, day).Scan(testpkg.Ctx(t), &storedAuthor))
+	require.NotNil(t, storedAuthor)
+	assert.Equal(t, chain.AccountID, *storedAuthor)
+
+	own, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, day, day)
+	require.NoError(t, err)
+	require.Len(t, own, 1)
+	require.NotNil(t, own[0].Note)
+	assert.Equal(t, "Vertraulicher Grund", *own[0].Note)
+
+	other, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), otherAccount.ID, chain.StudentID, day, day)
+	require.NoError(t, err)
+	require.Len(t, other, 1, "the effective absence remains shared")
+	assert.Nil(t, other[0].Note, "the submitting guardian's free text stays private")
+
+	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), otherAccount.ID, chain.StudentID,
+		[]timezone.Date{day}, "Neuer vertraulicher Grund", activeModels.StudentStatusDaySick)
+	require.NoError(t, err)
+	other, err = svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), otherAccount.ID, chain.StudentID, day, day)
+	require.NoError(t, err)
+	require.Len(t, other, 1)
+	require.NotNil(t, other[0].Note)
+	assert.Equal(t, "Neuer vertraulicher Grund", *other[0].Note)
+	own, err = svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, day, day)
+	require.NoError(t, err)
+	require.Len(t, own, 1)
+	assert.Nil(t, own[0].Note, "a re-report transfers authorship with the new note")
+}
+
 func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 	t.Parallel()
 

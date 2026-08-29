@@ -14,6 +14,10 @@ import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import {
+  RequestSharingControl,
+  RequestSharingSelector,
+} from "~/components/parent/request-sharing-control";
 import { TimeField } from "~/components/ui/time-field";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
@@ -36,6 +40,7 @@ import {
   listSickDays,
   submitCareException,
   submitSickNote,
+  setRequestSharing,
   withdrawExcusedRequest,
   withdrawPickupChangeRequest,
 } from "~/lib/parent-api";
@@ -66,7 +71,8 @@ class ChildCareRefreshError extends Error {
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
 
-export type AbsenceSubmissionOutcome = "applied" | "pending";
+export type AbsenceSubmissionOutcome =
+  "applied" | "pending" | "pending_sharing_failed";
 
 // Stable empty default for SickStatusSummary's optional excusedRequests prop —
 // a fresh [] literal per render would break referential equality (oxlint
@@ -271,13 +277,14 @@ export interface ChildCare {
     dates: string[],
     reason: string,
     status: StudentStatusKind,
+    recipientGuardianProfileIds?: string[],
   ): Promise<AbsenceSubmissionOutcome | void>;
   withdrawExcused(requestId: string): Promise<void>;
   saveCareException(params: {
     date: string;
     pickupTime: string;
     reason: string;
-  }): Promise<void>;
+  }): Promise<void | string>;
   removeCareException(date: string): Promise<void>;
 }
 
@@ -369,7 +376,10 @@ export function useChildCare(studentId: string): ChildCare {
 
   const hasCurrentStudentData = loadedStudentId === studentId;
 
-  const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
+  const load = useCallback(async (): Promise<{
+    requestsOk: boolean;
+    requests: ExcusedRequest[];
+  }> => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
     // Track each fetch's success separately so a failed one PRESERVES the last
@@ -415,7 +425,7 @@ export function useChildCare(studentId: string): ChildCare {
           getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
         ]);
       if (!mountedRef.current || seq !== loadSeqRef.current)
-        return { requestsOk };
+        return { requestsOk, requests };
       // Only overwrite a list whose fetch succeeded; keep the previous state
       // otherwise (see above).
       if (sickOk) setSickDays(days);
@@ -439,13 +449,13 @@ export function useChildCare(studentId: string): ChildCare {
       }
       setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);
-      return { requestsOk };
+      return { requestsOk, requests };
     } catch (err) {
       logger.warn("child_care_load_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      return { requestsOk: false };
+      return { requestsOk: false, requests: [] };
     } finally {
       // Only the latest run owns the loading flag, so a stale load resolving
       // after a newer one can't flip it back off prematurely.
@@ -498,7 +508,12 @@ export function useChildCare(studentId: string): ChildCare {
   });
 
   const reportSick = useCallback(
-    async (dates: string[], reason: string, status: StudentStatusKind) => {
+    async (
+      dates: string[],
+      reason: string,
+      status: StudentStatusKind,
+      recipientGuardianProfileIds: string[] = [],
+    ) => {
       const { status_days } = await submitSickNote(
         studentId,
         dates,
@@ -547,7 +562,7 @@ export function useChildCare(studentId: string): ChildCare {
       // An authoritative reload (rather than an optimistic prepend) also avoids
       // the duplicate-row race the prepend had with a load() that an after-commit
       // parent_message could trigger before this POST resolved.
-      const { requestsOk } = await load();
+      const { requestsOk, requests } = await load();
       if (!requestsOk) {
         // The request WAS created server-side, but the reload that would surface
         // it failed — closing silently would leave the parent with no pending
@@ -555,6 +570,19 @@ export function useChildCare(studentId: string): ChildCare {
         // and says so. A retry is safe: the backend treats an identical resubmit
         // idempotently, so it won't create a duplicate request (#1845 review).
         throw new ChildCareRefreshError();
+      }
+      const request = newestMatchingAbsenceRequest(requests, dates, status);
+      if (request) {
+        try {
+          await setRequestSharing(
+            studentId,
+            "excused",
+            request.id,
+            recipientGuardianProfileIds,
+          );
+        } catch {
+          return "pending_sharing_failed" as const;
+        }
       }
       return "pending" as const;
     },
@@ -586,6 +614,7 @@ export function useChildCare(studentId: string): ChildCare {
         saved,
         ...prev.filter((request) => request.id !== saved.id),
       ]);
+      return saved.id;
     },
     [studentId],
   );
@@ -663,6 +692,21 @@ export function useChildCare(studentId: string): ChildCare {
   };
 }
 
+function newestMatchingAbsenceRequest(
+  requests: readonly ExcusedRequest[],
+  dates: readonly string[],
+  status: StudentStatusKind,
+): ExcusedRequest | undefined {
+  const expectedDates = [...dates].sort().join(",");
+  return requests.find(
+    (request) =>
+      request.is_self &&
+      request.status === "pending" &&
+      request.absence_status === status &&
+      [...request.dates].sort().join(",") === expectedDates,
+  );
+}
+
 // --- sick-note modal ---
 
 function resolveSickError(
@@ -679,21 +723,25 @@ function resolveSickError(
 }
 
 export function SickNoteModal({
+  studentId,
   onClose,
   onSubmit,
   sickRequiresApproval,
   excusedRequiresApproval,
 }: Readonly<{
+  studentId?: string;
   onClose: () => void;
   onSubmit: (
     dates: string[],
     reason: string,
     status: StudentStatusKind,
+    recipientGuardianProfileIds?: string[],
   ) => Promise<AbsenceSubmissionOutcome | void>;
   sickRequiresApproval?: boolean;
   excusedRequiresApproval?: boolean;
 }>) {
   const t = useTranslations("parentChildCare");
+  const sharingCopy = useTranslations("parentRequestSharing");
   const datePicker = useLocalizedDatePicker();
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
@@ -702,6 +750,9 @@ export function SickNoteModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [sharingFailed, setSharingFailed] = useState(false);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [sharingReady, setSharingReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const errorId = useId();
@@ -741,9 +792,11 @@ export function SickNoteModal({
     setSubmitting(true);
     setError(null);
     try {
-      const outcome = await onSubmit(dates, reason, status);
-      if (outcome === "pending") setSubmitted(true);
-      else onClose();
+      const outcome = await onSubmit(dates, reason, status, recipientIds);
+      if (outcome === "pending" || outcome === "pending_sharing_failed") {
+        setSubmitted(true);
+        setSharingFailed(outcome === "pending_sharing_failed");
+      } else onClose();
     } catch (err) {
       setError(
         resolveSickError(
@@ -786,7 +839,12 @@ export function SickNoteModal({
               size="md"
               className="w-full gap-2 sm:w-auto"
               onClick={() => void handleSubmit()}
-              disabled={submitting}
+              disabled={
+                submitting ||
+                (requiresApproval === true &&
+                  studentId !== undefined &&
+                  !sharingReady)
+              }
             >
               {submitting && (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -800,9 +858,16 @@ export function SickNoteModal({
       }
     >
       {submitted ? (
-        <p role="status" className="text-sm leading-6 text-gray-700">
-          {t("sick.requestSentBody")}
-        </p>
+        <div className="space-y-3">
+          <p role="status" className="text-sm leading-6 text-gray-700">
+            {t("sick.requestSentBody")}
+          </p>
+          {sharingFailed && (
+            <p className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm">
+              {sharingCopy("savedButNotShared")}
+            </p>
+          )}
+        </div>
       ) : (
         <div className="space-y-4">
           <p className="text-sm leading-6 text-gray-700">{t("sick.intro")}</p>
@@ -823,6 +888,14 @@ export function SickNoteModal({
               ]}
             />
           </label>
+          {requiresApproval === true && studentId && (
+            <RequestSharingSelector
+              studentId={studentId}
+              selected={recipientIds}
+              onChange={setRecipientIds}
+              onReadyChange={setSharingReady}
+            />
+          )}
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
             {t(kindHint)}
           </p>
@@ -910,6 +983,7 @@ export function SickNoteModal({
 // --- pickup-time change modal ---
 
 export function PickupTimeModal({
+  studentId,
   careExceptions,
   pickupChangeRequests = EMPTY_PICKUP_CHANGE_REQUESTS,
   careExceptionsLoaded,
@@ -921,6 +995,7 @@ export function PickupTimeModal({
   onSubmit,
   onRemove,
 }: Readonly<{
+  studentId?: string;
   careExceptions: CareException[];
   pickupChangeRequests?: PickupChangeRequest[];
   careExceptionsLoaded: boolean;
@@ -933,10 +1008,11 @@ export function PickupTimeModal({
     date: string;
     pickupTime: string;
     reason: string;
-  }) => Promise<void>;
+  }) => Promise<void | string>;
   onRemove: (date: string) => Promise<void>;
 }>) {
   const t = useTranslations("parentChildCare");
+  const sharingCopy = useTranslations("parentRequestSharing");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
@@ -968,6 +1044,9 @@ export function PickupTimeModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [sharingReady, setSharingReady] = useState(false);
+  const [requestSaved, setRequestSaved] = useState(false);
   const [invalidField, setInvalidField] = useState<
     "pickupTime" | "reason" | null
   >(null);
@@ -1053,11 +1132,25 @@ export function PickupTimeModal({
     setError(null);
     setInvalidField(null);
     try {
-      await onSubmit({
+      const requestId = await onSubmit({
         date,
         pickupTime,
         reason: reason.trim(),
       });
+      if (studentId && requestId) {
+        try {
+          await setRequestSharing(
+            studentId,
+            "pickup_change",
+            requestId,
+            recipientIds,
+          );
+        } catch {
+          setRequestSaved(true);
+          setError(sharingCopy("savedButNotShared"));
+          return;
+        }
+      }
       onClose();
     } catch (err) {
       setError(resolveError(err));
@@ -1122,7 +1215,9 @@ export function PickupTimeModal({
                 staffOwned ||
                 !pickupChangeEnabled ||
                 !careExceptionsLoaded ||
-                !pickupChangeRequestsLoaded
+                !pickupChangeRequestsLoaded ||
+                requestSaved ||
+                (studentId !== undefined && !sharingReady)
               }
             >
               {submitting && (
@@ -1158,7 +1253,7 @@ export function PickupTimeModal({
         </label>
 
         {pending && (
-          <div className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2.5">
+          <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
             <p className="text-base font-semibold tabular-nums">
               {request.previous_pickup_time
                 ? t("pickup.pendingChange", {
@@ -1170,6 +1265,14 @@ export function PickupTimeModal({
                   })}
             </p>
             <p className="mt-0.5 text-sm">{t("pickup.statusPending")}</p>
+            {studentId && request && (
+              <RequestSharingControl
+                studentId={studentId}
+                requestType="pickup_change"
+                requestId={request.id}
+                isSelf={request.is_self === true}
+              />
+            )}
           </div>
         )}
         {request?.status === "approved" && (
@@ -1240,6 +1343,14 @@ export function PickupTimeModal({
                 className="min-h-20 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
+            {studentId && !requestSaved && (
+              <RequestSharingSelector
+                studentId={studentId}
+                selected={recipientIds}
+                onChange={setRecipientIds}
+                onReadyChange={setSharingReady}
+              />
+            )}
           </div>
         )}
 
@@ -1255,7 +1366,11 @@ export function PickupTimeModal({
           <p
             id={errorId}
             role="alert"
-            className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
+            className={
+              requestSaved
+                ? "bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm"
+                : "bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
+            }
           >
             {error}
           </p>
@@ -1268,10 +1383,12 @@ export function PickupTimeModal({
 // --- read-only lists for the page body ---
 
 export function SickStatusSummary({
+  studentId,
   sickDays,
   excusedRequests = EMPTY_EXCUSED_REQUESTS,
   onWithdraw,
 }: Readonly<{
+  studentId?: string;
   sickDays: StatusDay[];
   // Absence requests behind an OGS approval gate. Pending ones show as
   // "Freigabe ausstehend" with a withdraw action; rejected ones show the
@@ -1439,6 +1556,14 @@ export function SickStatusSummary({
               {withdrawError.message}
             </p>
           )}
+          {studentId && (
+            <RequestSharingControl
+              studentId={studentId}
+              requestType="excused"
+              requestId={r.id}
+              isSelf={r.is_self}
+            />
+          )}
         </div>
       ))}
       {rejected.map((r) => (
@@ -1455,6 +1580,14 @@ export function SickStatusSummary({
             <p className="text-xs text-gray-500">
               {t("summary.reasonPrefix")}: {r.decision_reason}
             </p>
+          )}
+          {studentId && (
+            <RequestSharingControl
+              studentId={studentId}
+              requestType="excused"
+              requestId={r.id}
+              isSelf={r.is_self}
+            />
           )}
         </div>
       ))}

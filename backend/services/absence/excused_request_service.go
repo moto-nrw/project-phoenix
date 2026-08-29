@@ -90,9 +90,11 @@ var (
 // ExcusedRequestReviewItem is one request enriched with the child's name for
 // the staff review queue.
 type ExcusedRequestReviewItem struct {
-	Request   *activeModels.ExcusedAbsenceRequest
-	FirstName string
-	LastName  string
+	Request              *activeModels.ExcusedAbsenceRequest
+	FirstName            string
+	LastName             string
+	BulkEligible         bool
+	BulkIneligibleReason string
 }
 
 // ExcusedRequestHistoryItem is one decided request enriched with the child's
@@ -106,9 +108,10 @@ type ExcusedRequestHistoryItem struct {
 
 // ExcusedRequestDecideInput carries a staff decision on one pending request.
 type ExcusedRequestDecideInput struct {
-	RequestID int64
-	Approve   bool
-	Reason    string
+	RequestID       int64
+	Approve         bool
+	Reason          string
+	ExpectedVersion string
 	// ReviewedBy is the acting staff ACCOUNT id (auth.accounts).
 	ReviewedBy int64
 }
@@ -148,6 +151,10 @@ type ExcusedAbsenceRequestService interface {
 	// Decide approves (writes the requested status days, then stamps) or rejects
 	// (reason required) one pending request and returns the refreshed row.
 	Decide(ctx context.Context, input ExcusedRequestDecideInput) (*ExcusedRequestReviewItem, error)
+	ListExcusedBulkCandidates(ctx context.Context) ([]usersService.ExcusedBulkCandidate, error)
+	GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*usersService.ExcusedBulkCandidate, error)
+	LockExcusedBulkRequest(ctx context.Context, requestID int64) error
+	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
 }
 
 // AbsenceNotifierSetter injects the notification producer after construction.
@@ -168,6 +175,12 @@ type excusedAbsenceRequestService struct {
 	absenceNotify notificationsService.AbsenceNotifier
 	logger        *slog.Logger
 	db            *bun.DB
+	reviewPolicy  RequestReviewPolicy
+}
+
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*usersModels.Student) bool, error)
+	Allows(context.Context, []string, *usersModels.Student) (bool, error)
 }
 
 // NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
@@ -220,10 +233,87 @@ func newExcusedAbsenceRequestService(
 }
 
 // absenceWritable is the per-child visibility predicate shared by the review
-// queue and the pending badge: the caller may see a request exactly when they
-// could decide it (admin or verified staff, #2329).
-func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) func(*usersModels.Student) bool {
-	return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+// queue and the pending badge.
+func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) (func(*usersModels.Student) bool, error) {
+	if s.reviewPolicy == nil {
+		return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext), nil
+	}
+	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("active: resolve request reviewer scope: %w", err)
+	}
+	return filter, nil
+}
+
+func (s *excusedAbsenceRequestService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
+	s.reviewPolicy = policy
+}
+
+func (s *excusedAbsenceRequestService) ListExcusedBulkCandidates(ctx context.Context) ([]usersService.ExcusedBulkCandidate, error) {
+	rows, _, err := s.ListPending(ctx, modelBase.RequestQueueFilters{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]usersService.ExcusedBulkCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, usersService.ExcusedBulkCandidate{
+			ID: row.Request.ID, StudentID: row.Request.StudentID, UpdatedAt: row.Request.UpdatedAt,
+			Eligible: row.BulkEligible,
+		})
+	}
+	return result, nil
+}
+
+func (s *excusedAbsenceRequestService) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*usersService.ExcusedBulkCandidate, error) {
+	req, err := s.requestRepo.FindByID(ctx, requestID)
+	if errors.Is(err, activeModels.ErrExcusedRequestNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != activeModels.ExcusedRequestStatusPending {
+		return nil, nil
+	}
+	students, err := s.studentRepo.FindByIDs(ctx, []int64{req.StudentID})
+	if err != nil {
+		return nil, err
+	}
+	student := students[req.StudentID]
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if student == nil || !writable(student) || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
+		return nil, nil
+	}
+	eligible, _, err := s.excusedBulkEligibility(ctx, req, student)
+	if err != nil {
+		return nil, err
+	}
+	return &usersService.ExcusedBulkCandidate{ID: req.ID, StudentID: req.StudentID, UpdatedAt: req.UpdatedAt, Eligible: eligible}, nil
+}
+
+func (s *excusedAbsenceRequestService) ApproveExcusedBulk(
+	ctx context.Context,
+	requestID int64,
+	reason string,
+	reviewerID int64,
+	expectedVersion string,
+) error {
+	_, err := s.Decide(ctx, ExcusedRequestDecideInput{
+		RequestID: requestID, Approve: true, Reason: reason, ReviewedBy: reviewerID,
+		ExpectedVersion: expectedVersion,
+	})
+	if errors.Is(err, activeModels.ErrExcusedRequestNotPending) {
+		return usersService.ErrParentRequestDecisionRace
+	}
+	return err
+}
+
+func (s *excusedAbsenceRequestService) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {
+	_, err := s.requestRepo.FindPendingByIDForUpdate(ctx, requestID)
+	return err
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.
@@ -450,7 +540,10 @@ func (s *excusedAbsenceRequestService) ListHistory(ctx context.Context, filters 
 	}
 
 	// Same per-child scope as ListPending: absence write gate + alumnus skip.
-	writable := s.absenceWritable(ctx)
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*ExcusedRequestHistoryItem, 0, len(rows))
 	for _, r := range rows {
@@ -518,7 +611,10 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 	// Scope the queue to children whose absences the caller may WRITE — the
 	// same gate as Decide, so a staffer only ever sees requests they can act
 	// on. This also scopes the sidebar badge.
-	writable := s.absenceWritable(ctx)
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*ExcusedRequestReviewItem, 0, len(rows))
 	for _, r := range rows {
@@ -535,7 +631,13 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 		if students[r.StudentID].IsAlumnus() || students[r.StudentID].CareEndedOn(timezone.TodayDate()) {
 			continue
 		}
-		item := &ExcusedRequestReviewItem{Request: r}
+		eligible, reason, eligibilityErr := s.excusedBulkEligibility(ctx, r, students[r.StudentID])
+		if eligibilityErr != nil {
+			return nil, nil, fmt.Errorf("active: resolve absence bulk eligibility: %w", eligibilityErr)
+		}
+		item := &ExcusedRequestReviewItem{
+			Request: r, BulkEligible: eligible, BulkIneligibleReason: reason,
+		}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
 				item.FirstName = p.FirstName
@@ -545,6 +647,67 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 		items = append(items, item)
 	}
 	return items, next, nil
+}
+
+func (s *excusedAbsenceRequestService) excusedBulkEligibility(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+	student *usersModels.Student,
+) (bool, string, error) {
+	if !usersService.AbsenceBulkEligible(req.Dates, timezone.TodayDate()) {
+		return false, "Mindestens ein Tag ist vorbei.", nil
+	}
+	if requestExtendsBeyondCare(req, student) {
+		return false, "Mindestens ein Tag liegt nach dem Betreuungsende.", nil
+	}
+	partial, err := s.hasManualPartialAbsence(ctx, req)
+	if err != nil {
+		return false, "", err
+	}
+	if partial {
+		return false, "Für mindestens einen Tag ist bereits eine Teilabwesenheit eingetragen.", nil
+	}
+	if s.emitter != nil {
+		hasAccess, accessErr := s.emitter.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
+		if accessErr != nil {
+			return false, "", accessErr
+		}
+		if !hasAccess {
+			return false, "Der Zugang der einreichenden Person ist nicht mehr aktiv.", nil
+		}
+	}
+	if err := s.ensureNoNewerStatus(ctx, req); err != nil {
+		if errors.Is(err, ErrExcusedRequestStatusConflict) {
+			return false, "Für mindestens einen Tag gibt es einen neueren Abwesenheitsstatus.", nil
+		}
+		return false, "", err
+	}
+	return true, "", nil
+}
+
+func (s *excusedAbsenceRequestService) hasManualPartialAbsence(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+) (bool, error) {
+	if len(req.Dates) == 0 || s.pickupRepo == nil {
+		return false, nil
+	}
+	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
+		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+	)
+	if err != nil {
+		return false, err
+	}
+	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	for _, date := range req.Dates {
+		requested[date] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := requested[row.ExceptionDate]; ok && row.HasManualPartialAbsence() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
@@ -576,7 +739,10 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("active: load students for pending excused badges: %w", err)
 	}
-	writable := s.absenceWritable(ctx)
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
 	for studentID, req := range candidates {
 		// Alumni are excluded for the same reason as in the review queue: a
@@ -610,6 +776,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	if err != nil {
 		return nil, err
 	}
+	if input.ExpectedVersion != "" && req.UpdatedAt.UTC().Format(time.RFC3339Nano) != input.ExpectedVersion {
+		return nil, activeModels.ErrExcusedRequestNotPending
+	}
 	req.AbsenceStatus = normalizedAbsenceRequestStatus(req.AbsenceStatus)
 
 	// Per-child write authorization: the caller may decide only if they could
@@ -640,7 +809,11 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	if student.CareEndedOn(timezone.TodayDate()) {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
-	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !allowed {
 		return nil, ErrExcusedRequestForbidden
 	}
 
@@ -764,6 +937,18 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+func (s *excusedAbsenceRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+	if s.reviewPolicy == nil {
+		ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext)
+		return ok, nil
+	}
+	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("active: resolve request reviewer scope: %w", err)
+	}
+	return ok, nil
 }
 
 func requestExtendsBeyondCare(req *activeModels.ExcusedAbsenceRequest, student *usersModels.Student) bool {
@@ -907,13 +1092,15 @@ func (s *excusedAbsenceRequestService) applyAbsenceRequest(ctx context.Context, 
 		}
 	}
 	for _, d := range req.Dates {
+		guardianAccountID := req.SubmittedBy
 		if err := s.statusDayRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
-			StudentID:  req.StudentID,
-			Date:       d,
-			Status:     req.AbsenceStatus,
-			ReportedAt: now,
-			Source:     activeModels.StudentStatusSourceParent,
-			Note:       notePtr,
+			StudentID:         req.StudentID,
+			Date:              d,
+			Status:            req.AbsenceStatus,
+			ReportedAt:        now,
+			Source:            activeModels.StudentStatusSourceParent,
+			GuardianAccountID: &guardianAccountID,
+			Note:              notePtr,
 		}); err != nil {
 			return err
 		}

@@ -10,13 +10,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OfferingChangeRequestModal } from "./offering-change-request-modal";
 import {
   getChildOfferingCatalog,
+  getRequestSharingOptions,
   ParentApiError,
   type OfferingCatalog,
 } from "~/lib/parent-api";
 
 vi.mock("~/lib/parent-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/parent-api")>();
-  return { ...actual, getChildOfferingCatalog: vi.fn() };
+  return {
+    ...actual,
+    getChildOfferingCatalog: vi.fn(),
+    getRequestSharingOptions: vi.fn(),
+  };
 });
 
 vi.mock("~/components/ui/date-picker", () => ({
@@ -40,6 +45,13 @@ vi.mock("~/components/ui/date-picker", () => ({
 }));
 
 const mockCatalog = vi.mocked(getChildOfferingCatalog);
+const mockSharingOptions = vi.mocked(getRequestSharingOptions);
+
+async function clickSubmit() {
+  const button = await screen.findByRole("button", { name: "Anfrage senden" });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
 
 function catalog(overrides: Partial<OfferingCatalog> = {}): OfferingCatalog {
   return {
@@ -83,6 +95,10 @@ describe("OfferingChangeRequestModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCatalog.mockResolvedValue(catalog());
+    mockSharingOptions.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
   });
 
   it("prefills the current booking and its days", async () => {
@@ -112,9 +128,7 @@ describe("OfferingChangeRequestModal", () => {
       />,
     );
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Anfrage senden" }),
-    );
+    await clickSubmit();
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
@@ -145,9 +159,7 @@ describe("OfferingChangeRequestModal", () => {
       />,
     );
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Anfrage senden" }),
-    );
+    await clickSubmit();
 
     expect(
       await screen.findByRole("heading", {
@@ -215,7 +227,7 @@ describe("OfferingChangeRequestModal", () => {
     const checkbox = row?.querySelector('input[type="checkbox"]');
     fireEvent.click(checkbox!);
 
-    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+    await clickSubmit();
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
@@ -253,7 +265,7 @@ describe("OfferingChangeRequestModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Datum ändern" }));
     expect(await screen.findByText("Ferienbetreuung")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+    await clickSubmit();
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
@@ -335,7 +347,7 @@ describe("OfferingChangeRequestModal", () => {
     fireEvent.click(ruleOffering?.querySelector('input[type="checkbox"]')!);
     fireEvent.click(screen.getByRole("button", { name: "Datum ändern" }));
     await screen.findByText("Ferienbetreuung");
-    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+    await clickSubmit();
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
@@ -375,7 +387,7 @@ describe("OfferingChangeRequestModal", () => {
     );
 
     fireEvent.click((await screen.findAllByRole("checkbox"))[0]!);
-    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+    await clickSubmit();
 
     expect(await screen.findByText(/mindestens einen Tag/)).toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();

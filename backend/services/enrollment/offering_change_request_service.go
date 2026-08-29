@@ -219,7 +219,11 @@ type OfferingChangeView struct {
 // carries no diff: after an approval was applied the "current → requested"
 // comparison is empty, which would read as "nothing changed".
 type OfferingChangeDecision struct {
-	ID                 int64
+	ID int64
+	// SubmittedBy is used by the parent-facing service to keep request details
+	// private to the guardian who submitted them. HTTP responses do not expose it.
+	SubmittedBy        int64
+	SubmittedBySelf    bool
 	Status             string
 	CompleteWithdrawal bool
 	// DecidedAt is when staff decided it.
@@ -427,6 +431,12 @@ type OfferingChangeRequestServiceConfig struct {
 	Settings      DecisionSettingsResolver
 	Emitter       *parentmessaging.Emitter
 	Logger        *slog.Logger
+	ReviewPolicy  RequestReviewPolicy
+}
+
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*usersModels.Student) bool, error)
+	Allows(context.Context, []string, *usersModels.Student) (bool, error)
 }
 
 type offeringChangeRequestService struct {
@@ -439,6 +449,10 @@ func NewOfferingChangeRequestService(cfg OfferingChangeRequestServiceConfig) Off
 		cfg.Logger = slog.Default()
 	}
 	return &offeringChangeRequestService{OfferingChangeRequestServiceConfig: cfg}
+}
+
+func (s *offeringChangeRequestService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
+	s.ReviewPolicy = policy
 }
 
 // OfferingChangeLeadDaysDefault mirrors the registry default so a caller
@@ -851,6 +865,7 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		}
 		decision := &OfferingChangeDecision{
 			ID:                 row.ID,
+			SubmittedBy:        row.SubmittedBy,
 			Status:             row.Status,
 			CompleteWithdrawal: row.ApprovedCompleteWithdrawal,
 			DecidedAt:          *row.ReviewedAt,
@@ -1104,7 +1119,10 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: load students: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	visibleRows := make([]*enrollmentModels.OfferingChangeRequest, 0, len(rows))
 	personIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
@@ -1219,7 +1237,10 @@ func (s *offeringChangeRequestService) ListHistory(ctx context.Context, filters 
 	}
 
 	// Same per-child scope as ListPending: write gate + alumnus skip.
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*OfferingChangeHistoryItem, 0, len(rows))
 	for _, row := range rows {
@@ -1267,7 +1288,10 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 	if err != nil {
 		return 0, fmt.Errorf("offering change: load students for count: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return 0, err
+	}
 	count := 0
 	for _, row := range rows {
 		if row == nil {
@@ -1567,7 +1591,11 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	if student.CareEndedOn(timezone.TodayDate()) {
 		return enrollmentModels.ErrOfferingChangeNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
 		return ErrOfferingChangeForbidden
 	}
 	if !input.Approve {
@@ -1645,7 +1673,11 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	if student == nil || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
 		return nil, enrollmentModels.ErrOfferingChangeNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !allowed {
 		return nil, ErrOfferingChangeForbidden
 	}
 	diff, err := s.decisionDiff(ctx, row, excludedIDs, effectiveFrom)
@@ -1699,6 +1731,29 @@ func (s *offeringChangeRequestService) PreviewDecision(
 		ManualPlanningConflicts:           conflicts,
 		ArrivalExpectationsFollowBookings: arrivalExpectationsFollowBookings,
 	}, nil
+}
+
+func (s *offeringChangeRequestService) reviewableFilter(ctx context.Context) (func(*usersModels.Student) bool, error) {
+	if s.ReviewPolicy == nil {
+		return authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext), nil
+	}
+	filter, err := s.ReviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("offering change: resolve request reviewer scope: %w", err)
+	}
+	return filter, nil
+}
+
+func (s *offeringChangeRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+	if s.ReviewPolicy == nil {
+		ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext)
+		return ok, nil
+	}
+	ok, err := s.ReviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("offering change: resolve request reviewer scope: %w", err)
+	}
+	return ok, nil
 }
 
 func (s *offeringChangeRequestService) manualPlanningConflicts(

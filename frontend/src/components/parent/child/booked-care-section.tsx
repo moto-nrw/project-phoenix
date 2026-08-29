@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
+import { RequestSharingControl } from "~/components/parent/request-sharing-control";
 import {
   ParentSection,
   ParentSubsection,
@@ -212,6 +213,7 @@ export function BookedCareSection({
     <div className="flex flex-col gap-5">
       {schedule ? (
         <WeeklyScheduleSection
+          studentId={studentId}
           schedule={schedule}
           childFirstName={childFirstName}
         />
@@ -363,6 +365,12 @@ export function BookedCareSection({
               <p className="text-sm text-gray-500">
                 {t("careOfferings.pendingNotice")}
               </p>
+              <RequestSharingControl
+                studentId={studentId}
+                requestType="offering"
+                requestId={pending.id}
+                isSelf={pending.submitted_by_self}
+              />
               {!careEnded && pending.submitted_by_self && (
                 <div>
                   <Button
@@ -458,6 +466,12 @@ export function BookedCareSection({
                   </ul>
                 </div>
               )}
+              <RequestSharingControl
+                studentId={studentId}
+                requestType="offering"
+                requestId={decision.id}
+                isSelf={decision.submitted_by_self === true}
+              />
             </ParentSubsection>
           )}
 
@@ -483,7 +497,9 @@ export function BookedCareSection({
           childName={childFirstName}
           onClose={() => setModalOpen(false)}
           onSubmit={async (input) => {
-            setOfferings(await submitOfferingChangeRequest(studentId, input));
+            const next = await submitOfferingChangeRequest(studentId, input);
+            setOfferings(next);
+            return next.pending_request?.id;
           }}
         />
       )}
@@ -508,9 +524,11 @@ export function BookedCareSection({
 }
 
 function WeeklyScheduleSection({
+  studentId,
   schedule,
   childFirstName,
 }: Readonly<{
+  studentId: string;
   schedule: ChildCareSchedule;
   childFirstName: string;
 }>) {
@@ -524,6 +542,42 @@ function WeeklyScheduleSection({
 
   return (
     <ParentSection title={tc("care.weekTitle")} concept="calendar" prominent>
+      {schedule.pending_request ? (
+        <ParentSubsection
+          title={t("careSchedule.requestTitle")}
+          actions={
+            <StatusBadge label={t("careSchedule.pendingBadge")} tone="orange" />
+          }
+        >
+          <p className="text-sm text-gray-500">
+            {t("careSchedule.requestedAt", {
+              date: formatDate(schedule.pending_request.created_at),
+            })}
+          </p>
+          <dl className="space-y-1">
+            {schedule.pending_request.diff.map((line) => (
+              <div
+                key={`${line.label}-${line.weekday ?? 0}-${line.care_kind ?? "value"}`}
+                className="text-sm"
+              >
+                <dt className="font-medium text-gray-800">{line.label}</dt>
+                <dd className="text-gray-600">
+                  {line.old} → {line.new}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-sm text-gray-600">
+            {t("careSchedule.pendingNotice")}
+          </p>
+          <RequestSharingControl
+            studentId={studentId}
+            requestType="care_schedule"
+            requestId={schedule.pending_request.id}
+            isSelf={schedule.pending_request.submitted_by_self}
+          />
+        </ParentSubsection>
+      ) : null}
       <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {WEEKDAYS.map((num) => {
           const day = byWeekday.get(num);

@@ -90,9 +90,10 @@ type PickupChangeRequestResponse struct {
 	DecisionReason *string    `json:"decision_reason,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
+	IsSelf         bool       `json:"is_self"`
 }
 
-func toPickupChangeRequestResponse(req *scheduleModels.CareScheduleChangeRequest) (PickupChangeRequestResponse, error) {
+func toPickupChangeRequestResponse(req *scheduleModels.CareScheduleChangeRequest, accountID int64) (PickupChangeRequestResponse, error) {
 	date, dateOK := req.Payload["date"].(string)
 	pickup, pickupOK := req.Payload["pickup_time"].(string)
 	reason, reasonOK := req.Payload["reason"].(string)
@@ -106,7 +107,7 @@ func toPickupChangeRequestResponse(req *scheduleModels.CareScheduleChangeRequest
 	return PickupChangeRequestResponse{
 		ID: strconv.FormatInt(req.ID, 10), Date: date, PickupTime: pickup,
 		PreviousPickup: previousPickup, Reason: reason, Status: req.Status, DecisionReason: req.DecisionReason,
-		CreatedAt: req.CreatedAt, ReviewedAt: req.ReviewedAt,
+		CreatedAt: req.CreatedAt, ReviewedAt: req.ReviewedAt, IsSelf: req.SubmittedBy == accountID,
 	}, nil
 }
 
@@ -166,7 +167,7 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		renderParentWriteError(w, r, err)
 		return
 	}
-	response, err := toPickupChangeRequestResponse(result)
+	response, err := toPickupChangeRequestResponse(result, accountID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -190,7 +191,7 @@ func (rs *Resource) listPickupChangeRequests(w http.ResponseWriter, r *http.Requ
 	}
 	out := make([]PickupChangeRequestResponse, 0, len(rows))
 	for _, row := range rows {
-		response, convertErr := toPickupChangeRequestResponse(row)
+		response, convertErr := toPickupChangeRequestResponse(row, accountID)
 		if convertErr != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(convertErr))
 			return
@@ -218,7 +219,7 @@ func (rs *Resource) withdrawPickupChangeRequest(w http.ResponseWriter, r *http.R
 		renderParentWriteError(w, r, err)
 		return
 	}
-	response, err := toPickupChangeRequestResponse(result)
+	response, err := toPickupChangeRequestResponse(result, accountID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

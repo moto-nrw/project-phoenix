@@ -621,7 +621,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 253,
+          "line": 255,
           "declaration": "NewFactory"
         }
       ]
@@ -24967,6 +24967,40 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/users/privacy_event_order_test.go",
+      "declaration": "TestFamilyProtectionCurrentUsesAppendOrderNotTransactionTimestamp",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        47
+      ],
+      "tables": [
+        "users.student_family_protection_events"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/privacy_event_order_test.go",
+      "declaration": "TestPrivacyEventsTimestampAfterTheSerializedWriteStarts",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        22
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/privacy_event_order_test.go",
+      "declaration": "TestRequestSharingCurrentUsesAppendOrderNotTransactionTimestamp",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        66
+      ],
+      "tables": [
+        "users.parent_request_share_events"
+      ]
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/users/profile_repository_test.go",
       "declaration": "TestProfileRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -26221,7 +26255,7 @@
       "declaration": "TestCreateRequest_RefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        732
+        771
       ],
       "tables": []
     },
@@ -26231,7 +26265,7 @@
       "declaration": "TestDecide_ApproveRefusedWhenPartialAbsenceExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        690
+        724
       ],
       "tables": []
     },
@@ -26251,7 +26285,7 @@
       "declaration": "insertStatusDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        586
+        615
       ],
       "tables": []
     },
@@ -29558,7 +29592,7 @@
       "declaration": "TestSubmitMasterDataChangeRequest_PerRowCreatedPills",
       "target": "database/repositories.NewFactory",
       "lines": [
-        279
+        277
       ],
       "tables": [
         "users.student_data_change_requests"
@@ -29817,6 +29851,29 @@
     },
     {
       "scope": "test",
+      "file": "services/parent/parent_request_sharing_service_test.go",
+      "declaration": "TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        22
+      ],
+      "tables": [
+        "users.students",
+        "users.students_guardians"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/parent/parent_request_sharing_service_test.go",
+      "declaration": "TestRequestSharingRejectsUnlinkedRecipientAndNonOwner",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        108
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/parent/parent_today_status_service_test.go",
       "declaration": "TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan",
       "target": "database/repositories.NewFactory",
@@ -29862,7 +29919,7 @@
       "declaration": "TestListSickDays_ExcludesStaffCreatedExcused",
       "target": "database/repositories.NewFactory",
       "lines": [
-        772
+        829
       ],
       "tables": []
     },
@@ -29892,7 +29949,7 @@
       "declaration": "TestSubmitSickNote_NonContiguousExcludesUnrelatedRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        643
+        700
       ],
       "tables": []
     },
@@ -31310,7 +31367,7 @@
       "declaration": "TestUserContextService_UpdateAvatar",
       "target": "database/repositories.NewFactory",
       "lines": [
-        565
+        571
       ],
       "tables": []
     },
@@ -31917,7 +31974,7 @@
       "declaration": "TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        414
+        526
       ],
       "tables": []
     },
@@ -31927,7 +31984,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesDepartureModes",
       "target": "database/repositories.NewFactory",
       "lines": [
-        324
+        436
       ],
       "tables": []
     },
@@ -31937,7 +31994,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesNameChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        100
+        148
       ],
       "tables": []
     },
@@ -31947,7 +32004,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesOtherPersonFields",
       "target": "database/repositories.NewFactory",
       "lines": [
-        128
+        240
       ],
       "tables": []
     },
@@ -31957,7 +32014,7 @@
       "declaration": "TestMasterDataReview_ApproveAppliesSchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        156
+        268
       ],
       "tables": []
     },
@@ -31967,7 +32024,7 @@
       "declaration": "TestMasterDataReview_ApproveEmitsDecisionPill",
       "target": "database/repositories.NewFactory",
       "lines": [
-        550
+        662
       ],
       "tables": []
     },
@@ -31977,7 +32034,7 @@
       "declaration": "TestMasterDataReview_ApproveInvalidRowsRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        483
+        595
       ],
       "tables": []
     },
@@ -31987,7 +32044,7 @@
       "declaration": "TestMasterDataReview_CompanionEventOnlyOnEffectiveChange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        622
+        734
       ],
       "tables": []
     },
@@ -31997,7 +32054,7 @@
       "declaration": "TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        328
       ],
       "tables": []
     },
@@ -32007,7 +32064,7 @@
       "declaration": "TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite",
       "target": "database/repositories.NewFactory",
       "lines": [
-        182
+        294
       ],
       "tables": []
     },
@@ -32017,7 +32074,17 @@
       "declaration": "TestMasterDataReview_DecideNonPendingRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        458
+        570
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/users/master_data_review_service_test.go",
+      "declaration": "TestMasterDataReview_DecideRejectsStaleExpectedVersionAfterLock",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        176
       ],
       "tables": []
     },
@@ -32027,7 +32094,7 @@
       "declaration": "TestMasterDataReview_ListPendingEmptyAndInvalidRequestID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        298
+        410
       ],
       "tables": []
     },
@@ -32037,7 +32104,7 @@
       "declaration": "TestMasterDataReview_ListPendingEnrichesStudentNames",
       "target": "database/repositories.NewFactory",
       "lines": [
-        272
+        384
       ],
       "tables": []
     },
@@ -32047,7 +32114,7 @@
       "declaration": "TestMasterDataReview_RejectEmitsPillWithReason",
       "target": "database/repositories.NewFactory",
       "lines": [
-        582
+        694
       ],
       "tables": []
     },
@@ -32057,7 +32124,7 @@
       "declaration": "TestMasterDataReview_RejectLeavesRecordUnchanged",
       "target": "database/repositories.NewFactory",
       "lines": [
-        436
+        548
       ],
       "tables": []
     },
@@ -32067,7 +32134,7 @@
       "declaration": "TestMasterDataReview_ScopedToWritableChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        118
       ],
       "tables": []
     },
@@ -32077,7 +32144,7 @@
       "declaration": "TestMasterDataReview_StaleDepartureApprovalConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        385
+        497
       ],
       "tables": []
     },
@@ -32087,7 +32154,17 @@
       "declaration": "TestMasterDataReview_StalePersonApprovalConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        359
+        471
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/users/master_data_review_service_test.go",
+      "declaration": "TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        203
       ],
       "tables": []
     },

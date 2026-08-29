@@ -160,18 +160,37 @@ func (s *service) loadOfferingChangeState(
 	if err != nil {
 		return err
 	}
+	visibility, err := s.loadRequestShareVisibility(ctx, studentID)
+	if err != nil {
+		return err
+	}
 	if pending != nil {
-		view.LastDecision = pending.LastDecision
+		view.LastDecision = visibleOfferingDecision(pending.LastDecision, accountID, visibility)
 	}
 	if pending != nil && pending.Request != nil {
-		view.PendingRequest = pendingOfferingChange(pending, accountID)
+		view.PendingRequest = pendingOfferingChange(
+			pending, accountID,
+			visibility.allows(RequestShareOffering, pending.Request.ID, accountID, pending.Request.SubmittedBy),
+		)
 	}
 	view.EarliestEffectiveFrom, err = s.OfferingChanges.EarliestEffectiveFrom(ctx)
 	return err
 }
 
-func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64) *PendingOfferingChange {
-	if view.Request == nil {
+func visibleOfferingDecision(
+	decision *enrollmentSvc.OfferingChangeDecision,
+	accountID int64,
+	visibility *requestShareVisibility,
+) *enrollmentSvc.OfferingChangeDecision {
+	if decision == nil || !visibility.allows(RequestShareOffering, decision.ID, accountID, decision.SubmittedBy) {
+		return nil
+	}
+	decision.SubmittedBySelf = decision.SubmittedBy == accountID
+	return decision
+}
+
+func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
+	if view.Request == nil || !visible {
 		return nil
 	}
 	pending := &PendingOfferingChange{

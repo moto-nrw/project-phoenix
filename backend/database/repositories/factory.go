@@ -83,6 +83,8 @@ type Factory struct {
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
+	FamilyProtection    userModels.FamilyProtectionEventRepository
+	ParentRequestShare  userModels.ParentRequestShareEventRepository
 
 	// Staff Stammdaten (#1423)
 	StaffMasterData    userModels.StaffMasterDataRepository
@@ -322,6 +324,8 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
+		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
+		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 
 		// Staff Stammdaten (#1423)
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),

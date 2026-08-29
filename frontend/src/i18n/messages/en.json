@@ -1154,6 +1154,21 @@
     "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
     "lockedAllAction": "Go to parents app"
   },
+  "parentRequestSharing": {
+    "button": "Change visibility",
+    "title": "Who may see this request?",
+    "privacyHint": "Without sharing, other guardians only see the current status. Only you see your request, your reason and the school's reply. You can share this request with selected people.",
+    "recipientLegend": "Share request with",
+    "protected": "Family protection is active for this child. This request cannot be shared with other guardians.",
+    "noRecipients": "There are no other guardians with access to the parents app.",
+    "loading": "Loading sharing settings …",
+    "error": "The sharing settings could not be loaded or saved.",
+    "savedButNotShared": "The request was submitted, but sharing could not be saved. You can set sharing again on the request.",
+    "save": "Save sharing",
+    "saving": "Saving …",
+    "cancel": "Cancel",
+    "close": "Close window"
+  },
   "parentMasterData": {
     "title": "Details and care",
     "subtitle": "Review your child's details and booked care. Changes that require approval are clearly marked.",
@@ -1542,7 +1557,8 @@
       "pickupUnknown": "The pick-up time is not available right now"
     },
     "care": {
-      "weekTitle": "OGS weekly schedule"
+      "weekTitle": "OGS weekly schedule",
+      "absenceTitle": "Absences"
     }
   },
   "parentMessages": {

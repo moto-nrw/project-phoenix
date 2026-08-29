@@ -105,6 +105,7 @@ func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision
 		EffectiveFrom:      decision.EffectiveFrom.String(),
 		Reason:             decision.Reason,
 		CompleteWithdrawal: decision.CompleteWithdrawal,
+		SubmittedBySelf:    decision.SubmittedBySelf,
 		Requested:          make([]OfferingRequestedItemResponse, 0, len(decision.Requested)),
 	}
 	for _, item := range decision.Requested {
@@ -220,6 +221,7 @@ type OfferingDecisionResponse struct {
 	// OverriddenNames lists rule-added offerings the school excluded for this
 	// one request at approval time (#2370).
 	OverriddenNames []string `json:"overridden_names,omitempty"`
+	SubmittedBySelf bool     `json:"submitted_by_self"`
 }
 
 // OfferingRequestedItemResponse is one offering of a decided request.

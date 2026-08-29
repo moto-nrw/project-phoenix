@@ -313,14 +313,33 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		return err
 	}
 	if pending != nil {
-		view.PendingRequest = &PendingCareRequest{
-			ID:              pending.ID,
-			CreatedAt:       pending.CreatedAt,
-			Diff:            diff,
-			SubmittedBySelf: pending.SubmittedBy == accountID,
+		visibility, visibilityErr := s.loadRequestShareVisibility(ctx, studentID)
+		if visibilityErr != nil {
+			return visibilityErr
 		}
+		view.PendingRequest = pendingCareRequest(
+			pending, diff, accountID,
+			visibility.allows(RequestShareCareSchedule, pending.ID, accountID, pending.SubmittedBy),
+		)
 	}
 	return nil
+}
+
+func pendingCareRequest(
+	pending *scheduleModels.CareScheduleChangeRequest,
+	diff []scheduleService.RequestDiffEntry,
+	accountID int64,
+	visible bool,
+) *PendingCareRequest {
+	if pending == nil || !visible {
+		return nil
+	}
+	return &PendingCareRequest{
+		ID:              pending.ID,
+		CreatedAt:       pending.CreatedAt,
+		Diff:            diff,
+		SubmittedBySelf: pending.SubmittedBy == accountID,
+	}
 }
 
 func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) scheduleService.CareDayStatus {

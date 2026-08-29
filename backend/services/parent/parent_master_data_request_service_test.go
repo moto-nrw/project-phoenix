@@ -156,9 +156,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 
 	rows, err := svc.ListMyMasterDataRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, usersModels.DataChangeTargetPerson, rows[0].Target)
-	assert.JSONEq(t, `"Max"`, string(rows[0].NewValue))
+	assert.Empty(t, rows, "another guardian's requested values stay private")
 }
 
 func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {

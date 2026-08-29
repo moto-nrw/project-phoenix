@@ -285,7 +285,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 				NewState: "booked",
 				NewDays:  []string{"tue"},
 			}},
-			LastDecision: &enrollmentSvc.OfferingChangeDecision{ID: 60, Status: "rejected"},
+			LastDecision: &enrollmentSvc.OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
 		},
 	}
 	svc := careOfferingsService(db, permittedCareOfferingsChild(t), changes)
@@ -349,6 +349,13 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 	assert.NotNil(t, view.Offerings)
 	assert.False(t, view.CanRequest)
 	assert.Equal(t, OfferingChangesReasonNoEnrollment, view.ChangesDisabledReason)
+}
+
+func TestPendingOfferingChange_HidesAnotherGuardiansRequest(t *testing.T) {
+	t.Parallel()
+
+	view := &enrollmentSvc.OfferingChangeView{Request: &enrollmentModels.OfferingChangeRequest{SubmittedBy: 41}}
+	assert.Nil(t, pendingOfferingChange(view, 42, false))
 }
 
 func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {

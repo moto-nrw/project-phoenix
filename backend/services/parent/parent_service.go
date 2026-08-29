@@ -462,9 +462,14 @@ type ServiceConfig struct {
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).
-	PersonRepo        usersModels.PersonRepository
-	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
-	StudentAudit      usersSvc.StudentChangeRecorder
+	PersonRepo                usersModels.PersonRepository
+	ChangeRequestRepo         usersModels.StudentDataChangeRequestRepository
+	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
+	ExcusedRequestRepo        activeModels.ExcusedAbsenceRequestRepository
+	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
+	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
+	ParentRequestShares       usersModels.ParentRequestShareEventRepository
+	StudentAudit              usersSvc.StudentChangeRecorder
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs both the
 	// caller's primary-phone master-data edit and the wholesale phone-list replace

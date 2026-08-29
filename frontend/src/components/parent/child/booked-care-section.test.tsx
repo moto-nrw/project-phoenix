@@ -20,6 +20,10 @@ vi.mock("~/components/parent/offering-change-request-modal", () => ({
   OfferingChangeRequestModal: () => <div data-testid="offering-modal" />,
 }));
 
+vi.mock("~/components/parent/request-sharing-control", () => ({
+  RequestSharingControl: () => <div data-testid="request-sharing" />,
+}));
+
 const mockedOfferings = vi.mocked(getChildCareOfferings);
 const mockedSchedule = vi.mocked(getChildCareSchedule);
 
@@ -396,12 +400,13 @@ describe("BookedCareSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt alte offene Wochenplananfragen nicht als Elternaktion", async () => {
+  it("zeigt alte offene Wochenplananfragen nur lesbar mit ihrem Status", async () => {
     mockedSchedule.mockResolvedValue(pendingSchedule());
     renderSection();
 
     await screen.findByText("Montag");
-    expect(screen.queryByText("In Prüfung")).not.toBeInTheDocument();
+    expect(screen.getByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.getByTestId("request-sharing")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anfrage zurückziehen" }),
     ).not.toBeInTheDocument();

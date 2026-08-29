@@ -309,13 +309,15 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 		for _, d := range dates {
+			guardianAccountID := accountID
 			if err := s.StatusDayRepo.UpsertReported(txCtx, &activeModels.StudentStatusDay{
-				StudentID:  studentID,
-				Date:       d,
-				Status:     status,
-				ReportedAt: now,
-				Source:     activeModels.StudentStatusSourceParent,
-				Note:       notePtr,
+				StudentID:         studentID,
+				Date:              d,
+				Status:            status,
+				ReportedAt:        now,
+				Source:            activeModels.StudentStatusSourceParent,
+				GuardianAccountID: &guardianAccountID,
+				Note:              notePtr,
 			}); err != nil {
 				return err
 			}
@@ -510,8 +512,9 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 }
 
 // ListExcusedRequests is the legacy-named read path for the child's pending and
-// recently decided absence requests. A linked guardian with portal access may
-// see both sick and excused requests.
+// recently decided absence requests submitted by the calling guardian. The
+// child's effective absence state is shared separately; request notes and
+// decision reasons remain private to their submitter.
 func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
@@ -529,13 +532,29 @@ func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
-		out = rows
+		visibility, visibilityErr := s.loadRequestShareVisibility(txCtx, studentID)
+		if visibilityErr != nil {
+			return visibilityErr
+		}
+		out = visibleExcusedRequests(rows, accountID, visibility)
 		return nil
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: list excused requests: %w", txErr)
 	}
 	return out, nil
+}
+
+func visibleExcusedRequests(
+	rows []*activeModels.ExcusedAbsenceRequest, accountID int64, visibility *requestShareVisibility,
+) []*activeModels.ExcusedAbsenceRequest {
+	out := make([]*activeModels.ExcusedAbsenceRequest, 0, len(rows))
+	for _, row := range rows {
+		if row != nil && visibility.allows(RequestShareExcused, row.ID, accountID, row.SubmittedBy) {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // WithdrawExcusedRequest withdraws the caller's own pending excused-absence
@@ -700,7 +719,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 
 	return ChildFeatureFlags{
-		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
+		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, accountID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		SickRequiresApproval:         sickApproval,
 		ExcusedRequiresApproval:      excusedApproval,
@@ -726,16 +745,20 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 // parent-authenticated and carries no tenant context otherwise. Best-effort: a
 // query error logs and yields false so a transient failure never shows a
 // phantom badge.
-func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID int64) bool {
+func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, accountID, studentID int64) bool {
 	open := false
 	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		visibility, err := s.loadRequestShareVisibility(txCtx, studentID)
+		if err != nil {
+			return err
+		}
 		if s.CareRequests != nil {
 			if req, _, err := s.CareRequests.GetPendingForStudent(txCtx, studentID); err != nil {
 				s.Logger.Warn("parent: pending care-request check failed",
 					slog.Int64("student_id", studentID),
 					slog.String("error", err.Error()),
 				)
-			} else if req != nil {
+			} else if req != nil && visibility.allows(RequestShareCareSchedule, req.ID, accountID, req.SubmittedBy) {
 				open = true
 				return nil
 			}
@@ -747,8 +770,13 @@ func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID 
 					slog.Int64("student_id", studentID),
 					slog.String("error", err.Error()),
 				)
-			} else if len(pending) > 0 {
-				open = true
+			} else {
+				for _, req := range pending {
+					if req != nil && visibility.allows(RequestShareMasterData, req.ID, accountID, req.SubmittedBy) {
+						open = true
+						break
+					}
+				}
 			}
 		}
 		return nil
@@ -785,13 +813,13 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 		for _, r := range rows {
 			switch {
 			case r.Status == activeModels.StudentStatusDaySick:
-				absences = append(absences, r)
+				absences = append(absences, parentVisibleStatusDay(r, accountID))
 			case r.Status == activeModels.StudentStatusDayExcused &&
 				r.Source == activeModels.StudentStatusSourceParent:
 				// Only parent-reported excused days belong in the parents
 				// portal; staff-created excused rows (planned/manual) stay
 				// internal so we don't leak their note/source to guardians.
-				absences = append(absences, r)
+				absences = append(absences, parentVisibleStatusDay(r, accountID))
 			}
 		}
 		out = absences
@@ -801,6 +829,14 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 		return nil, fmt.Errorf("parent: list absences: %w", txErr)
 	}
 	return out, nil
+}
+
+func parentVisibleStatusDay(row *activeModels.StudentStatusDay, accountID int64) *activeModels.StudentStatusDay {
+	copy := *row
+	if row.GuardianAccountID == nil || *row.GuardianAccountID != accountID {
+		copy.Note = nil
+	}
+	return &copy
 }
 
 // MealPlanWeek returns the child's school meal plan for the Monday-Friday week
@@ -945,7 +981,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 }
 
 func (s *service) ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]*scheduleModels.CareScheduleChangeRequest, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -959,6 +995,17 @@ func (s *service) ListPickupChangeRequests(ctx context.Context, accountID, stude
 		if listErr != nil {
 			return listErr
 		}
+		visibility, visibilityErr := s.loadRequestShareVisibility(txCtx, studentID)
+		if visibilityErr != nil {
+			return visibilityErr
+		}
+		visible := rows[:0]
+		for _, row := range rows {
+			if row != nil && visibility.allows(RequestSharePickupChange, row.ID, accountID, row.SubmittedBy) {
+				visible = append(visible, row)
+			}
+		}
+		rows = visible
 		s.enrichLegacyPickupChangeRequests(txCtx, studentID, rows)
 		return nil
 	})
@@ -1341,7 +1388,7 @@ func (s *service) ListCareExceptions(ctx context.Context, accountID, studentID i
 		if err != nil {
 			return err
 		}
-		out = mergeCareExceptions(pickups, arrivals)
+		out = mergeCareExceptions(pickups, arrivals, accountID)
 		return nil
 	})
 	if txErr != nil {
@@ -1433,7 +1480,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 
 // mergeCareExceptions joins pickup and arrival exception rows by date into the
 // parent-facing projection, sorted ascending by date.
-func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arrivals []*scheduleModels.StudentArrivalException) []*CareException {
+func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arrivals []*scheduleModels.StudentArrivalException, accountID int64) []*CareException {
 	byDate := make(map[timezone.Date]*CareException)
 	order := make([]timezone.Date, 0, len(pickups)+len(arrivals))
 	get := func(date timezone.Date) *CareException {
@@ -1449,7 +1496,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		ce := get(p.ExceptionDate)
 		ce.PickupTime = p.PickupTime
 		ce.PickupSource = p.Source
-		if p.Source == scheduleModels.ExceptionSourceGuardian {
+		if p.Source == scheduleModels.ExceptionSourceGuardian && guardianAuthoredBy(p.CreatedByGuardian, accountID) {
 			ce.Reason = p.Reason
 		}
 		// A pickup row with no time is an absence marker, not "no override". Carry
@@ -1466,7 +1513,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 	for _, a := range arrivals {
 		ce := get(a.ExceptionDate)
 		ce.ArrivalTime = a.ExpectedArrival
-		if ce.Reason == nil && a.Source == scheduleModels.ExceptionSourceGuardian {
+		if ce.Reason == nil && a.Source == scheduleModels.ExceptionSourceGuardian && guardianAuthoredBy(a.CreatedByGuardian, accountID) {
 			ce.Reason = a.Reason
 		}
 		// An arrival row with no expected time is a "not coming today" absence
@@ -1488,6 +1535,10 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		out = append(out, byDate[d])
 	}
 	return out
+}
+
+func guardianAuthoredBy(author *int64, accountID int64) bool {
+	return author != nil && *author == accountID
 }
 
 // broadcastStudentUpdated fires a tenant-scoped student_updated SSE event

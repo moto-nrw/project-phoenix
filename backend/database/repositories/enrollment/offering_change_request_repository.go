@@ -95,6 +95,9 @@ func (r *OfferingChangeRequestRepository) ListPendingForTenant(
 		Where(`"offering_change_request".status = ?`, enrollment.OfferingChangeStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "offering_change_request")
+	query = base.ApplyRequestUrgency(
+		query, filters, `"offering_change_request".effective_from <= ?::date`, filters.UrgentDate,
+	)
 	query = base.ApplyRequestQueueFilters(query, "offering_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {

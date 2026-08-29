@@ -39,6 +39,14 @@ type ExcusedAbsenceRequestRepository struct {
 	*base.Repository[*activeModels.ExcusedAbsenceRequest]
 }
 
+func (r *ExcusedAbsenceRequestRepository) FindByID(ctx context.Context, id any) (*activeModels.ExcusedAbsenceRequest, error) {
+	row, err := r.Repository.FindByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrExcusedRequestNotFound
+	}
+	return row, err
+}
+
 // NewExcusedAbsenceRequestRepository wires a fresh repository.
 func NewExcusedAbsenceRequestRepository(db *bun.DB) activeModels.ExcusedAbsenceRequestRepository {
 	repo := base.NewRepository[*activeModels.ExcusedAbsenceRequest](db, "active.excused_absence_requests", "ExcusedAbsenceRequest")
@@ -131,6 +139,9 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Conte
 	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
 		query = query.Where(where, val)
 	}
+	query = base.ApplyRequestUrgency(
+		query, filters, `"excused_absence_request".dates @> ?::jsonb`, `["`+filters.UrgentDate+`"]`,
+	)
 	query = base.ApplyRequestQueueFilters(query, "excused_absence_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {

@@ -64,6 +64,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
+		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
 		Settings: parentSettingsStub{
@@ -72,16 +73,19 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
 		},
-		Broadcaster:       testpkg.NewRecordingBroadcaster(),
-		ArrivalSchedules:  sf.ArrivalSchedule,
-		PickupSchedules:   sf.PickupSchedule,
-		CareRequests:      sf.CareRequests,
-		StatusDayRepo:     repos.StudentStatusDay,
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
-		MessageReadRepo:   repos.ParentMessageRead,
-		DB:                db,
-		Logger:            slog.Default(),
+		Broadcaster:            testpkg.NewRecordingBroadcaster(),
+		ArrivalSchedules:       sf.ArrivalSchedule,
+		PickupSchedules:        sf.PickupSchedule,
+		CareRequests:           sf.CareRequests,
+		CareRequestRepo:        repos.CareScheduleChangeRequest,
+		FamilyProtectionEvents: repos.FamilyProtection,
+		ParentRequestShares:    repos.ParentRequestShare,
+		StatusDayRepo:          repos.StudentStatusDay,
+		MessageThreadRepo:      repos.ParentMessageThread,
+		MessageRepo:            repos.ParentMessage,
+		MessageReadRepo:        repos.ParentMessageRead,
+		DB:                     db,
+		Logger:                 slog.Default(),
 	})
 }
 
@@ -385,6 +389,37 @@ func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
 	flags, err = svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.HasOpenChangeRequest, "a pending care request badges the Stammdaten entry")
+}
+
+func TestChildFeatures_HidesAnotherGuardiansRequestUntilNamedShare(t *testing.T) {
+	t.Parallel()
+
+	svc, db, _ := buildCareScheduleService(t, true)
+	author := testpkg.CreateTestParentGuardianChain(t, db)
+	recipient := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	_, err := db.ExecContext(ctx, `
+		UPDATE users.students_guardians SET student_id = ?
+		WHERE guardian_profile_id = ?
+	`, author.StudentID, recipient.GuardianProfileID)
+	require.NoError(t, err)
+
+	created, err := svc.CreateCareScheduleRequest(ctx, author.AccountID, author.StudentID, carePayload())
+	require.NoError(t, err)
+	require.NotNil(t, created.PendingRequest)
+	flags, err := svc.ChildFeatures(ctx, recipient.AccountID, author.StudentID)
+	require.NoError(t, err)
+	assert.False(t, flags.HasOpenChangeRequest, "another guardian must not learn that a private request exists")
+
+	sharing := svc.(parentService.RequestSharingService)
+	_, err = sharing.SetRequestSharing(
+		ctx, author.AccountID, author.StudentID, parentService.RequestShareCareSchedule,
+		created.PendingRequest.ID, []int64{recipient.GuardianProfileID},
+	)
+	require.NoError(t, err)
+	flags, err = svc.ChildFeatures(ctx, recipient.AccountID, author.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.HasOpenChangeRequest, "a named recipient may see the shared open request")
 }
 
 // TestWithdrawCareScheduleRequest_NotFound covers the parent-side error mapping:

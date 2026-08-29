@@ -40,11 +40,24 @@ type ChangeRequestReviewItem struct {
 	// ChildNames are the affected children: the pinned one when the request
 	// targets a single child, every child of the enrollment otherwise.
 	ChildNames []string
+	// ChildIDs contains linked Phoenix student IDs. A one-child change can join
+	// the child's other requests without relying on a non-unique display name.
+	ChildIDs []int64
+	// Children carries one stable case identity per affected enrollment child.
+	// RequestChildID keeps unlinked applications groupable across follow-up
+	// change requests; StudentID joins an already imported child to other kinds.
+	Children []ChangeRequestReviewChild
 	// GuardianName is the person who filed the enrollment.
 	GuardianName string
 	// ReviewerName is who decided; empty while undecided, "Unbekannt" when the
 	// deciding account is gone.
 	ReviewerName string
+}
+
+type ChangeRequestReviewChild struct {
+	RequestChildID int64
+	StudentID      *int64
+	Name           string
 }
 
 func (s *changeRequestService) ListForReview(
@@ -89,9 +102,12 @@ func (s *changeRequestService) ListForReview(
 
 	items := make([]*ChangeRequestReviewItem, 0, len(rows))
 	for _, row := range rows {
+		affectedChildren := affectedReviewChildren(children[row.RequestID], row.RequestChildID)
 		item := &ChangeRequestReviewItem{
 			ChangeRequest: row,
-			ChildNames:    affectedChildNames(children[row.RequestID], row.RequestChildID),
+			ChildNames:    reviewChildNames(affectedChildren),
+			ChildIDs:      reviewStudentIDs(affectedChildren),
+			Children:      affectedChildren,
 			ReviewerName:  usersService.ReviewerDisplayName(reviewers, row.ReviewedByAccountID),
 		}
 		if req := requests[row.RequestID]; req != nil {
@@ -100,6 +116,27 @@ func (s *changeRequestService) ListForReview(
 		items = append(items, item)
 	}
 	return items, next, nil
+}
+
+func affectedReviewChildren(children []*enrollmentModels.RequestChild, pinnedChildID *int64) []ChangeRequestReviewChild {
+	result := make([]ChangeRequestReviewChild, 0, len(children))
+	for _, child := range children {
+		if pinnedChildID != nil && child.ID != *pinnedChildID {
+			continue
+		}
+		var studentID *int64
+		if child.CreatedStudentID != nil {
+			studentID = child.CreatedStudentID
+		} else if child.MatchedStudentID != nil {
+			studentID = child.MatchedStudentID
+		}
+		result = append(result, ChangeRequestReviewChild{
+			RequestChildID: child.ID,
+			StudentID:      studentID,
+			Name:           strings.TrimSpace(child.FirstName + " " + child.LastName),
+		})
+	}
+	return result
 }
 
 // CountOpenForReview is the number of Anmeldungsänderungen still waiting for a
@@ -176,13 +213,20 @@ func (s *changeRequestService) reviewListLookups(
 
 // affectedChildNames lists the children a change request concerns, in the
 // enrollment's own order.
-func affectedChildNames(children []*enrollmentModels.RequestChild, pinnedChildID *int64) []string {
+func reviewChildNames(children []ChangeRequestReviewChild) []string {
 	names := make([]string, 0, len(children))
 	for _, child := range children {
-		if pinnedChildID != nil && child.ID != *pinnedChildID {
-			continue
-		}
-		names = append(names, strings.TrimSpace(child.FirstName+" "+child.LastName))
+		names = append(names, child.Name)
 	}
 	return names
+}
+
+func reviewStudentIDs(children []ChangeRequestReviewChild) []int64 {
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child.StudentID != nil {
+			ids = append(ids, *child.StudentID)
+		}
+	}
+	return ids
 }

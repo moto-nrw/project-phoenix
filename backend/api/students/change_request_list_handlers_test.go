@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -63,6 +65,19 @@ func keysetPage[T any](
 	return matched, &userService.HistoryCursor{UpdatedAt: instant, ID: id}
 }
 
+func urgencyRows[T any](rows []T, filters modelBase.RequestQueueFilters, urgent func(T) bool) []T {
+	if filters.UrgentOnly == nil {
+		return rows
+	}
+	filtered := make([]T, 0, len(rows))
+	for _, row := range rows {
+		if urgent(row) == *filters.UrgentOnly {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
 // The aggregate endpoint fakes embed their service interface so only the two
 // read methods the endpoint touches need implementations; anything else
 // panics on a nil interface, which is exactly the failure we want in a test.
@@ -81,7 +96,8 @@ type aggMasterFake struct {
 func (f *aggMasterFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*userService.MasterDataReviewItem, *userService.HistoryCursor, error) {
 	f.pendingCalls++
 	f.gotFilters = append(f.gotFilters, filters)
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, func(*userService.MasterDataReviewItem) bool { return false })
+	items, next := keysetPage(rows, filters,
 		func(it *userService.MasterDataReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -116,7 +132,8 @@ type aggCareFake struct {
 
 func (f *aggCareFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestReviewItem, *userService.HistoryCursor, error) {
 	f.pendingCalls++
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, careRequestUrgentToday)
+	items, next := keysetPage(rows, filters,
 		func(it *scheduleService.CareRequestReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -162,7 +179,10 @@ func (f *aggOfferingFake) ListDirectCorrections(_ context.Context, filters model
 
 func (f *aggOfferingFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*enrollmentService.OfferingChangeView, *userService.HistoryCursor, error) {
 	f.pendingCalls++
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, func(item *enrollmentService.OfferingChangeView) bool {
+		return !item.Request.EffectiveFrom.After(timezone.TodayDate())
+	})
+	items, next := keysetPage(rows, filters,
 		func(it *enrollmentService.OfferingChangeView) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -194,7 +214,10 @@ type aggExcusedFake struct {
 
 func (f *aggExcusedFake) ListPending(_ context.Context, filters modelBase.RequestQueueFilters) ([]*absenceService.ExcusedRequestReviewItem, *userService.HistoryCursor, error) {
 	f.pendingCalls++
-	items, next := keysetPage(f.pending, filters,
+	rows := urgencyRows(f.pending, filters, func(item *absenceService.ExcusedRequestReviewItem) bool {
+		return slices.Contains(item.Request.Dates, timezone.TodayDate())
+	})
+	items, next := keysetPage(rows, filters,
 		func(it *absenceService.ExcusedRequestReviewItem) (time.Time, int64) {
 			return it.Request.CreatedAt, it.Request.ID
 		},
@@ -348,6 +371,7 @@ func aggRequest(t *testing.T, rawQuery string, perms []string) *http.Request {
 type aggPage struct {
 	Items []struct {
 		RequestType string          `json:"request_type"`
+		UrgentToday bool            `json:"urgent_today"`
 		Data        json.RawMessage `json:"data"`
 	} `json:"items"`
 	NextCursor string `json:"next_cursor"`
@@ -417,6 +441,28 @@ func TestAggregatedChangeRequests_OpenMergesAllTypesNewestFirst(t *testing.T) {
 	assert.Equal(t, "first_name", master.FieldKey)
 
 	assertCareAffectedBlocks(t, page.Items[3].Data)
+}
+
+func TestAggregatedChangeRequests_OpenPaginatesAllUrgentRowsBeforeNewerNormalRows(t *testing.T) {
+	t.Parallel()
+
+	rs, fakes := newAggResource()
+	fakes.master.pending = []*userService.MasterDataReviewItem{
+		aggMasterPending(1, "Neu", "Normal", aggBase.Add(48*time.Hour)),
+	}
+	urgent := aggExcusedPending(2, "Alt", "Dringend", aggBase)
+	urgent.Request.Dates = []timezone.Date{timezone.TodayDate()}
+	fakes.excused.pending = []*absenceService.ExcusedRequestReviewItem{urgent}
+
+	rr, page := execAggregated(t, rs, "limit=1", aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, []string{"excused"}, aggTypes(page))
+	assert.True(t, page.Items[0].UrgentToday)
+	require.NotEmpty(t, page.NextCursor)
+
+	rr, page = execAggregated(t, rs, "limit=1&cursor="+url.QueryEscape(page.NextCursor), aggUpdatePerms)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, []string{"master_data"}, aggTypes(page))
 }
 
 func TestAggregatedChangeRequests_OpenSearchFiltersByChildName(t *testing.T) {

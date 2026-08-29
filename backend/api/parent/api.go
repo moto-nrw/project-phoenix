@@ -39,6 +39,7 @@ import (
 type Resource struct {
 	AuthService           authService.AuthService
 	ParentService         parentService.Service
+	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
@@ -85,9 +86,18 @@ func NewResource(
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 ) *Resource {
+	var sharing parentService.RequestSharingService
+	if parent != nil {
+		var ok bool
+		sharing, ok = parent.(parentService.RequestSharingService)
+		if !ok {
+			panic("parent resource requires a request sharing service")
+		}
+	}
 	return &Resource{
 		AuthService:           auth,
 		ParentService:         parent,
+		RequestSharing:        sharing,
 		RequestService:        requestSvc,
 		GuardianProfileLoader: guardianProfileLoader,
 		SchoolService:         schoolService,
@@ -204,6 +214,9 @@ func (rs *Resource) Router() chi.Router {
 		// parent can view, and withdraw their own still-pending one.
 		r.Get("/me/children/{studentId}/excused-requests", rs.listExcusedRequests)
 		r.Delete("/me/children/{studentId}/excused-requests/{requestId}", rs.withdrawExcusedRequest)
+		r.Get("/me/children/{studentId}/request-sharing/{requestType}/{requestId}", rs.getRequestSharing)
+		r.Put("/me/children/{studentId}/request-sharing/{requestType}/{requestId}", rs.setRequestSharing)
+		r.Get("/me/children/{studentId}/request-sharing-options", rs.getRequestSharingOptions)
 
 		// Parent-OGS messaging — chat model. One continuous conversation per
 		// child with the OGS (no subject). The list aggregates the guardian's

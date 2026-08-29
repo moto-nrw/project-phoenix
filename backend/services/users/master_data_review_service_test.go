@@ -31,6 +31,54 @@ func (s reviewNotesSettings) ResolveBoolForTenant(context.Context, int64, string
 	return s.enabled, nil
 }
 
+type failSecondMasterReview struct {
+	userService.MasterDataReviewService
+	calls int
+}
+
+func (s *failSecondMasterReview) GetBulkCandidate(ctx context.Context, requestID int64) (*userService.MasterDataReviewItem, error) {
+	bulk := s.MasterDataReviewService.(interface {
+		GetBulkCandidate(context.Context, int64) (*userService.MasterDataReviewItem, error)
+	})
+	return bulk.GetBulkCandidate(ctx, requestID)
+}
+
+func (s *failSecondMasterReview) LockBulkRequest(ctx context.Context, requestID int64) error {
+	bulk := s.MasterDataReviewService.(interface {
+		LockBulkRequest(context.Context, int64) error
+	})
+	return bulk.LockBulkRequest(ctx, requestID)
+}
+
+func (s *failSecondMasterReview) LockBulkStudents(ctx context.Context, studentIDs []int64) error {
+	bulk := s.MasterDataReviewService.(interface {
+		LockBulkStudents(context.Context, []int64) error
+	})
+	return bulk.LockBulkStudents(ctx, studentIDs)
+}
+
+func (s *failSecondMasterReview) Decide(ctx context.Context, input userService.MasterDataReviewDecideInput) (*userService.MasterDataReviewItem, error) {
+	s.calls++
+	if s.calls == 2 {
+		return nil, errors.New("forced second apply failure")
+	}
+	return s.MasterDataReviewService.Decide(ctx, input)
+}
+
+type unusedExcusedBulkPort struct{}
+
+func (unusedExcusedBulkPort) GetExcusedBulkCandidate(context.Context, int64) (*userService.ExcusedBulkCandidate, error) {
+	return nil, nil
+}
+
+func (unusedExcusedBulkPort) ApproveExcusedBulk(context.Context, int64, string, int64, string) error {
+	return errors.New("unexpected absence bulk approval")
+}
+
+func (unusedExcusedBulkPort) LockExcusedBulkRequest(context.Context, int64) error {
+	return errors.New("unexpected absence bulk lock")
+}
+
 // authorizedCtx stamps admin permissions so the per-child write gate in
 // ListPending/Decide short-circuits. These tests exercise decide LOGIC (apply,
 // staleness, concurrency), not authorization; the scope gate itself is covered
@@ -119,6 +167,70 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
 	require.NoError(t, err)
 	assert.Equal(t, "Maximilian", person.FirstName)
+}
+
+func TestMasterDataReview_DecideRejectsStaleExpectedVersionAfterLock(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewServiceWithAudit(
+		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default(),
+	)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{
+			RequestID: row.ID, Approve: true, ExpectedVersion: "stale",
+		})
+		return decideErr
+	})
+	require.ErrorIs(t, err, userService.ErrParentRequestStale)
+
+	stored, err := repos.StudentDataChangeRequest.FindByID(testpkg.Ctx(t), row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, userModels.DataChangeStatusPending, stored.Status)
+	person, err := repos.Person.FindByID(testpkg.Ctx(t), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Felix", person.FirstName)
+}
+
+func TestParentRequestCoordinator_RollsBackEarlierDatabaseWrite(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	realReview := userService.NewMasterDataReviewServiceWithAudit(
+		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default(),
+	)
+	review := &failSecondMasterReview{MasterDataReviewService: realReview}
+	coordinator := userService.NewParentRequestCoordinator(review, unusedExcusedBulkPort{})
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	first := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	second := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Becker"`)
+
+	err := testpkg.WithTenantTx(t, authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		bulkErr := coordinator.BulkApprove(txCtx, userService.BulkApproveParentRequestsInput{
+			Requests: []userService.ParentRequestRef{
+				{Kind: userService.ParentRequestKindMasterData, ID: first.ID, ExpectedVersion: userService.ParentRequestVersion(first.UpdatedAt)},
+				{Kind: userService.ParentRequestKindMasterData, ID: second.ID, ExpectedVersion: userService.ParentRequestVersion(second.UpdatedAt)},
+			},
+			Reason: "Gemeinsam geprüft", ReviewerID: chain.AccountID,
+		})
+		require.Error(t, bulkErr)
+		return bulkErr
+	})
+	require.Error(t, err)
+
+	person, err := repos.Person.FindByID(testpkg.Ctx(t), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Felix", person.FirstName)
+	for _, requestID := range []int64{first.ID, second.ID} {
+		stored, findErr := repos.StudentDataChangeRequest.FindByID(testpkg.Ctx(t), requestID)
+		require.NoError(t, findErr)
+		assert.Equal(t, userModels.DataChangeStatusPending, stored.Status)
+	}
 }
 
 func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {

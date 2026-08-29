@@ -10,6 +10,11 @@ import {
 interface Row {
   readonly id: string;
   readonly occurred_at: string;
+  readonly urgent_today?: boolean;
+}
+
+function urgentRow(id: string, occurredAt: string): Row {
+  return { ...row(id, occurredAt), urgent_today: true };
 }
 
 function row(id: string, occurredAt: string): Row {
@@ -32,6 +37,27 @@ function pagedSource(key: string, pages: FeedPage<Row>[]): FeedSource<Row> {
 const ids = (items: Row[]) => items.map((item) => item.id);
 
 describe("takeMergedPage", () => {
+  it("gibt eine ältere dringende Anfrage vor einer vollen Seite neuer normaler Anmeldungen aus", async () => {
+    const enrollments = Array.from({ length: 25 }, (_, index) =>
+      row(
+        `enrollment-${index}`,
+        `2026-08-29T${String(23 - (index % 20)).padStart(2, "0")}:00:00Z`,
+      ),
+    );
+    const sources = [
+      pagedSource("enrollment", [{ items: enrollments }]),
+      pagedSource("requests", [
+        { items: [urgentRow("urgent", "2026-08-01T08:00:00Z")] },
+      ]),
+    ];
+    const state = createFeedState(sources);
+
+    const page = await takeMergedPage(sources, state, 25);
+
+    expect(page.items[0]?.id).toBe("urgent");
+    expect(page.items).toHaveLength(25);
+    expect(page.hasMore).toBe(true);
+  });
   it("gibt die Zeilen beider Quellen nach Zeitpunkt sortiert aus", async () => {
     const sources = [
       pagedSource("a", [

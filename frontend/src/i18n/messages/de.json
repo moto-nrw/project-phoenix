@@ -1154,6 +1154,21 @@
     "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
     "lockedAllAction": "Zur Eltern-App"
   },
+  "parentRequestSharing": {
+    "button": "Sichtbarkeit ändern",
+    "title": "Wer darf diese Anfrage sehen?",
+    "privacyHint": "Ohne Freigabe sehen andere Sorgeberechtigte nur den aktuellen Stand. Ihre Anfrage, Ihre Begründung und die Antwort der OGS sehen nur Sie. Sie können diese Anfrage für einzelne Personen freigeben.",
+    "recipientLegend": "Anfrage freigeben für",
+    "protected": "Für dieses Kind ist der Familienschutz aktiv. Die Anfrage kann nicht mit anderen Sorgeberechtigten geteilt werden.",
+    "noRecipients": "Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App.",
+    "loading": "Freigaben werden geladen …",
+    "error": "Die Freigaben konnten nicht geladen oder gespeichert werden.",
+    "savedButNotShared": "Die Anfrage wurde gesendet. Die Freigabe konnte nicht gespeichert werden. Sie können die Freigabe bei der Anfrage erneut festlegen.",
+    "save": "Freigabe speichern",
+    "saving": "Wird gespeichert …",
+    "cancel": "Abbrechen",
+    "close": "Fenster schließen"
+  },
   "parentMasterData": {
     "title": "Daten und Betreuung",
     "subtitle": "Prüfen Sie die Angaben zu Ihrem Kind und die gebuchte Betreuung. Änderungen mit Prüfbedarf werden deutlich gekennzeichnet.",
@@ -1542,7 +1557,8 @@
       "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
     },
     "care": {
-      "weekTitle": "Dein OGS Wochenplan"
+      "weekTitle": "Dein OGS Wochenplan",
+      "absenceTitle": "Abwesenheiten"
     }
   },
   "parentMessages": {

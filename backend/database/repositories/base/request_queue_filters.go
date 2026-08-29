@@ -48,6 +48,21 @@ func ApplyRequestQueueFilters(q *bun.SelectQuery, alias, keysetColumn string, f 
 	return q
 }
 
+// ApplyRequestUrgency narrows an open queue to one urgency phase. expression
+// is repository-owned SQL and args are bound values; false selects its exact
+// complement so no pending row can appear in both phases or in neither.
+func ApplyRequestUrgency(
+	q *bun.SelectQuery, filters modelBase.RequestQueueFilters, expression string, args ...any,
+) *bun.SelectQuery {
+	if filters.UrgentOnly == nil {
+		return q
+	}
+	if *filters.UrgentOnly {
+		return q.Where(expression, args...)
+	}
+	return q.Where("NOT ("+expression+")", args...)
+}
+
 // EscapeILike neutralizes LIKE wildcards in free-text search input, so a "%"
 // the user typed matches a literal percent instead of the whole table. Pair it
 // with an explicit ESCAPE '\' clause. Backslash is escaped first so the escapes

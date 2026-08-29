@@ -14,9 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
   PickupTimeModal,
   SickNoteModal,
+  SickStatusSummary,
   useChildCare,
 } from "~/components/parent/child-care";
 import { BookedCareSection } from "~/components/parent/child/booked-care-section";
+import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
 import {
   ChildSwitcher,
@@ -309,10 +311,14 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         canAddContact={care.features.guardian_contact_manage_allowed}
         canManagePickup={care.features.pickup_manage_allowed === true}
         careEnded={careEnded}
+        sickDays={care.sickDays}
+        excusedRequests={care.excusedRequests}
+        onWithdrawExcused={care.withdrawExcused}
       />
 
       {modal === "sick" && (
         <SickNoteModal
+          studentId={child.student_id}
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
           sickRequiresApproval={care.features.sick_requires_approval}
@@ -321,6 +327,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
       )}
       {modal === "pickup" && (
         <PickupTimeModal
+          studentId={child.student_id}
           careExceptions={care.careExceptions}
           pickupChangeRequests={care.pickupChangeRequests}
           careExceptionsLoaded={care.careExceptionsLoaded}
@@ -345,6 +352,9 @@ function ChildAreaTabs({
   canAddContact,
   canManagePickup,
   careEnded,
+  sickDays,
+  excusedRequests,
+  onWithdrawExcused,
 }: Readonly<{
   child: Child;
   childName: string;
@@ -353,6 +363,9 @@ function ChildAreaTabs({
   canAddContact: boolean;
   canManagePickup: boolean;
   careEnded: boolean;
+  sickDays: import("~/lib/parent-api").StatusDay[];
+  excusedRequests: import("~/lib/parent-api").ExcusedRequest[];
+  onWithdrawExcused: (requestId: string) => Promise<void>;
 }>) {
   const t = useTranslations("parentChild");
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
@@ -394,6 +407,16 @@ function ChildAreaTabs({
         value="betreuung"
         className="mt-0 space-y-5 data-[state=inactive]:hidden"
       >
+        {(sickDays.length > 0 || excusedRequests.length > 0) && (
+          <ParentSection title={t("care.absenceTitle")} concept="sick">
+            <SickStatusSummary
+              studentId={child.student_id}
+              sickDays={sickDays}
+              excusedRequests={excusedRequests}
+              onWithdraw={onWithdrawExcused}
+            />
+          </ParentSection>
+        )}
         <BookedCareSection
           studentId={child.student_id}
           childFirstName={child.first_name}

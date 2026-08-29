@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -89,12 +90,31 @@ func (r *CareScheduleChangeRequestRepository) listPending(ctx context.Context, k
 	}
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
+	weekdayJSON := fmt.Sprintf(`[{"weekday":%d}]`, urgencyWeekday(filters.UrgentDate))
+	query = base.ApplyRequestUrgency(query, filters, `
+		("care_schedule_change_request".request_kind = 'pickup_change'
+			AND "care_schedule_change_request".payload->>'date' = ?)
+		OR ("care_schedule_change_request".request_kind <> 'pickup_change'
+			AND "care_schedule_change_request".payload->'weekdays' @> ?::jsonb)
+	`, filters.UrgentDate, weekdayJSON)
 	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: err}
 	}
 	return rows, nil
+}
+
+func urgencyWeekday(raw string) int {
+	date, err := time.Parse(time.DateOnly, raw)
+	if err != nil {
+		return 0
+	}
+	weekday := int(date.Weekday())
+	if weekday == 0 {
+		return 7
+	}
+	return weekday
 }
 
 // ListDecidedForTenant returns the tenant's decided care-schedule requests

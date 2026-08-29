@@ -102,6 +102,7 @@ func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Co
 		Where(`"student_data_change_request".status = ?`, users.DataChangeStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
+	query = base.ApplyRequestUrgency(query, filters, "FALSE")
 	query = base.ApplyRequestQueueFilters(query, "student_data_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {

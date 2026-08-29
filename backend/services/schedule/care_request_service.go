@@ -240,6 +240,16 @@ type careScheduleRequestService struct {
 	broadcaster       realtime.Broadcaster
 	studentAudit      usersService.StudentChangeRecorder
 	logger            *slog.Logger
+	reviewPolicy      RequestReviewPolicy
+}
+
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*usersModels.Student) bool, error)
+	Allows(context.Context, []string, *usersModels.Student) (bool, error)
+}
+
+func (s *careScheduleRequestService) SetRequestReviewPolicy(policy RequestReviewPolicy) {
+	s.reviewPolicy = policy
 }
 
 // NewCareScheduleRequestServiceWithPickupChanges wires one-day pickup requests
@@ -536,7 +546,10 @@ func (s *careScheduleRequestService) ListHistory(ctx context.Context, filters mo
 
 	// Same per-child scope as ListPending: write gate + alumnus skip, so the
 	// history shows exactly the children the caller may act on.
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*CareRequestHistoryItem, 0, len(rows))
 	for _, r := range rows {
@@ -697,7 +710,10 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 	if err != nil {
 		return nil, err
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]*CareRequestReviewItem, 0, len(rows))
 	sources := map[int64]*careDiffSource{}
 	for _, r := range rows {
@@ -895,10 +911,37 @@ func (s *careScheduleRequestService) loadAuthorizedCareDecision(ctx context.Cont
 	if student.CareEndedOn(timezone.TodayDate()) {
 		return nil, scheduleModels.ErrCareRequestNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !allowed {
 		return nil, ErrCareRequestForbidden
 	}
 	return req, nil
+}
+
+func (s *careScheduleRequestService) reviewableFilter(ctx context.Context) (func(*usersModels.Student) bool, error) {
+	if s.reviewPolicy == nil {
+		return authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext), nil
+	}
+	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("schedule: resolve request reviewer scope: %w", err)
+	}
+	return filter, nil
+}
+
+func (s *careScheduleRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+	if s.reviewPolicy == nil {
+		ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext)
+		return ok, nil
+	}
+	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("schedule: resolve request reviewer scope: %w", err)
+	}
+	return ok, nil
 }
 
 func (s *careScheduleRequestService) applyApprovedCareDecision(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest, input CareRequestDecideInput) (bool, error) {

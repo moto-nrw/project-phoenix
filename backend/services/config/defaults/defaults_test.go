@@ -143,6 +143,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
 		"operations.parent_master_data_request_enabled",
+		"operations.parent_request_group_leader_review_enabled",
 		"operations.parent_news_enabled",
 		"operations.meal_plan_enabled",
 		// Related-accounts management.
@@ -180,6 +181,19 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// The `>=` is intentional so later work packages can add more settings
 	// without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
+}
+
+func TestParentRequestGroupLeaderReviewSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentRequestGroupLeaderReviewEnabled)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "group leaders must not receive family-data access by default")
+	assert.Equal(t, "config:manage", def.WritePermission)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
 }
 
 func TestAbsenceApprovalEmailSetting(t *testing.T) {

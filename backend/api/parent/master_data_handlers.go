@@ -60,6 +60,7 @@ type MasterDataChangeResponse struct {
 	NewValue  json.RawMessage `json:"new_value"`
 	Status    string          `json:"status"`
 	CreatedAt string          `json:"created_at"`
+	IsSelf    bool            `json:"is_self"`
 }
 
 // UpdateMasterDataRequest is the wire shape for the Track A PATCH. The value is
@@ -76,7 +77,7 @@ func dateStrPtr(d *timezone.Date) *string {
 	return &s
 }
 
-func toMasterDataResponse(d *parentService.ChildMasterData) MasterDataResponse {
+func toMasterDataResponse(d *parentService.ChildMasterData, accountID int64) MasterDataResponse {
 	resp := MasterDataResponse{
 		StudentID:              strconv.FormatInt(d.StudentID, 10),
 		FirstName:              d.FirstName,
@@ -108,6 +109,7 @@ func toMasterDataResponse(d *parentService.ChildMasterData) MasterDataResponse {
 			NewValue:  c.NewValue,
 			Status:    c.Status,
 			CreatedAt: c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsSelf:    c.SubmittedBy == accountID,
 		})
 	}
 	return resp
@@ -129,7 +131,7 @@ func (rs *Resource) getMasterData(w http.ResponseWriter, r *http.Request) {
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMasterDataResponse(data), "Master data retrieved")
+	common.Respond(w, r, http.StatusOK, toMasterDataResponse(data, accountID), "Master data retrieved")
 }
 
 // updateMasterDataField applies a Track A direct edit to a single field.
@@ -160,7 +162,7 @@ func (rs *Resource) updateMasterDataField(w http.ResponseWriter, r *http.Request
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMasterDataResponse(data), "Master data updated")
+	common.Respond(w, r, http.StatusOK, toMasterDataResponse(data, accountID), "Master data updated")
 }
 
 // MasterDataChangeRequestBody is the wire shape for POST .../master-data/requests.
@@ -175,7 +177,7 @@ type MasterDataChangeInput struct {
 	Value    json.RawMessage `json:"value"`
 }
 
-func toMasterDataChangeResponses(rows []*usersModels.StudentDataChangeRequest) []MasterDataChangeResponse {
+func toMasterDataChangeResponses(rows []*usersModels.StudentDataChangeRequest, accountID int64) []MasterDataChangeResponse {
 	out := make([]MasterDataChangeResponse, 0, len(rows))
 	for _, c := range rows {
 		out = append(out, MasterDataChangeResponse{
@@ -186,6 +188,7 @@ func toMasterDataChangeResponses(rows []*usersModels.StudentDataChangeRequest) [
 			NewValue:  c.NewValue,
 			Status:    c.Status,
 			CreatedAt: c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsSelf:    c.SubmittedBy == accountID,
 		})
 	}
 	return out
@@ -221,7 +224,7 @@ func (rs *Resource) submitMasterDataRequest(w http.ResponseWriter, r *http.Reque
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toMasterDataChangeResponses(rows), "Change request submitted")
+	common.Respond(w, r, http.StatusCreated, toMasterDataChangeResponses(rows, accountID), "Change request submitted")
 }
 
 // listMasterDataRequests returns the child's change requests (any status).
@@ -239,5 +242,5 @@ func (rs *Resource) listMasterDataRequests(w http.ResponseWriter, r *http.Reques
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMasterDataChangeResponses(rows), "Change requests retrieved")
+	common.Respond(w, r, http.StatusOK, toMasterDataChangeResponses(rows, accountID), "Change requests retrieved")
 }

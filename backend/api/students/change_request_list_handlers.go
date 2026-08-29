@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -53,6 +54,8 @@ var aggregatedRequestTypeOrder = []string{
 	requestTypeDirectCorrection,
 }
 
+const aggregatedNormalPhaseCursorKey = "_normal"
+
 const (
 	// aggregatedFetchLimit is the per-service page size of one internal fetch;
 	// larger than the response limit so a page still fills when the per-child
@@ -76,8 +79,16 @@ type AggregatedChangeRequestItem struct {
 	// OccurredAt is the instant the row is ordered by: the submission on the
 	// open view, the decision in the history. The client merges this list with
 	// the separately gated Anmeldungsänderungen (#2435) on it.
-	OccurredAt time.Time `json:"occurred_at"`
-	Data       any       `json:"data"`
+	OccurredAt           time.Time `json:"occurred_at"`
+	StudentID            string    `json:"student_id"`
+	StudentName          string    `json:"student_name"`
+	GroupName            string    `json:"group_name,omitempty"`
+	ExpectedVersion      string    `json:"expected_version"`
+	UrgentToday          bool      `json:"urgent_today"`
+	BulkEligible         bool      `json:"bulk_eligible"`
+	BulkIneligibleReason string    `json:"bulk_ineligible_reason,omitempty"`
+	FamilyProtected      bool      `json:"family_protected"`
+	Data                 any       `json:"data"`
 }
 
 // AggregatedChangeRequestPage is the cursor envelope of the aggregated list.
@@ -119,6 +130,9 @@ func decodeAggregatedCursor(raw string) (aggregatedCursor, error) {
 		return nil, errInvalidAggregatedQuery
 	}
 	for typ, pos := range cursor {
+		if typ == aggregatedNormalPhaseCursorKey && pos == nil {
+			continue
+		}
 		if !isAggregatedRequestType(typ) || (pos != nil && (pos.UpdatedAt.IsZero() || pos.ID <= 0)) {
 			return nil, errInvalidAggregatedQuery
 		}
@@ -136,12 +150,13 @@ type aggregatedListQuery struct {
 	search  string
 	// studentID limits the list to one child — the Kinderkartei's
 	// Änderungsprotokoll (#2437). Zero = every child the caller may see.
-	studentID int64
-	types     []string
-	statuses  map[string]struct{} // canonical: approved / rejected / withdrawn; empty = all
-	from, to  time.Time           // decided-at bounds; zero = unbounded
-	limit     int
-	cursor    aggregatedCursor
+	studentID  int64
+	types      []string
+	statuses   map[string]struct{} // canonical: approved / rejected / withdrawn; empty = all
+	from, to   time.Time           // decided-at bounds; zero = unbounded
+	limit      int
+	cursor     aggregatedCursor
+	urgentOnly *bool
 }
 
 func parseAggregatedListQuery(r *http.Request) (aggregatedListQuery, error) {
@@ -279,20 +294,27 @@ func parseAggregatedDateRange(q *aggregatedListQuery, rawFrom, rawTo string) err
 // filter and serialize. sortTime is the keyset instant of the underlying DB
 // row: created_at on the open view, updated_at on the history view.
 type aggregatedRow struct {
-	typ         string
-	sortTime    time.Time
-	id          int64
-	studentID   int64
-	studentName string
-	status      string
-	decidedAt   time.Time // history only
-	data        any
+	typ                  string
+	sortTime             time.Time
+	id                   int64
+	studentID            int64
+	studentName          string
+	status               string
+	version              time.Time
+	urgentToday          bool
+	bulkEligible         bool
+	bulkIneligibleReason string
+	decidedAt            time.Time // history only
+	data                 any
 }
 
 // queueFilters is the part of the query the repositories evaluate themselves:
 // which children, plus the page size and keyset the source fills in.
 func (q *aggregatedListQuery) queueFilters() modelBase.RequestQueueFilters {
-	return modelBase.RequestQueueFilters{StudentID: q.studentID, Search: q.search}
+	return modelBase.RequestQueueFilters{
+		StudentID: q.studentID, Search: q.search,
+		UrgentOnly: q.urgentOnly, UrgentDate: timezone.TodayDate().String(),
+	}
 }
 
 // matches applies the row filters that stay in Go because they are per-type
@@ -370,16 +392,88 @@ func (rs *Resource) listAggregatedChangeRequests(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	if !q.history && rs.PersonService != nil && rs.EducationService != nil {
+		if err := rs.decorateStudentGroups(ctx, &page); err != nil {
+			renderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+	}
+	if !q.history && rs.FamilyProtectionService != nil {
+		if err := rs.decorateFamilyProtection(ctx, &page); err != nil {
+			renderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+	}
 	common.Respond(w, r, http.StatusOK, page, "Change requests retrieved")
+}
+
+func (rs *Resource) decorateStudentGroups(ctx context.Context, page *AggregatedChangeRequestPage) error {
+	studentIDs := aggregatedStudentIDs(page.Items)
+	students, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("load students for request queue groups: %w", err)
+	}
+	groupIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student != nil && student.GroupID != nil {
+			groupIDs = append(groupIDs, *student.GroupID)
+		}
+	}
+	groups, err := rs.EducationService.GetGroupsByIDs(ctx, groupIDs)
+	if err != nil {
+		return fmt.Errorf("load groups for request queue: %w", err)
+	}
+	for i := range page.Items {
+		id, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
+		student := students[id]
+		if student != nil && student.GroupID != nil && groups[*student.GroupID] != nil {
+			page.Items[i].GroupName = groups[*student.GroupID].Name
+		}
+	}
+	return nil
+}
+
+func aggregatedStudentIDs(items []AggregatedChangeRequestItem) []int64 {
+	studentIDs := make([]int64, 0, len(items))
+	seen := make(map[int64]struct{}, len(items))
+	for _, item := range items {
+		id, err := strconv.ParseInt(item.StudentID, 10, 64)
+		if err == nil && id > 0 {
+			if _, ok := seen[id]; !ok {
+				seen[id] = struct{}{}
+				studentIDs = append(studentIDs, id)
+			}
+		}
+	}
+	return studentIDs
+}
+
+func (rs *Resource) decorateFamilyProtection(ctx context.Context, page *AggregatedChangeRequestPage) error {
+	studentIDs := aggregatedStudentIDs(page.Items)
+	current, err := rs.FamilyProtectionService.Current(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("load family protection for request queue: %w", err)
+	}
+	for i := range page.Items {
+		id, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
+		page.Items[i].FamilyProtected = current[id] != nil && current[id].Enabled
+	}
+	return nil
 }
 
 // newAggregatedItem is the single place a row becomes a wire item, so both
 // views agree on what occurred_at means.
 func newAggregatedItem(row *aggregatedRow) AggregatedChangeRequestItem {
 	return AggregatedChangeRequestItem{
-		RequestType: row.typ,
-		OccurredAt:  row.sortTime,
-		Data:        row.data,
+		RequestType:          row.typ,
+		OccurredAt:           row.sortTime,
+		StudentID:            strconv.FormatInt(row.studentID, 10),
+		StudentName:          row.studentName,
+		ExpectedVersion:      userService.ParentRequestVersion(row.version),
+		UrgentToday:          row.urgentToday,
+		BulkEligible:         row.bulkEligible,
+		BulkIneligibleReason: row.bulkIneligibleReason,
+		Data:                 row.data,
 	}
 }
 
@@ -414,50 +508,86 @@ func mapAggregatedRows[T any](items []T, build func(T) aggregatedRow) []aggregat
 
 func masterDataPendingRow(item *userService.MasterDataReviewItem) aggregatedRow {
 	return aggregatedRow{
-		typ:         requestTypeMasterData,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.FirstName + " " + item.LastName,
-		status:      item.Request.Status,
-		data:        toMasterDataChangeRequestResponse(item),
+		typ:                  requestTypeMasterData,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.FirstName + " " + item.LastName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		bulkEligible:         item.BulkEligible,
+		bulkIneligibleReason: item.BulkIneligibleReason,
+		data:                 toMasterDataChangeRequestResponse(item),
 	}
 }
 
 func carePendingRow(item *scheduleService.CareRequestReviewItem) aggregatedRow {
 	return aggregatedRow{
-		typ:         requestTypeCareSchedule,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.FirstName + " " + item.LastName,
-		status:      item.Request.Status,
-		data:        toCareRequestResponse(item),
+		typ:                  requestTypeCareSchedule,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.FirstName + " " + item.LastName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		urgentToday:          careRequestUrgentToday(item),
+		bulkIneligibleReason: "Betreuungszeiten müssen einzeln geprüft werden.",
+		data:                 toCareRequestResponse(item),
 	}
 }
 
 func offeringPendingRow(item *enrollmentService.OfferingChangeView) aggregatedRow {
 	return aggregatedRow{
-		typ:         requestTypeOffering,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.StudentName,
-		status:      item.Request.Status,
-		data:        toOfferingRequestResponse(item),
+		typ:                  requestTypeOffering,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.StudentName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		urgentToday:          !item.Request.EffectiveFrom.After(timezone.TodayDate()),
+		bulkIneligibleReason: "Angebote müssen einzeln geprüft werden.",
+		data:                 toOfferingRequestResponse(item),
 	}
 }
 
 func excusedPendingRow(item *absenceService.ExcusedRequestReviewItem) aggregatedRow {
-	return aggregatedRow{
-		typ:         requestTypeExcused,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.FirstName + " " + item.LastName,
-		status:      item.Request.Status,
-		data:        toStaffExcusedRequestResponse(item),
+	today := timezone.TodayDate()
+	urgent := false
+	for _, date := range item.Request.Dates {
+		urgent = urgent || date == today
 	}
+	return aggregatedRow{
+		typ:                  requestTypeExcused,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.FirstName + " " + item.LastName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		urgentToday:          urgent,
+		bulkEligible:         item.BulkEligible,
+		bulkIneligibleReason: item.BulkIneligibleReason,
+		data:                 toStaffExcusedRequestResponse(item),
+	}
+}
+
+func careRequestUrgentToday(item *scheduleService.CareRequestReviewItem) bool {
+	today := timezone.TodayDate()
+	if item.Request.RequestKind == "pickup_change" {
+		date, _ := item.Request.Payload["date"].(string)
+		return date == today.String()
+	}
+	weekday := int(today.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	for _, diff := range item.Diff {
+		if diff.Weekday == weekday {
+			return true
+		}
+	}
+	return false
 }
 
 // aggregatedSource pulls one type's pages on demand. It keeps the scan
@@ -545,6 +675,41 @@ func (s *aggregatedSource) cursorPosition() (*historyCursorPayload, bool) {
 // and history walk the identical path — they differ only in which service
 // method each source pulls from and which instant the rows sort on.
 func (rs *Resource) aggregatedPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
+	if q.history {
+		return rs.aggregatedPriorityPage(ctx, q)
+	}
+	if _, normalPhase := q.cursor[aggregatedNormalPhaseCursorKey]; normalPhase {
+		normal := false
+		q.urgentOnly = &normal
+		page, err := rs.aggregatedPriorityPage(ctx, q)
+		page.NextCursor = withNormalPhaseCursor(page.NextCursor)
+		return page, err
+	}
+	urgent := true
+	q.urgentOnly = &urgent
+	page, err := rs.aggregatedPriorityPage(ctx, q)
+	if err != nil || page.NextCursor != "" {
+		return page, err
+	}
+	if len(page.Items) == q.limit {
+		page.NextCursor = encodeAggregatedCursor(aggregatedCursor{aggregatedNormalPhaseCursorKey: nil})
+		return page, nil
+	}
+	normal := *q
+	normal.cursor = nil
+	normal.limit = q.limit - len(page.Items)
+	normalUrgent := false
+	normal.urgentOnly = &normalUrgent
+	normalPage, err := rs.aggregatedPriorityPage(ctx, &normal)
+	if err != nil {
+		return AggregatedChangeRequestPage{}, err
+	}
+	page.Items = append(page.Items, normalPage.Items...)
+	page.NextCursor = withNormalPhaseCursor(normalPage.NextCursor)
+	return page, nil
+}
+
+func (rs *Resource) aggregatedPriorityPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
 	sources := make([]*aggregatedSource, 0, len(q.types))
 	for _, typ := range q.types {
 		source := rs.sourceFor(typ, q.history)
@@ -570,6 +735,18 @@ func (rs *Resource) aggregatedPage(ctx context.Context, q *aggregatedListQuery) 
 	}
 	page.NextCursor = aggregatedNextCursor(sources)
 	return page, nil
+}
+
+func withNormalPhaseCursor(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	cursor, err := decodeAggregatedCursor(raw)
+	if err != nil {
+		return ""
+	}
+	cursor[aggregatedNormalPhaseCursorKey] = nil
+	return encodeAggregatedCursor(cursor)
 }
 
 // newestAggregatedSource returns the source whose buffered head row sorts

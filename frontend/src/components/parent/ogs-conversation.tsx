@@ -414,6 +414,7 @@ export function OgsConversation({
       )}
       {activeModal === "pickup" && (
         <PickupTimeModal
+          studentId={studentId}
           careExceptions={care.careExceptions}
           pickupChangeRequests={care.pickupChangeRequests}
           careExceptionsLoaded={care.careExceptionsLoaded}

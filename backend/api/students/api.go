@@ -77,16 +77,18 @@ type ResourceConfig struct {
 	CareRequestService      scheduleService.CareScheduleRequestService
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
-	OfferingChangeService   enrollmentService.OfferingChangeRequestService
-	PickupAdjustmentService enrollmentService.PickupAdjustmentService
-	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
-	StudentStatusDayService *activeService.StudentStatusDayService
-	AbsenceOverview         *activeService.StudentStatusDayOverviewService
-	StudentHistoryService   activeService.StudentHistoryService
-	OGSGroupLiveService     ogsGroupLiveService.Getter
-	ActivityService         activityService.ActivityService
-	EnrollmentDecision      enrollmentService.DecisionService
-	EnrollmentFormSchema    enrollmentService.FormSchemaService
+	OfferingChangeService    enrollmentService.OfferingChangeRequestService
+	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
+	ExcusedRequestService    absenceService.ExcusedAbsenceRequestService
+	ParentRequestBulkService userService.ParentRequestBulkService
+	FamilyProtectionService  userService.FamilyProtectionManager
+	StudentStatusDayService  *activeService.StudentStatusDayService
+	AbsenceOverview          *activeService.StudentStatusDayOverviewService
+	StudentHistoryService    activeService.StudentHistoryService
+	OGSGroupLiveService      ogsGroupLiveService.Getter
+	ActivityService          activityService.ActivityService
+	EnrollmentDecision       enrollmentService.DecisionService
+	EnrollmentFormSchema     enrollmentService.FormSchemaService
 	// OfferingSourceResyncer re-reconciles Jahrgang-filtered offering-sourced
 	// Regeltermine after a direct school_class edit, in the same transaction —
 	// the same hook a grade transition uses (#2147 review round 10). Optional:
@@ -210,6 +212,9 @@ func (rs *Resource) Router() chi.Router {
 		// to the excused queue — the only one whose per-type routes accept
 		// users:absence.
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests", rs.listAggregatedChangeRequests)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/change-requests/bulk-approve", rs.bulkApproveParentRequests)
+		r.With(authorize.RequiresPermission(permissions.ConfigManage), withTx).Get("/{id}/family-protection", rs.getFamilyProtection)
+		r.With(authorize.RequiresPermission(permissions.ConfigManage), withTx).Put("/{id}/family-protection", rs.setFamilyProtection)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
