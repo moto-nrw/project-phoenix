@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -18,7 +20,33 @@ import (
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
-	resource *DevicesResource
+	resource devicesTestResource
+}
+
+type devicesTestResource struct {
+	*DevicesResource
+	tb testing.TB
+}
+
+func (rs devicesTestResource) Router() chi.Router {
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, granted := testutil.AuthenticationContext(r.Context())
+			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+				AccountID: int64(claims.ID), TenantID: claims.TenantID, OrganizationID: claims.OrgID,
+				Scope: claims.Scope, Roles: claims.Roles, Permissions: granted, Admin: claims.IsAdmin, FamilyID: claims.FamilyID,
+			})
+			if err != nil {
+				rs.tb.Errorf("build test security principal: %v", err)
+				http.Error(w, "invalid test principal", http.StatusInternalServerError)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(permissions.WithPrincipal(r.Context(), principal)))
+		})
+	})
+	router.Mount("/", rs.DevicesResource.Router())
+	return router
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -27,7 +55,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := NewDevicesResource(svc.IoT)
+	resource := devicesTestResource{DevicesResource: NewDevicesResource(svc.IoT), tb: t}
 
 	return &testContext{
 		db:       db,

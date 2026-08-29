@@ -43,6 +43,10 @@ func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*userModels.S
 	return s.staff, nil
 }
 
+func (s stubDocumentUserContext) HasCurrentStaff(context.Context) (bool, error) {
+	return s.staff != nil, nil
+}
+
 func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	t.Helper()
 

@@ -273,6 +273,16 @@ func NewTenantRouter(db *bun.DB) chi.Router {
 	return router
 }
 
+// AuthenticationContext returns the identity values injected by request
+// options, preferring an explicit test permission set over claims defaults.
+func AuthenticationContext(ctx context.Context) (jwt.AppClaims, []string) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if granted := jwt.PermissionsFromCtx(ctx); granted != nil {
+		return claims, granted
+	}
+	return claims, claims.Permissions
+}
+
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()

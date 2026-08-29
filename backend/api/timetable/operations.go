@@ -64,7 +64,7 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 // path (the explicit isAdmin argument) from ever becoming the way in.
 func operationActor(ctx context.Context) (accountID int64, isAdmin bool) {
 	claims := jwt.ClaimsFromCtx(ctx)
-	if authorize.IsAssignmentBoundPortal(ctx) {
+	if common.IsAssignmentBoundPortal(ctx) {
 		return int64(claims.ID), false
 	}
 	return int64(claims.ID), claims.IsAdmin
@@ -208,7 +208,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()), instanceID)
+		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), common.HasEffectiveAdminScope(r.Context()), instanceID)
 		if err != nil {
 			return nil, err
 		}
@@ -562,7 +562,7 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 }
 
 func canViewOperationPickupTimes(ctx context.Context) bool {
-	return authorize.IsAssignmentBoundPortal(ctx) ||
+	return common.IsAssignmentBoundPortal(ctx) ||
 		authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
 }
 

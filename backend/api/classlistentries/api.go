@@ -18,7 +18,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -48,11 +47,11 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listEntries)
-		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createEntry)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateEntry)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteEntry)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/assign", rs.assignEntry)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listEntries)
+		r.With(common.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createEntry)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateEntry)
+		r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteEntry)
+		r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/assign", rs.assignEntry)
 	})
 
 	return r

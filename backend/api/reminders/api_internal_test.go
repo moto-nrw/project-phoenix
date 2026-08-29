@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	permissions2 "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	remindersService "github.com/moto-nrw/project-phoenix/services/reminders"
@@ -41,9 +42,19 @@ func (s *stubUserContext) GetCurrentStaff(context.Context) (*usersModels.Staff, 
 }
 
 func newRequestWithAuth(claims jwt.AppClaims, permissions []string) *http.Request {
+	claims.ID = 1
+	claims.TenantID = 2
+	claims.Permissions = permissions
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	principal, err := permissions2.NewPrincipal(permissions2.PrincipalInput{
+		AccountID: 1, TenantID: 2, Roles: claims.Roles, Permissions: permissions, Admin: claims.IsAdmin,
+	})
+	if err != nil {
+		panic(err)
+	}
+	ctx = permissions2.WithPrincipal(ctx, principal)
 	return httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 }
 

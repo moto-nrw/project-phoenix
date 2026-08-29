@@ -26,6 +26,7 @@ import (
 	"github.com/go-chi/render"
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
@@ -115,6 +116,7 @@ func (rs *Resource) Router() chi.Router {
 			r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 			r.Use(jwt.Authenticator)
 			r.Use(jwt.SchoolMiddleware)
+			r.Use(common.SecurityPrincipalMiddleware)
 
 			// School switching for Lehrkraft accounts mapped to several
 			// schools — the school-portal sibling of /auth/switch-tenant.
