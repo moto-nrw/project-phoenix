@@ -365,7 +365,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	t.Run("loads work-time model linkage fields", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WorkTime", "Linkage")
 
-		modelRepo := configRepo.NewWorkTimeModelRepository(db)
+		modelRepo := configRepo.NewWorkTimeModelRepository(testpkg.ConfigRuntime(db))
 		anchor := timezone.NewDate(2026, time.January, 5)
 		model := &configModel.WorkTimeModel{
 			Name:               fmt.Sprintf("Linkage %d", staff.ID),

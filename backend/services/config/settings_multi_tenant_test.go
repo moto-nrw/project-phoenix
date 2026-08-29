@@ -44,7 +44,7 @@ func TestResolveManyForTenantsUsesOneCrossTenantQuery(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	repository := configRepository.NewSettingValueRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	valueA := &config.SettingValue{
 		SettingKey: "test.multi_tenant",
 		Value:      json.RawMessage(`"tenant-a"`),

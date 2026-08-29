@@ -23,7 +23,7 @@ func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")
 
 	adjustments := activeRepo.NewStaffBalanceAdjustmentRepository(db)
-	schedules := configRepo.NewStaffWorkScheduleRepository(db)
+	schedules := configRepo.NewStaffWorkScheduleRepository(testpkg.ConfigRuntime(db))
 
 	lockHeld := make(chan struct{})
 	releaseLock := make(chan struct{})

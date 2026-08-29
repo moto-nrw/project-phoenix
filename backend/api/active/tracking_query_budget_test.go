@@ -58,8 +58,8 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
 	})
 
-	valueRepo := configRepository.NewSettingValueRepository(db)
-	auditRepo := configRepository.NewSettingAuditRepository(db)
+	valueRepo := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
+	auditRepo := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	settings := configSvc.NewSettingsService(valueRepo, auditRepo, nil, db, slog.Default())
 
 	seedCtx := tenant.WithTenantID(context.Background(), tenantID)

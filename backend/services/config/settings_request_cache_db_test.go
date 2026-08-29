@@ -32,8 +32,8 @@ func setupRequestCacheDBTest(t *testing.T) (*bun.DB, int64, configService.Settin
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
 	})
 
-	repository := configRepository.NewSettingValueRepository(db)
-	auditRepository := configRepository.NewSettingAuditRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
+	auditRepository := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	service := configService.NewSettingsService(repository, auditRepository, nil, db, slog.Default())
 	testpkg.SetTenantRuntime(t, service, db)
 	return db, tenantID, service
@@ -60,7 +60,7 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 	require.Equal(t, "15:00", short)
 
 	// A concurrent request commits short=15:30.
-	repository := configRepository.NewSettingValueRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	override := &config.SettingValue{
 		SettingKey: config.KeySlotListShortDayCutoff,
 		Value:      json.RawMessage(`"15:30"`),
@@ -98,7 +98,7 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 	require.Equal(t, config.MFAModeOff, mode)
 
 	// An admin switches the school to required_all while the login is in flight.
-	repository := configRepository.NewSettingValueRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	override := &config.SettingValue{
 		SettingKey: config.KeyMFAMode,
 		Value:      json.RawMessage(`"` + config.MFAModeRequiredAll + `"`),

@@ -8,10 +8,8 @@ import (
 	"slices"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -22,12 +20,12 @@ const (
 
 // WorkTimeModelRepository implements config.WorkTimeModelRepository on top of bun.
 type WorkTimeModelRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewWorkTimeModelRepository wires the bun-backed implementation.
-func NewWorkTimeModelRepository(db *bun.DB) config.WorkTimeModelRepository {
-	return &WorkTimeModelRepository{db: db}
+func NewWorkTimeModelRepository(runtime Runtime) config.WorkTimeModelRepository {
+	return &WorkTimeModelRepository{runtime: runtime}
 }
 
 // List returns every template visible to the active tenant, eagerly loading entries.
@@ -38,12 +36,12 @@ func NewWorkTimeModelRepository(db *bun.DB) config.WorkTimeModelRepository {
 // not exist". Two queries is fine for tenant-scoped template lists.
 func (r *WorkTimeModelRepository) List(ctx context.Context) ([]*config.WorkTimeModel, error) {
 	var models []*config.WorkTimeModel
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&models).
 		ModelTableExpr(tableWorkTimeModels + ` AS "work_time_model"`).
 		OrderExpr(`"work_time_model".name ASC`)
 
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where(`"work_time_model".tenant_id = ?`, tenantID)
 	}
 
@@ -56,12 +54,12 @@ func (r *WorkTimeModelRepository) List(ctx context.Context) ([]*config.WorkTimeM
 // FindByID resolves a single template with its entries; returns sql.ErrNoRows when missing.
 func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*config.WorkTimeModel, error) {
 	model := new(config.WorkTimeModel)
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(model).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
 		Where(`"work_time_model".id = ?`, id)
 
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where(`"work_time_model".tenant_id = ?`, tenantID)
 	}
 
@@ -83,12 +81,12 @@ func (r *WorkTimeModelRepository) FindByIDs(ctx context.Context, ids []int64) ([
 		return nil, nil
 	}
 	var models []*config.WorkTimeModel
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := r.runtime.DB(ctx).NewSelect().
 		Model(&models).
 		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
 		Where(`"work_time_model".id IN (?)`, bun.List(ids))
 
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where(`"work_time_model".tenant_id = ?`, tenantID)
 	}
 
@@ -107,7 +105,7 @@ func (r *WorkTimeModelRepository) attachEntries(ctx context.Context, models []*c
 		ids = append(ids, m.ID)
 	}
 	var entries []*config.WorkTimeModelEntry
-	if err := repoBase.GetDB(ctx, r.db).NewSelect().
+	if err := r.runtime.DB(ctx).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableWorkTimeModelEntries+` AS "work_time_model_entry"`).
 		Where(`"work_time_model_entry".model_id IN (?)`, bun.List(ids)).
@@ -127,8 +125,8 @@ func (r *WorkTimeModelRepository) attachEntries(ctx context.Context, models []*c
 
 // Create inserts the template and its entries inside one transaction.
 func (r *WorkTimeModelRepository) Create(ctx context.Context, model *config.WorkTimeModel, entries []*config.WorkTimeModelEntry) error {
-	db := repoBase.GetDB(ctx, r.db)
-	tenantID := tenant.FromContext(ctx)
+	db := r.runtime.DB(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	if tenantID > 0 {
 		model.SetTenantID(tenantID)
 	}
@@ -156,8 +154,8 @@ func (r *WorkTimeModelRepository) Create(ctx context.Context, model *config.Work
 
 // Update replaces the template's metadata + every entry atomically.
 func (r *WorkTimeModelRepository) Update(ctx context.Context, model *config.WorkTimeModel, entries []*config.WorkTimeModelEntry) error {
-	db := repoBase.GetDB(ctx, r.db)
-	tenantID := tenant.FromContext(ctx)
+	db := r.runtime.DB(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	if tenantID > 0 {
 		model.SetTenantID(tenantID)
 	}
@@ -217,8 +215,8 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 		return fmt.Errorf("load model for assigned schedule refresh: %w", err)
 	}
 
-	db := repoBase.GetDB(ctx, r.db)
-	tenantID := tenant.FromContext(ctx)
+	db := r.runtime.DB(ctx)
+	tenantID := r.runtime.TenantID(ctx)
 	var staffIDs []int64
 	assignedQuery := db.NewSelect().
 		TableExpr(`users.staff AS "staff"`).
@@ -236,7 +234,7 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	}
 	slices.Sort(staffIDs)
 	for _, staffID := range staffIDs {
-		if err := repoBase.AcquireStaffBalanceLock(ctx, r.db, staffID); err != nil {
+		if err := r.runtime.LockStaffBalance(ctx, staffID); err != nil {
 			return err
 		}
 	}
@@ -306,12 +304,12 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 
 // Delete removes a template; entries cascade via the FK.
 func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
-	db := repoBase.GetDB(ctx, r.db)
+	db := r.runtime.DB(ctx)
 	assignedQuery := db.NewSelect().
 		TableExpr(`users.staff AS "staff"`).
 		Where(`"staff".work_time_model_id = ?`, id).
 		Where(`"staff".deleted_at IS NULL`)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
 	}
 	assignedCount, err := assignedQuery.Count(ctx)
@@ -326,7 +324,7 @@ func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
 		Model((*config.WorkTimeModel)(nil)).
 		ModelTableExpr(tableWorkTimeModels).
 		Where("id = ?", id)
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+	if tenantID := r.runtime.TenantID(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	res, err := query.Exec(ctx)

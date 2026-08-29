@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
 )
@@ -18,19 +17,19 @@ const (
 
 // SettingValueRepository implements config.SettingValueRepository.
 type SettingValueRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewSettingValueRepository creates a new SettingValueRepository.
-func NewSettingValueRepository(db *bun.DB) config.SettingValueRepository {
-	return &SettingValueRepository{db: db}
+func NewSettingValueRepository(runtime Runtime) config.SettingValueRepository {
+	return &SettingValueRepository{runtime: runtime}
 }
 
 // FindByTenantAndKey retrieves a single value for a tenant and key.
 // Returns (nil, nil) if not found.
 func (r *SettingValueRepository) FindByTenantAndKey(ctx context.Context, tenantID int64, key string) (*config.SettingValue, error) {
 	sv := new(config.SettingValue)
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
+	err := r.runtime.DB(ctx).NewSelect().
 		Model(sv).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id = ?`, tenantID).
@@ -54,7 +53,7 @@ func (r *SettingValueRepository) FindByTenantAndKeys(ctx context.Context, tenant
 	}
 
 	var values []*config.SettingValue
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
+	err := r.runtime.DB(ctx).NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id = ?`, tenantID).
@@ -75,7 +74,7 @@ func (r *SettingValueRepository) FindByTenantsAndKeys(ctx context.Context, tenan
 	}
 
 	var values []*config.SettingValue
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
+	err := r.runtime.DB(ctx).NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where(`"setting_value".tenant_id IN (?)`, bun.List(tenantIDs)).
@@ -96,7 +95,7 @@ func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingV
 		return err
 	}
 
-	_, err := repoBase.GetDB(ctx, r.db).NewInsert().
+	_, err := r.runtime.DB(ctx).NewInsert().
 		Model(sv).
 		ModelTableExpr(tableSettingValues).
 		On("CONFLICT (tenant_id, setting_key) DO UPDATE").
@@ -113,7 +112,7 @@ func (r *SettingValueRepository) Upsert(ctx context.Context, sv *config.SettingV
 
 // Delete removes a single setting value for a tenant and key.
 func (r *SettingValueRepository) Delete(ctx context.Context, tenantID int64, key string) error {
-	_, err := repoBase.GetDB(ctx, r.db).NewDelete().
+	_, err := r.runtime.DB(ctx).NewDelete().
 		Model((*config.SettingValue)(nil)).
 		ModelTableExpr(tableSettingValues).
 		Where("tenant_id = ?", tenantID).

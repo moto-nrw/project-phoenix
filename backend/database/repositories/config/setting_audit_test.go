@@ -16,7 +16,7 @@ func TestSettingAuditRepository_Create(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingAuditRepository(db)
+	repo := configRepo.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	entry := &config.SettingAuditEntry{
@@ -37,7 +37,7 @@ func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingAuditRepository(db)
+	repo := configRepo.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	// Missing key
@@ -60,7 +60,7 @@ func TestSettingAuditRepository_CreateNil(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := configRepo.NewSettingAuditRepository(db)
+	repo := configRepo.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
 	ctx := testpkg.Ctx(t)
 
 	err := repo.Create(ctx, nil)

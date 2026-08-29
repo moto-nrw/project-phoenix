@@ -44,7 +44,7 @@ func (c overviewStaffContext) GetCurrentStaff(context.Context) (*usersModel.Staf
 func setOverviewScope(tb testing.TB, db *bun.DB, tenantID int64, scope string) {
 	tb.Helper()
 
-	repository := configRepo.NewSettingValueRepository(db)
+	repository := configRepo.NewSettingValueRepository(ConfigRuntime(db))
 	value := &configModel.SettingValue{
 		SettingKey: configModel.KeyOperationalOverviewScope,
 		Value:      json.RawMessage(`"` + scope + `"`),
@@ -73,7 +73,7 @@ func TestOperationalOverviewScopeIsTenantScoped(t *testing.T) {
 	setOverviewScope(t, db, tenantA, configModel.OverviewScopeAllStaff)
 
 	settings := configService.NewSettingsService(
-		configRepo.NewSettingValueRepository(db), nil, nil, db, slog.Default(),
+		configRepo.NewSettingValueRepository(ConfigRuntime(db)), nil, nil, db, slog.Default(),
 	)
 	caller := overviewStaffContext{staff: &usersModel.Staff{}}
 

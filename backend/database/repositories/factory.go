@@ -5,6 +5,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
@@ -420,10 +421,10 @@ func NewFactory(db *bun.DB) *Factory {
 		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
-		SettingValue:      config.NewSettingValueRepository(db),
-		SettingAudit:      config.NewSettingAuditRepository(db),
-		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
-		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
+		SettingValue:      config.NewSettingValueRepository(repoBase.NewConfigRuntime(db)),
+		SettingAudit:      config.NewSettingAuditRepository(repoBase.NewConfigRuntime(db)),
+		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(repoBase.NewConfigRuntime(db)),
+		WorkTimeModel:     config.NewWorkTimeModelRepository(repoBase.NewConfigRuntime(db)),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),

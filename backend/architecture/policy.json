@@ -2740,6 +2740,28 @@
       "target_role": "public"
     },
     {
+      "id": "legacy-composition.transaction-runtime-postgres",
+      "description": "The repository composition root wires the transaction-aware repository runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "test-support.transaction-runtime-postgres",
+      "description": "Test support wires the production repository runtime into integration fixtures.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
       "id": "domain.shared-kernel",
       "description": "Domain code may use the closed shared kernel.",
       "scopes": [

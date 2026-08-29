@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -15,12 +13,12 @@ const (
 
 // SettingAuditRepository implements config.SettingAuditRepository.
 type SettingAuditRepository struct {
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewSettingAuditRepository creates a new SettingAuditRepository.
-func NewSettingAuditRepository(db *bun.DB) config.SettingAuditRepository {
-	return &SettingAuditRepository{db: db}
+func NewSettingAuditRepository(runtime Runtime) config.SettingAuditRepository {
+	return &SettingAuditRepository{runtime: runtime}
 }
 
 // Create appends a new audit entry.
@@ -32,7 +30,7 @@ func (r *SettingAuditRepository) Create(ctx context.Context, entry *config.Setti
 		return err
 	}
 
-	_, err := repoBase.GetDB(ctx, r.db).NewInsert().
+	_, err := r.runtime.DB(ctx).NewInsert().
 		Model(entry).
 		ModelTableExpr(tableSettingAudit).
 		Exec(ctx)
