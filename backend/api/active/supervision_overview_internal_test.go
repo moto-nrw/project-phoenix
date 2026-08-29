@@ -11,6 +11,7 @@ import (
 
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -61,6 +62,10 @@ func (s *stubUserContext) GetCurrentStaff(_ context.Context) (*usersModel.Staff,
 		return nil, nil
 	}
 	return s.staff, nil
+}
+
+func (s *stubUserContext) HasCurrentStaff(context.Context) (bool, error) {
+	return s != nil && s.staff != nil, nil
 }
 
 // verifiedStaffContext is a caller with a staff record in the current tenant.
@@ -326,7 +331,15 @@ func newRequestWithClaims(method, path string, claims jwt.AppClaims) *http.Reque
 }
 
 func claimsCtx(claims jwt.AppClaims) context.Context {
-	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		Roles: claims.Roles, Permissions: claims.Permissions, Admin: claims.IsAdmin,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return permissions.WithPrincipal(ctx, principal)
 }
 
 func adminClaims() jwt.AppClaims {

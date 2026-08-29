@@ -22,7 +22,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -203,7 +202,7 @@ func (rs *Resource) reopenInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.InstanceService.Reopen(r.Context(), id, int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()))
+	result, err := rs.InstanceService.Reopen(r.Context(), id, int64(claims.ID), common.HasEffectiveAdminScope(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return

@@ -223,7 +223,8 @@ func newExcusedAbsenceRequestService(
 // queue and the pending badge: the caller may see a request exactly when they
 // could decide it (admin or verified staff, #2329).
 func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) func(*usersModels.Student) bool {
-	return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable := authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	return func(student *usersModels.Student) bool { return writable(student) }
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.

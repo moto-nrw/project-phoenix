@@ -221,10 +221,11 @@ func (s *masterDataReviewService) loadStudentScope(ctx context.Context, studentI
 	if err != nil {
 		return nil, fmt.Errorf("review: load persons: %w", err)
 	}
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
 	return &reviewStudentScope{
 		students: students,
 		persons:  persons,
-		writable: authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx),
+		writable: func(student *userModels.Student) bool { return writable(student) },
 	}, nil
 }
 

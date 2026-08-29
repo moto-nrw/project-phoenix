@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -51,7 +50,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-		manage := authorize.RequiresPermission(permissions.TimeTrackingManage)
+		manage := common.RequiresPermission(permissions.TimeTrackingManage)
 		r.With(manage, withTx).Get("/", rs.list)
 		r.With(manage, withTx).Post("/", rs.create)
 		r.With(manage, withTx).Post("/defaults", rs.createDefaults)

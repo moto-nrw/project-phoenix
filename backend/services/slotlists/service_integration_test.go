@@ -189,6 +189,11 @@ func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff
 	return u.currentStaff, nil
 }
 
+func (u slotListUserContext) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := u.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
+}
+
 type failingRoomRepo struct {
 	err error
 }

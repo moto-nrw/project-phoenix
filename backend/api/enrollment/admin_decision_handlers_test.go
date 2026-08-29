@@ -18,7 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	permissions2 "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -172,9 +173,9 @@ func buildProtectedAdminDecisionRouter(svc enrollmentService.DecisionService) ch
 	}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	r.With(authorize.RequiresPermission("config:read")).Get("/enrollment/admin/requests", rs.listAdminRequests)
-	r.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}", rs.getAdminRequest)
-	r.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
+	r.With(common.RequiresPermission("config:read")).Get("/enrollment/admin/requests", rs.listAdminRequests)
+	r.With(common.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}", rs.getAdminRequest)
+	r.With(common.RequiresPermission("config:manage")).Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
 	return r
 }
 
@@ -198,6 +199,9 @@ func executeAdminJSONWithPermissions(t *testing.T, router chi.Router, method, pa
 	t.Helper()
 	req := httptest.NewRequest(method, path, nil)
 	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxPermissions, permissions))
+	principal, err := permissions2.NewPrincipal(permissions2.PrincipalInput{AccountID: 1, TenantID: 2, Permissions: permissions})
+	require.NoError(t, err)
+	req = req.WithContext(permissions2.WithPrincipal(req.Context(), principal))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w

@@ -145,6 +145,10 @@ type Student struct {
 	// Group relation is loaded dynamically to avoid import cycle
 }
 
+// IsAuthorizationStudent reports whether this value represents an existing
+// student. It is deliberately nil-safe for policy interfaces.
+func (s *Student) IsAuthorizationStudent() bool { return s != nil }
+
 // DeparturePlanSnapshot is a normalized copy of the four departure-plan fields
 // as they were read from the database. It is pure data: it records what was
 // loaded, it decides nothing.

@@ -7,7 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	remindersService "github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -37,7 +36,7 @@ func (rs *Resource) Router() chi.Router {
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listReminders)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listReminders)
 	})
 
 	return r
@@ -62,7 +61,7 @@ func (rs *Resource) listReminders(w http.ResponseWriter, r *http.Request) {
 	// wrong 403 for accounts without a staff row, or caregiver-scoped reminders
 	// for a full admin. This mirrors CanReadStudent and the rest of the
 	// authorization layer.
-	isAdmin := authorize.HasEffectiveAdminScope(ctx)
+	isAdmin := common.HasEffectiveAdminScope(ctx)
 	scope := remindersService.Scope{IsAdmin: isAdmin}
 
 	if !isAdmin {

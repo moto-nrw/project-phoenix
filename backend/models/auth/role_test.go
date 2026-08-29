@@ -197,6 +197,15 @@ func TestRole_IsSystemFlag(t *testing.T) {
 	})
 }
 
+func TestRoleAuthorizationGrantDataPreservesMalformedPermission(t *testing.T) {
+	t.Parallel()
+	role := &Role{Permissions: []*Permission{{Name: "users:read"}, nil}}
+	present, _, _, _, _, granted := role.AuthorizationGrantData()
+	if !present || len(granted) != 2 || granted[0] != "users:read" || granted[1] != "" {
+		t.Fatalf("AuthorizationGrantData() = present %v, permissions %q", present, granted)
+	}
+}
+
 func TestRole_GetTenantID(t *testing.T) {
 	t.Parallel()
 

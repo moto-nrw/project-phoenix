@@ -27,6 +27,7 @@ func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		gr.Use(tokenAuth.Verifier())
 		gr.Use(jwt.Authenticator)
 		gr.Use(jwt.TenantMiddleware)
+		gr.Use(SecurityPrincipalMiddleware)
 		// Request-scoped settings memo cache (issue #2065) and identity memo
 		// cache (issue #2099). Unlike withTx these ARE applied group-wide:
 		// they open no transaction and do no DB work, so running them on
@@ -49,6 +50,7 @@ func ProtectedSchoolGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx
 		gr.Use(tokenAuth.Verifier())
 		gr.Use(jwt.Authenticator)
 		gr.Use(jwt.SchoolMiddleware)
+		gr.Use(SecurityPrincipalMiddleware)
 		gr.Use(RequestSettingsCacheMiddleware)
 		gr.Use(RequestIdentityCacheMiddleware)
 		fn(gr, TenantTxMiddleware)
