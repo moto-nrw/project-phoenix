@@ -3,9 +3,12 @@ package authorize
 import (
 	"context"
 	"errors"
+)
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/models/users"
+const (
+	usersUpdate  = "users:update"
+	usersAbsence = "users:absence"
+	usersRead    = "users:read"
 )
 
 // ErrAbsenceReadRequired is the denial for a caller holding users:absence
@@ -23,8 +26,8 @@ var ErrAbsenceReadRequired = errors.New("the users:read permission is required a
 // holder's read requirements are that permission's own business; a caller
 // admitted purely by users:absence gets the prerequisite on every path.
 func absenceOnlyAuthority(userPermissions []string) bool {
-	return !HasPermission(permissions.UsersUpdate, userPermissions) &&
-		HasPermission(permissions.UsersAbsence, userPermissions)
+	return !HasPermission(usersUpdate, userPermissions) &&
+		HasPermission(usersAbsence, userPermissions)
 }
 
 // CanManageStudentAbsence decides whether the caller may write a child's
@@ -48,10 +51,10 @@ func absenceOnlyAuthority(userPermissions []string) bool {
 func CanManageStudentAbsence(
 	ctx context.Context,
 	userPermissions []string,
-	student *users.Student,
+	student authorizationStudent,
 	userCtx StudentAccessUserContext,
 ) (bool, error) {
-	if absenceOnlyAuthority(userPermissions) && !HasPermission(permissions.UsersRead, userPermissions) {
+	if absenceOnlyAuthority(userPermissions) && !HasPermission(usersRead, userPermissions) {
 		return false, ErrAbsenceReadRequired
 	}
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
@@ -71,11 +74,11 @@ func AbsenceWritableStudentFilter(
 	ctx context.Context,
 	userPermissions []string,
 	userCtx StudentAccessUserContext,
-) func(*users.Student) bool {
+) func(authorizationStudent) bool {
 	if !HasAdminWildcard(userPermissions) &&
 		absenceOnlyAuthority(userPermissions) &&
-		!HasPermission(permissions.UsersRead, userPermissions) {
-		return func(*users.Student) bool { return false }
+		!HasPermission(usersRead, userPermissions) {
+		return func(authorizationStudent) bool { return false }
 	}
 	return WritableStudentFilter(ctx, userPermissions, userCtx)
 }
@@ -95,9 +98,9 @@ func AbsenceWritableStudentFilter(
 // Per-child scope is decided separately (AbsenceWritableStudentFilter /
 // CanManageStudentAbsence); this is only the coarse permission question.
 func CanReviewExcusedAbsenceRequests(userPermissions []string) bool {
-	if HasPermission(permissions.UsersUpdate, userPermissions) {
+	if HasPermission(usersUpdate, userPermissions) {
 		return true
 	}
-	return HasPermission(permissions.UsersAbsence, userPermissions) &&
-		HasPermission(permissions.UsersRead, userPermissions)
+	return HasPermission(usersAbsence, userPermissions) &&
+		HasPermission(usersRead, userPermissions)
 }

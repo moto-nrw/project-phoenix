@@ -28,7 +28,6 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-
 		r.Get("/events", rs.eventsHandler)
 	})
 
@@ -55,10 +54,11 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
-	conn.isAdmin = authorize.HasEffectiveAdminScope(ctx)
+	claims := jwt.ClaimsFromCtx(ctx)
+	conn.isAdmin = claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 	// The login account, needed to address this person individually. Already in
 	// the claims, so no extra lookup.
-	conn.accountID = int64(jwt.ClaimsFromCtx(ctx).ID)
+	conn.accountID = int64(claims.ID)
 
 	// Step 3: Resolve staff + subscription topics.
 	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)

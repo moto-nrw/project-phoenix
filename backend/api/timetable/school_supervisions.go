@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -45,7 +44,7 @@ func (rs *Resource) SchoolSupervisionRouter() chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	common.ProtectedSchoolGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
-		own := authorize.RequiresPermission(permissions.SupervisionOwn)
+		own := common.RequiresPermission(permissions.SupervisionOwn)
 		attendance := common.RequireWebAttendanceEnabled(rs.SettingsService)
 
 		r.With(own, withTx).Get("/", rs.schoolMySupervisions)

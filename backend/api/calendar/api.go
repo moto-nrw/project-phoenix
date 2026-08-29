@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -37,10 +36,11 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(common.SecurityPrincipalMiddleware)
 		withTx := common.TenantTxMiddleware
 
-		own := authorize.RequiresPermission(permissions.CalendarOwn)
-		manage := authorize.RequiresPermission(permissions.CalendarManage)
+		own := common.RequiresPermission(permissions.CalendarOwn)
+		manage := common.RequiresPermission(permissions.CalendarManage)
 		r.With(own, withTx).Get("/my", rs.listMy)
 		r.With(own, withTx).Get("/feed", rs.calendarFeedURL)
 		r.With(own, withTx).Post("/feed/rotate", rs.rotateCalendarFeed)
