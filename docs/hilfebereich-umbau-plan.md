@@ -81,8 +81,9 @@ bleiben.
 
 Ein kompakter Einstieg „Frag ChatGPT“ steht oben in der festen Seitenleiste und im mobilen Kopf.
 Er öffnet ChatGPT mit einem vorausgefüllten Prompt. Der Prompt nennt die Adresse der aktuell
-geöffneten Hilfeseite und das aktuelle Thema. Das Thema dient nur als Startpunkt; Fragen zu anderen
-Themen bleiben ausdrücklich möglich. Damit lässt sich der Übergang ohne eigenen GPT und ohne
+geöffneten Hilfeseite. Auf einer Themenseite nennt er zusätzlich das aktuelle Thema. Dieses Thema
+dient nur als Startpunkt; Fragen zur gesamten moto-Hilfe bleiben ausdrücklich möglich. Auf der
+Übersicht startet der Prompt ohne Thema. Damit lässt sich der Übergang ohne eigenen GPT und ohne
 API-Anbindung erproben. Der Parameter `prompt` ist in der offiziellen OpenAI-Dokumentation nicht
 beschrieben und bleibt deshalb vorerst eine Prototyp-Annahme.
 
@@ -110,8 +111,9 @@ schreibenden Aktionen.
 
 **P4a · ChatGPT-Einstieg erproben** — Größe S
 Ein kompakter Link oben prüft Platzierung, Beschriftung und den Wechsel zu einem externen Chat. Der
-Prompt übergibt die aktuelle Hilfe-Adresse und das Thema. ChatGPT muss die öffentliche Hilfeseite
-selbst aufrufen können. Der Link überträgt keine Daten aus dem angemeldeten Bereich.
+Prompt übergibt die aktuelle Hilfe-Adresse und, falls vorhanden, das Thema. ChatGPT muss die
+öffentliche Hilfeseite selbst aufrufen können. Der Link überträgt keine Daten aus dem angemeldeten
+Bereich.
 
 **P5 · Entscheidung dokumentieren** — extern abhängig
 Das Team bestätigt die ausgewählte Seitenleiste oder benennt nötige Anpassungen. Ergebnis und

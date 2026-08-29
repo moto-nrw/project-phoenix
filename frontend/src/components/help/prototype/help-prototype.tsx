@@ -36,7 +36,9 @@ function chatGptUrlFor(
     "Nutzen Sie die verlinkte Hilfe als Grundlage.",
     "Erklären Sie die Schritte einfach und konkret.",
     topic ? "Beginnen Sie beim aktuellen Thema." : null,
-    "Beantworten Sie auch Fragen zu anderen Themen.",
+    topic
+      ? "Beantworten Sie auch Fragen zu anderen Themen der moto-Hilfe."
+      : "Beantworten Sie Fragen zur gesamten moto-Hilfe.",
     "Fragen Sie kurz nach, wenn meine Frage unklar ist.",
   ]
     .filter((line): line is string => line != null)
