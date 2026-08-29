@@ -81,7 +81,12 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  "overview" | "messages" | "approvals" | "announcements" | "mealPlan";
+  | "overview"
+  | "messages"
+  | "approvals"
+  | "announcements"
+  | "bankDetails"
+  | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -107,6 +112,11 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     href: "/parent-announcements",
     label: "Mitteilungen und Umfragen",
     feature: "announcements",
+  },
+  {
+    href: "/eltern/bankverbindungen",
+    label: "Bankverbindungen",
+    feature: "bankDetails",
   },
   { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
 ];
@@ -135,15 +145,24 @@ export const STAFF_FLAT_PAGES = {
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },
+  // OGS-interner Team-Chat (#2598). Bewusst NICHT „Nachrichten": so heißt der
+  // Eltern-Chat im Eltern-Akkordeon. Zwei gleich benannte Einträge waren genau
+  // der Grund, warum Schulen ihre Anfragen am falschen Ort gesucht haben.
+  teamChat: { href: "/team-chat", label: "Team-Chat" },
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
   // an einem Ort, mit Reitern nach Herkunft.
   anfragen: { href: "/anfragen", label: "Anfragen" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
+  // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
+  // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
+  // Personal ist ein anderer Ort.
+  dateien: { href: "/dateien", label: "Dateien" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
-  klassen: { href: "/klassen", label: "Klassenansicht" },
+  // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.
+  statistics: { href: "/statistics", label: "Statistik" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   settings: { href: "/settings", label: "Einstellungen" },

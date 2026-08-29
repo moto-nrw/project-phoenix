@@ -172,10 +172,28 @@ type CareLifecycleService interface {
 	// bracelet, closing the open parent requests. Idempotent.
 	ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error)
 	ReconcileAuthoritativeBookingChange(ctx context.Context, change userModels.CareWithdrawalBookingChange) error
+	PreviewBookingAuthorityImpact(ctx context.Context, on timezone.Date) (*BookingAuthorityImpact, error)
+	ApplyBookingAuthoritySetting(ctx context.Context, on timezone.Date, enabled bool) (*BookingAuthorityImpact, error)
+	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*CareParticipationResolution, error)
+	ParticipatingStudentIDs(ctx context.Context, studentIDs []int64, on timezone.Date, actuallyPresent map[int64]bool) (map[int64]bool, error)
+	AdministrativelyVisibleStudentIDs(ctx context.Context, studentIDs []int64, on timezone.Date, actuallyPresent map[int64]bool) (map[int64]bool, error)
+	ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[timezone.Date]map[int64]bool, error)
 	ListPendingWithdrawals(ctx context.Context, filter userModels.CareWithdrawalCompletionFilter) ([]*userModels.CareWithdrawalCompletion, int, error)
+	ListResolvedWithdrawals(ctx context.Context, filter userModels.CareWithdrawalCompletionFilter) ([]*userModels.CareWithdrawalCompletion, int, error)
 	GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error)
 	PreviewWithdrawalCareEnd(ctx context.Context, completionID int64, input CareExitInput) (*CareExitPreview, error)
 	ConfirmWithdrawalCareEnd(ctx context.Context, completionID int64, token string, input CareExitInput, actorAccountID int64) (*CareExitResult, error)
+	PreviewWithdrawalDeletion(ctx context.Context, completionID int64) (*StudentDeletionPreview, error)
+	DeleteWithdrawal(ctx context.Context, completionID int64, input StudentDeletionInput) (*StudentDeletionResult, error)
+}
+
+// CareParticipationResolution is the service-owned dated visibility decision
+// consumed by list/report adapters. CandidateIDs contains the resolved school
+// population when a caller supplied no narrower candidate set.
+type CareParticipationResolution struct {
+	CandidateIDs       []int64
+	ParticipatingIDs   map[int64]bool
+	ActuallyPresentIDs map[int64]bool
 }
 
 type careLifecycleService struct {
@@ -188,6 +206,7 @@ type careLifecycleService struct {
 	tagReleaser           CareExitTagReleaser
 	auditService          StudentAuditService
 	lockCareBookingWrites func(context.Context) error
+	studentDeletion       StudentDeletionService
 	txHandler             *modelBase.TxHandler
 	logger                *slog.Logger
 }
@@ -195,13 +214,14 @@ type careLifecycleService struct {
 // CareLifecycleDependencies wires the service. Every field is required except
 // the logger; a nil collaborator would silently skip a documented effect.
 type CareLifecycleDependencies struct {
-	StudentRepo    userModels.StudentRepository
-	PersonRepo     userModels.PersonRepository
-	CareExitRepo   userModels.CareExitRepository
-	CleanupRepo    userModels.CareExitCleanupRepository
-	WithdrawalRepo userModels.CareWithdrawalCompletionRepository
-	TagReleaser    CareExitTagReleaser
-	AuditService   StudentAuditService
+	StudentRepo     userModels.StudentRepository
+	PersonRepo      userModels.PersonRepository
+	CareExitRepo    userModels.CareExitRepository
+	CleanupRepo     userModels.CareExitCleanupRepository
+	WithdrawalRepo  userModels.CareWithdrawalCompletionRepository
+	TagReleaser     CareExitTagReleaser
+	AuditService    StudentAuditService
+	StudentDeletion StudentDeletionService
 	// LockCareBookingWrites is the same transaction-scoped gate used by
 	// authoritative offering adjustments. Taking it before any plan lock makes
 	// rebooking and care-end confirmation a total order instead of allowing a
@@ -223,10 +243,68 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		bookingsAuthoritative: deps.BookingsAuthoritative,
 		tagReleaser:           deps.TagReleaser,
 		auditService:          deps.AuditService,
+		studentDeletion:       deps.StudentDeletion,
 		lockCareBookingWrites: deps.LockCareBookingWrites,
 		txHandler:             modelBase.NewTxHandler(deps.DB),
 		logger:                deps.Logger,
 	}
+}
+
+// WireCareWithdrawalDeletion attaches the deletion service after both
+// services have been constructed by the factory.
+func WireCareWithdrawalDeletion(lifecycle CareLifecycleService, deletion StudentDeletionService) {
+	setter, ok := lifecycle.(interface{ SetStudentDeletionService(StudentDeletionService) })
+	if !ok {
+		panic("care lifecycle service does not support student-deletion wiring")
+	}
+	setter.SetStudentDeletionService(deletion)
+}
+
+func (s *careLifecycleService) SetStudentDeletionService(deletion StudentDeletionService) {
+	s.studentDeletion = deletion
+}
+
+func (s *careLifecycleService) PreviewWithdrawalDeletion(ctx context.Context, completionID int64) (*StudentDeletionPreview, error) {
+	completion, err := s.GetPendingWithdrawal(ctx, completionID)
+	if err != nil {
+		return nil, err
+	}
+	if s.studentDeletion == nil {
+		return nil, errors.New("care lifecycle: student deletion service is not configured")
+	}
+	return s.studentDeletion.Preview(ctx, *completion.StudentID)
+}
+
+func (s *careLifecycleService) DeleteWithdrawal(ctx context.Context, completionID int64, input StudentDeletionInput) (*StudentDeletionResult, error) {
+	if s.studentDeletion == nil {
+		return nil, errors.New("care lifecycle: student deletion service is not configured")
+	}
+	var result *StudentDeletionResult
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockCareBookingWrites != nil {
+			if err := s.lockCareBookingWrites(txCtx); err != nil {
+				return fmt.Errorf("care lifecycle: lock care booking writes for deletion: %w", err)
+			}
+		}
+		completion, err := s.withdrawalRepo.FindByIDForUpdate(txCtx, completionID)
+		if err != nil {
+			return err
+		}
+		if completion == nil || completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+			return userModels.ErrCareWithdrawalAlreadyResolved
+		}
+		input.StudentID = *completion.StudentID
+		resolved, err := s.withdrawalRepo.MarkDeleted(txCtx, completionID, input.ActorAccountID, time.Now())
+		if err != nil {
+			return err
+		}
+		if !resolved {
+			return userModels.ErrCareWithdrawalAlreadyResolved
+		}
+		result, err = s.studentDeletion.Delete(txCtx, input)
+		return err
+	})
+	return result, err
 }
 
 func (s *careLifecycleService) getLogger() *slog.Logger {
@@ -483,11 +561,10 @@ func (s *careLifecycleService) cleanupConfirmedCareExit(ctx context.Context, sta
 	if state.input.LastCareDay.Before(timezone.TodayDate()) {
 		endSourceBookings = s.cleanupRepo.EndSourceBookingsAndSchedules
 	}
-	var sourceRequestChildID *int64
-	if state.completion != nil {
-		sourceRequestChildID = state.completion.SourceRequestChildID
-	}
-	sourceEnded, err := endSourceBookings(ctx, state.studentIDs, validUntil, sourceRequestChildID)
+	// A completed care exit ends every remaining source booking, including
+	// non-care offers and bookings created by another enrollment request. The
+	// completion's source child is audit context, not a cleanup boundary.
+	sourceEnded, err := endSourceBookings(ctx, state.studentIDs, validUntil, nil)
 	if err != nil {
 		return err
 	}
@@ -709,37 +786,132 @@ func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
 	if s.withdrawalRepo == nil {
 		return errors.New("care lifecycle: withdrawal repository is not configured")
 	}
-	now := time.Now()
-	if change.HasCareDays {
-		_, err := s.withdrawalRepo.MarkObsoleteForRebooking(ctx, change.StudentID, change.FirstBookinglessDay, now)
+	today := timezone.TodayDate()
+	if s.bookingsAuthoritative == nil {
+		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
+	}
+	authoritative, err := s.bookingsAuthoritative(ctx)
+	if err != nil {
 		return err
 	}
-	if !change.WasCompleteWithdrawal {
+	if !authoritative {
+		return s.reconcileWeeklyPlanRebooking(ctx, change)
+	}
+	effectiveOn := today
+	if !change.FirstBookinglessDay.IsZero() {
+		effectiveOn = change.FirstBookinglessDay
+	}
+	facts, err := s.cleanupRepo.ListCareBookingFacts(ctx, effectiveOn, []int64{change.StudentID})
+	if err != nil {
+		return err
+	}
+	if len(facts) != 1 {
+		return fmt.Errorf("care lifecycle: booking facts for student %d not found", change.StudentID)
+	}
+	if change.WasCompleteWithdrawal {
+		facts[0].ConfirmedBookinglessDay = &change.FirstBookinglessDay
+	}
+	evaluation := EvaluateCareBookingStates(facts, effectiveOn)[0]
+	pending, err := s.withdrawalRepo.ListPendingByStudentIDs(ctx, []int64{change.StudentID})
+	if err != nil {
+		return err
+	}
+	return s.reconcileBookingEvaluation(ctx, evaluation, change, effectiveOn, pending[change.StudentID])
+}
+
+func (s *careLifecycleService) reconcileWeeklyPlanRebooking(
+	ctx context.Context, change userModels.CareWithdrawalBookingChange,
+) error {
+	if change.WasCompleteWithdrawal {
 		return nil
 	}
+	pending, err := s.withdrawalRepo.ListPendingByStudentIDs(ctx, []int64{change.StudentID})
+	completion := pending[change.StudentID]
+	if err != nil || completion == nil {
+		return err
+	}
+	facts, err := s.cleanupRepo.ListCareBookingFacts(ctx, completion.FirstBookinglessDay, []int64{change.StudentID})
+	if err != nil {
+		return err
+	}
+	if len(facts) != 1 {
+		return fmt.Errorf("care lifecycle: booking facts for student %d not found", change.StudentID)
+	}
+	evaluation := EvaluateCareBookingStates(facts, completion.FirstBookinglessDay)[0]
+	if !evaluation.HasCareDays {
+		return nil
+	}
+	_, err = s.withdrawalRepo.MarkObsoleteForRebooking(ctx, change.StudentID, completion.FirstBookinglessDay, time.Now())
+	return err
+}
+
+func (s *careLifecycleService) reconcileBookingEvaluation(
+	ctx context.Context,
+	evaluation userModels.CareBookingEvaluation,
+	change userModels.CareWithdrawalBookingChange,
+	obsoleteFrom timezone.Date,
+	pending *userModels.CareWithdrawalCompletion,
+) error {
+	if evaluation.FirstBookinglessDay == nil {
+		if pending == nil || !evaluation.HasCareDays {
+			return nil
+		}
+		_, err := s.withdrawalRepo.MarkObsoleteForRebooking(ctx, evaluation.StudentID, obsoleteFrom, time.Now())
+		return err
+	}
+	if pending != nil {
+		if *evaluation.FirstBookinglessDay != pending.FirstBookinglessDay {
+			changed, obsoleteErr := s.withdrawalRepo.MarkObsoleteForRebooking(ctx, evaluation.StudentID, obsoleteFrom, time.Now())
+			if obsoleteErr != nil {
+				return obsoleteErr
+			}
+			if !changed {
+				return errors.New("care lifecycle: pending booking completion changed during reconciliation")
+			}
+		} else if !change.WasCompleteWithdrawal {
+			return nil
+		}
+	}
+	return s.upsertBookingCompletion(ctx, evaluation, change)
+}
+
+func (s *careLifecycleService) upsertBookingCompletion(
+	ctx context.Context,
+	evaluation userModels.CareBookingEvaluation,
+	change userModels.CareWithdrawalBookingChange,
+) error {
+	now := time.Now()
 	studentID := change.StudentID
 	var actorID *int64
 	if change.ConfirmedBy > 0 {
 		actorID = &change.ConfirmedBy
 	}
-	trigger := userModels.CareWithdrawalTriggerDirectSchool
-	if change.SourceAdjustmentID == 0 {
-		trigger = userModels.CareWithdrawalTriggerBookingExpired
+	trigger := userModels.CareWithdrawalTriggerBookingExpired
+	if change.WasCompleteWithdrawal {
+		trigger = userModels.CareWithdrawalTriggerDirectSchool
 	}
 	role := strings.TrimSpace(change.ConfirmedRole)
 	if role == "" {
 		role = "system"
 	}
+	sourceChildID := evaluation.SourceRequestChildID
+	if sourceChildID == 0 {
+		sourceChildID = change.SourceRequestChildID
+	}
+	sourceOfferings := evaluation.SourceOfferings
+	if len(sourceOfferings) == 0 {
+		sourceOfferings = change.SourceOfferings
+	}
 	return s.withdrawalRepo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
 		StudentID:               &studentID,
-		FirstBookinglessDay:     change.FirstBookinglessDay,
+		FirstBookinglessDay:     *evaluation.FirstBookinglessDay,
 		Trigger:                 trigger,
 		SourceAdjustmentID:      optionalPositiveID(change.SourceAdjustmentID),
-		SourceRequestChildID:    optionalPositiveID(change.SourceRequestChildID),
+		SourceRequestChildID:    optionalPositiveID(sourceChildID),
 		WithdrawalConfirmedBy:   actorID,
 		WithdrawalConfirmedRole: role,
 		WithdrawalConfirmedAt:   now,
-		SourceOfferings:         change.SourceOfferings,
+		SourceOfferings:         sourceOfferings,
 	})
 }
 
@@ -756,6 +928,16 @@ func (s *careLifecycleService) ListPendingWithdrawals(
 	return s.withdrawalRepo.ListPending(ctx, filter.Normalized())
 }
 
+func (s *careLifecycleService) ListResolvedWithdrawals(
+	ctx context.Context,
+	filter userModels.CareWithdrawalCompletionFilter,
+) ([]*userModels.CareWithdrawalCompletion, int, error) {
+	if s.withdrawalRepo == nil {
+		return nil, 0, errors.New("care lifecycle: withdrawal repository is not configured")
+	}
+	return s.withdrawalRepo.ListResolved(ctx, filter.Normalized())
+}
+
 func (s *careLifecycleService) GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error) {
 	if s.withdrawalRepo == nil || id <= 0 {
 		return nil, ErrCareWithdrawalNotFound
@@ -764,8 +946,11 @@ func (s *careLifecycleService) GetPendingWithdrawal(ctx context.Context, id int6
 	if err != nil {
 		return nil, err
 	}
-	if completion == nil || completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+	if completion == nil {
 		return nil, ErrCareWithdrawalNotFound
+	}
+	if completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+		return nil, userModels.ErrCareWithdrawalAlreadyResolved
 	}
 	return completion, nil
 }
@@ -934,16 +1119,11 @@ func (s *careLifecycleService) reconcileExpiredCareBookings(ctx context.Context,
 		if err != nil || !authoritative {
 			return err
 		}
-		expiries, err := s.cleanupRepo.FindCareWithdrawalBookingExpiries(txCtx, asOf)
+		evaluations, err := s.evaluateCareBookings(txCtx, asOf)
 		if err != nil {
 			return err
 		}
-		for _, expiry := range expiries {
-			if err := s.ReconcileAuthoritativeBookingChange(txCtx, expiry); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.reconcileBookingEvaluations(txCtx, evaluations, asOf)
 	})
 }
 

@@ -68,6 +68,13 @@ import {
   type PersonForm,
 } from "./substitution-deviation-input";
 import { SubstitutionPersonCard } from "./substitution-person-card";
+import {
+  GuardianNoticeFields,
+  guardianNoticeIncomplete,
+  guardianNoticePayload,
+  type GuardianNoticeDraft,
+} from "./guardian-notice-fields";
+import type { GuardianNoticeReach } from "~/lib/timetable-types";
 
 interface StaffOption {
   id: string;
@@ -178,6 +185,13 @@ export function SubstitutionSlideOver({
   const [people, setPeople] = useState<Record<string, PersonForm>>({});
   const [cancel, setCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  // "Eltern informieren" on cancel (#2601); see GuardianNoticeFields.
+  const [noticeDraft, setNoticeDraft] = useState<GuardianNoticeDraft | null>(
+    null,
+  );
+  const [noticeReach, setNoticeReach] = useState<GuardianNoticeReach | null>(
+    null,
+  );
   const [unstaffed, setUnstaffed] = useState(false);
   const [unstaffedReason, setUnstaffedReason] = useState("");
   // Existing substitutes staged for removal from the opened appointment.
@@ -248,6 +262,8 @@ export function SubstitutionSlideOver({
     setPeople(seed);
     setCancel(false);
     setCancelReason("");
+    setNoticeDraft(null);
+    setNoticeReach(null);
     setUnstaffed(instance.understaffedAck === true);
     setUnstaffedReason(instance.understaffedNote ?? "");
     setRemovedSubs(new Set());
@@ -282,6 +298,12 @@ export function SubstitutionSlideOver({
       else next.add(id);
       return next;
     });
+    setRestoredSubs((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }
 
   function toggleRestoreSub(id: string) {
@@ -289,6 +311,12 @@ export function SubstitutionSlideOver({
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+    setRemovedSubs((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
       return next;
     });
   }
@@ -435,6 +463,15 @@ export function SubstitutionSlideOver({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!instance || !hasChanges || (!cancel && !peopleValid) || saving) return;
+    if (
+      cancel &&
+      guardianNoticeIncomplete(
+        noticeDraft,
+        noticeReach,
+        Boolean(instance && instance.date >= berlinTodayISO()),
+      )
+    )
+      return;
     setSaving(true);
     try {
       // Cancel is exclusive — it maps to the backend's cancel branch and ignores
@@ -444,6 +481,7 @@ export function SubstitutionSlideOver({
         const ok = await onApply({
           cancel: true,
           cancelReason: cancelReason.trim() || undefined,
+          guardianNotice: guardianNoticePayload(noticeDraft, noticeReach),
         });
         // Only close on a committed save — a failed cancel keeps the form open
         // so the edits survive for a retry (#1840).
@@ -667,6 +705,8 @@ export function SubstitutionSlideOver({
                           {substitutes.map((row) => {
                             const removed = removedSubs.has(row.staffId);
                             const restored = restoredSubs.has(row.staffId);
+                            const canRestore =
+                              restored || projectedCoverage < plannedPositions;
                             // A substitute is inactive when marked absent (and not
                             // being restored) or staged for removal. A
                             // persisted-absent substitute the admin restores reads
@@ -676,7 +716,7 @@ export function SubstitutionSlideOver({
                             return (
                               <li
                                 key={row.staffId}
-                                className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 ${
+                                className={`flex flex-col items-stretch gap-2 rounded-lg px-3 py-2 ${
                                   inactive ? "bg-gray-100" : "bg-moto-green/10"
                                 }`}
                               >
@@ -689,14 +729,14 @@ export function SubstitutionSlideOver({
                                 >
                                   {staffLabel(staffNames, row.staffId)}
                                 </span>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  {row.isAbsent && !restored ? (
-                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Abwesend
-                                    </span>
-                                  ) : removed ? (
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  {removed ? (
                                     <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
                                       Wird entfernt
+                                    </span>
+                                  ) : row.isAbsent && !restored ? (
+                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
+                                      Abwesend
                                     </span>
                                   ) : restored ? (
                                     <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
@@ -707,12 +747,37 @@ export function SubstitutionSlideOver({
                                       Ersatz
                                     </span>
                                   )}
+                                  {canEdit && !row.isSickAbsence && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="compact"
+                                      onClick={() =>
+                                        toggleRemoveSub(row.staffId)
+                                      }
+                                    >
+                                      {removed ? (
+                                        <>
+                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                          Rückgängig
+                                        </>
+                                      ) : (
+                                        <>
+                                          <MotoConceptIcon
+                                            concept="substitution"
+                                            size={14}
+                                            className="mr-1"
+                                          />
+                                          Entfernen
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
                                   {canEdit &&
-                                    (row.isAbsent && !row.isSickAbsence ? (
-                                      // A persisted-absent substitute (removed on
-                                      // a prior save) can be brought back so an
-                                      // accidental removal is correctable without
-                                      // a DB edit (#1840).
+                                    row.isAbsent &&
+                                    !row.isSickAbsence &&
+                                    !removed &&
+                                    canRestore && (
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -737,52 +802,26 @@ export function SubstitutionSlideOver({
                                           </>
                                         )}
                                       </Button>
-                                    ) : !row.isAbsent ? (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="compact"
-                                        onClick={() =>
-                                          toggleRemoveSub(row.staffId)
-                                        }
-                                      >
-                                        {removed ? (
-                                          <>
-                                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                            Rückgängig
-                                          </>
-                                        ) : (
-                                          <>
-                                            <MotoConceptIcon
-                                              concept="substitution"
-                                              size={14}
-                                              className="mr-1"
-                                            />
-                                            Entfernen
-                                          </>
-                                        )}
-                                      </Button>
-                                    ) : null)}
+                                    )}
                                 </div>
                               </li>
                             );
                           })}
                         </ul>
-                        {canEdit &&
-                          substitutes.some((row) => !row.isAbsent) && (
-                            <p className="text-[11px] leading-5 text-gray-400">
-                              „Entfernen“ löscht die Vertretung nur aus diesem
-                              Termin. Die Ersatzperson wird nicht als abwesend
-                              markiert.
-                            </p>
-                          )}
+                        {canEdit && (
+                          <p className="text-[11px] leading-5 text-gray-400">
+                            „Entfernen“ löscht die Vertretung nur aus diesem
+                            Termin. Andere Termine bleiben unverändert.
+                          </p>
+                        )}
                         {canEdit &&
                           substitutes.some(
                             (row) => row.isAbsent && !row.isSickAbsence,
-                          ) && (
+                          ) &&
+                          projectedCoverage < plannedPositions && (
                             <p className="text-[11px] leading-5 text-gray-400">
-                              „Anwesend melden“ macht eine entfernte Vertretung
-                              wieder verfügbar.
+                              „Anwesend melden“ setzt die Vertretung in diesem
+                              Termin wieder ein.
                             </p>
                           )}
                       </div>
@@ -851,7 +890,16 @@ export function SubstitutionSlideOver({
                         value={cancelReason}
                         maxLength={500}
                         onChange={(e) => setCancelReason(e.target.value)}
-                        placeholder="Grund (optional)"
+                        placeholder="Grund (optional, nur intern)"
+                      />
+                      <GuardianNoticeFields
+                        block={instance}
+                        today={berlinTodayISO()}
+                        draft={noticeDraft}
+                        onDraftChange={setNoticeDraft}
+                        onReachChange={setNoticeReach}
+                        disabled={saving}
+                        compact
                       />
                     </div>
                   </section>
@@ -913,7 +961,17 @@ export function SubstitutionSlideOver({
                       isLoading={saving}
                       loadingText="Speichere …"
                       disabled={
-                        saving || !hasChanges || (!cancel && !peopleValid)
+                        saving ||
+                        !hasChanges ||
+                        (!cancel && !peopleValid) ||
+                        (cancel &&
+                          guardianNoticeIncomplete(
+                            noticeDraft,
+                            noticeReach,
+                            Boolean(
+                              instance && instance.date >= berlinTodayISO(),
+                            ),
+                          ))
                       }
                     >
                       Speichern

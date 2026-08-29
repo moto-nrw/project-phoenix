@@ -668,7 +668,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	assert.Equal(t, staff.ID, *records[0].CheckedOutBy)
 }
 
-func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testing.T) {
+func TestToggleAttendance_DailyCheckoutZuhauseUsesAuthenticatedDeviceWithoutSupervisor(t *testing.T) {
 	t.Parallel()
 	ctx := setupAttendanceTestContext(t)
 
@@ -697,9 +697,11 @@ func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testin
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
-	response := testutil.ParseResponse(t, rr.Body.Bytes())
-	assert.Contains(t, response.Error, "device must have an active group with supervisors")
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "checked_out_daily", data["action"])
 
 	var records []*activeModel.Attendance
 	err := ctx.db.NewSelect().
@@ -710,8 +712,10 @@ func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testin
 		Scan(context.Background())
 	require.NoError(t, err)
 	require.Len(t, records, 1)
-	assert.Nil(t, records[0].CheckOutTime, "daily checkout without supervisor must not close attendance")
-	assert.Nil(t, records[0].CheckedOutBy, "failed daily checkout must not write checkout attribution")
+	require.NotNil(t, records[0].CheckOutTime, "device-attributed daily checkout must close attendance")
+	assert.Nil(t, records[0].CheckedOutBy, "checkout must not invent a staff actor")
+	require.NotNil(t, records[0].CheckedOutDeviceID)
+	assert.Equal(t, testDevice.ID, *records[0].CheckedOutDeviceID)
 }
 
 // TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut tests the daily checkout with

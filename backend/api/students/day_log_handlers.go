@@ -474,7 +474,7 @@ func dayLogArrivalIsStillPending(row dayLogStudent, careDay scheduleService.Care
 		!clock.isToday(date) {
 		return false
 	}
-	return timezone.WallClock(clock.now).Before(timezone.WallClock(*arrival.ArrivalTime))
+	return timezone.NormalizeWallClock(clock.now).Before(timezone.NormalizeWallClock(*arrival.ArrivalTime))
 }
 
 func sortDayLogStudents(students []dayLogStudent) {

@@ -49,10 +49,15 @@ func ContainsFold(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
-// JoinUnique splits every value on ";", trims the parts, and joins the
-// non-empty ones on "; " with case-insensitive duplicates removed
-// (first occurrence wins, original casing kept).
-func JoinUnique(values ...string) string {
+// SplitUnique splits every value on ";", trims the parts, and returns the
+// non-empty ones with case-insensitive duplicates removed (first occurrence
+// wins, original casing kept). Returns an empty, non-nil slice for no parts.
+//
+// Prefer this over JoinUnique wherever the parts stay individually usable —
+// a phone number a UI turns into a tel: link, a value that gets rendered one
+// per row. Joining them first only forces the consumer to split again, and
+// splitting on the far side of a JSON payload is where it goes wrong.
+func SplitUnique(values ...string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
 	for _, value := range values {
@@ -69,5 +74,11 @@ func JoinUnique(values ...string) string {
 			result = append(result, trimmed)
 		}
 	}
-	return strings.Join(result, "; ")
+	return result
+}
+
+// JoinUnique is SplitUnique joined back on "; " — the display form for the
+// places that render one line of text.
+func JoinUnique(values ...string) string {
+	return strings.Join(SplitUnique(values...), "; ")
 }

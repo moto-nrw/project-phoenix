@@ -6,7 +6,8 @@ import { Loading } from "~/components/ui/loading";
 import { SchoolShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SchoolShell } from "~/components/school/shell/school-shell";
-import { ShellNavIntlProvider } from "~/components/dashboard/shell-nav-intl-provider";
+import { SchoolRealtimeBridge } from "~/components/school/school-realtime-bridge";
+import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { schoolPath } from "~/lib/school-url";
 
 function FullPageLoading() {
@@ -66,15 +67,16 @@ export function SchoolAuthGuard({
     return <FullPageLoading />;
   }
 
-  // ShellNavIntlProvider: die geteilte Kopfzeile ruft
+  // ShellIntlProvider: die geteilte Kopfzeile ruft
   // useTranslations("parentNav") für die Eltern-Titel auf; das deutschsprachige
   // Schul-Portal bekommt denselben minimalen Katalog wie Personal und Operator.
   return (
     <SchoolShellProvider>
       <BreadcrumbProvider>
-        <ShellNavIntlProvider>
+        <ShellIntlProvider>
+          <SchoolRealtimeBridge />
           <SchoolShell>{children}</SchoolShell>
-        </ShellNavIntlProvider>
+        </ShellIntlProvider>
       </BreadcrumbProvider>
     </SchoolShellProvider>
   );

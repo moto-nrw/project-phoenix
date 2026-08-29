@@ -7,7 +7,11 @@ import { useMessagesActivity } from "./use-messages-activity";
 // ---------------------------------------------------------------------------
 
 function dispatchActivity(
-  detail: { threadId?: string | null; studentId?: string | null } = {},
+  detail: {
+    threadId?: string | null;
+    studentId?: string | null;
+    source?: string | null;
+  } = {},
   eventName = "messages-activity",
 ) {
   window.dispatchEvent(new CustomEvent(eventName, { detail }));
@@ -332,5 +336,63 @@ describe("useMessagesActivity — refetchOnFocus", () => {
     });
 
     expect(onMatch).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ignoreOwnSource — the read-advancing consumers' own-write filter
+// ---------------------------------------------------------------------------
+
+describe("useMessagesActivity — ignoreOwnSource", () => {
+  it("skips an event this account caused itself", () => {
+    const onMatch = vi.fn();
+    renderHook(() =>
+      useMessagesActivity({ onMatch, marksRead: false, ignoreOwnSource: "7" }),
+    );
+
+    act(() => {
+      dispatchActivity({ source: "7" });
+    });
+
+    expect(onMatch).not.toHaveBeenCalled();
+  });
+
+  it("still fires for an event another account caused", () => {
+    const onMatch = vi.fn();
+    renderHook(() =>
+      useMessagesActivity({ onMatch, marksRead: false, ignoreOwnSource: "7" }),
+    );
+
+    act(() => {
+      dispatchActivity({ source: "42" });
+    });
+
+    expect(onMatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires for a consumer that does NOT set ignoreOwnSource, even for its own source", () => {
+    // The inbox is refetch-only: suppressing its own writes would leave its
+    // preview, ordering and unread pill stale after the user's own send.
+    const onMatch = vi.fn();
+    renderHook(() => useMessagesActivity({ onMatch, marksRead: false }));
+
+    act(() => {
+      dispatchActivity({ source: "7" });
+    });
+
+    expect(onMatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("fires when the event carries no source at all", () => {
+    const onMatch = vi.fn();
+    renderHook(() =>
+      useMessagesActivity({ onMatch, marksRead: false, ignoreOwnSource: "7" }),
+    );
+
+    act(() => {
+      dispatchActivity({});
+    });
+
+    expect(onMatch).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,6 +3,61 @@ import type { SettingsSchema } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorSettingsApi" });
+const BOOKINGS_AUTHORITATIVE_KEY = "enrollment.bookings_authoritative";
+
+interface BookingAuthorityImpactChild {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+  firstBookinglessDay?: string;
+}
+
+export interface BookingAuthorityImpact {
+  referenceDate: string;
+  blockingChildren: BookingAuthorityImpactChild[];
+  plannedCompletions: BookingAuthorityImpactChild[];
+}
+
+interface BookingAuthorityImpactWireChild {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  first_bookingless_day?: string;
+}
+
+interface BookingAuthorityImpactWire {
+  reference_date: string;
+  blocking_children: BookingAuthorityImpactWireChild[];
+  planned_completions: BookingAuthorityImpactWireChild[];
+}
+
+export async function fetchBookingAuthorityImpact(
+  schoolId: string,
+): Promise<BookingAuthorityImpact> {
+  const wire = await operatorFetch<BookingAuthorityImpactWire>(
+    `/api/operator/provisioning/schools/${schoolId}/settings/booking-authority-impact`,
+    { method: "GET" },
+  );
+  return {
+    referenceDate: wire.reference_date,
+    blockingChildren: wire.blocking_children.map(mapImpactChild),
+    plannedCompletions: wire.planned_completions.map(mapImpactChild),
+  };
+}
+
+function mapImpactChild(
+  child: BookingAuthorityImpactWireChild,
+): BookingAuthorityImpactChild {
+  return {
+    studentId: child.student_id,
+    firstName: child.first_name,
+    lastName: child.last_name,
+    schoolClass: child.school_class,
+    firstBookinglessDay: child.first_bookingless_day,
+  };
+}
 
 /**
  * Fetch the settings schema for a specific school.
@@ -69,6 +124,9 @@ export async function setOperatorSettingValue(
       });
       if (error.status === 404) return "Einstellung nicht gefunden.";
       if (error.status === 400) return translateValidationError(error.message);
+      if (error.status === 409 && key === BOOKINGS_AUTHORITATIVE_KEY) {
+        return "Der Buchungsmodus wurde nicht aktiviert. Bitte prüfen Sie die Auswirkungen noch einmal.";
+      }
       return "Einstellung konnte nicht gespeichert werden.";
     }
     logger.warn("set_operator_setting_value_failed", {

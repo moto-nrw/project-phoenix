@@ -292,11 +292,18 @@ func (m *mockAuthService) LoginParentWithAudit(context.Context, string, string, 
 func (m *mockAuthService) LoginSchoolWithMFAGate(context.Context, string, string, string, string, string) (*authSvc.LoginResult, error) {
 	return nil, nil
 }
+
+func (m *mockAuthService) LoginSchoolAtTenantWithMFAGate(context.Context, string, string, string, string, string, string) (*authSvc.LoginResult, error) {
+	return nil, nil
+}
 func (m *mockAuthService) IssueSchoolTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
 	return "", "", nil
 }
 func (m *mockAuthService) SwitchSchool(context.Context, int64, string, string, string) (string, string, error) {
 	return "", "", nil
+}
+func (m *mockAuthService) HasSchoolPortalAccess(context.Context, int64, int64) (bool, error) {
+	return false, nil
 }
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
 	if m.registerFn != nil {

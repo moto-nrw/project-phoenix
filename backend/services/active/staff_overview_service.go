@@ -745,13 +745,13 @@ func (s *staffOverviewService) expectedClockedIn(
 	if err != nil {
 		return 0, fmt.Errorf("failed to load today's shifts: %w", err)
 	}
-	nowWall := timezone.WallClock(timezone.Now())
+	nowWall := timezone.NormalizeWallClock(timezone.Now())
 	expected := make(map[int64]bool)
 	for _, shift := range shifts {
 		if shift.Cancelled || !activeIDs[shift.StaffID] {
 			continue
 		}
-		start, end := timezone.WallClock(shift.StartTime), timezone.WallClock(shift.EndTime)
+		start, end := timezone.NormalizeWallClock(shift.StartTime), timezone.NormalizeWallClock(shift.EndTime)
 		if !nowWall.Before(start) && !nowWall.After(end) {
 			expected[shift.StaffID] = true
 		}

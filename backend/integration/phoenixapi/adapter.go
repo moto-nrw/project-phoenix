@@ -320,7 +320,29 @@ func (a *Adapter) Raw(ctx context.Context, auth AuthRef, method, path string, bo
 	if err != nil {
 		return nil, 0, err
 	}
+	return a.send(req, auth, method, path)
+}
 
+// RawUpload sends a body that is already encoded — a multipart upload, say.
+// Raw marshals its body as JSON, which would turn file bytes into a base64
+// string instead of a file.
+func (a *Adapter) RawUpload(ctx context.Context, auth AuthRef, method, path, contentType string, body []byte) ([]byte, int, error) {
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	req, err := http.NewRequestWithContext(ctx, method, a.baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, 0, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "project-phoenix-integration/0.1")
+	applyAuth(req, auth)
+	return a.send(req, auth, method, path)
+}
+
+// send executes a prepared request and turns a 4xx/5xx into an APIError.
+func (a *Adapter) send(req *http.Request, auth AuthRef, method, path string) ([]byte, int, error) {
 	if a.verbose {
 		fmt.Printf("  -> %s %s (%s)\n", method, path, authModeLabel(auth))
 	}

@@ -276,8 +276,8 @@ func (s *instanceService) ApplySubstitute(
 	return nil
 }
 
-// RemoveSubstitute deletes one active substitute assignment from one
-// appointment without turning the substitute into another absent person.
+// RemoveSubstitute deletes one substitute assignment from one appointment
+// without changing that person's other appointments.
 func (s *instanceService) RemoveSubstitute(
 	ctx context.Context,
 	row *scheduleModel.InstanceStaff,
@@ -298,7 +298,7 @@ func (s *instanceService) RemoveSubstitute(
 		instance:       instance,
 		eventType:      auditModel.DeviationEventSubstituteRemoved,
 		subjectStaffID: &row.StaffID,
-		oldValue:       map[string]any{"is_substitute": true, "is_absent": false},
+		oldValue:       map[string]any{"is_substitute": true, "is_absent": row.IsAbsent},
 		newValue:       map[string]any{"removed": true},
 		actorAccountID: actorAccountID,
 	})
@@ -350,7 +350,7 @@ func (s *instanceService) logDeviationEvent(ctx context.Context, in deviationEve
 	event := &auditModel.DeviationEvent{
 		ActivityGroupID: in.instance.ActivityGroupID,
 		OccurrenceDate:  in.instance.Date,
-		StartTime:       timezone.WallClock(in.instance.StartTime),
+		StartTime:       timezone.NormalizeWallClock(in.instance.StartTime),
 		InstanceID:      &in.instance.ID,
 		SubjectStaffID:  in.subjectStaffID,
 		RelatedStaffID:  in.relatedStaffID,
@@ -424,7 +424,7 @@ func (s *instanceService) logSnapshotDropped(
 	event := &auditModel.DeviationEvent{
 		ActivityGroupID: &activityGroupID,
 		OccurrenceDate:  snap.date,
-		StartTime:       timezone.WallClock(startTime),
+		StartTime:       timezone.NormalizeWallClock(startTime),
 		EventType:       auditModel.DeviationEventDroppedByReplan,
 		ActorAccountID:  normalizeActor(actorAccountID),
 	}

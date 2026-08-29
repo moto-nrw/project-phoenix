@@ -83,6 +83,14 @@ var (
 	// without renaming this sentinel or its wire code.
 	ErrAccountNoSchoolPortalRole = errors.New("account has no school portal role at any school")
 
+	// ErrMustUseSchoolPortal is the symmetric half of the school portal
+	// split: an account whose only role at this school is a school-portal
+	// role (today: lehrkraft) has no reachable surface in the OGS tenant
+	// portal, so the tenant login refuses it and points at moto schule.
+	// Dual-role accounts (also caregiver, admin, or guest) pass through
+	// unchanged — same rule as the guardian split above.
+	ErrMustUseSchoolPortal = errors.New("school portal accounts must log in at the school portal")
+
 	// Invitation errors
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")
@@ -95,6 +103,12 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
+	// ErrCannotRemovePayerGuardian: the link carries the child's payer mark
+	// (#2608). Clearing it is a financial decision that needs
+	// guardians:financial; the parents portal never holds that, so the payer
+	// stays until the school reassigns the payment account. The sentence is
+	// German because the parents portal shows it verbatim.
+	ErrCannotRemovePayerGuardian = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
 	// ErrInviteSocialWorkerManaged: the invited email belongs to a contact
 	// linked to this child as a social worker. That is a school-managed
 	// professional contact — the invite flow must never turn it into a legal

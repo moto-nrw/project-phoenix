@@ -23,6 +23,11 @@ import (
 const (
 	PortalStaff  = "staff"
 	PortalParent = "parent"
+	// PortalSchool is the Lehrkraft portal "moto schule" (#2208). It has no
+	// catalogue of its own: a staff type opts into it with SchoolPortal, and
+	// the decision is stored on the same (account, type) row as in the OGS
+	// portal — the same person hears about the same conversation once.
+	PortalSchool = "school"
 )
 
 // Groups the profile page renders as headings, in this order.
@@ -58,7 +63,10 @@ const (
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
-	TypeParentAnnouncement     = "parent_announcement"
+	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
+	// (#2598) — staff to staff, no parent involved.
+	TypeStaffMessage       = "staff_message"
+	TypeParentAnnouncement = "parent_announcement"
 
 	// Parent-facing types added with issue #1671. Each one mirrors a channel the
 	// parents app already has, and none of them carries a child's name: the copy
@@ -67,6 +75,10 @@ const (
 	TypeParentAppointment         = "parent_appointment"
 	TypeParentAppointmentReminder = "parent_appointment_reminder"
 	TypeParentRequestDecided      = "parent_request_decided"
+	// TypeParentCareCancelled announces that a care block one of the guardian's
+	// children was booked into has been cancelled (#2601). The feed entry is
+	// a system-authored parent announcement; this type only governs the push.
+	TypeParentCareCancelled = "parent_care_cancelled"
 )
 
 // TypeDefinition describes one notification a person can agree to.
@@ -82,6 +94,10 @@ type TypeDefinition struct {
 	// decision.
 	TenantGate string
 	SortOrder  int
+	// SchoolPortal offers a PortalStaff type in the school portal as well
+	// (#2208). Only types a Lehrkraft can actually receive belong here; the
+	// OGS supervision reminders never address a school-only account.
+	SchoolPortal bool
 }
 
 var (
@@ -111,6 +127,15 @@ func RegisterType(def TypeDefinition) {
 	typeRegistry[def.Key] = def
 }
 
+// OfferedInPortal reports whether a person using the given portal may see
+// and decide this type. The school portal borrows from the staff catalogue.
+func OfferedInPortal(def TypeDefinition, portal string) bool {
+	if portal == PortalSchool {
+		return def.Portal == PortalStaff && def.SchoolPortal
+	}
+	return def.Portal == portal
+}
+
 // GetType returns one definition.
 func GetType(key string) (TypeDefinition, bool) {
 	typeMu.RLock()
@@ -125,7 +150,7 @@ func TypesForPortal(portal string) []TypeDefinition {
 	typeMu.RLock()
 	defs := make([]TypeDefinition, 0, len(typeRegistry))
 	for _, def := range typeRegistry {
-		if def.Portal == portal {
+		if OfferedInPortal(def, portal) {
 			defs = append(defs, def)
 		}
 	}
@@ -212,6 +237,20 @@ func init() {
 		SortOrder:   1,
 	})
 
+	// OGS-internal colleague chat (#2598). Gated on the school's own feature
+	// switch: a school that has the internal messenger off has no conversation
+	// to announce, so the type disappears from the preference catalogue too.
+	RegisterType(TypeDefinition{
+		Key:          TypeStaffMessage,
+		Label:        "Nachrichten von Kolleginnen und Kollegen",
+		Description:  "Wenn Ihnen jemand aus dem Team eine Nachricht im Team-Chat schreibt.",
+		Group:        GroupMessages,
+		Portal:       PortalStaff,
+		TenantGate:   configModel.KeyStaffMessagingEnabled,
+		SortOrder:    2,
+		SchoolPortal: true,
+	})
+
 	RegisterType(TypeDefinition{
 		Key:         TypeParentAnnouncement,
 		Label:       "Neue Mitteilung der Schule",
@@ -256,6 +295,19 @@ func init() {
 		Portal:      PortalParent,
 		TenantGate:  configModel.KeyCalendarAppointmentReminderEnabled,
 		SortOrder:   2,
+	})
+
+	// Gated by the school-wide cancellation-notice switch, never by the news
+	// flag: the feed entry exists whenever the notice was sent, this only
+	// decides whether the phone rings for it.
+	RegisterType(TypeDefinition{
+		Key:         TypeParentCareCancelled,
+		Label:       "Betreuung fällt aus",
+		Description: "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt.",
+		Group:       GroupAppointments,
+		Portal:      PortalParent,
+		TenantGate:  configModel.KeyNotificationsCareCancelledEnabled,
+		SortOrder:   3,
 	})
 
 	RegisterType(TypeDefinition{

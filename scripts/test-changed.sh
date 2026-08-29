@@ -46,17 +46,33 @@ if [ "${#affected[@]}" -gt 0 ]; then
   echo "==> go test (${#affected[@]} affected packages; -p $package_workers, GOMAXPROCS $binary_cpus, -parallel $test_workers)"
   PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
   export PHX_TEST_RUN_ID
+  backend_go_phase=1
+  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  summarize_backend_go_failure() {
+    echo "==> go test failure summary" >&2
+    summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
+    if [ -n "$summary" ]; then
+      printf '%s\n' "$summary" >&2
+    else
+      tail -120 "$backend_go_log" >&2
+    fi
+  }
   backend_sweep() {
     status=$?
+    if [ "$status" -ne 0 ] && [ "$backend_go_phase" -eq 1 ] && [ -f "$backend_go_log" ]; then
+      summarize_backend_go_failure
+    fi
     if ! (cd "$repo_root/backend" && go run ./internal/testdb/cmd/sweep) &&
       [ "$status" -eq 0 ]; then
       status=1
     fi
+    rm -f "$backend_go_log"
     return "$status"
   }
   trap backend_sweep EXIT
   (cd backend && GOMAXPROCS="$binary_cpus" go test \
-    -p "$package_workers" -parallel "$test_workers" "${affected[@]}")
+    -p "$package_workers" -parallel "$test_workers" "${affected[@]}") 2>&1 | tee "$backend_go_log"
+  backend_go_phase=0
 else
   echo "==> backend: keine Go-Änderungen"
 fi
@@ -68,7 +84,7 @@ frontend_changes=$(
   } | awk '!/\.md$/' | sort -u
 )
 if printf '%s\n' "$frontend_changes" | grep -qxE \
-  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup\.ts)'; then
+  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)'; then
   echo "==> vitest (frontend test infrastructure changed)"
   (cd frontend && pnpm vitest run)
 elif [ -n "$frontend_changes" ]; then

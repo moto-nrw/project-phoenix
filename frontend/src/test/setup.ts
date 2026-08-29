@@ -54,29 +54,6 @@ Object.defineProperty(globalThis, "sessionStorage", {
   value: sessionStorageMock,
 });
 
-// Mock ~/lib/logger globally to prevent ClientLogger from:
-// - Accessing window.location.pathname (crashes in test env)
-// - Starting setInterval batch timers (leaks into tests)
-// - Making fetch calls to /api/logs
-// The mock passes through to console.* so existing spies still work.
-vi.mock("~/lib/logger", () => {
-  const createMockLogger = (): Record<string, unknown> => ({
-    debug: (msg: string, ctx?: Record<string, unknown>) =>
-      console.debug(msg, ctx),
-    info: (msg: string, ctx?: Record<string, unknown>) =>
-      console.info(msg, ctx),
-    warn: (msg: string, ctx?: Record<string, unknown>) =>
-      console.warn(msg, ctx),
-    error: (msg: string, ctx?: Record<string, unknown>) =>
-      console.error(msg, ctx),
-    flush: () => Promise.resolve(),
-    child: () => createMockLogger(),
-  });
-  return {
-    createLogger: vi.fn(() => createMockLogger()),
-  };
-});
-
 // Mock next-intl globally. EnrollmentForm, the parent shell, and several
 // shared components now call useTranslations/useLocale unconditionally, which
 // throws without a NextIntlClientProvider. The mock resolves keys against the
@@ -141,34 +118,6 @@ vi.mock("next-intl/server", () => ({
   getLocale: () => Promise.resolve("de"),
 }));
 
-// Mock ~/env globally to avoid Zod validation issues in tests
-vi.mock("~/env", () => ({
-  env: {
-    API_URL: "http://server:8080",
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-    NEXTAUTH_URL: "http://localhost:3000",
-    NEXTAUTH_SECRET: "test-secret",
-    AUTH_SECRET: "test-auth-secret",
-    AUTH_JWT_EXPIRY: "15m",
-    AUTH_JWT_REFRESH_EXPIRY: "12h",
-    NODE_ENV: "test",
-  },
-}));
-
-// Route-auth wrappers are exercised directly in focused unit tests. Route
-// tests mock the portal auth modules themselves, so keep their wrapper layer
-// transparent and preserve the existing one-session-read contract.
-const passthroughAuthWrapper = <Handler>(handler: Handler): Handler => handler;
-vi.mock("~/server/auth/tenant-route", () => ({
-  withTenantAuth: passthroughAuthWrapper,
-}));
-vi.mock("~/server/auth/operator-route", () => ({
-  withOperatorAuth: passthroughAuthWrapper,
-}));
-vi.mock("~/server/auth/parent-route", () => ({
-  withParentAuth: passthroughAuthWrapper,
-}));
-
 const tenantProviderMock = vi.hoisted(() => ({
   useTenant: vi.fn(() => ({
     tenantSlug: "test-tenant",
@@ -199,6 +148,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),
+  // Team-Chat (#2598) is opt-in and defaults off, and it fails CLOSED — so the
+  // default here is false too. Tests covering the feature override it locally.
+  useStaffMessagingEnabled: vi.fn(() => false),
   // Care offerings were historically always enabled. Preserve that behaviour
   // in unrelated fixtures unless a capability test opts out explicitly.
   useCareOfferingsEnabled: vi.fn(() => true),
@@ -207,6 +159,10 @@ const tenantProviderMock = vi.hoisted(() => ({
   useOperationalOverviewScope: vi.fn(() => "own"),
   useShowTimetableCounts: vi.fn(() => true),
   useWaitlistEnabled: vi.fn(() => true),
+  // The health column on the printed Notfallliste (#2609) defaults ON, like
+  // the registry default. Tests covering the switched-off branch override
+  // this mock locally.
+  useEmergencyHealthInfoEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {

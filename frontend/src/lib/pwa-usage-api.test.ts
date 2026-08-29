@@ -36,6 +36,11 @@ describe("reportStandaloneUsage", () => {
     });
   });
 
+  it("does not report school sessions to the tenant-only endpoint", async () => {
+    await reportStandaloneUsage("school", accountID, 1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("never posts outside standalone mode", async () => {
     isStandaloneApp.mockReturnValue(false);
     await reportStandaloneUsage("tenant", accountID, 1);

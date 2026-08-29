@@ -768,6 +768,11 @@ export interface ParentAnnouncement {
   readonly priority: "info" | "important";
   readonly link_url?: string;
   readonly requires_acknowledgement: boolean;
+  /**
+   * "letter" is a binding Elternbrief (#2384): the full text also went out by
+   * e-mail, and the confirmation here in the portal is the one that counts.
+   */
+  readonly delivery_mode?: "standard" | "letter";
   readonly school_name: string;
   readonly published_at?: string; // ISO timestamp
   readonly expires_at?: string; // ISO timestamp
@@ -781,6 +786,10 @@ export interface ParentAnnouncement {
   readonly response_deadline?: string; // ISO timestamp
   readonly options?: readonly ParentAnnouncementOption[];
   readonly children?: readonly ParentAnnouncementPollChild[];
+
+  // Set on rows the system wrote on the school's behalf (#2601). A
+  // cancellation notice is labelled as such instead of "Elternbrief".
+  readonly system_kind?: "care_cancellation";
 }
 
 interface ParentAnnouncementOption {
@@ -1218,6 +1227,7 @@ interface OfferingDecision {
   /** Date the switch took (or would have taken) effect (YYYY-MM-DD). */
   readonly effective_from: string;
   readonly reason?: string;
+  readonly complete_withdrawal?: boolean;
   /** What the family asked for, so the decision stays readable on its own. */
   readonly requested: OfferingRequestedItem[];
   /** The frozen diff the decision was made on; absent for older decisions. */
@@ -1321,6 +1331,7 @@ export async function submitOfferingChangeRequest(
     offerings: OfferingChangeSelectionInput[];
     effective_from: string;
     note?: string;
+    complete_withdrawal_confirmed?: boolean;
   },
 ): Promise<ChildCareOfferings> {
   return postJson<ChildCareOfferings>(

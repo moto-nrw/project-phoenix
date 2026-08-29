@@ -188,11 +188,22 @@ closed/locked devices.
   keys, and invalid contact URIs prevent server startup. Generate a pair with
   `npx web-push generate-vapid-keys`.
 - **Subscriptions** live in `iot.push_subscriptions` (RLS, unique per
-  `(tenant_id, endpoint)`, multiple devices per account, `portal` =
-  `staff`/`parent`). Staff endpoints: `GET /api/notifications/push/public-key`,
+  `(tenant_id, portal, endpoint)`, multiple devices per account, `portal` =
+  `staff`/`parent`/`school`). Staff endpoints:
+  `GET /api/notifications/push/public-key`,
   `POST`/`DELETE /api/notifications/push/subscriptions` (DELETE takes
   `?endpoint=…`). Parent endpoints mirror them under `/parent/me/push/*` and
-  register one row per active guardian tenant mapping.
+  register one row per active guardian tenant mapping; the school portal
+  mounts the staff handlers under `/school/notifications/push/*` and writes
+  `portal = 'school'`.
+- **One push per device**: an account reachable in the OGS portal and in moto
+  schule is reduced twice before sending. Rows sharing an endpoint collapse to
+  the most recently written one; rows of one account sharing a `user_agent`
+  collapse to the portal that registered last, because the two portals are
+  different origins and therefore hold different endpoints for the one
+  browser. The surviving row decides the deep link, so a school device is
+  never handed a tenant-portal path. Devices registered in the same portal are
+  never collapsed, and a row without a `user_agent` is left alone.
 - **Audience mapping**: `tenant` → all staff-portal subscriptions of the
   tenant; `admin` → staff-portal subscriptions of accounts with the admin
   role; `guardian` → the one account's parent-portal subscriptions.

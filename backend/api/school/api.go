@@ -26,6 +26,9 @@ import (
 	"github.com/go-chi/render"
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
+	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
+	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -35,6 +38,9 @@ type Resource struct {
 	AuthService     authService.AuthService
 	MFAService      authService.MFAService
 	ClassDay        *classdayAPI.Resource
+	Timetable       *timetableAPI.Resource
+	StaffMessaging  *staffMessagingAPI.Resource
+	Notifications   *notificationsAPI.Resource
 	authRateLimiter func(http.Handler) http.Handler
 }
 
@@ -43,11 +49,17 @@ func NewResource(
 	auth authService.AuthService,
 	mfa authService.MFAService,
 	classDay *classdayAPI.Resource,
+	timetable *timetableAPI.Resource,
+	staffMessaging *staffMessagingAPI.Resource,
+	notifications *notificationsAPI.Resource,
 ) *Resource {
 	return &Resource{
-		AuthService: auth,
-		MFAService:  mfa,
-		ClassDay:    classDay,
+		AuthService:    auth,
+		MFAService:     mfa,
+		ClassDay:       classDay,
+		Timetable:      timetable,
+		StaffMessaging: staffMessaging,
+		Notifications:  notifications,
 	}
 }
 
@@ -113,6 +125,29 @@ func (rs *Resource) Router() chi.Router {
 	// The class-day surface, reachable with school tokens. Same handlers
 	// and permission gate as the (transitional) tenant-portal mount.
 	r.Mount("/class-day", rs.ClassDay.SchoolRouter())
+
+	// The assignment-bound supervision surface (#2527): the Betreuungsplan
+	// blocks this Lehrkraft is personally planned into today, and nothing
+	// else. Same operations handlers as the OGS portal, a narrower mantle —
+	// see timetable.SchoolSupervisionRouter.
+	if rs.Timetable != nil {
+		r.Mount("/supervisions", rs.Timetable.SchoolSupervisionRouter())
+	}
+
+	// Team-Chat for Lehrkräfte (#2208): the same 1:1 conversations as the
+	// OGS portal's /api/staff-messages, reached with a school token. One
+	// service, one thread store — a Lehrkraft and a Betreuungskraft read the
+	// same conversation from their respective portals.
+	if rs.StaffMessaging != nil {
+		r.Mount("/staff-messages", rs.StaffMessaging.SchoolRouter())
+	}
+
+	// Own notification decisions and devices (#2208): the same handlers as
+	// /api/notifications, narrowed to the school catalogue and recording
+	// devices with portal "school".
+	if rs.Notifications != nil {
+		r.Mount("/notifications", rs.Notifications.SchoolRouter())
+	}
 
 	return r
 }

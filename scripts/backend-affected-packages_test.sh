@@ -13,8 +13,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{core,consumer,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
+printf '{}\n' >"$fixture/backend/architecture/policy.json"
+printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
 package core
@@ -29,6 +31,13 @@ import "example.test/project/core"
 const Value = core.Value
 EOF
 printf 'package consumer\n' >"$fixture/backend/consumer/consumer_test.go"
+cat >"$fixture/backend/consumerwithouttests/consumer.go" <<'EOF'
+package consumerwithouttests
+
+import "example.test/project/core"
+
+const Value = core.Value
+EOF
 printf 'package corex\n' >"$fixture/backend/corex/corex.go"
 printf 'package corex\n' >"$fixture/backend/corex/corex_test.go"
 printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/localization/locales.go"
@@ -58,10 +67,22 @@ git -C "$fixture" config user.name selector-test
 git -C "$fixture" config commit.gpgSign false
 git -C "$fixture" add .
 git -C "$fixture" commit -qm baseline
+git -C "$fixture" update-ref refs/remotes/origin/base HEAD
 
 select_packages() {
   working_directory=${1:-$fixture}
   (cd "$working_directory" && "$repo_root/scripts/backend-affected-packages.sh" HEAD)
+}
+
+select_lint_packages() {
+  event_name=$1
+  full_backend=$2
+  working_directory=${3:-$fixture}
+  (
+    cd "$working_directory"
+    BASE_REF=base EVENT_NAME="$event_name" FULL_BACKEND="$full_backend" \
+      "$repo_root/scripts/backend-lint-packages.sh"
+  )
 }
 
 assert_output() {
@@ -70,6 +91,17 @@ assert_output() {
   actual=$(select_packages "$working_directory")
   if [ "$actual" != "$expected" ]; then
     printf 'expected:\n%s\nactual:\n%s\n' "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+assert_lint_output() {
+  event_name=$1
+  full_backend=$2
+  expected=$3
+  actual=$(select_lint_packages "$event_name" "$full_backend")
+  if [ "$actual" != "$expected" ]; then
+    printf 'expected lint packages:\n%s\nactual:\n%s\n' "$expected" "$actual" >&2
     exit 1
   fi
 }
@@ -105,14 +137,36 @@ assert_output $'example.test/project/core\nexample.test/project/test'
 git -C "$fixture" restore backend/core/core_test.go
 
 printf '\n// changed\n' >>"$fixture/backend/core/core.go"
-assert_output $'example.test/project/consumer\nexample.test/project/core\nexample.test/project/test'
-assert_output $'example.test/project/consumer\nexample.test/project/core\nexample.test/project/test' "$fixture/backend"
+assert_output $'example.test/project/consumer\nexample.test/project/consumerwithouttests\nexample.test/project/core\nexample.test/project/test'
+assert_output $'example.test/project/consumer\nexample.test/project/consumerwithouttests\nexample.test/project/core\nexample.test/project/test' "$fixture/backend"
+assert_lint_output pull_request false $'./consumer\n./consumerwithouttests\n./core\n./test'
 git -C "$fixture" restore backend/core/core.go
+
+assert_lint_output pull_request false './...'
+assert_lint_output pull_request true './...'
+assert_lint_output push false './...'
+if (
+  cd "$fixture"
+  BASE_REF=missing EVENT_NAME=pull_request FULL_BACKEND=false \
+    "$repo_root/scripts/backend-lint-packages.sh" >/dev/null 2>&1
+); then
+  echo 'partial lint unexpectedly ignored a missing base ref' >&2
+  exit 1
+fi
 
 mkdir -p "$fixture/backend/consumer/testdata"
 printf 'fixture\n' >"$fixture/backend/consumer/testdata/input.golden"
 assert_output $'example.test/project/consumer\nexample.test/project/test'
 rm "$fixture/backend/consumer/testdata/input.golden"
+
+mkdir -p "$fixture/backend/consumer/testdata/module/source"
+printf 'module example.test/fixture\n\ngo 1.25\n' >"$fixture/backend/consumer/testdata/module/go.mod"
+printf 'package source\n' >"$fixture/backend/consumer/testdata/module/source/source.go"
+assert_output $'example.test/project/consumer\nexample.test/project/test'
+rm "$fixture/backend/consumer/testdata/module/source/source.go"
+rm "$fixture/backend/consumer/testdata/module/go.mod"
+rmdir "$fixture/backend/consumer/testdata/module/source"
+rmdir "$fixture/backend/consumer/testdata/module"
 
 printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
@@ -125,6 +179,10 @@ rm "$fixture/backend/localization/locales.json"
 printf 'asset\n' >"$fixture/backend/services/listexport/assets/probe.txt"
 assert_output $'example.test/project/exportconsumer\nexample.test/project/services/listexport\nexample.test/project/test'
 rm "$fixture/backend/services/listexport/assets/probe.txt"
+
+printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
+assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
+git -C "$fixture" restore backend/architecture/policy.json
 
 printf '\n// changed\n' >>"$fixture/backend/go.mod"
 assert_output './...'
@@ -144,7 +202,21 @@ if select_packages >/dev/null 2>&1; then
 fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
+assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
+assert_workflow_filter backend-lint 'scripts/backend-affected-packages.sh' present
+assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' present
+assert_workflow_filter backend-lint 'scripts/backend-lint-packages.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' present
+for pattern in \
+  'backend/go.mod' \
+  'backend/go.sum' \
+  'backend/.golangci.yml' \
+  'scripts/backend-affected-packages.sh' \
+  'scripts/backend-affected-packages_test.sh' \
+  'scripts/backend-lint-packages.sh'; do
+  assert_workflow_filter backend-lint-full "$pattern" present
+done
 for pattern in \
   'backend/templates/email/**' \
   'backend/localization/locales.json' \
@@ -155,5 +227,12 @@ done
 
 assert_workflow_output_contains run-backend '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains run-backend-lint '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains full-backend-lint '${{ github.event_name == '\''push'\'' ||'
+if ! grep -Fq 'packages_output=$(scripts/backend-lint-packages.sh)' \
+  "$repo_root/.github/workflows/lint.yml"; then
+  echo 'lint workflow does not propagate selector failures' >&2
+  exit 1
+fi
 
 echo 'backend affected-package selector tests passed'

@@ -193,11 +193,11 @@ export async function login(
   params: LoginParams,
 ): Promise<LoginResponse> {
   const url = loginUrl(scope);
-  // Only the tenant login carries a tenant slug; operator and school
-  // resolve their target themselves (school pins the first school with a
-  // school-portal role).
+  // Tenant login requires a tenant slug. School login accepts one only for
+  // a handoff from the OGS portal, where it pins a multi-school Lehrkraft to
+  // the school they selected.
   const payload =
-    scope === "tenant"
+    scope === "tenant" || (scope === "school" && params.tenantSlug)
       ? {
           email: params.email,
           password: params.password,

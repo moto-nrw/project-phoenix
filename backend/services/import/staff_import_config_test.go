@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -485,52 +486,34 @@ func TestStaffImportConfig_FindExisting(t *testing.T) {
 	})
 }
 
-func TestStaffImportConfig_Create_PassesInvitationRequest(t *testing.T) {
+func TestStaffImportConfig_FindExisting_PersonnelNumberDoesNotFallBackToNameWithoutNumber(t *testing.T) {
+	t.Parallel()
+
+	staff := &userModels.Staff{Person: &userModels.Person{FirstName: "Anna", LastName: "Lehmann"}}
+	staff.ID = 99
+	config := NewStaffImportConfig(StaffImportDeps{})
+	config.staffByName = map[string][]*userModels.Staff{
+		staffNameKey("Anna", "Lehmann"): {staff},
+	}
+
+	id, err := config.FindExisting(context.Background(), importModels.StaffImportRow{
+		FirstName: "Anna", LastName: "Lehmann", PersonnelNumber: "P-2600",
+	})
+
+	require.NoError(t, err)
+	assert.Nil(t, id, "a supplied personnel number must not match a namesake without one")
+}
+
+func TestStaffImportConfig_Create_WithoutRepositoriesFails(t *testing.T) {
 	t.Parallel()
 
 	invitations, req := newStaffInvitationServiceMock(nil)
 	config := NewStaffImportConfig(StaffImportDeps{InvitationService: invitations})
-	config.schoolName = "OGS Phoenix"
-	ctx := tenant.WithTenantID(context.Background(), staffImportTestTenantID)
-	ctx = ContextWithImporterID(ctx, staffImportTestActorID)
-	ctx = ContextWithImporterPermissions(ctx, []string{"users:manage"})
 
-	id, err := config.Create(ctx, importModels.StaffImportRow{
-		FirstName: "Anna",
-		LastName:  "Lehmann",
-		Email:     "Anna Lehmann <Anna@Example.COM>",
-		RoleID:    staffImportTestRoleID,
-		Position:  "Leitung",
-	})
+	_, err := config.Create(context.Background(), importModels.StaffImportRow{FirstName: "Anna", LastName: "Lehmann", Email: "anna@example.com"})
 
-	require.NoError(t, err)
-	assert.Equal(t, staffImportTestInviteID, id)
-	assert.Equal(t, "anna@example.com", req.Email)
-	assert.Equal(t, staffImportTestRoleID, req.RoleID)
-	assert.Equal(t, staffImportTestTenantID, req.TenantID)
-	assert.Equal(t, staffImportTestActorID, req.CreatedBy)
-	assert.Equal(t, []string{"users:manage"}, req.ActorPermissions)
-	assert.Equal(t, "OGS Phoenix", req.SchoolName)
-	require.NotNil(t, req.FirstName)
-	require.NotNil(t, req.LastName)
-	require.NotNil(t, req.Position)
-	assert.Equal(t, "Anna", *req.FirstName)
-	assert.Equal(t, "Lehmann", *req.LastName)
-	assert.Equal(t, "Leitung", *req.Position)
-}
-
-func TestStaffImportConfig_Create_ReturnsInvitationError(t *testing.T) {
-	t.Parallel()
-
-	inviteErr := errors.New("invite failed")
-	invitations, _ := newStaffInvitationServiceMock(inviteErr)
-	config := NewStaffImportConfig(StaffImportDeps{
-		InvitationService: invitations,
-	})
-
-	_, err := config.Create(context.Background(), importModels.StaffImportRow{})
-
-	require.ErrorIs(t, err, inviteErr)
+	require.Error(t, err)
+	assert.Empty(t, req.Email, "no invitation may go out when the Stammdatensatz cannot be written")
 }
 
 func TestStaffImportConfig_PreloadReferenceData_ReturnsRoleListError(t *testing.T) {

@@ -5,6 +5,7 @@
 package notifications
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -40,35 +41,74 @@ func NewResource(
 	}
 }
 
+// portalCtxKey carries which portal a request entered through. The handlers
+// are shared between the OGS portal (Router) and the school portal
+// (SchoolRouter, #2208); the portal decides which catalogue a person sees and
+// with which portal a device is registered.
+type portalCtxKey struct{}
+
+func withPortal(portal string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), portalCtxKey{}, portal)))
+		})
+	}
+}
+
+// requestPortal is the notification-catalogue portal of the request: the
+// school portal when the request came through SchoolRouter, staff otherwise.
+func requestPortal(r *http.Request) string {
+	if portal, ok := r.Context().Value(portalCtxKey{}).(string); ok && portal != "" {
+		return portal
+	}
+	return notificationsService.PortalStaff
+}
+
 // Router mounts the notification routes behind tenant JWT auth.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-		// The event is scoped to the logged-in staff account, so a valid tenant
-		// session is sufficient. No user can trigger a test for someone else.
-		r.With(withTx).Post("/test", rs.sendTestNotification)
-
-		// Push subscription management for the logged-in staff user's own
-		// devices — no extra permission beyond a valid tenant session.
-		r.With(withTx).Route("/push", func(r chi.Router) {
-			r.Get("/public-key", rs.getPushPublicKey)
-			r.Post("/subscriptions", rs.subscribePush)
-			r.Delete("/subscriptions", rs.unsubscribePush)
-		})
-
-		// Which notifications the logged-in user agreed to receive. Own data,
-		// so no permission beyond a valid tenant session — the same reasoning
-		// as the push routes above.
-		r.With(withTx).Route("/preferences", func(r chi.Router) {
-			r.Get("/", rs.listPreferences)
-			r.Delete("/", rs.deleteAllPreferences)
-			r.Put("/{type}", rs.setPreference)
-		})
-	})
+	common.ProtectedTenantGroup(r, rs.db, rs.registerRoutes)
 
 	return r
+}
+
+// SchoolRouter mounts the same routes for school-scope tokens (#2208). A
+// Lehrkraft manages her own devices and decisions exactly like a
+// Betreuungskraft; only the catalogue is narrowed to what the school portal
+// offers, and devices are recorded with portal "school".
+func (rs *Resource) SchoolRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(withPortal(notificationsService.PortalSchool))
+
+	common.ProtectedSchoolGroup(r, rs.db, rs.registerRoutes)
+
+	return r
+}
+
+func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
+	// The event is scoped to the logged-in account, so a valid session is
+	// sufficient. No user can trigger a test for someone else.
+	r.With(withTx).Post("/test", rs.sendTestNotification)
+
+	// Push subscription management for the logged-in user's own devices — no
+	// extra permission beyond a valid session.
+	r.With(withTx).Route("/push", func(r chi.Router) {
+		r.Get("/public-key", rs.getPushPublicKey)
+		r.Post("/subscriptions", rs.subscribePush)
+		r.Delete("/subscriptions", rs.unsubscribePush)
+	})
+
+	// Which notifications the logged-in user agreed to receive. Own data, so
+	// no permission beyond a valid session — the same reasoning as the push
+	// routes above.
+	r.With(withTx).Route("/preferences", func(r chi.Router) {
+		r.Get("/", rs.listPreferences)
+		r.Delete("/", rs.deleteAllPreferences)
+		r.Put("/{type}", rs.setPreference)
+	})
 }
 
 // sendTestNotification fires a fixed, display-safe test event only to the
@@ -101,10 +141,15 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 			Scope:           notificationsService.ScopeStaff,
 			StaffAccountIDs: []int64{*accountID},
 		},
+		// The test proves the setup of the portal the person is standing in,
+		// so it is delivered there and nowhere else (#2208).
+		Portal:   requestPortal(r),
 		Priority: notificationsService.PriorityNormal,
 		Title:    "Testbenachrichtigung",
 		Body:     "Die Benachrichtigungen sind korrekt eingerichtet.",
 		DeepLink: "/dashboard",
+		// The school portal has no dashboard; its root is the Klassenansicht.
+		SchoolDeepLink: "/school",
 	})
 	switch {
 	case errors.Is(err, notificationsService.ErrDisabled):

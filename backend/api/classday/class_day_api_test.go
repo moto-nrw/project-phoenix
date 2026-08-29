@@ -1,6 +1,11 @@
-// Router-level tests for /api/class-day (#1772): every route is gated on
-// class_day:read, and the roster is scoped to the caller's
+// Router-level tests for the class-day surface (#1772): every route is gated
+// on class_day:read, and the roster is scoped to the caller's
 // education.class_teachers assignments.
+//
+// Since the school-portal cutover (#2207 PR 3) the only mount is
+// /school/class-day, so these drive SchoolRouter with school-scope claims.
+// The behaviour under test is unchanged — same handlers, same permission
+// gate, same projection.
 package classday_test
 
 import (
@@ -16,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,9 +39,9 @@ func TestClassDayAPI(t *testing.T) {
 	})
 
 	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	router := resource.Router()
+	router := resource.SchoolRouter()
 
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	// Wrong permission → 403 before any data access.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -77,8 +83,8 @@ func TestClassDayAPINoAssignments(t *testing.T) {
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("Empty-%d", time.Now().UnixNano()))
 
 	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	router := resource.Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
+	router := resource.SchoolRouter()
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	// Without any assignment the classes list is empty and the day view is
 	// refused — there is nothing the caller may see.

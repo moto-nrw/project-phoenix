@@ -12,12 +12,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
+	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	mealplanRepo "github.com/moto-nrw/project-phoenix/database/repositories/mealplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -87,9 +89,17 @@ type Factory struct {
 	StaffQualification userModels.StaffQualificationRepository
 	StaffFinancialData userModels.StaffFinancialDataRepository
 
+	// Guardian payment data (#2608)
+	GuardianFinancialData userModels.GuardianFinancialDataRepository
+
 	// Staff documents (#1424)
 	StaffDocument   userModels.StaffDocumentRepository
 	StudentDocument userModels.StudentDocumentRepository
+
+	// School file storage (#2596)
+	FileFolder filestoreModels.FolderRepository
+	File       filestoreModels.FileRepository
+	FileEvent  auditModels.FileEventRepository
 
 	NotificationPreference userModels.NotificationPreferenceRepository
 
@@ -124,6 +134,7 @@ type Factory struct {
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
+	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
 	InstanceStudent           scheduleModels.InstanceStudentRepository
 	ActivityException         scheduleModels.ActivityExceptionRepository
@@ -136,13 +147,15 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup           activeModels.GroupRepository
-	ActiveVisit           activeModels.VisitRepository
-	GroupSupervisor       activeModels.GroupSupervisorRepository
-	CombinedGroup         activeModels.CombinedGroupRepository
-	GroupMapping          activeModels.GroupMappingRepository
-	Attendance            activeModels.AttendanceRepository
-	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	ActiveGroup      activeModels.GroupRepository
+	ActiveVisit      activeModels.VisitRepository
+	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CombinedGroup    activeModels.CombinedGroupRepository
+	GroupMapping     activeModels.GroupMappingRepository
+	Attendance       activeModels.AttendanceRepository
+	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
+	// Statistics serves the aggregate reads of the Statistik page (#2606).
+	Statistics            activeModels.StatisticsRepository
 	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
@@ -188,6 +201,7 @@ type Factory struct {
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
+	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
 	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 	BookingConsistency           auditModels.BookingConsistencyRepository
@@ -204,6 +218,7 @@ type Factory struct {
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
 	EmailOutbox              platformModels.EmailOutboxCleanupRepository
+	EmailDelivery            platformModels.EmailDeliveryRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
@@ -247,6 +262,11 @@ type Factory struct {
 	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
 
+	// OGS-internal colleague chat (#2598)
+	StaffMessageThread userModels.StaffMessageThreadRepository
+	StaffMessage       userModels.StaffMessageRepository
+	StaffMessageRead   userModels.StaffMessageReadRepository
+
 	// Calendar domain
 	CalendarAppointment               calendarModels.AppointmentRepository
 	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
@@ -261,6 +281,7 @@ type Factory struct {
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB) *Factory {
+	activityInstance := schedule.NewActivityInstanceRepository(db)
 	return &Factory{
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
@@ -307,9 +328,17 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffQualification: users.NewStaffQualificationRepository(db),
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
 
+		// Guardian payment data (#2608)
+		GuardianFinancialData: users.NewGuardianFinancialDataRepository(db),
+
 		// Staff documents (#1424)
 		StaffDocument:   users.NewStaffDocumentRepository(db),
 		StudentDocument: users.NewStudentDocumentRepository(db),
+
+		// School file storage (#2596)
+		FileFolder: filestore.NewFolderRepository(db),
+		File:       filestore.NewFileRepository(db),
+		FileEvent:  audit.NewFileEventRepository(db),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
@@ -343,7 +372,8 @@ func NewFactory(db *bun.DB) *Factory {
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ClosingDay:                schedule.NewClosingDayRepository(db),
-		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
+		ActivityInstance:          activityInstance,
+		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
 		InstanceStudent:           schedule.NewInstanceStudentRepository(db),
 		ActivityException:         schedule.NewActivityExceptionRepository(db),
@@ -363,6 +393,7 @@ func NewFactory(db *bun.DB) *Factory {
 		GroupMapping:          active.NewGroupMappingRepository(db),
 		Attendance:            active.NewAttendanceRepository(db),
 		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		Statistics:            active.NewStatisticsRepository(db),
 		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
 		WorkSession:           active.NewWorkSessionRepository(db),
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
@@ -408,6 +439,7 @@ func NewFactory(db *bun.DB) *Factory {
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
+		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(db),
 		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 		BookingConsistency:           audit.NewBookingConsistencyRepository(db),
@@ -424,6 +456,7 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
 		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
+		EmailDelivery:            platformRepo.NewEmailDeliveryRepository(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
@@ -463,6 +496,10 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
 		ParentMessage:       users.NewParentMessageRepository(db),
 		ParentMessageRead:   users.NewParentMessageReadRepository(db),
+
+		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
+		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageRead:   users.NewStaffMessageReadRepository(db),
 
 		// Calendar repositories
 		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),

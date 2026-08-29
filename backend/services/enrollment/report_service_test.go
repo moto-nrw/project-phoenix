@@ -19,6 +19,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -521,6 +522,82 @@ func TestClassRosterIgnoresLeftoverCatalogWhenOfferingsDisabled(t *testing.T) {
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, report.Rows[0].CareDays)
 }
 
+type fakeClassCareParticipation map[int64]bool
+
+func (f fakeClassCareParticipation) ResolveListParticipation(
+	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
+) (*userService.CareParticipationResolution, error) {
+	return &userService.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: f}, nil
+}
+
+type allClassCareParticipation struct{}
+
+func (allClassCareParticipation) ResolveListParticipation(
+	_ context.Context, studentIDs []int64, _, _ timezone.Date, _ bool,
+) (*userService.CareParticipationResolution, error) {
+	result := make(map[int64]bool, len(studentIDs))
+	for _, studentID := range studentIDs {
+		result[studentID] = true
+	}
+	return &userService.CareParticipationResolution{CandidateIDs: studentIDs, ParticipatingIDs: result}, nil
+}
+
+type recordingClassCareParticipation struct {
+	on    timezone.Date
+	today timezone.Date
+}
+
+func (f *recordingClassCareParticipation) ResolveListParticipation(
+	_ context.Context, studentIDs []int64, on, today timezone.Date, _ bool,
+) (*userService.CareParticipationResolution, error) {
+	f.on, f.today = on, today
+	return &userService.CareParticipationResolution{
+		CandidateIDs: studentIDs, ParticipatingIDs: map[int64]bool{studentIDs[0]: true},
+	}, nil
+}
+
+func TestClassRosterParticipationUsesOneTodaySnapshot(t *testing.T) {
+	t.Parallel()
+	student := &userModels.Student{Model: baseModels.Model{ID: 43}, SchoolClass: "2b"}
+	recorder := &recordingClassCareParticipation{}
+	calls := 0
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		StudentRepo:       &fakeClassRosterStudentRepo{students: []*userModels.Student{student}},
+		CareParticipation: recorder,
+		Now: func() time.Time {
+			calls++
+			return time.Date(2026, 8, 25, 23, 59, 59, 0, timezone.Berlin)
+		},
+	}}
+
+	students, err := svc.classRosterStudents(context.Background(), ClassRosterFilters{SchoolClass: "2b"})
+
+	require.NoError(t, err)
+	require.Len(t, students, 1)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, timezone.NewDate(2026, 8, 25), recorder.on)
+	assert.Equal(t, recorder.on, recorder.today)
+}
+
+func TestClassRosterAppliesBookingParticipationBoundary(t *testing.T) {
+	t.Parallel()
+	endedYesterday := timezone.TodayDate().AddDays(-1)
+	students := []*userModels.Student{
+		{Model: baseModels.Model{ID: 41}, PersonID: 141, SchoolClass: "2a", Status: userModels.StudentStatusAlumnus, EnrolledUntil: &endedYesterday},
+		{Model: baseModels.Model{ID: 42}, PersonID: 142, SchoolClass: "2a", Status: userModels.StudentStatusActive},
+	}
+	svc := classRosterTestService(students, map[int64]*userModels.Person{
+		141: {Model: baseModels.Model{ID: 141}, FirstName: "Vor", LastName: "Lücke"},
+		142: {Model: baseModels.Model{ID: 142}, FirstName: "Ab", LastName: "Lücke"},
+	}, &fakeClassRosterRequestRepo{}, &fakeClassRosterChildRepo{})
+	svc.CareParticipation = fakeClassCareParticipation{41: true}
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "2a"})
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Equal(t, int64(41), report.Rows[0].StudentID)
+}
+
 func TestClassRosterFailsWhenCareOfferingsSettingCannotBeResolved(t *testing.T) {
 	t.Parallel()
 
@@ -617,6 +694,27 @@ func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
 	assert.True(t, report.Rows[0].Registered)
+}
+
+func TestClassRosterAppliesStudentLimitAfterParticipationFiltering(t *testing.T) {
+	t.Parallel()
+
+	students := make([]*userModels.Student, 0, maxReportRows+1)
+	participating := fakeClassCareParticipation{1: true}
+	for id := 1; id <= maxReportRows+1; id++ {
+		students = append(students, &userModels.Student{
+			Model: baseModels.Model{ID: int64(id)}, SchoolClass: "1a",
+		})
+	}
+	svc := &reportService{ReportServiceConfig{
+		StudentRepo:       &fakeClassRosterStudentRepo{students: students},
+		CareParticipation: participating,
+	}}
+
+	result, err := svc.classRosterStudents(context.Background(), ClassRosterFilters{AllClasses: true})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, students[0].ID, result[0].ID)
 }
 
 func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *testing.T) {
@@ -1094,7 +1192,7 @@ func (r *fakeEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (map[
 }
 
 func classRosterTestService(students []*userModels.Student, persons map[int64]*userModels.Person, requestRepo *fakeClassRosterRequestRepo, childRepo *fakeClassRosterChildRepo) *reportService {
-	return &reportService{ReportServiceConfig: ReportServiceConfig{RequestRepo: requestRepo, RequestChildRepo: childRepo, RequestGuardianRepo: &fakeClassRosterRequestGuardianRepo{}, RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{}, CareOfferingRepo: &fakeClassRosterCareOfferingRepo{}, PhaseRepo: &fakeClassRosterPhaseRepo{}, StudentRepo: &fakeClassRosterStudentRepo{students: students}, StudentGuardianRepo: &fakeClassRosterStudentGuardianRepo{}, PersonRepo: &fakeClassRosterPersonRepo{persons: persons}, EducationGroupRepo: &fakeEducationGroupRepo{}}}
+	return &reportService{ReportServiceConfig: ReportServiceConfig{RequestRepo: requestRepo, RequestChildRepo: childRepo, RequestGuardianRepo: &fakeClassRosterRequestGuardianRepo{}, RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{}, CareOfferingRepo: &fakeClassRosterCareOfferingRepo{}, PhaseRepo: &fakeClassRosterPhaseRepo{}, StudentRepo: &fakeClassRosterStudentRepo{students: students}, StudentGuardianRepo: &fakeClassRosterStudentGuardianRepo{}, PersonRepo: &fakeClassRosterPersonRepo{persons: persons}, EducationGroupRepo: &fakeEducationGroupRepo{}, CareParticipation: allClassCareParticipation{}}}
 }
 
 type fakeClassRosterStudentRepo struct {
@@ -1102,7 +1200,7 @@ type fakeClassRosterStudentRepo struct {
 	students []*userModels.Student
 }
 
-func (r *fakeClassRosterStudentRepo) FindBySchoolClass(_ context.Context, _ string) ([]*userModels.Student, error) {
+func (r *fakeClassRosterStudentRepo) ListWithOptions(_ context.Context, _ *baseModels.QueryOptions) ([]*userModels.Student, error) {
 	return r.students, nil
 }
 

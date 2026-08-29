@@ -19,6 +19,7 @@ export const resourceLabels: Record<string, string> = {
   grade_transitions: "Klassenwechsel",
   calendar: "Kalender",
   staff: "Mitarbeitende",
+  files: "Dateiablage",
 };
 
 export const actionLabels: Record<string, string> = {
@@ -141,6 +142,10 @@ const permissionDescriptions: Record<string, string> = {
   // Staff Stammdaten
   "staff:financial":
     "Bank- und Steuerdaten von Mitarbeitenden ansehen und bearbeiten (IBAN, Steuer-ID, SV-Nummer)",
+
+  // Guardian payment data
+  "guardians:financial":
+    "Bankverbindungen von Eltern ansehen, bearbeiten und als Liste exportieren (IBAN)",
 
   // Calendar
   "calendar:own": "Eigenen Kalender nutzen und Einladungen beantworten",

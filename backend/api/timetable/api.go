@@ -113,6 +113,9 @@ type Dependencies struct {
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint (#2137); implemented by the enrollment decision service.
 	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister
+	// ReportService serves the per-child supervision sheet of the school
+	// portal (#2527). Only SchoolSupervisionRouter consumes it.
+	ReportService enrollmentSvc.ReportService
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService    planexport.Service
 	PlanningTrackService scheduleSvc.PlanningTrackService
@@ -205,6 +208,9 @@ func (rs *Resource) Router() chi.Router {
 				Post("/{id}/reopen", rs.reopenInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, rs.requireWebAttendanceForActiveInstance).
 				Post("/{id}/cancel", rs.cancelInstance)
+			// #2601: preview for "Eltern informieren" in the cancel dialog.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Get("/{id}/guardian-notice", rs.guardianNoticeReach)
 				// #1840 Vertretungsplan: mark a block as deliberately left
 				// unstaffed so it drops out of the gap list. SchedulesManage
 				// like the other instance mutations.
@@ -317,6 +323,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/capabilities", rs.operationsCapabilities)
+			// Roster endpoints stay available to operational supervisors; their
+			// pickup-time fields are redacted without users:read.
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

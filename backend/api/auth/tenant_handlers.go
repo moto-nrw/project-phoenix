@@ -73,7 +73,14 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	// Shell settings resolve first: their batch includes grade_level_max, so
 	// the request cache satisfies the hard-fail resolve below without a second
 	// tenant transaction (issue #2065).
-	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
+	resolved, err := rs.resolveTenantShellSettings(r.Context(), school.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			http.StatusText(http.StatusInternalServerError),
+			fmt.Errorf("tenant resolve: %w", err),
+		))
+		return
+	}
 
 	// GradeLevelMax is a validation constraint, not an optional display hint.
 	// The registry returns the legitimate default for tenants without an
@@ -89,33 +96,35 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &TenantResolveResponse{
-		TenantID:                 school.ID,
-		Slug:                     school.Slug,
-		Name:                     school.Name,
-		Subdomain:                school.Subdomain,
-		OrganizationID:           school.OrganizationID,
-		OrganizationName:         orgName,
-		Hidden:                   school.Hidden,
-		Settings:                 settings,
-		PresenceMode:             resolved.presenceMode,
-		StudentPhotosEnabled:     resolved.studentPhotosEnabled,
-		NFCEnabled:               resolved.nfcEnabled,
-		ParentMessagingEnabled:   resolved.parentMessagingEnabled,
-		DisplayEnabled:           resolved.displayEnabled,
-		GradeLevelMax:            gradeLevelMax,
-		CareOfferingsEnabled:     resolved.careOfferingsEnabled,
-		AttendanceWebEnabled:     resolved.attendanceWebEnabled,
-		AttendanceLogEnabled:     resolved.attendanceLogEnabled,
-		GroupMode:                resolved.groupMode,
-		OperationalOverviewScope: resolved.overviewScope,
-		ShowTimetableCounts:      resolved.showTimetableCounts,
-		WaitlistEnabled:          resolved.waitlistEnabled,
+		TenantID:                   school.ID,
+		Slug:                       school.Slug,
+		Name:                       school.Name,
+		Subdomain:                  school.Subdomain,
+		OrganizationID:             school.OrganizationID,
+		OrganizationName:           orgName,
+		Hidden:                     school.Hidden,
+		Settings:                   settings,
+		PresenceMode:               resolved.presenceMode,
+		StudentPhotosEnabled:       resolved.studentPhotosEnabled,
+		NFCEnabled:                 resolved.nfcEnabled,
+		ParentMessagingEnabled:     resolved.parentMessagingEnabled,
+		StaffMessagingEnabled:      resolved.staffMessagingEnabled,
+		DisplayEnabled:             resolved.displayEnabled,
+		GradeLevelMax:              gradeLevelMax,
+		CareOfferingsEnabled:       resolved.careOfferingsEnabled,
+		AttendanceWebEnabled:       resolved.attendanceWebEnabled,
+		AttendanceLogEnabled:       resolved.attendanceLogEnabled,
+		GroupMode:                  resolved.groupMode,
+		OperationalOverviewScope:   resolved.overviewScope,
+		ShowTimetableCounts:        resolved.showTimetableCounts,
+		WaitlistEnabled:            resolved.waitlistEnabled,
+		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
 }
 
-func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) tenantShellSettings {
+func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) (tenantShellSettings, error) {
 	resolved := tenantShellSettings{
 		presenceMode:           configModel.PresenceModeDetailed,
 		parentMessagingEnabled: true,
@@ -124,9 +133,10 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		overviewScope:          configModel.OverviewScopeOwn,
 		showTimetableCounts:    true,
 		waitlistEnabled:        true,
+		emergencyHealthInfo:    false,
 	}
 	if rs.SettingsService == nil {
-		return resolved
+		return resolved, nil
 	}
 
 	keys := []string{
@@ -142,6 +152,8 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyGroupMode,
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyParentNotesEnabled,
+		configModel.KeyEmergencyListHealthInfo,
+		configModel.KeyStaffMessagingEnabled,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
@@ -153,7 +165,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, keys)
 		if err != nil {
 			logTenantResolveSettingFailure(ctx, tenantID, "tenant_shell", err, slog.LevelError)
-			return resolved
+			return resolved, fmt.Errorf("resolve tenant shell settings: %w", err)
 		}
 		if snapshot != nil {
 			return resolveTenantShellSnapshot(ctx, tenantID, snapshot, resolved)
@@ -175,13 +187,21 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
+	resolved.emergencyHealthInfo = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
 
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
 	resolved.parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(ctx, rs.SettingsService, tenantID, nil)
-	return resolved
+	// The internal Team-Chat (#2598) must resolve cleanly: false is a real
+	// switch-off, while resolver errors must not masquerade as policy.
+	staffMessagingEnabled, err := rs.resolveRequiredTenantShellBool(ctx, tenantID, configModel.KeyStaffMessagingEnabled)
+	if err != nil {
+		return resolved, err
+	}
+	resolved.staffMessagingEnabled = staffMessagingEnabled
+	return resolved, nil
 }
 
 func resolveTenantShellSnapshot(
@@ -189,7 +209,7 @@ func resolveTenantShellSnapshot(
 	tenantID int64,
 	snapshot *configSvc.SettingsSnapshot,
 	resolved tenantShellSettings,
-) tenantShellSettings {
+) (tenantShellSettings, error) {
 	resolveBool := func(key string, fallback bool, level slog.Level) bool {
 		value, err := snapshot.Bool(key)
 		if err != nil {
@@ -216,6 +236,13 @@ func resolveTenantShellSnapshot(
 	resolved.showTimetableCounts = resolveBool(configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
+	resolved.emergencyHealthInfo = resolveBool(configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
+	staffMessagingEnabled, err := snapshot.Bool(configModel.KeyStaffMessagingEnabled)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, configModel.KeyStaffMessagingEnabled, err, slog.LevelError)
+		return resolved, fmt.Errorf("resolve %s: %w", configModel.KeyStaffMessagingEnabled, err)
+	}
+	resolved.staffMessagingEnabled = staffMessagingEnabled
 
 	mode := resolveString(configModel.KeyPresenceMode, configModel.PresenceModeDetailed, slog.LevelWarn)
 	if mode != "" {
@@ -228,7 +255,7 @@ func resolveTenantShellSnapshot(
 	resolved.overviewScope = normalizeOverviewScope(
 		resolveString(configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, slog.LevelError),
 	)
-	return resolved
+	return resolved, nil
 }
 
 // normalizeOverviewScope keeps an unknown wire value from reaching the client
@@ -249,6 +276,15 @@ func (rs *Resource) resolveTenantShellBool(ctx context.Context, tenantID int64, 
 	}
 	logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
 	return fallback
+}
+
+func (rs *Resource) resolveRequiredTenantShellBool(ctx context.Context, tenantID int64, key string) (bool, error) {
+	value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, key)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, key, err, slog.LevelError)
+		return false, fmt.Errorf("resolve %s: %w", key, err)
+	}
+	return value, nil
 }
 
 func (rs *Resource) resolveTenantGroupMode(ctx context.Context, tenantID int64) string {
@@ -303,6 +339,9 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+				common.RenderError(w, r, common.ErrorForbiddenWithCode(
+					authService.ErrMustUseSchoolPortal, "use_school_portal"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

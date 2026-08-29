@@ -123,6 +123,10 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
+	// ListIDs retrieves lightweight tenant-scoped candidates. The shared dated
+	// participation evaluator, not a lifecycle status, decides visibility.
+	ListIDs(ctx context.Context) ([]int64, error)
+
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
 	// stored birth date are omitted, never rendered as an unknown date.
@@ -147,6 +151,11 @@ type StudentRepository interface {
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
+	// FindOverlappingWithGroups retrieves the non-alumni students enrolled on
+	// at least one day of the inclusive report range, with their current
+	// group. Membership follows EnrolledOn, so today decides whether an
+	// immediately activated child (active, enrolled_from still ahead) counts.
+	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*StudentWithGroupInfo, error)
 
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
 	// Alumni are excluded: a graduate is soft-deleted and must not block the
@@ -423,6 +432,15 @@ type GuardianEmergencyContactRow struct {
 	LastName          sql.NullString `bun:"last_name"`
 	Email             sql.NullString `bun:"email"`
 	PhoneNumber       sql.NullString `bun:"phone_number"`
+	// RelationshipType, CanPickup and IsEmergencyContact carry the role of the
+	// relationship (#2527). The emergency list itself ignores them — it wants
+	// every reachable adult — but the supervision sheet must tell "darf
+	// abholen" apart from "im Notfall anrufen", and both answers come from the
+	// same join.
+	RelationshipType   sql.NullString `bun:"relationship_type"`
+	PickupNotes        sql.NullString `bun:"pickup_notes"`
+	CanPickup          bool           `bun:"can_pickup"`
+	IsEmergencyContact bool           `bun:"is_emergency_contact"`
 }
 
 type StudentGuardianRepository interface {
@@ -508,6 +526,20 @@ type StudentGuardianRepository interface {
 
 	// SetPrimary sets a guardian as the primary guardian for a student
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
+
+	// SetPayer moves the payment mark for one child (#2608): it clears the
+	// mark from every guardian of the child and sets it on the named guardian,
+	// or leaves the child unassigned when guardianProfileID is nil. Must run
+	// inside a tenant transaction — the clear and the set are only atomic
+	// together, and the partial unique index rejects a second marked row.
+	// Returns ErrStudentGuardianNotFound when the guardian is not linked to
+	// the child.
+	SetPayer(ctx context.Context, studentID int64, guardianProfileID *int64) error
+
+	// ListPaymentAssignments returns one row per non-alumnus child with the
+	// guardian marked as payer joined in. Children without an assigned payer
+	// are included with a nil GuardianProfileID so the list shows the gaps.
+	ListPaymentAssignments(ctx context.Context) ([]GuardianPaymentAssignment, error)
 }
 
 // StudentCompanionRepository defines operations for the child-to-child

@@ -99,12 +99,13 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 
 func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision) *OfferingDecisionResponse {
 	resp := &OfferingDecisionResponse{
-		ID:            strconv.FormatInt(decision.ID, 10),
-		Status:        decision.Status,
-		DecidedAt:     decision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
-		EffectiveFrom: decision.EffectiveFrom.String(),
-		Reason:        decision.Reason,
-		Requested:     make([]OfferingRequestedItemResponse, 0, len(decision.Requested)),
+		ID:                 strconv.FormatInt(decision.ID, 10),
+		Status:             decision.Status,
+		DecidedAt:          decision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
+		EffectiveFrom:      decision.EffectiveFrom.String(),
+		Reason:             decision.Reason,
+		CompleteWithdrawal: decision.CompleteWithdrawal,
+		Requested:          make([]OfferingRequestedItemResponse, 0, len(decision.Requested)),
 	}
 	for _, item := range decision.Requested {
 		resp.Requested = append(resp.Requested, OfferingRequestedItemResponse{
@@ -204,10 +205,11 @@ type PendingOfferingChangeResponse struct {
 type OfferingDecisionResponse struct {
 	ID string `json:"id"`
 	// Status is "approved" or "rejected".
-	Status        string `json:"status"`
-	DecidedAt     string `json:"decided_at"`
-	EffectiveFrom string `json:"effective_from"`
-	Reason        string `json:"reason,omitempty"`
+	Status             string `json:"status"`
+	DecidedAt          string `json:"decided_at"`
+	EffectiveFrom      string `json:"effective_from"`
+	Reason             string `json:"reason,omitempty"`
+	CompleteWithdrawal bool   `json:"complete_withdrawal,omitempty"`
 	// Requested recaps what the family asked for, so a decision stays readable
 	// on its own.
 	Requested []OfferingRequestedItemResponse `json:"requested"`
@@ -281,8 +283,9 @@ type OfferingChangeRequestBody struct {
 		OfferingID   string   `json:"offering_id"`
 		SelectedDays []string `json:"selected_days"`
 	} `json:"offerings"`
-	EffectiveFrom string `json:"effective_from"`
-	Note          string `json:"note"`
+	EffectiveFrom               string `json:"effective_from"`
+	Note                        string `json:"note"`
+	CompleteWithdrawalConfirmed bool   `json:"complete_withdrawal_confirmed,omitempty"`
 }
 
 // getChildCareOfferings returns what the child is booked into.
@@ -366,7 +369,7 @@ func (rs *Resource) createOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		})
 	}
 	view, err := rs.ParentService.CreateOfferingChangeRequest(
-		r.Context(), accountID, studentID, selections, effectiveFrom, body.Note,
+		r.Context(), accountID, studentID, selections, effectiveFrom, body.Note, body.CompleteWithdrawalConfirmed,
 	)
 	if err != nil {
 		renderParentWriteError(w, r, err)

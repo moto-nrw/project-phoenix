@@ -64,42 +64,54 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
 
-	status, ok := s.Attendances[studentID]
-	if !ok || status == nil {
-		return StudentLocationInfo{Location: "Abwesend"}
-	}
-
-	// Binary mode short-circuits after the attendance check. Visit and group
-	// data aren't written by binary-mode tenants, so there's nothing else to
-	// consult. Yard state is surfaced as "Schulhof" — the only non-binary
-	// label the resolver produces in this mode, and only when a yard timestamp
-	// is actually set on the attendance row.
+	status := s.Attendances[studentID]
 	if s.Mode == PresenceModeBinary {
+		if status == nil {
+			return StudentLocationInfo{Location: "Abwesend"}
+		}
 		info := ResolveBinaryLocation(status, hasFullAccess)
 		return withYardRoomColor(info, s.YardRoomColor)
 	}
+	return s.resolveDetailedLocation(studentID, status, hasFullAccess)
+}
 
-	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
+// resolveDetailedLocation treats an open visit as the authoritative live
+// location even when the attendance projection is missing or stale.
+func (s *StudentLocationSnapshot) resolveDetailedLocation(
+	studentID int64, status *AttendanceStatus, hasFullAccess bool,
+) StudentLocationInfo {
+	visit := s.Visits[studentID]
+	if status == nil && visit == nil {
+		return StudentLocationInfo{Location: "Abwesend"}
+	}
+
+	if visit == nil {
+		return detailedAttendanceLocation(status, hasFullAccess)
+	}
+	if !hasFullAccess {
+		return StudentLocationInfo{Location: "Anwesend"}
+	}
+	return s.resolveVisitLocation(visit)
+}
+
+func detailedAttendanceLocation(status *AttendanceStatus, hasFullAccess bool) StudentLocationInfo {
 	if status.Status == "checked_out" {
 		if hasFullAccess && status.CheckOutTime != nil {
 			return StudentLocationInfo{Location: "Abwesend", Since: status.CheckOutTime}
 		}
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
-
-	// If not checked in at all, return "Abwesend" without time.
-	// "on_yard" does not appear in detailed mode (yard state is binary-mode
-	// only), so we treat anything other than "checked_in" as absent here.
 	if status.Status != "checked_in" {
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
-
 	if !hasFullAccess {
 		return StudentLocationInfo{Location: "Anwesend"}
 	}
+	return StudentLocationInfo{Location: "Unterwegs"}
+}
 
-	visit, ok := s.Visits[studentID]
-	if !ok || visit == nil || visit.ActiveGroupID <= 0 {
+func (s *StudentLocationSnapshot) resolveVisitLocation(visit *activeModels.Visit) StudentLocationInfo {
+	if visit.ActiveGroupID <= 0 {
 		return StudentLocationInfo{Location: "Unterwegs"}
 	}
 

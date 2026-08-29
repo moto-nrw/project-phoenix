@@ -242,6 +242,8 @@ func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.Pare
 		Set("expires_at = ?", a.ExpiresAt).
 		Set("response_type = ?", a.ResponseType).
 		Set("response_deadline = ?", a.ResponseDeadline).
+		Set("delivery_mode = ?", a.DeliveryMode).
+		Set("email_audience = ?", a.EmailAudience).
 		Set("updated_at = ?", now).
 		Where("id = ?", a.ID).
 		Where("published_at IS NULL").
@@ -576,6 +578,154 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	return rows, nil
 }
 
+// letterReachedStudentsSQL is every child the announcement's targets reach,
+// with NO guardian requirement at all.
+//
+// This is deliberately broader than the portal audience the poll view uses. A
+// letter to the whole school reaches every child in it; whether anyone can
+// confirm for a given child is a SEPARATE question, answered per row by
+// can_confirm. Collapsing the two — as the poll audience does — makes a
+// school-wide letter report "6 Kinder" when it went to 116, which reads as
+// "almost everyone confirmed" instead of "110 children have no portal contact".
+//
+// Bind order: tenant (students), tenant (activity-group sub-EXISTS), ann, tenant.
+func letterReachedStudentsSQL(annExpr, tenantExpr string) string {
+	return fmt.Sprintf(`
+		SELECT DISTINCT s.id AS student_id
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = %[2]s AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %[3]s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		AND s.status <> 'alumnus'
+		WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s`,
+		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr))
+}
+
+// letterReachedStudentArgs mirrors the placeholder order of
+// letterReachedStudentsSQL("?", "?").
+func letterReachedStudentArgs(announcementID, tenantID int64) []any {
+	return []any{tenantID, tenantID, announcementID, tenantID}
+}
+
+// LetterChildStatuses returns every reached child with the DERIVED fulfilment
+// state of an Elternbrief (#2384): who confirmed it for that child and when.
+//
+// The audience is the same portal-visible student set the poll view uses, so a
+// child nobody can currently reach in moto stays visible instead of silently
+// disappearing from the count.
+//
+// The LATERAL picks the FIRST acknowledgement, ordered by time: once the letter
+// is fulfilled, "wer hat für dieses Kind bestätigt" means whoever got there
+// first. It joins through students_guardians with parent_portal.access, so a
+// guardian who acknowledged the announcement for a DIFFERENT child cannot
+// accidentally fulfil this one.
+//
+// Nothing here is stored: because acknowledgement lives on the account, one
+// confirmation covers every addressed sibling of that guardian automatically.
+func (r *ParentAnnouncementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementLetterChildStatus, error) {
+	reached := letterReachedStudentsSQL("?", "?")
+	confirmable := pollAudienceStudentsSQL("?", "?", "")
+	args := append(letterReachedStudentArgs(announcementID, tenantID),
+		audienceStudentArgs(announcementID, tenantID, nil)...)
+	sqlStr := `WITH reached AS (` + reached + `),
+		confirmable AS (` + confirmable + `)
+		SELECT s.id AS student_id,
+			COALESCE(p.first_name, '') AS first_name,
+			COALESCE(p.last_name, '')  AS last_name,
+			COALESCE(s.school_class, '') AS school_class,
+			EXISTS (SELECT 1 FROM confirmable c WHERE c.student_id = s.id) AS can_confirm,
+			ack.acknowledged_at AS acknowledged_at,
+			COALESCE(ack.first_name, '') AS ack_first_name,
+			COALESCE(ack.last_name, '')  AS ack_last_name
+		FROM reached
+		JOIN users.students s ON s.id = reached.student_id
+		JOIN users.persons p ON p.id = s.person_id
+		LEFT JOIN LATERAL (
+			SELECT par.acknowledged_at, gp.first_name, gp.last_name
+			FROM users.students_guardians sg
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id
+				AND gp.tenant_id = ? AND gp.account_id IS NOT NULL
+			JOIN users.parent_announcement_reads par ON par.announcement_id = ?
+				AND par.tenant_id = ? AND par.account_id = gp.account_id
+			WHERE sg.student_id = s.id AND sg.tenant_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND par.acknowledged_at IS NOT NULL
+			ORDER BY par.acknowledged_at ASC
+			LIMIT 1
+		) ack ON TRUE
+		ORDER BY last_name ASC, first_name ASC, student_id ASC`
+	sqlArgs := append(append([]any{}, args...), tenantID, announcementID, tenantID, tenantID)
+	var rows []*users.AnnouncementLetterChildStatus
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "parent announcement letter child statuses", Err: err}
+	}
+	return rows, nil
+}
+
+// ResolveDeliveryRecipients returns every guardian linked to a child the
+// announcement's student-based targets reach, with no portal-access filter —
+// the input for the per-recipient delivery rows behind the staff matrix (#2384).
+//
+// Two things make this different from ResolveAudienceEmails, and both are the
+// point: guardians WITHOUT parent_portal.access are included (so the matrix can
+// show "kein Portalzugang" instead of silently omitting the person), and
+// guardians without an address are included (so the school sees the gap it has
+// to fix). Whether such a person is actually mailed is the caller's decision,
+// taken from the announcement's email_audience.
+//
+// has_portal_access is aggregated with bool_or across the reached children: a
+// guardian who has portal access for one addressed child but not another can
+// see the announcement, so they count as reachable in moto.
+func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementDeliveryRecipient, error) {
+	var rows []*users.AnnouncementDeliveryRecipient
+	sqlStr := fmt.Sprintf(`
+		SELECT gp.id AS guardian_profile_id,
+			gp.account_id,
+			COALESCE(gp.first_name, '') AS first_name,
+			COALESCE(gp.last_name, '')  AS last_name,
+			COALESCE(LOWER(BTRIM(gp.email)), '') AS email,
+			COALESCE(gp.portal_locale, '') AS portal_locale,
+			bool_or(
+				sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND gp.account_id IS NOT NULL
+				AND EXISTS (
+					SELECT 1 FROM auth.account_tenants act
+					WHERE act.account_id = gp.account_id
+						AND act.tenant_id = gp.tenant_id
+						AND act.status = 'active'
+				)
+			) AS has_portal_access
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = ? AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		-- Same alumnus rule as every other audience query (#405): a graduated
+		-- child's guardians drop out entirely.
+		AND s.status <> 'alumnus'
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+		GROUP BY gp.id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale
+		ORDER BY LOWER(COALESCE(gp.last_name, '')), LOWER(COALESCE(gp.first_name, '')), gp.id`,
+		activeActivityGroupExists("?"))
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement delivery recipients", Err: err}
+	}
+	return rows, nil
+}
+
 // SchoolName returns the tenant's school name (empty when unknown).
 func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	var name string
@@ -659,12 +809,53 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 	return rows, nil
 }
 
+// feedScopePredicate selects hand-written rows from schools with news on and
+// system-authored rows from schools with the cancellation-notice gate on. Both
+// placeholders are tenant lists, evaluated independently so disabling the
+// notice gate also hides existing cancellation notices.
+const feedScopePredicate = `((a.tenant_id IN (?) AND a.system_kind IS NULL) OR (a.tenant_id IN (?) AND a.system_kind IS NOT NULL))`
+
+// feedScopeList renders a tenant list for feedScopePredicate. An empty list
+// binds a sentinel no tenant has, because `IN ()` is not valid SQL.
+func feedScopeList(ids []int64) any {
+	if len(ids) == 0 {
+		return bun.List([]int64{-1})
+	}
+	return bun.List(ids)
+}
+
+// CountReachableGuardiansForStudents mirrors the student branch of
+// AudienceRecipients for a set of children that no announcement targets yet.
+func (r *ParentAnnouncementRepository) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	var count int
+	sqlStr := `
+		SELECT COUNT(DISTINCT gp.account_id)
+		FROM users.students s
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+			AND gp.account_id IS NOT NULL
+		JOIN auth.account_tenants act ON act.account_id = gp.account_id
+			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+		WHERE s.tenant_id = ? AND s.id IN (?) AND s.status <> 'alumnus'`
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, bun.List(studentIDs),
+	).Scan(ctx, &count); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: err}
+	}
+	return count, nil
+}
+
 // ListFeedForAccount returns published, active, unexpired announcements the
 // account is targeted by across the given tenants, newest-published first, each
 // with the account's read/ack state. Cross-tenant: run under WithAdminTx with
 // the explicit tenant set.
-func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, tenantIDs []int64) ([]*users.AnnouncementFeedItem, error) {
-	if len(tenantIDs) == 0 {
+func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope users.AnnouncementFeedScope) ([]*users.AnnouncementFeedItem, error) {
+	if scope.IsEmpty() {
 		return []*users.AnnouncementFeedItem{}, nil
 	}
 	var rows []*users.AnnouncementFeedItem
@@ -672,7 +863,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	sqlStr := `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
-			a.response_type, a.response_deadline,
+			a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
 			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
@@ -680,19 +871,19 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 		LEFT JOIN platform.schools sch ON sch.id = a.tenant_id
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = a.id AND par.account_id = ?
-		WHERE a.tenant_id IN (?)
+		WHERE ` + feedScopePredicate + `
 			AND a.active
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= NOW()
 			AND (a.expires_at IS NULL OR a.expires_at > NOW())
 			AND ` + reached + `
 		ORDER BY a.published_at DESC, a.id DESC`
-	// Arg order: read-state join (acc), tenant set, then reachedPredicate's acc
-	// appears three times (student EXISTS once, pending EXISTS twice: the primary
-	// guardian_account_id match plus the e-mail-fallback acc.id) since ann/tenant
-	// are column refs.
+	// Arg order: read-state join (acc), the two tenant sets, then
+	// reachedPredicate's acc appears three times (student EXISTS once, pending
+	// EXISTS twice: the primary guardian_account_id match plus the e-mail-fallback
+	// acc.id) since ann/tenant are column refs.
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID, accountID,
+		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
 	}
@@ -701,8 +892,8 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 
 // CountUnreadForAccount counts live announcements that still need attention:
 // unread letters, pending read confirmations, or unanswered open polls.
-func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
-	if len(tenantIDs) == 0 {
+func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, scope users.AnnouncementFeedScope) (int, error) {
+	if scope.IsEmpty() {
 		return 0, nil
 	}
 	var count int
@@ -715,7 +906,7 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 		FROM users.parent_announcements a
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = a.id AND par.account_id = ?
-		WHERE a.tenant_id IN (?)
+		WHERE ` + feedScopePredicate + `
 			AND a.active
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= NOW()
@@ -726,10 +917,11 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 				OR ` + openPoll + `
 			)
 			AND ` + reached
-	// Arg order: read-state join (acc), tenant set, the open-poll predicate's acc,
-	// then reachedPredicate's acc three times (student once, pending twice).
+	// Arg order: read-state join (acc), the two tenant sets, the open-poll
+	// predicate's acc, then reachedPredicate's acc three times (student once,
+	// pending twice).
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID, accountID, accountID,
+		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: err}
 	}

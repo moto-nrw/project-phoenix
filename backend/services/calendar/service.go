@@ -364,8 +364,8 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		Location:           req.Location,
 		StartDate:          req.StartDate,
 		EndDate:            req.EndDate,
-		StartTime:          timezone.WallClock(req.StartTime),
-		EndTime:            timezone.WallClock(req.EndTime),
+		StartTime:          timezone.NormalizeWallClock(req.StartTime),
+		EndTime:            timezone.NormalizeWallClock(req.EndTime),
 		AllDay:             req.AllDay,
 		DeliveryMode:       req.DeliveryMode,
 		OverviewVisibility: req.OverviewVisibility,
@@ -543,8 +543,8 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	appointment.Location = req.Location
 	appointment.StartDate = req.StartDate
 	appointment.EndDate = req.EndDate
-	appointment.StartTime = timezone.WallClock(req.StartTime)
-	appointment.EndTime = timezone.WallClock(req.EndTime)
+	appointment.StartTime = timezone.NormalizeWallClock(req.StartTime)
+	appointment.EndTime = timezone.NormalizeWallClock(req.EndTime)
 	appointment.AllDay = req.AllDay
 	appointment.OverviewVisibility = req.OverviewVisibility
 	if req.SendEmailSet || req.SendEmail {
@@ -2525,7 +2525,7 @@ func sortEvents(events []Event) {
 }
 
 func formatClock(t time.Time) string {
-	return timezone.WallClock(t).Format("15:04")
+	return timezone.NormalizeWallClock(t).Format("15:04")
 }
 
 func staffName(staff *userModels.Staff) string {

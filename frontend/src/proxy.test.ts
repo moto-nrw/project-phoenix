@@ -438,6 +438,32 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /aufsichten to /school/aufsichten (#2527)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/aufsichten`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/aufsichten",
+      );
+    });
+
+    it("rewrites a class page to /school/klasse (#2294)", () => {
+      // Klasse und Tag stehen als Query-Parameter in der Adresse; die
+      // Umschreibung muss sie unverändert mitnehmen.
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/klasse?klasse=Klasse%202a&tag=2026-10-26`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/school/klasse");
+      expect(rewrite).toContain("klasse=Klasse%202a");
+      expect(rewrite).toContain("tag=2026-10-26");
+    });
+
     it("returns 404 for tenant, operator, and parent auth endpoints", () => {
       for (const path of [
         "/api/auth/session",
@@ -504,6 +530,25 @@ describe("proxy", () => {
       expect(redirect).toContain("/login");
       expect(redirect).not.toContain("/school/login");
     });
+
+    it.each([
+      ["/klassen", "school-a.localhost:3000"],
+      ["/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "school-a.localhost:3000"],
+      ["/school-a/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "localhost:3000"],
+      ["/school-a/klassen/", "localhost:3000"],
+    ])(
+      "sends the old %s bookmark to the selected school (#2207)",
+      (path, host) => {
+        const res = proxy(makeRequest(`http://${host}${path}`, host));
+
+        const redirect = res.headers.get("location");
+        expect(redirect).toContain(SCHOOL_HOSTNAME);
+        expect(redirect).toContain("tenant=school-a");
+        expect(redirect).not.toContain("/klassen");
+      },
+    );
 
     it("does NOT hijack tenant slugs that start with 'school'", () => {
       const res = proxy(

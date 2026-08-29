@@ -1,0 +1,1 @@
+{"scope":"production","rule":"imports.forbidden","source":"example.test/architecture-projection/beta","target":"example.test/architecture-projection/gamma","issue":"https://github.com/moto-nrw/project-phoenix/issues/2584"}

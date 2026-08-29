@@ -27,6 +27,27 @@ const (
 			AND "staff_account_role".tenant_id = "push_subscription".tenant_id
 			AND LOWER("staff_role".name) <> ?
 	)`
+	// lehrkraftSystemRoleName is the school-portal role (#2207). Spelled here
+	// rather than imported so the repository stays free of a service import;
+	// it must match services/auth.IsLehrkraftSystemRole.
+	lehrkraftSystemRoleName = "lehrkraft"
+	// schoolPortalRoleFilter keeps school-portal delivery to accounts that
+	// still hold the lehrkraft SYSTEM role at this school — the predicate the
+	// school login itself requires. staffSubscriptionQuery only rules out
+	// guardian-only accounts, so without this an account whose lehrkraft role
+	// was revoked but which keeps any other staff role would go on receiving
+	// school-portal pushes. A tenant-scoped custom role that merely carries
+	// the label does not count, exactly as in the login and in
+	// StaffMessageReadRepository.StaffRoleKinds.
+	schoolPortalRoleFilter = `EXISTS (
+		SELECT 1
+		FROM auth.account_roles AS "school_account_role"
+		INNER JOIN auth.roles AS "school_role" ON "school_role".id = "school_account_role".role_id
+		WHERE "school_account_role".account_id = "push_subscription".account_id
+			AND "school_account_role".tenant_id = "push_subscription".tenant_id
+			AND "school_role".is_system
+			AND LOWER(BTRIM("school_role".name)) = ?
+	)`
 	guardianRoleFilter = `EXISTS (
 		SELECT 1
 		FROM auth.account_roles AS "guardian_account_role"
@@ -66,7 +87,9 @@ func NewPushSubscriptionRepository(db *bun.DB) iot.PushSubscriptionRepository {
 	return &PushSubscriptionRepository{Repository: repo}
 }
 
-// Upsert inserts or refreshes a subscription keyed by (tenant_id, endpoint).
+// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
+// endpoint), so a browser can be registered independently in both staff
+// portals.
 // A re-subscribe from the same browser rotates keys and may switch accounts
 // (different user logs in on the same device) — both are overwritten.
 func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSubscription) error {
@@ -74,9 +97,8 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSu
 	_, err := base.GetDB(ctx, r.DB).NewInsert().
 		Model(sub).
 		ModelTableExpr(tablePushSubscriptions).
-		On("CONFLICT (tenant_id, endpoint) DO UPDATE").
+		On("CONFLICT (tenant_id, portal, endpoint) DO UPDATE").
 		Set("account_id = EXCLUDED.account_id").
-		Set("portal = EXCLUDED.portal").
 		Set("p256dh = EXCLUDED.p256dh").
 		Set("auth = EXCLUDED.auth").
 		Set("user_agent = EXCLUDED.user_agent").
@@ -89,19 +111,61 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSu
 	return nil
 }
 
-// DeleteByEndpoint removes the caller's subscription for the current tenant.
-// Scoped to the account so one user cannot unsubscribe another's device.
+// DeleteByEndpoint removes the caller's staff-portal subscription for the
+// current tenant. Scoped to the account so one user cannot unsubscribe
+// another's device.
 func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalStaff, "delete staff push subscription")
+}
+
+// DeleteParentByAccountEndpoint removes the caller's parent-portal
+// subscription for the current tenant without affecting another portal that
+// uses the same browser endpoint.
+func (r *PushSubscriptionRepository) DeleteParentByAccountEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalParent, "delete parent push subscription")
+}
+
+func (r *PushSubscriptionRepository) deleteByEndpointPortal(ctx context.Context, accountID int64, endpoint, portal, op string) error {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*iot.PushSubscription)(nil)).
 		ModelTableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
-		Where("endpoint = ?", endpoint)
+		Where("endpoint = ?", endpoint).
+		Where("portal = ?", portal)
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete push subscription", Err: err}
+		return &modelBase.DatabaseError{Op: op, Err: err}
+	}
+	return nil
+}
+
+// DeleteSchoolByEndpoint removes the caller's school-portal subscription for
+// the current tenant without affecting a tenant-portal registration that uses
+// the same browser endpoint.
+func (r *PushSubscriptionRepository) DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error {
+	return r.deleteByEndpointPortal(ctx, accountID, endpoint, iot.PushPortalSchool, "delete school push subscription")
+}
+
+// DeleteSchoolByEndpointAcrossTenants serializes rebinds, then removes every
+// school-portal binding for an endpoint across tenants and accounts. A school
+// session is pinned to exactly one school, so a browser holds at most one
+// school registration; without this, the row of the school a person left keeps
+// receiving her notifications. The caller must supply an admin transaction.
+func (r *PushSubscriptionRepository) DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error {
+	db := base.GetDB(ctx, r.DB)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", endpoint); err != nil {
+		return &modelBase.DatabaseError{Op: "lock school push subscription endpoint", Err: err}
+	}
+	_, err := db.NewDelete().
+		Model((*iot.PushSubscription)(nil)).
+		ModelTableExpr(tablePushSubscriptions).
+		Where("endpoint = ?", endpoint).
+		Where(pushPortalFilter, iot.PushPortalSchool).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete school push subscriptions by endpoint", Err: err}
 	}
 	return nil
 }
@@ -162,6 +226,13 @@ func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context,
 	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalStaff, "delete staff push subscriptions")
 }
 
+// DeleteSchoolByAccountID removes every school-portal subscription for an
+// account across tenants (#2208). Same admin-transaction contract as the
+// staff variant.
+func (r *PushSubscriptionRepository) DeleteSchoolByAccountID(ctx context.Context, accountID int64) error {
+	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalSchool, "delete school push subscriptions")
+}
+
 // DeleteParentByAccountID removes every parent-portal subscription for an
 // account across tenants. The caller must supply an admin transaction.
 func (r *PushSubscriptionRepository) DeleteParentByAccountID(ctx context.Context, accountID int64) error {
@@ -205,6 +276,12 @@ func (r *PushSubscriptionRepository) DeleteStaffUnboundByAccount(ctx context.Con
 	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalStaff, "delete unbound staff push subscriptions")
 }
 
+// DeleteSchoolUnboundByAccount removes school-portal subscriptions that have
+// no token family (#2208). Admin transaction required.
+func (r *PushSubscriptionRepository) DeleteSchoolUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalSchool, "delete unbound school push subscriptions")
+}
+
 // DeleteParentUnboundByAccount removes parent-portal subscriptions that have
 // no token family. The caller must supply an admin transaction. A positive
 // tenantID limits the delete to that school.
@@ -241,12 +318,18 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 					OR (
 						"push_subscription".portal = ?
 						AND "token".tenant_id = "push_subscription".tenant_id
-						AND "token".portal_scope IN (?, ?, ?, ?, ?)
+						AND "token".portal_scope IN (?, ?, ?, ?)
+					)
+					OR (
+						"push_subscription".portal = ?
+						AND "token".tenant_id = "push_subscription".tenant_id
+						AND "token".portal_scope IN (?, ?, ?)
 					)
 				)
 		)`, iot.PushPortalParent, authModels.PortalScopeParent, authModels.PortalScopeUnknown, "",
 			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,
-			authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
+			authModels.PortalScopeUnknown, "",
+			iot.PushPortalSchool, authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "delete orphaned unbound push subscriptions", Err: err}
@@ -277,13 +360,16 @@ func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context,
 // delivery-time authorization check, not a convenience filter: a subscription
 // must stop receiving pushes the moment the account is deactivated or its
 // mapping to this school ends, and that has to hold for every finder equally.
-func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*iot.PushSubscription) *bun.SelectQuery {
+func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*iot.PushSubscription, portals ...string) *bun.SelectQuery {
+	if len(portals) == 0 {
+		portals = []string{iot.PushPortalStaff}
+	}
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
 		Join(activeAccountJoin).
 		Join(activeAccountTenantJoin).
-		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(`"push_subscription".portal IN (?)`, bun.List(portals)).
 		Where(`"account".active = ?`, true).
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(nonGuardianRoleFilter, authModels.BaseRoleGuardian)
@@ -300,9 +386,8 @@ func (r *PushSubscriptionRepository) FindForTenantStaff(ctx context.Context) ([]
 	return subs, nil
 }
 
-// FindForStaffAccounts returns the staff-portal subscriptions of the given
-// accounts in the current tenant. It is the addressing primitive for personal
-// notifications, where each recipient gets their own payload.
+// FindForStaffAccounts returns staff-portal subscriptions of the given
+// accounts in the current tenant.
 //
 // The eligibility rules are re-checked here, at delivery time, rather than
 // inherited from whoever assembled the recipient list: that list is built in an
@@ -313,10 +398,31 @@ func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, a
 		return nil, nil
 	}
 	var subs []*iot.PushSubscription
-	query := r.staffSubscriptionQuery(ctx, &subs).
+	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalStaff).
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff account push subscriptions", Err: err}
+	}
+	return subs, nil
+}
+
+// FindForSchoolAccounts returns school-portal subscriptions of the named
+// accounts in the current tenant. Notification delivery invokes it only for
+// types explicitly offered in moto schule.
+//
+// Beyond the shared staff eligibility rules it requires the lehrkraft system
+// role at this school, so revoking that role stops school-portal pushes even
+// when the account keeps another staff role.
+func (r *PushSubscriptionRepository) FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*iot.PushSubscription, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	var subs []*iot.PushSubscription
+	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalSchool).
+		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs)).
+		Where(schoolPortalRoleFilter, lehrkraftSystemRoleName)
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find school push subscriptions", Err: err}
 	}
 	return subs, nil
 }

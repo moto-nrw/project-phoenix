@@ -153,7 +153,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
-		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, today, checkoutTypeToggle)
+		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, deviceID, now, today, checkoutTypeToggle)
 	}
 	if err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 		return nil, err
 	}
 	now := time.Now()
-	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, now, timezone.DateFromTime(now), checkoutTypeWeb)
+	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, 0, now, timezone.DateFromTime(now), checkoutTypeWeb)
 	if err != nil {
 		return nil, err
 	}
@@ -263,15 +263,33 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	return result, nil
 }
 
-// CheckOutStudentFromDevice applies "out" for an IoT device after resolving
-// the device's active session supervisor as the auditable checkout principal.
+// CheckOutStudentFromDevice applies "out" for an authenticated IoT device.
+// A verified personal staff credential wins over the device session supervisor;
+// when neither exists, the authenticated device remains the audit principal.
 func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error) {
-	authorizedStaffID, err := s.authorizeIoTDeviceToggle(ctx, deviceID)
-	if err != nil {
-		return nil, err
+	staffID := int64(0)
+	if authenticatedStaff := device.StaffFromCtx(ctx); authenticatedStaff != nil {
+		staffID = authenticatedStaff.ID
+	} else {
+		resolvedStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
+		if err != nil {
+			var unavailable *deviceSupervisorUnavailableError
+			if !errors.As(err, &unavailable) {
+				return nil, &ActiveError{
+					Op:  "ToggleStudentAttendance",
+					Err: fmt.Errorf("resolve daily checkout staff attribution: %w", err),
+				}
+			}
+			s.getLogger().DebugContext(ctx, "daily checkout has no staff attribution; using authenticated device",
+				slog.Int64("device_id", deviceID),
+				slog.String("reason", unavailable.Error()),
+			)
+		} else {
+			staffID = resolvedStaffID
+		}
 	}
 	now := time.Now()
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, now, timezone.DateFromTime(now), checkoutTypeDaily)
+	return s.performCheckOut(ctx, studentID, staffID, deviceID, now, timezone.DateFromTime(now), checkoutTypeDaily)
 }
 
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use
@@ -462,11 +480,11 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 //     session's and stays open (see endOpenVisitForStudent).
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
-func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
+func (s *service) performCheckOut(ctx context.Context, studentID, staffID, checkoutDeviceID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
 	if err := s.AttendanceRepo.LockStudentAttendance(ctx, studentID); err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("lock attendance checkout: %w", err)}
 	}
-	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, today, staffID)
+	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, today, staffID, checkoutDeviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
@@ -614,20 +632,30 @@ func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64,
 	})
 }
 
-// getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
+type deviceSupervisorUnavailableError struct {
+	reason string
+}
+
+func (e *deviceSupervisorUnavailableError) Error() string {
+	return e.reason
+}
+
+// getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group.
+// Expected absence states use a typed error so daily checkout may safely fall
+// back to device attribution without swallowing repository failures.
 func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (int64, error) {
 	// Find active group for device
 	activeGroup, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		// Handle case where no active group exists for this device
 		if errors.Is(err, ErrNoActiveSession) {
-			return 0, fmt.Errorf("no active group assigned to device %d", deviceID)
+			return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID)}
 		}
 		return 0, fmt.Errorf("error finding active group for device %d: %w", deviceID, err)
 	}
 
 	if activeGroup == nil {
-		return 0, fmt.Errorf("no active group assigned to device %d", deviceID)
+		return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID)}
 	}
 
 	// Get supervisors for the active group
@@ -637,7 +665,7 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	}
 
 	if len(supervisors) == 0 {
-		return 0, fmt.Errorf("no supervisors assigned to active group %d", activeGroup.ID)
+		return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no supervisors assigned to active group %d", activeGroup.ID)}
 	}
 
 	// Use first active supervisor
@@ -648,7 +676,7 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 		}
 	}
 
-	return 0, fmt.Errorf("no active supervisors found in group %d", activeGroup.ID)
+	return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active supervisors found in group %d", activeGroup.ID)}
 }
 
 // CheckTeacherStudentAccess checks if a teacher has access to mark attendance for a student

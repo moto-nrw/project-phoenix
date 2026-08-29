@@ -70,6 +70,7 @@ type studentDeletionService struct {
 	dataAuditRepo  auditModels.DataDeletionRepository
 	auditRepo      auditModels.StudentDeletionRepository
 	documentRepo   userModels.StudentDocumentRepository
+	withdrawalRepo userModels.CareWithdrawalCompletionRepository
 	txHandler      *modelBase.TxHandler
 }
 
@@ -82,6 +83,22 @@ func WireStudentDocumentCleanup(svc StudentDeletionService, repo userModels.Stud
 	}); ok {
 		setter.SetDocumentRepository(repo)
 	}
+}
+
+// WireStudentDeletionCareWithdrawals ensures every permanent deletion also
+// resolves and redacts care-withdrawal history in the same transaction.
+func WireStudentDeletionCareWithdrawals(svc StudentDeletionService, repo userModels.CareWithdrawalCompletionRepository) {
+	setter, ok := svc.(interface {
+		SetCareWithdrawalRepository(userModels.CareWithdrawalCompletionRepository)
+	})
+	if !ok {
+		panic("student deletion service does not support care-withdrawal wiring")
+	}
+	setter.SetCareWithdrawalRepository(repo)
+}
+
+func (s *studentDeletionService) SetCareWithdrawalRepository(repo userModels.CareWithdrawalCompletionRepository) {
+	s.withdrawalRepo = repo
 }
 
 // SetDocumentRepository wires the child-document repository so a deletion can
@@ -222,6 +239,11 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 		if err := s.queueDocumentCleanup(txCtx, input.StudentID); err != nil {
 			return err
 		}
+		if s.withdrawalRepo != nil {
+			if _, err := s.withdrawalRepo.MarkStudentDeleted(txCtx, input.StudentID, input.ActorAccountID, time.Now()); err != nil {
+				return err
+			}
+		}
 		if err := s.studentRepo.Delete(txCtx, input.StudentID); err != nil {
 			return err
 		}
@@ -279,6 +301,11 @@ func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, student
 	}
 	if deletedAssignments != int64(counts.TimetableAssignments) {
 		return ErrStudentDeletionPreviewChanged
+	}
+	if s.withdrawalRepo != nil {
+		if _, err := s.withdrawalRepo.MarkStudentDeleted(ctx, studentID, actorAccountID, time.Now()); err != nil {
+			return err
+		}
 	}
 	return s.createAudit(ctx, studentID, actorAccountID, StudentDeletionReasonGraduatePurge, *counts, 2)
 }

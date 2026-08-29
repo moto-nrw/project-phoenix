@@ -334,8 +334,8 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		Set(`location = ?`, appointment.Location).
 		Set(`start_date = ?`, appointment.StartDate).
 		Set(`end_date = ?`, appointment.EndDate).
-		Set(`start_time = ?`, timezone.WallClock(appointment.StartTime).Format("15:04:05")).
-		Set(`end_time = ?`, timezone.WallClock(appointment.EndTime).Format("15:04:05")).
+		Set(`start_time = ?`, timezone.NormalizeWallClock(appointment.StartTime).Format("15:04:05")).
+		Set(`end_time = ?`, timezone.NormalizeWallClock(appointment.EndTime).Format("15:04:05")).
 		Set(`all_day = ?`, appointment.AllDay).
 		Set(`delivery_mode = ?`, appointment.DeliveryMode).
 		Set(`overview_visibility = ?`, appointment.OverviewVisibility).

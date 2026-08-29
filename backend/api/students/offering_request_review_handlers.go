@@ -188,7 +188,8 @@ type DecideOfferingRequestBody struct {
 	EffectiveFrom string `json:"effective_from,omitempty"`
 	// ExcludedOfferingIDs are the rule-added offerings staff unticked for this
 	// one approval (#2370); the Mitbuchungs-Regel itself stays active.
-	ExcludedOfferingIDs []string `json:"excluded_offering_ids,omitempty"`
+	ExcludedOfferingIDs         []string `json:"excluded_offering_ids,omitempty"`
+	CompleteWithdrawalConfirmed bool     `json:"complete_withdrawal_confirmed,omitempty"`
 }
 
 type PreviewOfferingRequestBody struct {
@@ -348,13 +349,14 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		actorRole = "unknown"
 	}
 	if err := rs.OfferingChangeService.Decide(r.Context(), enrollmentService.DecideOfferingChangeInput{
-		RequestID:               requestID,
-		Approve:                 *body.Approve,
-		Reason:                  body.Reason,
-		ReviewedBy:              int64(claims.ID),
-		ActorRole:               actorRole,
-		ExcludedAutoOfferingIDs: excluded,
-		EffectiveFrom:           effectiveFrom,
+		RequestID:                   requestID,
+		Approve:                     *body.Approve,
+		Reason:                      body.Reason,
+		ReviewedBy:                  int64(claims.ID),
+		ActorRole:                   actorRole,
+		ExcludedAutoOfferingIDs:     excluded,
+		EffectiveFrom:               effectiveFrom,
+		CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
 	}); err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return
@@ -384,6 +386,8 @@ func renderOfferingDecisionError(w http.ResponseWriter, r *http.Request, err err
 		renderError(w, r, common.ErrorConflictWithCode(err, "offering_changes_no_enrollment"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeDateOutOfRange):
 		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_date_out_of_range"))
+	case errors.Is(err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired):
+		renderError(w, r, common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid),
 		errors.Is(err, enrollmentService.ErrOfferingAdjustmentInvalid):
 		renderError(w, r, common.ErrorInvalidRequest(err))

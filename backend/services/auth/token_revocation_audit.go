@@ -112,8 +112,10 @@ func pushPortalsForScope(portalScope string) []string {
 	switch portalScope {
 	case authModels.PortalScopeParent:
 		return []string{iotModels.PushPortalParent}
+	case authModels.PortalScopeSchool:
+		return []string{iotModels.PushPortalSchool}
 	case authModels.PortalScopeUnknown, "":
-		return []string{iotModels.PushPortalStaff, iotModels.PushPortalParent}
+		return []string{iotModels.PushPortalStaff, iotModels.PushPortalParent, iotModels.PushPortalSchool}
 	default:
 		return []string{iotModels.PushPortalStaff}
 	}
@@ -449,6 +451,9 @@ func (s *Service) deletePushAcrossTenants(ctx context.Context, accountID int64) 
 		if err := s.repos.PushSubscription.DeleteStaffByAccountID(adminCtx, accountID); err != nil {
 			return err
 		}
+		if err := s.repos.PushSubscription.DeleteSchoolByAccountID(adminCtx, accountID); err != nil {
+			return err
+		}
 		return s.repos.PushSubscription.DeleteParentByAccountID(adminCtx, accountID)
 	})
 }
@@ -471,6 +476,9 @@ func (s *Service) deletePushUnboundForTokens(ctx context.Context, accountID int6
 	if err := s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, iotModels.PushPortalStaff), iotModels.PushPortalStaff); err != nil {
 		return err
 	}
+	if err := s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, iotModels.PushPortalSchool), iotModels.PushPortalSchool); err != nil {
+		return err
+	}
 	return s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, iotModels.PushPortalParent), iotModels.PushPortalParent)
 }
 
@@ -480,10 +488,14 @@ func (s *Service) deletePushUnboundAtTenants(ctx context.Context, accountID int6
 			continue
 		}
 		if err := s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
-			if portal == iotModels.PushPortalParent {
+			switch portal {
+			case iotModels.PushPortalParent:
 				return s.repos.PushSubscription.DeleteParentUnboundByAccount(adminCtx, accountID, tenantID)
+			case iotModels.PushPortalSchool:
+				return s.repos.PushSubscription.DeleteSchoolUnboundByAccount(adminCtx, accountID, tenantID)
+			default:
+				return s.repos.PushSubscription.DeleteStaffUnboundByAccount(adminCtx, accountID, tenantID)
 			}
-			return s.repos.PushSubscription.DeleteStaffUnboundByAccount(adminCtx, accountID, tenantID)
 		}); err != nil {
 			return err
 		}

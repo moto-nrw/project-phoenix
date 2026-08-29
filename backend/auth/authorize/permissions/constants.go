@@ -235,6 +235,26 @@ const (
 
 	StudentDocumentsHealth = ResourceStudentDocuments + ":health"
 	StudentDocumentsLegal  = ResourceStudentDocuments + ":legal"
+
+	// School file storage (#2596). Reading is not a permission: it is the
+	// visibility of the folder. Managing (folders, visibility, any upload or
+	// delete) is catalog-only, so admins match via AdminWildcard and a
+	// dedicated role can be granted it explicitly.
+	ResourceFiles = "files"
+	FilesManage   = ResourceFiles + ":" + ActionManage
+)
+
+// Guardian payment permissions (#2608). guardians:financial gates the bank
+// details of a guardian (IBAN, Kontoinhaber), marking which guardian pays for
+// a child, and the Bankverbindungen export. Deliberately its own permission
+// rather than users:update: maintaining the guardian directory and handling
+// bank data are different jobs, and an IBAN list is the single most abusable
+// export the school holds. Catalog-only like staff:financial — admins match
+// via the admin:* wildcard, the school office can be granted it explicitly.
+const (
+	ResourceGuardians = "guardians"
+
+	GuardiansFinancial = ResourceGuardians + ":financial"
 )
 
 // Grade Transition permissions (admin only)
@@ -256,4 +276,20 @@ const (
 	ResourceClassDay = "class_day"
 
 	ClassDayRead = ResourceClassDay + ":read"
+)
+
+// Supervision permission for the school portal (#2527). supervision:own gates
+// the assignment-bound operational surface a Lehrkraft reaches through "moto
+// schule": her own Betreuungsplan blocks of the day, their roster, and the
+// check-in/check-out on the children of those blocks.
+//
+// It is deliberately NOT schedules:read: that permission unlocks the whole
+// planner and every instance of the school. "own" is the whole point — the
+// permission opens the door, the Betreuungsplan assignment decides which
+// blocks lie behind it, and the service re-checks that assignment on every
+// read and write.
+const (
+	ResourceSupervision = "supervision"
+
+	SupervisionOwn = ResourceSupervision + ":own"
 )

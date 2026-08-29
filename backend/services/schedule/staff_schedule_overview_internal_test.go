@@ -22,7 +22,7 @@ func testClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func testShift(t *testing.T, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
@@ -39,8 +39,8 @@ func formattedGaps(gaps []ShiftCoverageInterval) [][2]string {
 	out := make([][2]string, 0, len(gaps))
 	for _, gap := range gaps {
 		out = append(out, [2]string{
-			timezone.WallClock(gap.StartTime).Format("15:04"),
-			timezone.WallClock(gap.EndTime).Format("15:04"),
+			timezone.NormalizeWallClock(gap.StartTime).Format("15:04"),
+			timezone.NormalizeWallClock(gap.EndTime).Format("15:04"),
 		})
 	}
 	return out

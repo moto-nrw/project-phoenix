@@ -492,6 +492,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "primary_guardian_protected"))
 	case errors.Is(err, authService.ErrCannotRemoveStaffManagedGuardian):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "staff_managed_guardian_protected"))
+	case errors.Is(err, authService.ErrCannotRemovePayerGuardian):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "payer_guardian_protected"))
 	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
 	case errors.Is(err, authService.ErrInviteSocialWorkerManaged):
@@ -528,6 +530,12 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_invalid"))
+	case errors.Is(err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(
+			err,
+			"enrollment.complete_withdrawal_confirmation_required",
+			map[string]any{"confirmation": "complete_withdrawal"},
+		))
 	case errors.Is(err, enrollmentModels.ErrOfferingChangeAlreadyPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "offering_change_already_pending"))
 	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotPending):

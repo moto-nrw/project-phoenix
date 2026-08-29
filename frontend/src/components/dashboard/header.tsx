@@ -17,8 +17,6 @@ import {
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
 
-import { rolesIndicateLehrkraftOnly } from "~/lib/auth-utils";
-
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
@@ -43,6 +41,37 @@ import {
   getPageTypeInfo,
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
+
+// Seitentitel des Schul-Portals. Beide Schreibweisen eines Pfades führen zum
+// selben Titel: auf dem Schul-Host zeigt die Adresszeile "/" und
+// "/aufsichten", intern laufen die Seiten unter /school und
+// /school/aufsichten.
+function schoolTitleForPath(pathname: string): string | null {
+  if (pathname === "/" || pathname === "/school") return "Klassenansicht";
+  // Die Klassenseite (#2294) ist eine Ebene der Klassenansicht, kein eigener
+  // Bereich: der Kopf behält den Namen des Bereichs, den Klassennamen trägt
+  // die Seite selbst.
+  if (pathname === "/klasse" || pathname === "/school/klasse") {
+    return "Klassenansicht";
+  }
+  if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
+    return "Meine Aufsichten";
+  }
+  // Der Verlauf einer Unterhaltung (/nachrichten/{id}) bleibt im Bereich
+  // "Nachrichten"; den Namen der Person trägt die Seite selbst.
+  if (
+    pathname === "/nachrichten" ||
+    pathname === "/school/nachrichten" ||
+    pathname.startsWith("/nachrichten/") ||
+    pathname.startsWith("/school/nachrichten/")
+  ) {
+    return "Nachrichten";
+  }
+  if (pathname === "/einstellungen" || pathname === "/school/einstellungen") {
+    return "Einstellungen";
+  }
+  return null;
+}
 
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
@@ -111,14 +140,11 @@ export function Header() {
       return tParentNav("enroll");
     return null;
   })();
-  // Schul-Portal (#2207): die Klassenansicht ist die Root-Seite des
-  // Schul-Hosts — getPageTitle kennt nur die Tenant-Pfade und würde den
+  // Schul-Portal (#2207): die Seiten des Schul-Hosts laufen ohne
+  // /school-Präfix — getPageTitle kennt nur die Tenant-Pfade und würde den
   // Dashboard-Fallback anzeigen.
   const schoolPageTitle =
-    mode === "school" &&
-    (pathname === "/" || pathname === "/school" || pathname === "/klassen")
-      ? "Klassenansicht"
-      : null;
+    mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
 
   // Derive user info from ShellAuth context
@@ -134,9 +160,7 @@ export function Header() {
           ? "Lehrkraft"
           : userRoles.includes("admin")
             ? "Admin"
-            : rolesIndicateLehrkraftOnly(userRoles)
-              ? "Lehrkraft"
-              : "Betreuer";
+            : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {
@@ -289,7 +313,9 @@ export function Header() {
                     ? "Profileinstellungen"
                     : mode === "parent"
                       ? tParentNav("settings")
-                      : undefined
+                      : mode === "school"
+                        ? "Einstellungen"
+                        : undefined
                 }
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}

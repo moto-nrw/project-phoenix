@@ -104,23 +104,48 @@ function NewsCardMeta({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
-  const type = isPoll(item) ? t("newsPoll") : t("newsLetter");
+  const cancellation = item.system_kind === "care_cancellation";
+  const type = cancellation
+    ? t("newsCareCancellation")
+    : isPoll(item)
+      ? t("newsPoll")
+      : t("newsLetter");
   const outstanding = isOutstandingAnnouncement(item);
+  const typeClass = cancellation
+    ? "text-moto-red-strong"
+    : outstanding
+      ? "text-moto-blue-strong"
+      : "text-gray-500";
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
-      <span className={outstanding ? "text-moto-blue-strong" : "text-gray-500"}>
-        {type}
-      </span>
+      <span className={typeClass}>{type}</span>
+      {isBindingLetter(item) && !item.acknowledged && (
+        <>
+          <span className="text-gray-300" aria-hidden="true">
+            ·
+          </span>
+          <span className="text-moto-amber-strong">{t("newsLetterBadge")}</span>
+        </>
+      )}
       {item.priority === "important" && (
         <>
           <span className="text-gray-300" aria-hidden="true">
             ·
           </span>
-          <span className="text-[#9A4F00]">{t("newsImportant")}</span>
+          <span className="text-moto-amber-strong">{t("newsImportant")}</span>
         </>
       )}
     </span>
   );
+}
+
+/**
+ * A binding Elternbrief (#2384): the same text also arrived by e-mail, and the
+ * confirmation in the portal is the one that counts. Older announcements have no
+ * delivery_mode at all, which correctly reads as "not a letter".
+ */
+function isBindingLetter(item: ParentAnnouncement): boolean {
+  return item.delivery_mode === "letter";
 }
 
 function NewsCardState({
@@ -598,7 +623,9 @@ function NewsActionContext({
           )}
         </div>
         <p className="mt-0.5 text-sm leading-6 text-gray-600">
-          {t("newsAcknowledgementHint")}
+          {isBindingLetter(item)
+            ? t("newsLetterBindingHint")
+            : t("newsAcknowledgementHint")}
         </p>
       </div>
     </div>

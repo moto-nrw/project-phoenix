@@ -382,7 +382,7 @@ func parseClock(raw string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid time %q, expected HH:mm", raw)
 	}
-	return timezone.WallClock(t), nil
+	return timezone.NormalizeWallClock(t), nil
 }
 
 func renderCalendarError(w http.ResponseWriter, r *http.Request, err error) {

@@ -50,15 +50,15 @@ func TestSummarizeInstanceStudentsEarlyPickupRequiresExpectedCareDay(t *testing.
 	day := timezone.NewDate(2030, time.March, 4)
 	inst := &scheduleModel.ActivityInstance{
 		Date:      day,
-		StartTime: timezone.WallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndTime:   timezone.WallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndTime:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
 	rows := []*scheduleModel.InstanceStudent{
 		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
 	}
 	cutoffs := map[int64]time.Time{
-		studentID: timezone.WallClock(time.Date(1, 1, 1, 14, 45, 0, 0, time.UTC)),
+		studentID: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 45, 0, 0, time.UTC)),
 	}
 	verdicts := func(v scheduleSvc.CareDayStatus) map[int64]map[timezone.Date]scheduleSvc.CareDayStatus {
 		return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{studentID: {day: v}}

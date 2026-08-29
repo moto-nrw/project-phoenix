@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "policy_epoch": 1,
+  "module_path": "example.test/architecture-fixture",
+  "shared_kernel_types": [
+    "CorrelationID",
+    "Date",
+    "TenantID",
+    "WallClock"
+  ],
+  "build": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgo_enabled": false
+  },
+  "owners": [
+    {
+      "id": "module",
+      "kind": "domain"
+    }
+  ],
+  "roles": [
+    "application",
+    "domain",
+    "module-behavior-test",
+    "module-internal-test"
+  ],
+  "packages": [
+    {
+      "path": "linuxonly",
+      "owner": "module",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "source",
+      "owner": "module",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "target",
+      "owner": "module",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [],
+  "read_projections": [],
+  "legacy_composition": [],
+  "external_classes": [],
+  "external_packages": [],
+  "rules": [
+    {
+      "id": "application-domain",
+      "description": "Application code may use its own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "domain",
+      "same_owner": true
+    }
+  ]
+}

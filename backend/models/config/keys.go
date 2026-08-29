@@ -51,6 +51,10 @@ const (
 	// (iot.pwa_standalone_usage, issue #2189). The metric only needs a
 	// 30-day activity window, so stale rows carry no value and are swept.
 	KeyGDPRPWAUsageRetentionDays = "gdpr.pwa_usage_retention_days"
+	// Retention window (days) for the OGS-internal colleague chat
+	// (users.staff_messages, issue #2598). Staff messages are employee personal
+	// data, so the window exists from day one rather than being retrofitted.
+	KeyGDPRStaffMessageRetentionDays = "gdpr.staff_message_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.
@@ -132,6 +136,7 @@ const (
 	KeyGroupMode                       = "operations.group_mode"
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
+	KeyEmergencyListHealthInfo         = "operations.emergency_list_health_info"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyRequirePickupOfferingReview     = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
@@ -147,6 +152,10 @@ const (
 	KeyParentMasterDataEditEnabled     = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
 	KeyParentNewsEnabled               = "operations.parent_news_enabled"
+	// Whether colleagues at this school can write to each other inside moto
+	// (OGS-internal 1:1 chat, issue #2598). Defaults OFF: a school switches an
+	// internal staff channel on deliberately.
+	KeyStaffMessagingEnabled           = "operations.staff_messaging_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
 	// F9: stamping outside the tolerance window around the planned shift
@@ -178,6 +187,17 @@ const (
 	// are currently checked in. An empty presence map fails closed; schools
 	// without time tracking must disable this setting.
 	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
+	// KeyNotificationsCareCancelledEnabled is the school-wide gate for the
+	// automatic parent notice when a care block is cancelled (#2601). It is
+	// independent of the parent-news feature flag on purpose: a school can keep
+	// its news feed off and still owe families the cancellation notice.
+	KeyNotificationsCareCancelledEnabled = "notifications.care_cancelled_enabled"
+	// KeyNotificationsCareCancelledDefaultOn pre-selects "Eltern informieren"
+	// in the cancel dialog. The person cancelling can always flip it.
+	KeyNotificationsCareCancelledDefaultOn = "notifications.care_cancelled_default_on"
+	// KeyNotificationsCareCancelledEmail additionally e-mails the notice through
+	// the shared outbox, next to the in-app feed entry and the push.
+	KeyNotificationsCareCancelledEmail = "notifications.care_cancelled_email"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -314,6 +334,8 @@ const (
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
+	KeyTimetableAutoEndEnabled            = "timetable.auto_end_enabled"
+	KeyTimetableAutoEndGraceMinutes       = "timetable.auto_end_grace_minutes"
 	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
 	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
@@ -396,4 +418,15 @@ const (
 const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
+)
+
+// School file storage (#2596).
+const (
+	// KeyFilesStaffUploadEnabled lets non-admins upload into every folder they
+	// can see (and delete their own uploads). Folders and visibility stay with
+	// files:manage regardless.
+	KeyFilesStaffUploadEnabled = "files.staff_upload_enabled"
+	// KeyFilesMaxStorageMB caps the total size of all stored files of a
+	// school. Uploads that would exceed it are refused.
+	KeyFilesMaxStorageMB = "files.max_storage_mb"
 )

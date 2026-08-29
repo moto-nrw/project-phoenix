@@ -14,12 +14,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  hasPermission,
-  hasRole,
-  isCaregiver,
-  isLehrkraftOnly,
-} from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -29,6 +24,7 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
+  useStaffMessagingEnabled,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
@@ -47,6 +43,7 @@ import {
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
+  STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
   Drawer,
@@ -194,17 +191,6 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
   },
 ];
 
-// Reines Lehrkraft-Konto (#1772): nur die Klassenansicht ist erreichbar,
-// alles andere würde 403 antworten. Hilfe kommt über das Overflow-Menü.
-const LEHRKRAFT_MAIN_ITEMS: NavItem[] = [
-  {
-    href: "/klassen",
-    label: "Klassen",
-    iconKey: "academicCap",
-    alwaysShow: true,
-  },
-];
-
 // Order mirrors the desktop sidebar sections: VERWALTUNG → KOMMUNIKATION → TEAM.
 const OPERATOR_MAIN_ITEMS: NavItem[] = [
   {
@@ -250,6 +236,8 @@ interface AdditionalNavItem {
   // Show for admins or anyone holding this tenant permission (matches the
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
   requiresPermission?: string;
+  // All listed permissions are required (matching RequiresAllPermissions).
+  requiresAllPermissions?: readonly string[];
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
@@ -336,17 +324,6 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
 
 const additionalNavItems: AdditionalNavItem[] = [
   {
-    // Klassenansicht (#1772) für Dual-Role-Konten (lehrkraft + user/admin):
-    // deren Haupt-Nav ist die Staff-/Admin-Leiste, der Einstieg in die
-    // Klassenansicht kommt über das Overflow-Menü. Rollen-Gating unten in
-    // filteredAdditionalItems (permission-basiert ginge nicht: admin:*
-    // matcht class_day:read, Admins ohne lehrkraft-Rolle haben aber keine
-    // Klassen und landen auf einer leeren Seite).
-    href: "/klassen",
-    label: "Klassenansicht",
-    iconKey: "academicCap",
-  },
-  {
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
@@ -359,6 +336,16 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "staff",
     concept: "staff",
     alwaysShow: true,
+  },
+  {
+    // Team-Chat (#2598). Ohne diesen Eintrag ist die Flaeche auf kleinen
+    // Bildschirmen ueber die Oberflaeche gar nicht erreichbar - die
+    // Seitenleiste gibt es dort nicht. Gating unten in
+    // filteredAdditionalItems: der Chat ist Opt-in (Default aus).
+    href: "/team-chat",
+    label: "Team-Chat",
+    iconKey: "chat",
+    concept: "messages",
   },
   {
     // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
@@ -456,12 +443,10 @@ const additionalNavItems: AdditionalNavItem[] = [
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
   {
-    href: "#",
-    label: "Berichte",
+    ...STAFF_FLAT_PAGES.statistics,
     iconKey: "chart",
     concept: "reports",
-    requiresAdmin: true,
-    comingSoon: true,
+    requiresAllPermissions: ["config:read", "users:read"],
   },
 ];
 
@@ -586,18 +571,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [],
   );
-  // Reines Lehrkraft-Konto (#1772): geteiltes Prädikat aus auth-utils.
-  const lehrkraftOnly = isLehrkraftOnly(session);
   const baseMain =
     mode === "operator"
       ? resolvedOperatorMainItems
-      : lehrkraftOnly
-        ? LEHRKRAFT_MAIN_ITEMS
-        : isCaregiver(session)
-          ? STAFF_MAIN_ITEMS
-          : hasRole(session, "admin")
-            ? ADMIN_MAIN_ITEMS
-            : STAFF_MAIN_ITEMS;
+      : isCaregiver(session)
+        ? STAFF_MAIN_ITEMS
+        : hasRole(session, "admin")
+          ? ADMIN_MAIN_ITEMS
+          : STAFF_MAIN_ITEMS;
   // Callers covered by the school-wide overview (#2380): inject the
   // "Aufsicht" tab dynamically. This includes effective admins and verified
   // staff under all_staff. Gate on overviewEnabled (confirmed via
@@ -636,6 +617,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
+  const staffMessagingEnabled = useStaffMessagingEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
   // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
@@ -662,15 +644,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
-    // Schul-Portal (#2207): im Overflow bleibt nur die Hilfe — alles andere
-    // sind Tenant-Seiten, die es auf dem Schul-Host nicht gibt.
-    // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
-    // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
-    // als Haupt-Tab.)
-    if (lehrkraftOnly) return item.href === "/help";
-    // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
-    // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
-    if (item.href === "/klassen") return hasRole(session, "lehrkraft");
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
     if (item.href === "/anfragen") return canOpenRequestsPage(session);
@@ -690,8 +663,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (item.href === "/substitutions" && openCareGroupMode) return false;
+    // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
+    // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
+    // Seitenleiste.
+    if (item.href === "/team-chat" && !staffMessagingEnabled) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresAllPermissions) {
+      return (
+        userIsAdmin ||
+        item.requiresAllPermissions.every((permission) =>
+          hasPermission(session, permission),
+        )
+      );
+    }
     if (item.requiresPermission) {
       return userIsAdmin || hasPermission(session, item.requiresPermission);
     }
@@ -811,6 +796,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   const href =
                     item.href === "/eltern" ||
                     item.href === "/anfragen" ||
+                    item.href === "/team-chat" ||
                     isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;

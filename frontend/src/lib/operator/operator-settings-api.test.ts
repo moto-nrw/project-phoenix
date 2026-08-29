@@ -21,6 +21,7 @@ vi.mock("./api-helpers", () => ({
 
 // Import after mocks are set up
 import {
+  fetchBookingAuthorityImpact,
   fetchOperatorSettingsSchema,
   setOperatorSettingValue,
   resetOperatorSettingValue,
@@ -33,6 +34,27 @@ const SCHOOL_ID = "42";
 describe("operator-settings-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("fetchBookingAuthorityImpact", () => {
+    it("loads the school-scoped impact preview", async () => {
+      const wire = {
+        reference_date: "2026-08-25",
+        blocking_children: [],
+        planned_completions: [],
+      };
+      mockOperatorFetch.mockResolvedValue(wire);
+
+      await expect(fetchBookingAuthorityImpact(SCHOOL_ID)).resolves.toEqual({
+        referenceDate: "2026-08-25",
+        blockingChildren: [],
+        plannedCompletions: [],
+      });
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        `/api/operator/provisioning/schools/${SCHOOL_ID}/settings/booking-authority-impact`,
+        { method: "GET" },
+      );
+    });
   });
 
   describe("fetchOperatorSettingsSchema", () => {
@@ -189,6 +211,19 @@ describe("operator-settings-api", () => {
       mockOperatorFetch.mockRejectedValue(new OperatorApiError("boom", 500));
 
       const err = await setOperatorSettingValue(SCHOOL_ID, "foo.bar", "x");
+      expect(err).toBe("Einstellung konnte nicht gespeichert werden.");
+    });
+
+    it("does not mislabel another setting's conflict as booking mode", async () => {
+      mockOperatorFetch.mockRejectedValue(
+        new OperatorApiError("presence mode conflict", 409),
+      );
+
+      const err = await setOperatorSettingValue(
+        SCHOOL_ID,
+        "attendance.presence_mode",
+        "binary",
+      );
       expect(err).toBe("Einstellung konnte nicht gespeichert werden.");
     });
 

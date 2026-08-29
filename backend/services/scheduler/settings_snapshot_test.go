@@ -59,6 +59,13 @@ func TestSchedulerPollingSettingKeysIncludeAppointmentReminderSettings(t *testin
 	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderLeadHours)
 }
 
+func TestSchedulerPollingSettingKeysIncludeAutoEndSettings(t *testing.T) {
+	t.Parallel()
+
+	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyTimetableAutoEndEnabled)
+	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyTimetableAutoEndGraceMinutes)
+}
+
 // Deliberately NOT parallel: the test installs a query hook on the SHARED
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.

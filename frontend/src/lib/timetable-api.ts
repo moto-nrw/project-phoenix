@@ -21,6 +21,7 @@ import type {
   BackendEnrichedInstance,
   BackendGapsResponse,
   BackendDeviationHistoryResponse,
+  BackendGuardianNoticeReach,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -54,6 +55,8 @@ import type {
   EnrichedInstance,
   GapsResponse,
   DeviationHistoryResponse,
+  GuardianNoticeInput,
+  GuardianNoticeReach,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
@@ -86,6 +89,7 @@ import {
   mapMoveStaff,
   mapStaffPool,
   mapInstance,
+  mapGuardianNoticeReach,
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
@@ -176,12 +180,16 @@ class TimetableService {
    * enriched instance shape so the caller can splice it into the SWR
    * cache without a refetch.
    */
-  async create(body: CreateInstanceBody): Promise<EnrichedInstance> {
+  async create(
+    body: CreateInstanceBody,
+    idempotencyKey: string,
+  ): Promise<EnrichedInstance> {
     const response = await fetch("/api/timetable/instances", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        "Idempotency-Key": idempotencyKey,
       },
       credentials: "include",
       body: JSON.stringify(body),
@@ -627,12 +635,41 @@ class TimetableService {
   async cancel(
     instanceId: string,
     reason?: string,
+    guardianNotice?: GuardianNoticeInput,
   ): Promise<InstanceStatusResult> {
+    const body: Record<string, unknown> = {};
+    if (reason) body.reason = reason;
+    if (guardianNotice) {
+      body.guardian_notice = {
+        title: guardianNotice.title,
+        message: guardianNotice.message,
+      };
+    }
     return this.lifecycle<BackendInstanceStatusResult, InstanceStatusResult>(
       instanceId,
       "cancel",
       mapInstanceStatusResult,
-      reason ? { reason } : undefined,
+      body,
+    );
+  }
+
+  /**
+   * Preview for "Eltern informieren" in the cancel dialog (#2601): whether the
+   * school allows the notice, whether the checkbox starts ticked, and how many
+   * children / families the block reaches.
+   */
+  async getGuardianNoticeReach(
+    instanceId: string,
+  ): Promise<GuardianNoticeReach> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/guardian-notice`,
+      {
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapGuardianNoticeReach(
+      await unwrap<BackendGuardianNoticeReach>(response),
     );
   }
 
@@ -813,6 +850,12 @@ class TimetableService {
     if (input.cancel) {
       body.cancel = true;
       if (input.cancelReason) body.cancel_reason = input.cancelReason;
+      if (input.guardianNotice) {
+        body.guardian_notice = {
+          title: input.guardianNotice.title,
+          message: input.guardianNotice.message,
+        };
+      }
     } else {
       if (input.understaffedAck !== undefined) {
         body.understaffed_ack = input.understaffedAck;

@@ -93,6 +93,13 @@ type EffectivePickupTime struct {
 	IsException bool          `json:"is_exception"`
 	Notes       string        `json:"notes,omitempty"`
 	DayNotes    []NoteData    `json:"day_notes,omitempty"`
+	// RegularPickupTime is the recurring plan's time for that weekday, kept
+	// next to the effective one so readers can name the deviation instead of
+	// only flagging it (#2294). Nil when the plan carries no time that day.
+	RegularPickupTime *time.Time `json:"regular_pickup_time,omitempty"`
+	// ChangedAt is when the overriding day exception was recorded; set only
+	// together with IsException.
+	ChangedAt *time.Time `json:"changed_at,omitempty"`
 }
 
 type pickupScheduleService struct {
@@ -492,7 +499,7 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 		}
 		row.Source = schedule.PickupScheduleSourceStaff
 		row.CareOfferingID = nil
-		row.PickupTime = timezone.WallClock(row.PickupTime)
+		row.PickupTime = timezone.NormalizeWallClock(row.PickupTime)
 		rowDate := weekStart.AddDays(row.Weekday - schedule.WeekdayMonday)
 		if !projection.AllowsPickupForDate(studentID, rowDate) {
 			continue
@@ -524,7 +531,7 @@ func pickupRowForRewrite(row *schedule.StudentPickupSchedule) *schedule.StudentP
 	return &schedule.StudentPickupSchedule{
 		StudentID:      row.StudentID,
 		Weekday:        row.Weekday,
-		PickupTime:     timezone.WallClock(row.PickupTime),
+		PickupTime:     timezone.NormalizeWallClock(row.PickupTime),
 		Notes:          row.Notes,
 		CreatedBy:      row.CreatedBy,
 		Source:         row.Source,
@@ -1019,11 +1026,13 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
 
 func pickupEffectiveTime(result *effectiveTimeResult) *EffectivePickupTime {
 	mapped := &EffectivePickupTime{
-		Date:        result.Date,
-		PickupTime:  result.Time,
-		WeekdayName: result.WeekdayName,
-		IsException: result.IsException,
-		Notes:       result.Notes,
+		Date:              result.Date,
+		PickupTime:        result.Time,
+		WeekdayName:       result.WeekdayName,
+		IsException:       result.IsException,
+		Notes:             result.Notes,
+		RegularPickupTime: result.RegularTime,
+		ChangedAt:         result.ChangedAt,
 	}
 	for _, note := range result.DayNotes {
 		mapped.DayNotes = append(mapped.DayNotes, NoteData(note))

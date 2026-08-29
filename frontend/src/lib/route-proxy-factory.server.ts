@@ -51,6 +51,7 @@ type WriteFetcher = <T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
+  idempotencyKey?: string,
 ) => Promise<T>;
 type DeleteFetcher = (endpoint: string, token: string) => Promise<unknown>;
 
@@ -91,12 +92,14 @@ export function makeProxyFactories(b: PortalBindings) {
     endpoint: ProxyEndpoint,
     options?: ProxyOptions,
   ) {
-    return b.post<T, B>(async (_request, body, token, params) =>
-      unwrap<T>(
-        await b.apiPost<unknown, B>(resolve(endpoint, params), token, body),
-        options?.raw,
-      ),
-    );
+    return b.post<T, B>(async (request, body, token, params) => {
+      const idempotencyKey = request.headers.get("Idempotency-Key");
+      const target = resolve(endpoint, params);
+      const response = idempotencyKey
+        ? await b.apiPost<unknown, B>(target, token, body, idempotencyKey)
+        : await b.apiPost<unknown, B>(target, token, body);
+      return unwrap<T>(response, options?.raw);
+    });
   }
 
   /** PUT proxy: forwards the parsed body, unwraps `data` unless `{ raw: true }`. */

@@ -55,6 +55,7 @@ type ResourceConfig struct {
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolService platformSvc.SchoolService
 	ActiveService activeSvc.Service
+	CareLifecycle usersSvc.CareLifecycleService
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
@@ -119,7 +120,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		operatorLookup:        cfg.AuthService,
 	}
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService, cfg.CareLifecycle)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
@@ -314,6 +315,7 @@ func (rs *Resource) mountSchoolRoutes(r chi.Router) {
 		if rs.settingsResource != nil {
 			r.Route("/{id}/settings", func(r chi.Router) {
 				r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)
+				r.Get("/booking-authority-impact", rs.settingsResource.GetBookingAuthorityImpact)
 				r.Get("/values/{key}/reveal", rs.settingsResource.RevealSchoolSettingValue)
 				r.Put("/values/{key}", rs.settingsResource.SetSchoolSettingValue)
 				r.Delete("/values/{key}", rs.settingsResource.ResetSchoolSettingValue)

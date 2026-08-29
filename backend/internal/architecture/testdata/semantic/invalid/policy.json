@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "policy_epoch": 1,
+  "module_path": "example.test/architecture-semantic",
+  "shared_kernel_types": ["CorrelationID", "Date", "TenantID", "WallClock"],
+  "build": {"goos": "linux", "goarch": "amd64", "cgo_enabled": false},
+  "owners": [
+    {"id": "alpha", "kind": "domain"},
+    {"id": "beta", "kind": "domain"},
+    {"id": "legacy", "kind": "composition"},
+    {"id": "report", "kind": "projection"}
+  ],
+  "roles": ["application", "compose", "domain", "module-behavior-test", "module-internal-test", "postgres", "public"],
+  "packages": [
+	{"path": "capability", "owner": "alpha", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "consumer", "owner": "alpha", "role": "application", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "database/repositories", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "dynamic", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "foreign", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "legacy", "owner": "legacy", "role": "compose", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "models/internalmodel", "owner": "alpha", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "models/persistence", "owner": "beta", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "projection", "owner": "report", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "public", "owner": "alpha", "role": "public", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "service", "owner": "alpha", "role": "application", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "unknown", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"}
+  ],
+  "data_objects": [
+    {"name": "alpha.records", "write_owner": "alpha"},
+    {"name": "beta.comma_source", "write_owner": "beta"},
+	{"name": "beta.comma_table_expr", "write_owner": "beta"},
+    {"name": "beta.delete_source", "write_owner": "beta"},
+    {"name": "beta.fragment_records", "write_owner": "beta"},
+    {"name": "beta.hidden_records", "write_owner": "beta"},
+    {"name": "beta.joined_records", "write_owner": "beta"},
+	{"name": "beta.later_truncated_records", "write_owner": "beta"},
+    {"name": "beta.merged_records", "write_owner": "beta"},
+	{"name": "beta.qualified_records", "write_owner": "beta"},
+    {"name": "beta.merge_source", "write_owner": "beta"},
+	{"name": "beta.table_expr_join", "write_owner": "beta"},
+    {"name": "beta.truncated_records", "write_owner": "beta"},
+	{"name": "beta.truncate_query_records", "write_owner": "beta"},
+    {"name": "beta.records", "write_owner": "beta"}
+  ],
+  "read_projections": [
+    {"id": "report-view", "package": "projection", "data_objects": ["beta.records"], "tenant_safe": true}
+  ],
+  "legacy_composition": [
+    {"package": "legacy", "symbols": ["Factory"]},
+    {"package": "/legacy", "symbols": ["NewFactory"]}
+  ],
+  "external_classes": ["orm-sql"],
+  "external_packages": [{"path": "database/sql", "class": "orm-sql"}, {"path": "github.com/uptrace/bun", "class": "orm-sql"}],
+  "rules": [
+    {"id": "alpha-app-uses-orm", "description": "Fixture application code may import BUN so the semantic rule can reject access.", "scopes": ["production"], "source_owner": "alpha", "source_role": "application", "target_class": "orm-sql"},
+    {"id": "alpha-postgres-uses-orm", "description": "Alpha adapters use BUN.", "scopes": ["production"], "source_owner": "alpha", "source_role": "postgres", "target_class": "orm-sql"},
+    {"id": "beta-domain-uses-orm", "description": "Fixture persistence models use BUN.", "scopes": ["production"], "source_owner": "beta", "source_role": "domain", "target_class": "orm-sql"},
+    {"id": "projection-uses-orm", "description": "Projection adapters use BUN.", "scopes": ["production"], "source_owner_kind": "projection", "source_role": "postgres", "target_class": "orm-sql"},
+    {"id": "public-uses-orm", "description": "Fixture public package imports BUN so contract analysis can reject the leaked type.", "scopes": ["production"], "source_owner": "alpha", "source_role": "public", "target_class": "orm-sql"},
+    {"id": "consumer-uses-legacy", "description": "Fixture consumer imports legacy composition so semantic analysis can reject the symbol reference.", "scopes": ["production"], "source_owner": "alpha", "source_role": "application", "target_owner": "legacy", "target_role": "compose"},
+    {"id": "foreign-imports-model", "description": "Fixture adapter imports a foreign persistence model so semantic analysis can reject its table write.", "scopes": ["production"], "source_owner": "alpha", "source_role": "postgres", "target_owner": "beta", "target_role": "domain"},
+    {"id": "public-uses-domain", "description": "Fixture public contract imports an internal model so contract analysis can reject it.", "scopes": ["production"], "source_owner": "alpha", "source_role": "public", "target_owner": "alpha", "target_role": "domain", "same_owner": true},
+    {"id": "public-uses-repository", "description": "Fixture public contract imports a repository so contract analysis can reject it.", "scopes": ["production"], "source_owner": "alpha", "source_role": "public", "target_owner": "alpha", "target_role": "postgres", "same_owner": true}
+  ]
+}

@@ -18,11 +18,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 var (
@@ -162,26 +164,11 @@ type ClassRosterFilters struct {
 // belong to the class for care purposes (#2487): the class day view pages
 // through the week and passes the day it renders, every other caller means
 // today.
-func (f ClassRosterFilters) careDate() timezone.Date {
+func (f ClassRosterFilters) careDate(today timezone.Date) timezone.Date {
 	if f.OfferingDate != nil {
 		return *f.OfferingDate
 	}
-	return timezone.TodayDate()
-}
-
-// filterCareRunningOn drops the children whose care at the OGS had already
-// ended on that day (#2487). FindBySchoolClass only filters graduates, so
-// without this a departed child would keep showing up on the Lehrkraft class
-// day sheet and on every Klassenliste export.
-func filterCareRunningOn(students []*userModels.Student, day timezone.Date) []*userModels.Student {
-	kept := make([]*userModels.Student, 0, len(students))
-	for _, student := range students {
-		if student == nil || student.CareEndedOn(day) {
-			continue
-		}
-		kept = append(kept, student)
-	}
-	return kept
+	return today
 }
 
 type ClassRosterReport struct {
@@ -259,6 +246,12 @@ type ReportService interface {
 	// (#1772). Every call writes a GDPR access-log row for the actor;
 	// actorRole carries the caller's actual roles (comma-joined claims).
 	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64, actorRole string) (*ClassDayReport, error)
+	// SupervisionStudentSheet is the per-child pickup/emergency sheet a
+	// supervisor opens from a running block (#2527). It carries guardian
+	// names and phone numbers, which ClassDay deliberately does not, so the
+	// caller MUST have proven the assignment to a block holding this child
+	// before calling. Every call writes a GDPR access-log row.
+	SupervisionStudentSheet(ctx context.Context, in SupervisionSheetInput) (*SupervisionStudentSheet, error)
 }
 
 type ReportServiceConfig struct {
@@ -307,7 +300,16 @@ type ReportServiceConfig struct {
 	// roster matches the form: a leftover active catalog must not constrain
 	// pickup times when offerings are turned off. Optional in tests; nil
 	// follows the registry default (enabled).
-	Settings RequestSettingsResolver
+	Settings          RequestSettingsResolver
+	CareParticipation CareParticipationResolver
+	Now               func() time.Time
+}
+
+// CareParticipationResolver is the dated operational-participation seam owned
+// by CareLifecycleService. Keeping the narrow interface here avoids teaching
+// enrollment reports about withdrawal states.
+type CareParticipationResolver interface {
+	ResolveListParticipation(ctx context.Context, studentIDs []int64, on, today timezone.Date, includePending bool) (*userService.CareParticipationResolution, error)
 }
 
 type reportService struct {
@@ -315,7 +317,17 @@ type reportService struct {
 }
 
 func NewReportService(cfg ReportServiceConfig) ReportService {
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
 	return &reportService{ReportServiceConfig: cfg}
+}
+
+func (s *reportService) today() timezone.Date {
+	if s.Now == nil {
+		return timezone.TodayDate()
+	}
+	return timezone.DateFromTime(s.Now())
 }
 
 // BookingViewDate is the reference date for SHOWING a child's booked care
@@ -1155,42 +1167,78 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 	return groups, nil
 }
 
-// classRosterStudents loads the roster's students: one class, or — for the
-// all-classes export — every non-empty class (ListSchoolClasses only returns
-// classes that have students, so empty classes never produce empty lists).
+// classRosterStudents loads one selected class or every student carrying a
+// non-empty class name. The shared participation rule filters that candidate
+// set after the one bulk query.
 func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
+	options := modelBase.NewQueryOptions()
 	if !filters.AllClasses {
-		students, err := s.StudentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
-		if err != nil {
-			return nil, fmt.Errorf("class roster report: list students: %w", err)
-		}
-		return filterCareRunningOn(students, filters.careDate()), nil
+		options.Filter.TrimEqual("school_class", filters.SchoolClass)
 	}
-	classes, err := s.StudentRepo.ListSchoolClasses(ctx)
+	students, err := s.StudentRepo.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, fmt.Errorf("class roster report: list school classes: %w", err)
+		return nil, fmt.Errorf("class roster report: list students: %w", err)
 	}
-	students := make([]*userModels.Student, 0)
-	// ListSchoolClasses is case-sensitive DISTINCT while FindBySchoolClass
-	// matches LOWER(TRIM(...)); dedupe with the latter rule so a tenant
-	// with both "1a" and "1A" doesn't load the same students twice.
-	seen := make(map[string]bool, len(classes))
-	for _, class := range classes {
-		key := strings.ToLower(strings.TrimSpace(class))
-		if key == "" || seen[key] {
-			continue
-		}
-		seen[key] = true
-		classStudents, err := s.StudentRepo.FindBySchoolClass(ctx, class)
-		if err != nil {
-			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)
-		}
-		students = append(students, filterCareRunningOn(classStudents, filters.careDate())...)
-		if len(students) > maxReportRows {
-			return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
-		}
+	if !filters.AllClasses {
+		students = studentsInClass(students, filters.SchoolClass)
+	} else {
+		students = studentsWithClass(students)
+	}
+	today := s.today()
+	students, err = s.filterClassParticipation(ctx, students, filters.careDate(today), today)
+	if err != nil {
+		return nil, err
+	}
+	if len(students) > maxReportRows {
+		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
 	}
 	return students, nil
+}
+
+func studentsInClass(students []*userModels.Student, schoolClass string) []*userModels.Student {
+	result := students[:0]
+	for _, student := range students {
+		if student != nil && strings.EqualFold(strings.TrimSpace(student.SchoolClass), strings.TrimSpace(schoolClass)) {
+			result = append(result, student)
+		}
+	}
+	return result
+}
+
+func studentsWithClass(students []*userModels.Student) []*userModels.Student {
+	result := students[:0]
+	for _, student := range students {
+		if student != nil && strings.TrimSpace(student.SchoolClass) != "" {
+			result = append(result, student)
+		}
+	}
+	return result
+}
+
+func (s *reportService) filterClassParticipation(
+	ctx context.Context, students []*userModels.Student, day, today timezone.Date,
+) ([]*userModels.Student, error) {
+	if s.CareParticipation == nil {
+		return nil, errors.New("class roster report: care participation resolver is not configured")
+	}
+	if len(students) == 0 {
+		return students, nil
+	}
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		ids = append(ids, student.ID)
+	}
+	resolution, err := s.CareParticipation.ResolveListParticipation(ctx, ids, day, today, false)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: apply care participation: %w", err)
+	}
+	kept := make([]*userModels.Student, 0, len(students))
+	for _, student := range students {
+		if resolution.ParticipatingIDs[student.ID] {
+			kept = append(kept, student)
+		}
+	}
+	return kept, nil
 }
 
 func sortClassRosterRows(rows []ClassRosterRow) {

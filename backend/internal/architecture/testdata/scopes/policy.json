@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "policy_epoch": 1,
+  "module_path": "example.test/architecture-scopes",
+  "shared_kernel_types": ["CorrelationID", "Date", "TenantID", "WallClock"],
+  "build": {"goos": "linux", "goarch": "amd64", "cgo_enabled": false},
+  "owners": [
+    {"id": "source", "kind": "domain"},
+    {"id": "targets", "kind": "domain"}
+  ],
+  "roles": ["application", "domain", "module-behavior-test", "module-internal-test", "port", "public"],
+  "packages": [
+    {"path": "external-target", "owner": "targets", "role": "public", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "internal-target", "owner": "source", "role": "port", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "production", "owner": "targets", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
+    {"path": "source", "owner": "source", "role": "application", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"}
+  ],
+  "data_objects": [],
+  "read_projections": [],
+  "legacy_composition": [],
+  "external_classes": ["test"],
+  "external_packages": [{"path": "testing", "class": "test"}],
+  "rules": [
+    {
+      "id": "production-edge",
+      "description": "Production has its own target.",
+      "scopes": ["production"],
+      "source_owner": "source",
+      "source_role": "application",
+      "target_owner": "targets",
+      "target_role": "domain"
+    },
+    {
+      "id": "internal-test-edge",
+      "description": "Internal tests have their own target.",
+      "scopes": ["internal_test"],
+      "source_owner": "source",
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "port"
+    },
+    {
+      "id": "external-test-edge",
+      "description": "External tests have their own target.",
+      "scopes": ["external_test"],
+      "source_owner": "source",
+      "source_role": "module-behavior-test",
+      "target_owner": "targets",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test-imports-subject",
+      "description": "External tests import the package under test.",
+      "scopes": ["external_test"],
+      "source_owner": "source",
+      "source_role": "module-behavior-test",
+      "target_owner": "source",
+      "target_role": "application"
+    },
+    {
+      "id": "internal-tests-use-testing",
+      "description": "Internal tests may import the Go testing package.",
+      "scopes": ["internal_test"],
+      "source_owner": "source",
+      "source_role": "module-internal-test",
+      "target_class": "test"
+    },
+    {
+      "id": "external-tests-use-testing",
+      "description": "External tests may import the Go testing package.",
+      "scopes": ["external_test"],
+      "source_owner": "source",
+      "source_role": "module-behavior-test",
+      "target_class": "test"
+    }
+  ]
+}

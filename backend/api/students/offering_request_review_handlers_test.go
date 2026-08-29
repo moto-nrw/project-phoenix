@@ -244,6 +244,36 @@ func TestDecideOfferingChangeRequest_PassesTheConfirmedDate(t *testing.T) {
 	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.input.EffectiveFrom)
 }
 
+func TestDecideOfferingChangeRequest_PassesCompleteWithdrawalConfirmation(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeOfferingChangeRequestService{}
+	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01","complete_withdrawal_confirmed":true}`))
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55, Roles: []string{"staff"}}))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("requestId", "100")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.decideOfferingChangeRequest(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, svc.input.CompleteWithdrawalConfirmed)
+}
+
+func TestRenderOfferingDecisionError_UsesStableCompleteWithdrawalCode(t *testing.T) {
+	t.Parallel()
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	renderOfferingDecisionError(recorder, request, enrollmentService.ErrCompleteWithdrawalConfirmationRequired)
+
+	assert.Equal(t, http.StatusConflict, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"enrollment.complete_withdrawal_confirmation_required"`)
+}
+
 // No date, no approval: the switch would otherwise apply on a day nobody chose.
 func TestDecideOfferingChangeRequest_RefusesApprovalWithoutADate(t *testing.T) {
 	t.Parallel()

@@ -590,6 +590,38 @@ describe("OfferingRequestReviewItem", () => {
       ).toBeInTheDocument();
     });
 
+    it("requires the school confirmation before approving a full withdrawal", async () => {
+      mockDecide.mockResolvedValue(undefined);
+      renderItem(withdrawal());
+
+      fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+
+      expect(
+        await screen.findByRole("heading", {
+          name: "Alle Betreuungstage entfernen?",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Danach ist für Lara Beispiel kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Änderung speichern" }),
+      );
+
+      await waitFor(() =>
+        expect(mockDecide).toHaveBeenCalledWith(
+          "77",
+          true,
+          undefined,
+          [],
+          "2027-02-01",
+          true,
+        ),
+      );
+    });
+
     it("flags the full withdrawal before the card is expanded", () => {
       render(
         <OfferingRequestReviewItem row={withdrawal()} onDecided={vi.fn()} />,

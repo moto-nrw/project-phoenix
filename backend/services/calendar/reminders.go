@@ -296,7 +296,7 @@ func occurrenceStartInstant(appointment *calModels.Appointment) time.Time {
 			midnight.Location(),
 		)
 	}
-	clock := timezone.WallClock(appointment.StartTime)
+	clock := timezone.NormalizeWallClock(appointment.StartTime)
 	return time.Date(
 		midnight.Year(), midnight.Month(), midnight.Day(),
 		clock.Hour(), clock.Minute(), 0, 0,

@@ -76,6 +76,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		Title:            &event.Title,
 		Body:             &event.Body,
 		DeepLink:         &event.DeepLink,
+		SchoolDeepLink:   optionalString(event.SchoolDeepLink),
 		Priority:         &event.Priority,
 		NotificationType: &event.Type,
 		NotificationData: maps.Clone(event.Data),
@@ -100,7 +101,16 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 	case ScopeGroup:
 		return c.broadcaster.BroadcastToGroup(event.Audience.TenantID, event.Audience.ActiveGroupID, sseEvent)
 	case ScopeStaff:
-		return c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, staffAccountIDs(event.Audience), sseEvent)
+		accountIDs := staffAccountIDs(event.Audience)
+		if deliversToStaffPortal(event) {
+			if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
+				return err
+			}
+		}
+		if deliversToSchoolPortal(event) {
+			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
+		}
+		return nil
 	default:
 		return fmt.Errorf("sse channel cannot route audience scope %q (tenant %s)",
 			event.Audience.Scope, strconv.FormatInt(event.Audience.TenantID, 10))
@@ -141,4 +151,12 @@ func (c *sseChannel) permittedGuardians(ctx context.Context, audience Audience) 
 			strconv.FormatInt(audience.TenantID, 10), err)
 	}
 	return permitted, nil
+}
+
+// optionalString maps "" to nil so the SSE payload omits the field.
+func optionalString(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
 }

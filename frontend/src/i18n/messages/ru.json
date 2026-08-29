@@ -126,6 +126,7 @@
     "newsNew": "Новое письмо родителям",
     "newsOutstanding": "Требует внимания",
     "newsLetter": "Письмо родителям",
+    "newsCareCancellation": "Занятие отменено",
     "newsImportant": "Важно",
     "newsAcknowledge": "Подтвердить прочтение",
     "newsAcknowledgeSaving": "Подтверждение …",
@@ -158,7 +159,9 @@
     "newsReadAndConfirm": "Подтвердить прочтение",
     "newsReadAnnouncement": "Читать",
     "newsExternalLink": "Открыть дополнительную информацию",
-    "newsClose": "Закрыть"
+    "newsClose": "Закрыть",
+    "newsLetterBadge": "Требуется подтверждение",
+    "newsLetterBindingHint": "Это письмо только для информации. Засчитывается подтверждение здесь, в родительском портале. Достаточно одного законного представителя на ребёнка."
   },
   "parentNotificationSetup": {
     "title": "Не пропускайте важные сообщения",
@@ -212,7 +215,26 @@
     "title": "Настройки",
     "description": "Настройте язык и уведомления для своей учётной записи.",
     "languageTitle": "Язык",
-    "languageDescription": "Выберите язык интерфейса moto."
+    "languageDescription": "Выберите язык интерфейса moto.",
+    "appInstallTitle": "Установить moto как приложение",
+    "appInstallDescription": "Не устанавливайте moto через Samsung Internet. Откройте moto в Chrome."
+  },
+  "pwaInstallHint": {
+    "title": "Использовать moto как приложение",
+    "samsungDescription": "Не устанавливайте moto через Samsung Internet. Откройте moto в Chrome и войдите там.",
+    "samsungStep": "Затем выберите в меню Chrome",
+    "samsungFallback": "Если это не сработает, откройте Chrome и перейдите на {host}.",
+    "oneTapDescription": "Установите moto прямо с этой страницы. Затем moto всегда будет открываться во весь экран, без панели браузера.",
+    "iosBefore": "В Safari нажмите",
+    "iosBetween": "затем",
+    "androidBefore": "Откройте меню браузера и нажмите",
+    "androidOr": "или",
+    "share": "Поделиться",
+    "homeScreen": "На экран «Домой»",
+    "install": "Установить приложение",
+    "addToHome": "Добавить на главный экран",
+    "openInChrome": "Открыть в Chrome",
+    "close": "Закрыть подсказку"
   },
   "notificationPreferences": {
     "title": "Уведомления",
@@ -251,6 +273,10 @@
       "parent_request_decided": {
         "label": "Решение по вашему запросу",
         "description": "Когда продлёнка приняла решение по одному из ваших запросов."
+      },
+      "parent_care_cancelled": {
+        "label": "Занятие отменено",
+        "description": "Когда продлёнка отменяет одно из занятий вашего ребёнка."
       }
     }
   },
@@ -1240,6 +1266,9 @@
       "disabledPeriodOver": "Период пребывания закончился. Зарегистрируйте ребёнка заново на новый период.",
       "requestsTitle": "Запрошенное изменение",
       "decisionApproved": "Изменение принято",
+      "withdrawalApproved": "Отказ подтверждён",
+      "withdrawalApprovedHint": "Школа завершит отказ. Вам ничего делать не нужно.",
+      "withdrawalCareEnded": "Посещение группы продлённого дня завершено {date}",
       "decisionApprovedFrom": "Действует с {date}",
       "decisionRejected": "Запрос отклонён",
       "decisionReason": "Причина от команды продлёнки: {reason}",
@@ -1273,7 +1302,11 @@
       "noDaysSelected": "Выберите хотя бы один день для каждого выбранного варианта.",
       "submitError": "Не удалось отправить запрос.",
       "capacityFull": "В одном из выбранных вариантов больше нет мест.",
-      "alreadyPending": "Для вашего ребёнка уже есть запрос. Дождитесь его рассмотрения."
+      "alreadyPending": "Для вашего ребёнка уже есть запрос. Дождитесь его рассмотрения.",
+      "withdrawalConfirmTitle": "Полностью отменить уход?",
+      "withdrawalConfirmBody": "После этого у {name} не останется ни одного забронированного дня ухода. Действительно отправить этот запрос?",
+      "withdrawalConfirmBack": "Назад",
+      "withdrawalConfirmSubmit": "Отправить запрос"
     },
     "weekdayShort": {
       "1": "Пн",

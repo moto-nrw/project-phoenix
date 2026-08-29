@@ -126,6 +126,7 @@
     "newsNew": "Letër e re për prindërit",
     "newsOutstanding": "E hapur",
     "newsLetter": "Letër për prindërit",
+    "newsCareCancellation": "Kujdesi anulohet",
     "newsImportant": "E rëndësishme",
     "newsAcknowledge": "Konfirmoni si të lexuar",
     "newsAcknowledgeSaving": "Po konfirmohet …",
@@ -158,7 +159,9 @@
     "newsReadAndConfirm": "Konfirmoni si të lexuar",
     "newsReadAnnouncement": "Lexoni",
     "newsExternalLink": "Hap informacione të tjera",
-    "newsClose": "Mbyll"
+    "newsClose": "Mbyll",
+    "newsLetterBadge": "Kërkohet konfirmim",
+    "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë."
   },
   "parentNotificationSetup": {
     "title": "Mos humbisni asnjë mesazh të rëndësishëm",
@@ -212,7 +215,26 @@
     "title": "Cilësimet",
     "description": "Caktoni gjuhën dhe njoftimet për llogarinë tuaj.",
     "languageTitle": "Gjuha",
-    "languageDescription": "Zgjidhni gjuhën në të cilën shfaqet moto."
+    "languageDescription": "Zgjidhni gjuhën në të cilën shfaqet moto.",
+    "appInstallTitle": "Instaloni moto si aplikacion",
+    "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome."
+  },
+  "pwaInstallHint": {
+    "title": "Përdorni moto si aplikacion",
+    "samsungDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome dhe hyni aty.",
+    "samsungStep": "Pastaj zgjidhni në menunë e Chrome",
+    "samsungFallback": "Nëse kjo nuk funksionon, hapni Chrome dhe shkoni te {host}.",
+    "oneTapDescription": "Instaloni moto direkt nga kjo faqe. moto hapet gjithmonë në ekran të plotë, pa shirit shfletuesi.",
+    "iosBefore": "Në Safari prekni",
+    "iosBetween": "pastaj",
+    "androidBefore": "Hapni menunë e shfletuesit dhe prekni",
+    "androidOr": "ose",
+    "share": "Ndaj",
+    "homeScreen": "Shto në ekranin kryesor",
+    "install": "Instalo aplikacionin",
+    "addToHome": "Shto në ekranin kryesor",
+    "openInChrome": "Hap në Chrome",
+    "close": "Mbyll njoftimin"
   },
   "notificationPreferences": {
     "title": "Njoftimet",
@@ -251,6 +273,10 @@
       "parent_request_decided": {
         "label": "Vendim për kërkesën tuaj",
         "description": "Kur OGS-ja ka vendosur për një nga kërkesat tuaja."
+      },
+      "parent_care_cancelled": {
+        "label": "Kujdesi anulohet",
+        "description": "Kur OGS-ja anulon një nga takimet e kujdesit të fëmijës suaj."
       }
     }
   },
@@ -1240,6 +1266,9 @@
       "disabledPeriodOver": "Periudha e përkujdesjes ka përfunduar. Regjistrojeni përsëri fëmijën për periudhën e re.",
       "requestsTitle": "Ndryshimi i kërkuar",
       "decisionApproved": "Ndryshimi u zbatua",
+      "withdrawalApproved": "Çregjistrimi u konfirmua",
+      "withdrawalApprovedHint": "Shkolla do ta përfundojë çregjistrimin. Ju nuk duhet të bëni asgjë.",
+      "withdrawalCareEnded": "Kujdesi përfundoi më {date}",
       "decisionApprovedFrom": "Vlen nga {date}",
       "decisionRejected": "Kërkesa u refuzua",
       "decisionReason": "Arsyeja e ekipit të përkujdesjes: {reason}",
@@ -1273,7 +1302,11 @@
       "noDaysSelected": "Zgjidhni të paktën një ditë për çdo ofertë të zgjedhur.",
       "submitError": "Kërkesa nuk mund të dërgohej.",
       "capacityFull": "Një nga ofertat e zgjedhura nuk ka më vende të lira.",
-      "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj."
+      "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj.",
+      "withdrawalConfirmTitle": "Të çregjistrohet plotësisht nga përkujdesja?",
+      "withdrawalConfirmBody": "Pas kësaj, {name} nuk do të ketë asnjë ditë përkujdesjeje të rezervuar. Dëshironi vërtet ta dërgoni këtë kërkesë?",
+      "withdrawalConfirmBack": "Kthehu",
+      "withdrawalConfirmSubmit": "Dërgo kërkesën"
     },
     "weekdayShort": {
       "1": "Hën",

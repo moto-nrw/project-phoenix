@@ -126,6 +126,7 @@
     "newsNew": "New letter to parents",
     "newsOutstanding": "Open",
     "newsLetter": "Letter to parents",
+    "newsCareCancellation": "Care cancelled",
     "newsImportant": "Important",
     "newsAcknowledge": "Confirm as read",
     "newsAcknowledgeSaving": "Confirming …",
@@ -158,7 +159,9 @@
     "newsReadAndConfirm": "Confirm as read",
     "newsReadAnnouncement": "Read",
     "newsExternalLink": "Open more information",
-    "newsClose": "Close"
+    "newsClose": "Close",
+    "newsLetterBadge": "Confirmation required",
+    "newsLetterBindingHint": "This e-mail is for information only. What counts is the confirmation here in the parent portal. One guardian per child is enough."
   },
   "parentNotificationSetup": {
     "title": "Do not miss an important message",
@@ -212,7 +215,26 @@
     "title": "Settings",
     "description": "Choose the language and notifications for your account.",
     "languageTitle": "Language",
-    "languageDescription": "Choose the language in which moto is displayed."
+    "languageDescription": "Choose the language in which moto is displayed.",
+    "appInstallTitle": "Install moto as an app",
+    "appInstallDescription": "Do not install moto through Samsung Internet. Open moto in Chrome instead."
+  },
+  "pwaInstallHint": {
+    "title": "Use moto as an app",
+    "samsungDescription": "Do not install moto through Samsung Internet. Open moto in Chrome and sign in there.",
+    "samsungStep": "Then select",
+    "samsungFallback": "If this does not work, open Chrome and go to {host}.",
+    "oneTapDescription": "Install moto directly from this page. moto will then always open full screen, without a browser bar.",
+    "iosBefore": "In Safari, tap",
+    "iosBetween": "then",
+    "androidBefore": "Open the browser menu and tap",
+    "androidOr": "or",
+    "share": "Share",
+    "homeScreen": "Add to Home Screen",
+    "install": "Install app",
+    "addToHome": "Add to Home screen",
+    "openInChrome": "Open in Chrome",
+    "close": "Close hint"
   },
   "notificationPreferences": {
     "title": "Notifications",
@@ -251,6 +273,10 @@
       "parent_request_decided": {
         "label": "Decision on your request",
         "description": "When the OGS has decided on one of your requests."
+      },
+      "parent_care_cancelled": {
+        "label": "Care cancelled",
+        "description": "When the OGS cancels one of your child's care sessions."
       }
     }
   },
@@ -1240,6 +1266,9 @@
       "disabledPeriodOver": "The care period has ended. Please enrol your child again for the new period.",
       "requestsTitle": "Requested change",
       "decisionApproved": "Change applied",
+      "withdrawalApproved": "Withdrawal confirmed",
+      "withdrawalApprovedHint": "The school will complete the withdrawal. You do not need to do anything.",
+      "withdrawalCareEnded": "Care ended on {date}",
       "decisionApprovedFrom": "Valid from {date}",
       "decisionRejected": "Request rejected",
       "decisionReason": "Reason given by the care team: {reason}",
@@ -1273,7 +1302,11 @@
       "noDaysSelected": "Pick at least one day for every selected offering.",
       "submitError": "The request could not be sent.",
       "capacityFull": "One of the selected offerings has no places left.",
-      "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed."
+      "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed.",
+      "withdrawalConfirmTitle": "End all booked care?",
+      "withdrawalConfirmBody": "After this, {name} will have no booked care day. Do you really want to send this request?",
+      "withdrawalConfirmBack": "Back",
+      "withdrawalConfirmSubmit": "Send request"
     },
     "weekdayShort": {
       "1": "Mon",

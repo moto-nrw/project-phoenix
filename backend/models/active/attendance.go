@@ -19,9 +19,10 @@ type Attendance struct {
 	// CheckedInBy is zero when an authenticated device records attendance
 	// without a verified personal staff credential. DeviceID remains the
 	// authenticated audit principal for those legacy kiosk requests.
-	CheckedInBy  int64  `bun:"checked_in_by,nullzero" json:"checked_in_by"`
-	CheckedOutBy *int64 `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	DeviceID     int64  `bun:"device_id,notnull" json:"device_id"`
+	CheckedInBy        int64  `bun:"checked_in_by,nullzero" json:"checked_in_by"`
+	CheckedOutBy       *int64 `bun:"checked_out_by" json:"checked_out_by,omitempty"`
+	DeviceID           int64  `bun:"device_id,notnull" json:"device_id"`
+	CheckedOutDeviceID *int64 `bun:"checked_out_device_id" json:"-"`
 	// YardSince is set when the student transitions to "Schulhof" in binary
 	// mode and cleared on a school checkout. Schema and read paths
 	// (deriveAttendanceStatus, ResolveBinaryLocation, performCheckOut) are
@@ -71,8 +72,10 @@ type AttendanceRepository interface {
 	// refreshes (review #2372). Returns the updated row when an open row was
 	// actually closed, nil when no open row existed (e.g. student was never
 	// checked in or another concurrent caller already closed it). The caller
-	// treats both cases as successful idempotent checkouts.
-	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*Attendance, error)
+	// treats both cases as successful idempotent checkouts. checkoutDeviceID
+	// identifies the authenticated kiosk for device-originated closes; zero
+	// leaves the column NULL for web and system closes.
+	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID, checkoutDeviceID int64) (*Attendance, error)
 
 	// CreateIfNoOpenForTodayBatch is the multi-row form of
 	// CreateIfNoOpenForToday: one INSERT … ON CONFLICT DO NOTHING for the

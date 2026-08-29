@@ -51,6 +51,9 @@ func (b *countingBroadcaster) BroadcastToGroups(int64, []string, realtime.Event)
 func (b *countingBroadcaster) BroadcastToStaffAccounts(_ int64, _ []int64, _ realtime.Event) error {
 	return nil
 }
+func (b *countingBroadcaster) BroadcastToSchoolAccounts(_ int64, _ []int64, _ realtime.Event) error {
+	return nil
+}
 
 func (b *countingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
 	b.tenantBroadcasts++
@@ -690,7 +693,7 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 
 	day := timezone.TodayDate().AddDays(3)
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
-	from := timezone.WallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
 	staffID := staff.ID
 	pickup := &scheduleModels.StudentPickupException{
 		StudentID:             chain.StudentID,
@@ -731,7 +734,7 @@ func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Create", "Partial")
 
 	day := timezone.TodayDate().AddDays(4)
-	from := timezone.WallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
 	staffID := staff.ID
 	pickup := &scheduleModels.StudentPickupException{
 		StudentID:             chain.StudentID,

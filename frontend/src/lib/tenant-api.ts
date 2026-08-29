@@ -62,6 +62,13 @@ export interface TenantInfo {
    */
   messagingEnabled: boolean;
   /**
+   * Whether the OGS-internal Team-Chat is switched on for this school
+   * (operations.staff_messaging_enabled, #2598). Defaults to FALSE: an
+   * internal staff channel must never appear at a school that did not ask for
+   * it, so a missing flag hides the whole area rather than showing it.
+   */
+  staffMessagingEnabled: boolean;
+  /**
    * Whether the Info-Point Dashboard (display.enabled) is enabled for this
    * tenant. The feature is opt-in and defaults off, so the sidebar entry and
    * admin page must stay hidden until a school explicitly enables it.
@@ -89,6 +96,15 @@ export interface TenantInfo {
   operationalOverviewScope?: OperationalOverviewScope;
   showTimetableCounts?: boolean;
   waitlistEnabled?: boolean;
+  /**
+   * Whether the printed Notfallliste carries the children's stored health
+   * notes (operations.emergency_list_health_info, #2609). Every member of
+   * staff opens the Notfall page without config:read, so the page can only
+   * describe what it is about to print if the flag rides on tenant resolve.
+   * Missing metadata is treated as disabled because older backends do not
+   * print the health column.
+   */
+  emergencyHealthInfoEnabled?: boolean;
   /** Highest grade offered by this tenant (enrollment.grade_level_max). */
   gradeLevelMax: number;
 }
@@ -119,6 +135,7 @@ interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
+  staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
@@ -127,6 +144,7 @@ interface TenantResolveResponse {
   operational_overview_scope?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
+  emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
 }
 
@@ -183,6 +201,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
       messagingEnabled: data.parent_messaging_enabled === true,
+      staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
       careOfferingsEnabled: data.care_offerings_enabled !== false,
       attendanceWebEnabled: data.attendance_web_enabled === true,
@@ -193,6 +212,8 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       ),
       showTimetableCounts: data.show_timetable_counts !== false,
       waitlistEnabled: data.waitlist_enabled !== false,
+      emergencyHealthInfoEnabled:
+        data.emergency_list_health_info_enabled === true,
       gradeLevelMax: data.grade_level_max,
     };
   } catch {
@@ -313,16 +334,19 @@ interface SwitchTenantResponse {
 interface ErrorResponseBody {
   error?: string;
   message?: string;
+  code?: string;
 }
+
+type TenantSwitchErrorCode = "access_denied" | "use_school_portal" | "unknown";
 
 export class TenantSwitchError extends Error {
   status: number;
-  code: "access_denied" | "unknown";
+  code: TenantSwitchErrorCode;
 
   constructor(
     message: string,
     status: number,
-    code: "access_denied" | "unknown" = "unknown",
+    code: TenantSwitchErrorCode = "unknown",
   ) {
     super(message);
     this.name = "TenantSwitchError";
@@ -331,18 +355,23 @@ export class TenantSwitchError extends Error {
   }
 }
 
-async function parseErrorMessage(response: Response): Promise<string> {
+async function parseErrorResponse(
+  response: Response,
+): Promise<{ message: string; code?: string }> {
   const text = await response.text();
 
   if (!text) {
-    return "Failed to switch tenant";
+    return { message: "Failed to switch tenant" };
   }
 
   try {
     const payload = JSON.parse(text) as ErrorResponseBody;
-    return payload.error ?? payload.message ?? text;
+    return {
+      message: payload.error ?? payload.message ?? text,
+      code: payload.code,
+    };
   } catch {
-    return text;
+    return { message: text };
   }
 }
 
@@ -399,11 +428,13 @@ export async function switchTenant(
     body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
-    const message = await parseErrorMessage(response);
+    const { message, code: responseCode } = await parseErrorResponse(response);
     const code =
       response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
         ? "access_denied"
-        : "unknown";
+        : response.status === 403 && responseCode === "use_school_portal"
+          ? "use_school_portal"
+          : "unknown";
     throw new TenantSwitchError(message, response.status, code);
   }
   return (await response.json()) as SwitchTenantResponse;

@@ -8,6 +8,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceLogEnabled,
+  useStaffMessagingEnabled,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -19,12 +20,7 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  hasPermission,
-  hasRole,
-  isCaregiver,
-  isLehrkraftOnly,
-} from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { operatorPath } from "~/lib/operator-url";
@@ -32,6 +28,7 @@ import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -73,6 +70,8 @@ interface NavItem {
   // An array shows the item when ANY listed permission is held (matching
   // backend RequiresAnyPermission routes).
   requiresPermission?: string | readonly string[];
+  // All listed permissions are required (matching RequiresAllPermissions).
+  requiresAllPermissions?: readonly string[];
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -118,13 +117,13 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    // Lehrkraft-Klassenansicht (#1772): sichtbar nur für Konten mit der
-    // lehrkraft-Rolle (Gating unten in filteredNavItems — permission-basiert
-    // ginge nicht, weil admin:* class_day:read matcht, Admins aber keine
-    // Klassen zugewiesen haben und auf einer leeren Seite landen würden).
-    ...STAFF_FLAT_PAGES.klassen,
-    icon: navigationIcons.academicCap,
-    activeColor: "text-[#5080D8]",
+    ...STAFF_FLAT_PAGES.teamChat,
+    // Kein eigenes moto-Konzept-Icon: der Team-Chat ist eine neue Fläche und
+    // teilt sich die Sprechblasen-Form mit den Eltern-Nachrichten, nur in der
+    // Mitarbeitenden-Farbe statt in Blau.
+    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
+    activeColor: "text-moto-orange",
+    alwaysShow: true,
   },
   {
     ...STAFF_FLAT_PAGES.calendar,
@@ -183,12 +182,22 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-moto-blue",
   },
   {
-    href: "#",
-    label: "Berichte",
+    // Dateiablage (#2596): jeder mit Tenant-Zugang sieht den Eintrag; welche
+    // Ordner sichtbar sind, entscheidet das Backend pro Ordner.
+    ...STAFF_FLAT_PAGES.dateien,
+    icon: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z",
+    concept: "files",
+    activeColor: "text-moto-indigo",
+    alwaysShow: true,
+  },
+  {
+    // Statistik (#2606): Anwesenheitsquoten je Kind, Gruppe und Zeitraum
+    // plus Raumauslastung. Das Backend verlangt config:read UND users:read.
+    ...STAFF_FLAT_PAGES.statistics,
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    requiresAdmin: true,
+    requiresAllPermissions: ["config:read", "users:read"],
     concept: "reports",
-    comingSoon: true,
+    activeColor: "text-moto-blue",
   },
   {
     ...STAFF_FLAT_PAGES.emergency,
@@ -403,6 +412,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Ungelesene Team-Chat-Nachrichten (#2598). Eigener Zähler, damit eine
+  // Eltern-Nachricht nie den Team-Badge hochzählt und umgekehrt.
+  const { unreadCount: teamChatUnreadCount } = useStaffMessagesUnread();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
   // scoped per child in the backend so the count reflects the caller's own
   // group's requests)
@@ -427,12 +439,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
-  // Lehrkraft (#1772): externe Schullehrer mit ausschließlich class_day:read.
-  // Ein reines Lehrkraft-Konto sieht nur die Klassenansicht und die Hilfe —
-  // jede andere Seite würde 403 antworten oder leer rendern. Geteiltes
-  // Prädikat aus auth-utils, damit Header/MobileNav/Redirect nicht driften.
-  const userIsLehrkraft = hasRole(session, "lehrkraft");
-  const userIsLehrkraftOnly = isLehrkraftOnly(session);
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller
@@ -445,6 +451,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const nfcEnabled = useNFCEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
+  const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
@@ -536,6 +543,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return userIsAdmin;
           case "announcements":
             return canAnnounce && parentNewsEnabled;
+          case "bankDetails":
+            return hasPermission(session, "guardians:financial");
           case "mealPlan":
             return (
               mealPlanEnabled === true &&
@@ -552,10 +561,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
-    // Klassenansicht (#1772): role-gated, not permission-gated — admin:*
-    // matches class_day:read, but admins have no class assignments and the
-    // page would render empty for them.
-    if (item.href === "/klassen") return userIsLehrkraft;
     // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
     // deckt users:update, das Paar users:absence+users:read und
     // vacation:approve ab — als requiresPermission nicht ausdrückbar.
@@ -569,6 +574,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
     // (gdpr.attendance_log_enabled, Opt-in, Default aus).
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
+    // Team-Chat (#2598) ist Opt-in (operations.staff_messaging_enabled,
+    // Default aus): ohne Einschalten taucht der Eintrag gar nicht erst auf.
+    if (!staffMessagingEnabled && item.href === "/team-chat") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -580,6 +588,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
           : item.requiresPermission;
       if (!required.some((p) => hasPermission(session, p))) return false;
     }
+    if (
+      item.requiresAllPermissions &&
+      !userIsAdmin &&
+      !item.requiresAllPermissions.every((p) => hasPermission(session, p))
+    )
+      return false;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });
@@ -768,7 +782,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
+          href={
+            item.href === "/anfragen" || item.href === "/team-chat"
+              ? tenantPath(item.href)
+              : item.href
+          }
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -782,6 +800,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 count={requestsPendingCount}
                 tone="staff"
                 ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
+                className="ml-2"
+              />
+            )}
+            {item.href === "/team-chat" && (
+              <NotificationBadge
+                count={teamChatUnreadCount}
+                tone="staff"
+                ariaLabel={`${teamChatUnreadCount} ungelesene Nachrichten im Team-Chat`}
                 className="ml-2"
               />
             )}
@@ -1046,30 +1072,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 </div>
               </div>
             ))}
-          </nav>
-        </div>
-      </aside>
-    );
-  }
-
-  // Reines Lehrkraft-Konto (#1772): Ohne bestätigte Übersicht würden die
-  // Betreuungs- und Verwaltungsbereiche alle 403 antworten — nur
-  // Klassenansicht und Hilfe sind erreichbar.
-  if (userIsLehrkraftOnly && !overviewEnabled) {
-    const klassenItem = filteredNavItems.find(
-      (item) => item.href === "/klassen",
-    );
-    const helpItem = filteredNavItems.find((item) => item.href === "/help");
-    return (
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
-            {klassenItem && renderNavItem(klassenItem)}
-          </nav>
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            {helpItem && renderNavItem(helpItem)}
           </nav>
         </div>
       </aside>

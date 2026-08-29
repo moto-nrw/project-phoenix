@@ -438,6 +438,7 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 		}
 		fmt.Println()
 	}
+	printCareWithdrawalDemo(state)
 
 	// Statistics
 	fmt.Println("CREATED DATA:")
@@ -471,6 +472,18 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 
 	fmt.Println("OUTPUT FILES:")
 	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
+	fmt.Println()
+}
+
+func printCareWithdrawalDemo(state *SeedState) {
+	if state == nil || state.CareWithdrawals == nil {
+		return
+	}
+	demo := state.CareWithdrawals
+	fmt.Println("CARE WITHDRAWAL DEMO:")
+	fmt.Printf("  School:   %s (%s)\n", demo.SchoolName, demo.TenantSlug)
+	fmt.Printf("  Email:    %s\n", demo.SchoolAdmin.Email)
+	fmt.Printf("  Password: %s\n", demo.SchoolAdmin.Password)
 	fmt.Println()
 }
 

@@ -49,6 +49,7 @@ type mockDecisionService struct {
 
 	updateChildOffResult *enrollmentModels.RequestChild
 	updateChildOffErr    error
+	updateChildOffInput  enrollmentService.UpdateChildOfferingsInput
 
 	decideInput  enrollmentService.DecideInput
 	decideCalls  int
@@ -112,7 +113,8 @@ func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, res
 	return m.restoreResult, m.restoreErr
 }
 
-func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	m.updateChildOffInput = input
 	return m.updateChildOffResult, m.updateChildOffErr
 }
 
@@ -585,14 +587,31 @@ func TestUpdateAdminChildOfferingsHandler_SucceedsWhenRereadFails(t *testing.T) 
 	w := executeAdminJSON(t, router, http.MethodPut,
 		"/enrollment/admin/requests/1234/children/99/offerings",
 		map[string]any{
-			"reason":    "Randstunde nachgetragen",
-			"offerings": []map[string]any{{"offering_id": "7777"}},
+			"reason":         "Randstunde nachgetragen",
+			"effective_from": "2026-09-01",
+			"offerings":      []map[string]any{{"offering_id": "7777"}},
 		})
 
 	require.Equal(t, http.StatusOK, w.Code,
 		"the correction is already committed; a failed re-read must not undo that verdict")
 	assert.Contains(t, w.Body.String(), `"offerings_unavailable":true`,
 		"the client must learn the returned selection is unknown")
+	require.NotNil(t, mock.updateChildOffInput.EffectiveFrom)
+	assert.Equal(t, "2026-09-01", mock.updateChildOffInput.EffectiveFrom.String())
+}
+
+func TestUpdateAdminChildOfferingsHandler_RejectsMalformedEffectiveDate(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockDecisionService{}
+	router := buildAdminDecisionRouter(mock)
+	w := executeAdminJSON(t, router, http.MethodPut,
+		"/enrollment/admin/requests/1234/children/99/offerings",
+		map[string]any{"reason": "Test", "effective_from": "morgen", "offerings": []map[string]any{}},
+	)
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "JJJJ-MM-TT")
 }
 
 func TestGetAdminRequestHandler_TolerantOfMissingChildOfferings(t *testing.T) {

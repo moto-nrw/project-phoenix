@@ -24,6 +24,7 @@ import {
   canPromptInstall,
   isAndroidDevice,
   isInstallationCompleted,
+  isSamsungInternet,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
@@ -89,6 +90,7 @@ export function PushNotificationSection({
     if (
       portal === "parent" &&
       isAndroidDevice(window.navigator) &&
+      !isSamsungInternet(window.navigator) &&
       !isStandaloneApp() &&
       !installationCompleted &&
       !installAccepted
@@ -194,7 +196,7 @@ export function PushNotificationSection({
     setError(null);
     setMessage(null);
     try {
-      await sendTestNotification();
+      await sendTestNotification(portal === "school" ? "school" : "tenant");
       setMessage(t("testSent"));
     } catch (err) {
       logger.error("test_notification_failed", {
@@ -329,7 +331,7 @@ export function PushNotificationSection({
           <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
             {t("onBody")}
           </p>
-          {portal === "tenant" && (
+          {portal !== "parent" && (
             <Button
               type="button"
               variant="ghost"

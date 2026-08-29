@@ -1,6 +1,12 @@
 package tenant
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrTenantRequired reports that no validated tenant ID is present.
+var ErrTenantRequired = errors.New("tenant: tenant ID is required")
 
 // contextKey is a private type for tenant context keys to prevent collisions.
 type contextKey string
@@ -25,14 +31,52 @@ const (
 
 // WithTenantID returns a new context with the tenant ID set.
 func WithTenantID(ctx context.Context, id int64) context.Context {
+	// Zero remains the legacy marker for explicitly unscoped admin work until
+	// #2642 removes the primitive helper and its callers.
+	if id == 0 {
+		return context.WithValue(ctx, tenantKey, id)
+	}
+	validated, err := NewTenantID(id)
+	if err != nil {
+		panic(err)
+	}
+	return WithTenant(ctx, validated)
+}
+
+// WithTenant returns a new context containing a validated tenant ID.
+func WithTenant(ctx context.Context, id TenantID) context.Context {
+	if id.IsZero() {
+		panic(ErrTenantRequired)
+	}
 	return context.WithValue(ctx, tenantKey, id)
 }
 
 // FromContext returns the tenant ID from context.
 // Returns 0 if not set.
 func FromContext(ctx context.Context) int64 {
-	id, _ := ctx.Value(tenantKey).(int64)
-	return id
+	id, err := TenantFromContext(ctx)
+	if err != nil {
+		return 0
+	}
+	return id.Int64()
+}
+
+// TenantFromContext returns the validated tenant ID or ErrTenantRequired.
+// The int64 branch keeps legacy contexts readable until #2642 cuts every
+// request and worker caller over to WithTenant.
+func TenantFromContext(ctx context.Context) (TenantID, error) {
+	switch id := ctx.Value(tenantKey).(type) {
+	case TenantID:
+		if !id.IsZero() {
+			return id, nil
+		}
+	case int64:
+		validated, err := NewTenantID(id)
+		if err == nil {
+			return validated, nil
+		}
+	}
+	return TenantID{}, ErrTenantRequired
 }
 
 // withAdminTxFlag marks ctx as running inside WithAdminTx (BYPASSRLS).

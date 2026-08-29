@@ -44,6 +44,7 @@ const PARENT_TYPES = new Set([
   "parent_appointment",
   "parent_appointment_reminder",
   "parent_request_decided",
+  "parent_care_cancelled",
 ]);
 
 interface NotificationPreferencesSectionProps {
@@ -63,7 +64,9 @@ export function NotificationPreferencesSection({
   return portal === "parent" ? (
     <ParentNotificationPreferencesSection />
   ) : (
-    <NotificationPreferencesSectionContent portal="tenant" />
+    // Staff-catalogue portals (OGS and, since #2208, the school portal) share
+    // the German copy; only the proxy base path differs.
+    <NotificationPreferencesSectionContent portal={portal} />
   );
 }
 

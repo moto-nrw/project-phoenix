@@ -44,12 +44,18 @@ const (
 	ColumnStudentClass      ColumnID = "student_class"
 	ColumnStudentGroup      ColumnID = "student_group"
 	ColumnContactName       ColumnID = "contact_name"
+	ColumnIBAN              ColumnID = "iban"
 	ColumnContactPhone      ColumnID = "contact_phone"
 	ColumnGuardianContacts  ColumnID = "guardian_contacts"
-	ColumnBirthday          ColumnID = "birthday"
-	ColumnAge               ColumnID = "age"
-	ColumnSlot              ColumnID = "slot"
-	ColumnPresenceStatus    ColumnID = "presence_status"
+	// ColumnHealthInfo carries the child's stored health note (allergies,
+	// medication, medical hints). It exists for the Notfallliste (#2609), which
+	// schools print as an offline backup: the note has to be readable next to
+	// the phone number, not looked up in a portal that just went offline.
+	ColumnHealthInfo     ColumnID = "health_info"
+	ColumnBirthday       ColumnID = "birthday"
+	ColumnAge            ColumnID = "age"
+	ColumnSlot           ColumnID = "slot"
+	ColumnPresenceStatus ColumnID = "presence_status"
 
 	// Plan-matrix columns (#2079). Deliberately distinct from the
 	// ColumnWeekly* family: those carry one short care marker per weekday in
@@ -140,14 +146,22 @@ const accentMark = "\x03"
 
 // Style markers. They are encoded IN the cell string rather than beside it so
 // that Row.Values stays a plain map[ColumnID]string and the eight existing
-// export call sites keep working untouched. The markers are C0 control
-// characters, which cannot occur in any name, room, or note, and every
-// renderer either interprets them (PDF, DOCX) or strips them (XLSX) — they
-// never reach a reader.
+// export call sites keep working untouched. The markers are reserved C0
+// control characters. Callers must remove them from user-controlled values;
+// every renderer either interprets them (PDF, DOCX) or strips them (XLSX), so
+// they never reach a reader.
 const (
 	markStrong = "\x01"
 	markMuted  = "\x02"
 )
+
+var userTextMarkerReplacer = strings.NewReplacer(markStrong, "", markMuted, "", accentMark, "")
+
+// SanitizeUserText removes the renderer's reserved control markers from text
+// supplied by users so it cannot be interpreted as per-line styling.
+func SanitizeUserText(text string) string {
+	return userTextMarkerReplacer.Replace(text)
+}
 
 // StyledCell builds a cell from styled lines. Callers use this instead of
 // hand-assembling the markers, which stay an implementation detail.

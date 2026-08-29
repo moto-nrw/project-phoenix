@@ -45,6 +45,10 @@ type AuthService interface {
 	// LoginWithMFAGate; school challenges carry the school challenge scope
 	// and are redeemable only at the school verify endpoint.
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
+	// LoginSchoolAtTenantWithMFAGate is the selected-school variant of
+	// LoginSchoolWithMFAGate. It verifies that the account has a school-portal
+	// role at tenantSlug before issuing a school-scope result.
+	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
 	// IssueSchoolTokensForAuthenticatedAccount is the school-scope sibling of
 	// IssueTokensForAuthenticatedAccount, used by the school MFA verify
 	// endpoint. Re-validates the school-portal role at the tenant.
@@ -124,6 +128,11 @@ type AuthService interface {
 
 	// Tenant Switching
 	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
+	// HasSchoolPortalAccess reports whether the account still holds a
+	// school-portal role at this school. For surfaces that authenticate once
+	// and then stay open for the token's whole lifetime — the school SSE
+	// stream re-checks with it while streaming (#2208).
+	HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// SwitchSchool is the school-portal sibling of SwitchTenant (#2207):
 	// re-authenticates a school-scope session to another school where the
 	// account holds a school-portal role. ipAddress/userAgent are required for

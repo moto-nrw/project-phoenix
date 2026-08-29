@@ -47,11 +47,16 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 4. `database/repositories` imports in `api/` beyond `base.go` + `testutil/`
 5. Test-only handler accessor wrappers in `api/`
 
-`scripts/backend-architecture.sh check` also checks direct imports across the
-whole production backend. Every non-test Go package must match a component in
-`backend/.go-arch-lint.yml`; unmatched packages and forbidden component edges
-fail CI. `_test.go` imports stay outside this gate because integration tests
-deliberately compose multiple layers.
+`scripts/backend-architecture.sh check` evaluates the strict target policy in
+`backend/architecture/policy.json` against production, internal-test, and
+external-test imports plus the semantic ownership and contract rules. The
+normal command requires exact equality with the committed finite baseline in
+`backend/architecture/legacy.jsonl`; every tuple names its open migration
+issue. Pull requests compare with the policy and baseline at the event's full
+base-commit SHA and may only remove tuples. The required CI status is
+`Backend architecture ratchet`. Run the network-dependent issue liveness audit
+separately with
+`scripts/backend-architecture.sh audit-issues --api-url https://api.github.com`.
 
 ### Why
 

@@ -3,8 +3,14 @@
  */
 
 import type { Session } from "next-auth";
-import { hasRole, isCaregiver, isLehrkraftOnly } from "~/lib/auth-utils";
+import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import type { PresenceMode } from "~/lib/tenant-api";
+
+const SCHOOL_PORTAL_HANDOFF_PATH = "/school/login";
+
+export function isSchoolPortalHandoffPath(path: string): boolean {
+  return path === SCHOOL_PORTAL_HANDOFF_PATH;
+}
 
 export interface SupervisionState {
   hasGroups: boolean;
@@ -16,12 +22,12 @@ export interface SupervisionState {
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
- * 1. Lehrkraft-only accounts: /klassen (their single reachable area, #1772)
- * 2. Binary-mode caregivers: /students/search
- * 3. Open-care caregivers: /students/search (no group concept, #1544)
- * 4. Caregivers with groups: /ogs-groups
- * 5. Caregivers actively supervising: /active-supervisions
- * 6. Other caregivers: /ogs-groups
+ * 1. Binary-mode caregivers: /students/search
+ * 2. Open-care caregivers: /students/search (no group concept, #1544)
+ * 3. Caregivers with groups: /ogs-groups
+ * 4. Caregivers actively supervising: /active-supervisions
+ * 5. Other caregivers: /ogs-groups
+ * 6. Existing school-portal-only sessions: school portal handoff
  * 7. Admin-only users: /dashboard
  */
 export function getSmartRedirectPath(
@@ -32,12 +38,15 @@ export function getSmartRedirectPath(
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
+  // Tenant login no longer issues these sessions. This handles access tokens
+  // minted before the cutover until they expire; the next refresh is refused
+  // by the backend. Exact matching avoids treating tenant-defined roles with
+  // similar names as the system role.
+  const isExistingSchoolPortalOnlySession =
+    session?.user?.roles?.length === 1 && session.user.roles[0] === "lehrkraft";
 
-  // A pure Lehrkraft account (#1772) holds only class_day:read — every other
-  // landing page would 403 or render empty. Dual-role accounts (also
-  // caregiver, admin, or guest) keep their richer flows below.
-  if (isLehrkraftOnly(session)) {
-    return "/klassen";
+  if (isExistingSchoolPortalOnlySession) {
+    return SCHOOL_PORTAL_HANDOFF_PATH;
   }
 
   if (canUseCaregiverFlows) {

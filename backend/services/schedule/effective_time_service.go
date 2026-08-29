@@ -128,6 +128,17 @@ type effectiveTimeResult struct {
 	IsException bool
 	Notes       string
 	DayNotes    []effectiveDayNote
+	// RegularTime is the recurring plan's time for that weekday, kept next
+	// to the effective one so a caller can say WHAT changed and not only
+	// THAT something changed (#2294). It stays filled when an exception
+	// overrides the day; nil means the recurring plan carries no time for
+	// the day (no row, or an arrival row inheriting the class timetable).
+	RegularTime *time.Time
+	// ChangedAt is when the overriding exception was recorded. Only set
+	// together with IsException. It is the row's creation timestamp: a
+	// later edit of the same day keeps the first entry's stamp, which is
+	// the conservative reading ("known since at least then").
+	ChangedAt *time.Time
 }
 
 type effectiveTimeCore[
@@ -369,7 +380,7 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateException(
 		// pickup override along with the excusal metadata.
 		switch {
 		case fields.Time != nil:
-			normalized := timezone.WallClock(*fields.Time)
+			normalized := timezone.NormalizeWallClock(*fields.Time)
 			if existingFields.Time == nil || !timezone.SameClockTime(*existingFields.Time, normalized) {
 				existingFields.TimeChanged = true
 			}
@@ -532,11 +543,11 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		fields.StudentID = studentID
 		fields.Date = date
 		if fields.Time != nil {
-			normalized := timezone.WallClock(*fields.Time)
+			normalized := timezone.NormalizeWallClock(*fields.Time)
 			fields.Time = &normalized
 		}
 		if fields.ExcusedFrom != nil {
-			normalized := timezone.WallClock(*fields.ExcusedFrom)
+			normalized := timezone.NormalizeWallClock(*fields.ExcusedFrom)
 			fields.ExcusedFrom = &normalized
 		}
 		if reason != nil {
@@ -553,7 +564,7 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 			// look like a real time edit. An identical wall-clock must leave
 			// ExcusedOwnsPickupTime intact: otherwise deleting the partial
 			// clears only excusal metadata and leaves a stale pickup override.
-			normalized := timezone.WallClock(*value)
+			normalized := timezone.NormalizeWallClock(*value)
 			if fields.Time == nil || !timezone.SameClockTime(*fields.Time, normalized) {
 				fields.TimeChanged = true
 			}
@@ -862,27 +873,41 @@ func (c *effectiveTimeCore[S, E, N, D]) applyScheduleAndException(
 	schedule S,
 	exception E,
 ) {
+	// The recurring time is recorded even when an exception overrides the
+	// day (#2294): "geht heute um 12:15" only becomes an instruction a
+	// Lehrkraft can act on next to the "sonst 15:00" it deviates from.
+	// An arrival row may mark a care day without carrying a time (#2414):
+	// the class timetable supplies it, and where no class time exists the
+	// day has no arrival time rather than midnight. Pickup rows always
+	// carry a time, so the zero check never trips for them.
+	var regularNotes string
+	if !isZeroEntity(schedule) {
+		fields := c.domain.ScheduleFields(schedule)
+		regularNotes = trimmed(fields.Notes)
+		if !fields.Time.IsZero() {
+			value := fields.Time
+			result.RegularTime = &value
+		}
+	}
 	if !isZeroEntity(exception) {
 		fields := c.domain.ExceptionFields(exception)
 		result.IsException = true
 		result.Time = fields.Time
+		if !fields.CreatedAt.IsZero() {
+			recorded := fields.CreatedAt
+			result.ChangedAt = &recorded
+		}
 		result.Notes = trimmed(fields.Reason)
 		if result.Notes == "" {
 			result.Notes = c.scheduleNotes(schedule)
 		}
 		return
 	}
-	if !isZeroEntity(schedule) {
-		fields := c.domain.ScheduleFields(schedule)
-		result.Notes = trimmed(fields.Notes)
-		// An arrival row may mark a care day without carrying a time (#2414):
-		// the class timetable supplies it, and where no class time exists the
-		// day has no arrival time rather than midnight. Pickup rows always
-		// carry a time, so this branch never fires for them.
-		if !fields.Time.IsZero() {
-			value := fields.Time
-			result.Time = &value
-		}
+	result.Notes = regularNotes
+	if result.RegularTime != nil {
+		// Own copy: Time and RegularTime must never alias the same value.
+		effective := *result.RegularTime
+		result.Time = &effective
 	}
 }
 

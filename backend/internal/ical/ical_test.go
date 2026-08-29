@@ -21,8 +21,8 @@ func TestRenderTimedEvent(t *testing.T) {
 		Location:   "Aula",
 		StartDate:  timezone.NewDate(2026, 4, 2),
 		EndDate:    timezone.NewDate(2026, 4, 2),
-		StartClock: timezone.WallClock(time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 19, 30, 0, 0, time.UTC)),
+		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 19, 30, 0, 0, time.UTC)),
 		Stamp:      stamp(),
 	}})
 
@@ -76,8 +76,8 @@ func TestRenderRecurrence(t *testing.T) {
 		Summary:    "Wöchentliche AG",
 		StartDate:  timezone.NewDate(2026, 4, 6),
 		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.WallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{
 			Freq:     "weekly",
@@ -126,8 +126,8 @@ func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
 		Summary:    "Besprechung",
 		StartDate:  timezone.NewDate(2026, 5, 4),
 		EndDate:    timezone.NewDate(2026, 5, 4),
-		StartClock: timezone.WallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
 		Stamp:      stamp(),
 	}})
 	// A timed event references TZID=Europe/Berlin, which must be backed by a
@@ -165,8 +165,8 @@ func TestRenderRecurrenceWithExDates(t *testing.T) {
 		Summary:    "Wöchentliche AG",
 		StartDate:  timezone.NewDate(2026, 4, 6),
 		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.WallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
 		ExDates:    []timezone.Date{timezone.NewDate(2026, 4, 20)},
@@ -252,8 +252,8 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 		Summary:    "Täglich",
 		StartDate:  timezone.NewDate(2026, 4, 6),
 		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.WallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
+		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "daily", Interval: 1, Weekdays: []string{"monday"}},
 	}})
@@ -269,8 +269,8 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 		Summary:    "Wöchentlich",
 		StartDate:  timezone.NewDate(2026, 4, 6),
 		EndDate:    timezone.NewDate(2026, 4, 6),
-		StartClock: timezone.WallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
-		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
+		StartClock: timezone.NormalizeWallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, MonthDays: []int{15}},
 	}})

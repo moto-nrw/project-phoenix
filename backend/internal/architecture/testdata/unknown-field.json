@@ -1,0 +1,29 @@
+{
+  "schema_version": 2,
+  "policy_epoch": 1,
+  "module_path": "example.test/architecture-fixture",
+  "shared_kernel_types": [
+    "CorrelationID",
+    "Date",
+    "TenantID",
+    "WallClock"
+  ],
+  "build": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgo_enabled": false
+  },
+  "owners": [],
+  "roles": [
+    "module-behavior-test",
+    "module-internal-test"
+  ],
+  "packages": [],
+  "data_objects": [],
+  "read_projections": [],
+  "legacy_composition": [],
+  "external_classes": [],
+  "external_packages": [],
+  "rules": [],
+  "surprise": true
+}

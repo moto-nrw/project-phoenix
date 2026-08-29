@@ -49,6 +49,15 @@ type TenantResolveResponse struct {
 	// the school has parent-OGS messaging turned off, instead of composing into a
 	// 403 dead-end. Defaults to false when the setting is missing/unresolvable.
 	ParentMessagingEnabled bool `json:"parent_messaging_enabled"`
+	// StaffMessagingEnabled is the tenant's resolved
+	// operations.staff_messaging_enabled setting — the OGS-internal colleague
+	// chat (#2598). Shell metadata like the flags above so non-admin staff (no
+	// config:read) can hide the Team-Chat entry entirely.
+	//
+	// Defaults to FALSE and fails closed, unlike ParentMessagingEnabled: a
+	// school that has not switched the internal chat on must not see it offered
+	// because a settings read hiccuped. Matches the service-side gate.
+	StaffMessagingEnabled bool `json:"staff_messaging_enabled"`
 	// DisplayEnabled is the tenant's resolved display.enabled setting. The
 	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs
 	// this to hide the sidebar entry / admin page for schools that haven't
@@ -81,6 +90,15 @@ type TenantResolveResponse struct {
 	OperationalOverviewScope string `json:"operational_overview_scope"`
 	ShowTimetableCounts      bool   `json:"show_timetable_counts"`
 	WaitlistEnabled          bool   `json:"waitlist_enabled"`
+	// EmergencyHealthInfoEnabled is the tenant's resolved
+	// operations.emergency_list_health_info setting (#2609). Shell metadata
+	// like the flags above: the Notfall page describes what the printed list
+	// contains, and every member of staff can open it without carrying
+	// config:read — so a school that switched the health column off must not
+	// be told the list carries it. Defaults to false when the setting is
+	// missing or unresolvable, matching the export's fail-closed behavior so
+	// the page never promises health data that its PDF omits.
+	EmergencyHealthInfoEnabled bool `json:"emergency_list_health_info_enabled"`
 }
 
 type tenantShellSettings struct {
@@ -88,6 +106,7 @@ type tenantShellSettings struct {
 	studentPhotosEnabled   bool
 	nfcEnabled             bool
 	parentMessagingEnabled bool
+	staffMessagingEnabled  bool
 	displayEnabled         bool
 	careOfferingsEnabled   bool
 	attendanceWebEnabled   bool
@@ -96,6 +115,7 @@ type tenantShellSettings struct {
 	overviewScope          string
 	showTimetableCounts    bool
 	waitlistEnabled        bool
+	emergencyHealthInfo    bool
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

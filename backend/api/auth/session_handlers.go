@@ -106,6 +106,12 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// it tells the caller nothing about an account they don't own.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				authService.ErrParentMustUseParentPortal, "use_parent_portal"))
+		case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+			// School-portal-only account at the staff login (#2207). Same
+			// shape as the guardian split above: a stable code the frontend
+			// switches on to point the user at moto schule.
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				authService.ErrMustUseSchoolPortal, "use_school_portal"))
 		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too
@@ -414,6 +420,11 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantNotFound))
 			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+				// The account is school-portal-only at this school (#2207).
+				// 401, not 403: the tenant session is simply over, and the
+				// frontend's refresh path turns a 401 into a clean logout.
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrMustUseSchoolPortal))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

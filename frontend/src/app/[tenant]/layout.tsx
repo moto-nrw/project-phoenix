@@ -24,6 +24,7 @@ interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
+  staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
@@ -32,6 +33,7 @@ interface TenantResolveResponse {
   operational_overview_scope?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
+  emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
 }
 
@@ -69,6 +71,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     studentPhotosEnabled: data.student_photos_enabled === true,
     nfcEnabled: data.nfc_enabled === true,
     messagingEnabled: data.parent_messaging_enabled === true,
+    staffMessagingEnabled: data.staff_messaging_enabled === true,
     displayEnabled: data.display_enabled === true,
     careOfferingsEnabled: data.care_offerings_enabled !== false,
     attendanceWebEnabled: data.attendance_web_enabled === true,
@@ -79,6 +82,8 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     ),
     showTimetableCounts: data.show_timetable_counts !== false,
     waitlistEnabled: data.waitlist_enabled !== false,
+    emergencyHealthInfoEnabled:
+      data.emergency_list_health_info_enabled === true,
     gradeLevelMax: data.grade_level_max,
   };
 }

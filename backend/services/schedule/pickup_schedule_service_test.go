@@ -396,7 +396,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("guardian-partial-%d@test.local", time.Now().UnixNano()))
 
 	date := timezone.TodayDate().AddDays(4)
-	pickupTime := timezone.WallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
+	pickupTime := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	guardianID := guardian.ID
 	guardianPickup := &scheduleModels.StudentPickupException{
 		StudentID:         student.ID,
@@ -410,14 +410,14 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	partial, err := serviceFactory.PartialAbsence.Create(ctx, schedule.PartialAbsenceInput{
 		StudentID: student.ID,
 		Date:      date,
-		FromTime:  timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
+		FromTime:  timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
 		Reason:    "Termin",
 		StaffID:   staff.ID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, guardianPickup.ID, partial.ID, "the partial must reuse the guardian pickup row")
 
-	staffPickup := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	staffPickup := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err = serviceFactory.PickupSchedule.CreateOrReclaimException(
 		ctx,
 		student.ID,
@@ -433,7 +433,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.ExcusedFrom, "failed reclaim must preserve partial metadata")
-	assert.Equal(t, "13:30", timezone.WallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, fresh.Source)
 }
 
@@ -637,7 +637,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
 	exceptionDate := timezone.NewDate(2024, 4, 4)
-	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:             student.ID,
 		ExceptionDate:         exceptionDate,
@@ -652,7 +652,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 
 	// Collision-update path: a second create for the same date with a different
 	// wall-clock must drop partial ownership so delete cannot wipe the override.
-	newPickup := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	newPickup := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	override := &scheduleModels.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -666,7 +666,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.PickupTime)
-	assert.Equal(t, "15:00", timezone.WallClock(*fresh.PickupTime).Format("15:04"))
+	assert.Equal(t, "15:00", timezone.NormalizeWallClock(*fresh.PickupTime).Format("15:04"))
 	assert.False(t, fresh.ExcusedOwnsPickupTime,
 		"upsert with a new wall-clock must drop partial ownership of the pickup time")
 	require.NotNil(t, fresh.ExcusedFrom, "partial metadata itself is preserved until explicit delete")
@@ -683,7 +683,7 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
 	exceptionDate := timezone.NewDate(2024, 4, 3)
-	pickupTime := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	pickupTime := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 	exception := &scheduleModels.StudentPickupException{
 		StudentID:             student.ID,
 		ExceptionDate:         exceptionDate,
@@ -714,7 +714,7 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 	assert.True(t, updated.ExcusedOwnsPickupTime,
 		"identical wall-clock must keep partial ownership so delete can reclaim the pickup row")
 	require.NotNil(t, updated.PickupTime)
-	assert.Equal(t, "13:30", timezone.WallClock(*updated.PickupTime).Format("15:04"))
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*updated.PickupTime).Format("15:04"))
 }
 
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
@@ -754,7 +754,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Partial", fmt.Sprintf("Delete-%d", time.Now().UnixNano()), "1a")
 		staffID := createPickupServiceTestStaffID(t, db)
 		date := timezone.TodayDate().AddDays(5)
-		from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+		from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:             student.ID,
 			ExceptionDate:         date,
@@ -815,11 +815,11 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		ordinary := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: date.AddDays(-1),
-			PickupTime:    testpkg.TimePtr(timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
+			PickupTime:    testpkg.TimePtr(timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
 			CreatedBy:     staffID,
 		}
 		require.NoError(t, service.CreateStudentPickupException(ctx, ordinary))
-		from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+		from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 		partial := &scheduleModels.StudentPickupException{
 			StudentID:             student.ID,
 			ExceptionDate:         date,
@@ -1577,4 +1577,64 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUna
 	rows, findErr := service.GetStudentPickupSchedules(ctx, allowed.ID)
 	require.NoError(t, findErr)
 	assert.Empty(t, rows, "authorize error denial must not leave partial writes")
+}
+
+// TestPickupScheduleService_EffectiveTimeKeepsRegularTime pins the fact the
+// Lehrkraft view needs (#2294): when a day exception overrides the pickup,
+// the recurring time it replaced travels with the result. Without it the
+// class-day sheet can flag THAT something changed but never name the time
+// the child would otherwise be picked up at.
+func TestPickupScheduleService_EffectiveTimeKeepsRegularTime(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupPickupScheduleService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	student := testpkg.CreateTestStudent(t, db, "Regular", "Time", "1a")
+	staffID := createPickupServiceTestStaffID(t, db)
+
+	// January 8, 2024 is a Monday.
+	testDate := timezone.NewDate(2024, 1, 8)
+	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    scheduleModels.WeekdayMonday,
+		PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+		CreatedBy:  staffID,
+	}))
+
+	t.Run("without exception the regular time is the effective one", func(t *testing.T) {
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		require.NotNil(t, result.RegularPickupTime)
+		assert.Equal(t, 15, result.RegularPickupTime.Hour())
+		assert.Nil(t, result.ChangedAt)
+	})
+
+	t.Run("an exception keeps the regular time next to the new one", func(t *testing.T) {
+		earlier := time.Date(2024, 1, 1, 12, 15, 0, 0, time.UTC)
+		require.NoError(t, service.CreateStudentPickupException(ctx, &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: testDate,
+			PickupTime:    &earlier,
+			Reason:        testpkg.StrPtr("Arzttermin"),
+			CreatedBy:     staffID,
+		}))
+
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		assert.True(t, result.IsException)
+		require.NotNil(t, result.PickupTime)
+		assert.Equal(t, 12, result.PickupTime.Hour())
+		assert.Equal(t, 15, result.PickupTime.Minute())
+		require.NotNil(t, result.RegularPickupTime)
+		assert.Equal(t, 15, result.RegularPickupTime.Hour())
+		assert.Equal(t, 0, result.RegularPickupTime.Minute())
+		// The stamp is what separates a change filed this morning from one
+		// planned two weeks ago.
+		require.NotNil(t, result.ChangedAt)
+		assert.False(t, result.ChangedAt.IsZero())
+	})
 }

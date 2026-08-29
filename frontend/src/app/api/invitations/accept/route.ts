@@ -42,6 +42,10 @@ export async function POST(request: NextRequest) {
       },
     );
 
+    if (response.status === 204) {
+      return new NextResponse(null, { status: 204 });
+    }
+
     const contentType = response.headers.get("Content-Type") ?? "";
     let payloadBody: unknown = null;
     if (contentType.includes("application/json")) {

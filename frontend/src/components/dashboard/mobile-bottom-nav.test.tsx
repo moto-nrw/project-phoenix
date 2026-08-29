@@ -28,8 +28,6 @@ vi.mock("~/lib/auth-utils", () => {
       return false;
     }),
     hasPermission: vi.fn(() => false),
-    // These scenarios model staff/admin accounts, never a pure Lehrkraft.
-    isLehrkraftOnly: vi.fn(() => false),
   };
 });
 
@@ -98,6 +96,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
@@ -115,6 +114,7 @@ const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseTenantSlugSafe = vi.mocked(useTenantSlugSafe);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params - use unknown cast for test flexibility
@@ -194,6 +194,7 @@ describe("MobileBottomNav", () => {
     // persist across tests.
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
     mockUseTenantSlugSafe.mockReturnValue("test-tenant");
+    mockUseStaffMessagingEnabled.mockReturnValue(false);
   });
 
   describe("rendering", () => {
@@ -261,6 +262,18 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Anfragen").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/anfragen",
+      );
+    });
+
+    it("prefixes the Team-Chat overflow link in path-routing mode", () => {
+      mockUseStaffMessagingEnabled.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Team-Chat").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/team-chat",
       );
     });
   });
@@ -687,8 +700,7 @@ describe("MobileBottomNav", () => {
       return navButtons.find((btn) => !btn.hasAttribute("data-testid"))!;
     };
 
-    it("displays coming soon badge for upcoming features", () => {
-      // "Berichte" is the remaining coming soon item and is admin-only.
+    it("shows Statistik as a real link for admins, without a coming-soon badge (#2606)", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
@@ -698,8 +710,28 @@ describe("MobileBottomNav", () => {
       const moreButton = getMoreButton();
       fireEvent.click(moreButton);
 
-      // Coming soon items should have badge
-      expect(screen.getAllByText("Bald verfügbar").length).toBeGreaterThan(0);
+      const link = screen.getByText("Statistik").closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/statistics");
+      expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
+    });
+
+    it("shows Statistik to non-admin staff with both required permissions", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "config:read" || permission === "users:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      fireEvent.click(getMoreButton());
+      expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
+        "href",
+        "/statistics",
+      );
     });
 
     it("coming soon items are not clickable links", () => {
@@ -727,7 +759,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton);
 
       expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
-      expect(screen.getByText("Berichte")).toBeInTheDocument();
+      expect(screen.getByText("Statistik")).toBeInTheDocument();
     });
   });
 

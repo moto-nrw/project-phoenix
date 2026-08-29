@@ -16,17 +16,21 @@ import (
 // guardian's state. requires_acknowledgement tells the app whether to show the
 // "gelesen und bestätigt" action.
 type AnnouncementResponse struct {
-	ID                      string     `json:"id"`
-	Title                   string     `json:"title"`
-	Body                    string     `json:"body"`
-	Priority                string     `json:"priority"`
-	LinkURL                 *string    `json:"link_url,omitempty"`
-	RequiresAcknowledgement bool       `json:"requires_acknowledgement"`
-	SchoolName              string     `json:"school_name"`
-	PublishedAt             *time.Time `json:"published_at,omitempty"`
-	ExpiresAt               *time.Time `json:"expires_at,omitempty"`
-	Read                    bool       `json:"read"`
-	Acknowledged            bool       `json:"acknowledged"`
+	ID                      string  `json:"id"`
+	Title                   string  `json:"title"`
+	Body                    string  `json:"body"`
+	Priority                string  `json:"priority"`
+	LinkURL                 *string `json:"link_url,omitempty"`
+	RequiresAcknowledgement bool    `json:"requires_acknowledgement"`
+	// DeliveryMode "letter" marks a binding Elternbrief (#2384) so the portal can
+	// say so, instead of leaving the parent to infer it from a confirmation
+	// button appearing.
+	DeliveryMode string     `json:"delivery_mode"`
+	SchoolName   string     `json:"school_name"`
+	PublishedAt  *time.Time `json:"published_at,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Read         bool       `json:"read"`
+	Acknowledged bool       `json:"acknowledged"`
 
 	// Poll fields (#1371). response_type "none" means the other three are absent:
 	// options are the answer choices, children the guardian's own children this
@@ -35,6 +39,10 @@ type AnnouncementResponse struct {
 	ResponseDeadline *time.Time              `json:"response_deadline,omitempty"`
 	Options          []AnnouncementOption    `json:"options,omitempty"`
 	Children         []AnnouncementPollChild `json:"children,omitempty"`
+
+	// SystemKind marks a row the school's system wrote, e.g. the cancellation
+	// notice (#2601). The portal labels it instead of "Elternbrief".
+	SystemKind *string `json:"system_kind,omitempty"`
 }
 
 // AnnouncementOption is one answer choice of a poll.
@@ -74,6 +82,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		})
 	}
 	return AnnouncementResponse{
+		SystemKind:              item.SystemKind,
 		ResponseType:            item.ResponseType,
 		ResponseDeadline:        item.ResponseDeadline,
 		Options:                 options,
@@ -84,6 +93,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		Priority:                item.Priority,
 		LinkURL:                 item.LinkURL,
 		RequiresAcknowledgement: item.RequiresAcknowledgement,
+		DeliveryMode:            item.DeliveryMode,
 		SchoolName:              item.SchoolName,
 		PublishedAt:             item.PublishedAt,
 		ExpiresAt:               item.ExpiresAt,

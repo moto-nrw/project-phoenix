@@ -1,0 +1,4078 @@
+{
+  "schema_version": 2,
+  "policy_epoch": 1,
+  "module_path": "github.com/moto-nrw/project-phoenix",
+  "shared_kernel_types": [
+    "CorrelationID",
+    "Date",
+    "TenantID",
+    "WallClock"
+  ],
+  "build": {
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgo_enabled": false
+  },
+  "owners": [
+    {
+      "id": "appointments",
+      "kind": "domain"
+    },
+    {
+      "id": "architecture-check",
+      "kind": "inbound"
+    },
+    {
+      "id": "audit-platform",
+      "kind": "platform"
+    },
+    {
+      "id": "calendar-view",
+      "kind": "projection"
+    },
+    {
+      "id": "care-plan",
+      "kind": "domain"
+    },
+    {
+      "id": "class-day-view",
+      "kind": "projection"
+    },
+    {
+      "id": "communication",
+      "kind": "domain"
+    },
+    {
+      "id": "data-import",
+      "kind": "workflow"
+    },
+    {
+      "id": "delivery-platform",
+      "kind": "platform"
+    },
+    {
+      "id": "dev-tools",
+      "kind": "inbound"
+    },
+    {
+      "id": "device-fleet",
+      "kind": "domain"
+    },
+    {
+      "id": "document-rendering",
+      "kind": "platform"
+    },
+    {
+      "id": "emergency-snapshot",
+      "kind": "projection"
+    },
+    {
+      "id": "enrollment",
+      "kind": "domain"
+    },
+    {
+      "id": "facilities",
+      "kind": "domain"
+    },
+    {
+      "id": "feedback",
+      "kind": "domain"
+    },
+    {
+      "id": "file-storage",
+      "kind": "domain"
+    },
+    {
+      "id": "group-live-view",
+      "kind": "projection"
+    },
+    {
+      "id": "identity-access",
+      "kind": "domain"
+    },
+    {
+      "id": "inbound-absence-types",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-active",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-activities",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-admin",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-announcement",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-auth",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-birthdays",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-calendar",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-classday",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-classlistentries",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-common",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-common-documents",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-config",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-database",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-display",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-emergency",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-enrollment",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-feedback",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-filestore",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-groups",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-guardians",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-import",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-iot",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-iot-checkin",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-iot-data",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-iot-internal-shared",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-iot-sessions",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-iot-staffclock",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-mealplan",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-messaging",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-notifications",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-operator",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-parent",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-platform",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-pwa",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-reminders",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-rooms",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-schedules",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-school",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-shift-types",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-sse",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-staff",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-staff-shifts",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-statistics",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-students",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-substitutions",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-time-tracking",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-timetable",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-usercontext",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-users",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-work-time-models",
+      "kind": "inbound"
+    },
+    {
+      "id": "legacy-composition",
+      "kind": "composition"
+    },
+    {
+      "id": "legacy-shared",
+      "kind": "composition"
+    },
+    {
+      "id": "meal-plan",
+      "kind": "domain"
+    },
+    {
+      "id": "migrations",
+      "kind": "migration"
+    },
+    {
+      "id": "observability",
+      "kind": "platform"
+    },
+    {
+      "id": "organization-tenancy",
+      "kind": "domain"
+    },
+    {
+      "id": "people-directory",
+      "kind": "domain"
+    },
+    {
+      "id": "process-device-scan",
+      "kind": "workflow"
+    },
+    {
+      "id": "reminder-delivery",
+      "kind": "workflow"
+    },
+    {
+      "id": "root-composition",
+      "kind": "composition"
+    },
+    {
+      "id": "scheduler-runtime",
+      "kind": "platform"
+    },
+    {
+      "id": "school-calendar",
+      "kind": "domain"
+    },
+    {
+      "id": "school-membership",
+      "kind": "domain"
+    },
+    {
+      "id": "school-structure",
+      "kind": "domain"
+    },
+    {
+      "id": "security-runtime",
+      "kind": "platform"
+    },
+    {
+      "id": "settings-platform",
+      "kind": "platform"
+    },
+    {
+      "id": "shared-kernel",
+      "kind": "kernel"
+    },
+    {
+      "id": "staff-clock",
+      "kind": "workflow"
+    },
+    {
+      "id": "student-presence",
+      "kind": "domain"
+    },
+    {
+      "id": "tenant-runtime",
+      "kind": "platform"
+    },
+    {
+      "id": "test-support",
+      "kind": "test-support"
+    },
+    {
+      "id": "timetable-activities",
+      "kind": "domain"
+    },
+    {
+      "id": "transaction-runtime",
+      "kind": "platform"
+    },
+    {
+      "id": "workforce",
+      "kind": "domain"
+    }
+  ],
+  "roles": [
+    "adapter",
+    "adapter-test",
+    "application",
+    "cli",
+    "compose",
+    "contract",
+    "domain",
+    "e2e-test",
+    "http",
+    "migration",
+    "module-behavior-test",
+    "module-internal-test",
+    "port",
+    "postgres",
+    "public",
+    "test-support",
+    "worker",
+    "workflow-decision-test",
+    "workflow-integration-test"
+  ],
+  "packages": [
+    {
+      "path": ".",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "analytics",
+      "owner": "observability",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api/absence-types",
+      "owner": "inbound-absence-types",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/active",
+      "owner": "inbound-active",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/activities",
+      "owner": "inbound-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/admin",
+      "owner": "inbound-admin",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/announcement",
+      "owner": "inbound-announcement",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/auth",
+      "owner": "inbound-auth",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/birthdays",
+      "owner": "inbound-birthdays",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/calendar",
+      "owner": "inbound-calendar",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/classday",
+      "owner": "inbound-classday",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/classlistentries",
+      "owner": "inbound-classlistentries",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/common",
+      "owner": "inbound-common",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/common/documents",
+      "owner": "inbound-common-documents",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/config",
+      "owner": "inbound-config",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/database",
+      "owner": "inbound-database",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/display",
+      "owner": "inbound-display",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/emergency",
+      "owner": "inbound-emergency",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/enrollment",
+      "owner": "inbound-enrollment",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/feedback",
+      "owner": "inbound-feedback",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/filestore",
+      "owner": "inbound-filestore",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/groups",
+      "owner": "inbound-groups",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/guardians",
+      "owner": "inbound-guardians",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/import",
+      "owner": "inbound-import",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot",
+      "owner": "inbound-iot",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot/checkin",
+      "owner": "inbound-iot-checkin",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot/data",
+      "owner": "inbound-iot-data",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot/internal/shared",
+      "owner": "inbound-iot-internal-shared",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot/sessions",
+      "owner": "inbound-iot-sessions",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/iot/staffclock",
+      "owner": "inbound-iot-staffclock",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/mealplan",
+      "owner": "inbound-mealplan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/messaging",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/staffmessaging",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/notifications",
+      "owner": "inbound-notifications",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/operator",
+      "owner": "inbound-operator",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/parent",
+      "owner": "inbound-parent",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/platform",
+      "owner": "inbound-platform",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/pwa",
+      "owner": "inbound-pwa",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/reminders",
+      "owner": "inbound-reminders",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/rooms",
+      "owner": "inbound-rooms",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/schedules",
+      "owner": "inbound-schedules",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/school",
+      "owner": "inbound-school",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/shift-types",
+      "owner": "inbound-shift-types",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/sse",
+      "owner": "inbound-sse",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/staff",
+      "owner": "inbound-staff",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/staff-shifts",
+      "owner": "inbound-staff-shifts",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/statistics",
+      "owner": "inbound-statistics",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/students",
+      "owner": "inbound-students",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/substitutions",
+      "owner": "inbound-substitutions",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/testutil",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api/time-tracking",
+      "owner": "inbound-time-tracking",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/timetable",
+      "owner": "inbound-timetable",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/usercontext",
+      "owner": "inbound-usercontext",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/users",
+      "owner": "inbound-users",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/work-time-models",
+      "owner": "inbound-work-time-models",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "applog",
+      "owner": "observability",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/authorize",
+      "owner": "security-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/authorize/permissions",
+      "owner": "security-runtime",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/device",
+      "owner": "device-fleet",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/jwt",
+      "owner": "identity-access",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/rotation",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/userpass",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "cmd",
+      "owner": "root-composition",
+      "role": "cli",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "constants",
+      "owner": "legacy-shared",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database",
+      "owner": "transaction-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/audits",
+      "owner": "audit-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/migrations",
+      "owner": "migrations",
+      "role": "migration",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/active",
+      "owner": "student-presence",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/activities",
+      "owner": "timetable-activities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/audit",
+      "owner": "audit-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/auth",
+      "owner": "identity-access",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/base",
+      "owner": "transaction-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/calendar",
+      "owner": "school-calendar",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/config",
+      "owner": "settings-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/display",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/documents",
+      "owner": "document-rendering",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/education",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/enrollment",
+      "owner": "enrollment",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/facilities",
+      "owner": "facilities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/feedback",
+      "owner": "feedback",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/filestore",
+      "owner": "file-storage",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/iot",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/mealplan",
+      "owner": "meal-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/parent",
+      "owner": "care-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/platform",
+      "owner": "organization-tenancy",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/schedule",
+      "owner": "timetable-activities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/users",
+      "owner": "people-directory",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "email",
+      "owner": "delivery-platform",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "integration/phoenixapi",
+      "owner": "dev-tools",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "internal/architecture",
+      "owner": "architecture-check",
+      "role": "application",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "internal/architecture/cmd",
+      "owner": "architecture-check",
+      "role": "cli",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "internal/careplanning",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/clientip",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/collation",
+      "owner": "legacy-shared",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/holidays",
+      "owner": "school-calendar",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/ical",
+      "owner": "school-calendar",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/ptrtest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/randstr",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/schoolclass",
+      "owner": "school-structure",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/seedtoken",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/sliceutil",
+      "owner": "legacy-shared",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/storage",
+      "owner": "delivery-platform",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/strutil",
+      "owner": "legacy-shared",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/testdb",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/testdb/cmd/bootstrap",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/testdb/cmd/sweep",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/timezone",
+      "owner": "legacy-shared",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "localization",
+      "owner": "delivery-platform",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "middleware",
+      "owner": "tenant-runtime",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models",
+      "owner": "legacy-composition",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/active",
+      "owner": "student-presence",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/activities",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/audit",
+      "owner": "audit-platform",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/auth",
+      "owner": "identity-access",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/base",
+      "owner": "transaction-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/calendar",
+      "owner": "school-calendar",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/config",
+      "owner": "settings-platform",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/display",
+      "owner": "device-fleet",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/documents",
+      "owner": "document-rendering",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/education",
+      "owner": "school-structure",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/enrollment",
+      "owner": "enrollment",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/facilities",
+      "owner": "facilities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/feedback",
+      "owner": "feedback",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/filestore",
+      "owner": "file-storage",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/import",
+      "owner": "data-import",
+      "role": "domain",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "models/iot",
+      "owner": "device-fleet",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/mealplan",
+      "owner": "meal-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/parent",
+      "owner": "care-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/platform",
+      "owner": "organization-tenancy",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/schedule",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/users",
+      "owner": "people-directory",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "observability",
+      "owner": "observability",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "realtime",
+      "owner": "delivery-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "seed/api",
+      "owner": "dev-tools",
+      "role": "cli",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "services",
+      "owner": "legacy-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/absence",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/active",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/activities",
+      "owner": "timetable-activities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/announcement",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/audit",
+      "owner": "audit-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/auth",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/auth/authtest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/calendar",
+      "owner": "school-calendar",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/config",
+      "owner": "settings-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/config/configtest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/config/defaults",
+      "owner": "settings-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/config/sideeffects",
+      "owner": "settings-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/database",
+      "owner": "transaction-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/display",
+      "owner": "device-fleet",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/education",
+      "owner": "school-structure",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/emailbranding",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/emergency",
+      "owner": "emergency-snapshot",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/enrollment",
+      "owner": "enrollment",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/enrollment/enrollmenttest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/facilities",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/feedback",
+      "owner": "feedback",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/filestore",
+      "owner": "file-storage",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/import",
+      "owner": "data-import",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/iot",
+      "owner": "device-fleet",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/iot/checkin",
+      "owner": "process-device-scan",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/iot/staffclock",
+      "owner": "staff-clock",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/listexport",
+      "owner": "document-rendering",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/mealplan",
+      "owner": "meal-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/messaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/notifications",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/ogsgrouplive",
+      "owner": "group-live-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/parent",
+      "owner": "care-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/parentmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/staffmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/planexport",
+      "owner": "document-rendering",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/platform",
+      "owner": "organization-tenancy",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/pwa",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/reminders",
+      "owner": "reminder-delivery",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "services/schedule",
+      "owner": "timetable-activities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/schedule/scheduletest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/scheduler",
+      "owner": "scheduler-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/slotlists",
+      "owner": "class-day-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/statistics",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/supervisiondashboard",
+      "owner": "calendar-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/usercontext",
+      "owner": "identity-access",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/users",
+      "owner": "people-directory",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/users/userstest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "simulate",
+      "owner": "dev-tools",
+      "role": "cli",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "templates/email",
+      "owner": "delivery-platform",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "tenant",
+      "owner": "tenant-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "test",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "test/e2e/calendar",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "test/e2e/timetable",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    }
+  ],
+  "data_objects": [
+    {"name": "active.attendance", "write_owner": "student-presence"},
+    {"name": "active.combined_groups", "write_owner": "student-presence"},
+    {"name": "active.excused_absence_requests", "write_owner": "care-plan"},
+    {"name": "active.group_mappings", "write_owner": "student-presence"},
+    {"name": "active.group_supervisors", "write_owner": "student-presence"},
+    {"name": "active.groups", "write_owner": "student-presence"},
+    {"name": "active.scheduled_checkouts", "write_owner": "student-presence"},
+    {"name": "active.staff_absence_audit", "write_owner": "workforce"},
+    {"name": "active.staff_absence_types", "write_owner": "workforce"},
+    {"name": "active.staff_absences", "write_owner": "workforce"},
+    {"name": "active.staff_balance_adjustments", "write_owner": "workforce"},
+    {"name": "active.staff_month_balance_snapshots", "write_owner": "workforce"},
+    {"name": "active.staff_vacation_openings", "write_owner": "workforce"},
+    {"name": "active.staff_vacation_quota", "write_owner": "workforce"},
+    {"name": "active.student_status_days", "write_owner": "care-plan"},
+    {"name": "active.visits", "write_owner": "student-presence"},
+    {"name": "active.work_session_breaks", "write_owner": "workforce"},
+    {"name": "active.work_sessions", "write_owner": "workforce"},
+    {"name": "activities.categories", "write_owner": "timetable-activities"},
+    {"name": "activities.group_targets", "write_owner": "timetable-activities"},
+    {"name": "activities.groups", "write_owner": "timetable-activities"},
+    {"name": "activities.schedules", "write_owner": "timetable-activities"},
+    {"name": "activities.student_enrollments", "write_owner": "timetable-activities"},
+    {"name": "activities.supervisors", "write_owner": "timetable-activities"},
+    {"name": "audit.auth_events", "write_owner": "audit-platform"},
+    {"name": "audit.class_list_entry_changes", "write_owner": "audit-platform"},
+    {"name": "audit.data_access_log", "write_owner": "audit-platform"},
+    {"name": "audit.data_deletions", "write_owner": "audit-platform"},
+    {"name": "audit.data_imports", "write_owner": "audit-platform"},
+    {"name": "audit.deviation_events", "write_owner": "audit-platform"},
+    {"name": "audit.enrollment_deletions", "write_owner": "audit-platform"},
+    {"name": "audit.enrollment_offering_adjustments", "write_owner": "audit-platform"},
+    {"name": "audit.enrollment_restorations", "write_owner": "audit-platform"},
+    {"name": "audit.guardian_changes", "write_owner": "audit-platform"},
+    {"name": "audit.personnel_number_changes", "write_owner": "audit-platform"},
+    {"name": "audit.staff_master_data_changes", "write_owner": "audit-platform"},
+    {"name": "audit.student_deletions", "write_owner": "audit-platform"},
+    {"name": "audit.student_field_edits", "write_owner": "audit-platform"},
+    {"name": "audit.time_tracking_deletions", "write_owner": "audit-platform"},
+    {"name": "audit.unregistered_tag_scans", "write_owner": "device-fleet"},
+    {"name": "audit.work_session_edits", "write_owner": "audit-platform"},
+    {"name": "auth.account_permissions", "write_owner": "identity-access"},
+    {"name": "auth.account_roles", "write_owner": "identity-access"},
+    {"name": "auth.account_tenants", "write_owner": "identity-access"},
+    {"name": "auth.accounts", "write_owner": "identity-access"},
+    {"name": "auth.guardian_invitations", "write_owner": "identity-access"},
+    {"name": "auth.invitation_tokens", "write_owner": "identity-access"},
+    {"name": "auth.mfa_credentials", "write_owner": "identity-access"},
+    {"name": "auth.mfa_email_challenges", "write_owner": "identity-access"},
+    {"name": "auth.mfa_overrides", "write_owner": "identity-access"},
+    {"name": "auth.mfa_recovery_codes", "write_owner": "identity-access"},
+    {"name": "auth.mfa_trusted_devices", "write_owner": "identity-access"},
+    {"name": "auth.passkey_credentials", "write_owner": "identity-access"},
+    {"name": "auth.passkey_sessions", "write_owner": "identity-access"},
+    {"name": "auth.password_reset_rate_limits", "write_owner": "identity-access"},
+    {"name": "auth.password_reset_tokens", "write_owner": "identity-access"},
+    {"name": "auth.permissions", "write_owner": "identity-access"},
+    {"name": "auth.role_permissions", "write_owner": "identity-access"},
+    {"name": "auth.roles", "write_owner": "identity-access"},
+    {"name": "auth.tokens", "write_owner": "identity-access"},
+    {"name": "calendar.appointment_occurrence_overrides", "write_owner": "appointments"},
+    {"name": "calendar.appointment_recipient_students", "write_owner": "appointments"},
+    {"name": "calendar.appointment_recipients", "write_owner": "appointments"},
+    {"name": "calendar.appointment_reminder_push_deliveries", "write_owner": "appointments"},
+    {"name": "calendar.appointment_targets", "write_owner": "appointments"},
+    {"name": "calendar.appointments", "write_owner": "appointments"},
+    {"name": "calendar.recurrence_rules", "write_owner": "appointments"},
+    {"name": "config.setting_audit", "write_owner": "settings-platform"},
+    {"name": "config.setting_values", "write_owner": "settings-platform"},
+    {"name": "config.settings", "write_owner": "settings-platform"},
+    {"name": "config.staff_work_schedules", "write_owner": "workforce"},
+    {"name": "config.work_time_model_entries", "write_owner": "workforce"},
+    {"name": "config.work_time_models", "write_owner": "workforce"},
+    {"name": "display.displays", "write_owner": "device-fleet"},
+    {"name": "education.class_arrival_times", "write_owner": "timetable-activities"},
+    {"name": "education.class_teachers", "write_owner": "school-membership"},
+    {"name": "education.grade_transition_class_list_entries", "write_owner": "school-structure"},
+    {"name": "education.grade_transition_class_teachers", "write_owner": "school-structure"},
+    {"name": "education.grade_transition_history", "write_owner": "school-structure"},
+    {"name": "education.grade_transition_mappings", "write_owner": "school-structure"},
+    {"name": "education.grade_transitions", "write_owner": "school-structure"},
+    {"name": "education.group_substitution", "write_owner": "workforce"},
+    {"name": "education.group_teacher", "write_owner": "school-membership"},
+    {"name": "education.groups", "write_owner": "school-structure"},
+    {"name": "enrollment.care_offering_auto_triggers", "write_owner": "care-plan"},
+    {"name": "enrollment.care_offerings", "write_owner": "care-plan"},
+    {"name": "enrollment.change_request_messages", "write_owner": "enrollment"},
+    {"name": "enrollment.change_requests", "write_owner": "enrollment"},
+    {"name": "enrollment.form_schemas", "write_owner": "enrollment"},
+    {"name": "enrollment.late_invites", "write_owner": "enrollment"},
+    {"name": "enrollment.offering_change_requests", "write_owner": "care-plan"},
+    {"name": "enrollment.phases", "write_owner": "enrollment"},
+    {"name": "enrollment.request_child_offerings", "write_owner": "enrollment"},
+    {"name": "enrollment.request_children", "write_owner": "enrollment"},
+    {"name": "enrollment.request_guardians", "write_owner": "enrollment"},
+    {"name": "enrollment.requests", "write_owner": "enrollment"},
+    {"name": "enrollment.submission_rate_limits", "write_owner": "enrollment"},
+    {"name": "facilities.rooms", "write_owner": "facilities"},
+    {"name": "feedback.entries", "write_owner": "feedback"},
+    {"name": "iot.devices", "write_owner": "device-fleet"},
+    {"name": "iot.push_subscriptions", "write_owner": "delivery-platform"},
+    {"name": "iot.pwa_standalone_usage", "write_owner": "observability"},
+    {"name": "platform.announcement_views", "write_owner": "communication"},
+    {"name": "platform.announcements", "write_owner": "communication"},
+    {"name": "platform.email_outbox", "write_owner": "delivery-platform"},
+    {"name": "platform.operator_audit_log", "write_owner": "audit-platform"},
+    {"name": "platform.operator_email_change_tokens", "write_owner": "identity-access"},
+    {"name": "platform.operator_invitation_tokens", "write_owner": "identity-access"},
+    {"name": "platform.operator_mfa_credentials", "write_owner": "identity-access"},
+    {"name": "platform.operator_mfa_email_challenges", "write_owner": "identity-access"},
+    {"name": "platform.operator_mfa_recovery_codes", "write_owner": "identity-access"},
+    {"name": "platform.operator_mfa_trusted_devices", "write_owner": "identity-access"},
+    {"name": "platform.operator_passkey_credentials", "write_owner": "identity-access"},
+    {"name": "platform.operator_passkey_sessions", "write_owner": "identity-access"},
+    {"name": "platform.operator_refresh_tokens", "write_owner": "identity-access"},
+    {"name": "platform.operators", "write_owner": "identity-access"},
+    {"name": "platform.organizations", "write_owner": "organization-tenancy"},
+    {"name": "platform.schools", "write_owner": "organization-tenancy"},
+    {"name": "schedule.activity_exceptions", "write_owner": "timetable-activities"},
+    {"name": "schedule.activity_instances", "write_owner": "timetable-activities"},
+    {"name": "schedule.calendar_periods", "write_owner": "school-calendar"},
+    {"name": "schedule.care_schedule_change_requests", "write_owner": "care-plan"},
+    {"name": "schedule.closing_days", "write_owner": "school-calendar"},
+    {"name": "schedule.dateframes", "write_owner": "school-calendar"},
+    {"name": "schedule.grade_transition_roster_removals", "write_owner": "timetable-activities"},
+    {"name": "schedule.instance_staff", "write_owner": "timetable-activities"},
+    {"name": "schedule.instance_students", "write_owner": "timetable-activities"},
+    {"name": "schedule.meal_plan_entries", "write_owner": "meal-plan"},
+    {"name": "schedule.planning_tracks", "write_owner": "timetable-activities"},
+    {"name": "schedule.recurrence_rules", "write_owner": "timetable-activities"},
+    {"name": "schedule.shift_types", "write_owner": "workforce"},
+    {"name": "schedule.staff_shift_series", "write_owner": "workforce"},
+    {"name": "schedule.staff_shift_series_exceptions", "write_owner": "workforce"},
+    {"name": "schedule.staff_shifts", "write_owner": "workforce"},
+    {"name": "schedule.student_arrival_exceptions", "write_owner": "care-plan"},
+    {"name": "schedule.student_arrival_notes", "write_owner": "care-plan"},
+    {"name": "schedule.student_arrival_schedules", "write_owner": "care-plan"},
+    {"name": "schedule.student_pickup_exceptions", "write_owner": "care-plan"},
+    {"name": "schedule.student_pickup_notes", "write_owner": "care-plan"},
+    {"name": "schedule.student_pickup_schedules", "write_owner": "care-plan"},
+    {"name": "schedule.timeframes", "write_owner": "timetable-activities"},
+    {"name": "schedule.timetable_conflict_acks", "write_owner": "timetable-activities"},
+    {"name": "users.care_withdrawal_completions", "write_owner": "care-plan"},
+    {"name": "users.class_list_entries", "write_owner": "school-membership"},
+    {"name": "users.guardian_phone_numbers", "write_owner": "people-directory"},
+    {"name": "users.guardian_profiles", "write_owner": "people-directory"},
+    {"name": "users.guests", "write_owner": "school-membership"},
+    {"name": "users.notification_preferences", "write_owner": "communication"},
+    {"name": "users.parent_announcement_options", "write_owner": "communication"},
+    {"name": "users.parent_announcement_reads", "write_owner": "communication"},
+    {"name": "users.parent_announcement_responses", "write_owner": "communication"},
+    {"name": "users.parent_announcement_targets", "write_owner": "communication"},
+    {"name": "users.parent_announcements", "write_owner": "communication"},
+    {"name": "users.parent_message_reads", "write_owner": "communication"},
+    {"name": "users.parent_message_threads", "write_owner": "communication"},
+    {"name": "users.parent_messages", "write_owner": "communication"},
+    {"name": "users.persons", "write_owner": "people-directory"},
+    {"name": "users.privacy_consents", "write_owner": "student-presence"},
+    {"name": "users.profiles", "write_owner": "identity-access"},
+    {"name": "users.rfid_cards", "write_owner": "identity-access"},
+    {"name": "users.staff", "write_owner": "school-membership"},
+    {"name": "users.staff_document_file_cleanup", "write_owner": "workforce"},
+    {"name": "users.staff_documents", "write_owner": "workforce"},
+    {"name": "users.staff_financial_data", "write_owner": "workforce"},
+    {"name": "users.staff_master_data", "write_owner": "workforce"},
+    {"name": "users.staff_qualifications", "write_owner": "workforce"},
+    {"name": "users.student_care_exit_removals", "write_owner": "care-plan"},
+    {"name": "users.student_care_exit_source_removals", "write_owner": "care-plan"},
+    {"name": "users.student_care_exits", "write_owner": "care-plan"},
+    {"name": "users.student_companions", "write_owner": "care-plan"},
+    {"name": "users.student_data_change_requests", "write_owner": "care-plan"},
+    {"name": "users.student_document_file_cleanup", "write_owner": "care-plan"},
+    {"name": "users.student_documents", "write_owner": "care-plan"},
+    {"name": "users.students", "write_owner": "people-directory"},
+    {"name": "users.students_guardians", "write_owner": "people-directory"},
+    {"name": "users.teachers", "write_owner": "school-membership"}
+  ],
+  "read_projections": [],
+  "legacy_composition": [
+    {"package": "api", "symbols": ["API", "New"]},
+    {"package": "database/repositories", "symbols": ["Factory", "NewFactory"]},
+    {"package": "services", "symbols": ["Factory", "NewFactory"]}
+  ],
+  "external_classes": [
+    "cli-config",
+    "compiler-tooling",
+    "concurrency",
+    "crypto",
+    "delivery",
+    "http-router",
+    "observability",
+    "orm-sql",
+    "process-exec",
+    "rendering",
+    "standard",
+    "test",
+    "utility"
+  ],
+  "external_packages": [
+    {
+      "path": "archive/zip",
+      "class": "standard"
+    },
+    {
+      "path": "bufio",
+      "class": "standard"
+    },
+    {
+      "path": "bytes",
+      "class": "standard"
+    },
+    {
+      "path": "cmp",
+      "class": "test"
+    },
+    {
+      "path": "context",
+      "class": "standard"
+    },
+    {
+      "path": "crypto/ecdh",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/hmac",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/rand",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/sha1",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/sha256",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/subtle",
+      "class": "crypto"
+    },
+    {
+      "path": "crypto/tls",
+      "class": "crypto"
+    },
+    {
+      "path": "database/sql",
+      "class": "orm-sql"
+    },
+    {
+      "path": "database/sql/driver",
+      "class": "orm-sql"
+    },
+    {
+      "path": "embed",
+      "class": "standard"
+    },
+    {
+      "path": "encoding/base64",
+      "class": "standard"
+    },
+    {
+      "path": "encoding/binary",
+      "class": "standard"
+    },
+    {
+      "path": "encoding/csv",
+      "class": "standard"
+    },
+    {
+      "path": "encoding/hex",
+      "class": "standard"
+    },
+    {
+      "path": "encoding/json",
+      "class": "standard"
+    },
+    {
+      "path": "encoding/xml",
+      "class": "standard"
+    },
+    {
+      "path": "errors",
+      "class": "standard"
+    },
+    {
+      "path": "flag",
+      "class": "standard"
+    },
+    {
+      "path": "fmt",
+      "class": "standard"
+    },
+    {
+      "path": "github.com/agnivade/levenshtein",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/DATA-DOG/go-sqlmock",
+      "class": "test"
+    },
+    {
+      "path": "github.com/getsentry/sentry-go",
+      "class": "observability"
+    },
+    {
+      "path": "github.com/getsentry/sentry-go/http",
+      "class": "observability"
+    },
+    {
+      "path": "github.com/go-chi/chi/v5",
+      "class": "http-router"
+    },
+    {
+      "path": "github.com/go-chi/chi/v5/middleware",
+      "class": "http-router"
+    },
+    {
+      "path": "github.com/go-chi/cors",
+      "class": "http-router"
+    },
+    {
+      "path": "github.com/go-chi/docgen",
+      "class": "http-router"
+    },
+    {
+      "path": "github.com/go-chi/jwtauth/v5",
+      "class": "http-router"
+    },
+    {
+      "path": "github.com/go-chi/render",
+      "class": "http-router"
+    },
+    {
+      "path": "github.com/go-ozzo/ozzo-validation",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/go-ozzo/ozzo-validation/is",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/go-webauthn/webauthn/protocol",
+      "class": "crypto"
+    },
+    {
+      "path": "github.com/go-webauthn/webauthn/webauthn",
+      "class": "crypto"
+    },
+    {
+      "path": "github.com/gofrs/uuid",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/k3a/html2text",
+      "class": "rendering"
+    },
+    {
+      "path": "github.com/lestrrat-go/jwx/v3/jwt",
+      "class": "crypto"
+    },
+    {
+      "path": "github.com/lestrrat-go/jwx/v3/transform",
+      "class": "crypto"
+    },
+    {
+      "path": "github.com/prometheus/client_golang/prometheus",
+      "class": "observability"
+    },
+    {
+      "path": "github.com/prometheus/client_golang/prometheus/promhttp",
+      "class": "observability"
+    },
+    {
+      "path": "github.com/prometheus/client_golang/prometheus/testutil",
+      "class": "observability"
+    },
+    {
+      "path": "github.com/samber/slog-chi",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/SherClockHolmes/webpush-go",
+      "class": "delivery"
+    },
+    {
+      "path": "github.com/signintech/gopdf",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/spf13/cobra",
+      "class": "cli-config"
+    },
+    {
+      "path": "github.com/spf13/viper",
+      "class": "cli-config"
+    },
+    {
+      "path": "github.com/stretchr/testify/assert",
+      "class": "test"
+    },
+    {
+      "path": "github.com/stretchr/testify/require",
+      "class": "test"
+    },
+    {
+      "path": "github.com/subosito/gotenv",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/uptrace/bun",
+      "class": "orm-sql"
+    },
+    {
+      "path": "github.com/uptrace/bun/dialect/pgdialect",
+      "class": "orm-sql"
+    },
+    {
+      "path": "github.com/uptrace/bun/driver/pgdriver",
+      "class": "orm-sql"
+    },
+    {
+      "path": "github.com/uptrace/bun/migrate",
+      "class": "orm-sql"
+    },
+    {
+      "path": "github.com/uudashr/gocognit",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/vanng822/go-premailer/premailer",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/wlbr/feiertage",
+      "class": "utility"
+    },
+    {
+      "path": "github.com/wneessen/go-mail",
+      "class": "delivery"
+    },
+    {
+      "path": "github.com/xuri/excelize/v2",
+      "class": "rendering"
+    },
+    {
+      "path": "go/ast",
+      "class": "standard"
+    },
+    {
+      "path": "go/constant",
+      "class": "standard"
+    },
+    {
+      "path": "go/parser",
+      "class": "standard"
+    },
+    {
+      "path": "go/token",
+      "class": "standard"
+    },
+    {
+      "path": "go/types",
+      "class": "standard"
+    },
+    {
+      "path": "golang.org/x/crypto/argon2",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/image/font/sfnt",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/sync/singleflight",
+      "class": "concurrency"
+    },
+    {
+      "path": "golang.org/x/tools/go/packages",
+      "class": "compiler-tooling"
+    },
+    {
+      "path": "golang.org/x/text/collate",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/text/encoding",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/text/encoding/charmap",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/text/language",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/text/unicode/norm",
+      "class": "utility"
+    },
+    {
+      "path": "golang.org/x/time/rate",
+      "class": "utility"
+    },
+    {
+      "path": "gopkg.in/yaml.v3",
+      "class": "utility"
+    },
+    {
+      "path": "hash/fnv",
+      "class": "standard"
+    },
+    {
+      "path": "html/template",
+      "class": "standard"
+    },
+    {
+      "path": "image",
+      "class": "standard"
+    },
+    {
+      "path": "image/color",
+      "class": "standard"
+    },
+    {
+      "path": "image/jpeg",
+      "class": "standard"
+    },
+    {
+      "path": "io",
+      "class": "standard"
+    },
+    {
+      "path": "io/fs",
+      "class": "standard"
+    },
+    {
+      "path": "log",
+      "class": "standard"
+    },
+    {
+      "path": "log/slog",
+      "class": "observability"
+    },
+    {
+      "path": "maps",
+      "class": "standard"
+    },
+    {
+      "path": "math",
+      "class": "standard"
+    },
+    {
+      "path": "math/big",
+      "class": "standard"
+    },
+    {
+      "path": "math/rand",
+      "class": "standard"
+    },
+    {
+      "path": "math/rand/v2",
+      "class": "standard"
+    },
+    {
+      "path": "mime",
+      "class": "standard"
+    },
+    {
+      "path": "mime/multipart",
+      "class": "standard"
+    },
+    {
+      "path": "net",
+      "class": "standard"
+    },
+    {
+      "path": "net/http",
+      "class": "http-router"
+    },
+    {
+      "path": "net/http/httptest",
+      "class": "test"
+    },
+    {
+      "path": "net/mail",
+      "class": "standard"
+    },
+    {
+      "path": "net/url",
+      "class": "standard"
+    },
+    {
+      "path": "os",
+      "class": "standard"
+    },
+    {
+      "path": "os/exec",
+      "class": "process-exec"
+    },
+    {
+      "path": "os/signal",
+      "class": "standard"
+    },
+    {
+      "path": "path",
+      "class": "standard"
+    },
+    {
+      "path": "path/filepath",
+      "class": "standard"
+    },
+    {
+      "path": "reflect",
+      "class": "standard"
+    },
+    {
+      "path": "regexp",
+      "class": "standard"
+    },
+    {
+      "path": "runtime",
+      "class": "standard"
+    },
+    {
+      "path": "runtime/debug",
+      "class": "standard"
+    },
+    {
+      "path": "slices",
+      "class": "standard"
+    },
+    {
+      "path": "sort",
+      "class": "standard"
+    },
+    {
+      "path": "strconv",
+      "class": "standard"
+    },
+    {
+      "path": "strings",
+      "class": "standard"
+    },
+    {
+      "path": "sync",
+      "class": "standard"
+    },
+    {
+      "path": "sync/atomic",
+      "class": "standard"
+    },
+    {
+      "path": "syscall",
+      "class": "standard"
+    },
+    {
+      "path": "testing",
+      "class": "test"
+    },
+    {
+      "path": "testing/synctest",
+      "class": "standard"
+    },
+    {
+      "path": "text/tabwriter",
+      "class": "standard"
+    },
+    {
+      "path": "time",
+      "class": "standard"
+    },
+    {
+      "path": "unicode",
+      "class": "standard"
+    },
+    {
+      "path": "unicode/utf8",
+      "class": "standard"
+    },
+    {
+      "path": "unsafe",
+      "class": "standard"
+    }
+  ],
+  "rules": [
+    {
+      "id": "adapter-test.domain.contract",
+      "description": "Adapter tests may fake domain contracts.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "adapter-test.domain.public",
+      "description": "Adapter tests may use public domain capabilities.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "adapter-test.http-subject",
+      "description": "Adapter tests may import their own HTTP package under test.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "same_owner": true,
+      "target_role": "http"
+    },
+    {
+      "id": "adapter-test.platform.contract",
+      "description": "Adapter tests may fake platform contracts.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "adapter-test.platform.public",
+      "description": "Adapter tests may use public platform capabilities.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "adapter-test.projection.contract",
+      "description": "Adapter tests may fake projection contracts.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "projection",
+      "target_role": "contract"
+    },
+    {
+      "id": "adapter-test.projection.public",
+      "description": "Adapter tests may use public projections.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "adapter-test.test-support",
+      "description": "Adapter tests may import neutral test support.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "adapter-test.workflow.contract",
+      "description": "Adapter tests may fake workflow contracts.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "workflow",
+      "target_role": "contract"
+    },
+    {
+      "id": "adapter-test.workflow.public",
+      "description": "Adapter tests may use public workflows.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter-test",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-view.from.school-calendar",
+      "description": "calendar-view reads the public school-calendar query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-view.from.timetable-activities",
+      "description": "calendar-view reads the public timetable-activities query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-view.from.workforce",
+      "description": "calendar-view reads the public workforce query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.school-structure",
+      "description": "class-day-view reads the public school-structure query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.student-presence",
+      "description": "class-day-view reads the public student-presence query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.timetable-activities",
+      "description": "class-day-view reads the public timetable-activities query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.to.care-plan",
+      "description": "data-import coordinates the public care-plan capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.to.enrollment",
+      "description": "data-import coordinates the public enrollment capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.to.people-directory",
+      "description": "data-import coordinates the public people-directory capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.to.school-membership",
+      "description": "data-import coordinates the public school-membership capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "domain.adapter-port",
+      "description": "domain adapters may implement their own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "adapter",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "domain.application-domain",
+      "description": "domain application code may use its own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "domain.application-port",
+      "description": "domain application code may use its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "domain.postgres-application",
+      "description": "domain Postgres adapters may use their own application layer.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "postgres",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "domain.postgres-domain",
+      "description": "domain Postgres adapters may use their own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "postgres",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "domain.public-application",
+      "description": "Public domain facades may call their own application layer.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "public",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "domain.shared-kernel",
+      "description": "Domain code may use the closed shared kernel.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "domain",
+      "target_owner": "shared-kernel",
+      "target_role": "domain"
+    },
+    {
+      "id": "e2e-test.compose",
+      "description": "Designated E2E roots may import composition packages.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_owner_kind": "composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "e2e-test.test-support",
+      "description": "E2E tests may import neutral test support.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "e2e-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "emergency-snapshot.from.facilities",
+      "description": "emergency-snapshot reads the public facilities query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.from.people-directory",
+      "description": "emergency-snapshot reads the public people-directory query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.from.school-membership",
+      "description": "emergency-snapshot reads the public school-membership query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "application",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "emergency-snapshot.from.student-presence",
+      "description": "emergency-snapshot reads the public student-presence query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "emergency-snapshot",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test.domain.contract",
+      "description": "external-test code may import domain contract packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "external-test.domain.public",
+      "description": "external-test code may import domain public packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test.platform.contract",
+      "description": "external-test code may import platform contract packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "external-test.platform.public",
+      "description": "external-test code may import platform public packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test.projection.contract",
+      "description": "external-test code may import projection contract packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "projection",
+      "target_role": "contract"
+    },
+    {
+      "id": "external-test.projection.public",
+      "description": "external-test code may import projection public packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "external-test.test-support",
+      "description": "external-test code may import neutral test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "external-test.workflow.contract",
+      "description": "external-test code may import workflow contract packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "workflow",
+      "target_role": "contract"
+    },
+    {
+      "id": "external-test.workflow.public",
+      "description": "external-test code may import workflow public packages.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "workflow-integration-test",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "external.cli-config.cli",
+      "description": "cli packages may use classified CLI dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "cli",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "external.cli-config.compose",
+      "description": "compose packages may use classified CLI dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "compose",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "external.cli-config.test-support",
+      "description": "test-support packages may use classified CLI dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "external.concurrency",
+      "description": "All packages may use classified concurrency dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "concurrency"
+    },
+    {
+      "id": "external.crypto.device-fleet",
+      "description": "device-fleet may use classified cryptographic dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access",
+      "description": "identity-access may use classified cryptographic dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.security-runtime",
+      "description": "security-runtime may use classified cryptographic dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "security-runtime",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.delivery.communication",
+      "description": "communication may use classified delivery dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.delivery.delivery-platform",
+      "description": "delivery-platform may use classified delivery dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.delivery.dev-tools",
+      "description": "dev-tools may use classified delivery dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "dev-tools",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.http-router.adapter",
+      "description": "adapter packages may use HTTP and router dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "adapter",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.http-router.http",
+      "description": "http packages may use HTTP and router dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "http",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.http-router.test-support",
+      "description": "test-support packages may use HTTP and router dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "http-router"
+    },
+    {
+      "id": "external.observability",
+      "description": "All packages may use classified observability dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "observability"
+    },
+    {
+      "id": "external.orm-sql.migration",
+      "description": "migration packages may use ORM and SQL dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "migration",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.orm-sql.postgres",
+      "description": "postgres packages may use ORM and SQL dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "postgres",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.orm-sql.test-support",
+      "description": "test-support packages may use ORM and SQL dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "external.compiler-tooling.architecture",
+      "description": "The architecture evaluator may load Go syntax and type information.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "architecture-check",
+      "source_role": "application",
+      "target_class": "compiler-tooling"
+    },
+    {
+      "id": "external.process-exec.architecture",
+      "description": "The architecture evaluator may execute go list.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "architecture-check",
+      "source_role": "application",
+      "target_class": "process-exec"
+    },
+    {
+      "id": "external.process-exec.cli",
+      "description": "cli packages may execute developer tooling.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "cli",
+      "target_class": "process-exec"
+    },
+    {
+      "id": "external.process-exec.test-support",
+      "description": "test-support packages may execute developer tooling.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_role": "test-support",
+      "target_class": "process-exec"
+    },
+    {
+      "id": "external.rendering.delivery-platform",
+      "description": "delivery-platform may use classified rendering dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "target_class": "rendering"
+    },
+    {
+      "id": "external.rendering.document-rendering",
+      "description": "document-rendering may use classified rendering dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "document-rendering",
+      "target_class": "rendering"
+    },
+    {
+      "id": "external.standard",
+      "description": "All packages may use classified standard dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "standard"
+    },
+    {
+      "id": "external.test",
+      "description": "Tests may use classified test dependencies without relaxing production.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "test"
+    },
+    {
+      "id": "external.utility",
+      "description": "All packages may use classified utility dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "target_class": "utility"
+    },
+    {
+      "id": "group-live-view.from.school-structure",
+      "description": "group-live-view reads the public school-structure query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "group-live-view.from.student-presence",
+      "description": "group-live-view reads the public student-presence query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-absence-types.to.workforce",
+      "description": "inbound-absence-types calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-absence-types",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-active.to.student-presence",
+      "description": "inbound-active calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-active",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-activities.to.timetable-activities",
+      "description": "inbound-activities calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-activities",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-admin.to.identity-access",
+      "description": "inbound-admin calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-admin",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-announcement.to.communication",
+      "description": "inbound-announcement calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-announcement",
+      "source_role": "http",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-auth.to.identity-access",
+      "description": "inbound-auth calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-auth",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-birthdays.to.people-directory",
+      "description": "inbound-birthdays calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-birthdays",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-calendar.to.school-calendar",
+      "description": "inbound-calendar calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-calendar",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-classday.to.class-day-view",
+      "description": "inbound-classday calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classday",
+      "source_role": "http",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-classlistentries.to.school-structure",
+      "description": "inbound-classlistentries calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-classlistentries",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common-documents.to.delivery-platform",
+      "description": "inbound-common-documents calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common-documents",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-common.to.delivery-platform",
+      "description": "inbound-common calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-config.to.settings-platform",
+      "description": "inbound-config calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-config",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-database.to.transaction-runtime",
+      "description": "inbound-database calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-database",
+      "source_role": "http",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-display.to.device-fleet",
+      "description": "inbound-display calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-display",
+      "source_role": "http",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-emergency.to.emergency-snapshot",
+      "description": "inbound-emergency calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-emergency",
+      "source_role": "http",
+      "target_owner": "emergency-snapshot",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-enrollment.to.enrollment",
+      "description": "inbound-enrollment calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-enrollment",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-feedback.to.feedback",
+      "description": "inbound-feedback calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-feedback",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-groups.to.school-structure",
+      "description": "inbound-groups calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-groups",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-guardians.to.care-plan",
+      "description": "inbound-guardians calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-guardians",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-import.to.data-import",
+      "description": "inbound-import calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-import",
+      "source_role": "http",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-checkin.to.process-device-scan",
+      "description": "inbound-iot-checkin calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-checkin",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-data.to.process-device-scan",
+      "description": "inbound-iot-data calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-data",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-internal-shared.to.process-device-scan",
+      "description": "inbound-iot-internal-shared calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-internal-shared",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-sessions.to.process-device-scan",
+      "description": "inbound-iot-sessions calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-sessions",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-staffclock.to.process-device-scan",
+      "description": "inbound-iot-staffclock calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-staffclock",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot.to.process-device-scan",
+      "description": "inbound-iot calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot",
+      "source_role": "http",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-mealplan.to.meal-plan",
+      "description": "inbound-mealplan calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-mealplan",
+      "source_role": "http",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-messaging.to.communication",
+      "description": "inbound-messaging calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-messaging",
+      "source_role": "http",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-notifications.to.delivery-platform",
+      "description": "inbound-notifications calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-operator.to.organization-tenancy",
+      "description": "inbound-operator calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-parent.to.care-plan",
+      "description": "inbound-parent calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-platform.to.organization-tenancy",
+      "description": "inbound-platform calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-platform",
+      "source_role": "http",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-pwa.to.delivery-platform",
+      "description": "inbound-pwa calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-pwa",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-reminders.to.reminder-delivery",
+      "description": "inbound-reminders calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-reminders",
+      "source_role": "http",
+      "target_owner": "reminder-delivery",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-rooms.to.facilities",
+      "description": "inbound-rooms calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-rooms",
+      "source_role": "http",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-schedules.to.timetable-activities",
+      "description": "inbound-schedules calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-schedules",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-school.to.school-membership",
+      "description": "inbound-school calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-shift-types.to.workforce",
+      "description": "inbound-shift-types calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-shift-types",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-sse.to.delivery-platform",
+      "description": "inbound-sse calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.to.workforce",
+      "description": "inbound-staff-shifts calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff.to.school-membership",
+      "description": "inbound-staff calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff",
+      "source_role": "http",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.to.people-directory",
+      "description": "inbound-students calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-substitutions.to.workforce",
+      "description": "inbound-substitutions calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-substitutions",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-time-tracking.to.workforce",
+      "description": "inbound-time-tracking calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-time-tracking",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.to.timetable-activities",
+      "description": "inbound-timetable calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-usercontext.to.identity-access",
+      "description": "inbound-usercontext calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-usercontext",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-users.to.people-directory",
+      "description": "inbound-users calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-users",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-work-time-models.to.workforce",
+      "description": "inbound-work-time-models calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-work-time-models",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "internal-test.same-owner.adapter",
+      "description": "Internal tests may import their owner's adapter packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "adapter"
+    },
+    {
+      "id": "internal-test.same-owner.application",
+      "description": "Internal tests may import their owner's application packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "internal-test.same-owner.cli",
+      "description": "Internal tests may import their owner's cli packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "cli"
+    },
+    {
+      "id": "internal-test.same-owner.compose",
+      "description": "Internal tests may import their owner's compose packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "compose"
+    },
+    {
+      "id": "internal-test.same-owner.contract",
+      "description": "Module-internal tests may import their owner contract packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "contract"
+    },
+    {
+      "id": "internal-test.same-owner.domain",
+      "description": "Internal tests may import their owner's domain packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "domain"
+    },
+    {
+      "id": "internal-test.same-owner.http",
+      "description": "Internal tests may import their owner's http packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "http"
+    },
+    {
+      "id": "internal-test.same-owner.migration",
+      "description": "Internal tests may import their owner's migration packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "migration"
+    },
+    {
+      "id": "internal-test.same-owner.port",
+      "description": "Internal tests may import their owner's port packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "port"
+    },
+    {
+      "id": "internal-test.same-owner.postgres",
+      "description": "Internal tests may import their owner's postgres packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "postgres"
+    },
+    {
+      "id": "internal-test.same-owner.public",
+      "description": "Module-internal tests may import their owner public packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "public"
+    },
+    {
+      "id": "internal-test.same-owner.worker",
+      "description": "Internal tests may import their owner's worker packages.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "same_owner": true,
+      "target_role": "worker"
+    },
+    {
+      "id": "internal-test.test-support",
+      "description": "internal-test code may import neutral test support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "module-internal-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "kernel.self",
+      "description": "Shared-kernel types may use other shared-kernel types.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shared-kernel",
+      "source_role": "domain",
+      "target_owner": "shared-kernel",
+      "target_role": "domain"
+    },
+    {
+      "id": "module-behavior-test.contract",
+      "description": "Module behavior tests use only their owner contract.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "contract"
+    },
+    {
+      "id": "module-behavior-test.public",
+      "description": "Module behavior tests use only their owner public interface.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "public"
+    },
+    {
+      "id": "module-behavior-test.test-support",
+      "description": "Module behavior tests may import neutral test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_role": "module-behavior-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "platform.adapter-port",
+      "description": "platform adapters may implement their own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "adapter",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "platform.application-domain",
+      "description": "platform application code may use its own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "application",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "platform.application-port",
+      "description": "platform application code may use its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "application",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "platform.postgres-application",
+      "description": "platform Postgres adapters may use their own application layer.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "postgres",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "platform.postgres-domain",
+      "description": "platform Postgres adapters may use their own domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "postgres",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "platform.public-application",
+      "description": "Public platform facades may call their own application layer.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "public",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "process-device-scan.to.device-fleet",
+      "description": "process-device-scan coordinates the public device-fleet capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.to.student-presence",
+      "description": "process-device-scan coordinates the public student-presence capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "process-device-scan.to.workforce",
+      "description": "process-device-scan coordinates the public workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "reminder-delivery.to.communication",
+      "description": "reminder-delivery coordinates the public communication capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "reminder-delivery",
+      "source_role": "application",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "reminder-delivery.to.delivery-platform",
+      "description": "reminder-delivery coordinates the public delivery-platform capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "reminder-delivery",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.device-fleet",
+      "description": "staff-clock coordinates the public device-fleet capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.workforce",
+      "description": "staff-clock coordinates the public workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workflow-decision-test.domain",
+      "description": "Workflow decision tests may exercise their own domain.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "workflow-decision-test",
+      "same_owner": true,
+      "target_role": "domain"
+    },
+    {
+      "id": "workflow-decision-test.port",
+      "description": "Workflow decision tests use their own consumer-owned ports.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "workflow-decision-test",
+      "same_owner": true,
+      "target_role": "port"
+    },
+    {
+      "id": "workflow-decision-test.test-support",
+      "description": "Workflow decision tests may import neutral test support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_role": "workflow-decision-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    }
+  ]
+}

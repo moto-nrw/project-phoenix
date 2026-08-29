@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -188,6 +189,43 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	for _, item := range openTypes {
 		assert.NotEqual(t, "direct_correction", item.RequestType)
 	}
+}
+
+// Deliberately NOT parallel: the tenant-wide settings cache is process-global state.
+func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testing.T) {
+	tc := setupTestContext(t)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Withdrawal", "Reviewer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithdrawalReviewGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Komplett", "Abmeldung", "WA1")
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+	require.NoError(t, tc.services.Settings.SetValue(
+		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	))
+	t.Cleanup(func() {
+		require.NoError(t, tc.services.Settings.ResetValue(
+			testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil,
+		))
+	})
+
+	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Abmeldung")
+	pending := insertPendingOfferingChangeRequest(t, tc, fixture, student.ID, account.ID)
+	_, err := tc.db.NewUpdate().TableExpr("enrollment.offering_change_requests").
+		Set(`payload = '{"offerings":[]}'::jsonb`).
+		Set("complete_withdrawal_confirmed = TRUE").
+		Set("withdrawal_confirmed_by = ?", account.ID).
+		Set("withdrawal_confirmed_at = ?", time.Now()).
+		Where("id = ?", pending.ID).Exec(t.Context())
+	require.NoError(t, err)
+
+	body := strings.NewReader(fmt.Sprintf(
+		`{"approve":true,"effective_from":%q,"complete_withdrawal_confirmed":true}`,
+		pending.EffectiveFrom.String(),
+	))
+	response := authExec(t, tc,
+		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
+		testutil.TeacherTestClaims(int(account.ID)), []string{"users:update"})
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 
 // insertPendingOfferingChangeRequest stores the parent's submission. Creating

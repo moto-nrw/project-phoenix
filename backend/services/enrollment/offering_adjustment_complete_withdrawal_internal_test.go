@@ -49,6 +49,20 @@ func TestFixedCareOfferingPreventsCompleteWithdrawalWithoutSelectedDays(t *testi
 	))
 }
 
+func TestQueueFullWithdrawalIgnoresRemainingNonCareOfferings(t *testing.T) {
+	t.Parallel()
+	care := &enrollmentModels.CareOffering{Model: base.Model{ID: 1}, CountsAsCare: true}
+	lunch := &enrollmentModels.CareOffering{Model: base.Model{ID: 2}, CountsAsCare: false}
+	entries := []OfferingChangeDiffEntry{
+		{OfferingID: care.ID, OldState: "booked", NewState: "not_booked"},
+		{OfferingID: lunch.ID, OldState: "booked", NewState: "booked"},
+	}
+
+	assert.True(t, leavesNoCareOfferings(entries, map[int64]*enrollmentModels.CareOffering{
+		care.ID: care, lunch.ID: lunch,
+	}))
+}
+
 func TestCompleteWithdrawalStillEnforcesOfferingGroupUpperBounds(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{

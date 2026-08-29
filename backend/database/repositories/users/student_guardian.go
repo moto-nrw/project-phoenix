@@ -490,6 +490,10 @@ func (r *StudentGuardianRepository) ListEmergencyContactRows(ctx context.Context
 		ColumnExpr(`"guardian".last_name`).
 		ColumnExpr(`"guardian".email`).
 		ColumnExpr(`"phone".phone_number`).
+		ColumnExpr(`"student_guardian".relationship_type`).
+		ColumnExpr(`"student_guardian".pickup_notes`).
+		ColumnExpr(`"student_guardian".can_pickup`).
+		ColumnExpr(`"student_guardian".is_emergency_contact`).
 		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
 		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
@@ -512,6 +516,97 @@ func (r *StudentGuardianRepository) ListEmergencyContactRows(ctx context.Context
 			Op:  "list emergency contact rows",
 			Err: err,
 		}
+	}
+	return rows, nil
+}
+
+// SetPayer moves the payment mark for one child (#2608): it clears the mark
+// from every guardian of the child and, when guardianProfileID is non-nil,
+// sets it on that guardian's relationship. Both statements run in the caller's
+// tenant transaction, which is what makes the move atomic — the partial unique
+// index uq_students_guardians_payer allows only one marked row per child, so a
+// set-before-clear would raise a unique violation and abort the transaction.
+//
+// A domain operation rather than a filter (backend rule 2): "exactly one of
+// these rows carries the flag" is an invariant across rows, which no per-row
+// update expresses. Returns ErrStudentGuardianNotFound when the named guardian
+// is not linked to the child.
+func (r *StudentGuardianRepository) SetPayer(ctx context.Context, studentID int64, guardianProfileID *int64) error {
+	db := base.GetDB(ctx, r.db)
+
+	clear := db.NewUpdate().
+		Model((*users.StudentGuardian)(nil)).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Set("is_payer = FALSE").
+		Where(`"student_guardian".student_id = ?`, studentID).
+		Where(`"student_guardian".is_payer`)
+	clear = base.WithTenantFilter(ctx, clear, "student_guardian")
+
+	if _, err := clear.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "clear student payer", Err: err}
+	}
+
+	if guardianProfileID == nil {
+		return nil
+	}
+
+	set := db.NewUpdate().
+		Model((*users.StudentGuardian)(nil)).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Set("is_payer = TRUE").
+		Where(`"student_guardian".student_id = ?`, studentID).
+		Where(`"student_guardian".guardian_profile_id = ?`, *guardianProfileID)
+	set = base.WithTenantFilter(ctx, set, "student_guardian")
+
+	result, err := set.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set student payer", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set student payer", Err: err}
+	}
+	if affected == 0 {
+		return users.ErrStudentGuardianNotFound
+	}
+	return nil
+}
+
+// ListPaymentAssignments returns one row per non-alumnus child of the tenant,
+// with the guardian marked as payer joined in — LEFT, so children without an
+// assigned payer appear with a nil GuardianProfileID. Showing the gaps is the
+// point: a Bankverbindungen list that silently omits the children nobody
+// assigned looks complete while missing exactly the rows that need work.
+func (r *StudentGuardianRepository) ListPaymentAssignments(ctx context.Context) ([]users.GuardianPaymentAssignment, error) {
+	var rows []users.GuardianPaymentAssignment
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id AS student_id`).
+		ColumnExpr(`"student_person".first_name AS student_first_name`).
+		ColumnExpr(`"student_person".last_name AS student_last_name`).
+		ColumnExpr(`"student".school_class`).
+		ColumnExpr(`"guardian".id AS guardian_profile_id`).
+		ColumnExpr(`COALESCE("guardian".first_name, '') AS guardian_first_name`).
+		ColumnExpr(`COALESCE("guardian".last_name, '') AS guardian_last_name`).
+		ColumnExpr(`COALESCE("student_guardian".relationship_type, '') AS relationship_type`).
+		Join(`JOIN users.persons AS "student_person" ON "student_person".id = "student".person_id`).
+		Join(`LEFT JOIN users.students_guardians AS "student_guardian"
+			ON "student_guardian".student_id = "student".id AND "student_guardian".is_payer`).
+		Join(`LEFT JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
+		Where(`"student".status != ?`, string(users.StudentStatusAlumnus)).
+		Where(`"student_person".deleted_at IS NULL`).
+		OrderExpr(`"student_person".last_name ASC`).
+		OrderExpr(`"student_person".first_name ASC`).
+		OrderExpr(`"student".id ASC`)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"student".tenant_id = ?`, tenantID)
+		query = query.Where(`("student_guardian".tenant_id = ? OR "student_guardian".tenant_id IS NULL)`, tenantID)
+		query = query.Where(`("guardian".tenant_id = ? OR "guardian".tenant_id IS NULL)`, tenantID)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list guardian payment assignments", Err: err}
 	}
 	return rows, nil
 }
