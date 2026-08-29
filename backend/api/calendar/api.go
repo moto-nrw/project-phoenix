@@ -42,6 +42,8 @@ func (rs *Resource) Router() chi.Router {
 		own := authorize.RequiresPermission(permissions.CalendarOwn)
 		manage := authorize.RequiresPermission(permissions.CalendarManage)
 		r.With(own, withTx).Get("/my", rs.listMy)
+		r.With(own, withTx).Get("/feed", rs.calendarFeedURL)
+		r.With(own, withTx).Post("/feed/rotate", rs.rotateCalendarFeed)
 		r.With(own, withTx).Get("/appointments/{appointmentId}/overview", rs.appointmentOverview)
 		r.With(own, withTx).Get("/appointments/{appointmentId}/ics", rs.appointmentICS)
 		r.With(manage, withTx).Post("/appointments", rs.createAppointment)
@@ -154,6 +156,30 @@ func (rs *Resource) listMy(w http.ResponseWriter, r *http.Request) {
 		"to":     to.String(),
 		"events": events,
 	}, "Calendar events retrieved")
+}
+
+func (rs *Resource) calendarFeedURL(w http.ResponseWriter, r *http.Request) {
+	httpsURL, webcalURL, err := rs.service.StaffCalendarFeedURL(r.Context())
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{
+		"url":        httpsURL,
+		"webcal_url": webcalURL,
+	}, "Calendar feed URL retrieved")
+}
+
+func (rs *Resource) rotateCalendarFeed(w http.ResponseWriter, r *http.Request) {
+	httpsURL, webcalURL, err := rs.service.RotateStaffCalendarFeed(r.Context())
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{
+		"url":        httpsURL,
+		"webcal_url": webcalURL,
+	}, "Calendar feed URL rotated")
 }
 
 func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {

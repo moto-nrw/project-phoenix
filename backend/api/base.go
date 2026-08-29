@@ -42,7 +42,6 @@ import (
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
-	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -94,12 +93,21 @@ func offeringSourceOptions(svc enrollmentSvc.DecisionService) enrollmentSvc.Offe
 	return lister
 }
 
-func recordHTTPRuntimeEvent(event apiCommon.TenantRuntimeEvent) {
+func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, event apiCommon.TenantRuntimeEvent) {
+	observability.RecordUnitOfWorkEvent(
+		"http",
+		string(event.Kind),
+		string(event.Result),
+		event.Duration,
+		event.Retries,
+	)
 	switch {
-	case event.Outcome == apiCommon.TenantRuntimeMissingTenant:
-		observability.RecordTenantRuntimeEvent("http", "missing_tenant")
-	case event.Outcome == apiCommon.TenantRuntimeTransaction && event.Err != nil:
-		observability.RecordTenantRuntimeEvent("http", "transaction_failure")
+	case event.Kind == apiCommon.TenantRuntimeMissingTenant:
+		tracer.Failure(ctx, "http", string(event.Kind), "missing_tenant", event.Err)
+	case event.Kind == apiCommon.TenantRuntimeTransaction && event.Err != nil:
+		tracer.Failure(ctx, "http", string(event.Kind), "transaction_failure", event.Err)
+	case event.Kind == apiCommon.TenantRuntimeResponseWrite && event.Err != nil:
+		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err)
 	}
 }
 
@@ -110,7 +118,8 @@ type API struct {
 	db                 *bun.DB
 	repos              *repositories.Factory
 	tenantRuntime      apiCommon.TenantRuntime
-	Metrics            *observability.HTTPMetrics
+	metrics            *httpMetrics
+	tracer             *observability.Tracer
 	metricsBearerToken string
 
 	// API Resources
@@ -155,7 +164,6 @@ type API struct {
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
-	PWA              *pwaAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -175,14 +183,16 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	databaseTenantRuntime, err := database.NewTenantRuntime(db)
+	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
+	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
 		return nil, err
 	}
 	tenantRuntime, err := services.BindTenantRuntime(
-		databaseTenantRuntime.WithinTenant,
-		databaseTenantRuntime.WithinAdmin,
-		databaseTenantRuntime,
+		postgresUnitOfWork.WithinTenant,
+		postgresUnitOfWork.WithinAdmin,
+		postgresUnitOfWork,
+		database.IsRetryableTransactionError,
 	)
 	if err != nil {
 		return nil, err
@@ -211,7 +221,18 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
-	observability.RegisterDBStatsProvider(db.DB)
+	observability.RegisterDBStatsProvider(func() observability.DBStats {
+		stats := database.SnapshotCapacity(db)
+		return observability.DBStats{
+			OpenConnections:   stats.OpenConnections,
+			InUse:             stats.InUse,
+			Idle:              stats.Idle,
+			WaitCount:         stats.WaitCount,
+			WaitDuration:      stats.WaitDuration,
+			MaxIdleClosed:     stats.MaxIdleClosed,
+			MaxLifetimeClosed: stats.MaxLifetimeClosed,
+		}
+	})
 	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
 	observability.RegisterPWAUsageStatsProvider(observability.PWAUsageStatsProviderFunc(func() ([]observability.PWAUsageStat, error) {
 		rows, err := serviceFactory.PWAUsage.SnapshotUsage()
@@ -231,34 +252,35 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	}))
 
 	// Create API instance
-	httpMetrics := observability.NewHTTPMetrics()
+	httpMetrics := newHTTPMetrics()
+	tracer := newRuntimeTracer(logger)
 	api := &API{
 		Services:           serviceFactory,
 		Router:             chi.NewRouter(),
 		db:                 db,
 		repos:              repoFactory,
 		tenantRuntime:      tenantRuntime,
-		Metrics:            httpMetrics,
+		metrics:            httpMetrics,
+		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
 	}
 
 	// Setup router middleware
+	api.Router.Use(func(next http.Handler) http.Handler { return requestIDMiddleware(tracer, next) })
 	api.Router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
-	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(recordHTTPRuntimeEvent))
+	api.Router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(ctx context.Context, event apiCommon.TenantRuntimeEvent) {
+		recordHTTPRuntimeEvent(ctx, tracer, event)
+	}))
 	api.Router.Use(apiCommon.TenantRequestObserverMiddleware(func(event apiCommon.TenantRequestEvent) {
 		observability.ObserveTenantRequest(
 			event.TenantID,
 			event.Scope,
 			event.Request.Method,
-			observability.RoutePattern(event.Request),
+			apiCommon.RoutePattern(event.Request),
 			event.Status,
 			event.Duration,
 			event.Outcome,
 		)
-		switch event.Outcome {
-		case "missing_tenant":
-			observability.RecordTenantRuntimeEvent("http", "missing_tenant")
-		}
 	}))
 	setupBasicMiddleware(api.Router, logger, httpMetrics)
 
@@ -278,15 +300,20 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	return api, nil
 }
 
+func newRuntimeTracer(logger *slog.Logger) *observability.Tracer {
+	return observability.NewTracer(logger, func(entryPoint, _ string, outcome string) {
+		observability.RecordTenantRuntimeEvent(entryPoint, outcome)
+	})
+}
+
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *observability.HTTPMetrics) {
-	router.Use(requestIDMiddleware)
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *httpMetrics) {
 	router.Use(middleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
 	if httpMetrics != nil {
-		router.Use(httpMetrics.Middleware)
+		router.Use(httpMetrics.middleware)
 	}
-	// Redact the parent calendar-feed token (the sole credential for the public
+	// Redact calendar-feed tokens (the sole credential for the public
 	// /public/calendar/{token} feed) from the per-request "path" attribute, and
 	// strip query-string values (staff-UI searches carry student names and
 	// e-mail addresses as query parameters, issue #2105) so neither lands in
@@ -718,7 +745,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
-	api.PWA = pwaAPI.NewResource(api.Services.PWAUsage, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -855,7 +881,7 @@ func (a *API) registerPublicRoutes() {
 	// the parent's Termine in sync.
 	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
 
-	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
+	a.Router.With(metricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", metricsHandler())
 }
 
 // registerPortalRoutes mounts the root-level portal routers (tenant auth,
@@ -1012,7 +1038,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/notifications", a.Notifications.Router())
 
 		// Mount PWA standalone-usage reporting (issue #2189)
-		r.Mount("/pwa", a.PWA.Router())
+		r.Mount("/pwa", a.pwaUsageRouter())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
@@ -1024,9 +1050,8 @@ func (a *API) registerTenantRoutes() {
 	})
 }
 
-// servePublicCalendarFeed serves the parent iCalendar subscription feed. There
-// is no auth — the token in the URL is the capability; the service resolves the
-// account by token and aggregates across the parent's tenants.
+// servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.
+// There is no auth — the token in the URL is the capability.
 func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	if a.Services.Calendar == nil {
 		http.Error(w, "not found", http.StatusNotFound)
@@ -1034,6 +1059,9 @@ func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
 	}
 	token := chi.URLParam(r, "token")
 	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+	if errors.Is(err, calendarService.ErrNotFound) {
+		filename, content, err = a.Services.Calendar.StaffCalendarFeedByToken(r.Context(), token)
+	}
 	if err != nil {
 		if errors.Is(err, calendarService.ErrNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)

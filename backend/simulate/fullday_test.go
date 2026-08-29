@@ -336,6 +336,20 @@ func simulationAPIMock(t *testing.T) *httptest.Server {
 				"data":   []any{},
 			})
 
+		case "/api/timetable/periods/bootstrap":
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"created": false,
+					"periods": []map[string]any{{
+						"start_date": "2000-01-01",
+						"end_date":   "2100-12-31",
+						"is_active":  true,
+					}},
+				},
+			})
+
 		default:
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{

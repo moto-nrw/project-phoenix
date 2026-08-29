@@ -80,7 +80,7 @@ type Emitter struct {
 	settings      TenantSettingsResolver
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 
 	// notifier and preferences push a staff DECISION to the submitting
 	// guardian's devices (#1671). Optional and set through
@@ -90,7 +90,7 @@ type Emitter struct {
 	preferences notifications.PreferenceService
 }
 
-func (e *Emitter) SetTenantRuntime(runtime tenant.Runtime) {
+func (e *Emitter) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	if e != nil {
 		e.tenantRuntime = &runtime
 	}
@@ -99,7 +99,7 @@ func (e *Emitter) SetTenantRuntime(runtime tenant.Runtime) {
 func (e *Emitter) backgroundContext() context.Context {
 	ctx := context.Background()
 	if e != nil && e.tenantRuntime != nil {
-		ctx = tenant.WithRuntime(ctx, *e.tenantRuntime)
+		ctx = tenant.WithUnitOfWork(ctx, *e.tenantRuntime)
 	}
 	return ctx
 }

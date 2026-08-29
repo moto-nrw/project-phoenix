@@ -25,7 +25,7 @@ type settingsService struct {
 	schoolRepo    platform.SchoolRepository
 	db            *bun.DB
 	logger        *slog.Logger
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
 	// eligibility to specific school classes. It gates disabling the
@@ -51,7 +51,7 @@ type settingsService struct {
 	gradeCapGuard func(ctx context.Context) (int, error)
 }
 
-func (s *settingsService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *settingsService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -59,7 +59,7 @@ func (s *settingsService) withTenantRuntime(ctx context.Context) context.Context
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used

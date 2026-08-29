@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentRequestSharingVersion     = "1.15.343"
+	parentRequestSharingVersion     = "1.15.346"
 	parentRequestSharingDescription = "Add append-only named parent-request sharing events (#2267)"
 )
 
@@ -23,7 +23,7 @@ func init() {
 
 func parentRequestSharingUp(ctx context.Context, db *bun.DB) error {
 	slog.Info("migration starting", slog.String("migration", parentRequestSharingVersion))
-	_, err := db.ExecContext(ctx, `
+	_, err := db.NewRaw(`
 		CREATE TABLE users.parent_request_share_events (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
@@ -50,7 +50,7 @@ func parentRequestSharingUp(ctx context.Context, db *bun.DB) error {
 		GRANT SELECT, INSERT ON users.parent_request_share_events TO phoenix_tenant;
 		REVOKE UPDATE, DELETE, TRUNCATE ON users.parent_request_share_events FROM phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.parent_request_share_events_id_seq TO phoenix_tenant;
-	`)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("create parent request share events: %w", err)
 	}
@@ -58,7 +58,7 @@ func parentRequestSharingUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentRequestSharingDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS users.parent_request_share_events`); err != nil {
+	if _, err := db.NewRaw(`DROP TABLE IF EXISTS users.parent_request_share_events`).Exec(ctx); err != nil {
 		return fmt.Errorf("drop parent request share events: %w", err)
 	}
 	return nil

@@ -1812,6 +1812,7 @@
     {"name": "calendar.appointment_targets", "write_owner": "appointments"},
     {"name": "calendar.appointments", "write_owner": "appointments"},
     {"name": "calendar.recurrence_rules", "write_owner": "appointments"},
+    {"name": "calendar.staff_feed_tombstones", "write_owner": "school-calendar"},
     {"name": "config.setting_audit", "write_owner": "settings-platform"},
     {"name": "config.setting_values", "write_owner": "settings-platform"},
     {"name": "config.settings", "write_owner": "settings-platform"},

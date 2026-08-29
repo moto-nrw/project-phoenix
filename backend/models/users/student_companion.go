@@ -23,7 +23,7 @@ var (
 	// companion_student_id in the request body decodes to. A sentinel, not a
 	// fresh error: the handler's error table maps it to a 400, whereas an
 	// untyped error would leak malformed client input as a 500.
-	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // ST1005: user-facing German message
+	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // user-facing German message
 
 	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
 	// the OTHER child with an accompanied ("Anderes Kind") departure plan and no

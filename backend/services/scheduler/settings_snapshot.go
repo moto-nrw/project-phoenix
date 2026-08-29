@@ -79,7 +79,7 @@ var schedulerPollingSettingKeys = []string{
 // getMinuteSnapshot coalesces concurrent scheduler goroutines into one active
 // tenant query and one config.setting_values batch query per wall-clock minute.
 func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	now := time.Now
 	if s.minuteSnapshotNow != nil {
 		now = s.minuteSnapshotNow
@@ -121,7 +121,7 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 }
 
 func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	result := &schedulerMinuteSnapshot{}
 	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		schools, listErr := s.schoolRepo.ListActive(txCtx)
@@ -156,7 +156,7 @@ func (s *Scheduler) forEachKnownTenant(
 	fn func(context.Context, int64) error,
 ) []int64 {
 	completed := make([]int64, 0, len(tenantIDs))
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	for _, tenantID := range tenantIDs {
 		id, idErr := tenant.NewTenantID(tenantID)
 		if idErr != nil {

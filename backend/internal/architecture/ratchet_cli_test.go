@@ -334,6 +334,118 @@ func TestCheckRejectsNewDataObjectOwnership(t *testing.T) {
 	}
 }
 
+func TestCheckAllowsOwnershipForTableCreatedByNewCandidateMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "001_create_ghost.go"), `package migrations
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`
+		CREATE TABLE ghost.records (
+			id BIGINT PRIMARY KEY
+		);
+	`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/001_create_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "1 legacy violation(s) remain") {
+		t.Fatalf("new table ownership with matching candidate migration was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsOwnershipBackfilledThroughModifiedMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+`)
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "base.go"), `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+
+func backfillGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "data object ghost.records was newly assigned to owner module") {
+		t.Fatalf("modified historical migration authorized new ownership: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsOwnershipForTableMentionedByBaseMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE IF NOT EXISTS ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "002_recreate_ghost.go"), `package migrations
+
+func recreateGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE IF NOT EXISTS ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/002_recreate_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "data object ghost.records was newly assigned to owner module") {
+		t.Fatalf("base migration table was treated as newly created: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsOwnershipForQuotedTableMentionedByBaseMigration(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef, basePolicy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+
+type rawDB struct{}
+
+func (rawDB) NewRaw(string) {}
+
+func createGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE "ghost" . "records" (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, basePolicy, "ghost.records", "module"))
+	writeFile(t, filepath.Join(repo, "database", "migrations", "002_recreate_ghost.go"), `package migrations
+
+func recreateGhostRecords(db rawDB) {
+	db.NewRaw(`+"`"+`CREATE TABLE ghost.records (id BIGINT PRIMARY KEY);`+"`"+`)
+}
+`)
+	runGit(t, repo, "add", "architecture/policy.json", "database/migrations/002_recreate_ghost.go")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "data object ghost.records was newly assigned to owner module") {
+		t.Fatalf("quoted base migration table was treated as newly created: %v\n%s", err, output)
+	}
+}
+
 func TestCheckHasNoApprovalOrRebaselineSwitch(t *testing.T) {
 	t.Parallel()
 
@@ -475,6 +587,25 @@ func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string,
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "base")
 	return repo, strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+}
+
+func ratchetRepositoryWithMigrationPackage(t *testing.T, baseMigration string) (string, string, string) {
+	t.Helper()
+	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	basePolicy := mutatePolicy(t, readFile(t, filepath.Join(repo, "architecture", "policy.json")), func(document map[string]any) {
+		document["owners"] = append(document["owners"].([]any), map[string]any{"id": "migrations", "kind": "migration"})
+		document["roles"] = append(document["roles"].([]any), "migration")
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "database/migrations", "owner": "migrations", "role": "migration",
+			"internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), basePolicy)
+	writeFile(t, filepath.Join(repo, "database", "migrations", "base.go"), baseMigration)
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "classify migration package")
+	baseRef := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	return repo, baseRef, basePolicy
 }
 
 func policyWithSourceClassification(t *testing.T, owner, role string) string {

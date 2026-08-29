@@ -1400,6 +1400,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Einen bestehenden Termin über `Bearbeiten` anpassen. Änderungen gelten für die ganze Serie; ist erneut `Eltern per E-Mail benachrichtigen` gesetzt, geht eine Aktualisierungs-E-Mail heraus. Ein bereits abgesagter Termin lässt sich nicht mehr bearbeiten.",
           "Mit `Absagen` bleibt der Termin sichtbar, aber als `Abgesagt` markiert; mit `Löschen` verschwindet er ganz. Bei einer Terminreihe fragt die App, ob die Aktion für `Nur diesen Termin entfernen` oder die `Ganze Reihe` gilt. Noch nicht versendete Benachrichtigungen werden dabei automatisch gestoppt.",
           "Über `Zum Kalender hinzufügen` an einem Termin eine `.ics`-Datei herunterladen, um ihn in einen persönlichen Kalender (Handy, Outlook) zu übernehmen.",
+          "Unter dem Kalender zum Bereich `Kalender abonnieren` gehen. Dann `Abo-Link anzeigen` wählen.",
+          "`Im Kalender abonnieren` wählen. Oder den Link kopieren und im persönlichen Kalender einfügen.",
+          "Termine, Betreuungsangebote und Dienstplan-Schichten erscheinen dort automatisch. Änderungen in moto werden übernommen.",
+          "Das Abo ist nur zum Lesen. Änderungen im persönlichen Kalender wirken nicht auf moto zurück. Sie sehen den Link nur einmal. Geben Sie ihn nicht weiter.",
+          "Mit `Link neu erstellen` endet das bisherige Abo. Kalender mit dem alten Link erhalten danach keine Änderungen mehr.",
         ],
         callout: {
           title: "Eltern nur mit Portalzugang einladen",
@@ -1407,7 +1412,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog mit E-Mail-Benachrichtigung sowie Bearbeiten/Absagen/Löschen und Teilnehmerübersicht.",
+          "Mein Kalender mit Tag/Woche/Monat, Termin-Dialog, Bearbeiten/Absagen/Löschen, Teilnehmerübersicht und dem Bereich Kalender abonnieren.",
       },
       {
         id: "dienstplan",

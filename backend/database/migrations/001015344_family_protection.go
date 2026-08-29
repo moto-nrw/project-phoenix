@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	familyProtectionVersion     = "1.15.341"
+	familyProtectionVersion     = "1.15.344"
 	familyProtectionDescription = "Add append-only per-child family protection events (#2267)"
 )
 
@@ -23,7 +23,7 @@ func init() {
 
 func familyProtectionUp(ctx context.Context, db *bun.DB) error {
 	slog.Info("migration starting", slog.String("migration", familyProtectionVersion))
-	_, err := db.ExecContext(ctx, `
+	_, err := db.NewRaw(`
 		CREATE TABLE users.student_family_protection_events (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
@@ -48,7 +48,7 @@ func familyProtectionUp(ctx context.Context, db *bun.DB) error {
 		GRANT SELECT, INSERT ON users.student_family_protection_events TO phoenix_tenant;
 		REVOKE UPDATE, DELETE, TRUNCATE ON users.student_family_protection_events FROM phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.student_family_protection_events_id_seq TO phoenix_tenant;
-	`)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("create family protection events: %w", err)
 	}
@@ -56,7 +56,7 @@ func familyProtectionUp(ctx context.Context, db *bun.DB) error {
 }
 
 func familyProtectionDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS users.student_family_protection_events`); err != nil {
+	if _, err := db.NewRaw(`DROP TABLE IF EXISTS users.student_family_protection_events`).Exec(ctx); err != nil {
 		return fmt.Errorf("drop family protection events: %w", err)
 	}
 	return nil

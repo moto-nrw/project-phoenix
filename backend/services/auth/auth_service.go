@@ -85,7 +85,7 @@ type Service struct {
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
-	tenantRuntime       *tenant.Runtime
+	tenantRuntime       *tenant.UnitOfWork
 	// mfaService is optional. When non-nil and an account requires MFA the
 	// login flow returns a challenge token instead of an access/refresh
 	// pair; when nil the gate is bypassed and login behaves as before.
@@ -99,7 +99,7 @@ func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // detachedTenantContext preserves tenant/runtime values while isolating
@@ -110,7 +110,7 @@ func detachedTenantContext(ctx context.Context) context.Context {
 	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 
-func (s *Service) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *Service) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 

@@ -441,12 +441,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 111,
+          "line": 119,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 537,
+          "line": 564,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 204,
+          "line": 214,
           "declaration": "New"
         }
       ]
@@ -466,12 +466,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 108,
+          "line": 116,
           "declaration": "type API"
         },
         {
           "file": "api/server.go",
-          "line": 98,
+          "line": 121,
           "declaration": "configureSchedulerServices"
         }
       ]
@@ -481,7 +481,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 207,
+          "line": 217,
           "declaration": "New"
         }
       ]
@@ -546,7 +546,7 @@
       "locations": [
         {
           "file": "cmd/cleanup_helpers.go",
-          "line": 86,
+          "line": 91,
           "declaration": "newCleanupContextWithServices"
         }
       ]
@@ -621,7 +621,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 255,
+          "line": 256,
           "declaration": "NewFactory"
         }
       ]
@@ -16684,7 +16684,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        204
+        214
       ],
       "tables": []
     },
@@ -16694,7 +16694,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        207
+        217
       ],
       "tables": []
     },
@@ -16704,7 +16704,7 @@
       "declaration": "NewServer",
       "target": "api.New",
       "lines": [
-        31
+        32
       ],
       "tables": []
     },
@@ -16714,7 +16714,7 @@
       "declaration": "newScheduler",
       "target": "services/scheduler.NewScheduler",
       "lines": [
-        75
+        87
       ],
       "tables": []
     },
@@ -16734,7 +16734,7 @@
       "declaration": "newCleanupContextWithServices",
       "target": "services.NewFactory",
       "lines": [
-        86
+        91
       ],
       "tables": []
     },
@@ -18078,6 +18078,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         33
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/students/tenant_middleware_integration_test.go",
+      "declaration": "TestTenantTxMiddlewareServerErrorDiscardsWrite",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        64
       ],
       "tables": []
     },
@@ -27167,7 +27177,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        471
+        472
       ],
       "tables": []
     },
@@ -27177,7 +27187,7 @@
       "declaration": "TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        426
       ],
       "tables": []
     },
@@ -27187,9 +27197,23 @@
       "declaration": "TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        1212
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1005
+      ],
+      "tables": [
+        "calendar.appointments",
+        "calendar.recurrence_rules",
+        "calendar.staff_feed_tombstones"
+      ]
     },
     {
       "scope": "test",
@@ -27197,7 +27221,7 @@
       "declaration": "TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone",
       "target": "database/repositories.NewFactory",
       "lines": [
-        679
+        1098
       ],
       "tables": []
     },
@@ -27207,7 +27231,7 @@
       "declaration": "TestCalendarServiceIntegration_EditRacingCancellationConflicts",
       "target": "database/repositories.NewFactory",
       "lines": [
-        749
+        1168
       ],
       "tables": []
     },
@@ -27217,7 +27241,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1658
+        2077
       ],
       "tables": [
         "auth.accounts"
@@ -27229,7 +27253,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2252
+        2671
       ],
       "tables": []
     },
@@ -27239,7 +27263,7 @@
       "declaration": "TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1337
+        1756
       ],
       "tables": []
     },
@@ -27249,7 +27273,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2315
+        2734
       ],
       "tables": []
     },
@@ -27259,7 +27283,81 @@
       "declaration": "TestCalendarServiceIntegration_RepositoryReadAndReplacePaths",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1470
+        1889
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        730
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionFeed",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        678
+      ],
+      "tables": [
+        "auth.account_tenants"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        752
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        799
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        955
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        903
+      ],
+      "tables": [
+        "schedule.activity_instances"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/calendar/service_integration_test.go",
+      "declaration": "TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        856
       ],
       "tables": []
     },
@@ -27269,7 +27367,7 @@
       "declaration": "TestCalendarServiceIntegration_SubscriptionFeed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        575
+        576
       ],
       "tables": [
         "auth.accounts"
@@ -27281,7 +27379,7 @@
       "declaration": "calendarTestConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        35
+        36
       ],
       "tables": []
     },
@@ -31298,6 +31396,16 @@
     },
     {
       "scope": "test",
+      "file": "services/scheduler/outbox_worker_test.go",
+      "declaration": "TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence",
+      "target": "services/scheduler.NewScheduler",
+      "lines": [
+        38
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/scheduler/overdue_test.go",
       "declaration": "buildOverdue",
       "target": "database/repositories.NewFactory",
@@ -31816,8 +31924,8 @@
       "declaration": "TestCaregiverCapability_EnableCreatesOperationalProfile",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301,
-        305
+        303,
+        307
       ],
       "tables": []
     },
@@ -31827,7 +31935,7 @@
       "declaration": "setupServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        38
+        40
       ],
       "tables": []
     },
@@ -31837,7 +31945,7 @@
       "declaration": "setupServiceFactory",
       "target": "services.NewFactory",
       "lines": [
-        38
+        40
       ],
       "tables": []
     },
@@ -32582,6 +32690,36 @@
         "schedule.student_pickup_schedules",
         "schedule.timeframes"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "test/tenant_runtime_test.go",
+      "declaration": "TestUnitOfWorkCommitsSuccessfulCommand",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        33
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/tenant_runtime_test.go",
+      "declaration": "TestUnitOfWorkRollsBackPanic",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        66
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/tenant_runtime_test.go",
+      "declaration": "TestUnitOfWorkRollsBackReturnedError",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        49
+      ],
+      "tables": []
     }
   ],
   "smoke_tests": [

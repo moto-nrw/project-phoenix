@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentStatusAuthorVersion = "1.15.342"
+const parentStatusAuthorVersion = "1.15.345"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

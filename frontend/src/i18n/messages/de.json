@@ -1637,6 +1637,7 @@
     "subscribe": "Im Kalender abonnieren",
     "linkLabel": "Abo-Link (zum Kopieren)",
     "copy": "Kopieren",
+    "copiedButton": "Kopiert",
     "copied": "Link kopiert.",
     "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
     "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
@@ -1650,6 +1651,9 @@
     "rotateError": "Der Abo-Link konnte nicht erneuert werden.",
     "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
     "createNew": "Neuen Abo-Link erstellen"
+  },
+  "staffCalendarSubscribe": {
+    "description": "Abonnieren Sie Ihre Termine einmal im Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch. Sie müssen keinen Termin einzeln hinzufügen. Änderungen im Handy-Kalender erreichen moto nicht."
   },
   "parentNews": {
     "kicker": "Post von der OGS",

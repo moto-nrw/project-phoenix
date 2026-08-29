@@ -106,6 +106,18 @@ func (f *fakeParentCalendarService) ParentCalendarFeedByToken(context.Context, s
 	return "", "", nil
 }
 
+func (f *fakeParentCalendarService) StaffCalendarFeedURL(context.Context) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) RotateStaffCalendarFeed(context.Context) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) StaffCalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+
 func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }
@@ -175,6 +187,19 @@ func TestCalendarFeedURLReturnsURLs(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(77), service.gotFeedAccount)
 	assert.Contains(t, w.Body.String(), "webcal://parents.test/api/calendar-feed/abc")
+}
+
+func TestCalendarFeedURLReturnsConflictForConcurrentCreation(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentCalendarService{feedErr: calendarSvc.ErrConflict}
+	rs := &Resource{CalendarService: service}
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/feed", nil), 77)
+	w := httptest.NewRecorder()
+
+	rs.calendarFeedURL(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
 func TestRotateCalendarFeedPassesAccount(t *testing.T) {

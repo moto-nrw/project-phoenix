@@ -68,10 +68,10 @@ type absenceNotifier struct {
 	recipients    StaffRecipientResolver
 	db            *bun.DB
 	logger        *slog.Logger
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
-func (n *absenceNotifier) SetTenantRuntime(runtime tenant.Runtime) {
+func (n *absenceNotifier) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	n.tenantRuntime = &runtime
 }
 
@@ -107,7 +107,7 @@ func (n *absenceNotifier) NotifyAbsenceReported(ctx context.Context, report Abse
 		err = n.notify(ctx, report)
 	} else {
 		if n.tenantRuntime != nil {
-			ctx = tenant.WithRuntime(ctx, *n.tenantRuntime)
+			ctx = tenant.WithUnitOfWork(ctx, *n.tenantRuntime)
 		}
 		// Every caller invokes the producer after the write transaction has
 		// committed. Open a new tenant transaction so all recipient, consent and

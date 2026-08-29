@@ -6,9 +6,23 @@ import (
 	"strings"
 )
 
-func ComparePolicyStrictness(base, candidate *Policy) error {
+// CompareCandidatePolicyStrictness applies the strict base-policy comparison
+// while allowing ownership declarations for tables that a new migration file
+// in this candidate actually creates. Without this narrow exception the
+// ratchet would freeze the schema: a table cannot exist in the base policy
+// before the migration that introduces it. Existing tables and ownership
+// changes remain strict policy loosenings.
+func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy) error {
+	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
+	if err != nil {
+		return err
+	}
+	return comparePolicyStrictness(base, candidate, createdDataObjects)
+}
+
+func comparePolicyStrictness(base, candidate *Policy, createdDataObjects map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
-	problems = append(problems, ownershipLoosenings(base, candidate)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects)...)
 	problems = append(problems, classificationLoosenings(base, candidate)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate)...)
 	problems = append(problems, compositionLoosenings(base, candidate)...)
@@ -28,7 +42,7 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
 }
 
-func ownershipLoosenings(base, candidate *Policy) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects map[string]struct{}) []string {
 	var problems []string
 	baseOwners := ownersByID(base)
 	candidateOwners := ownersByID(candidate)
@@ -45,9 +59,14 @@ func ownershipLoosenings(base, candidate *Policy) []string {
 	baseObjects := dataObjectsByName(base)
 	for name, current := range dataObjectsByName(candidate) {
 		baseObject, exists := baseObjects[name]
+		_, createdByCandidateMigration := createdDataObjects[name]
 		if !exists {
-			problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
-		} else if current.WriteOwner != baseObject.WriteOwner {
+			if !createdByCandidateMigration {
+				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
+			}
+			continue
+		}
+		if current.WriteOwner != baseObject.WriteOwner {
 			problems = append(problems, fmt.Sprintf("data object %s changed write owner from %s to %s", name, baseObject.WriteOwner, current.WriteOwner))
 		}
 	}

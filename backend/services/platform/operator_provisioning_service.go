@@ -171,12 +171,12 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 type operatorProvisioningService struct {
 	OperatorProvisioningServiceConfig
 	txHandler     *modelBase.TxHandler
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
 // SetTenantRuntime wires the transaction runtime used when an operator action
 // crosses tenant boundaries.
-func (s *operatorProvisioningService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *operatorProvisioningService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -184,7 +184,7 @@ func (s *operatorProvisioningService) withTenantRuntime(ctx context.Context) con
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {

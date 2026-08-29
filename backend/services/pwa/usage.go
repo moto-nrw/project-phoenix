@@ -6,6 +6,7 @@ package pwa
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -38,6 +39,11 @@ type CleanupResult struct {
 	Cutoff        time.Time
 }
 
+type usageRepository interface {
+	RecordSeen(ctx context.Context, tenantID, accountID int64, portal string) error
+	DeleteLastSeenBefore(ctx context.Context, tenantID int64, cutoff time.Time) (int, error)
+}
+
 // UsageService records and aggregates PWA standalone usage. Report methods
 // are idempotent upserts; repeated reports only advance last_seen_at.
 type UsageService interface {
@@ -59,26 +65,26 @@ type UsageService interface {
 
 type usageService struct {
 	db             *bun.DB
-	repo           iot.PWAStandaloneUsageRepository
+	repo           usageRepository
 	summaries      platformModels.OperatorSummariesRepository
 	accountTenants authModels.AccountTenantRepository
 	settings       config.SettingsService
 	logger         *slog.Logger
-	tenantRuntime  *tenant.Runtime
+	tenantRuntime  *tenant.UnitOfWork
 
 	snapshotMu   sync.Mutex
 	snapshot     []platformModels.SchoolPWAUsageRow
 	snapshotTime time.Time
 }
 
-func (s *usageService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *usageService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
 // NewUsageService builds the PWA usage service.
 func NewUsageService(
 	db *bun.DB,
-	repo iot.PWAStandaloneUsageRepository,
+	repo usageRepository,
 	summaries platformModels.OperatorSummariesRepository,
 	accountTenants authModels.AccountTenantRepository,
 	settings config.SettingsService,
@@ -98,37 +104,48 @@ func NewUsageService(
 }
 
 func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {
-	usage := &iot.PWAStandaloneUsage{AccountID: accountID, Portal: iot.PushPortalStaff}
-	if err := usage.Validate(); err != nil {
+	if err := validateUsage(accountID, iot.PushPortalStaff); err != nil {
 		return err
 	}
-	return s.repo.RecordSeen(ctx, usage)
+	return s.repo.RecordSeen(ctx, tenant.FromContext(ctx), accountID, iot.PushPortalStaff)
 }
 
 func (s *usageService) ReportParent(ctx context.Context, accountID int64) error {
-	if s.tenantRuntime != nil {
-		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+	if err := validateUsage(accountID, iot.PushPortalParent); err != nil {
+		return err
 	}
-	return tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		mappings, err := s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
+	if s.tenantRuntime != nil {
+		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+	}
+	var mappings []authModels.AccountTenant
+	if err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		mappings, err = s.accountTenants.FindActiveGuardianByAccountID(txCtx, accountID)
 		if err != nil {
 			return fmt.Errorf("resolving guardian tenant mappings: %w", err)
 		}
-		prototype := iot.PWAStandaloneUsage{AccountID: accountID, Portal: iot.PushPortalParent}
-		if err := prototype.Validate(); err != nil {
-			return err
-		}
-		// A guardian mid-offboarding simply has nothing to report — never an
-		// error, the report endpoint is fire-and-forget telemetry.
-		for _, mapping := range mappings {
-			usage := prototype
-			usage.SetTenantID(mapping.TenantID)
-			if err := s.repo.RecordSeen(txCtx, &usage); err != nil {
-				return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
-			}
-		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	// A guardian mid-offboarding simply has nothing to report. Each remaining
+	// mapping gets its own tenant role and RLS boundary after the admin read ends.
+	for _, mapping := range mappings {
+		tenantID, err := tenant.NewTenantID(mapping.TenantID)
+		if err != nil {
+			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
+		}
+		if err := tenant.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+			if err := validateTenantWriteContext(txCtx, mapping.TenantID); err != nil {
+				return err
+			}
+			return s.repo.RecordSeen(txCtx, mapping.TenantID, accountID, iot.PushPortalParent)
+		}); err != nil {
+			return fmt.Errorf("recording pwa usage for tenant %d: %w", mapping.TenantID, err)
+		}
+	}
+	return nil
 }
 
 // CleanupExpiredUsage fails closed when settings are unavailable so no
@@ -150,7 +167,7 @@ func (s *usageService) CleanupExpiredUsage(ctx context.Context) (*CleanupResult,
 	}
 
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
-	deleted, err := s.repo.DeleteLastSeenBefore(ctx, cutoff)
+	deleted, err := s.repo.DeleteLastSeenBefore(ctx, tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("delete expired pwa usage rows: %w", err)
 	}
@@ -165,6 +182,23 @@ func (s *usageService) CleanupExpiredUsage(ctx context.Context) (*CleanupResult,
 	return &CleanupResult{RowsDeleted: deleted, RetentionDays: retentionDays, Cutoff: cutoff}, nil
 }
 
+func validateUsage(accountID int64, portal string) error {
+	if accountID <= 0 {
+		return errors.New("account_id is required")
+	}
+	if portal != iot.PushPortalStaff && portal != iot.PushPortalParent {
+		return errors.New("portal must be 'staff' or 'parent'")
+	}
+	return nil
+}
+
+func validateTenantWriteContext(ctx context.Context, expectedTenantID int64) error {
+	if tenant.IsAdminTx(ctx) || tenant.FromContext(ctx) != expectedTenantID {
+		return errors.New("pwa usage write requires its tenant transaction")
+	}
+	return nil
+}
+
 func (s *usageService) SnapshotUsage() ([]platformModels.SchoolPWAUsageRow, error) {
 	s.snapshotMu.Lock()
 	defer s.snapshotMu.Unlock()
@@ -175,7 +209,7 @@ func (s *usageService) SnapshotUsage() ([]platformModels.SchoolPWAUsageRow, erro
 	var rows []platformModels.SchoolPWAUsageRow
 	ctx := context.Background()
 	if s.tenantRuntime != nil {
-		ctx = tenant.WithRuntime(ctx, *s.tenantRuntime)
+		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 	}
 	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		var qErr error

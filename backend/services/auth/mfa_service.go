@@ -299,10 +299,10 @@ type MFAServiceConfig struct {
 type mfaService struct {
 	MFAServiceConfig
 	mfaSecret     []byte
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
-func (s *mfaService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *mfaService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -310,7 +310,7 @@ func (s *mfaService) withTenantRuntime(ctx context.Context) context.Context {
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // Compile-time assertion that mfaService satisfies MFAService.
