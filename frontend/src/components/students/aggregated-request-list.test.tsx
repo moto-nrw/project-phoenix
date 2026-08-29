@@ -483,6 +483,97 @@ describe("AggregatedRequestList", () => {
     });
   });
 
+  it("ignores a late withdrawal page after the child filter changes", async () => {
+    const oldItems = Array.from({ length: 25 }, (_, index) => ({
+      id: `old-${index + 1}`,
+      studentId: "10",
+      firstName: "Altes",
+      lastName: "Kind",
+      schoolClass: "2a",
+      firstBookinglessDay: "2026-09-01",
+      urgency: "planned" as const,
+      state: "pending" as const,
+    }));
+    let resolveOldPage!: (value: {
+      items: typeof oldItems;
+      total: number;
+      page: number;
+      pageSize: number;
+    }) => void;
+    const oldPage = new Promise<{
+      items: typeof oldItems;
+      total: number;
+      page: number;
+      pageSize: number;
+    }>((resolve) => {
+      resolveOldPage = resolve;
+    });
+    mockListWithdrawals
+      .mockResolvedValueOnce({
+        items: oldItems,
+        total: 26,
+        page: 1,
+        pageSize: 25,
+      })
+      .mockReturnValueOnce(oldPage)
+      .mockResolvedValueOnce({
+        items: [
+          {
+            ...oldItems[0]!,
+            id: "new-1",
+            studentId: "20",
+            firstName: "Neues",
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+      });
+
+    const { rerender } = render(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          studentId: "10",
+          includeCareWithdrawals: true,
+        }}
+      />,
+    );
+    await waitFor(() => expect(mockListWithdrawals).toHaveBeenCalledTimes(2));
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          studentId: "20",
+          includeCareWithdrawals: true,
+        }}
+      />,
+    );
+    expect(
+      await screen.findByRole("button", { name: /Anfrage für Neues Kind/ }),
+    ).toBeVisible();
+
+    await act(async () => {
+      resolveOldPage({
+        items: [{ ...oldItems[0]!, id: "late-old" }],
+        total: 26,
+        page: 2,
+        pageSize: 25,
+      });
+      await oldPage;
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /Anfrage für Altes Kind/ }),
+    ).toBeNull();
+    expect(mockListWithdrawals).toHaveBeenLastCalledWith(
+      expect.objectContaining({ studentId: "20", page: 1 }),
+    );
+  });
+
   it("warns before opening the detailed deletion preview", async () => {
     mockListWithdrawals.mockResolvedValue({
       items: [
@@ -868,6 +959,58 @@ describe("AggregatedRequestList", () => {
     expect(
       screen.queryByRole("button", { name: "Weitere Einträge laden" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("stops automatic paging after an error and retries on request", async () => {
+    const firstPage = Array.from(
+      { length: 25 },
+      (_, index) =>
+        ({
+          request_type: "excused",
+          occurred_at: `2026-08-29T09:${String(index).padStart(2, "0")}:00Z`,
+          student_id: "10",
+          student_name: "Mia Muster",
+          expected_version: `v${index + 1}`,
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: String(index + 1), dates: ["2026-09-01"] },
+        }) as never,
+    );
+    mockListOpen
+      .mockResolvedValueOnce({ items: firstPage, next_cursor: "cursor-1" })
+      .mockRejectedValueOnce(new Error("page unavailable"))
+      .mockResolvedValueOnce({
+        items: [
+          {
+            request_type: "excused",
+            occurred_at: "2026-08-28T09:00:00Z",
+            student_id: "10",
+            student_name: "Mia Muster",
+            expected_version: "v26",
+            urgent_today: false,
+            bulk_eligible: true,
+            data: { id: "26", dates: ["2026-09-01"] },
+          } as never,
+        ],
+      });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(
+      await screen.findByText("Weitere Anfragen konnten nicht geladen werden."),
+    ).toBeVisible();
+    await act(async () => {});
+    expect(mockListOpen).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Einträge laden" }),
+    );
+
+    expect(await screen.findByText("excused-item-26")).toBeVisible();
+    expect(mockListOpen).toHaveBeenCalledTimes(3);
+    expect(
+      screen.queryByText("Weitere Anfragen konnten nicht geladen werden."),
+    ).toBeNull();
   });
 
   it("lädt weitere Historien-Einträge über den Cursor nach", async () => {

@@ -949,6 +949,7 @@ function useFeedLifecycle(
     const generation = ++generationRef.current;
     feedRef.current = feed;
     loadingRef.current = true;
+    loadMoreRef.current = false;
     const page = takeInitialFeed(sources, feed, view).finally(() => {
       if (generation === generationRef.current) loadingRef.current = false;
     });
@@ -1002,10 +1003,13 @@ function useMergedRequestFeed(
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lifecycle = useFeedLifecycle(sources, view);
+  useEffect(() => setAutoLoadFailed(false), [sources, view]);
   useInitialFeed(lifecycle.start, setItems, setHasMore, setLoading, setError);
   const reload = useCallback(async () => {
+    setAutoLoadFailed(false);
     const { generation, page } = lifecycle.start();
     try {
       const result = await page;
@@ -1041,21 +1045,32 @@ function useMergedRequestFeed(
       if (generation !== lifecycle.generationRef.current) return;
       setItems((current) => [...current, ...page.items]);
       setHasMore(page.hasMore);
+      setAutoLoadFailed(false);
     } catch (err) {
       if (generation === lifecycle.generationRef.current) {
         logger.warn("aggregated_request_list_load_more_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Weitere Anfragen konnten nicht geladen werden.");
+        setAutoLoadFailed(true);
       }
     } finally {
-      lifecycle.loadMoreRef.current = false;
-      setLoadingMore(false);
+      if (generation === lifecycle.generationRef.current) {
+        lifecycle.loadMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }, [hasMore, lifecycle, sources]);
   useEffect(() => {
-    if (view === "open" && hasMore && !loading && !loadingMore) void loadMore();
-  }, [hasMore, loadMore, loading, loadingMore, view]);
+    if (
+      view === "open" &&
+      hasMore &&
+      !loading &&
+      !loadingMore &&
+      !autoLoadFailed
+    )
+      void loadMore();
+  }, [autoLoadFailed, hasMore, loadMore, loading, loadingMore, view]);
   return {
     items,
     setItems,
@@ -1091,16 +1106,19 @@ async function fetchWithdrawalPage(
 function useWithdrawalFeed(
   view: "open" | "history",
   filters: AggregatedRequestFilters,
-  reportError: (message: string) => void,
+  reportError: (message: string | null) => void,
 ) {
   const [items, setItems] = useState<CareWithdrawalCompletion[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   const nextPageRef = useRef(2);
   const generationRef = useRef(0);
   const load = useCallback(async () => {
     const generation = ++generationRef.current;
+    setAutoLoadFailed(false);
+    setLoadingMore(false);
     try {
       const page = await fetchWithdrawalPage(view, filters, 1);
       if (generation !== generationRef.current) return;
@@ -1125,22 +1143,36 @@ function useWithdrawalFeed(
   }, [filters.includeCareWithdrawals, load]);
   const loadMore = useCallback(async () => {
     if (!hasMore || loadingMore) return;
+    const generation = generationRef.current;
     setLoadingMore(true);
+    reportError(null);
     try {
       const pageNumber = nextPageRef.current;
       const page = await fetchWithdrawalPage(view, filters, pageNumber);
+      if (generation !== generationRef.current) return;
       setItems((current) => [...current, ...page.items]);
       setHasMore(pageNumber * WITHDRAWAL_PAGE_SIZE < page.total);
       nextPageRef.current = pageNumber + 1;
+      setAutoLoadFailed(false);
     } catch {
-      reportError("Weitere Abmeldungen konnten nicht geladen werden.");
+      if (generation === generationRef.current) {
+        setAutoLoadFailed(true);
+        reportError("Weitere Abmeldungen konnten nicht geladen werden.");
+      }
     } finally {
-      setLoadingMore(false);
+      if (generation === generationRef.current) setLoadingMore(false);
     }
   }, [filters, hasMore, loadingMore, reportError, view]);
   useEffect(() => {
-    if (view === "open" && hasMore && !loading && !loadingMore) void loadMore();
-  }, [hasMore, loadMore, loading, loadingMore, view]);
+    if (
+      view === "open" &&
+      hasMore &&
+      !loading &&
+      !loadingMore &&
+      !autoLoadFailed
+    )
+      void loadMore();
+  }, [autoLoadFailed, hasMore, loadMore, loading, loadingMore, view]);
   return { items, setItems, loading, loadingMore, hasMore, load, loadMore };
 }
 
