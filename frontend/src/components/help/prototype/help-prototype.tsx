@@ -3,8 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronRight, CircleHelp, Info } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  CircleHelp,
+  ExternalLink,
+  Info,
+  MessageCircleQuestion,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ButtonLink } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import {
   getPrototypeTopics,
@@ -14,6 +22,26 @@ import {
   type PrototypeSchoolyard,
   type PrototypeTopic,
 } from "./prototype-data";
+
+const CHATGPT_URL = "https://chatgpt.com/";
+
+function chatGptUrlFor(
+  documentationUrl: string,
+  topic?: PrototypeTopic,
+): string {
+  const prompt = [
+    `Ich sehe mir diese moto-Hilfe an: ${documentationUrl}`,
+    topic ? `Das aktuelle Thema ist: ${topic.question}` : null,
+    "Helfen Sie mir, die Anleitung zu verstehen.",
+    "Nutzen Sie die verlinkte Hilfe als Grundlage.",
+    "Erklären Sie die Schritte einfach und konkret.",
+  ]
+    .filter((line): line is string => line != null)
+    .join("\n");
+  const chatGptUrl = new URL(CHATGPT_URL);
+  chatGptUrl.searchParams.set("prompt", prompt);
+  return chatGptUrl.toString();
+}
 
 function isRole(value: string | null): value is PrototypeRole {
   return value === "caregiver" || value === "lead";
@@ -47,21 +75,46 @@ function InlineCode({ text }: Readonly<{ text: string }>) {
   );
 }
 
-function PrototypeMobileHeader() {
+function ChatGptPrototypeLink({
+  className,
+  href,
+}: Readonly<{ className?: string; href: string }>) {
+  return (
+    <ButtonLink
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      variant="surface"
+      size="md"
+      className={cn("gap-2 whitespace-nowrap", className)}
+    >
+      <MessageCircleQuestion className="h-4 w-4" aria-hidden="true" />
+      Frag ChatGPT
+      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+    </ButtonLink>
+  );
+}
+
+function PrototypeMobileHeader({
+  chatGptHref,
+}: Readonly<{ chatGptHref: string }>) {
   return (
     <header className="border-b border-gray-200 bg-white px-4 py-4 lg:hidden print:hidden">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/help/prototype"
-          className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
-        >
-          <span className="text-xl font-bold tracking-tight text-gray-950">
-            moto Hilfe
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            href="/help/prototype"
+            className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <span className="text-xl font-bold tracking-tight text-gray-950">
+              moto Hilfe
+            </span>
+          </Link>
+          <span className="bg-moto-orange/12 text-moto-orange-strong hidden rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase sm:inline-flex">
+            Prototyp
           </span>
-        </Link>
-        <span className="bg-moto-orange/12 text-moto-orange-strong rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase">
-          Prototyp
-        </span>
+        </div>
+        <ChatGptPrototypeLink href={chatGptHref} className="shrink-0 px-3" />
       </div>
     </header>
   );
@@ -76,6 +129,7 @@ function TopicImage({ topic }: Readonly<{ topic: PrototypeTopic }>) {
         alt={topic.imageAlt}
         width={1280}
         height={800}
+        priority
         className="h-auto w-full"
       />
       <figcaption className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
@@ -131,11 +185,13 @@ function SidebarPrototype({
   topics,
   role,
   hrefFor,
+  chatGptHref,
 }: Readonly<{
   topic?: PrototypeTopic;
   topics: readonly PrototypeTopic[];
   role: PrototypeRole;
   hrefFor: (topicId?: string) => string;
+  chatGptHref: string;
 }>) {
   const topicsById = new Map(topics.map((item) => [item.id, item]));
   const groupOrder =
@@ -193,6 +249,9 @@ function SidebarPrototype({
           <span className="bg-moto-orange/12 text-moto-orange-strong rounded-full px-2.5 py-1 text-xs font-bold tracking-wide uppercase">
             Prototyp
           </span>
+        </div>
+        <div className="border-b border-gray-200 px-5 py-4">
+          <ChatGptPrototypeLink href={chatGptHref} className="w-full" />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
           <p className="text-moto-blue-strong text-xs font-bold tracking-wide uppercase">
@@ -345,6 +404,20 @@ export function HelpPrototype() {
     [presenceMode, role, schoolyard, searchParams],
   );
 
+  const currentHelpPath = hrefFor(topicId);
+  const [documentationUrl, setDocumentationUrl] = useState(currentHelpPath);
+
+  useEffect(() => {
+    setDocumentationUrl(
+      new URL(currentHelpPath, window.location.origin).toString(),
+    );
+  }, [currentHelpPath]);
+
+  const chatGptHref = useMemo(
+    () => chatGptUrlFor(documentationUrl, topic),
+    [documentationUrl, topic],
+  );
+
   useEffect(() => {
     if (!topicId && window.location.hash) {
       const legacyTopicId = window.location.hash.slice(1);
@@ -362,7 +435,7 @@ export function HelpPrototype() {
 
   return (
     <div className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen bg-gray-50 pb-12">
-      <PrototypeMobileHeader />
+      <PrototypeMobileHeader chatGptHref={chatGptHref} />
       {invalidTopic ? (
         <main className="mx-auto w-full max-w-2xl px-4 py-16 text-center sm:px-6">
           <CircleHelp
@@ -388,6 +461,7 @@ export function HelpPrototype() {
           topics={topics}
           role={role}
           hrefFor={hrefFor}
+          chatGptHref={chatGptHref}
         />
       )}
     </div>

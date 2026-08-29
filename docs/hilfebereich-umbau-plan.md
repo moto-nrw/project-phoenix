@@ -79,6 +79,12 @@ zeigt außerdem, wie ein alter Hash-Link im Browser auf eine Themenseite wechsel
 Produktionslösung muss diese Weiterleitung so kapseln, dass Druck- und PDF-Ansichten unverändert
 bleiben.
 
+Ein kompakter Einstieg „Frag ChatGPT“ steht oben in der festen Seitenleiste und im mobilen Kopf.
+Er öffnet ChatGPT mit einem vorausgefüllten Prompt. Der Prompt nennt die Adresse der aktuell
+geöffneten Hilfeseite und das aktuelle Thema. Damit lässt sich der Übergang ohne eigenen GPT und
+ohne API-Anbindung erproben. Der Parameter `prompt` ist in der offiziellen OpenAI-Dokumentation
+nicht beschrieben und bleibt deshalb vorerst eine Prototyp-Annahme.
+
 ## 3. Arbeitspakete
 
 ### Strang P — klickbarer Prototyp für #2229
@@ -97,8 +103,14 @@ Hilfebereich nicht als Auswahl gezeigt: Die App setzt sie beim Einstieg. Alte Ha
 Prototyp clientseitig auf die passende Themenseite übertragen.
 
 **P4 · Responsive Prüfung** — Größe S
-Alle Varianten werden auf Desktop, Tablet und Smartphone geprüft. Suche, Navigation, Direktlinks
-und Querverweise müssen anklickbar sein. Es gibt keine schreibenden Aktionen.
+Die ausgewählte Seitenleisten-Lösung wird auf Desktop, Tablet und Smartphone geprüft. Navigation,
+Direktlinks, Querverweise und der ChatGPT-Einstieg müssen anklickbar sein. Es gibt keine
+schreibenden Aktionen.
+
+**P4a · ChatGPT-Einstieg erproben** — Größe S
+Ein kompakter Link oben prüft Platzierung, Beschriftung und den Wechsel zu einem externen Chat. Der
+Prompt übergibt die aktuelle Hilfe-Adresse und das Thema. ChatGPT muss die öffentliche Hilfeseite
+selbst aufrufen können. Der Link überträgt keine Daten aus dem angemeldeten Bereich.
 
 **P5 · Entscheidung dokumentieren** — extern abhängig
 Das Team bestätigt die ausgewählte Seitenleiste oder benennt nötige Anpassungen. Ergebnis und
