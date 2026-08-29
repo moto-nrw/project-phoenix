@@ -1,10 +1,9 @@
-package config_test
+package config
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,27 +13,27 @@ func TestSettingValue_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		sv      config.SettingValue
+		sv      SettingValue
 		wantErr string
 	}{
 		{
 			name:    "valid",
-			sv:      config.SettingValue{SettingKey: "test.key", Value: json.RawMessage(`"hello"`)},
+			sv:      SettingValue{SettingKey: "test.key", Value: json.RawMessage(`"hello"`)},
 			wantErr: "",
 		},
 		{
 			name:    "missing key",
-			sv:      config.SettingValue{Value: json.RawMessage(`"hello"`)},
+			sv:      SettingValue{Value: json.RawMessage(`"hello"`)},
 			wantErr: "setting_key is required",
 		},
 		{
 			name:    "missing value",
-			sv:      config.SettingValue{SettingKey: "test.key"},
+			sv:      SettingValue{SettingKey: "test.key"},
 			wantErr: "value is required",
 		},
 		{
 			name:    "empty value",
-			sv:      config.SettingValue{SettingKey: "test.key", Value: json.RawMessage{}},
+			sv:      SettingValue{SettingKey: "test.key", Value: json.RawMessage{}},
 			wantErr: "value is required",
 		},
 	}
@@ -55,7 +54,7 @@ func TestSettingValue_Validate(t *testing.T) {
 func TestSettingValue_GetID(t *testing.T) {
 	t.Parallel()
 
-	sv := &config.SettingValue{}
+	sv := &SettingValue{}
 	sv.ID = 42
 	assert.Equal(t, int64(42), sv.GetID())
 }
@@ -63,13 +62,13 @@ func TestSettingValue_GetID(t *testing.T) {
 func TestSettingValue_GetCreatedAt(t *testing.T) {
 	t.Parallel()
 
-	sv := &config.SettingValue{}
+	sv := &SettingValue{}
 	assert.True(t, sv.GetCreatedAt().IsZero())
 }
 
 func TestSettingValue_GetUpdatedAt(t *testing.T) {
 	t.Parallel()
 
-	sv := &config.SettingValue{}
+	sv := &SettingValue{}
 	assert.True(t, sv.GetUpdatedAt().IsZero())
 }

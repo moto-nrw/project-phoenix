@@ -1,27 +1,28 @@
-package config_test
+package config
 
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/config"
 )
+
+func newTestDate(year int, month time.Month, day int) CalendarDate {
+	return CalendarDate{Year: year, Month: month, Day: day}
+}
 
 func TestResolveWeekIndex(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.January, 5) // Anchor week, A
+	monday := newTestDate(2026, time.January, 5) // Anchor week, A
 	cases := []struct {
 		name     string
 		rotation int
-		date     timezone.Date
+		date     CalendarDate
 		want     int
 	}{
 		{
 			name:     "single-week rotation always returns 0",
 			rotation: 1,
-			date:     timezone.NewDate(2026, time.June, 1),
+			date:     newTestDate(2026, time.June, 1),
 			want:     0,
 		},
 		{
@@ -64,7 +65,7 @@ func TestResolveWeekIndex(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := config.ResolveWeekIndex(tc.rotation, monday, tc.date)
+			got := ResolveWeekIndex(tc.rotation, monday, tc.date)
 			if got != tc.want {
 				t.Fatalf("ResolveWeekIndex(rotation=%d, date=%s) = %d, want %d",
 					tc.rotation, tc.date.String(), got, tc.want)
@@ -76,10 +77,10 @@ func TestResolveWeekIndex(t *testing.T) {
 func TestWorkTimeModelValidate(t *testing.T) {
 	t.Parallel()
 
-	anchor := timezone.NewDate(2026, time.January, 5)
+	anchor := newTestDate(2026, time.January, 5)
 
 	t.Run("valid model passes", func(t *testing.T) {
-		m := &config.WorkTimeModel{
+		m := &WorkTimeModel{
 			Name:               "Standard 40h",
 			RotationLength:     1,
 			RotationAnchorDate: anchor,
@@ -90,7 +91,7 @@ func TestWorkTimeModelValidate(t *testing.T) {
 	})
 
 	t.Run("rotation > max rejected", func(t *testing.T) {
-		m := &config.WorkTimeModel{
+		m := &WorkTimeModel{
 			Name:               "Invalid",
 			RotationLength:     5,
 			RotationAnchorDate: anchor,
@@ -101,7 +102,7 @@ func TestWorkTimeModelValidate(t *testing.T) {
 	})
 
 	t.Run("missing name rejected", func(t *testing.T) {
-		m := &config.WorkTimeModel{
+		m := &WorkTimeModel{
 			RotationLength:     1,
 			RotationAnchorDate: anchor,
 		}
@@ -111,7 +112,7 @@ func TestWorkTimeModelValidate(t *testing.T) {
 	})
 
 	t.Run("zero anchor rejected", func(t *testing.T) {
-		m := &config.WorkTimeModel{
+		m := &WorkTimeModel{
 			Name:           "x",
 			RotationLength: 1,
 		}
@@ -125,7 +126,7 @@ func TestWorkTimeModelEntryValidate(t *testing.T) {
 	t.Parallel()
 
 	t.Run("week_index out of bounds rejected", func(t *testing.T) {
-		e := &config.WorkTimeModelEntry{
+		e := &WorkTimeModelEntry{
 			ModelID:       1,
 			WeekIndex:     4,
 			DayOfWeek:     0,
@@ -137,7 +138,7 @@ func TestWorkTimeModelEntryValidate(t *testing.T) {
 	})
 
 	t.Run("target above 12h rejected", func(t *testing.T) {
-		e := &config.WorkTimeModelEntry{
+		e := &WorkTimeModelEntry{
 			ModelID:       1,
 			WeekIndex:     0,
 			DayOfWeek:     0,
@@ -152,10 +153,10 @@ func TestWorkTimeModelEntryValidate(t *testing.T) {
 func TestStaffWorkScheduleValidate(t *testing.T) {
 	t.Parallel()
 
-	anchor := timezone.NewDate(2026, time.January, 5)
+	anchor := newTestDate(2026, time.January, 5)
 
 	t.Run("week_index outside rotation rejected", func(t *testing.T) {
-		s := &config.StaffWorkSchedule{
+		s := &StaffWorkSchedule{
 			StaffID:        42,
 			WeekIndex:      2,
 			RotationLength: 2,
@@ -169,7 +170,7 @@ func TestStaffWorkScheduleValidate(t *testing.T) {
 	})
 
 	t.Run("rotation 1 is the default and accepts week_index 0", func(t *testing.T) {
-		s := &config.StaffWorkSchedule{
+		s := &StaffWorkSchedule{
 			StaffID:        42,
 			WeekIndex:      0,
 			RotationLength: 1,

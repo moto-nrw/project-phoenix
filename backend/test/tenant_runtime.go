@@ -156,6 +156,13 @@ func WithTenantTx(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64
 	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, fn)
 }
 
+func WithinTenantContext(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context) error) error {
+	tb.Helper()
+	return WithTenantTx(tb, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return fn(txCtx)
+	})
+}
+
 func WithAdminTx(tb testing.TB, ctx context.Context, db *bun.DB, fn func(context.Context, bun.Tx) error) error {
 	tb.Helper()
 	return tenant.WithAdminTx(WithTenantRuntime(tb, ctx, db), db, fn)
