@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -22,8 +21,6 @@ const (
 // pattern (e.g. "Vollzeit 40h Mo-Fr" or "Teilzeit 30h A/B"). Multiple staff
 // members can share a model, and a model can span up to four rotation weeks.
 type WorkTimeModel struct {
-	bun.BaseModel `bun:"schema:config,table:work_time_models"`
-
 	ID                 int64         `bun:"id,pk,autoincrement" json:"id"`
 	TenantID           int64         `bun:"tenant_id,notnull" json:"tenant_id"`
 	Name               string        `bun:"name,notnull" json:"name"`
@@ -54,8 +51,6 @@ func (m *WorkTimeModel) Validate() error {
 // slot inside a model. UNIQUE(model_id, week_index, day_of_week) is enforced at
 // the schema level.
 type WorkTimeModelEntry struct {
-	bun.BaseModel `bun:"schema:config,table:work_time_model_entries"`
-
 	ID            int64      `bun:"id,pk,autoincrement" json:"id"`
 	ModelID       int64      `bun:"model_id,notnull" json:"model_id"`
 	WeekIndex     int        `bun:"week_index,notnull" json:"week_index"`
