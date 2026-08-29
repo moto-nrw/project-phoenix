@@ -565,7 +565,11 @@ function TenantPageTabs({
   );
 
   return (
-    <div className="-mx-5 mt-4">
+    // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
+    // die volle Kartenbreite. Die Auswahlliste auf dem Telefon ist kein Band,
+    // sondern ein Bedienelement -- sie steht im Innenrand der Karte wie das
+    // Suchfeld darunter.
+    <div className="mt-4 sm:-mx-5">
       {/* Unter sm eine Auswahlliste: sieben Reiter nebeneinander wären auf
           einem Telefon eine Scrollleiste, in der die Hälfte der Bereiche
           unsichtbar bleibt. Dieselbe Bauart, andere Form -- kein Sonderweg

@@ -1492,7 +1492,14 @@ function StudentQuickActions({
   if (!showCheckout && !showCheckin && !hasAbsenceWriteAccess) return null;
 
   return (
-    <div className="flex gap-3 sm:gap-4" aria-label="Schnellaktionen">
+    // Auf dem Telefon zwei Spalten: vier Karten nebeneinander passen bei
+    // 390 px nicht, und „Entschuldigen" ist ein Wort, das sich nicht umbrechen
+    // laesst -- die Zeile lief rechts aus dem Bild, das Menue war gar nicht
+    // erreichbar. Ab sm stehen sie wieder in einer Reihe.
+    <div
+      className="grid grid-cols-2 gap-3 sm:flex sm:gap-4"
+      aria-label="Schnellaktionen"
+    >
       {showCheckout && (
         <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
       )}
