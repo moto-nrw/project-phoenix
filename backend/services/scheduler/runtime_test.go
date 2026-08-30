@@ -3,13 +3,39 @@ package scheduler
 import (
 	"context"
 	"log/slog"
+	"testing"
+	"time"
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
 )
 
 const schedulerUnitTenantID int64 = 1
+
+func TestStopCancelsRunningTaskContexts(t *testing.T) {
+	scheduler := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
+	ctx, cancel := scheduler.taskContext(time.Hour)
+	defer cancel()
+
+	stopped := make(chan struct{})
+	scheduler.wg.Add(1)
+	go func() {
+		defer scheduler.wg.Done()
+		<-ctx.Done()
+		close(stopped)
+	}()
+
+	scheduler.Stop()
+
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	select {
+	case <-stopped:
+	default:
+		t.Fatal("scheduler stopped before its task context was cancelled")
+	}
+}
 
 func newUnitScheduler(
 	activeService activeSvc.Service,

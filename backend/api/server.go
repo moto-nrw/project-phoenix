@@ -382,10 +382,11 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	if err := runtime.server.Shutdown(ctx); err != nil {
+		closeErr := runtime.server.Close()
 		<-schedulerStopped
 		return errors.Join(
 			fmt.Errorf("shutdown HTTP server: %w", err),
-			runtime.server.Close(),
+			closeErr,
 		)
 	}
 	<-schedulerStopped
