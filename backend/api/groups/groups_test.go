@@ -877,10 +877,6 @@ func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-// =============================================================================
-// AUTHORIZATION HELPER TESTS - isUserGroupLeader
-// =============================================================================
-
 func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	t.Parallel()
 

@@ -219,22 +219,6 @@ func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
 	return len(students)
 }
 
-// isUserGroupLeader checks if the given teacher is a leader of the specified group.
-// Returns true if the teacher leads the group, false otherwise.
-func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, groupID int64) (bool, error) {
-	myGroups, err := rs.EducationService.GetTeacherGroups(ctx, teacherID)
-	if err != nil {
-		return false, err
-	}
-
-	for _, group := range myGroups {
-		if group.ID == groupID {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 // userHasGroupAccess checks if the current user has access to the specified group.
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
