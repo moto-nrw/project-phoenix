@@ -3,11 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,11 +22,11 @@ func TestFixedSeederSeedGroupHandover(t *testing.T) {
 			EndDate       string `json:"end_date"`
 		} `json:"group_handover"`
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		method, path = r.Method, r.URL.Path
 		decodeErr = json.NewDecoder(r.Body).Decode(&request)
-		w.WriteHeader(http.StatusCreated)
-	}))
+		w.WriteHeader(seedHTTPStatusCreated)
+	})
 	defer server.Close()
 
 	seeder := NewFixedSeeder(newTestClient(server.URL, false), false, "")
@@ -38,14 +35,14 @@ func TestFixedSeederSeedGroupHandover(t *testing.T) {
 	require.NoError(t, seeder.seedGroupHandover(context.Background()))
 
 	require.NoError(t, decodeErr)
-	require.Equal(t, http.MethodPost, method)
+	require.Equal(t, seedHTTPMethodPost, method)
 	require.Equal(t, "/api/substitutions", path)
 	require.Equal(t, "group_handover", request.Type)
 	require.Equal(t, int64(12), request.GroupHandover.GroupID)
 	require.Equal(t, int64(34), request.GroupHandover.TargetStaffID)
-	start, err := timezone.ParseDate(request.GroupHandover.StartDate)
+	start, err := parseSeedDate(request.GroupHandover.StartDate)
 	require.NoError(t, err)
-	end, err := timezone.ParseDate(request.GroupHandover.EndDate)
+	end, err := parseSeedDate(request.GroupHandover.EndDate)
 	require.NoError(t, err)
 	require.Equal(t, start.AddDays(2), end)
 }

@@ -216,7 +216,7 @@ func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, wor
 	if err != nil || phase == nil {
 		return fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
-	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase)
+	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase, s.todayDate())
 	if err != nil {
 		return err
 	}
@@ -658,11 +658,12 @@ func grandfatheredOfferingsFromLinks(links []*enrollmentModels.RequestChildOffer
 func validateAdjustmentEffectiveFrom(
 	effectiveFrom *timezone.Date,
 	phase *enrollmentModels.Phase,
+	today timezone.Date,
 ) (*timezone.Date, error) {
 	if effectiveFrom == nil {
 		return nil, nil
 	}
-	if effectiveFrom.Before(timezone.TodayDate()) {
+	if effectiveFrom.Before(today) {
 		return nil, fmt.Errorf("%w: effective_from must not be in the past", ErrOfferingAdjustmentInvalid)
 	}
 	if effectiveFrom.After(phase.ServiceEndDate) {
@@ -1063,7 +1064,7 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	// materializeEnrollments reconciled the templates the NEW selection plans;
 	// templates only the OLD selection planned still carry the child on
 	// already-materialized future occurrences (#2147 review).
-	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, previousGroups, enrollmentRewriteBoundary(nil))
+	return s.reconcileEnrollmentInstanceRosters(ctx, studentID, previousGroups, s.enrollmentRewriteBoundary(nil))
 }
 
 // enrollmentGroupIDsForRequestChild returns the activity groups the child's
@@ -1135,7 +1136,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 	if err := s.persistCareEnrollmentDrafts(ctx, requestChildID, studentID, phase, drafts, &effectiveFrom); err != nil {
 		return err
 	}
-	if err := s.reconcileEnrollmentInstanceRosters(ctx, studentID, affectedGroups, enrollmentRewriteBoundary(&effectiveFrom)); err != nil {
+	if err := s.reconcileEnrollmentInstanceRosters(ctx, studentID, affectedGroups, s.enrollmentRewriteBoundary(&effectiveFrom)); err != nil {
 		return err
 	}
 	// Multi-source templates were deliberately not drafted (see
@@ -1144,7 +1145,7 @@ func (s *decisionService) splitAdjustedEnrollments(
 	// keeps through ANOTHER of the template's source offerings after leaving
 	// this one. Scoped to this child: a dated switch must not reconcile other
 	// children's rows as a side effect.
-	return s.resyncMultiSourceTemplates(ctx, multiSource, enrollmentRewriteBoundary(&effectiveFrom), []int64{requestChildID})
+	return s.resyncMultiSourceTemplates(ctx, multiSource, s.enrollmentRewriteBoundary(&effectiveFrom), []int64{requestChildID})
 }
 
 func (s *decisionService) reconcileAdjustedEnrollment(

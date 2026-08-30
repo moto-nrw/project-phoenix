@@ -113,7 +113,7 @@ func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		}
 		// Resolve "today" once and carry it on the view so the wire response can
 		// report the exact day today_absent was computed against (#1725 review).
-		today := timezone.TodayDate()
+		today := s.todayDate()
 		absent, err := s.hasActiveAbsenceToday(txCtx, studentID, today)
 		if err != nil {
 			return err
@@ -171,7 +171,7 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
@@ -383,7 +383,7 @@ func (s *service) EditCareScheduleRequest(
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		if _, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{

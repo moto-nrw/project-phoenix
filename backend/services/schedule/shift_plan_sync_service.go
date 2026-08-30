@@ -42,6 +42,14 @@ type shiftPlanSyncService struct {
 	broadcaster       realtime.Broadcaster
 	db                *bun.DB
 	logger            *slog.Logger
+	today             func() timezone.Date
+}
+
+func (s *shiftPlanSyncService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
 }
 
 // NewShiftPlanSyncService wires the #1843 cascade. All dependencies are the
@@ -56,8 +64,9 @@ func NewShiftPlanSyncService(
 	broadcaster realtime.Broadcaster,
 	db *bun.DB,
 	logger *slog.Logger,
+	today ...func() timezone.Date,
 ) active.ShiftPlanSyncer {
-	return &shiftPlanSyncService{
+	service := &shiftPlanSyncService{
 		shifts:            shifts,
 		instances:         instances,
 		timetableData:     timetableData,
@@ -67,6 +76,10 @@ func NewShiftPlanSyncService(
 		db:                db,
 		logger:            logger,
 	}
+	if len(today) > 0 {
+		service.today = today[0]
+	}
+	return service
 }
 
 func (s *shiftPlanSyncService) getLogger() *slog.Logger {
@@ -125,7 +138,7 @@ func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in a
 		daySet[d] = true
 	}
 	reason := sickShiftChangeReason
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	for _, shift := range shifts {
 		if !daySet[shift.Date] {
 			continue // boundary half days never cascade
@@ -167,7 +180,7 @@ func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in a
 func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in active.SickCascadeInput, days []timezone.Date, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	reason := sickBlockAbsenceReason
 	for _, d := range days {
 		if d.Before(today) {
@@ -321,7 +334,7 @@ func (s *shiftPlanSyncService) reconcileAddedSickDays(ctx context.Context, after
 }
 
 func (s *shiftPlanSyncService) acquireCascadeDayLocks(ctx context.Context, days map[timezone.Date]bool) error {
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	for _, day := range sortedDateSet(days) {
 		if day.Before(today) {
 			continue
@@ -338,7 +351,7 @@ func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in a
 	if err != nil {
 		return fmt.Errorf("sick clear: load stamped shifts: %w", err)
 	}
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	for _, shift := range shifts {
 		if onlyDays != nil && !onlyDays[shift.Date] {
 			continue
@@ -427,7 +440,7 @@ func (s *shiftPlanSyncService) loadStampedBlockRows(ctx context.Context, absence
 }
 
 func (s *shiftPlanSyncService) classifyStampedBlockRows(ctx context.Context, rows []*scheduleModel.InstanceStaff, onlyDays map[timezone.Date]bool) (map[timezone.Date][]stampedSickBlockRow, []*scheduleModel.InstanceStaff, error) {
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	byDay := make(map[timezone.Date][]stampedSickBlockRow)
 	var releaseOnly []*scheduleModel.InstanceStaff
 	for _, row := range rows {

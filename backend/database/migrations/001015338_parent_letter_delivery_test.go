@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -38,7 +37,7 @@ func TestParentLetterDeliveryRLS(t *testing.T) {
 	assert.True(t, enabled, "platform.email_delivery must enable RLS")
 	assert.True(t, forced, "platform.email_delivery must force RLS")
 
-	err := testpkg.WithTenantTx(t, ctx, db, tenantA, func(ctx context.Context, tx bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, db, tenantA, func(ctx context.Context, tx testpkg.Tx) error {
 		var visible int
 		if err := tx.NewRaw(`SELECT count(*) FROM platform.email_delivery`).Scan(ctx, &visible); err != nil {
 			return err

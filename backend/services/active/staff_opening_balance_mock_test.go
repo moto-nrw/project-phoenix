@@ -29,7 +29,7 @@ func TestStaffBalanceAdjustmentService_OpeningAllowsNegativeTarget(t *testing.T)
 	month := &recordingBalanceMonthService{events: &events, balance: 0}
 	service := newRecordingBalanceAdjustmentService(&events, repo, month)
 
-	effectiveDate := timezone.TodayDate().AddDays(-1)
+	effectiveDate := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	adjustment, err := service.CreateOpeningBalance(
 		context.Background(),
 		staffID,

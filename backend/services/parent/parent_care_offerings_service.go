@@ -102,7 +102,7 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 	view := &ChildCareOfferings{
 		Offerings: []CareOfferingSelection{},
 	}
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	var period *enrollmentModels.StudentCarePeriod
 	var canRequest bool
 	var changesDisabledReason string
@@ -281,7 +281,7 @@ func (s *service) CreateOfferingChangeRequest(
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		created, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
@@ -344,7 +344,7 @@ func (s *service) EditOfferingChangeRequest(
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, enrollmentSvc.CreateOfferingChangeInput{

@@ -44,7 +44,10 @@ const supervisionPermission = "supervision:own"
 func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t)
+	clock := func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	}
+	db, factory := testutil.SetupAPITest(t, clock)
 	tenantID := testpkg.Tenant(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
@@ -54,7 +57,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	testpkg.EnsureWebManualDevice(t, db)
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	router := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory), nil, nil).Router()
+	router := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory, clock), nil, nil).Router()
 
 	return &supervisionFixture{
 		db:       db,
@@ -75,7 +78,7 @@ func (f *supervisionFixture) todayInstance(t *testing.T, title string) *schedule
 	t.Helper()
 
 	room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", title, time.Now().UnixNano()))
-	return testpkg.CreateTestActivityInstance(t, f.db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+	return testpkg.CreateTestActivityInstance(t, f.db, timezone.NewDate(2026, 8, 24), room.ID, testpkg.ActivityInstanceOpts{
 		Title: title,
 	})
 }
@@ -191,8 +194,8 @@ func TestSchoolSupervisionsAreBoundToToday(t *testing.T) {
 		name string
 		date timezone.Date
 	}{
-		{name: "nächste Woche", date: timezone.TodayDate().AddDays(7)},
-		{name: "vergangener Block", date: timezone.TodayDate().AddDays(-14)},
+		{name: "nächste Woche", date: timezone.NewDate(2026, 8, 24).AddDays(7)},
+		{name: "vergangener Block", date: timezone.NewDate(2026, 8, 24).AddDays(-14)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", tc.name, time.Now().UnixNano()))
@@ -309,7 +312,7 @@ func TestSchoolSupervisionStudentBoundary(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, f.db, mine.ID, careEnded.ID, scheduleModel.AttendanceStatusExpected)
 	_, err = f.db.NewUpdate().
 		TableExpr("users.students").
-		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Set("enrolled_until = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
 		Where("id = ?", careEnded.ID).
 		Exec(testpkg.TenantContext(f.tenantID))
 	require.NoError(t, err)
@@ -328,7 +331,7 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	otherCtx := testpkg.TenantContext(otherTenantID)
 
 	foreign := &scheduleModel.ActivityInstance{
-		Date:      timezone.TodayDate(),
+		Date:      timezone.NewDate(2026, 8, 24),
 		Title:     "Fremde Schule",
 		StartTime: timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
 		EndTime:   timezone.NormalizeWallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),

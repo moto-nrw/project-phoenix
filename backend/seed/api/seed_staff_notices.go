@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // seedStaffNoticesStep creates notices that make the Tagesinformationen page
@@ -15,7 +13,7 @@ type seedStaffNoticesStep struct{}
 func (seedStaffNoticesStep) Name() string { return "Seeding staff notices" }
 
 func (seedStaffNoticesStep) Run(_ context.Context, rt *Runtime) error {
-	today := timezone.TodayDate()
+	today := todaySeedDate()
 	isoWeekday := int16((int(today.Weekday())+6)%7 + 1)
 	notices := []map[string]any{
 		{

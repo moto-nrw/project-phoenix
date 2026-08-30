@@ -314,7 +314,7 @@ func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
 		GradeLevels:      in.Fields.SourceGradeLevels,
 		SchoolClasses:    in.Fields.SourceSchoolClasses,
 		CalendarPeriodID: in.CalendarPeriodID,
-		EffectiveFrom:    offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
+		EffectiveFrom:    offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom, s.deps.Today()),
 	}); err != nil {
 		return &ScheduleError{Op: "update template: resync offering roster", Err: err}
 	}
@@ -328,12 +328,12 @@ func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
 // EffectiveFrom and caps earlier ones AT it, so a past boundary would rewrite
 // roster history that was already effective. Today is the earliest honest
 // edit boundary; a future schedule start stays as-is (#2147 review).
-func offeringResyncBoundary(rosterValidFrom timezone.Date, scheduleValidFrom *timezone.Date) timezone.Date {
+func offeringResyncBoundary(rosterValidFrom timezone.Date, scheduleValidFrom *timezone.Date, today timezone.Date) timezone.Date {
 	effectiveFrom := rosterValidFrom
 	if scheduleValidFrom != nil {
 		effectiveFrom = *scheduleValidFrom
 	}
-	if today := timezone.TodayDate(); effectiveFrom.Before(today) {
+	if effectiveFrom.Before(today) {
 		effectiveFrom = today
 	}
 	return effectiveFrom
@@ -383,7 +383,7 @@ func (s *TimetableDataService) reconcileManualRosterInstances(
 		ctx,
 		in.TemplateID,
 		studentIDs,
-		offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
+		offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom, s.deps.Today()),
 		nil,
 	); err != nil {
 		return &ScheduleError{Op: "update template: reconcile manual roster occurrences", Err: err}
@@ -511,7 +511,7 @@ func (s *TimetableDataService) resolvePulledForwardStart(
 	if storedFrom != nil && newStart == *storedFrom {
 		return storedFrom, nil
 	}
-	if newStart.Before(timezone.TodayDate()) {
+	if newStart.Before(s.deps.Today()) {
 		return nil, &ScheduleError{Op: op, Err: ErrTemplateStartInPast}
 	}
 	if storedFrom == nil || !newStart.Before(*storedFrom) {
@@ -605,7 +605,7 @@ func (s *TimetableDataService) propagateListKindToInstances(
 		return nil
 	}
 	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
-		ctx, templateID, previousKind, newKind, timezone.TodayDate(),
+		ctx, templateID, previousKind, newKind, s.deps.Today(),
 	); err != nil {
 		return &ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}

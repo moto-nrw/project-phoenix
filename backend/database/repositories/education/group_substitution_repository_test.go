@@ -330,7 +330,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "OverlapSubstitute", "Staff")
 
 		// Create substitution from today for 7 days
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		startDate := today
 		endDate := today.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -349,7 +349,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "NoOverlapSubstitute", "Staff")
 
 		// Create substitution for next week
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		startDate := today.AddDays(7)
 		endDate := today.AddDays(14)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -478,7 +478,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveFilterSub", "Staff")
 
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		startDate := today.AddDays(-1)
 		endDate := today.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -496,7 +496,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDateFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "DateFilterSub", "Staff")
 
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		startDate := today
 		endDate := today.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
@@ -514,7 +514,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubReasonFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ReasonFilterSub", "Staff")
 
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		startDate := today
 		endDate := today.AddDays(7)
 

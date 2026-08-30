@@ -1360,7 +1360,7 @@ func TestClassRosterUsesOfferingDateForPickupProjection(t *testing.T) {
 		&fakeClassRosterChildRepo{},
 	)
 	svc.PickupScheduleSvc = pickupSvc
-	reportDate := timezone.TodayDate().AddDays(30)
+	reportDate := timezone.NewDate(2026, 8, 24).AddDays(30)
 
 	_, err := svc.ClassRoster(context.Background(), ClassRosterFilters{
 		PhaseID: 55, SchoolClass: "1a", OfferingDate: &reportDate,
@@ -1532,7 +1532,7 @@ func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_
 func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	t.Parallel()
 
-	reportDate := timezone.TodayDate().AddDays(30)
+	reportDate := timezone.NewDate(2026, 8, 24).AddDays(30)
 	studentID := int64(700)
 	excludedStudentID := int64(701)
 	guardianEmail := "max@example.org"

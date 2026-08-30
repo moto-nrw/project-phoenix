@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -16,12 +15,30 @@ type IssueAuditResult struct {
 	Entries int
 }
 
+type IssueRequest struct {
+	URL     string
+	Headers map[string]string
+}
+
+type IssueResponse struct {
+	StatusCode int
+	Status     string
+	Body       io.ReadCloser
+}
+
+type IssueClient interface {
+	Do(context.Context, IssueRequest) (IssueResponse, error)
+}
+
 type issueResponse struct {
 	State       string          `json:"state"`
 	PullRequest json.RawMessage `json:"pull_request"`
 }
 
-func AuditLegacyIssues(ctx context.Context, client *http.Client, apiURL, token string, manifest *LegacyManifest) (IssueAuditResult, error) {
+func AuditLegacyIssues(ctx context.Context, client IssueClient, apiURL, token string, manifest *LegacyManifest) (IssueAuditResult, error) {
+	if client == nil {
+		return IssueAuditResult{}, fmt.Errorf("issue audit client is required")
+	}
 	base, err := url.Parse(apiURL)
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" || base.User != nil || base.RawQuery != "" || base.Fragment != "" {
 		return IssueAuditResult{}, fmt.Errorf("GitHub API URL %q is invalid", apiURL)
@@ -59,19 +76,17 @@ func uniqueManifestIssues(manifest *LegacyManifest) ([]GitHubIssue, error) {
 	return issues, nil
 }
 
-func auditIssue(ctx context.Context, client *http.Client, base *url.URL, token string, issue GitHubIssue) error {
+func auditIssue(ctx context.Context, client IssueClient, base *url.URL, token string, issue GitHubIssue) error {
 	endpoint := *base
 	endpoint.Path = strings.TrimRight(base.Path, "/") + fmt.Sprintf("/repos/%s/%s/issues/%d", issue.Owner, issue.Repo, issue.Number)
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
-	if err != nil {
-		return fmt.Errorf("build request for %s: %w", issue.URL, err)
+	headers := map[string]string{
+		"Accept":     "application/vnd.github+json",
+		"User-Agent": "project-phoenix-backend-architecture-audit",
 	}
-	request.Header.Set("Accept", "application/vnd.github+json")
-	request.Header.Set("User-Agent", "project-phoenix-backend-architecture-audit")
 	if token != "" && base.Scheme == "https" && base.Hostname() == "api.github.com" {
-		request.Header.Set("Authorization", "Bearer "+token)
+		headers["Authorization"] = "Bearer " + token
 	}
-	response, err := client.Do(request)
+	response, err := client.Do(ctx, IssueRequest{URL: endpoint.String(), Headers: headers})
 	if err != nil {
 		return fmt.Errorf("audit migration issue %s: %w", issue.URL, err)
 	}
@@ -79,8 +94,8 @@ func auditIssue(ctx context.Context, client *http.Client, base *url.URL, token s
 	return validateIssueResponse(response, issue)
 }
 
-func validateIssueResponse(response *http.Response, issue GitHubIssue) error {
-	if response.StatusCode != http.StatusOK {
+func validateIssueResponse(response IssueResponse, issue GitHubIssue) error {
+	if response.StatusCode != 200 {
 		return fmt.Errorf("audit migration issue %s: GitHub returned %s", issue.URL, response.Status)
 	}
 	var payload issueResponse

@@ -3,32 +3,27 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log"
 
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 )
 
 // Migrate runs all pending migrations
-func Migrate() {
-	db, err := database.DBConn()
-	if err != nil {
-		log.Fatal(err)
+func Migrate(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return fmt.Errorf("migration database is required")
 	}
-	defer func() { _ = db.Close() }()
-
 	migrator := migrate.NewMigrator(db, Migrations, migrate.WithMarkAppliedOnSuccess(true))
 
 	// Initialize migration tables
-	if err := migrator.Init(context.Background()); err != nil {
-		log.Fatal(err)
+	if err := migrator.Init(ctx); err != nil {
+		return fmt.Errorf("initialize migrations: %w", err)
 	}
 
 	// Validate migrations before running
 	if err := ValidateMigrations(); err != nil {
-		log.Fatalf("Migration validation failed: %v", err)
+		return fmt.Errorf("validate migrations: %w", err)
 	}
-	ctx := context.Background()
 
 	// Print migration plan
 	PrintMigrationPlan()
@@ -36,7 +31,7 @@ func Migrate() {
 	// Run migrations
 	group, err := migrator.Migrate(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("run migrations: %w", err)
 	}
 
 	if group.ID == 0 {
@@ -44,27 +39,25 @@ func Migrate() {
 	} else {
 		fmt.Printf("Migrated to %s\n", group)
 	}
+	return nil
 }
 
 // MigrateStatus shows current migration status
-func MigrateStatus() {
-	db, err := database.DBConn()
-	if err != nil {
-		log.Fatal(err)
+func MigrateStatus(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return fmt.Errorf("migration database is required")
 	}
-	defer func() { _ = db.Close() }()
-
 	migrator := migrate.NewMigrator(db, Migrations, migrate.WithMarkAppliedOnSuccess(true))
 
 	// Initialize migration tables
-	if err := migrator.Init(context.Background()); err != nil {
-		log.Fatal(err)
+	if err := migrator.Init(ctx); err != nil {
+		return fmt.Errorf("initialize migrations: %w", err)
 	}
 
 	// Get status
-	ms, err := migrator.MigrationsWithStatus(context.Background())
+	ms, err := migrator.MigrationsWithStatus(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("load migration status: %w", err)
 	}
 
 	fmt.Println("Migration Status:")
@@ -72,7 +65,7 @@ func MigrateStatus() {
 
 	if len(ms) == 0 {
 		fmt.Println("No migrations found")
-		return
+		return nil
 	}
 
 	for _, m := range ms {
@@ -91,37 +84,35 @@ func MigrateStatus() {
 
 		fmt.Printf("V%s: %s%s\n", m.Name, status, desc)
 	}
+	return nil
 }
 
 // Reset drops all tables and re-runs all migrations
 // CAUTION: This will delete all data
-func Reset() {
+func Reset(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return fmt.Errorf("migration database is required")
+	}
 	// First reset the database by dropping all tables
-	err := ResetDatabase()
+	err := ResetDatabase(ctx, db)
 	if err != nil {
-		log.Fatalf("Failed to reset database: %v", err)
+		return fmt.Errorf("reset database: %w", err)
 	}
-
-	// Then run all migrations
-	db, err := database.DBConn()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() { _ = db.Close() }()
 
 	// Initialize new migrator
 	migrator := migrate.NewMigrator(db, Migrations, migrate.WithMarkAppliedOnSuccess(true))
 
-	if err := migrator.Init(context.Background()); err != nil {
-		log.Fatal(err)
+	if err := migrator.Init(ctx); err != nil {
+		return fmt.Errorf("initialize migrations after reset: %w", err)
 	}
 
 	// Run migrations
 	fmt.Println("Running all migrations...")
-	group, err := migrator.Migrate(context.Background())
+	group, err := migrator.Migrate(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("run migrations after reset: %w", err)
 	}
 
 	fmt.Printf("Database reset and migration completed successfully. Migrated to %s\n", group)
+	return nil
 }

@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -153,14 +150,14 @@ func TestPrintActiveVisits_DirectArray(t *testing.T) {
 // RunStatus Integration Tests
 // =============================================================================
 
-func statusAPIMock(t *testing.T) *httptest.Server {
+func statusAPIMock(t *testing.T) *simulationHTTPTestServer {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch r.URL.Path {
 		case "/health":
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(simulationHTTPStatusOK)
 			_, _ = fmt.Fprint(w, `"OK"`)
 
 		case "/auth/login":
@@ -187,7 +184,7 @@ func statusAPIMock(t *testing.T) *httptest.Server {
 		default:
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
 		}
-	}))
+	})
 }
 
 func TestRunStatus_Success(t *testing.T) {
@@ -199,22 +196,22 @@ func TestRunStatus_Success(t *testing.T) {
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
 
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts: seedapi.SeedStateAccounts{
-			Admin:    []seedapi.AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
-			Betreuer: []seedapi.AccountCredentials{{Name: "B1"}},
+		Accounts: SeedStateAccounts{
+			Admin:    []AccountCredentials{{Email: "admin@test.de", Password: "pass"}},
+			Betreuer: []AccountCredentials{{Name: "B1"}},
 		},
-		Devices:    map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:   []seedapi.SeedStudent{{ID: 1}},
+		Devices:    map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:   []SeedStudent{{ID: 1}},
 		Rooms:      map[string]int64{"OGS-Raum 1": 1},
 		Activities: map[string]int64{"Fußball": 50},
 		Groups:     map[string]int64{"sternengruppe": 400},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunStatus(context.Background(), StatusOptions{
+	err := RunStatus(context.Background(), StatusOptions{Client: newTestClientFactory,
 		StatePath: statePath,
 		Verbose:   false,
 	})
@@ -224,7 +221,7 @@ func TestRunStatus_Success(t *testing.T) {
 func TestRunStatus_InvalidStatePath(t *testing.T) {
 	t.Parallel()
 
-	err := RunStatus(context.Background(), StatusOptions{StatePath: "/nonexistent/state.json"})
+	err := RunStatus(context.Background(), StatusOptions{Client: newTestClientFactory, StatePath: "/nonexistent/state.json"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "load seed state")
 }
@@ -238,13 +235,13 @@ func TestRunStatus_NoAdminAccounts(t *testing.T) {
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
 
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:  srv.URL,
-		Accounts: seedapi.SeedStateAccounts{},
+		Accounts: SeedStateAccounts{},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunStatus(context.Background(), StatusOptions{StatePath: statePath})
+	err := RunStatus(context.Background(), StatusOptions{Client: newTestClientFactory, StatePath: statePath})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no admin accounts")
 }
@@ -255,15 +252,15 @@ func TestRunStatus_ServerDown(t *testing.T) {
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
 
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL: "http://localhost:1",
-		Accounts: seedapi.SeedStateAccounts{
-			Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}},
+		Accounts: SeedStateAccounts{
+			Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}},
 		},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunStatus(context.Background(), StatusOptions{StatePath: statePath})
+	err := RunStatus(context.Background(), StatusOptions{Client: newTestClientFactory, StatePath: statePath})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "server health check")
 }
@@ -272,7 +269,7 @@ func TestRunStatus_GroupsFetchError(t *testing.T) {
 	t.Parallel()
 
 	// Server that returns errors on /api/active/groups
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/health":
@@ -280,25 +277,25 @@ func TestRunStatus_GroupsFetchError(t *testing.T) {
 		case "/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "jwt"})
 		case "/api/active/groups":
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(simulationHTTPStatusInternalServerError)
 			_, _ = fmt.Fprint(w, `{"error":"db error"}`)
 		case "/api/active/visits":
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(simulationHTTPStatusInternalServerError)
 			_, _ = fmt.Fprint(w, `{"error":"db error"}`)
 		}
-	}))
+	})
 	defer srv.Close()
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:  srv.URL,
-		Accounts: seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Accounts: SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
 	// Should still succeed (errors are printed, not returned)
-	err := RunStatus(context.Background(), StatusOptions{StatePath: statePath})
+	err := RunStatus(context.Background(), StatusOptions{Client: newTestClientFactory, StatePath: statePath})
 	assert.NoError(t, err)
 }
 
@@ -309,7 +306,7 @@ func TestRunStatus_GroupsFetchError(t *testing.T) {
 func TestStatusOptions_Fields(t *testing.T) {
 	t.Parallel()
 
-	opts := StatusOptions{
+	opts := StatusOptions{Client: newTestClientFactory,
 		StatePath: ".seed-state.json",
 		Verbose:   true,
 	}

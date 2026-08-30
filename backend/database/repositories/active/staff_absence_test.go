@@ -220,7 +220,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 
 	t.Run("finds absences in date range", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		tomorrow := today.AddDays(1)
 		nextWeek := today.AddDays(7)
 
@@ -251,7 +251,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 
 	t.Run("returns empty for date range with no absences", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		futureDate := timezone.TodayDate().AddDays(365)
+		futureDate := timezone.NewDate(2026, 8, 24).AddDays(365)
 		absences, err := repo.GetByStaffAndDateRange(ctx, staff.ID, futureDate, futureDate)
 		require.NoError(t, err)
 		assert.Empty(t, absences)
@@ -259,7 +259,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 
 	t.Run("finds overlapping absences", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 		tomorrow := today.AddDays(1)
 

@@ -40,8 +40,8 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 		return nil, err
 	}
 
-	today := timezone.TodayDate()
-	facts := todayStatusFacts{NowHHMM: hhmm(timezone.Now())}
+	today := s.todayDate()
+	facts := todayStatusFacts{NowHHMM: hhmm(s.now())}
 
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		absent, absErr := s.hasActiveAbsenceToday(txCtx, studentID, today)

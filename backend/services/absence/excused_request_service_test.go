@@ -75,7 +75,7 @@ func (b *countingBroadcaster) BroadcastToGuardian(_, guardianAccountID int64, _ 
 // buildAbsenceService wires the excused-request service against the real test DB
 // with a real (messaging-disabled) emitter and a counting broadcaster so every
 // after-commit hook is exercised.
-func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService, *countingBroadcaster, *bun.DB) {
+func buildAbsenceService(t *testing.T, today ...func() timezone.Date) (absenceSvc.ExcusedAbsenceRequestService, *countingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
@@ -102,6 +102,7 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		nil,
 		nil, // logger: nil-safe, falls back to slog.Default()
 		db,
+		today...,
 	)
 	return svc, bc, db
 }
@@ -699,12 +700,13 @@ func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
 func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildAbsenceService(t)
+	today := timezone.NewDate(2026, 8, 24)
+	svc, _, db := buildAbsenceService(t, func() timezone.Date { return today })
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
 
-	day := timezone.TodayDate().AddDays(3)
+	day := today.AddDays(3)
 	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
 	from := timezone.NormalizeWallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
 	staffID := staff.ID

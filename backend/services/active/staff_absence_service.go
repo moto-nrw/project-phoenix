@@ -323,6 +323,14 @@ type staffAbsenceService struct {
 	// injection (SetAbsenceTypeService) like the others; nil in bare-constructed
 	// unit fixtures, where every absence is a plain standard type.
 	absenceTypes StaffAbsenceTypeService
+	todayFunc    func() timezone.Date
+}
+
+func (s *staffAbsenceService) today() timezone.Date {
+	if s.todayFunc != nil {
+		return s.todayFunc()
+	}
+	return timezone.TodayDate()
 }
 
 // SetAbsenceTypeService wires the school-defined absence names (#2403).
@@ -410,8 +418,9 @@ func NewStaffAbsenceService(
 	auditRepo activeModels.StaffAbsenceAuditRepository,
 	settings monthSettingsResolver,
 	monthService WorkTimeMonthService,
+	today ...func() timezone.Date,
 ) StaffAbsenceService {
-	return &staffAbsenceService{
+	service := &staffAbsenceService{
 		absenceRepo:     absenceRepo,
 		workSessionRepo: workSessionRepo,
 		quotaRepo:       quotaRepo,
@@ -419,6 +428,10 @@ func NewStaffAbsenceService(
 		settings:        settings,
 		monthService:    monthService,
 	}
+	if len(today) > 0 {
+		service.todayFunc = today[0]
+	}
+	return service
 }
 
 // defaultEntitledDays is the fallback when no per-staff quota row exists.
@@ -661,7 +674,7 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	if absenceType != activeModels.AbsenceTypeCompTime {
 		return nil
 	}
-	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(timezone.TodayDate()))
+	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(s.today()))
 	if err != nil {
 		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
 	}
@@ -671,7 +684,7 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	// Mirror the Monatskarte's future bound: the overdraft guard reads the
 	// closing balance before dateStart, which has no defined result beyond
 	// the carry-chain horizon (#1420 review).
-	if horizon := monthOf(timezone.TodayDate()).addMonths(maxFutureMonths); horizon.before(monthOf(dateEnd)) {
+	if horizon := monthOf(s.today()).addMonths(maxFutureMonths); horizon.before(monthOf(dateEnd)) {
 		return fmt.Errorf("invalid comp_time absence: date_end %s is more than %d months ahead", dateEnd.String(), maxFutureMonths)
 	}
 	return nil
@@ -709,7 +722,7 @@ func (s *staffAbsenceService) validateCompTimeBalance(
 	if err != nil {
 		return fmt.Errorf("failed to compute reduction capacity for comp_time absence: %w", err)
 	}
-	today := timezone.TodayDate()
+	today := s.today()
 	if !start.After(today) {
 		historicalEnd := end
 		if historicalEnd.After(today) {

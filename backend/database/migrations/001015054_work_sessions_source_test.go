@@ -9,7 +9,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // dropWorkSessionsSourceColumn rolls back the schema portion of migration
@@ -29,7 +28,7 @@ import (
 // Callers register the returned closure with `defer` so the restore runs
 // however the test exits. See
 // TestWorkSessionsSourceDown_DropsColumnAndConstraint for the same pattern.
-func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) func() {
+func dropWorkSessionsSourceColumn(t *testing.T, db *testpkg.DB) func() {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -57,7 +56,7 @@ func dropWorkSessionsSourceColumn(t *testing.T, db *bun.DB) func() {
 // backfill labels pre-existing rows as 'unknown'. created_by/updated_by point
 // at the staff member themselves, matching what WorkSessionService.CheckIn
 // writes in production.
-func insertWorkSession(t *testing.T, db *bun.DB, tenantID, staffID int64, checkInTime time.Time) int64 {
+func insertWorkSession(t *testing.T, db *testpkg.DB, tenantID, staffID int64, checkInTime time.Time) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -72,7 +71,7 @@ func insertWorkSession(t *testing.T, db *bun.DB, tenantID, staffID int64, checkI
 	return id
 }
 
-func workSessionSource(t *testing.T, db *bun.DB, id int64) string {
+func workSessionSource(t *testing.T, db *testpkg.DB, id int64) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

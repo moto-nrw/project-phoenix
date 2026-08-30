@@ -83,7 +83,7 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	request := httptest.NewRequest("GET", "/day-log?date="+today.AddDays(-1).String(), nil)
 
 	_, err := parseDayLogDate(request, today)

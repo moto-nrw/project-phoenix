@@ -145,7 +145,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 4. Parse requested range and clamp against cap
-	todayDate := timezone.TodayDate()
+	todayDate := rs.todayDate()
 	today := todayDate.BerlinMidnight()
 	endOfToday := todayDate.EndOfDay()
 	defaultStart := today.AddDate(0, 0, -(attendanceCap - 1))

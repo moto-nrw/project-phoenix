@@ -89,6 +89,7 @@ type TimetableDataDependencies struct {
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 	DB          *bun.DB
+	Today       func() timezone.Date
 }
 
 // TimetableDataService is the service boundary behind api/timetable (issue
@@ -101,6 +102,9 @@ type TimetableDataService struct {
 
 // NewTimetableDataService creates the data facade behind api/timetable.
 func NewTimetableDataService(deps TimetableDataDependencies) *TimetableDataService {
+	if deps.Today == nil {
+		deps.Today = timezone.TodayDate
+	}
 	return &TimetableDataService{deps: deps}
 }
 

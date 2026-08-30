@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 import { isPlanningPath } from "~/lib/planning-navigation";
 import {
@@ -64,11 +64,13 @@ function sectionFromPathname(
 export function useSidebarAccordion(
   pathname: string,
   fromParam?: string | null,
+  defaultSection: AccordionSection = null,
 ) {
   // Initialize from pathname only (safe for SSR — no localStorage during render)
-  const [expanded, setExpanded] = useState<AccordionSection>(() =>
-    sectionFromPathname(pathname, fromParam),
+  const [expanded, setExpanded] = useState<AccordionSection>(
+    () => sectionFromPathname(pathname, fromParam) ?? defaultSection,
   );
+  const hasAppliedInitialRoute = useRef(false);
 
   // Restore from localStorage on mount when pathname doesn't determine a section.
   // This runs client-only after hydration, avoiding SSR/client mismatches.
@@ -95,6 +97,10 @@ export function useSidebarAccordion(
   // - Navigate to child page with ?from= → keep that section open
   // - Navigate to unrelated page → collapse all
   useEffect(() => {
+    if (!hasAppliedInitialRoute.current) {
+      hasAppliedInitialRoute.current = true;
+      return;
+    }
     const fromPath = sectionFromPathname(pathname, fromParam);
     if (fromPath !== expanded) {
       setExpanded(fromPath);

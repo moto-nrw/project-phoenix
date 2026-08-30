@@ -65,7 +65,7 @@ func TestGetStudentsDayLog_FeatureDisabled(t *testing.T) {
 func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Gruppe A")
@@ -82,11 +82,11 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, tc.db, s, group.ID)
 	}
 
-	checkIn := timezone.Today().Add(8 * time.Hour)
-	checkOut := timezone.Today().Add(15 * time.Hour)
-	testpkg.CreateTestAttendance(t, tc.db, present.ID, staff.ID, device.ID, checkIn, &checkOut)
+	checkIn := timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(8 * time.Hour)
+	checkOut := timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(15 * time.Hour)
+	testpkg.CreateTestAttendanceForDate(t, tc.db, present.ID, staff.ID, device.ID, timezone.NewDate(2026, 8, 24), checkIn, &checkOut)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, active.StudentStatusDayExcused)
 

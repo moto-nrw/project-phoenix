@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
@@ -324,7 +323,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.tenantID, studentID, accountID)

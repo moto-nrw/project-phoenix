@@ -322,7 +322,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a")
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, today)
 
 	t.Run("retrieves entries for date range", func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 
 	t.Run("returns error for zero start date", func(t *testing.T) {
 		// ACT
-		_, err := service.GetEntriesByDateRange(ctx, timezone.Date{}, timezone.TodayDate())
+		_, err := service.GetEntriesByDateRange(ctx, timezone.Date{}, timezone.NewDate(2026, 8, 24))
 
 		// ASSERT
 		require.Error(t, err)
@@ -348,7 +348,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 
 	t.Run("returns error for zero end date", func(t *testing.T) {
 		// ACT
-		_, err := service.GetEntriesByDateRange(ctx, timezone.TodayDate(), timezone.Date{})
+		_, err := service.GetEntriesByDateRange(ctx, timezone.NewDate(2026, 8, 24), timezone.Date{})
 
 		// ASSERT
 		require.Error(t, err)
@@ -356,7 +356,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 
 	t.Run("returns error for inverted date range", func(t *testing.T) {
 		// ACT
-		_, err := service.GetEntriesByDateRange(ctx, timezone.TodayDate().AddDays(1), timezone.TodayDate())
+		_, err := service.GetEntriesByDateRange(ctx, timezone.NewDate(2026, 8, 24).AddDays(1), timezone.NewDate(2026, 8, 24))
 
 		// ASSERT
 		require.Error(t, err)
@@ -398,7 +398,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a")
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
 
 	t.Run("retrieves entries for student and date range", func(t *testing.T) {
@@ -416,7 +416,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 
 	t.Run("returns error for invalid student ID", func(t *testing.T) {
 		// ACT
-		_, err := service.GetEntriesByStudentAndDateRange(ctx, 0, timezone.TodayDate(), timezone.TodayDate().AddDays(1))
+		_, err := service.GetEntriesByStudentAndDateRange(ctx, 0, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(1))
 
 		// ASSERT
 		require.Error(t, err)
@@ -424,7 +424,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 
 	t.Run("returns error for zero dates", func(t *testing.T) {
 		// ACT
-		_, err := service.GetEntriesByStudentAndDateRange(ctx, student.ID, timezone.Date{}, timezone.TodayDate())
+		_, err := service.GetEntriesByStudentAndDateRange(ctx, student.ID, timezone.Date{}, timezone.NewDate(2026, 8, 24))
 
 		// ASSERT
 		require.Error(t, err)
@@ -432,7 +432,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 
 	t.Run("returns error for inverted date range", func(t *testing.T) {
 		// ACT
-		_, err := service.GetEntriesByStudentAndDateRange(ctx, student.ID, timezone.TodayDate().AddDays(1), timezone.TodayDate())
+		_, err := service.GetEntriesByStudentAndDateRange(ctx, student.ID, timezone.NewDate(2026, 8, 24).AddDays(1), timezone.NewDate(2026, 8, 24))
 
 		// ASSERT
 		require.Error(t, err)
@@ -599,8 +599,8 @@ func TestFeedbackErrors(t *testing.T) {
 	})
 
 	t.Run("InvalidDateRangeError contains dates", func(t *testing.T) {
-		start := timezone.TodayDate().AddDays(1)
-		end := timezone.TodayDate()
+		start := timezone.NewDate(2026, 8, 24).AddDays(1)
+		end := timezone.NewDate(2026, 8, 24)
 		err := &feedbackSvc.InvalidDateRangeError{StartDate: start, EndDate: end}
 
 		// ACT

@@ -526,13 +526,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/database",
-      "owner": "inbound-database",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/display",
       "owner": "inbound-display",
       "role": "http",
@@ -1044,23 +1037,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "integration/phoenixapi",
-      "owner": "dev-tools",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "internal/architecture",
       "owner": "architecture-check",
       "role": "application",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "internal/architecture/cmd",
-      "owner": "architecture-check",
-      "role": "cli",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -2073,10 +2052,6 @@
     },
     {
       "path": "github.com/go-chi/cors",
-      "class": "http-router"
-    },
-    {
-      "path": "github.com/go-chi/docgen",
       "class": "http-router"
     },
     {

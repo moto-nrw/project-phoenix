@@ -1,15 +1,16 @@
-package phoenixapi
+package api
 
 import (
 	"context"
 	"encoding/json"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,15 +22,16 @@ import (
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
 	var (
 		startHits   int32
 		confirmHits int32
 	)
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -45,7 +47,7 @@ func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
 			atomic.AddInt32(&startHits, 1)
 			assert.Equal(t, "Bearer pending-enrollment-jwt", r.Header.Get("Authorization"),
 				"enroll/start must be called with the pending enrollment token")
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(testpkg.HTTPStatusNoContent)
 		case "/operator/auth/mfa/enroll/confirm":
 			atomic.AddInt32(&confirmHits, 1)
 			assert.Equal(t, "Bearer pending-enrollment-jwt", r.Header.Get("Authorization"),
@@ -59,12 +61,13 @@ func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
 				"data":   map[string]string{"access_token": "final-session-jwt"},
 			})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	auth, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, AuthBearer, auth.Kind)
@@ -76,13 +79,14 @@ func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollmentRequired_StatusFieldOnlyTriggersFlow(t *testing.T) {
+	t.Parallel()
+
 	// Server emits `status` only, not the explicit boolean — the client
 	// should still recognise the enrollment branch.
 	mailpit := newCodeMailpitServer(t, "op@test.de", "111111")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -93,18 +97,19 @@ func TestLoginOperator_EnrollmentRequired_StatusFieldOnlyTriggersFlow(t *testing
 				},
 			})
 		case "/operator/auth/mfa/enroll/start":
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(testpkg.HTTPStatusNoContent)
 		case "/operator/auth/mfa/enroll/confirm":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": map[string]string{"access_token": "final"},
 			})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	auth, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, "final", auth.Token)
@@ -112,11 +117,12 @@ func TestLoginOperator_EnrollmentRequired_StatusFieldOnlyTriggersFlow(t *testing
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollStartFails(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -127,14 +133,15 @@ func TestLoginOperator_EnrollStartFails(t *testing.T) {
 				},
 			})
 		case "/operator/auth/mfa/enroll/start":
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(testpkg.HTTPStatusInternalServerError)
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enroll start")
@@ -142,11 +149,12 @@ func TestLoginOperator_EnrollStartFails(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollConfirmFails(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -157,17 +165,18 @@ func TestLoginOperator_EnrollConfirmFails(t *testing.T) {
 				},
 			})
 		case "/operator/auth/mfa/enroll/start":
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(testpkg.HTTPStatusNoContent)
 		case "/operator/auth/mfa/enroll/confirm":
-			w.WriteHeader(http.StatusBadRequest)
+			w.WriteHeader(testpkg.HTTPStatusBadRequest)
 			_, _ = w.Write([]byte(`{"message":"Code invalid"}`))
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enroll confirm")
@@ -175,11 +184,12 @@ func TestLoginOperator_EnrollConfirmFails(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_EnrollConfirm_NoToken(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "424242")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -190,17 +200,18 @@ func TestLoginOperator_EnrollConfirm_NoToken(t *testing.T) {
 				},
 			})
 		case "/operator/auth/mfa/enroll/start":
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(testpkg.HTTPStatusNoContent)
 		case "/operator/auth/mfa/enroll/confirm":
 			// Successful HTTP but no token in body.
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no access token")
@@ -212,12 +223,13 @@ func TestLoginOperator_EnrollConfirm_NoToken(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_VerifyRequired_Success(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "888888")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
 	var verifyHits int32
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -246,12 +258,13 @@ func TestLoginOperator_VerifyRequired_Success(t *testing.T) {
 				"data": map[string]string{"access_token": "verified-jwt"},
 			})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	auth, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, "verified-jwt", auth.Token)
@@ -260,11 +273,12 @@ func TestLoginOperator_VerifyRequired_Success(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_VerifyFails(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "888888")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -272,15 +286,16 @@ func TestLoginOperator_VerifyFails(t *testing.T) {
 				"data": map[string]any{"challenge_token": "ch", "status": "mfa_required"},
 			})
 		case "/operator/auth/mfa/verify":
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(testpkg.HTTPStatusUnauthorized)
 			_, _ = w.Write([]byte(`{"message":"locked"}`))
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mfa verify")
@@ -288,11 +303,12 @@ func TestLoginOperator_VerifyFails(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_Verify_NoToken(t *testing.T) {
+	t.Parallel()
+
 	mailpit := newCodeMailpitServer(t, "op@test.de", "888888")
 	defer mailpit.Close()
-	t.Setenv("MAILPIT_URL", mailpit.URL)
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -302,12 +318,13 @@ func TestLoginOperator_Verify_NoToken(t *testing.T) {
 		case "/operator/auth/mfa/verify":
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{}})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no access token")
@@ -315,12 +332,13 @@ func TestLoginOperator_Verify_NoToken(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestLoginOperator_MailpitDown_EnrollmentSurfaces(t *testing.T) {
+	t.Parallel()
+
 	// Point mailpit at a closed port so polling fails immediately on
 	// every iteration. The enrollment flow then surfaces a timeout
 	// error after the ctx deadline expires.
-	t.Setenv("MAILPIT_URL", "http://127.0.0.1:1")
 
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/operator/auth/login":
@@ -331,14 +349,15 @@ func TestLoginOperator_MailpitDown_EnrollmentSurfaces(t *testing.T) {
 				},
 			})
 		case "/operator/auth/mfa/enroll/start":
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(testpkg.HTTPStatusNoContent)
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer api.Close()
 
-	a := New(api.URL, false)
+	a := NewCommandAdapter(api.URL, false)
+	useMailpit(a, "http://127.0.0.1:1")
 	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
 	defer cancel()
 	_, err := a.LoginOperator(ctx, "op@test.de", "secret")
@@ -352,13 +371,19 @@ func TestLoginOperator_MailpitDown_EnrollmentSurfaces(t *testing.T) {
 // Test helpers
 // =============================================================================
 
+func useMailpit(adapter *Adapter, baseURL string) {
+	adapter.fetchLatestMFACode = func(ctx context.Context, recipient string, notBefore time.Time) (string, error) {
+		return fetchLatestMFACodeAt(ctx, baseURL, recipient, notBefore)
+	}
+}
+
 // newCodeMailpitServer returns a mailpit fake that always reports a
 // single message addressed to recipient containing code.
-func newCodeMailpitServer(t *testing.T, recipient, code string) *httptest.Server {
+func newCodeMailpitServer(t *testing.T, recipient, code string) *testpkg.HTTPServer {
 	t.Helper()
 	now := time.Now()
 	id := "msg-" + code
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.URL.Path == "/api/v1/messages":
@@ -371,7 +396,7 @@ func newCodeMailpitServer(t *testing.T, recipient, code string) *httptest.Server
 		case strings.HasPrefix(r.URL.Path, "/api/v1/message/"):
 			_ = json.NewEncoder(w).Encode(mailpitMessageDetail{ID: id, Text: "Ihr Code: " + code})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 }

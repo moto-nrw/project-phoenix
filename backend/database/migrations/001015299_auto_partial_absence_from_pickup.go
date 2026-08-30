@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 const (
@@ -65,7 +63,7 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 			WHERE weekly.tenant_id = exc.tenant_id
 				AND weekly.student_id = exc.student_id
 				AND weekly.weekday = EXTRACT(ISODOW FROM exc.exception_date)::int
-				AND exc.exception_date >= ?
+				AND exc.exception_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date
 				AND exc.pickup_time IS NOT NULL
 				AND exc.excused_from IS NULL
 				AND exc.pickup_time < weekly.pickup_time
@@ -95,7 +93,7 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 			AND instance.date = flagged.exception_date
 			AND instance.start_time >= flagged.excused_from
 			AND instance.status NOT IN ('cancelled', 'completed')
-	`, timezone.TodayDate()).Exec(ctx)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed backfilling auto partial absences from pickup exceptions: %w", err)
 	}

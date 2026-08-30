@@ -2,17 +2,16 @@ package migrations
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func departureDaysColumnExists(t *testing.T, db *bun.DB) bool {
+func departureDaysColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -68,17 +67,19 @@ func TestStudentsDepartureDaysMigration(t *testing.T) {
 	// backfill folds the legacy maps into departure_days.
 	require.NoError(t, studentsDepartureDaysUp(ctx, db))
 
-	read := func(id int64) usersModel.DepartureDays {
+	read := func(id int64) map[string]string {
 		var row struct {
-			DepartureDays usersModel.DepartureDays `bun:"departure_days"`
+			DepartureDays json.RawMessage `bun:"departure_days"`
 		}
 		require.NoError(t, db.NewRaw(`SELECT departure_days FROM users.students WHERE id = ?`, id).Scan(ctx, &row))
-		return row.DepartureDays.Normalize()
+		var days map[string]string
+		require.NoError(t, json.Unmarshal(row.DepartureDays, &days))
+		return days
 	}
 
-	assert.Equal(t, usersModel.DepartureBus, read(busKid.ID).ModeFor(usersModel.PickupDayMonday))
-	assert.Equal(t, usersModel.DeparturePickup, read(pickupKid.ID).ModeFor(usersModel.PickupDayWednesday))
-	assert.Equal(t, usersModel.DeparturePickup, read(contradictKid.ID).ModeFor(usersModel.PickupDayMonday),
+	assert.Equal(t, "bus", read(busKid.ID)["mon"])
+	assert.Equal(t, "pickup", read(pickupKid.ID)["wed"])
+	assert.Equal(t, "pickup", read(contradictKid.ID)["mon"],
 		"a day flagged as both bus and pickup must fold to pickup")
 
 	// Down/Up round-trip: dropping and re-adding the column must not error and
@@ -87,5 +88,5 @@ func TestStudentsDepartureDaysMigration(t *testing.T) {
 	require.False(t, departureDaysColumnExists(t, db), "Down should drop departure_days")
 	require.NoError(t, studentsDepartureDaysUp(ctx, db))
 	require.True(t, departureDaysColumnExists(t, db), "Up should re-add departure_days")
-	assert.Equal(t, usersModel.DepartureBus, read(busKid.ID).ModeFor(usersModel.PickupDayMonday))
+	assert.Equal(t, "bus", read(busKid.ID)["mon"])
 }

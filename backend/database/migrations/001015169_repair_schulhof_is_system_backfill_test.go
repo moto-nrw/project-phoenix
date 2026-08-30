@@ -16,14 +16,13 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // insertIsSystemTestCategory inserts a category directly via SQL so the test
 // can stage a pre-repair state with an exact name — the fixture helpers
 // uniquify names, which would defeat the migration's name-based predicate.
 // Returns the inserted row id.
-func insertIsSystemTestCategory(t *testing.T, db *bun.DB, tenantID int64, name string, isSystem bool) int64 {
+func insertIsSystemTestCategory(t *testing.T, db *testpkg.DB, tenantID int64, name string, isSystem bool) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -40,7 +39,7 @@ func insertIsSystemTestCategory(t *testing.T, db *bun.DB, tenantID int64, name s
 // insertIsSystemTestGroup inserts an activity group directly via SQL with an
 // explicit is_system value. createdBy may be nil (system-created) or a staff
 // id in the same tenant. Returns the row id.
-func insertIsSystemTestGroup(t *testing.T, db *bun.DB, tenantID int64, name string, categoryID int64, createdBy *int64, isSystem bool) int64 {
+func insertIsSystemTestGroup(t *testing.T, db *testpkg.DB, tenantID int64, name string, categoryID int64, createdBy *int64, isSystem bool) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -54,7 +53,7 @@ func insertIsSystemTestGroup(t *testing.T, db *bun.DB, tenantID int64, name stri
 	return id
 }
 
-func groupIsSystem(t *testing.T, db *bun.DB, groupID int64) bool {
+func groupIsSystem(t *testing.T, db *testpkg.DB, groupID int64) bool {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

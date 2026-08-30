@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +20,9 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 	phaseID := insertRequestChildSourcePhase(t, db, tenantID)
 	requestID := insertRequestChildSourceRequest(t, db, tenantID, phaseID)
 	requestChildID := insertRequestChildSourceChild(t, db, tenantID, requestID, sourcedStudent.ID)
-	period := testpkg.CreateTestCalendarPeriod(t, db, "class-filter rollback", timezone.TodayDate(), timezone.TodayDate().AddDays(1))
+	today := "2026-08-24"
+	date := testpkg.Date(2026, time.August, 24)
+	period := testpkg.CreateTestCalendarPeriod(t, db, "class-filter rollback", date, date.AddDays(1))
 	room := testpkg.CreateTestRoom(t, db, "class-filter rollback")
 
 	_, err := db.NewRaw(`
@@ -34,30 +34,19 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 	`, group.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	for _, enrollmentInput := range []struct {
-		studentID      int64
-		requestChildID *int64
-		validFrom      timezone.Date
-	}{
-		{studentID: manualStudent.ID, validFrom: timezone.TodayDate()},
-		{studentID: sourcedStudent.ID, requestChildID: &requestChildID, validFrom: timezone.TodayDate().AddDays(-1)},
-	} {
-		enrollment := &activities.StudentEnrollment{
-			StudentID:                enrollmentInput.studentID,
-			ActivityGroupID:          group.ID,
-			ValidFrom:                enrollmentInput.validFrom,
-			EnrollmentRequestChildID: enrollmentInput.requestChildID,
-		}
-		enrollment.SetTenantID(tenantID)
-		_, err = db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
-		require.NoError(t, err)
-	}
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+	_, err = db.NewRaw(`
+		INSERT INTO activities.student_enrollments
+			(tenant_id, student_id, activity_group_id, valid_from, enrollment_request_child_id)
+		VALUES (?, ?, ?, ?, NULL), (?, ?, ?, ?, ?)
+	`, tenantID, manualStudent.ID, group.ID, today,
+		tenantID, sourcedStudent.ID, group.ID, date.AddDays(-1), requestChildID).Exec(ctx)
+	require.NoError(t, err)
+	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &group.ID,
 		CalendarPeriodID: &period.ID,
 	})
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, sourcedStudent.ID, "")
-	observedInstance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{
+	observedInstance := testpkg.CreateTestActivityInstance(t, db, date.AddDays(1), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &group.ID,
 		CalendarPeriodID: &period.ID,
 	})
@@ -66,7 +55,7 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 		CheckedInAt: &checkedInAt,
 	})
 
-	require.NoError(t, templateSourceSchoolClassesDown(ctx, db))
+	require.NoError(t, templateSourceSchoolClassesDownAt(ctx, db, today))
 	t.Cleanup(func() {
 		require.NoError(t, templateSourceSchoolClassesUp(context.Background(), db))
 	})
@@ -79,15 +68,12 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 	`, group.ID).Scan(ctx, &remaining))
 	require.Equal(t, 2, remaining)
 
-	var historical activities.StudentEnrollment
-	require.NoError(t, db.NewSelect().
-		Model(&historical).
-		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
-		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
-		Where(`"student_enrollment".enrollment_request_child_id = ?`, requestChildID).
-		Scan(ctx))
-	require.NotNil(t, historical.ValidUntil)
-	require.Equal(t, timezone.TodayDate(), *historical.ValidUntil)
+	var historicalValidUntil string
+	require.NoError(t, db.NewRaw(`
+		SELECT valid_until::text FROM activities.student_enrollments
+		WHERE activity_group_id = ? AND enrollment_request_child_id = ?
+	`, group.ID, requestChildID).Scan(ctx, &historicalValidUntil))
+	require.Equal(t, today, historicalValidUntil)
 
 	var plannedRosterRows int
 	require.NoError(t, db.NewRaw(`
