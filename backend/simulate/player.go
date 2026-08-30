@@ -3,19 +3,39 @@ package simulate
 import (
 	"context"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
-// newClient builds a seed/api client for the simulation flows.
-func newClient(baseURL string, verbose bool) *seedapi.Client {
-	return seedapi.NewClientWithAdapter(phoenixapi.New(baseURL, verbose), verbose)
+type Client interface {
+	CheckHealth() error
+	Login(email, password string, tenantSlug ...string) error
+	Get(path string) ([]byte, error)
+	Post(path string, body any) ([]byte, error)
+	Put(path string, body any) ([]byte, error)
+	Delete(path string) ([]byte, error)
+	DeviceGet(path, apiKey, pin string) ([]byte, error)
+	DevicePost(path string, body any, apiKey, pin string) ([]byte, error)
+	DevicePut(path string, body any, apiKey, pin string) ([]byte, error)
+}
+
+type ClientFactory func(baseURL string, verbose bool) (Client, error)
+
+func buildClient(factory ClientFactory, baseURL string, verbose bool) (Client, error) {
+	if factory == nil {
+		return nil, fmt.Errorf("simulation client dependency is required")
+	}
+	client, err := factory(baseURL, verbose)
+	if err != nil {
+		return nil, fmt.Errorf("build simulation client: %w", err)
+	}
+	if client == nil {
+		return nil, fmt.Errorf("simulation client dependency returned nil")
+	}
+	return client, nil
 }
 
 type Runtime struct {
-	State         *seedapi.SeedState
-	Client        *seedapi.Client
+	State         *SeedState
+	Client        Client
 	Options       FullDayOptions
 	RFIDTags      map[int64]string
 	ActiveRoomIDs []int64
@@ -77,7 +97,7 @@ func (s Scenario) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
-func newRuntime(state *seedapi.SeedState, client *seedapi.Client, opts FullDayOptions) *Runtime {
+func newRuntime(state *SeedState, client Client, opts FullDayOptions) *Runtime {
 	return &Runtime{
 		State:    state,
 		Client:   client,
@@ -86,9 +106,9 @@ func newRuntime(state *seedapi.SeedState, client *seedapi.Client, opts FullDayOp
 	}
 }
 
-func (r *Runtime) primaryDevice() (seedapi.SeedDevice, error) {
+func (r *Runtime) primaryDevice() (SeedDevice, error) {
 	if len(r.DeviceKeys) == 0 {
-		return seedapi.SeedDevice{}, fmt.Errorf("no devices available")
+		return SeedDevice{}, fmt.Errorf("no devices available")
 	}
 	return r.State.Devices[r.DeviceKeys[0]], nil
 }

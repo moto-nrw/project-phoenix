@@ -8,15 +8,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // insertStatusDay writes one parent-reported day without an author, the shape
 // every row had before 1.15.345 added the column.
-func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date, status string) int64 {
+func insertStatusDay(t *testing.T, db *testpkg.DB, tenantID, studentID int64, date, status string) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -29,15 +27,11 @@ func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date t
 }
 
 func insertAbsenceRequest(
-	t *testing.T, db *bun.DB, tenantID, studentID, submittedBy int64,
-	dates []timezone.Date, absenceStatus, status string, reviewedAt time.Time,
+	t *testing.T, db *testpkg.DB, tenantID, studentID, submittedBy int64,
+	dates []string, absenceStatus, status string, reviewedAt time.Time,
 ) int64 {
 	t.Helper()
-	payload := make([]string, 0, len(dates))
-	for _, date := range dates {
-		payload = append(payload, date.String())
-	}
-	encoded, err := json.Marshal(payload)
+	encoded, err := json.Marshal(dates)
 	require.NoError(t, err)
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -50,7 +44,7 @@ func insertAbsenceRequest(
 	return id
 }
 
-func statusDayAuthor(t *testing.T, db *bun.DB, dayID int64) *int64 {
+func statusDayAuthor(t *testing.T, db *testpkg.DB, dayID int64) *int64 {
 	t.Helper()
 	var author *int64
 	require.NoError(t, db.NewRaw(
@@ -77,12 +71,12 @@ func TestParentStatusAuthorBackfillStampsApprovedRequestsOnly(t *testing.T) {
 	author := testpkg.CreateTestAccount(t, db, "status-author-backfill@example.com")
 	otherAuthor := testpkg.CreateTestAccount(t, db, "status-author-backfill-other@example.com")
 
-	firstDay := timezone.NewDate(2025, time.March, 3)
-	secondDay := timezone.NewDate(2025, time.March, 4)
-	rejectedDay := timezone.NewDate(2025, time.March, 5)
-	withdrawnDay := timezone.NewDate(2025, time.March, 6)
-	directDay := timezone.NewDate(2025, time.March, 7)
-	foreignDay := timezone.NewDate(2025, time.March, 10)
+	firstDay := "2025-03-03"
+	secondDay := "2025-03-04"
+	rejectedDay := "2025-03-05"
+	withdrawnDay := "2025-03-06"
+	directDay := "2025-03-07"
+	foreignDay := "2025-03-10"
 
 	approvedFirst := insertStatusDay(t, db, tenantA, studentA.ID, firstDay, "excused")
 	approvedSecond := insertStatusDay(t, db, tenantA, studentA.ID, secondDay, "excused")
@@ -93,15 +87,15 @@ func TestParentStatusAuthorBackfillStampsApprovedRequestsOnly(t *testing.T) {
 
 	reviewed := time.Now().Add(-24 * time.Hour)
 	insertAbsenceRequest(t, db, tenantA, studentA.ID, author.ID,
-		[]timezone.Date{firstDay, secondDay}, "excused", "approved", reviewed)
+		[]string{firstDay, secondDay}, "excused", "approved", reviewed)
 	insertAbsenceRequest(t, db, tenantA, studentA.ID, author.ID,
-		[]timezone.Date{rejectedDay}, "excused", "rejected", reviewed)
+		[]string{rejectedDay}, "excused", "rejected", reviewed)
 	insertAbsenceRequest(t, db, tenantA, studentA.ID, author.ID,
-		[]timezone.Date{withdrawnDay}, "excused", "withdrawn", reviewed)
+		[]string{withdrawnDay}, "excused", "withdrawn", reviewed)
 	// Same calendar day, another tenant's approved request: the day must not
 	// borrow an author across the tenant boundary.
 	insertAbsenceRequest(t, db, tenantB, studentB.ID, otherAuthor.ID,
-		[]timezone.Date{foreignDay}, "excused", "approved", reviewed)
+		[]string{foreignDay}, "excused", "approved", reviewed)
 
 	require.NoError(t, parentStatusAuthorBackfillUp(ctx, db))
 
@@ -138,13 +132,13 @@ func TestParentStatusAuthorBackfillKeepsExistingAuthor(t *testing.T) {
 	existing := testpkg.CreateTestAccount(t, db, "status-author-existing@example.com")
 	requester := testpkg.CreateTestAccount(t, db, "status-author-requester@example.com")
 
-	day := timezone.NewDate(2025, time.April, 7)
+	day := "2025-04-07"
 	dayID := insertStatusDay(t, db, tenantID, student.ID, day, "excused")
 	_, err := db.ExecContext(ctx,
 		`UPDATE active.student_status_days SET guardian_account_id = ? WHERE id = ?`, existing.ID, dayID)
 	require.NoError(t, err)
 	insertAbsenceRequest(t, db, tenantID, student.ID, requester.ID,
-		[]timezone.Date{day}, "excused", "approved", time.Now())
+		[]string{day}, "excused", "approved", time.Now())
 
 	require.NoError(t, parentStatusAuthorBackfillUp(ctx, db))
 

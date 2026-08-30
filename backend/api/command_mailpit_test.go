@@ -1,14 +1,15 @@
-package phoenixapi
+package api
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,28 +19,28 @@ import (
 // MailpitURL Tests
 // =============================================================================
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_Default(t *testing.T) {
-	t.Setenv("MAILPIT_URL", "")
-	assert.Equal(t, "http://mailpit:8025", MailpitURL())
+	t.Parallel()
+
+	assert.Equal(t, "http://mailpit:8025", mailpitURLFrom(func(string) string { return "" }))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_FromEnv(t *testing.T) {
-	t.Setenv("MAILPIT_URL", "http://localhost:8025")
-	assert.Equal(t, "http://localhost:8025", MailpitURL())
+	t.Parallel()
+
+	assert.Equal(t, "http://localhost:8025", mailpitURLFrom(func(string) string { return "http://localhost:8025" }))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_TrimsTrailingSlash(t *testing.T) {
-	t.Setenv("MAILPIT_URL", "http://mp.local:8025/")
-	assert.Equal(t, "http://mp.local:8025", MailpitURL())
+	t.Parallel()
+
+	assert.Equal(t, "http://mp.local:8025", mailpitURLFrom(func(string) string { return "http://mp.local:8025/" }))
 }
 
-// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_TrimsWhitespace(t *testing.T) {
-	t.Setenv("MAILPIT_URL", "   http://mp.local:8025  ")
-	assert.Equal(t, "http://mp.local:8025", MailpitURL())
+	t.Parallel()
+
+	assert.Equal(t, "http://mp.local:8025", mailpitURLFrom(func(string) string { return "   http://mp.local:8025  " }))
 }
 
 // =============================================================================
@@ -79,52 +80,56 @@ func TestAddressedTo_Empty(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_TextBody(t *testing.T) {
+	t.Parallel()
+
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", Text: "Ihr Code: 123456 — gültig 10 Minuten."},
 	}, nil)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
-	code, err := fetchCodeFromMessage(context.Background(), &http.Client{Timeout: 2 * time.Second}, "abc")
+	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
 	require.NoError(t, err)
 	assert.Equal(t, "123456", code)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_HTMLFallback(t *testing.T) {
+	t.Parallel()
+
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", HTML: `<p style="letter-spacing:0.4em;">654321</p>`},
 	}, nil)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
-	code, err := fetchCodeFromMessage(context.Background(), &http.Client{Timeout: 2 * time.Second}, "abc")
+	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
 	require.NoError(t, err)
 	assert.Equal(t, "654321", code)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_NoCode(t *testing.T) {
+	t.Parallel()
+
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", Text: "no digits here"},
 	}, nil)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
-	code, err := fetchCodeFromMessage(context.Background(), &http.Client{Timeout: 2 * time.Second}, "abc")
+	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
 	require.NoError(t, err)
 	assert.Empty(t, code)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
+	t.Parallel()
+
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", Text: "IP 192.168.1.1 — code 111222"},
 	}, nil)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
-	code, err := fetchCodeFromMessage(context.Background(), &http.Client{Timeout: 2 * time.Second}, "abc")
+	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
 	require.NoError(t, err)
 	// Only the standalone 6-digit run is picked up; the IP octets are too short.
 	assert.Equal(t, "111222", code)
@@ -132,27 +137,29 @@ func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_NonOK(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
+	t.Parallel()
 
-	_, err := fetchCodeFromMessage(context.Background(), &http.Client{Timeout: 2 * time.Second}, "abc")
+	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
+		w.WriteHeader(testpkg.HTTPStatusInternalServerError)
+	})
+	defer srv.Close()
+
+	_, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mailpit detail")
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprint(w, `not json`)
-	}))
-	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
+	t.Parallel()
 
-	_, err := fetchCodeFromMessage(context.Background(), &http.Client{Timeout: 2 * time.Second}, "abc")
+	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
+		w.WriteHeader(testpkg.HTTPStatusOK)
+		_, _ = fmt.Fprint(w, `not json`)
+	})
+	defer srv.Close()
+
+	_, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
 	require.Error(t, err)
 }
 
@@ -162,6 +169,8 @@ func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	srv := newMailpitServer(t,
 		map[string]mailpitMessageDetail{
@@ -172,15 +181,16 @@ func TestFetchLatestMFACode_HappyPath(t *testing.T) {
 		},
 	)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
-	code, err := FetchLatestMFACode(context.Background(), "op@test.de", now.Add(-1*time.Second))
+	code, err := fetchLatestMFACodeAt(context.Background(), srv.URL, "op@test.de", now.Add(-1*time.Second))
 	require.NoError(t, err)
 	assert.Equal(t, "424242", code)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	stale := now.Add(-1 * time.Hour)
 	fresh := now
@@ -197,16 +207,17 @@ func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
 		},
 	)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
 	// notBefore between stale and fresh → only the new message qualifies.
-	code, err := FetchLatestMFACode(context.Background(), "op@test.de", now.Add(-1*time.Minute))
+	code, err := fetchLatestMFACodeAt(context.Background(), srv.URL, "op@test.de", now.Add(-1*time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, "999999", code)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	srv := newMailpitServer(t,
 		map[string]mailpitMessageDetail{
@@ -219,22 +230,22 @@ func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
 		},
 	)
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
-	code, err := FetchLatestMFACode(context.Background(), "op@test.de", now.Add(-1*time.Second))
+	code, err := fetchLatestMFACodeAt(context.Background(), srv.URL, "op@test.de", now.Add(-1*time.Second))
 	require.NoError(t, err)
 	assert.Equal(t, "222222", code)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_ContextCanceled(t *testing.T) {
+	t.Parallel()
+
 	srv := newMailpitServer(t, nil, nil) // always empty
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
 	defer cancel()
-	_, err := FetchLatestMFACode(ctx, "op@test.de", time.Now())
+	_, err := fetchLatestMFACodeAt(ctx, srv.URL, "op@test.de", time.Now())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
@@ -242,24 +253,25 @@ func TestFetchLatestMFACode_ContextCanceled(t *testing.T) {
 func TestFetchLatestMFACode_EmptyRecipient(t *testing.T) {
 	t.Parallel()
 
-	_, err := FetchLatestMFACode(context.Background(), "", time.Now())
+	_, err := fetchLatestMFACodeAt(context.Background(), "", "", time.Now())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "recipient is required")
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_ListServerError_RetriesUntilContext(t *testing.T) {
+	t.Parallel()
+
 	var hits int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
 		atomic.AddInt32(&hits, 1)
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
+		w.WriteHeader(testpkg.HTTPStatusInternalServerError)
+	})
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
 	defer cancel()
-	_, err := FetchLatestMFACode(ctx, "op@test.de", time.Now())
+	_, err := fetchLatestMFACodeAt(ctx, srv.URL, "op@test.de", time.Now())
 	require.Error(t, err)
 	// The 500 errors are swallowed by the poll loop; the function keeps
 	// retrying until ctx expires. At least two requests should land
@@ -269,10 +281,12 @@ func TestFetchLatestMFACode_ListServerError_RetriesUntilContext(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	var pollCount int32
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/v1/messages":
@@ -292,15 +306,14 @@ func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 		case "/api/v1/message/late":
 			_ = json.NewEncoder(w).Encode(mailpitMessageDetail{ID: "late", Text: "Code: 555555"})
 		default:
-			http.NotFound(w, r)
+			testpkg.HTTPNotFound(w, r)
 		}
-	}))
+	})
 	defer srv.Close()
-	t.Setenv("MAILPIT_URL", srv.URL)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	code, err := FetchLatestMFACode(ctx, "op@test.de", now.Add(-1*time.Second))
+	code, err := fetchLatestMFACodeAt(ctx, srv.URL, "op@test.de", now.Add(-1*time.Second))
 	require.NoError(t, err)
 	assert.Equal(t, "555555", code)
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&pollCount), int32(2))
@@ -314,9 +327,9 @@ func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 // the mailpit REST API we depend on: GET /api/v1/messages (list) and
 // GET /api/v1/message/{id} (detail). Pass nil for either argument to
 // serve an empty list / unknown details.
-func newMailpitServer(t *testing.T, details map[string]mailpitMessageDetail, messages []mailpitMessageSummary) *httptest.Server {
+func newMailpitServer(t *testing.T, details map[string]mailpitMessageDetail, messages []mailpitMessageSummary) *testpkg.HTTPServer {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path == "/api/v1/messages" {
 			_ = json.NewEncoder(w).Encode(mailpitMessageList{
@@ -330,12 +343,12 @@ func newMailpitServer(t *testing.T, details map[string]mailpitMessageDetail, mes
 			id := r.URL.Path[len(prefix):]
 			d, ok := details[id]
 			if !ok {
-				http.NotFound(w, r)
+				testpkg.HTTPNotFound(w, r)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(d)
 			return
 		}
-		http.NotFound(w, r)
-	}))
+		testpkg.HTTPNotFound(w, r)
+	})
 }

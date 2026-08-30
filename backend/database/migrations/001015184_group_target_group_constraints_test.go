@@ -6,7 +6,6 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // This test exercises the schema installed by the normal migration runner. It
@@ -26,7 +25,7 @@ func TestGroupTargetConstraintsRejectInvalidDirectWrites(t *testing.T) {
 	require.Error(t, setIncompleteGradeTargetForConstraintTest(db, tenantID, group.ID))
 }
 
-func setIncompleteGradeTargetForConstraintTest(db *bun.DB, tenantID, groupID int64) error {
+func setIncompleteGradeTargetForConstraintTest(db *testpkg.DB, tenantID, groupID int64) error {
 	_, err := db.NewRaw(`
 		UPDATE activities.groups
 		SET target_group_type = 'jahrgang',
@@ -37,7 +36,7 @@ func setIncompleteGradeTargetForConstraintTest(db *bun.DB, tenantID, groupID int
 	return err
 }
 
-func setTargetSchoolClassForConstraintTest(db *bun.DB, tenantID, groupID int64, schoolClass string) error {
+func setTargetSchoolClassForConstraintTest(db *testpkg.DB, tenantID, groupID int64, schoolClass string) error {
 	_, err := db.NewRaw(`
 		UPDATE activities.groups
 		SET target_group_type = 'klasse', target_grade_level = NULL, target_school_class = ?

@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 const (
@@ -132,7 +130,7 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 			AND "instance_student".student_id = enrollment.student_id
 			AND "group".source_school_classes IS NOT NULL
 			AND enrollment.enrollment_request_child_id IS NOT NULL
-			AND "instance".date >= ?
+			AND "instance".date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date
 			AND enrollment.valid_from <= "instance".date
 			AND (enrollment.valid_until IS NULL OR enrollment.valid_until > "instance".date)
 			AND "instance".status = 'planned'
@@ -154,17 +152,17 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 			AND enrollment.tenant_id = "group".tenant_id
 			AND "group".source_school_classes IS NOT NULL
 			AND enrollment.enrollment_request_child_id IS NOT NULL
-			AND enrollment.valid_from >= ?;
+			AND enrollment.valid_from >= (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date;
 
 		UPDATE activities.student_enrollments AS enrollment
-		SET valid_until = ?
+		SET valid_until = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date
 		FROM activities.groups AS "group"
 		WHERE enrollment.activity_group_id = "group".id
 			AND enrollment.tenant_id = "group".tenant_id
 			AND "group".source_school_classes IS NOT NULL
 			AND enrollment.enrollment_request_child_id IS NOT NULL
-			AND enrollment.valid_from < ?
-			AND (enrollment.valid_until IS NULL OR enrollment.valid_until > ?);
+			AND enrollment.valid_from < (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date
+			AND (enrollment.valid_until IS NULL OR enrollment.valid_until > (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date);
 
 		UPDATE activities.groups
 		SET source_care_offering_ids = NULL,
@@ -185,7 +183,7 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 					AND target_group_type = 'angebot'
 				)
 			);
-	`, timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate()).Exec(ctx)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping source_school_classes from activities.groups: %w", err)
 	}

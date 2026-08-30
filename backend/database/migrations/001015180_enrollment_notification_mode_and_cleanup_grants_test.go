@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"testing"
@@ -11,10 +10,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func insertNotificationModeTestPhase(t *testing.T, db *bun.DB, tenantID int64, suffix string) int64 {
+func insertNotificationModeTestPhase(t *testing.T, db *testpkg.DB, tenantID int64, suffix string) int64 {
 	t.Helper()
 	var phaseID int64
 	err := db.QueryRowContext(context.Background(), `
@@ -27,7 +25,7 @@ func insertNotificationModeTestPhase(t *testing.T, db *bun.DB, tenantID int64, s
 	return phaseID
 }
 
-func insertNotificationModeTestRequest(t *testing.T, db *bun.DB, tenantID, phaseID int64, token, childStatus string) int64 {
+func insertNotificationModeTestRequest(t *testing.T, db *testpkg.DB, tenantID, phaseID int64, token, childStatus string) int64 {
 	t.Helper()
 	var requestID int64
 	err := db.QueryRowContext(context.Background(), `
@@ -51,7 +49,7 @@ func insertNotificationModeTestRequest(t *testing.T, db *bun.DB, tenantID, phase
 	return requestID
 }
 
-func insertNotificationModeTestOutbox(t *testing.T, db *bun.DB, tenantID, requestID int64, kind string, createdAt time.Time) {
+func insertNotificationModeTestOutbox(t *testing.T, db *testpkg.DB, tenantID, requestID int64, kind string, createdAt time.Time) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO platform.email_outbox
@@ -62,7 +60,7 @@ func insertNotificationModeTestOutbox(t *testing.T, db *bun.DB, tenantID, reques
 	require.NoError(t, err)
 }
 
-func notificationModeColumnExists(t *testing.T, db *bun.DB) bool {
+func notificationModeColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -77,7 +75,7 @@ func notificationModeColumnExists(t *testing.T, db *bun.DB) bool {
 	return exists
 }
 
-func roleHasDeletePrivilege(t *testing.T, db *bun.DB, relation string) bool {
+func roleHasDeletePrivilege(t *testing.T, db *testpkg.DB, relation string) bool {
 	t.Helper()
 	var hasPrivilege bool
 	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, 'DELETE')`, relation).
@@ -130,24 +128,24 @@ func TestEnrollmentNotificationModeAndCleanupGrantsMigration_PostSchemaAndScoped
 		ctx,
 		db,
 		"r.tenant_id IN (?)",
-		bun.List(tenantIDs),
+		testpkg.DBList(tenantIDs),
 	))
 
 	tests := []struct {
 		name      string
 		requestID int64
-		want      sql.NullString
+		want      testpkg.NullString
 	}{
-		{name: "earliest outbox history wins", requestID: historyRequest, want: sql.NullString{String: "immediate", Valid: true}},
-		{name: "reopened request retains prior outbox mode", requestID: reopenedHistoryRequest, want: sql.NullString{String: "digest", Valid: true}},
-		{name: "missing history stays digest after live setting changed", requestID: changedSettingRequest, want: sql.NullString{String: "digest", Valid: true}},
+		{name: "earliest outbox history wins", requestID: historyRequest, want: testpkg.NullString{String: "immediate", Valid: true}},
+		{name: "reopened request retains prior outbox mode", requestID: reopenedHistoryRequest, want: testpkg.NullString{String: "digest", Valid: true}},
+		{name: "missing history stays digest after live setting changed", requestID: changedSettingRequest, want: testpkg.NullString{String: "digest", Valid: true}},
 		{name: "undecided stays unpinned", requestID: undecidedRequest},
-		{name: "missing history ignores invalid live setting", requestID: invalidSettingRequest, want: sql.NullString{String: "digest", Valid: true}},
-		{name: "missing history defaults to digest", requestID: defaultRequest, want: sql.NullString{String: "digest", Valid: true}},
+		{name: "missing history ignores invalid live setting", requestID: invalidSettingRequest, want: testpkg.NullString{String: "digest", Valid: true}},
+		{name: "missing history defaults to digest", requestID: defaultRequest, want: testpkg.NullString{String: "digest", Valid: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got sql.NullString
+			var got testpkg.NullString
 			require.NoError(t, db.NewRaw(`
 				SELECT decision_notification_mode
 				FROM enrollment.requests

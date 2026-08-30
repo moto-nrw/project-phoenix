@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,7 +66,7 @@ func TestSimulateCmd_HasSubcommands(t *testing.T) {
 func TestSimulateFullDayCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "full-day", simulateFullDayCmd.Use)
 	assert.Contains(t, simulateFullDayCmd.Short, "full-day simulation")
-	assert.NotNil(t, simulateFullDayCmd.Run)
+	assert.NotNil(t, simulateFullDayCmd.RunE)
 }
 
 func TestSimulateFullDayCmd_Flags(t *testing.T) {
@@ -97,7 +99,7 @@ func TestSimulateFullDayCmd_FlagDefaults(t *testing.T) {
 func TestSimulateStatusCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "status", simulateStatusCmd.Use)
 	assert.Contains(t, simulateStatusCmd.Short, "simulation state")
-	assert.NotNil(t, simulateStatusCmd.Run)
+	assert.NotNil(t, simulateStatusCmd.RunE)
 }
 
 func TestSimulateStatusCmd_Flags(t *testing.T) {
@@ -121,7 +123,44 @@ func TestSimulateStatusCmd_FlagDefaults(t *testing.T) {
 func TestSimulateLiveCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "live", simulateLiveCmd.Use)
 	assert.Contains(t, simulateLiveCmd.Short, "continuous live simulation")
-	assert.NotNil(t, simulateLiveCmd.Run)
+	assert.NotNil(t, simulateLiveCmd.RunE)
+}
+
+func TestSimulateRootFailsFastWithoutClient(t *testing.T) {
+	t.Parallel()
+
+	require.EqualError(t, (simulateRoot{}).validate(), "simulation client factory is required")
+}
+
+func TestSimulateRootFailsFastForMissingRunners(t *testing.T) {
+	t.Parallel()
+
+	client := func(string, bool) (simulationClient, error) { return nil, nil }
+	require.EqualError(t, (simulateRoot{client: client}).runFullDay(context.Background(), simulationFullDayOptions{}), "full-day simulation runner is required")
+	require.EqualError(t, (simulateRoot{client: client}).runStatus(context.Background(), simulationStatusOptions{}), "status simulation runner is required")
+	require.EqualError(t, (simulateRoot{client: client}).runLive(context.Background(), simulationLiveOptions{}), "live simulation runner is required")
+}
+
+func TestSimulateRootPreservesRunnerErrorContracts(t *testing.T) {
+	t.Parallel()
+
+	client := func(string, bool) (simulationClient, error) { return nil, nil }
+	failure := errors.New("runner failed")
+
+	err := (simulateRoot{client: client, fullDay: func(context.Context, simulationFullDayOptions) error { return failure }}).
+		runFullDay(context.Background(), simulationFullDayOptions{})
+	require.ErrorIs(t, err, failure)
+	require.EqualError(t, err, "Full-day simulation failed: runner failed")
+
+	err = (simulateRoot{client: client, status: func(context.Context, simulationStatusOptions) error { return failure }}).
+		runStatus(context.Background(), simulationStatusOptions{})
+	require.ErrorIs(t, err, failure)
+	require.EqualError(t, err, "Status query failed: runner failed")
+
+	err = (simulateRoot{client: client, live: func(context.Context, simulationLiveOptions) error { return failure }}).
+		runLive(context.Background(), simulationLiveOptions{})
+	require.ErrorIs(t, err, failure)
+	require.EqualError(t, err, "Live simulation failed: runner failed")
 }
 
 func TestSimulateLiveCmd_Flags(t *testing.T) {

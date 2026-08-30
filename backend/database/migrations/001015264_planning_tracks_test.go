@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	model "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -15,12 +14,15 @@ func TestPlanningTracksSchemaRejectsCrossTenantTemplateReference(t *testing.T) {
 
 	otherScope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, otherScope.TenantID)
-	track := &model.PlanningTrack{Name: "Andere Schule", Color: "#5080D8", SortOrder: 0}
-	track.SetTenantID(otherScope.TenantID)
-	require.NoError(t, db.NewInsert().Model(track).ModelTableExpr("schedule.planning_tracks").Scan(context.Background()))
+	var trackID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO schedule.planning_tracks (tenant_id, name, color, sort_order)
+		VALUES (?, 'Andere Schule', '#5080D8', 0)
+		RETURNING id
+	`, otherScope.TenantID).Scan(context.Background(), &trackID))
 
 	_, err := db.NewUpdate().Table("activities.groups").
-		Set("planning_track_id = ?", track.ID).
+		Set("planning_track_id = ?", trackID).
 		Where("id = ?", group.ID).
 		Exec(context.Background())
 	require.Error(t, err)

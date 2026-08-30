@@ -3051,6 +3051,17 @@ type ActivityInstanceOpts struct {
 	CalendarPeriodID *int64
 }
 
+// Date returns a calendar date for callers that should not depend on the
+// application's date implementation directly.
+func Date(year int, month time.Month, day int) timezone.Date {
+	return timezone.NewDate(year, month, day)
+}
+
+// TodayDate returns today's Berlin calendar date for fixture setup.
+func TodayDate() timezone.Date {
+	return timezone.TodayDate()
+}
+
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.

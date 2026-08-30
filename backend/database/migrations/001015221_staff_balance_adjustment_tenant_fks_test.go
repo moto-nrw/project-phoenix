@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ func TestStaffBalanceAdjustmentTenantFKsRejectCrossTenantReferences(t *testing.T
 	`,
 		tenantA,
 		staffB.ID,
-		timezone.TodayDate(),
+		testpkg.TodayDate(),
 		deciderA.ID,
 		time.Now(),
 	).Exec(context.Background())
@@ -47,7 +46,7 @@ func TestStaffBalanceAdjustmentTenantFKsRejectCrossTenantReferences(t *testing.T
 	`,
 		tenantA,
 		deciderA.ID,
-		timezone.TodayDate(),
+		testpkg.TodayDate(),
 		staffB.ID,
 		time.Now(),
 	).Exec(context.Background())

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/uptrace/bun"
 )
 
 func TestNoDuplicateMigrationVersions(t *testing.T) {
@@ -144,7 +143,7 @@ func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
 	}
 }
 
-func relationExists(t *testing.T, db *bun.DB, relation string) bool {
+func relationExists(t *testing.T, db *testpkg.DB, relation string) bool {
 	t.Helper()
 	var exists bool
 	if err := db.NewRaw(`SELECT to_regclass(?) IS NOT NULL`, relation).Scan(context.Background(), &exists); err != nil {
