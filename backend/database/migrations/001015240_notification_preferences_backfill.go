@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	authRepository "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -60,6 +59,34 @@ const dispatchWasEnabledSQL = `EXISTS (
 		WHERE "dispatch".tenant_id = "sub".tenant_id
 		  AND "dispatch".setting_key = 'notifications.dispatch_enabled'
 		  AND "dispatch".value = 'true'::jsonb
+)`
+
+// effectiveAdminAt115240SQL is frozen with this migration. Runtime permission
+// changes must not alter which historical devices receive the backfill.
+const effectiveAdminAt115240SQL = `EXISTS (
+		SELECT 1
+		FROM auth.account_roles AS "ar"
+		INNER JOIN auth.roles AS "r" ON "r".id = "ar".role_id
+		LEFT JOIN auth.role_permissions AS "rp" ON "rp".role_id = "ar".role_id
+		LEFT JOIN auth.permissions AS "p" ON "p".id = "rp".permission_id
+		WHERE "ar".account_id = "sub".account_id
+		  AND "ar".tenant_id = "sub".tenant_id
+		  AND (
+		    LOWER("r".name) = 'admin'
+		    OR ("p".resource = 'admin' AND "p".action = '*')
+		    OR ("p".resource = '*' AND "p".action = '*')
+		  )
+	) OR EXISTS (
+		SELECT 1
+		FROM auth.account_permissions AS "ap"
+		INNER JOIN auth.permissions AS "p" ON "p".id = "ap".permission_id
+		WHERE "ap".account_id = "sub".account_id
+		  AND "ap".tenant_id = "sub".tenant_id
+		  AND "ap".granted = TRUE
+		  AND (
+		    ("p".resource = 'admin' AND "p".action = '*')
+		    OR ("p".resource = '*' AND "p".action = '*')
+		  )
 	)`
 
 // notificationPreferencesBackfillUp gives everyone whose registered Web Push
@@ -146,7 +173,7 @@ func notificationPreferencesBackfillUp(ctx context.Context, db *bun.DB) error {
 		  AND (%s)
 		  AND %s
 		ON CONFLICT (tenant_id, account_id, notification_type) DO NOTHING;
-	`, authRepository.EffectiveAdminExistsSQL(`"sub".account_id`, `"sub".tenant_id`), dispatchWasEnabledSQL)
+	`, effectiveAdminAt115240SQL, dispatchWasEnabledSQL)
 	if _, err := db.ExecContext(ctx, staffBackfillQuery); err != nil {
 		return fmt.Errorf("error backfilling staff notification consent: %w", err)
 	}

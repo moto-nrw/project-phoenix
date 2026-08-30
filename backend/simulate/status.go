@@ -4,25 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
 // StatusOptions configures the status query.
 type StatusOptions struct {
 	StatePath string
 	Verbose   bool
+	Client    ClientFactory
 }
 
 // RunStatus queries the current simulation state and prints a summary.
 func RunStatus(ctx context.Context, opts StatusOptions) error {
-	state, err := seedapi.LoadSeedState(opts.StatePath)
+	if opts.Client == nil {
+		return fmt.Errorf("simulation client factory is required")
+	}
+	state, err := LoadSeedState(opts.StatePath)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := newClient(state.BaseURL, opts.Verbose)
+	client, err := buildClient(opts.Client, state.BaseURL, opts.Verbose)
+	if err != nil {
+		return err
+	}
 
 	if err := client.CheckHealth(); err != nil {
 		return fmt.Errorf("server health check: %w", err)
@@ -104,9 +108,16 @@ func printActiveGroups(respBody []byte) {
 		if activity == "" {
 			activity = stringField(g, "name")
 		}
-		fmt.Printf("  %-4s %-20s %-20s %s\n", id, strutil.TruncateBytes(activity, 20, "..."), strutil.TruncateBytes(room, 20, "..."), supervisors)
+		fmt.Printf("  %-4s %-20s %-20s %s\n", id, truncateStatusValue(activity), truncateStatusValue(room), supervisors)
 	}
 	fmt.Printf("  Total: %d active sessions\n", len(groups))
+}
+
+func truncateStatusValue(value string) string {
+	if len(value) <= 20 {
+		return value
+	}
+	return value[:20] + "..."
 }
 
 func printActiveVisits(respBody []byte) {

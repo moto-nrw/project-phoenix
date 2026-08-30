@@ -1,26 +1,77 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	"github.com/spf13/cobra"
+	"github.com/uptrace/bun"
 )
 
-// Migration function variables for testability (overridden in tests).
-var (
-	migrateFn       = migrations.Migrate
-	migrateResetFn  = migrations.Reset
-	migrateStatusFn = migrations.MigrateStatus
-)
+type migrationOperation func(context.Context, *bun.DB) error
+
+type migrateRoot struct {
+	openDatabase func() (*bun.DB, error)
+	migrate      migrationOperation
+	reset        migrationOperation
+	status       migrationOperation
+}
+
+func (root migrateRoot) operation(command string) (migrationOperation, error) {
+	switch command {
+	case "migrate":
+		return root.migrate, nil
+	case "reset":
+		return root.reset, nil
+	case "status":
+		return root.status, nil
+	default:
+		return nil, fmt.Errorf("unknown migration operation %q", command)
+	}
+}
+
+func (root migrateRoot) runCommand(ctx context.Context, command string) error {
+	operation, err := root.operation(command)
+	if err != nil {
+		return err
+	}
+	return root.run(ctx, operation)
+}
+
+func (root migrateRoot) run(ctx context.Context, operation migrationOperation) error {
+	if root.openDatabase == nil {
+		return fmt.Errorf("database opener is required")
+	}
+	if operation == nil {
+		return fmt.Errorf("migration operation is required")
+	}
+	db, err := root.openDatabase()
+	if err != nil {
+		return fmt.Errorf("open migration database: %w", err)
+	}
+	if db == nil {
+		return fmt.Errorf("database opener returned nil")
+	}
+	defer func() { _ = db.Close() }()
+	return operation(ctx, db)
+}
+
+var defaultMigrateRoot = migrateRoot{
+	openDatabase: database.DBConn,
+	migrate:      migrations.Migrate,
+	reset:        migrations.Reset,
+	status:       migrations.MigrateStatus,
+}
 
 // migrateCmd represents the migrate command
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "use bun migration tool",
 	Long:  `run bun migrations`,
-	Run: func(cmd *cobra.Command, args []string) {
-		migrateFn()
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultMigrateRoot.runCommand(cmd.Context(), "migrate")
 	},
 }
 
@@ -29,8 +80,8 @@ var migrateResetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "reset database and run all migrations",
 	Long:  `WARNING: This will delete all data in the database and run all migrations from scratch`,
-	Run: func(cmd *cobra.Command, args []string) {
-		migrateResetFn()
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultMigrateRoot.runCommand(cmd.Context(), "reset")
 	},
 }
 
@@ -39,8 +90,8 @@ var migrateStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "show migration status",
 	Long:  `Display the status of all migrations, showing which ones have been applied`,
-	Run: func(cmd *cobra.Command, args []string) {
-		migrateStatusFn()
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultMigrateRoot.runCommand(cmd.Context(), "status")
 	},
 }
 

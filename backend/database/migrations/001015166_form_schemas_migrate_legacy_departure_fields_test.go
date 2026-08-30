@@ -14,14 +14,80 @@ import (
 	"testing"
 	"time"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func insertDepartureTestSchema(t *testing.T, db *bun.DB, tenantID, createdBy int64, name string, version int, fieldsJSON string) int64 {
+type departureTestCondition struct {
+	Source   string `json:"source"`
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Value    any    `json:"value"`
+}
+
+type departureTestField struct {
+	Key         string                  `json:"key"`
+	Label       string                  `json:"label"`
+	Type        string                  `json:"type"`
+	Required    bool                    `json:"required"`
+	AppliesToCh bool                    `json:"applies_to_child"`
+	SortOrder   int                     `json:"sort_order"`
+	Target      string                  `json:"target"`
+	VisibleWhen *departureTestCondition `json:"visible_when"`
+}
+
+func validateConvertedDepartureFields(fields []departureTestField) error {
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+	return validateConvertedDepartureSchema(departureSchemaRow{
+		Name:             "test",
+		Version:          1,
+		CreatedBy:        1,
+		CoreRequirements: `{"guardian_phone":true}`,
+		LegalBlocks:      `[]`,
+	}, string(raw))
+}
+
+func TestValidateConvertedDepartureSchemaRejectsInvalidUnchangedContent(t *testing.T) {
+	t.Parallel()
+
+	row := departureSchemaRow{Name: "test", Version: 0, CreatedBy: 1, CoreRequirements: `{"unknown":true}`, LegalBlocks: `[]`}
+	err := validateConvertedDepartureSchema(row, `[{"key":"departure","label":"Heimweg","type":"weekday_multi_mode","applies_to_child":true,"target":"student.allowed_departure_modes"}]`)
+	require.ErrorContains(t, err, `unknown core requirement "unknown"`)
+
+	row.CoreRequirements = `{}`
+	row.LegalBlocks = `[{"key":"agb","kind":"terms","enabled":true,"source":"standard"}]`
+	err = validateConvertedDepartureSchema(row, `[{"key":"departure","label":"Heimweg","type":"weekday_multi_mode","applies_to_child":true,"target":"student.allowed_departure_modes"}]`)
+	require.ErrorContains(t, err, "invalid kind, label, title, or required state")
+
+	row.LegalBlocks = `[]`
+	err = validateConvertedDepartureSchema(row, `[{"key":"Bad-Key","label":"Heimweg","type":"weekday_multi_mode","applies_to_child":true,"target":"student.allowed_departure_modes"}]`)
+	require.ErrorContains(t, err, "lowercase letters, digits, or underscores")
+}
+
+func TestValidateConvertedDepartureSchemaRejectsInvalidSchemaMetadata(t *testing.T) {
+	t.Parallel()
+
+	fields := `[{"key":"departure","label":"Heimweg","type":"weekday_multi_mode","applies_to_child":true,"target":"student.allowed_departure_modes"}]`
+	valid := departureSchemaRow{Name: "test", Version: 0, CreatedBy: 1, CoreRequirements: `{}`, LegalBlocks: `[]`}
+
+	row := valid
+	row.Name = ""
+	require.EqualError(t, validateConvertedDepartureSchema(row, fields), "form schema name is required")
+
+	row = valid
+	row.Version = -1
+	require.EqualError(t, validateConvertedDepartureSchema(row, fields), "form schema version must be positive")
+
+	row = valid
+	row.CreatedBy = 0
+	require.EqualError(t, validateConvertedDepartureSchema(row, fields), "form schema created_by is required")
+}
+
+func insertDepartureTestSchema(t *testing.T, db *testpkg.DB, tenantID, createdBy int64, name string, version int, fieldsJSON string) int64 {
 	t.Helper()
 	var id int64
 	err := db.QueryRowContext(context.Background(), `
@@ -38,7 +104,7 @@ func insertDepartureTestSchema(t *testing.T, db *bun.DB, tenantID, createdBy int
 	return id
 }
 
-func insertDepartureTestPhase(t *testing.T, db *bun.DB, tenantID, schemaID int64) int64 {
+func insertDepartureTestPhase(t *testing.T, db *testpkg.DB, tenantID, schemaID int64) int64 {
 	t.Helper()
 	var id int64
 	err := db.QueryRowContext(context.Background(), `
@@ -55,12 +121,12 @@ func insertDepartureTestPhase(t *testing.T, db *bun.DB, tenantID, schemaID int64
 	return id
 }
 
-func loadSchemaFields(t *testing.T, db *bun.DB, id int64) []enrollmentModels.FormField {
+func loadSchemaFields(t *testing.T, db *testpkg.DB, id int64) []departureTestField {
 	t.Helper()
 	var raw string
 	require.NoError(t, db.QueryRowContext(context.Background(),
 		`SELECT fields::text FROM enrollment.form_schemas WHERE id = ?`, id).Scan(&raw))
-	var fields []enrollmentModels.FormField
+	var fields []departureTestField
 	require.NoError(t, json.Unmarshal([]byte(raw), &fields))
 	return fields
 }
@@ -98,16 +164,14 @@ func TestFormSchemasMigrateLegacyDeparture_PublishesConvertedVersionAndRepointsP
 	converted := loadSchemaFields(t, db, newID)
 	require.Len(t, converted, 2)
 	assert.Equal(t, "student.allowed_departure_modes", converted[0].Target)
-	assert.Equal(t, enrollmentModels.FormFieldWeekdayMultiMode, converted[0].Type)
+	assert.Equal(t, "weekday_multi_mode", converted[0].Type)
 	assert.True(t, converted[0].Required, "required must carry over from the required legacy field")
 	assert.True(t, converted[0].AppliesToCh)
 	assert.Equal(t, 0, converted[0].SortOrder)
 	assert.Equal(t, "student.health_info", converted[1].Target)
 	assert.Equal(t, 1, converted[1].SortOrder)
 
-	// The converted version passes model validation (would be saved by the app).
-	schema := &enrollmentModels.FormSchema{Name: "Halbjahresformular", Version: newVersion, CreatedBy: account.ID, Fields: converted}
-	require.NoError(t, schema.Validate())
+	require.NoError(t, validateConvertedDepartureFields(converted))
 
 	// The old version keeps its legacy fields for pinned requests.
 	old := loadSchemaFields(t, db, v1)
@@ -218,8 +282,8 @@ func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFi
 	assert.Equal(t, "heimwege", converted[0].Key)
 	assert.True(t, converted[0].Required)
 	require.NotNil(t, converted[0].VisibleWhen, "identical departure visibility should remain conditional")
-	assert.Equal(t, enrollmentModels.ConditionSourceGradeLevel, converted[0].VisibleWhen.Source)
-	assert.Equal(t, enrollmentModels.ConditionOpEquals, converted[0].VisibleWhen.Operator)
+	assert.Equal(t, "grade_level", converted[0].VisibleWhen.Source)
+	assert.Equal(t, "eq", converted[0].VisibleWhen.Operator)
 	assert.Equal(t, float64(1), converted[0].VisibleWhen.Value)
 }
 
@@ -256,8 +320,7 @@ func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBefo
 	assert.True(t, converted[0].Required, "requiredness must merge from the legacy field")
 	assert.Nil(t, converted[0].VisibleWhen)
 
-	schema := &enrollmentModels.FormSchema{Name: "Doppelte Heimwege", Version: newVersion, CreatedBy: account.ID, Fields: converted}
-	require.NoError(t, schema.Validate(), "converted schema must not fail on duplicate modern departure targets")
+	require.NoError(t, validateConvertedDepartureFields(converted), "converted schema must not contain duplicate modern departure targets")
 }
 
 func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnReplacement(t *testing.T) {
@@ -324,8 +387,7 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(
 	assert.Equal(t, "pickup_note", converted[1].Key)
 	assert.Nil(t, converted[1].VisibleWhen, "dependent field must not point at the removed legacy pickup_status key")
 
-	schema := &enrollmentModels.FormSchema{Name: "Abhängigkeit", Version: newVersion, CreatedBy: account.ID, Fields: converted}
-	require.NoError(t, schema.Validate())
+	require.NoError(t, validateConvertedDepartureFields(converted))
 }
 
 func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *testing.T) {

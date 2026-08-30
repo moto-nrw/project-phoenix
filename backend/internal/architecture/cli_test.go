@@ -1,16 +1,13 @@
-package architecture_test
+package architecture
 
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/moto-nrw/project-phoenix/internal/architecture"
 )
 
 func TestCheckRejectsUnknownPolicyFields(t *testing.T) {
@@ -73,7 +70,7 @@ func TestProjectionIncludesUnclassifiedPackageLocation(t *testing.T) {
 	policy := fixturePath(t, "unclassified-package.json")
 	bundle := loadDiagramBundle(t, project, policy)
 	key := "production|packages.unclassified|example.test/architecture-fixture/target|example.test/architecture-fixture/target"
-	want := []architecture.Location{{File: "target/target.go", Line: 1, Declaration: "package target"}}
+	want := []Location{{File: "target/target.go", Line: 1, Declaration: "package target"}}
 	if got := projectedViolation(t, bundle.Migration, key).Locations; !slices.Equal(got, want) {
 		t.Fatalf("projected package locations = %#v, want %#v", got, want)
 	}
@@ -241,7 +238,7 @@ func TestCheckReportsEveryImportLocationInEachScope(t *testing.T) {
 		t.Fatalf("location-aware projection schema versions = bundle %d, migration %d", bundle.SchemaVersion, bundle.Migration.SchemaVersion)
 	}
 	key := "production|imports.forbidden|example.test/architecture-scopes/source|example.test/architecture-scopes/production"
-	want := []architecture.Location{
+	want := []Location{
 		{File: "source/another.go", Line: 3, Declaration: "import example.test/architecture-scopes/production"},
 		{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-scopes/production"},
 	}
@@ -253,22 +250,22 @@ func TestCheckReportsEveryImportLocationInEachScope(t *testing.T) {
 func TestLoadGraphIncludesInternalAndExternalTestImports(t *testing.T) {
 	t.Parallel()
 
-	policy, err := architecture.LoadPolicy(fixturePath(t, "scopes", "policy.json"))
+	policy, err := LoadPolicy(fixturePath(t, "scopes", "policy.json"))
 	if err != nil {
 		t.Fatalf("load policy: %v", err)
 	}
-	graph, err := architecture.LoadGraph(fixturePath(t, "scopes"), policy)
+	graph, err := LoadGraph(fixturePath(t, "scopes"), policy)
 	if err != nil {
 		t.Fatalf("load graph: %v", err)
 	}
 
-	want := map[architecture.Edge]struct{}{
-		{Scope: architecture.ScopeProduction, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/production"}:        {},
-		{Scope: architecture.ScopeInternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/internal-target"}: {},
-		{Scope: architecture.ScopeInternalTest, Source: "example.test/architecture-scopes/source", Target: "testing"}:                                          {},
-		{Scope: architecture.ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/external-target"}: {},
-		{Scope: architecture.ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/source"}:          {},
-		{Scope: architecture.ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "testing"}:                                          {},
+	want := map[Edge]struct{}{
+		{Scope: ScopeProduction, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/production"}:        {},
+		{Scope: ScopeInternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/internal-target"}: {},
+		{Scope: ScopeInternalTest, Source: "example.test/architecture-scopes/source", Target: "testing"}:                                          {},
+		{Scope: ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/external-target"}: {},
+		{Scope: ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/source"}:          {},
+		{Scope: ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "testing"}:                                          {},
 	}
 	for _, edge := range graph.Edges {
 		delete(want, edge)
@@ -335,8 +332,8 @@ func TestDiagramWritesDeterministicPolicyAndMigrationProjections(t *testing.T) {
 		}
 	}
 	var bundle struct {
-		Target    architecture.Projection `json:"target"`
-		Migration architecture.Projection `json:"migration"`
+		Target    Projection `json:"target"`
+		Migration Projection `json:"migration"`
 	}
 	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(outputDirectory, "architecture.json"))), &bundle); err != nil {
 		t.Fatalf("decode architecture.json: %v", err)
@@ -365,7 +362,7 @@ func TestDependenciesWritesFocusedSVGJSONAndGodaQuery(t *testing.T) {
 	if query := readFile(t, filepath.Join(outputDirectory, "dependencies.goda")); !strings.Contains(query, "cgo_enabled=0(goarch=amd64(goos=linux") {
 		t.Fatalf("Goda query does not pin the policy build context: %s", query)
 	}
-	var projection architecture.Projection
+	var projection Projection
 	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(outputDirectory, "dependencies.json"))), &projection); err != nil {
 		t.Fatalf("decode dependencies.json: %v", err)
 	}
@@ -520,7 +517,7 @@ func TestCheckReportsDeterministicSemanticLocations(t *testing.T) {
 		}
 	}
 	key := "production|contracts.orm-tag|example.test/architecture-semantic/public|public.Leaky"
-	want := []architecture.Location{{File: "public/public.go", Line: 10, Declaration: "public.Leaky"}}
+	want := []Location{{File: "public/public.go", Line: 10, Declaration: "public.Leaky"}}
 	if got := projectedViolation(t, bundle.Migration, key).Locations; !slices.Equal(got, want) {
 		t.Fatalf("projected contract locations = %#v, want %#v", got, want)
 	}
@@ -532,8 +529,8 @@ func isSemanticRule(rule string) bool {
 }
 
 type architectureBundle struct {
-	SchemaVersion int                     `json:"schema_version"`
-	Migration     architecture.Projection `json:"migration"`
+	SchemaVersion int        `json:"schema_version"`
+	Migration     Projection `json:"migration"`
 }
 
 func forbiddenScopePolicy(t *testing.T) string {
@@ -600,7 +597,7 @@ func loadDiagramBundle(t *testing.T, project, policy string) architectureBundle 
 	return bundle
 }
 
-func projectedViolation(t *testing.T, projection architecture.Projection, key string) architecture.ProjectionViolation {
+func projectedViolation(t *testing.T, projection Projection, key string) ProjectionViolation {
 	t.Helper()
 	for _, violation := range projection.Violations {
 		if violation.Key == key {
@@ -608,7 +605,7 @@ func projectedViolation(t *testing.T, projection architecture.Projection, key st
 		}
 	}
 	t.Fatalf("machine projection omits violation %q", key)
-	return architecture.ProjectionViolation{}
+	return ProjectionViolation{}
 }
 
 func TestLineDirectivesDoNotReplacePhysicalSemanticLocations(t *testing.T) {
@@ -718,14 +715,14 @@ func expectedCompositionViolationKeys() []string {
 func TestPolicyRejectsLegacyReferencesOutsideCompositionPackages(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]func(*architecture.Package){
-		"domain owner":     func(pkg *architecture.Package) { pkg.Owner = "alpha" },
-		"non-compose role": func(pkg *architecture.Package) { pkg.Role = "application" },
+	tests := map[string]func(*Package){
+		"domain owner":     func(pkg *Package) { pkg.Owner = "alpha" },
+		"non-compose role": func(pkg *Package) { pkg.Role = "application" },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+			policy, err := LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
 			if err != nil {
 				t.Fatalf("load policy: %v", err)
 			}
@@ -745,11 +742,11 @@ func TestPolicyRejectsLegacyReferencesOutsideCompositionPackages(t *testing.T) {
 func TestPolicyRejectsLegacyPackageAliasesWithDuplicateSymbols(t *testing.T) {
 	t.Parallel()
 
-	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+	policy, err := LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
 	if err != nil {
 		t.Fatalf("load policy: %v", err)
 	}
-	policy.LegacyComposition = append(policy.LegacyComposition, architecture.LegacyReference{
+	policy.LegacyComposition = append(policy.LegacyComposition, LegacyReference{
 		Package: "/legacy",
 		Symbols: []string{"Factory"},
 	})
@@ -761,11 +758,11 @@ func TestPolicyRejectsLegacyPackageAliasesWithDuplicateSymbols(t *testing.T) {
 func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) {
 	t.Parallel()
 
-	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+	policy, err := LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
 	if err != nil {
 		t.Fatalf("load policy: %v", err)
 	}
-	policy.ReadProjections = append(policy.ReadProjections, architecture.ReadProjection{
+	policy.ReadProjections = append(policy.ReadProjections, ReadProjection{
 		ID:          "duplicate-projection",
 		Package:     "/projection",
 		DataObjects: []string{"beta.records"},
@@ -809,20 +806,18 @@ func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ..
 	}
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
-	command := exec.Command(filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
-	command.Dir = root
-	command.Env = os.Environ()
+	environmentVariables := os.Environ()
 	for key, value := range environment {
 		prefix := key + "="
-		filtered := command.Env[:0]
-		for _, variable := range command.Env {
+		filtered := environmentVariables[:0]
+		for _, variable := range environmentVariables {
 			if !strings.HasPrefix(variable, prefix) {
 				filtered = append(filtered, variable)
 			}
 		}
-		command.Env = append(filtered, prefix+value)
+		environmentVariables = append(filtered, prefix+value)
 	}
-	output, err := command.CombinedOutput()
+	output, err := processOutput(root, environmentVariables, filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
 	return string(output), err
 }
 
