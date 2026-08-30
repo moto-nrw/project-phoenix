@@ -17760,7 +17760,7 @@
       "declaration": "setupDuplicateInstanceRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        313
+        317
       ],
       "tables": []
     },
@@ -29436,7 +29436,7 @@
       "declaration": "buildMealPlanService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        38
       ],
       "tables": []
     },
@@ -29446,7 +29446,7 @@
       "declaration": "seedMealPlanWeek",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        55
       ],
       "tables": []
     },

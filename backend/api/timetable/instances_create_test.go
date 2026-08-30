@@ -272,6 +272,8 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
+	clock := func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin) }
+	instanceDate := timezone.DateFromTime(clock()).AddDays(1)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -288,10 +290,10 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 			Exec(ctx)
 	})
 
-	router := setupDuplicateInstanceRoute(t, db, ctx)
+	router := setupDuplicateInstanceRoute(t, db, ctx, clock)
 
 	body := map[string]any{
-		"date":              nextTimetableWorkday().String(),
+		"date":              instanceDate.String(),
 		"start_time":        "10:00",
 		"end_time":          "11:00",
 		"title":             "Duplicate slot",
@@ -307,12 +309,14 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	assert.Contains(t, second.Body.String(), "duplicate_instance")
 }
 
-func setupDuplicateInstanceRoute(t *testing.T, db *bun.DB, ctx context.Context) chi.Router {
+func setupDuplicateInstanceRoute(
+	t *testing.T, db *bun.DB, ctx context.Context, clock func() time.Time,
+) chi.Router {
 	t.Helper()
 
 	_, serviceFactory := testutil.SetupAPITest(t)
 	resource := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
+		TimetableData:   testTimetableData(db, clock),
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
 	})
