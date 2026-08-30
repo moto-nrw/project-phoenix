@@ -18003,7 +18003,7 @@
       "declaration": "TestOGSGroupLive_KeepsOpenVisitWithoutAttendance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        207
+        345
       ],
       "tables": [
         "users.students"
@@ -18015,7 +18015,7 @@
       "declaration": "TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren",
       "target": "database/repositories.NewFactory",
       "lines": [
-        166
+        304
       ],
       "tables": [
         "users.students"

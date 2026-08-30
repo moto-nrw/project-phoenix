@@ -43,11 +43,13 @@ describe("mapOgsGroupLiveResponse", () => {
             room_id: "10",
             room_name: "Raum 101",
             via_substitution: false,
+            is_personal: true,
           },
           {
             id: "2",
             name: "Gruppe B",
             via_substitution: true,
+            is_personal: true,
           },
         ],
         group_id: "1",
@@ -62,6 +64,7 @@ describe("mapOgsGroupLiveResponse", () => {
         roomId: "10",
         roomName: "Raum 101",
         viaSubstitution: false,
+        isPersonal: true,
       },
       {
         id: "2",
@@ -69,6 +72,7 @@ describe("mapOgsGroupLiveResponse", () => {
         roomId: undefined,
         roomName: undefined,
         viaSubstitution: true,
+        isPersonal: true,
       },
     ]);
   });
@@ -217,6 +221,7 @@ describe("mapOgsGroupLiveResponse", () => {
             name: "Große IDs",
             room_id: id,
             via_substitution: false,
+            is_personal: true,
           },
         ],
         group_id: id,

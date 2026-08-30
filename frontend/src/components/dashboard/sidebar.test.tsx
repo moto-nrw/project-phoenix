@@ -298,12 +298,32 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
 
-    it("hides staff-only items for admins (hideForAdmin)", () => {
+    it("shows group navigation but hides room supervision for admins", () => {
       render(<Sidebar />);
 
-      // These items have hideForAdmin: true
-      expect(screen.queryByText("Meine Gruppe")).not.toBeInTheDocument();
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
       expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
+    });
+
+    it("puts all admin-visible groups under Weitere Gruppen", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: false },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument();
     });
 
     it("shows all children with the children concept icon for admins", () => {
@@ -338,7 +358,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Staff items with alwaysShow: true
-      expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     });
 
@@ -567,7 +587,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppe").closest("button");
+      const groupHeader = screen.getByText("Meine Gruppen").closest("button");
       expect(groupHeader).toHaveClass("bg-gray-100");
     });
 
@@ -727,7 +747,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should still render, but supervision-dependent items behavior changes
-      expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
 
     it("handles loading supervision state correctly", () => {
@@ -772,6 +792,49 @@ describe("Sidebar", () => {
   });
 
   describe("accordion sub-items", () => {
+    it("opens personal groups and keeps additional groups closed by default", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByText("Meine Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "true");
+      expect(
+        screen.getByText("Weitere Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("hides additional groups when the backend returns only personal groups", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [{ id: "1", name: "Eulen", is_personal: true }],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+      expect(screen.queryByText("Weitere Gruppen")).not.toBeInTheDocument();
+    });
+
     it("renders group sub-items when groups are available", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -781,8 +844,8 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: 1, name: "Eulen" },
-          { id: 2, name: "Adler" },
+          { id: "1", name: "Eulen" },
+          { id: "2", name: "Adler" },
         ],
         refresh: vi.fn(),
       });
@@ -852,13 +915,13 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [],
-        groups: [{ id: 1, name: "Eulen" }],
+        groups: [{ id: "1", name: "Eulen" }],
         refresh: vi.fn(),
       });
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppe");
+      const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
@@ -881,7 +944,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const groupHeader = screen.getByText("Meine Gruppe");
+      const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups");
@@ -996,7 +1059,7 @@ describe("Sidebar", () => {
   });
 
   describe("groups label pluralization", () => {
-    it("shows 'Meine Gruppe' for single group", () => {
+    it("shows 'Meine Gruppen' for a single group", () => {
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
         isSupervising: false,
@@ -1004,13 +1067,13 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [],
-        groups: [{ id: 1, name: "Eulen" }],
+        groups: [{ id: "1", name: "Eulen" }],
         refresh: vi.fn(),
       });
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
 
     it("shows 'Meine Gruppen' for multiple groups", () => {
@@ -1022,8 +1085,8 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: 1, name: "Eulen" },
-          { id: 2, name: "Adler" },
+          { id: "1", name: "Eulen" },
+          { id: "2", name: "Adler" },
         ],
         refresh: vi.fn(),
       });
@@ -1091,8 +1154,8 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: 1, name: "Eulen" },
-          { id: 2, name: "Adler" },
+          { id: "1", name: "Eulen" },
+          { id: "2", name: "Adler" },
         ],
         refresh: vi.fn(),
       });
@@ -1187,8 +1250,8 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: 1, name: "Eulen" },
-          { id: 2, name: "Adler" },
+          { id: "1", name: "Eulen" },
+          { id: "2", name: "Adler" },
         ],
         refresh: vi.fn(),
       });
@@ -1257,7 +1320,7 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [],
-        groups: [{ id: 1, name: "Eulen" }],
+        groups: [{ id: "1", name: "Eulen" }],
         refresh: vi.fn(),
       });
 
@@ -1320,8 +1383,8 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: 1, name: "Eulen" },
-          { id: 2, name: "Adler" },
+          { id: "1", name: "Eulen" },
+          { id: "2", name: "Adler" },
         ],
         refresh: vi.fn(),
       });
@@ -1382,8 +1445,8 @@ describe("Sidebar", () => {
         overviewEnabled: false,
         supervisedRooms: [],
         groups: [
-          { id: 1, name: "Eulen" },
-          { id: 2, name: "Adler" },
+          { id: "1", name: "Eulen" },
+          { id: "2", name: "Adler" },
         ],
         refresh: vi.fn(),
       });
@@ -1638,7 +1701,7 @@ describe("Sidebar", () => {
         supervisedRooms: [
           { id: "r1", name: "Raum A", groupId: "g1", isSchulhof: false },
         ],
-        groups: [{ id: 1, name: "1a" }],
+        groups: [{ id: "1", name: "1a" }],
         refresh: vi.fn(),
       });
       render(<Sidebar />);
@@ -1906,7 +1969,7 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("Meine Gruppe gating (#1544)", () => {
+  describe("Meine Gruppen gating (#1544)", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSupervision.mockReturnValue({
@@ -1925,12 +1988,11 @@ describe("Sidebar", () => {
       mockUseOpenCareGroupMode.mockReturnValue(false);
     });
 
-    it("hides the Meine Gruppe accordion for open-care tenants", () => {
+    it("hides the Meine Gruppen accordion for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Meine Gruppe")).not.toBeInTheDocument();
       expect(screen.queryByText("Meine Gruppen")).not.toBeInTheDocument();
       expect(
         screen.queryByText("Keine Gruppen zugeordnet"),
@@ -1940,10 +2002,10 @@ describe("Sidebar", () => {
       expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
-    it("shows the Meine Gruppe accordion for fixed-groups tenants", () => {
+    it("shows the Meine Gruppen accordion for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
   });
 });

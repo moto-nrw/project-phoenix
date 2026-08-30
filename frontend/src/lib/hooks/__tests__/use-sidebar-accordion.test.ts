@@ -40,9 +40,9 @@ describe("useSidebarAccordion", () => {
       });
   });
 
-  it("expands 'groups' section for /ogs-groups path", () => {
+  it("leaves group expansion to the non-persistent group navigation", () => {
     const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBeNull();
   });
 
   it("expands 'supervisions' section for /active-supervisions path", () => {
@@ -62,11 +62,11 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe(null);
   });
 
-  it("expands 'groups' from fromParam on child pages", () => {
+  it("does not persist group expansion from child pages", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/students/123", "/ogs-groups"),
     );
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBeNull();
   });
 
   it("expands 'supervisions' from fromParam on child pages", () => {
@@ -175,12 +175,12 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
     expect(result.current.expanded).toBe(null);
   });
@@ -189,9 +189,9 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
 
     act(() => {
       result.current.toggle("database");
@@ -200,10 +200,10 @@ describe("useSidebarAccordion", () => {
   });
 
   it("persists expanded section to localStorage", () => {
-    renderHook(() => useSidebarAccordion("/ogs-groups"));
+    renderHook(() => useSidebarAccordion("/active-supervisions"));
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       "sidebar-accordion-expanded",
-      "groups",
+      "supervisions",
     );
   });
 
@@ -211,11 +211,11 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
 
     expect(localStorageMock.removeItem).toHaveBeenCalledWith(
@@ -235,10 +235,12 @@ describe("useSidebarAccordion", () => {
   it("does not restore from localStorage when pathname determines section", () => {
     localStorageMock.getItem.mockReturnValueOnce("database");
 
-    const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/active-supervisions"),
+    );
 
     // Should use pathname, not localStorage
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
   });
 
   it("ignores invalid localStorage values", () => {
@@ -258,7 +260,7 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe(null);
 
     rerender({ pathname: "/ogs-groups" });
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBeNull();
 
     rerender({ pathname: "/active-supervisions" });
     expect(result.current.expanded).toBe("supervisions");
@@ -267,10 +269,10 @@ describe("useSidebarAccordion", () => {
   it("collapses when navigating to unrelated page", () => {
     const { result, rerender } = renderHook(
       ({ pathname }) => useSidebarAccordion(pathname),
-      { initialProps: { pathname: "/ogs-groups" } },
+      { initialProps: { pathname: "/active-supervisions" } },
     );
 
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
 
     rerender({ pathname: "/dashboard" });
     expect(result.current.expanded).toBe(null);

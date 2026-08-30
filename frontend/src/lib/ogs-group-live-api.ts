@@ -14,6 +14,7 @@ interface OgsLiveWireGroup {
   room_id?: string;
   room_name?: string;
   via_substitution: boolean;
+  is_personal: boolean;
 }
 
 export interface OgsLiveWireStudent {
@@ -81,6 +82,7 @@ interface OgsLiveGroup {
   roomId?: string;
   roomName?: string;
   viaSubstitution: boolean;
+  isPersonal: boolean;
 }
 
 /** Today's effective pickup info for one student (subset the cards render). */
@@ -139,6 +141,7 @@ export function mapOgsGroupLiveResponse(
       roomId: group.room_id,
       roomName: group.room_name,
       viaSubstitution: group.via_substitution,
+      isPersonal: group.is_personal,
     })),
     groupId: wire.group_id ?? null,
     students: wire.students ?? [],
@@ -160,9 +163,9 @@ export function mapOgsGroupLiveResponse(
 
 /**
  * Fetches the aggregated live view. When a specific group was requested and
- * the backend answers 403 (e.g. a stale localStorage group the user no longer
- * supervises), one fallback request without group_id resolves the caller's
- * first supervised group instead — the page then re-syncs its selection from
+ * the backend answers 403 (e.g. a stale localStorage group the user can no
+ * longer view), one fallback request without group_id resolves the caller's
+ * first visible group instead — the page then re-syncs its selection from
  * the returned groupId.
  */
 export async function fetchOgsGroupLive(

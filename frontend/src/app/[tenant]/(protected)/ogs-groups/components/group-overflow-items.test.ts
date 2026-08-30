@@ -6,6 +6,7 @@ describe("buildGroupOverflowItems", () => {
   it("returns an empty array while supervising via substitution", () => {
     const items = buildGroupOverflowItems({
       viaSubstitution: true,
+      canTransfer: true,
       activeTransfersCount: 0,
       onOpenTransfer: vi.fn(),
     });
@@ -16,6 +17,7 @@ describe("buildGroupOverflowItems", () => {
     const onOpenTransfer = vi.fn();
     const items = buildGroupOverflowItems({
       viaSubstitution: false,
+      canTransfer: true,
       activeTransfersCount: 0,
       onOpenTransfer,
     });
@@ -29,6 +31,7 @@ describe("buildGroupOverflowItems", () => {
   it("adds a count badge when active transfers exist", () => {
     const items = buildGroupOverflowItems({
       viaSubstitution: false,
+      canTransfer: true,
       activeTransfersCount: 3,
       onOpenTransfer: vi.fn(),
     });
@@ -41,9 +44,21 @@ describe("buildGroupOverflowItems", () => {
     // assert the function still suppresses the item.
     const items = buildGroupOverflowItems({
       viaSubstitution: true,
+      canTransfer: true,
       activeTransfersCount: 5,
       onOpenTransfer: vi.fn(),
     });
+    expect(items).toEqual([]);
+  });
+
+  it("does not offer a handover for an additional visible group", () => {
+    const items = buildGroupOverflowItems({
+      viaSubstitution: false,
+      canTransfer: false,
+      activeTransfersCount: 0,
+      onOpenTransfer: vi.fn(),
+    });
+
     expect(items).toEqual([]);
   });
 });

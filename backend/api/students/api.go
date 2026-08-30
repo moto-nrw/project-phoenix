@@ -149,6 +149,12 @@ func (rs *Resource) Router() chi.Router {
 		// missing — mirroring the permission split of the replaced single
 		// endpoints instead of failing the whole roster.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get(
+			"/ogs-group-navigation",
+			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+				return rs.OGSGroupLiveService.ListGroups(ctx)
+			}, common.ErrorInternalServer, "OGS group navigation retrieved successfully"),
+		)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)

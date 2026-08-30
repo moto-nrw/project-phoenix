@@ -358,6 +358,7 @@ GET /api/students/day-log
 GET /api/students/day-log/export
 GET /api/students/ended-care
 GET /api/students/ogs-group-live
+GET /api/students/ogs-group-navigation
 GET /api/students/school-classes
 GET /api/students/status-days
 GET /api/students/{id}

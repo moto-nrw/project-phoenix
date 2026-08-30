@@ -6,13 +6,7 @@ import { isPlanningPath } from "~/lib/planning-navigation";
 import { isElternPath, isEnrollmentPath } from "~/lib/section-navigation";
 
 type AccordionSection =
-  | "groups"
-  | "supervisions"
-  | "database"
-  | "planning"
-  | "enrollments"
-  | "eltern"
-  | null;
+  "supervisions" | "database" | "planning" | "enrollments" | "eltern" | null;
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
 
@@ -25,7 +19,6 @@ function sectionFromPathname(
   pathname: string,
   fromParam?: string | null,
 ): AccordionSection {
-  if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
   if (isPlanningPath(pathname)) return "planning";
@@ -34,7 +27,6 @@ function sectionFromPathname(
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
-    if (fromParam.startsWith("/ogs-groups")) return "groups";
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
     if (isPlanningPath(fromParam)) return "planning";
@@ -69,7 +61,6 @@ export function useSidebarAccordion(
     if (sectionFromPathname(pathname, fromParam)) return; // pathname already decided
     const stored = localStorage.getItem(STORAGE_KEY);
     if (
-      stored === "groups" ||
       stored === "supervisions" ||
       stored === "database" ||
       stored === "planning" ||

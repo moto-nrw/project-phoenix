@@ -130,6 +130,21 @@ describe("RoleGuard", () => {
     expect(screen.queryByText("Staff Content")).not.toBeInTheDocument();
   });
 
+  it("renders children for an admin-only account on staffOrAdmin", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { roles: ["admin"], token: "tok" } },
+      status: "authenticated",
+    });
+
+    render(
+      <RoleGuard variant="staffOrAdmin">
+        <div>Group Content</div>
+      </RoleGuard>,
+    );
+
+    expect(screen.getByText("Group Content")).toBeInTheDocument();
+  });
+
   it("shows custom message on ForbiddenPage", () => {
     mockUseSession.mockReturnValue({
       data: { user: { roles: ["user"], token: "tok" } },
