@@ -47,6 +47,7 @@ type calendarPackageHelpers struct {
 	candidates map[string]map[string][]calendarHelperCandidate
 }
 
+//nolint:staticcheck // The scanner deliberately relies on parser-resolved local bindings.
 type calendarVariables map[*ast.Object]bool
 
 type calendarHelperCandidate struct {
@@ -292,6 +293,7 @@ func calendarReceiverName(fn *ast.FuncDecl) string {
 	return expressionName(fn.Recv.List[0].Type)
 }
 
+//nolint:staticcheck // The scanner deliberately relies on parser-resolved local bindings.
 func calendarReceiverTypes(fn *ast.FuncDecl) map[*ast.Object]string {
 	types := map[*ast.Object]string{}
 	recordCalendarFieldTypes(fn.Recv, types)

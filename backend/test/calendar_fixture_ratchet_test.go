@@ -28,7 +28,6 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"services/active/staff_vacation_opening_db_test.go:TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff":                                                                        "bbd07d8308be4afb",
 	"services/active/staff_vacation_opening_db_test.go:TestSetVacationOpening_RespectsCustomQuota":                                                                                        "9f8e9d28fde554d9",
 	"services/calendar/service_integration_test.go:TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone":                                                                       "c4fdfeb251888c29",
-	"services/education/education_service_test.go:TestUpdateSubstitution_DateValidation":                                                                                                  "01c823ab61ee91c1",
 	"services/enrollment/offering_change_request_automatic_test.go:TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays":                                      "821c0d08769e80c3",
 	"services/enrollment/offering_change_request_automatic_test.go:TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomaticBooking":                                  "b38102eb6dc8339f",
 	"services/enrollment/offering_change_request_service_test.go:TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings":                                               "60817b1776d080c1",
@@ -364,7 +363,8 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 // calendarFixtureClockExceptions contains only tests whose purpose requires
 // the system clock. Every exact function key needs its own reviewed reason.
 var calendarFixtureClockExceptions = map[string]string{
-	"services/scheduler/scheduler_test.go:TestIsoWeekdayMatchesNow": "the test explicitly compares the scheduler's live ISO weekday helper with time.Now",
+	"services/education/education_service_test.go:TestUpdateSubstitution_DateValidation": "the service validates substitution dates against the current day and does not expose a clock dependency",
+	"services/scheduler/scheduler_test.go:TestIsoWeekdayMatchesNow":                      "the test explicitly compares the scheduler's live ISO weekday helper with time.Now",
 }
 
 func TestCalendarFixtureClockRatchet(t *testing.T) {
