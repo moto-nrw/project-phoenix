@@ -82,6 +82,8 @@ func mustDate(t *testing.T, iso string) timezone.Date {
 	return d
 }
 
+func datePtr(date timezone.Date) *timezone.Date { return &date }
+
 func newNotice(t *testing.T, id int64, weekdays []int16, weekPattern int) *usersModels.StaffNotice {
 	t.Helper()
 	n := &usersModels.StaffNotice{
@@ -217,6 +219,87 @@ func TestAcknowledgeUnknownNotice(t *testing.T) {
 	t.Parallel()
 	svc := NewService(ServiceConfig{Repo: &fakeNoticeRepo{}})
 	assert.ErrorIs(t, svc.Acknowledge(context.Background(), 999, 42), ErrNotFound)
+}
+
+func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	today := timezone.TodayDate()
+	otherWeekday := int16((int(today.Weekday())+6)%7 + 1)
+	otherWeekday = otherWeekday%7 + 1
+
+	tests := []struct {
+		name    string
+		notice  *usersModels.StaffNotice
+		periods *fakePeriodRepo
+	}{
+		{
+			name: "inactive",
+			notice: &usersModels.StaffNotice{
+				Title:                   "Abgeschaltet",
+				ValidFrom:               today.AddDays(-1),
+				RequiresAcknowledgement: true,
+			},
+		},
+		{
+			name: "future",
+			notice: &usersModels.StaffNotice{
+				Title:                   "Zukünftig",
+				ValidFrom:               today.AddDays(1),
+				RequiresAcknowledgement: true,
+				Active:                  true,
+			},
+		},
+		{
+			name: "expired",
+			notice: &usersModels.StaffNotice{
+				Title:                   "Abgelaufen",
+				ValidFrom:               today.AddDays(-2),
+				ValidUntil:              datePtr(today.AddDays(-1)),
+				RequiresAcknowledgement: true,
+				Active:                  true,
+			},
+		},
+		{
+			name: "different weekday",
+			notice: &usersModels.StaffNotice{
+				Title:                   "Anderer Wochentag",
+				ValidFrom:               today.AddDays(-1),
+				Weekdays:                []int16{otherWeekday},
+				RequiresAcknowledgement: true,
+				Active:                  true,
+			},
+		},
+		{
+			name: "different week pattern",
+			notice: &usersModels.StaffNotice{
+				Title:                   "Woche B",
+				ValidFrom:               today.AddDays(-1),
+				WeekPattern:             scheduleModels.WeekPatternB,
+				RequiresAcknowledgement: true,
+				Active:                  true,
+			},
+			periods: &fakePeriodRepo{periods: []*scheduleModels.CalendarPeriod{{
+				StartDate:       today.AddDays(-7),
+				EndDate:         today.AddDays(7),
+				WeekCycleLength: 2,
+				WeekCycleAnchor: &today,
+				IsActive:        true,
+			}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.notice.ID = 71
+			repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{tt.notice}}
+			svc := NewService(ServiceConfig{Repo: repo, Periods: tt.periods})
+
+			err := svc.Acknowledge(ctx, tt.notice.ID, 42)
+			assert.ErrorIs(t, err, ErrInvalid)
+			assert.Empty(t, repo.acked)
+		})
+	}
 }
 
 func TestCreateRejectsInvalidInput(t *testing.T) {

@@ -69,6 +69,7 @@ async function request<T>(
 ): Promise<T | undefined> {
   const response = await fetch(url, init);
   if (!response.ok) await throwApiError(response, fallback);
+  if (response.status === 204) return undefined;
   const body = (await response.json()) as ApiResponse<T>;
   return body.data;
 }

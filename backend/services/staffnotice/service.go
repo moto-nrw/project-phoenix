@@ -276,6 +276,17 @@ func (s *service) Acknowledge(ctx context.Context, id, accountID int64) error {
 		// Das ist kein Fehler der Person, sondern eine veraltete Ansicht.
 		return fmt.Errorf("%w: notice does not ask for acknowledgement", ErrInvalid)
 	}
+	today := timezone.TodayDate()
+	if !notice.AppliesOn(today) {
+		return fmt.Errorf("%w: notice does not apply today", ErrInvalid)
+	}
+	matching, err := s.filterByWeekPattern(ctx, []*usersModels.StaffNotice{notice}, today)
+	if err != nil {
+		return err
+	}
+	if len(matching) == 0 {
+		return fmt.Errorf("%w: notice does not apply today", ErrInvalid)
+	}
 	if err := s.repo.Acknowledge(ctx, id, accountID); err != nil {
 		return fmt.Errorf("staffnotice: acknowledge: %w", err)
 	}
