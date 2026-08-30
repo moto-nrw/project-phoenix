@@ -94,15 +94,6 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 
-		ALTER TABLE users.staff_notices ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE users.staff_notices FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_users_staff_notices ON users.staff_notices;
-		CREATE POLICY tenant_isolation_users_staff_notices ON users.staff_notices
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.staff_notices TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.staff_notices_id_seq TO phoenix_tenant;
 	`)
@@ -125,19 +116,16 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_staff_notice_acks_tenant_account
 			ON users.staff_notice_acks (tenant_id, account_id);
 
-		ALTER TABLE users.staff_notice_acks ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE users.staff_notice_acks FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_users_staff_notice_acks ON users.staff_notice_acks;
-		CREATE POLICY tenant_isolation_users_staff_notice_acks ON users.staff_notice_acks
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.staff_notice_acks TO phoenix_tenant;
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating users.staff_notice_acks: %w", err)
+	}
+	if err := provisionTenantRLS(ctx, tx,
+		"users.staff_notices",
+		"users.staff_notice_acks",
+	); err != nil {
+		return err
 	}
 
 	if err := tx.Commit(); err != nil {
