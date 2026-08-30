@@ -17,7 +17,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,12 +24,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,9 +49,10 @@ type devSetup struct {
 	staffB int64 // second planned person
 }
 
-func buildDevSetup(t *testing.T) *devSetup {
+func buildDevModule(t *testing.T) *devSetup {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	clock := func() time.Time { return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
+	db, serviceFactory := testutil.SetupAPITest(t, clock)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -67,10 +66,6 @@ func buildDevSetup(t *testing.T) *devSetup {
 	// The mock records lifecycle calls (ack/cancel assertions) and delegates
 	// the deviation writes (#1886) to the real service so the DB-effect
 	// assertions keep exercising real rows.
-	repoFactory := repositories.NewFactory(db)
-	clock := func() time.Time { return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clock)
-	require.NoError(t, err)
 	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db, clock),
@@ -139,7 +134,7 @@ func setUnderstaffedAckFixture(t *testing.T, db *bun.DB, ctx context.Context, in
 func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -180,7 +175,7 @@ func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -237,7 +232,7 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -281,7 +276,7 @@ func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -313,7 +308,7 @@ func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
 func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -339,7 +334,7 @@ func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
 func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -357,7 +352,7 @@ func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
 func TestApplyDeviations_Cancel(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -382,7 +377,7 @@ func TestApplyDeviations_Cancel(t *testing.T) {
 func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	past := timezone.TodayDate().AddDays(-1)
 
@@ -402,7 +397,7 @@ func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
 func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -435,7 +430,7 @@ func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -463,7 +458,7 @@ func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
 func TestApplyDeviations_RemoveAbsentSubstituteAndRestorePlannedAssignment(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -525,7 +520,7 @@ func TestApplyDeviations_RemoveAbsentSubstituteAndRestorePlannedAssignment(t *te
 func TestApplyDeviations_RestorePlannedStaffOverActiveSubstitute_NoPartialWrites(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -558,7 +553,7 @@ func TestApplyDeviations_RestorePlannedStaffOverActiveSubstitute_NoPartialWrites
 func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -594,7 +589,7 @@ func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
 func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -637,7 +632,7 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 func TestApplyDeviations_SameSubstituteForTwoAbsent_WarningsNotDuplicated(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -712,7 +707,7 @@ func doAck(t *testing.T, router chi.Router, instanceID int64, body any) *httptes
 func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := ackRouter(s.ctx, s.res)
 	past := timezone.TodayDate().AddDays(-1)
 

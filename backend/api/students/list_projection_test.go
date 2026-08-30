@@ -83,7 +83,7 @@ func listStudentIDs(t *testing.T, body []byte) []int64 {
 func TestListStudents_SlimProjection(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// Pin the clock to a fixed Monday: departure_modes exist for mon-fri only
 	// (departureDayKey has no weekend mapping), so a real-today run fails on
 	// every Saturday/Sunday CI run.
@@ -131,7 +131,7 @@ func TestListStudents_SlimProjection(t *testing.T) {
 func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Wide", "Kind", "WD1")
 	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
@@ -159,7 +159,7 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 func TestListStudents_InvalidView(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	req := testutil.NewRequest("GET", "/?view=compact", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), listStudentsPerms)
@@ -172,7 +172,7 @@ func TestListStudents_InvalidView(t *testing.T) {
 func TestListStudents_SlimViewSameRows(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	var studentIDs []int64
 	for i := range 5 {
@@ -202,7 +202,7 @@ func TestListStudents_SlimViewSameRows(t *testing.T) {
 func TestListStudents_SlimPayloadBudget(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	const listSize = 30
 	for i := range listSize {

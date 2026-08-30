@@ -13,7 +13,6 @@ import (
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,12 +25,11 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *feedbackAPI.Resource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupFeedbackRoute initializes test database, services, and resource.
+func setupFeedbackRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -40,7 +38,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -67,10 +64,10 @@ func feedbackRequest(t *testing.T, method, target string, body interface{}) *htt
 func enableFeedback(t *testing.T, ctx *testContext) {
 	t.Helper()
 	tenantCtx := testpkg.Ctx(t)
-	err := ctx.services.Settings.SetValue(tenantCtx, configModel.KeyFeedbackEnabled, true, nil, nil)
+	err := ctx.resource.SettingsService.SetValue(tenantCtx, configModel.KeyFeedbackEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = ctx.services.Settings.ResetValue(tenantCtx, configModel.KeyFeedbackEnabled, nil, nil)
+		_ = ctx.resource.SettingsService.ResetValue(tenantCtx, configModel.KeyFeedbackEnabled, nil, nil)
 	})
 }
 
@@ -81,7 +78,7 @@ func enableFeedback(t *testing.T, ctx *testContext) {
 func TestListFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -95,7 +92,7 @@ func TestListFeedback_Success(t *testing.T) {
 func TestListFeedback_WithStudentFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -109,7 +106,7 @@ func TestListFeedback_WithStudentFilter(t *testing.T) {
 func TestListFeedback_WithDateFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -123,7 +120,7 @@ func TestListFeedback_WithDateFilter(t *testing.T) {
 func TestListFeedback_WithMensaFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -141,7 +138,7 @@ func TestListFeedback_WithMensaFilter(t *testing.T) {
 func TestGetFeedback_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -155,7 +152,7 @@ func TestGetFeedback_NotFound(t *testing.T) {
 func TestGetFeedback_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -173,7 +170,7 @@ func TestGetFeedback_InvalidID(t *testing.T) {
 func TestGetStudentFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 	enableFeedback(t, ctx)
 
 	// Create test student
@@ -191,7 +188,7 @@ func TestGetStudentFeedback_Success(t *testing.T) {
 func TestGetStudentFeedback_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 	enableFeedback(t, ctx)
 
 	router := newRouter(ctx)
@@ -210,7 +207,7 @@ func TestGetStudentFeedback_InvalidID(t *testing.T) {
 func TestGetDateFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -224,7 +221,7 @@ func TestGetDateFeedback_Success(t *testing.T) {
 func TestGetDateFeedback_InvalidDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -242,7 +239,7 @@ func TestGetDateFeedback_InvalidDate(t *testing.T) {
 func TestGetMensaFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -256,7 +253,7 @@ func TestGetMensaFeedback_Success(t *testing.T) {
 func TestGetMensaFeedback_WithFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -274,7 +271,7 @@ func TestGetMensaFeedback_WithFilter(t *testing.T) {
 func TestGetDateRangeFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -288,7 +285,7 @@ func TestGetDateRangeFeedback_Success(t *testing.T) {
 func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Range", "Student", "2b")
@@ -306,7 +303,7 @@ func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 func TestGetDateRangeFeedback_InvalidStartDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -320,7 +317,7 @@ func TestGetDateRangeFeedback_InvalidStartDate(t *testing.T) {
 func TestGetDateRangeFeedback_InvalidEndDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -334,7 +331,7 @@ func TestGetDateRangeFeedback_InvalidEndDate(t *testing.T) {
 func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -353,7 +350,7 @@ func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
 func TestCreateFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Create", "Feedback", "3c")
@@ -379,7 +376,7 @@ func TestCreateFeedback_Success(t *testing.T) {
 func TestCreateFeedback_MissingValue(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Missing", "Value", "3c")
@@ -403,7 +400,7 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 func TestCreateFeedback_MissingStudentID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -424,7 +421,7 @@ func TestCreateFeedback_MissingStudentID(t *testing.T) {
 func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Date", "3c")
@@ -449,7 +446,7 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Time", "3c")
@@ -478,7 +475,7 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 func TestCreateBatchFeedback_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test students
 	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "One", "4a")
@@ -517,7 +514,7 @@ func TestCreateBatchFeedback_Success(t *testing.T) {
 func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -535,7 +532,7 @@ func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
 func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Invalid", "4a")
@@ -573,7 +570,7 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 func TestDeleteFeedback_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 
@@ -587,7 +584,7 @@ func TestDeleteFeedback_NotFound(t *testing.T) {
 func TestDeleteFeedback_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	router := newRouter(ctx)
 

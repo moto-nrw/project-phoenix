@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -26,13 +25,12 @@ import (
 // testContext holds shared test dependencies.
 type testContext struct {
 	db          *bun.DB
-	services    *services.Factory
 	resource    *studentsAPI.Resource
 	broadcaster *testpkg.RecordingBroadcaster
 }
 
-// setupTestContext initializes the test environment.
-func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
+// setupStudentsRoute initializes the production students resource.
+func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t, clocks...)
@@ -66,6 +64,7 @@ func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
+		GradeTransitionService:  svc.GradeTransition,
 		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
@@ -84,6 +83,8 @@ func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
 		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
 		ExcusedRequestService:   svc.ExcusedRequests,
+		StudentAuditService:     svc.StudentAudit,
+		EnrollmentDecision:      svc.EnrollmentDecision,
 		// The three users:update-gated review queues, wired so the combined
 		// pending-count endpoint can be exercised end to end (#2232).
 		MasterDataReviewService:  svc.MasterDataReview,
@@ -103,7 +104,6 @@ func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	return &testContext{
 		db:          db,
-		services:    svc,
 		resource:    resource,
 		broadcaster: broadcaster,
 	}

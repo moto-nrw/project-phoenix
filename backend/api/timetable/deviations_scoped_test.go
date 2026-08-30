@@ -44,7 +44,7 @@ type scopedApplyResponse struct {
 	} `json:"data"`
 }
 
-func buildScopedDevSetup(t *testing.T) *scopedDevSetup {
+func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 	t.Helper()
 	db, serviceFactory := apiTest.SetupAPITest(t)
 	ctx := testpkg.Ctx(t)
@@ -93,7 +93,7 @@ func readScopedInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id i
 func TestApplyDeviations_SubstitutionTargetsSelectedInstances(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -131,7 +131,7 @@ func TestApplyDeviations_SubstitutionTargetsSelectedInstances(t *testing.T) {
 func TestApplyDeviations_AbsenceTargetsSelectedInstances(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -158,7 +158,7 @@ func TestApplyDeviations_AbsenceTargetsSelectedInstances(t *testing.T) {
 func TestApplyDeviations_SelectedCoverageWithAllDayAbsence(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	covered := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -200,7 +200,7 @@ func TestApplyDeviations_SelectedCoverageWithAllDayAbsence(t *testing.T) {
 func TestApplyDeviations_PartiallyAbsentStaffCanCoverAnotherAppointment(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	target := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -228,7 +228,7 @@ func TestApplyDeviations_PartiallyAbsentStaffCanCoverAnotherAppointment(t *testi
 func TestApplyDeviations_SameSaveCanAbsenceAndSubstituteStaffOnDifferentAppointments(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	target := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -260,7 +260,7 @@ func TestApplyDeviations_SameSaveCanAbsenceAndSubstituteStaffOnDifferentAppointm
 func TestApplyDeviations_PresenceTargetsSelectedInstances(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -287,7 +287,7 @@ func TestApplyDeviations_PresenceTargetsSelectedInstances(t *testing.T) {
 func TestApplyDeviations_SameStaffCanBePresentAndAbsentOnDifferentAppointments(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	restored := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -318,7 +318,7 @@ func TestApplyDeviations_SameStaffCanBePresentAndAbsentOnDifferentAppointments(t
 func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -347,7 +347,7 @@ func TestApplyDeviations_CannotClearSickAbsence(t *testing.T) {
 func TestApplyDeviations_RemovesSubstituteOnlyFromSelectedInstances(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -386,7 +386,7 @@ func TestApplyDeviations_RemovesSubstituteOnlyFromSelectedInstances(t *testing.T
 func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
@@ -414,7 +414,7 @@ func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
 func TestApplyDeviations_RejectsSubstituteRemovalWithoutSelectedAssignment(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	other := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
@@ -434,7 +434,7 @@ func TestApplyDeviations_RejectsSubstituteRemovalWithoutSelectedAssignment(t *te
 func TestApplyDeviations_DeduplicatesOverlappingSubstituteRemovals(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
@@ -459,7 +459,7 @@ func TestApplyDeviations_DeduplicatesOverlappingSubstituteRemovals(t *testing.T)
 func TestApplyDeviations_ReplacesSubstituteInOneScopedSave(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
@@ -483,7 +483,7 @@ func TestApplyDeviations_ReplacesSubstituteInOneScopedSave(t *testing.T) {
 func TestApplyDeviations_PartialAbsenceElsewhereDoesNotMakeSelectedBlockUnderstaffed(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 
 	target := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -519,7 +519,7 @@ func TestApplyDeviations_PartialAbsenceElsewhereDoesNotMakeSelectedBlockUndersta
 func TestApplyDeviations_RejectsEmptyAppointmentScope(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{})
@@ -537,7 +537,7 @@ func TestApplyDeviations_RejectsEmptyAppointmentScope(t *testing.T) {
 func TestApplyDeviations_RejectsTerminalAppointmentInExplicitScope(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -560,7 +560,7 @@ func TestApplyDeviations_RejectsTerminalAppointmentInExplicitScope(t *testing.T)
 func TestApplyDeviations_RejectsAlreadyAbsentTerminalAppointmentInExplicitScope(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -583,7 +583,7 @@ func TestApplyDeviations_RejectsAlreadyAbsentTerminalAppointmentInExplicitScope(
 func TestApplyDeviations_RejectsAlreadyPresentTerminalAppointmentInExplicitScope(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
@@ -606,7 +606,7 @@ func TestApplyDeviations_RejectsAlreadyPresentTerminalAppointmentInExplicitScope
 func TestApplyDeviations_DayWidePresenceSkipsTerminalSickAbsence(t *testing.T) {
 	t.Parallel()
 
-	s := buildScopedDevSetup(t)
+	s := setupScopedDeviationsRoute(t)
 	date := timezone.TodayDate().AddDays(1)
 	planned := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
 	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{

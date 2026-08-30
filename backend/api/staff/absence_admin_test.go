@@ -31,7 +31,7 @@ import (
 // subject staff member with one plain shift tomorrow.
 func setupAbsenceAdminTest(t *testing.T, clocks ...func() time.Time) (tc *testContext, token string, subjectID int64, shiftID int64) {
 	t.Helper()
-	tc = setupTestContext(t, clocks...)
+	tc = setupStaffRoute(t, clocks...)
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Absence", fmt.Sprintf("Editor-%d", suffix))
@@ -182,7 +182,7 @@ func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
 func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStaffRoute(t)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
 	token := authToken(t, "time_tracking:manage")
 	year := timezone.TodayDate().Year

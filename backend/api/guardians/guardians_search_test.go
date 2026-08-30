@@ -54,7 +54,7 @@ func seedSearchGuardian(t *testing.T, tc *testContext, firstName, lastName, emai
 // name (case-insensitive substring) instead of returning every guardian.
 func TestListGuardians_SearchFiltersResults(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	token := fmt.Sprintf("Zzmatch%d", time.Now().UnixNano())
 	match := seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.match@example.com", token))
@@ -94,7 +94,7 @@ func TestListGuardians_SearchFiltersResults(t *testing.T) {
 // same person.
 func TestListGuardians_SearchMatchesFullNameWithSpace(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	first := fmt.Sprintf("Zzfirst%d", time.Now().UnixNano())
 	last := fmt.Sprintf("Zzlast%d", time.Now().UnixNano())
@@ -130,7 +130,7 @@ func TestListGuardians_SearchMatchesFullNameWithSpace(t *testing.T) {
 // guard with raw wildcards (#1513).
 func TestListGuardians_SearchWildcardsAreLiteral(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	token := fmt.Sprintf("Zzwild%d", time.Now().UnixNano())
 	seeded := seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.wild@example.com", token))
@@ -161,7 +161,7 @@ func TestListGuardians_SearchWildcardsAreLiteral(t *testing.T) {
 // language, and contact method are withheld too (#1513).
 func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	ctx := context.Background()
 	token := fmt.Sprintf("Zzlink%d", time.Now().UnixNano())
@@ -221,7 +221,7 @@ func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
 // gap this feature closes. The gate matches the other guardian reads (users:read).
 func TestGuardianPickerSearch_AllowedForStaffWithUsersRead(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	token := fmt.Sprintf("Zzperm%d", time.Now().UnixNano())
 	match := seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.perm@example.com", token))
@@ -252,7 +252,7 @@ func TestGuardianPickerSearch_AllowedForStaffWithUsersRead(t *testing.T) {
 // before the handler runs.
 func TestGuardianPickerSearch_ForbiddenWithoutUsersRead(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	router := tc.resource.Router()
 
@@ -285,7 +285,7 @@ type guardianSearchEnvelope struct {
 // returns OK so the field doesn't flash an error while the user is still typing).
 func TestGuardianPickerSearch_ShortQueryReturnsEmpty(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	// Seed a guardian whose name would match the 2-char prefix IF the guard were
 	// absent — proving the empty result is the guard firing, not just "no match".
@@ -315,7 +315,7 @@ func TestGuardianPickerSearch_ShortQueryReturnsEmpty(t *testing.T) {
 // the requested one.
 func TestGuardianPickerSearch_ClampsPageSize(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupGuardiansRoute(t)
 
 	token := fmt.Sprintf("Zzclamp%d", time.Now().UnixNano())
 	seedSearchGuardian(t, tc, token, "Alpha", fmt.Sprintf("%s.clamp@example.com", token))

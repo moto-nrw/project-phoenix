@@ -59,7 +59,7 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggListGroup")
@@ -116,7 +116,7 @@ func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "OpenReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggOpenGroup")
@@ -163,7 +163,7 @@ func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
 
 func TestAggregatedChangeRequests_GroupLeaderPolicyAtRouterAndBulkSeam(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Lead")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Eigene Gruppe")
 	otherGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Fremde Gruppe")
@@ -196,7 +196,7 @@ func TestAggregatedChangeRequests_GroupLeaderPolicyAtRouterAndBulkSeam(t *testin
 		return env
 	}
 	assert.Empty(t, list().Data.Items, "group leaders are disabled by default")
-	require.NoError(t, tc.services.Settings.SetValue(testpkg.Ctx(t), configModels.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(testpkg.Ctx(t), configModels.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
 	require.Len(t, list().Data.Items, 2, "the enabled leader sees only their own group")
 
 	bulkBody := func(rows ...*userModels.StudentDataChangeRequest) *strings.Reader {
@@ -221,7 +221,7 @@ func TestAggregatedChangeRequests_GroupLeaderPolicyAtRouterAndBulkSeam(t *testin
 func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "SearchReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggSearchGroup")
@@ -269,7 +269,7 @@ func TestAggregatedChangeRequests_RouterSearchMatchesFullNameAndEscapesWildcards
 func TestAggregatedChangeRequests_RouterStudentFilter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "ProtocolReviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AggProtocolGroup")

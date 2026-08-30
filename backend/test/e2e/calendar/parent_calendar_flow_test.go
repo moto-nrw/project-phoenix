@@ -14,8 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,16 +21,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// setupParentE2ERouter mounts both the staff calendar router (to create
+// setupParentCalendarRoute mounts both the staff calendar router (to create
 // appointments) and the parent router (to read them as a guardian) on one
 // router, so a single test can drive the full staff→parent flow over HTTP.
-func setupParentE2ERouter(t *testing.T, db *bun.DB) chi.Router {
+func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 	testutil.SeedTestJWTConfig()
-	repos := repositories.NewFactory(db)
-	factory, err := services.NewFactory(repos, db, slog.Default())
-	require.NoError(t, err)
-	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
+	db, factory := testutil.SetupAPITest(t)
 
 	staffResource := calendarAPI.NewResource(factory.Calendar, db, slog.Default())
 	parentResource := parentAPI.NewResource(
@@ -49,7 +44,7 @@ func setupParentE2ERouter(t *testing.T, db *bun.DB) chi.Router {
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/calendar", staffResource.Router())
 	router.Mount("/parent", parentResource.Router())
-	return router
+	return db, router
 }
 
 func parentCalendarToken(t *testing.T, accountID int64) string {
@@ -77,8 +72,7 @@ type feedE2EResponse struct {
 // variables, viper keys, the settings registry, os.Stdout) that the whole
 // test binary shares.
 func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	router := setupParentE2ERouter(t, db)
+	db, router := setupParentCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

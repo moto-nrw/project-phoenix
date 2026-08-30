@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,10 +22,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -290,15 +288,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 			Exec(ctx)
 	})
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err)
-	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
-		InstanceService: serviceFactory.Instance,
-		DB:              db,
-	})
-	router := createRouter(ctx, res)
+	router := setupDuplicateInstanceRoute(t, db, ctx)
 
 	body := map[string]any{
 		"date":              nextTimetableWorkday().String(),
@@ -315,6 +305,18 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	second := doCreate(t, router, body)
 	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
 	assert.Contains(t, second.Body.String(), "duplicate_instance")
+}
+
+func setupDuplicateInstanceRoute(t *testing.T, db *bun.DB, ctx context.Context) chi.Router {
+	t.Helper()
+
+	_, serviceFactory := testutil.SetupAPITest(t)
+	resource := NewResource(Dependencies{
+		TimetableData:   testTimetableData(db),
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
+	})
+	return createRouter(ctx, resource)
 }
 
 func TestCreateInstance_UnwiredResource(t *testing.T) {

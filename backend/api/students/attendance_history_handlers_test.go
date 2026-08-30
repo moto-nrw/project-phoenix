@@ -21,17 +21,17 @@ import (
 func enableAttendanceLog(t *testing.T, tc *testContext) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	err := tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil)
+	err := tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 }
 
 func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "DisabledFeat", "Student", "1a")
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
@@ -44,7 +44,7 @@ func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
 func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "EnabledFeat", "Student", "2b")
@@ -94,7 +94,7 @@ func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
 func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	req := testutil.NewRequest("GET", "/invalid/attendance-history", nil)
@@ -106,7 +106,7 @@ func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
 func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	req := testutil.NewRequest("GET", "/999999/attendance-history", nil)
@@ -118,7 +118,7 @@ func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
 func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Audit", "Student", "3a")
@@ -151,7 +151,7 @@ func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Clamped", "Student", "2c")
@@ -175,7 +175,7 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
 
@@ -211,7 +211,7 @@ func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureOnly", "Student", "2c")
 
@@ -230,7 +230,7 @@ func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
 func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	// #2329: the history is readable by any verified staff member of the tenant,
@@ -247,7 +247,7 @@ func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
 func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	// An account holding users:read without a staff record (guest, guardian) is
@@ -264,7 +264,7 @@ func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
 func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Student", "1c")
@@ -278,7 +278,7 @@ func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
 func TestGetStudentAttendanceHistory_EmptyResult(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Empty", "Student", "4a")

@@ -31,7 +31,7 @@ type overviewAPIContext struct {
 
 func setupOverviewAPI(t *testing.T) *overviewAPIContext {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupStaffRoute(t)
 	suffix := time.Now().UnixNano()
 
 	person, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Overview", fmt.Sprintf("Editor-%d", suffix))

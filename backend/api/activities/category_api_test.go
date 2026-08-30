@@ -56,7 +56,7 @@ func categoryDataFromResponse(t *testing.T, body []byte) map[string]any {
 
 func TestCreateCategory_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	name := fmt.Sprintf("Essen-%d", time.Now().UnixNano())
 	body := map[string]string{"name": name, "description": "Mittagessen", "color": "#FF9500"}
@@ -72,7 +72,7 @@ func TestCreateCategory_Success(t *testing.T) {
 
 func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	body := map[string]string{"name": fmt.Sprintf("Verboten-%d", time.Now().UnixNano())}
 
@@ -84,7 +84,7 @@ func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
 
 func TestCreateCategory_RejectsEmptyName(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": "   "})
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
@@ -94,7 +94,7 @@ func TestCreateCategory_RejectsEmptyName(t *testing.T) {
 
 func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{
 		"name":  fmt.Sprintf("InvalidColor-%d", time.Now().UnixNano()),
@@ -107,7 +107,7 @@ func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
 
 func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	existing := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiDuplicate")
 
@@ -119,7 +119,7 @@ func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 
 func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": " wc "})
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, categoryManagerClaims())
@@ -129,7 +129,7 @@ func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
 
 func TestUpdateCategory_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiRename")
 
@@ -147,7 +147,7 @@ func TestUpdateCategory_Success(t *testing.T) {
 
 func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiInvalidColor")
 
@@ -162,7 +162,7 @@ func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
 
 func TestArchiveAndRestoreCategory(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchive")
 
@@ -191,7 +191,7 @@ func TestArchiveAndRestoreCategory(t *testing.T) {
 
 func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchiveDenied")
 
@@ -203,7 +203,7 @@ func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
 
 func TestListCategories_ReportsUsageCount(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UsageApi-%d", time.Now().UnixNano()))
 

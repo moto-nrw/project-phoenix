@@ -1193,6 +1193,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		repos.DeviationEvent,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
+		now,
 	)
 
 	// Initialize time-tracking GDPR cleanup service (Tranche 0b). Deletes
