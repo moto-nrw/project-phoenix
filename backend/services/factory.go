@@ -1512,6 +1512,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
 		Audit: repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
 		Logger: logger.With("service", "substitution"),
+		Schedule: newScheduleSubstitutionBridge(schedule.NewSubstitutionAdapter(schedule.SubstitutionAdapterDependencies{
+			Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+			Staff: repos.Staff, Engine: instanceService, Broadcaster: realtimeHub,
+			Logger: logger.With("service", "schedule-substitution"),
+		})),
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
 			if assignmentBound {
 				return false, nil
