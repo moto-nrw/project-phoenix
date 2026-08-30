@@ -142,15 +142,15 @@ func TestForEachKnownTenantObservesMissingTenantAndTransactionFailure(t *testing
 	var outcomes []string
 	var unitOfWorkResults []string
 	s := &Scheduler{tenantRuntime: runtime, tenantRuntimeConfigured: true}
-	s.SetTenantRuntimeObserver(func(entryPoint, outcome string) {
+	s.tenantRuntimeObserver = func(entryPoint, outcome string) {
 		assert.Equal(t, "worker", entryPoint)
 		outcomes = append(outcomes, outcome)
-	})
-	s.SetUnitOfWorkObserver(func(entryPoint, kind, result string, _ time.Duration, _ int) {
+	}
+	s.unitOfWorkObserver = func(entryPoint, kind, result string, _ time.Duration, _ int) {
 		assert.Equal(t, "worker", entryPoint)
 		assert.Equal(t, "transaction", kind)
 		unitOfWorkResults = append(unitOfWorkResults, result)
-	})
+	}
 
 	s.forEachKnownTenant(context.Background(), []int64{0, 42}, "observe", func(context.Context, int64) error {
 		t.Fatal("failed tenant transactions must not invoke the worker")

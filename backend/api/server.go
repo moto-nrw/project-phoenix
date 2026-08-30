@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
 
@@ -32,16 +31,17 @@ type ServeConfig struct {
 type Runtime struct {
 	server          *http.Server
 	api             *API
-	scheduler       backgroundScheduler
+	worker          backgroundWorker
+	listen          func(network, address string) (net.Listener, error)
 	capacityLogger  *capacityLogger
 	tracker         analytics.Tracker
 	logger          *slog.Logger
 	resourcesUnsafe bool
 }
 
-// backgroundScheduler is the lifecycle contract Runtime needs from its worker
+// backgroundWorker is the lifecycle contract Runtime needs from its worker
 // graph. Serve must wait for Stop before it releases shared resources.
-type backgroundScheduler interface {
+type backgroundWorker interface {
 	Start()
 	Stop()
 }
@@ -99,11 +99,15 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 	runtime := &Runtime{
 		api:            api,
-		scheduler:      newScheduler(api, config.Logger),
 		capacityLogger: newRuntimeCapacityLogger(api, config.Logger),
 		tracker:        api.Services.Tracker,
 		logger:         config.Logger,
 	}
+	worker, err := newWorker(api, config.Logger)
+	if err != nil {
+		return nil, errors.Join(err, runtime.closeResources())
+	}
+	runtime.worker = worker
 	runtime.server = &http.Server{
 		Addr:    resolveListenAddr(config.Port),
 		Handler: runtime.Handler(),
@@ -147,24 +151,90 @@ func resolveListenAddr(port string) string {
 	return ":" + port
 }
 
-// newScheduler builds and wires the background scheduler, or returns nil when
-// cleanup dependencies are absent (session cleanup is one of its tasks).
-func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
-	if api.Services == nil || api.Services.ActiveCleanup == nil || api.Services.Active == nil {
-		return nil
+// newWorker assembles the embedded Worker root from one typed dependency value.
+func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
+	if api == nil || api.Services == nil || api.repos == nil {
+		return nil, fmt.Errorf("worker API graph is required")
 	}
+	deps := workerRuntimeDependencies(api, logger)
+	addWorkerServiceDependencies(&deps, api)
+	addWorkerRepositoryDependencies(&deps, api)
+	return scheduler.NewWorker(deps)
+}
 
-	// OperatorAuth implements EmailChangeTokenCleaner (5th arg).
-	// OperatorInvitation implements OperatorInvitationCleaner (6th arg).
-	// Both are backed by the same concrete struct exposed through the
-	// two narrower interfaces defined in services/platform.
-	sched := scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, api.Services.OperatorInvitation, logger.With("service", "scheduler"))
-	sched.SetDB(api.db)
-	sched.SetSchoolRepo(api.repos.School)
-	sched.SetTenantRuntime(api.tenantRuntime)
-	sched.SetTenantRuntimeObserver(observability.RecordTenantRuntimeEvent)
-	sched.SetUnitOfWorkObserver(observability.RecordUnitOfWorkEvent)
-	sched.SetWorkerTracer(scheduler.WorkerTracer{
+func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDependencies {
+	return scheduler.WorkerDependencies{
+		Logger:                 logger.With("service", "scheduler"),
+		DB:                     api.db,
+		SchoolRepo:             api.repos.School,
+		TenantRuntime:          &api.tenantRuntime,
+		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
+		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
+		Tracer:                 workerTracer(api),
+		Settings:               api.Services.Settings,
+		StaffDocumentCleaner:   api.Staff,
+		StudentDocumentCleaner: api.Students,
+		FileStoreCleaner:       api.FileStore,
+	}
+}
+
+func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) {
+	services := api.Services
+	deps.Active = services.Active
+	deps.ActiveCleanup = services.ActiveCleanup
+	deps.AuthCleanup = services.Auth
+	deps.InvitationCleanup = services.Invitation
+	deps.EmailChangeCleanup = services.OperatorAuth
+	deps.OperatorInvitationCleanup = services.OperatorInvitation
+	deps.WorkSessionCleanup = services.WorkSession
+	deps.BreakAutoEnder = services.WorkSession
+	deps.AutoCheckouter = services.WorkSession
+	deps.FeedbackCleaner = services.Feedback
+	deps.UnregisteredScanCleaner = services.UnregisteredTagScans
+	deps.Materializer = services.Materialization
+	deps.TimetableCleanup = services.TimetableCleanup
+	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
+	deps.TimeTrackingCleanup = services.TimeTrackingCleanup
+	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
+	deps.PWAUsageCleanup = services.PWAUsage
+	deps.StaffMessageCleanup = services.StaffMessaging
+	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
+	deps.AutoStart = services.AutoStart
+	deps.AutoEnd = services.AutoEnd
+	deps.TimetableBridge = services.TimetableBridge
+	deps.StudentLifecycleAudit = services.StudentAudit
+	deps.CareExitEffector = services.CareLifecycle
+	deps.OutboxWorker = services.EmailOutboxWorker
+	deps.AppointmentReminders = services.Calendar
+	var rollover scheduler.RolloverDeadlineRunner
+	if services.EnrollmentRollover != nil {
+		rollover = scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {
+			return services.EnrollmentRollover.RunDeadlineWorker(ctx, asOf)
+		})
+	}
+	deps.RolloverDeadlineRunner = rollover
+}
+
+func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *API) {
+	deps.BookingConsistency = api.repos.BookingConsistency
+	deps.InstanceRepo = api.repos.ActivityInstance
+	deps.InstanceRoomRepo = api.repos.Room
+	deps.InstanceStudentRepo = api.repos.InstanceStudent
+	deps.StudentStatusDayRepo = api.repos.StudentStatusDay
+	deps.OverdueBroadcaster = api.Services.RealtimeHub
+	deps.StudentLifecycleRepo = api.repos.Student
+	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
+		Computer:     api.Services.Reminders,
+		Notifier:     api.Services.Notifications,
+		Preferences:  api.Services.NotificationPreferences,
+		Staff:        api.repos.Staff,
+		Accounts:     api.repos.Account,
+		WorkSessions: api.repos.WorkSession,
+	}
+}
+
+func workerTracer(api *API) scheduler.WorkerTracer {
+	return scheduler.WorkerTracer{
 		StartJob: func(ctx context.Context, operation string) (context.Context, error) {
 			ctx, _, err := api.tracer.StartJob(ctx, operation)
 			return ctx, err
@@ -173,136 +243,9 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 		Failure: func(ctx context.Context, operation, outcome string, err error) {
 			api.tracer.Failure(ctx, "worker", operation, outcome, err)
 		},
-	})
-
-	configureSchedulerServices(sched, api.Services)
-	configureSchedulerRepos(sched, api)
-	if api.Staff != nil {
-		sched.SetStaffDocumentFileCleaner(api.Staff)
-	}
-	if api.Students != nil {
-		sched.SetStudentDocumentFileCleaner(api.Students)
-	}
-	if api.FileStore != nil {
-		sched.SetFileStoreCleaner(api.FileStore)
-	}
-
-	return sched
-}
-
-// configureSchedulerServices attaches the optional service-backed scheduler
-// tasks; each is skipped when its backing service is nil.
-func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factory) {
-	if svc.Settings != nil {
-		sched.SetSettingsService(svc.Settings)
-	}
-	if svc.WorkSession != nil {
-		sched.SetWorkSessionCleaner(svc.WorkSession)
-		sched.SetBreakAutoEnder(svc.WorkSession)
-		// #1798: auto-checkout at planned shift end (per-tenant opt-in).
-		sched.SetAutoCheckouter(svc.WorkSession)
-	}
-	if svc.Feedback != nil {
-		sched.SetFeedbackCleaner(svc.Feedback)
-	}
-	if svc.UnregisteredTagScans != nil {
-		sched.SetUnregisteredTagScanCleaner(svc.UnregisteredTagScans)
-	}
-	if svc.Materialization != nil {
-		sched.SetMaterializer(svc.Materialization)
-	}
-	if svc.AutoStart != nil {
-		sched.SetAutoStartService(svc.AutoStart)
-	}
-	sched.SetAutoEndService(svc.AutoEnd)
-	// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
-	if svc.TimetableCleanup != nil {
-		sched.SetTimetableCleanup(svc.TimetableCleanup)
-	}
-	sched.SetCalendarFeedCleanup(svc.CalendarFeedCleanup)
-	// Tranche 0b: time-tracking GDPR cleanup. Same nil-safe wiring.
-	if svc.TimeTrackingCleanup != nil {
-		sched.SetTimeTrackingCleanup(svc.TimeTrackingCleanup)
-	}
-	// Issue #1455: per-child change-history GDPR cleanup. Same nil-safe wiring.
-	if svc.StudentChangeLogCleanup != nil {
-		sched.SetStudentChangeLogCleanup(svc.StudentChangeLogCleanup)
-	}
-	// Issue #2189: PWA standalone-usage GDPR cleanup. Same nil-safe wiring.
-	if svc.PWAUsage != nil {
-		sched.SetPWAUsageCleanup(svc.PWAUsage)
-	}
-	// Issue #2598: Team-Chat-Aufbewahrung. Eigener nil-Wachposten wie jede
-	// andere Scheduler-Registrierung hier - verschachtelt unter PWAUsage haette
-	// sie stillschweigend ausgesetzt, sobald jene Konstruktion bedingt wird.
-	if svc.StaffMessaging != nil {
-		sched.SetStaffMessageCleanup(svc.StaffMessaging)
-	}
-	if svc.EnrollmentRejectedCleanup != nil {
-		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)
-	}
-	// Parent-enrollment PR 5: platform email outbox worker.
-	if svc.EmailOutboxWorker != nil {
-		sched.SetOutboxWorker(svc.EmailOutboxWorker)
-	}
-	// Issue #1671: per-tenant guardian appointment reminders. The calendar
-	// service already satisfies the narrow queuer interface.
-	if svc.Calendar != nil {
-		sched.SetAppointmentReminderQueuer(svc.Calendar)
-	}
-	// Phase rollover slice 1: per-tenant deadline resolver tick.
-	// The adapter narrows the typed return value behind `any` so
-	// the scheduler doesn't import the enrollment package.
-	if svc.EnrollmentRollover != nil {
-		rolloverSvc := svc.EnrollmentRollover
-		sched.SetRolloverDeadlineRunner(scheduler.NewRolloverDeadlineRunner(
-			func(ctx context.Context, asOf time.Time) (any, error) {
-				return rolloverSvc.RunDeadlineWorker(ctx, asOf)
-			},
-		))
-	}
-}
-
-// configureSchedulerRepos attaches the repository-backed scheduler tasks; each
-// is skipped when its repositories (or the broadcaster) are absent.
-func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
-	repos := api.repos
-	if repos == nil {
-		return
-	}
-	// WP-B9: overdue instance tick. Requires the activity-instance repo,
-	// room repo, and broadcaster; partial wiring disables the tick.
-	if api.Services.RealtimeHub != nil {
-		sched.SetInstanceOverdueDeps(repos.ActivityInstance, repos.Room, api.Services.RealtimeHub)
-	}
-	// Personal reminder notifications: dispatches one event per person and
-	// reminder kind through the channel-agnostic abstraction. Gated per tenant
-	// by notifications.dispatch_enabled and the reminders.* settings, and per
-	// person by their own consent plus notifications.on_duty_only.
-	sched.SetReminderNotificationDeps(scheduler.ReminderNotificationDeps{
-		Computer:     api.Services.Reminders,
-		Notifier:     api.Services.Notifications,
-		Preferences:  api.Services.NotificationPreferences,
-		Staff:        repos.Staff,
-		Accounts:     repos.Account,
-		WorkSessions: repos.WorkSession,
-	})
-	// Daily session-end bridge: closes schedule-side rows for ended
-	// active.groups via repositories (issue #585 layering).
-	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)
-	sched.SetStudentStatusDayRepo(repos.StudentStatusDay)
-	sched.SetBookingConsistencyAudit(repos.BookingConsistency)
-	// Parent-enrollment PR 2: activate-students tick.
-	if repos.Student != nil {
-		sched.SetStudentLifecycleRepo(repos.Student)
-		if api.Services.StudentAudit != nil {
-			sched.SetStudentLifecycleAudit(api.Services.StudentAudit)
-		}
-		// Effect day of "Betreuung beenden" (#2487): runs inside the same tick,
-		// before the status transition it shares its candidate set with.
-		if api.Services.CareLifecycle != nil {
-			sched.SetCareExitEffector(api.Services.CareLifecycle)
-		}
+		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
+			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
+		},
 	}
 }
 
@@ -311,17 +254,10 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("serve context is required")
 	}
-	listener, err := net.Listen("tcp", runtime.server.Addr)
-	if err != nil {
-		return fmt.Errorf("listen on %s: %w", runtime.server.Addr, err)
+	serveErr, err := runtime.startHTTP(ctx)
+	if err != nil || serveErr == nil {
+		return err
 	}
-	if err := ctx.Err(); err != nil {
-		if closeErr := listener.Close(); closeErr != nil {
-			return fmt.Errorf("close canceled listener: %w", closeErr)
-		}
-		return nil
-	}
-
 	capacityCtx, stopCapacityLogger := context.WithCancel(ctx)
 	capacityStopped := runtime.startBackground(capacityCtx)
 	defer func() {
@@ -329,6 +265,34 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 		<-capacityStopped
 	}()
 
+	var runErr error
+	select {
+	case err := <-serveErr:
+		runErr = runtime.handleServeExit(err)
+	case <-ctx.Done():
+		runErr = runtime.shutdown(ctx.Err())
+	}
+	if runErr == nil {
+		runtime.logger.Info("server gracefully stopped")
+	}
+	return runErr
+}
+
+func (runtime *Runtime) startHTTP(ctx context.Context) (<-chan error, error) {
+	listen := runtime.listen
+	if listen == nil {
+		listen = net.Listen
+	}
+	listener, err := listen("tcp", runtime.server.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", runtime.server.Addr, err)
+	}
+	if err := ctx.Err(); err != nil {
+		if closeErr := listener.Close(); closeErr != nil {
+			return nil, fmt.Errorf("close canceled listener: %w", closeErr)
+		}
+		return nil, nil
+	}
 	serveErr := make(chan error, 1)
 	servingListener := &startupListener{Listener: listener, started: make(chan struct{})}
 	go func() {
@@ -338,21 +302,9 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 	select {
 	case <-servingListener.started:
 	case err := <-serveErr:
-		return runtime.handleServeExit(err)
+		return nil, runtime.handleServeExit(err)
 	}
-
-	var runErr error
-	select {
-	case err := <-serveErr:
-		runErr = runtime.handleServeExit(err)
-	case <-ctx.Done():
-		runErr = runtime.shutdown(ctx.Err())
-	}
-
-	if runErr == nil {
-		runtime.logger.Info("server gracefully stopped")
-	}
-	return runErr
+	return serveErr, nil
 }
 
 func (runtime *Runtime) handleServeExit(err error) error {
@@ -378,8 +330,8 @@ func (runtime *Runtime) startBackground(capacityCtx context.Context) <-chan stru
 	} else {
 		close(capacityStopped)
 	}
-	if runtime.scheduler != nil && capacityCtx.Err() == nil {
-		runtime.scheduler.Start()
+	if runtime.worker != nil && capacityCtx.Err() == nil {
+		runtime.worker.Start()
 	}
 	return capacityStopped
 }
@@ -391,13 +343,13 @@ func (runtime *Runtime) shutdown(reason error) error {
 func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration) error {
 	runtime.logger.Info("server shutting down", slog.String("reason", reason.Error()))
 
-	// Scheduler jobs can still use the tracker and database pool. Keep Serve
+	// Worker jobs can still use the tracker and database pool. Keep Serve
 	// alive until they stop, while giving HTTP requests their own full drain
 	// deadline.
-	schedulerStopped := make(chan struct{})
+	workerStopped := make(chan struct{})
 	go func() {
-		runtime.stopScheduler()
-		close(schedulerStopped)
+		runtime.stopWorker()
+		close(workerStopped)
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -411,21 +363,21 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 		)
 	}
 	select {
-	case <-schedulerStopped:
+	case <-workerStopped:
 		return nil
 	case <-ctx.Done():
 		runtime.resourcesUnsafe = true
-		return fmt.Errorf("shutdown scheduler: %w", ctx.Err())
+		return fmt.Errorf("shutdown worker: %w", ctx.Err())
 	}
 }
 
-func (runtime *Runtime) stopScheduler() {
-	if runtime.scheduler == nil {
+func (runtime *Runtime) stopWorker() {
+	if runtime.worker == nil {
 		return
 	}
-	scheduler := runtime.scheduler
-	runtime.scheduler = nil
-	scheduler.Stop()
+	worker := runtime.worker
+	runtime.worker = nil
+	worker.Stop()
 }
 
 func (runtime *Runtime) closeResources() error {

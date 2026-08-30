@@ -27,7 +27,7 @@ func (s *Scheduler) runFileStoreCleanupTask(task *ScheduledTask) {
 		0, func() time.Duration { return fileStoreCleanupInterval }, s.checkAndRunFileStoreCleanup)
 }
 
-func (s *Scheduler) checkAndRunFileStoreCleanup(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunFileStoreCleanup(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -41,7 +41,7 @@ func (s *Scheduler) checkAndRunFileStoreCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := s.taskContext(5 * time.Minute)
+	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 	if err := s.forEachTenantIncludingInactive(ctx, "file-store-cleanup",
 		s.cleanupFileStoreForTenant); err != nil {

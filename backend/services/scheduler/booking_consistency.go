@@ -34,7 +34,7 @@ func (s *Scheduler) runBookingConsistencyAuditTask(task *ScheduledTask) {
 	)
 }
 
-func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunBookingConsistencyAudit(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -48,7 +48,7 @@ func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := s.taskContext(bookingConsistencyAuditTimeout)
+	ctx, cancel := s.taskContext(ctx, bookingConsistencyAuditTimeout)
 	defer cancel()
 
 	auditDate := timezone.TodayDate()

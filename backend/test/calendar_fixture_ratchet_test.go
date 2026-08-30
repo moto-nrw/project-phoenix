@@ -367,13 +367,6 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"services/active/supervisor_service_test.go:TestActiveService_UpdateGroupSupervisor":                                                                                                                              "a42781a3d4c5a8b5",
 	"services/active/supervisor_service_test.go:TestActiveService_DeleteGroupSupervisor":                                                                                                                              "aee0464810f033ce",
 	"services/active/supervisor_service_test.go:TestActiveService_EndSupervision":                                                                                                                                     "f46a63e14525833e",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_EnabledByDefault":                                                                                                                            "4a7fc1dc1f14c956",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_WasRunToday":                                                                                                                                 "585a4b874a228472",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_HappyPath":                                                                                                                                   "3ebd9269f35721d3",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_ZeroCounters":                                                                                                                                "f52945f289265919",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_MaterializerError":                                                                                                                           "0c17996e78855cb9",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_OnlyRacedCounter":                                                                                                                            "e23a47bd6a4560fc",
-	"services/scheduler/scheduler_test.go:TestIsoWeekdayMatchesNow_NonSundayMismatch":                                                                                                                                 "5355bfe0662b3f3a",
 	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_List":                                                                                                             "7f1dc43991d00dc1",
 	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_FindActiveByStaffID":                                                                                              "4db3aa662cd90a34",
 	"database/repositories/education/group_substitution_repository_test.go:TestGroupSubstitutionRepository_List_WithFilters":                                                                                          "5242eac453815f6f",
@@ -396,14 +389,11 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"services/schedule/pickup_change_request_service_test.go:TestPickupApprovalRejectsStaleAffectedBlockList":                                                                                                         "07f236cf6f5d6dd8",
 	"services/schedule/pickup_change_request_service_test.go:TestPickupApprovalRequiresImpactTokenForHTTPDecision":                                                                                                    "c09e0b59f44a2aba",
 	"services/schedule/pickup_change_request_service_test.go:TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup":                                                                                             "dd8cccdb35841837",
-	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_EnabledWrongWeekday":                                                                                                                         "535bf5a12cbe8f9c",
 }
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
 // the system clock. Every exact function key needs its own reviewed reason.
-var calendarFixtureClockExceptions = map[string]string{
-	"services/scheduler/scheduler_test.go:TestIsoWeekdayMatchesNow": "the test explicitly compares the scheduler's live ISO weekday helper with time.Now",
-}
+var calendarFixtureClockExceptions = map[string]string{}
 
 func TestCalendarFixtureClockRatchet(t *testing.T) {
 	t.Parallel()

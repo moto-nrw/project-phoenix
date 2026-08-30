@@ -9,24 +9,41 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
-type blockingScheduler struct {
+type blockingWorker struct {
 	release <-chan struct{}
 }
 
-func (scheduler blockingScheduler) Start() {}
+func (worker blockingWorker) Start() {}
 
-func (scheduler blockingScheduler) Stop() {
-	<-scheduler.release
+func (worker blockingWorker) Stop() {
+	<-worker.release
 }
 
-type recordingScheduler struct{ started chan struct{} }
+type recordingWorker struct{ started chan struct{} }
 
-func (scheduler recordingScheduler) Start() { close(scheduler.started) }
+func (worker recordingWorker) Start() { close(worker.started) }
 
-func (recordingScheduler) Stop() {}
+func (recordingWorker) Stop() {}
+
+type readinessWorker struct {
+	url     string
+	started chan error
+}
+
+func (worker readinessWorker) Start() {
+	client := http.Client{Timeout: 200 * time.Millisecond}
+	response, err := client.Get(worker.url) // #nosec G107 -- loopback test server
+	if err == nil {
+		err = response.Body.Close()
+	}
+	worker.started <- err
+}
+
+func (readinessWorker) Stop() {}
 
 func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
@@ -91,6 +108,24 @@ func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	})
 }
 
+func TestWithRuntimeBuildsCompleteWorker(t *testing.T) {
+	t.Parallel()
+
+	testpkg.SetupTestDB(t)
+	called := false
+	err := WithRuntime(context.Background(), ServeConfig{
+		Port:   "127.0.0.1:0",
+		Logger: slog.Default(),
+	}, func(runtime *Runtime) error {
+		called = true
+		require.NotNil(t, runtime.worker)
+		return nil
+	})
+
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
 func TestRuntimeServeReturnsListenFailure(t *testing.T) {
 	t.Parallel()
 
@@ -115,9 +150,9 @@ func TestRuntimeServeDoesNotStartBackgroundAfterCancellation(t *testing.T) {
 	cancel()
 	started := make(chan struct{})
 	runtime := &Runtime{
-		server:    &http.Server{Addr: "127.0.0.1:0"},
-		scheduler: recordingScheduler{started: started},
-		logger:    slog.Default(),
+		server: &http.Server{Addr: "127.0.0.1:0"},
+		worker: recordingWorker{started: started},
+		logger: slog.Default(),
 	}
 
 	require.NoError(t, runtime.Serve(ctx))
@@ -128,14 +163,51 @@ func TestRuntimeServeDoesNotStartBackgroundAfterCancellation(t *testing.T) {
 	}
 }
 
-func TestRuntimeShutdownReturnsDeadlineForStuckScheduler(t *testing.T) {
+func TestRuntimeServeStartsWorkerAfterHTTPReadiness(t *testing.T) {
 	t.Parallel()
 
-	releaseScheduler := make(chan struct{})
+	reserved, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = reserved.Close() })
+	addr := reserved.Addr().String()
+
+	workerStarted := make(chan error, 1)
 	runtime := &Runtime{
-		server:    &http.Server{},
-		scheduler: blockingScheduler{release: releaseScheduler},
-		logger:    slog.Default(),
+		server: &http.Server{
+			Addr:    addr,
+			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+		},
+		worker: readinessWorker{url: "http://" + addr, started: workerStarted},
+		logger: slog.Default(),
+		listen: func(_, _ string) (net.Listener, error) {
+			return reserved, nil
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	serveDone := make(chan error, 1)
+	go func() { serveDone <- runtime.Serve(ctx) }()
+
+	select {
+	case err := <-workerStarted:
+		require.NoError(t, err)
+	case err := <-serveDone:
+		require.NoError(t, err)
+		t.Fatal("server stopped before worker readiness check")
+	case <-time.After(time.Second):
+		t.Fatal("worker did not start after HTTP readiness")
+	}
+	cancel()
+	require.NoError(t, <-serveDone)
+}
+
+func TestRuntimeShutdownReturnsDeadlineForStuckWorker(t *testing.T) {
+	t.Parallel()
+
+	releaseWorker := make(chan struct{})
+	runtime := &Runtime{
+		server: &http.Server{},
+		worker: blockingWorker{release: releaseWorker},
+		logger: slog.Default(),
 	}
 	shutdownDone := make(chan error, 1)
 	go func() {
@@ -143,7 +215,7 @@ func TestRuntimeShutdownReturnsDeadlineForStuckScheduler(t *testing.T) {
 	}()
 
 	err := <-shutdownDone
-	close(releaseScheduler)
+	close(releaseWorker)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.True(t, runtime.resourcesUnsafe)
 }

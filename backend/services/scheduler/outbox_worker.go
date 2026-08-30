@@ -9,7 +9,7 @@ import (
 )
 
 // scheduleOutboxWorkerTask registers the platform email outbox tick.
-// Nil worker → no task registers (matches the SetMaterializer pattern).
+// A nil worker means the typed Worker root is incomplete and cannot start.
 // The interval is settings-driven (enrollment.outbox_worker_interval_seconds,
 // default 30 — see services/config/defaults/enrollment.go). Re-resolves
 // on each tick so admins can shorten the cadence without restart.
@@ -43,7 +43,8 @@ func (s *Scheduler) resolveOutboxInterval() time.Duration {
 // so a slow tick can't overlap. MaxAttempts is pushed from the
 // `enrollment.outbox_max_attempts` setting on each tick — admins can
 // tune retry budget without restart.
-func (s *Scheduler) runOutboxOnce(task *ScheduledTask) {
+func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
+	started := time.Now()
 	if !s.tenantRuntimeConfigured {
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("outbox worker runtime is not configured")
@@ -65,19 +66,36 @@ func (s *Scheduler) runOutboxOnce(task *ScheduledTask) {
 	maxAttempts := s.resolveIntSetting(context.Background(), configModel.KeyEnrollmentOutboxMaxAttempts, "", 6)
 	s.outboxWorker.SetMaxAttempts(maxAttempts)
 
-	ctx, cancel := s.taskContext(5 * time.Minute)
+	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 	ctx = s.withUnitOfWork(ctx)
 
 	const batchSize = 25
 	processed, err := s.outboxWorker.RunOnce(ctx, batchSize)
 	if err != nil {
+		s.traceWorkerFailure(ctx, "email-outbox", "run_failure", err)
 		s.getLogger().Error("outbox worker tick failed",
-			slog.String("error", err.Error()))
+			slog.String("job_id", "email-outbox"),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
-	if processed > 0 {
-		s.getLogger().Info("outbox worker tick complete",
-			slog.Int("processed", processed))
+	s.recordOutboxResult(ctx, processed, started)
+}
+
+func (s *Scheduler) recordOutboxResult(ctx context.Context, processed int, started time.Time) {
+	backlog, err := s.outboxWorker.Backlog(ctx)
+	if err != nil {
+		s.traceWorkerFailure(ctx, "email-outbox", "backlog_failure", err)
+		s.getLogger().Error("outbox worker backlog query failed",
+			slog.String("job_id", "email-outbox"),
+			slog.String("error", err.Error()),
+		)
+		return
 	}
+	s.getLogger().Info("outbox worker tick complete",
+		slog.String("job_id", "email-outbox"),
+		slog.Int("processed", processed),
+		slog.Int("backlog", backlog),
+		slog.Duration("duration", time.Since(started)))
 }

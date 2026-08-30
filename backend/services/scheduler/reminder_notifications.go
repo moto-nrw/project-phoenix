@@ -88,8 +88,9 @@ type ReminderNotificationDeps struct {
 }
 
 func (d ReminderNotificationDeps) complete() bool {
-	return d.Computer != nil && d.Notifier != nil && d.Preferences != nil &&
-		d.Staff != nil && d.Accounts != nil && d.WorkSessions != nil
+	return !isNilDependency(d.Computer) && !isNilDependency(d.Notifier) &&
+		!isNilDependency(d.Preferences) && !isNilDependency(d.Staff) &&
+		!isNilDependency(d.Accounts) && !isNilDependency(d.WorkSessions)
 }
 
 // personalReminderTypes are the notification types this producer can send, in
@@ -100,11 +101,6 @@ var personalReminderTypes = []string{
 	notifications.TypeActivityStart,
 	notifications.TypeActivityOverdue,
 	notifications.TypeMyActivityStarting,
-}
-
-// SetReminderNotificationDeps wires the reminder-notification tick.
-func (s *Scheduler) SetReminderNotificationDeps(deps ReminderNotificationDeps) {
-	s.reminderNotifications = deps
 }
 
 // scheduleReminderNotificationTask registers the minute tick when the producer
@@ -126,7 +122,7 @@ func (s *Scheduler) runReminderNotificationTaskPolling(task *ScheduledTask) {
 // checkAndRunReminderNotifications rotates the day cache, then iterates
 // active tenants. The per-tenant work lives in
 // runReminderNotificationsForTenant so unit tests can drive it directly.
-func (s *Scheduler) checkAndRunReminderNotifications(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunReminderNotifications(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -142,7 +138,7 @@ func (s *Scheduler) checkAndRunReminderNotifications(task *ScheduledTask) {
 
 	s.rotateReminderNotificationCacheIfNewDay(time.Now())
 
-	ctx, cancel := s.taskContext(5 * time.Minute)
+	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "reminder-notifications", func(tenantCtx context.Context, tenantID int64) error {
