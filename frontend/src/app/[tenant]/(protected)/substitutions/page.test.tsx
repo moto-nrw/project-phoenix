@@ -6,7 +6,12 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { formatDate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import SubstitutionsPage from "./page";
 
 // Hoist mocks
@@ -22,6 +27,8 @@ const { mockCreateSubstitution, mockDeleteSubstitution } = vi.hoisted(() => ({
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
+    session?.user?.isAdmin ?? false,
+  hasEffectiveAdminScope: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   hasRole: (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
     if (role === "admin") return session?.user?.isAdmin ?? false;
@@ -245,23 +252,25 @@ const mockGroups = [
 const mockActiveSubstitutions = [
   {
     id: "sub-1",
+    type: "group_handover" as const,
     groupId: "g1",
     groupName: "Gruppe 1A",
     substituteStaffId: "2",
     substituteStaffName: "Ben Schulz",
-    startDate: new Date(),
-    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    isTransfer: false,
+    startDate: berlinTodayISO(),
+    endDate: berlinTodayISO(),
+    canEnd: true,
   },
   {
     id: "sub-2",
+    type: "group_handover" as const,
     groupId: "g2",
     groupName: "Gruppe 4A",
     substituteStaffId: "3",
     substituteStaffName: "Clara Fischer",
-    startDate: new Date(),
-    endDate: new Date(),
-    isTransfer: true,
+    startDate: berlinTodayISO(),
+    endDate: berlinTodayISO(),
+    canEnd: true,
   },
 ];
 
@@ -271,7 +280,7 @@ const mockActiveSubstitutions = [
  */
 function openAssignFor(name: RegExp) {
   fireEvent.click(screen.getByRole("button", { name }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff geben" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Gruppe übergeben" }));
 }
 
 function endFirstAccess() {
@@ -282,7 +291,7 @@ function endFirstAccess() {
     /und /.test(trigger.getAttribute("aria-label") ?? ""),
   );
   fireEvent.click(rowTrigger!);
-  fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff beenden" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Übergabe beenden" }));
 }
 
 describe("SubstitutionsPage", () => {
@@ -308,7 +317,7 @@ describe("SubstitutionsPage", () => {
           mutate: mockMutateTeachers,
         } as never;
       }
-      if (key === "active-substitutions") {
+      if (key === "group-handovers") {
         return {
           data: mockActiveSubstitutions,
           isLoading: false,
@@ -337,7 +346,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByText("Vertretungszugriff nicht verfügbar"),
+        screen.getByText("Gruppenübergaben nicht verfügbar"),
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Verfügbare pädagogische Fachkräfte"),
@@ -382,7 +391,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByLabelText("Vertretungszugriff wird geladen…"),
+        screen.getByLabelText("Gruppenübergaben werden geladen…"),
       ).toBeInTheDocument();
     });
 
@@ -407,7 +416,9 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByText("Fehler beim Laden der Daten."),
+        screen.getByText(
+          "Die Daten konnten nicht geladen werden. Bitte laden Sie die Seite neu.",
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -443,7 +454,7 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       // Ben Schulz hat einen Zugriff auf Gruppe 1A.
-      expect(screen.getByText(/Zugriff: Gruppe 1A/)).toBeInTheDocument();
+      expect(screen.getAllByText("1 Gruppenübergabe")).toHaveLength(2);
 
       // Anna Meyer hat keinen; ihre Zeile trägt keinen Status.
       expect(screen.queryByText("Verfügbar")).not.toBeInTheDocument();
@@ -561,19 +572,14 @@ describe("SubstitutionsPage", () => {
   });
 
   describe("Active Substitutions Display", () => {
-    it("displays active transfers (Tagesübergaben) section", () => {
+    it("displays the group handovers section", () => {
       render(<SubstitutionsPage />);
 
-      expect(screen.getByText("Tagesübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Übergeben an Ben Schulz")).toBeInTheDocument();
     });
 
-    it("displays active substitutions (längerfristige Zugriffe) section", () => {
-      render(<SubstitutionsPage />);
-
-      expect(screen.getByText("Längerfristige Zugriffe")).toBeInTheDocument();
-    });
-
-    it("shows empty state when no active transfers", () => {
+    it("shows the empty state when there are no handovers", () => {
       vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
         if (key === "substitution-teachers") {
           return {
@@ -583,9 +589,9 @@ describe("SubstitutionsPage", () => {
             mutate: mockMutateTeachers,
           } as never;
         }
-        if (key === "active-substitutions") {
+        if (key === "group-handovers") {
           return {
-            data: mockActiveSubstitutions.filter((s) => !s.isTransfer),
+            data: [],
             isLoading: false,
             error: null,
             mutate: mockMutateSubstitutions,
@@ -597,7 +603,10 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByText("Keine aktiven Tagesübergaben"),
+        screen.getByText("Keine eintägigen Übergaben"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Keine mehrtägigen Übergaben"),
       ).toBeInTheDocument();
     });
   });
@@ -665,7 +674,7 @@ describe("SubstitutionsPage", () => {
 
       const durationGroup = screen.getByRole("group", { name: "Dauer" });
       expect(
-        within(durationGroup).getByRole("button", { name: "Heute" }),
+        within(durationGroup).getByRole("button", { name: "1 Tag" }),
       ).toHaveAttribute("aria-pressed", "true");
 
       for (const label of ["3 Tage", "1 Woche", "Individuell"]) {
@@ -675,7 +684,9 @@ describe("SubstitutionsPage", () => {
       }
 
       expect(
-        screen.getByText("Zugriff nur für heute, endet um 23:59 Uhr."),
+        screen.getByText(
+          `Die Übergabe gilt am ${formatDate(berlinTodayISO(), true)}.`,
+        ),
       ).toBeInTheDocument();
     });
 
@@ -698,7 +709,7 @@ describe("SubstitutionsPage", () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
+            `Die Übergabe gilt bis ${formatDate(toISODate(expectedEnd), true)}.`,
           ),
         ).toBeInTheDocument();
       });
@@ -729,7 +740,7 @@ describe("SubstitutionsPage", () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`,
+            `Die Übergabe gilt bis ${formatDate(toISODate(expectedEnd), true)}.`,
           ),
         ).toBeInTheDocument();
       });
@@ -751,7 +762,7 @@ describe("SubstitutionsPage", () => {
 
       const expectedEnd = new Date();
       expectedEnd.setDate(expectedEnd.getDate() + 99);
-      const expectedMessage = `Zugriff bis ${formatDate(toISODate(expectedEnd), true)}, 23:59 Uhr.`;
+      const expectedMessage = `Die Übergabe gilt bis ${formatDate(toISODate(expectedEnd), true)}.`;
       expect(screen.getByText(expectedMessage)).toBeInTheDocument();
 
       fireEvent.change(dayInput, { target: { value: "2.5" } });
@@ -791,7 +802,39 @@ describe("SubstitutionsPage", () => {
       await waitFor(() => {
         expect(mockCreateSubstitution).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalledWith(
-          expect.stringContaining("Zugriff auf"),
+          expect.stringContaining("übergeben"),
+        );
+      });
+    });
+
+    it("assigns a multi-day handover starting in the future", async () => {
+      mockCreateSubstitution.mockResolvedValueOnce({ id: "new-sub" });
+      const start = parseISODate(berlinTodayISO());
+      start.setDate(start.getDate() + 5);
+      const startISO = toISODate(start);
+      const end = parseISODate(startISO);
+      end.setDate(end.getDate() + 2);
+
+      render(<SubstitutionsPage />);
+      openAssignFor(/Anna Meyer/i);
+
+      const modal = await screen.findByTestId("assignment-modal");
+      fireEvent.change(within(modal).getByLabelText("Startdatum"), {
+        target: { value: startISO },
+      });
+      fireEvent.click(within(modal).getByRole("combobox"));
+      fireEvent.click(screen.getByRole("option", { name: "Gruppe 1A" }));
+      fireEvent.click(within(modal).getByRole("button", { name: "3 Tage" }));
+      fireEvent.click(
+        within(modal).getByRole("button", { name: /^Zuweisen$/ }),
+      );
+
+      await waitFor(() => {
+        expect(mockCreateSubstitution).toHaveBeenCalledWith(
+          "g1",
+          "1",
+          startISO,
+          toISODate(end),
         );
       });
     });
@@ -827,7 +870,7 @@ describe("SubstitutionsPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-        expect(screen.getByText("Zugriff beenden?")).toBeInTheDocument();
+        expect(screen.getByText("Übergabe beenden?")).toBeInTheDocument();
       });
     });
 
@@ -895,7 +938,7 @@ describe("SubstitutionsPage", () => {
         expect(mockDeleteSubstitution).toHaveBeenCalled();
         // Error message should be displayed
         expect(
-          screen.getByText("Fehler beim Beenden des Zugriffs."),
+          screen.getByText("Die Übergabe konnte nicht beendet werden."),
         ).toBeInTheDocument();
       });
     });
@@ -965,9 +1008,9 @@ describe("SubstitutionsPage", () => {
             mutate: mockMutateTeachers,
           } as never;
         }
-        if (key === "active-substitutions") {
+        if (key === "group-handovers") {
           return {
-            data: mockActiveSubstitutions.filter((s) => s.isTransfer),
+            data: [],
             isLoading: false,
             error: null,
             mutate: mockMutateSubstitutions,
@@ -979,7 +1022,10 @@ describe("SubstitutionsPage", () => {
       render(<SubstitutionsPage />);
 
       expect(
-        screen.getByText("Keine aktiven längerfristigen Zugriffe"),
+        screen.getByText("Keine eintägigen Übergaben"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Keine mehrtägigen Übergaben"),
       ).toBeInTheDocument();
     });
   });
@@ -1025,20 +1071,5 @@ describe("SubstitutionsPage helper functions", () => {
     const filtered = teachers.filter((t) => t.inSubstitution);
 
     expect(filtered).toHaveLength(2);
-  });
-
-  it("separates transfers from substitutions", () => {
-    const substitutions = [
-      { id: "1", isTransfer: true },
-      { id: "2", isTransfer: false },
-      { id: "3", isTransfer: true },
-      { id: "4", isTransfer: false },
-    ];
-
-    const transfers = substitutions.filter((s) => s.isTransfer);
-    const nonTransfers = substitutions.filter((s) => !s.isTransfer);
-
-    expect(transfers).toHaveLength(2);
-    expect(nonTransfers).toHaveLength(2);
   });
 });

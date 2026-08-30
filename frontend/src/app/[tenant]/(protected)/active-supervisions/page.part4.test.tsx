@@ -353,6 +353,97 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     ).toBeInTheDocument();
   });
 
+  it("updates both spontaneous starts when the server day changes to a weekend", async () => {
+    const weekdayData = {
+      businessDay: "2026-08-28",
+      spontaneousStartAvailability: {
+        available: true,
+        blockedReason: undefined as "weekend" | undefined,
+      },
+      supervisedGroups: [],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: null,
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      schulhofStatus: {
+        exists: true,
+        roomId: "10",
+        roomName: "Schulhof",
+        activityGroupId: null,
+        activeGroupId: null,
+        isUserSupervising: false,
+        supervisionId: null,
+        supervisorCount: 0,
+        studentCount: 0,
+        supervisors: [],
+      },
+      plannedNow: [],
+    };
+    let dashboardResult = {
+      data: weekdayData,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    const emptyResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
+      key?.startsWith("active-supervision-dashboard")
+        ? dashboardResult
+        : emptyResult) as never);
+
+    const { rerender } = render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("button", { name: /Spontane Aktivität starten/ }),
+    ).toBeEnabled();
+    expect(
+      await screen.findByRole("button", { name: "Beaufsichtigen" }),
+    ).toBeEnabled();
+    const dashboardCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(([key]) =>
+        key?.startsWith("active-supervision-dashboard"),
+      );
+    expect(dashboardCall?.[2]).toMatchObject({
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
+    });
+
+    dashboardResult = {
+      ...dashboardResult,
+      data: {
+        ...weekdayData,
+        businessDay: "2026-08-29",
+        spontaneousStartAvailability: {
+          available: false,
+          blockedReason: "weekend" as const,
+        },
+      },
+    };
+    rerender(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("button", { name: /Spontane Aktivität starten/ }),
+    ).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: "Beaufsichtigen" }),
+    ).toBeDisabled();
+    expect(
+      screen.getAllByText(
+        "Spontane Aktivitäten sind nur montags bis freitags möglich.",
+      ),
+    ).toHaveLength(2);
+  });
+
   it("keeps Schulhof selectable as a normal room when status is unavailable (#2161)", async () => {
     const dashboardResult = {
       data: {

@@ -319,7 +319,7 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Child", gradClass)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,
@@ -387,6 +387,7 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 		scheduleRepo.NewInstanceStudentRepository(db),
 		activitiesRepo.NewStudentEnrollmentRepository(db),
 		nil,
+		func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) },
 	)
 	return educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
@@ -396,6 +397,7 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 		AttendanceRepo:   activeRepo.NewAttendanceRepository(db),
 		RosterReconciler: reconciler,
 		DB:               db,
+		Today:            func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 }
 
@@ -507,7 +509,7 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Backdated", "Child", gradClass)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	enrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       student.ID,

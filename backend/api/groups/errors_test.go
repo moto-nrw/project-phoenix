@@ -44,6 +44,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 	}{
 		{"ErrDuplicateGroup", education.ErrDuplicateGroup, "Eine Gruppe mit diesem Namen"},
 		{"ErrGroupHasStudents", education.ErrGroupHasStudents, ""},
+		{"ErrGroupHasHandover", education.ErrGroupHasHandover, "Übergabe muss zuerst beendet werden"},
 	}
 
 	for _, tt := range tests {

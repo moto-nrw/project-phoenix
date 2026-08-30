@@ -8,6 +8,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -39,6 +40,8 @@ Object.defineProperty(window, "localStorage", {
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
+    session?.user?.isAdmin ?? false,
+  hasEffectiveAdminScope: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
   isCaregiver: (session: { user?: { isAdmin?: boolean } } | null) =>
     !(session?.user?.isAdmin ?? false),
@@ -498,6 +501,7 @@ function liveData(overrides: Partial<OgsLiveViewData> = {}): OgsLiveViewData {
         roomId: "10",
         roomName: "Raum 101",
         viaSubstitution: false,
+        isPersonal: true,
       },
     ],
     groupId: "1",
@@ -1169,6 +1173,7 @@ describe("OGSGroupPage additional scenarios", () => {
             roomId: "10",
             roomName: "Raum 101",
             viaSubstitution: true, // This group is via substitution
+            isPersonal: true,
           },
         ],
         students: [
@@ -3372,6 +3377,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
       roomId: "10",
       roomName: "Raum 101",
       viaSubstitution: false,
+      isPersonal: true,
     },
     {
       id: "2",
@@ -3379,6 +3385,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
       roomId: "20",
       roomName: "Raum 202",
       viaSubstitution: false,
+      isPersonal: true,
     },
   ];
 
@@ -3592,6 +3599,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
             roomId: "10",
             roomName: "Raum 101",
             viaSubstitution: false,
+            isPersonal: true,
           },
           {
             id: "2",
@@ -3599,6 +3607,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
             roomId: "20",
             roomName: "Raum 202",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         groupId: "1", // Aggregate resolves the first group's data
@@ -3638,6 +3647,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
       roomId: "10",
       roomName: "Raum 101",
       viaSubstitution: false,
+      isPersonal: true,
     },
     {
       id: "2",
@@ -3645,6 +3655,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
       roomId: "20",
       roomName: "Raum 202",
       viaSubstitution: false,
+      isPersonal: true,
     },
   ];
 
@@ -3851,6 +3862,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
             roomId: "10",
             roomName: "Raum 101",
             viaSubstitution: false,
+            isPersonal: true,
           },
           {
             id: "2",
@@ -3858,6 +3870,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
             roomId: "20",
             roomName: "Raum 202",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         groupId: "2",
@@ -4057,6 +4070,7 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
             roomId: "10",
             roomName: "Raum 101",
             viaSubstitution: false,
+            isPersonal: true,
           },
           {
             id: "2",
@@ -4064,6 +4078,7 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
             roomId: "20",
             roomName: "Raum 202",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         students: [
@@ -4145,6 +4160,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
             roomId: "10",
             roomName: "Raum 101",
             viaSubstitution: false,
+            isPersonal: true,
           },
           {
             id: "2",
@@ -4152,6 +4168,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
             roomId: "20",
             roomName: "Raum 202",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         students: [
@@ -4214,6 +4231,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
             roomId: "10",
             roomName: "Raum 101",
             viaSubstitution: false,
+            isPersonal: true,
           },
           {
             id: "2",
@@ -4221,6 +4239,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
             roomId: "20",
             roomName: "Raum 202",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         students: [
@@ -4302,37 +4321,11 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
     expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
   });
 
-  it("filters current user from transfer modal available users", async () => {
-    // Current user has personId "p1"
-    mockUserContext.mockReturnValue({
-      userContext: {
-        currentStaff: { id: "s1", personId: "p1" },
-      },
-      isLoading: false,
-      error: undefined,
-      isReady: true,
-    });
-
-    // Staff list includes the current user (personId "p1")
-
+  it("passes the module's narrow targets to the transfer modal", async () => {
     vi.mocked(groupTransferService.getAllAvailableStaff).mockResolvedValue([
       {
-        id: "s1",
-        personId: "p1",
-        firstName: "Current",
-        lastName: "User",
-        fullName: "Current User",
-        accountId: "a1",
-        email: "current@example.com",
-      },
-      {
         id: "s2",
-        personId: "p2",
-        firstName: "Other",
-        lastName: "Teacher",
         fullName: "Other Teacher",
-        accountId: "a2",
-        email: "other@example.com",
       },
     ]);
 
@@ -4359,15 +4352,87 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
       expect(groupTransferService.getAllAvailableStaff).toHaveBeenCalled();
     });
 
-    // The modal should receive only "Other Teacher", not "Current User"
     await waitFor(() => {
       const lastCall = mockTransferModalProps.mock.calls[
         mockTransferModalProps.mock.calls.length - 1
-      ] as [{ availableUsers: Array<{ personId: string; fullName: string }> }];
+      ] as [{ availableUsers: Array<{ id: string; fullName: string }> }];
       const passedUsers = lastCall?.[0]?.availableUsers;
       expect(passedUsers).toBeDefined();
       expect(passedUsers).toHaveLength(1);
       expect(passedUsers[0]?.fullName).toBe("Other Teacher");
+    });
+  });
+
+  it("passes transfer data load failures to the modal", async () => {
+    vi.mocked(groupTransferService.getAllAvailableStaff).mockRejectedValueOnce(
+      new Error("network failure"),
+    );
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ students: [] }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+    fireEvent.click(await screen.findByLabelText("Gruppe übergeben"));
+
+    await waitFor(() => {
+      const lastCall = mockTransferModalProps.mock.calls.at(-1) as
+        [{ loadError?: string }] | undefined;
+      expect(lastCall?.[0].loadError).toBe(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    });
+  });
+
+  it("clears previously loaded transfer data when a modal reload fails", async () => {
+    vi.mocked(groupTransferService.getAllAvailableStaff)
+      .mockResolvedValueOnce([{ id: "s2", fullName: "Other Teacher" }])
+      .mockRejectedValueOnce(new Error("network failure"));
+    vi.mocked(
+      groupTransferService.getActiveTransfersForGroup,
+    ).mockResolvedValueOnce([
+      { substitutionId: "1", targetName: "Other Teacher" },
+    ] as never);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ students: [] }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+    fireEvent.click(await screen.findByLabelText("Gruppe übergeben"));
+
+    await waitFor(() => {
+      const props = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
+        availableUsers: Array<{ id: string }>;
+        existingTransfers: Array<{ substitutionId: string }>;
+      };
+      expect(props.availableUsers).toHaveLength(1);
+      expect(props.existingTransfers).toHaveLength(1);
+    });
+
+    const props = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
+      onClose: () => void;
+    };
+    act(() => props.onClose());
+    fireEvent.click(screen.getByLabelText("Gruppe übergeben"));
+
+    await waitFor(() => {
+      const reloadedProps = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
+        availableUsers: Array<{ id: string }>;
+        existingTransfers: Array<{ substitutionId: string }>;
+        loadError?: string;
+      };
+      expect(reloadedProps.availableUsers).toEqual([]);
+      expect(reloadedProps.existingTransfers).toEqual([]);
+      expect(reloadedProps.loadError).toBe(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
     });
   });
 });
@@ -4377,7 +4442,7 @@ describe("RoleGuard integration", () => {
     vi.clearAllMocks();
   });
 
-  it("shows ForbiddenPage for admin users", async () => {
+  it("renders the group overview for admin-only users", async () => {
     const { useSession } = await import("next-auth/react");
     vi.mocked(useSession).mockReturnValue({
       data: { user: { token: "test-token", isAdmin: true } },
@@ -4386,7 +4451,39 @@ describe("RoleGuard integration", () => {
 
     render(<OGSGroupPage />);
 
-    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("keeps the handover action for admins viewing an additional group", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        groups: [
+          {
+            id: "2",
+            name: "OGS Gruppe B",
+            viaSubstitution: false,
+            isPersonal: false,
+          },
+        ],
+        groupId: "2",
+      }),
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByLabelText("Gruppe übergeben"),
+    ).toBeInTheDocument();
   });
 
   it("renders content for non-admin users", async () => {

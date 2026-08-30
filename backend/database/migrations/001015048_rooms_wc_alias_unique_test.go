@@ -6,30 +6,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // dropWCAliasIndex removes the partial unique index so a test can pre-seed
 // duplicate alias rows before re-running the up migration. SetupTestDB has
 // already run every migration including 1.15.48, so the index exists at the
 // start of every test in this file. The cleanup branch puts it back.
-func dropWCAliasIndex(t *testing.T, db *bun.DB) {
+func dropWCAliasIndex(t *testing.T, db *testpkg.DB) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := db.ExecContext(ctx,
-		fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, facilities.RoomWCAliasUniqueConstraintName))
+		fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, roomsWCAliasUniqueIndex))
 	require.NoError(t, err, "drop wc alias index")
 }
 
 // insertWCAliasRoom inserts a row directly via SQL so the test can stage a
 // pre-migration state that the service layer would now reject. Returns the
 // inserted row id.
-func insertWCAliasRoom(t *testing.T, db *bun.DB, tenantID int64, name string) int64 {
+func insertWCAliasRoom(t *testing.T, db *testpkg.DB, tenantID int64, name string) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -49,7 +47,7 @@ func insertWCAliasRoom(t *testing.T, db *bun.DB, tenantID int64, name string) in
 // the activities.groups fixture chain — the migration's tie-breaker only
 // counts rows. Returns the active group id (only useful for cleanup, which
 // happens via cleanupWCAliasMigrationTest).
-func attachActiveGroup(t *testing.T, db *bun.DB, tenantID, roomID int64) int64 {
+func attachActiveGroup(t *testing.T, db *testpkg.DB, tenantID, roomID int64) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -63,7 +61,7 @@ func attachActiveGroup(t *testing.T, db *bun.DB, tenantID, roomID int64) int64 {
 	return id
 }
 
-func countAliasRows(t *testing.T, db *bun.DB, tenantID int64) int {
+func countAliasRows(t *testing.T, db *testpkg.DB, tenantID int64) int {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -76,7 +74,7 @@ func countAliasRows(t *testing.T, db *bun.DB, tenantID int64) int {
 	return n
 }
 
-func roomNameByID(t *testing.T, db *bun.DB, id int64) string {
+func roomNameByID(t *testing.T, db *testpkg.DB, id int64) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -209,7 +207,7 @@ func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 		VALUES (?, 'Toilette', 'Test Building', 0, 10, 'Other');
 	`, tenantID)
 	require.Error(t, err, "second alias insert must violate the partial unique index")
-	assert.Contains(t, err.Error(), facilities.RoomWCAliasUniqueConstraintName,
+	assert.Contains(t, err.Error(), roomsWCAliasUniqueIndex,
 		"violation must reference the alias index by name (not the generic name unique constraint)")
 }
 

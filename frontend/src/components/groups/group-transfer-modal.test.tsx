@@ -15,19 +15,11 @@ const mockGroup = {
 const mockAvailableUsers = [
   {
     id: "1",
-    personId: "p1",
-    firstName: "John",
-    lastName: "Doe",
     fullName: "John Doe",
-    email: "john@example.com",
   },
   {
     id: "2",
-    personId: "p2",
-    firstName: "Jane",
-    lastName: "Smith",
     fullName: "Jane Smith",
-    email: "jane@example.com",
   },
 ];
 
@@ -161,7 +153,7 @@ describe("GroupTransferModal", () => {
     fireEvent.click(transferButton);
 
     await waitFor(() => {
-      expect(mockOnTransfer).toHaveBeenCalledWith("p1", "John Doe");
+      expect(mockOnTransfer).toHaveBeenCalledWith("1", "John Doe");
     });
   });
 
@@ -243,6 +235,26 @@ describe("GroupTransferModal", () => {
     expect(transferButton).toBeDisabled();
   });
 
+  it("shows a load failure instead of claiming that no staff are available", () => {
+    render(
+      <GroupTransferModal
+        isOpen={true}
+        onClose={mockOnClose}
+        group={mockGroup}
+        availableUsers={[]}
+        loadError="Fachkräfte konnten nicht geladen werden."
+        onTransfer={mockOnTransfer}
+      />,
+    );
+
+    expect(
+      screen.getByText("Fachkräfte konnten nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keine pädagogische Fachkraft verfügbar/),
+    ).not.toBeInTheDocument();
+  });
+
   it("closes modal when cancel is clicked", async () => {
     render(
       <GroupTransferModal
@@ -286,7 +298,11 @@ describe("GroupTransferModal", () => {
       fireEvent.click(transferButton);
 
       await waitFor(() => {
-        expect(screen.getByText("Transfer failed")).toBeInTheDocument();
+        expect(
+          screen.getByText(
+            "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.",
+          ),
+        ).toBeInTheDocument();
       });
 
       await waitFor(() => {
@@ -295,6 +311,30 @@ describe("GroupTransferModal", () => {
           block: "start",
         });
       });
+    });
+
+    it("shows a typed server error", async () => {
+      const serverError = new Error("Diese Gruppenübergabe besteht bereits.");
+      serverError.name = "TransferError";
+      mockOnTransfer.mockRejectedValue(serverError);
+
+      render(
+        <GroupTransferModal
+          isOpen={true}
+          onClose={mockOnClose}
+          group={mockGroup}
+          availableUsers={mockAvailableUsers}
+          onTransfer={mockOnTransfer}
+        />,
+      );
+
+      fireEvent.click(await screen.findByRole("combobox"));
+      fireEvent.click(screen.getByRole("option", { name: "John Doe" }));
+      fireEvent.click(screen.getByText("Übergeben"));
+
+      expect(
+        await screen.findByText("Diese Gruppenübergabe besteht bereits."),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -2,9 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -21,10 +22,9 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "start http server with configured api",
 	Long:  `Starts a http server and serves the configured api`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := validateServeConfig(); err != nil {
-			slog.Error("invalid server configuration", slog.String("error", err.Error()))
-			os.Exit(1)
+			return fmt.Errorf("invalid server configuration: %w", err)
 		}
 
 		logFormat := "json"
@@ -48,19 +48,24 @@ var serveCmd = &cobra.Command{
 				},
 			})
 			if err != nil {
-				slog.Error("sentry init failed", slog.String("error", err.Error()))
-				os.Exit(1)
+				return fmt.Errorf("initialize sentry: %w", err)
 			}
 			defer sentry.Flush(2 * time.Second)
 			logger.Info("sentry error tracking initialized")
 		}
 
-		server, err := api.NewServer(logger)
-		if err != nil {
-			slog.Error("failed to create server", slog.String("error", err.Error()))
-			os.Exit(1)
+		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := api.WithRuntime(ctx, api.ServeConfig{
+			Port:       viper.GetString("port"),
+			EnableCORS: viper.GetBool("enable_cors"),
+			Logger:     logger,
+		}, func(runtime *api.Runtime) error {
+			return runtime.Serve(ctx)
+		}); err != nil {
+			return fmt.Errorf("run Serve runtime: %w", err)
 		}
-		server.Start()
+		return nil
 	},
 }
 

@@ -14,7 +14,7 @@ import (
 func TestNormalizeBulkDates_DedupesAndSortsAscending(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2030, 8, 26)
 	later := today.AddDays(3)
 	sooner := today.AddDays(1)
 

@@ -257,6 +257,14 @@ func ErrorInvalidRequestMessage(message string) render.Renderer {
 	}
 }
 
+// ErrorInvalidRequestMessageWithCode returns a 400 with user-facing copy and
+// a stable domain code.
+func ErrorInvalidRequestMessageWithCode(message, code string) render.Renderer {
+	resp := ErrorInvalidRequestMessage(message).(*ErrResponse)
+	resp.Code = code
+	return resp
+}
+
 // ErrorForbiddenMessage returns a 403 Forbidden with a user-facing message
 // string. See ErrorInvalidRequestMessage for why.
 func ErrorForbiddenMessage(message string) render.Renderer {
@@ -392,16 +400,4 @@ func RequireDependency(w http.ResponseWriter, r *http.Request, ok bool, unavaila
 		RenderError(w, r, newErrResponse(http.StatusServiceUnavailable, unavailableErr))
 	}
 	return ok
-}
-
-// ErrorInvalidRequestMessageWithCode returns a 400 with a user-facing message
-// AND a stable code, for validation failures the frontend has to branch on
-// (which field to highlight) rather than merely display.
-func ErrorInvalidRequestMessageWithCode(message, code string) render.Renderer {
-	return &ErrResponse{
-		HTTPStatusCode: http.StatusBadRequest,
-		Status:         "error",
-		ErrorText:      message,
-		Code:           code,
-	}
 }

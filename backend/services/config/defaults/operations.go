@@ -160,17 +160,14 @@ func init() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	// --- Schulweite Sicht auf alle laufenden Räume (#2380) ---
+	// --- Sichtbereich für Gruppen und laufende Betreuungen (#2801) ---
 
 	config.Register(config.Definition{
-		Key:   config.KeyOperationalOverviewScope,
-		Label: "Sicht auf alle Räume",
-		Description: "Legt fest, wer in der Aktuellen Aufsicht alle Räume der Schule sieht. " +
-			"Ohne Freigabe sieht jede Person nur ihre eigenen Räume. " +
-			"Die Freigabe gibt keine neuen Rechte. " +
-			"Wer etwas sonst nicht darf, darf es auch hier nicht.",
+		Key:             config.KeyOperationalOverviewScope,
+		Label:           "Sichtbereich für Mitarbeitende",
+		Description:     "Legt fest, welche Gruppen und laufenden Betreuungen Mitarbeitende sehen. Admins sehen immer alles. Die Auswahl gibt keine neuen Rechte.",
 		Type:            config.FieldSelect,
-		Default:         config.OverviewScopeOwn,
+		Default:         config.OverviewScopeAllStaff,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -178,9 +175,8 @@ func init() {
 		SortOrder:       1,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Nur eigene Räume", Value: config.OverviewScopeOwn},
-				{Label: "Alle Räume für Administratoren", Value: config.OverviewScopeAdmins},
-				{Label: "Alle Räume für alle Mitarbeitenden", Value: config.OverviewScopeAllStaff},
+				{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+				{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
 			},
 		},
 	})

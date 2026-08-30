@@ -61,7 +61,7 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	require.NoError(t, settingsService.SetValue(ctx, configModel.KeyDisplayEnabled, true, nil, nil))
 }
 
-func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
+func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
 	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
@@ -89,7 +89,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 			slog.Default(),
 		),
 		SettingsService: settingsService,
-		DB:              db,
+		DB:              db, Now: firstClock(clocks),
 	})
 	return testpkg.TenantRuntimeMiddleware(t, db)(displayAPI.NewResource(svc, settingsService, db).Router())
 }
@@ -245,7 +245,8 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
-	router := newDisplayRouter(t, db)
+	testNow := time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin)
+	router := newDisplayRouter(t, db, func() time.Time { return testNow })
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-dash-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
 
@@ -277,7 +278,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		assert.Equal(t, "active", payload.Status)
 		assert.Equal(t, fmt.Sprintf("Test School %d", tenantID), payload.SchoolName)
 		assert.Equal(t, "Eingang", payload.DisplayName)
-		assert.Equal(t, timezone.TodayDate().String(), payload.Date)
+		assert.Equal(t, timezone.NewDate(2026, 8, 24).String(), payload.Date)
 
 		var bauraum *displayService.RoomOccupancy
 		for i := range payload.RoomOccupancy {
@@ -311,7 +312,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		// expectation. Guard against every offset this test produces
 		// (future + the 45min instance duration, and past) landing on a
 		// different calendar day than now.
-		now := timezone.Now().In(timezone.Berlin)
+		now := testNow
 		future := now.Add(3 * time.Minute)
 		past := now.Add(-3 * time.Minute)
 		if future.Add(45*time.Minute).Day() != now.Day() || past.Day() != now.Day() {
@@ -344,7 +345,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 
 func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
-		Date:      timezone.TodayDate(),
+		Date:      timezone.DateFromTime(start),
 		Title:     title,
 		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
 		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
@@ -403,14 +404,15 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
+	testNow := today.BerlinMidnight().Add(12 * time.Hour)
 	weekday := int(today.Weekday())
 	if weekday < 1 || weekday > 5 {
 		t.Skip("pickup schedules only resolve Mon-Fri; skipping on weekends")
 	}
 
 	tenantID := newDisplayTestTenant(t, db)
-	router := newDisplayRouter(t, db)
+	router := newDisplayRouter(t, db, func() time.Time { return testNow })
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-pickup-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
 
@@ -420,11 +422,11 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	present2 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Ben", "Anwesend", "2b")
 	checkedOut := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Carla", "Weg", "2b")
 
-	now := timezone.Now()
+	now := testNow
 	checkoutTime := now.Add(-10 * time.Minute)
-	createAttendanceForTenant(t, db, tenantID, present1.ID, staff.ID, device.ID, nil)
-	createAttendanceForTenant(t, db, tenantID, present2.ID, staff.ID, device.ID, nil)
-	createAttendanceForTenant(t, db, tenantID, checkedOut.ID, staff.ID, device.ID, &checkoutTime)
+	createAttendanceForTenant(t, db, tenantID, present1.ID, staff.ID, device.ID, now, nil)
+	createAttendanceForTenant(t, db, tenantID, present2.ID, staff.ID, device.ID, now, nil)
+	createAttendanceForTenant(t, db, tenantID, checkedOut.ID, staff.ID, device.ID, now, &checkoutTime)
 
 	// Both present students share the 23:45 slot; the checked-out student's
 	// schedule must not count.
@@ -435,10 +437,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("schedule.student_pickup_schedules").Where("tenant_id = ?", tenantID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("active.attendance").Where("tenant_id = ?", tenantID).Exec(context.Background())
 	}()
-
-	if timezone.Now().In(timezone.Berlin).Format("15:04") >= "23:45" {
-		t.Skip("too close to midnight for a stable future pickup slot")
-	}
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Pickup Display")
 	rec := doDashboardRequest(t, router, rawToken)
@@ -457,15 +455,15 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	assert.NotContains(t, rec.Body.String(), "Carla")
 }
 
-func createAttendanceForTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID, deviceID int64, checkOut *time.Time) {
+func createAttendanceForTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID, deviceID int64, now time.Time, checkOut *time.Time) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	attendance := &activeModels.Attendance{
 		StudentID:    studentID,
-		Date:         timezone.TodayDate(),
-		CheckInTime:  timezone.Now().Add(-4 * time.Hour),
+		Date:         timezone.DateFromTime(now),
+		CheckInTime:  now.Add(-4 * time.Hour),
 		CheckOutTime: checkOut,
 		CheckedInBy:  staffID,
 		DeviceID:     deviceID,
@@ -673,4 +671,11 @@ func TestDisplayFeatureGate(t *testing.T) {
 		rec = doDashboardRequest(t, router, rawToken)
 		assert.Equal(t, http.StatusNotFound, rec.Code, "an opted-out tenant's token must 404 like an unknown token: %s", rec.Body.String())
 	})
+}
+
+func firstClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
 }

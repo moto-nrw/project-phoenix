@@ -50,10 +50,6 @@ import { useSchulhofActions } from "~/components/active-supervisions/use-schulho
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
 
-// Re-exported for its unit tests; the implementation lives with the other
-// active-supervisions helpers.
-export { spontaneousActivityWindow } from "~/components/active-supervisions/spontaneous-window";
-
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const nfcEnabled = useNFCEnabled();
@@ -74,6 +70,8 @@ function MeinRaumPageContent() {
   const sessionParam = searchParams.get("session");
   const roomParam = searchParams.get("room");
 
+  // Display clock for relative pickup information only. The dashboard's
+  // school day and spontaneous-start window come exclusively from the backend.
   const now = useMinuteClock();
 
   // SSE is handled globally by TenantAuthWrapper - no page-level setup
@@ -83,7 +81,6 @@ function MeinRaumPageContent() {
   // here - it's already called in TenantAuthWrapper.
   const dashboard = useSupervisionDashboard({
     sessionToken: session?.user?.token,
-    now,
     sessionParam,
     roomParam,
   });
@@ -129,10 +126,18 @@ function MeinRaumPageContent() {
     clearReopenable: reopen.clearReopenable,
   });
 
+  const spontaneousStartBlockedReason =
+    dashboard.spontaneousStartAvailability?.blockedReason === "weekend"
+      ? "Spontane Aktivitäten sind nur montags bis freitags möglich."
+      : undefined;
+
   const schulhof = useSchulhofActions({
     schulhofStatus,
     currentStaffId,
     currentRoom,
+    spontaneousStartBlockedReason: schulhofStatus?.activeGroupId
+      ? undefined
+      : spontaneousStartBlockedReason,
     refresh,
     setError,
   });
@@ -292,6 +297,8 @@ function MeinRaumPageContent() {
     <SpontaneousActivityStart
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id}
+      disabled={dashboard.spontaneousStartAvailability?.available === false}
+      disabledReason={spontaneousStartBlockedReason}
       isStarting={actions.isStartingSpontaneous}
       occupiedRoomIds={occupiedRoomIds}
       onStart={(payload) =>
@@ -505,6 +512,15 @@ function MeinRaumPageContent() {
                 supervisorCount={schulhofStatus.supervisorCount}
                 supervisorNames={schulhofStatus.supervisors.map((s) => s.name)}
                 isToggling={schulhof.isTogglingSchulhof}
+                startDisabled={
+                  !schulhofStatus.activeGroupId &&
+                  dashboard.spontaneousStartAvailability?.available === false
+                }
+                startDisabledReason={
+                  schulhofStatus.activeGroupId
+                    ? undefined
+                    : spontaneousStartBlockedReason
+                }
                 onToggle={() =>
                   schulhof.handleToggleSchulhof().catch(() => undefined)
                 }

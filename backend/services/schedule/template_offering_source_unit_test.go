@@ -332,8 +332,8 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Parallel()
 
 	periodID := int64(55)
-	rosterFrom := timezone.TodayDate().AddDays(6)
-	scheduleFrom := timezone.TodayDate().AddDays(28)
+	rosterFrom := timezone.NewDate(2026, 8, 24).AddDays(6)
+	scheduleFrom := timezone.NewDate(2026, 8, 24).AddDays(28)
 
 	baseInput := func() TemplateUpdateInput {
 		return TemplateUpdateInput{
@@ -397,6 +397,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Run("an already-started series clamps the rewrite boundary to today", func(t *testing.T) {
 		var got OfferingRosterResyncInput
 		svc := NewTimetableDataService(TimetableDataDependencies{
+			Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 			ResyncOfferingRoster: func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
@@ -405,11 +406,11 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 		in := baseInput()
 		in.Fields.SourceCareOfferingIDs = []int64{12}
-		pastStart := timezone.TodayDate().AddDays(-30)
+		pastStart := timezone.NewDate(2026, 8, 24).AddDays(-30)
 
 		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, &pastStart))
 
-		assert.Equal(t, timezone.TodayDate(), got.EffectiveFrom,
+		assert.Equal(t, timezone.NewDate(2026, 8, 24), got.EffectiveFrom,
 			"#2147 review: a past schedule start must not become the rewrite boundary — that would delete or cap roster rows that were already effective")
 	})
 

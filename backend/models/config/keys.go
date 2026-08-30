@@ -214,19 +214,18 @@ const (
 	GroupModeOpenCare    = "open_care"
 )
 
-// OperationalOverviewScope option values for KeyOperationalOverviewScope
-// (#2380). The setting is the ONLY rule deciding who may see and operate every
-// running module of the school; the organisational group mode
-// (KeyGroupMode) deliberately no longer grants operational access.
+// OperationalOverviewScope option values for KeyOperationalOverviewScope.
+// The setting decides which educational groups and running modules staff can
+// see; role permissions independently decide which actions they may perform.
 const (
-	// OverviewScopeOwn keeps every caller on the modules they supervise
-	// themselves. Administrators included — this is the default.
+	// OverviewScopeOwn keeps staff on their own and handed-over responsibilities.
+	// Administrators still see the whole school.
 	OverviewScopeOwn = "own"
-	// OverviewScopeAdmins opens every running module to administrators.
+	// OverviewScopeAdmins is the legacy spelling of the personal staff mode.
+	// Migration 1.15.351 canonicalizes stored values to OverviewScopeOwn.
 	OverviewScopeAdmins = "admins"
-	// OverviewScopeAllStaff opens every running module to administrators and
-	// to every verified staff member of the tenant. Role permissions still
-	// decide WHICH actions those callers may perform.
+	// OverviewScopeAllStaff opens every educational group and running module to
+	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
 )
 

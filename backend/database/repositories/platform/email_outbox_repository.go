@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
 )
@@ -16,12 +17,16 @@ const tableExprAlias = `platform.email_outbox AS "email_outbox"`
 
 // EmailOutboxRepository implements platform.EmailOutboxRepository with bun.
 type EmailOutboxRepository struct {
+	*base.Repository[*platform.EmailOutbox]
 	db *bun.DB
 }
 
 // NewEmailOutboxRepository wires a new repository.
 func NewEmailOutboxRepository(db *bun.DB) platform.EmailOutboxCleanupRepository {
-	return &EmailOutboxRepository{db: db}
+	return &EmailOutboxRepository{
+		Repository: base.NewRepository[*platform.EmailOutbox](db, "platform.email_outbox", "EmailOutbox"),
+		db:         db,
+	}
 }
 
 // Create inserts a new outbox row. Tenant ID is auto-populated from the
@@ -119,6 +124,17 @@ func (r *EmailOutboxRepository) ClaimDuePending(ctx context.Context, limit int, 
 		return nil, fmt.Errorf("failed to claim due pending rows: %w", err)
 	}
 	return rows, nil
+}
+
+// CountPending returns the durable platform-wide email queue depth.
+func (r *EmailOutboxRepository) CountPending(ctx context.Context) (int, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.Equal("status", platform.EmailOutboxStatusPending)
+	count, err := r.CountWithOptions(ctx, options)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count pending email outbox rows: %w", err)
+	}
+	return count, nil
 }
 
 // LockSending locks a claimed row FOR UPDATE and reports whether it still

@@ -6,13 +6,32 @@ import (
 	"testing"
 	"time"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
+
+type notificationAccountTenant struct {
+	AccountID   int64      `bun:"account_id"`
+	TenantID    int64      `bun:"tenant_id"`
+	Status      string     `bun:"status"`
+	ActivatedAt *time.Time `bun:"activated_at"`
+}
+
+type notificationAccountRole struct {
+	TenantID  int64 `bun:"tenant_id"`
+	AccountID int64 `bun:"account_id"`
+	RoleID    int64 `bun:"role_id"`
+}
+
+type notificationPushSubscription struct {
+	TenantID  int64  `bun:"tenant_id"`
+	AccountID int64  `bun:"account_id"`
+	Portal    string `bun:"portal"`
+	Endpoint  string `bun:"endpoint"`
+	P256dh    string `bun:"p256dh"`
+	Auth      string `bun:"auth"`
+}
 
 // The backfill exists because two changes land together: consent becomes
 // mandatory for every producer, and the school-wide switch defaults to on.
@@ -35,16 +54,16 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	require.NoError(t, db.NewSelect().
 		TableExpr("auth.roles").
 		ColumnExpr("id").
-		Where("name = ?", authModels.BaseRoleAdmin).
+		Where("name = ?", "admin").
 		Limit(1).
 		Scan(ctx, &adminRoleID))
 	grantAdmin := func(accountID int64) {
 		t.Helper()
 		now := time.Now()
-		mapping := &authModels.AccountTenant{
+		mapping := &notificationAccountTenant{
 			AccountID:   accountID,
 			TenantID:    testpkg.Tenant(t),
-			Status:      authModels.AccountTenantStatusActive,
+			Status:      "active",
 			ActivatedAt: &now,
 		}
 		// Upsert: since #2419 CreateTestAccount already maps a fixture account
@@ -55,8 +74,7 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		adminRole := &authModels.AccountRole{AccountID: accountID, RoleID: adminRoleID}
-		adminRole.SetTenantID(testpkg.Tenant(t))
+		adminRole := &notificationAccountRole{TenantID: testpkg.Tenant(t), AccountID: accountID, RoleID: adminRoleID}
 		_, err = db.NewInsert().Model(adminRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -74,10 +92,10 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	mapToTenant := func(accountID int64) {
 		t.Helper()
 		now := time.Now()
-		mapping := &authModels.AccountTenant{
+		mapping := &notificationAccountTenant{
 			AccountID:   accountID,
 			TenantID:    testpkg.Tenant(t),
-			Status:      authModels.AccountTenantStatusActive,
+			Status:      "active",
 			ActivatedAt: &now,
 		}
 		_, merr := db.NewInsert().Model(mapping).ModelTableExpr("auth.account_tenants").
@@ -114,25 +132,25 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 
 	insertSubscription := func(accountID int64, portal, endpoint string) {
 		t.Helper()
-		sub := &iotModels.PushSubscription{
+		sub := &notificationPushSubscription{
+			TenantID:  testpkg.Tenant(t),
 			AccountID: accountID,
 			Portal:    portal,
 			Endpoint:  endpoint,
 			P256dh:    "test-p256dh",
 			Auth:      "test-auth",
 		}
-		sub.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(sub).ModelTableExpr("iot.push_subscriptions").Exec(ctx)
 		require.NoError(t, err)
 	}
 
-	insertSubscription(parentAccount.ID, iotModels.PushPortalParent, "https://fcm.googleapis.com/backfill-parent")
+	insertSubscription(parentAccount.ID, "parent", "https://fcm.googleapis.com/backfill-parent")
 	// Two devices of one person: the backfill must still produce one row per
 	// type, not one per device.
-	insertSubscription(adminAccount.ID, iotModels.PushPortalStaff, "https://fcm.googleapis.com/backfill-admin-1")
-	insertSubscription(adminAccount.ID, iotModels.PushPortalStaff, "https://fcm.googleapis.com/backfill-admin-2")
-	insertSubscription(staffAccount.ID, iotModels.PushPortalStaff, "https://fcm.googleapis.com/backfill-staff")
-	insertSubscription(optedOutAccount.ID, iotModels.PushPortalStaff, "https://fcm.googleapis.com/backfill-optout")
+	insertSubscription(adminAccount.ID, "staff", "https://fcm.googleapis.com/backfill-admin-1")
+	insertSubscription(adminAccount.ID, "staff", "https://fcm.googleapis.com/backfill-admin-2")
+	insertSubscription(staffAccount.ID, "staff", "https://fcm.googleapis.com/backfill-staff")
+	insertSubscription(optedOutAccount.ID, "staff", "https://fcm.googleapis.com/backfill-optout")
 
 	// Somebody who already said no. A backfill must never overwrite a decision.
 	_, err := db.ExecContext(ctx, `
@@ -144,12 +162,12 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 	t.Cleanup(func() {
 		_, cerr := db.NewDelete().
 			Table("users.notification_preferences").
-			Where("account_id IN (?)", bun.List(accountIDs)).
+			Where("account_id IN (?)", testpkg.DBList(accountIDs)).
 			Exec(context.Background())
 		require.NoError(t, cerr)
 		_, cerr = db.NewDelete().
 			Table("iot.push_subscriptions").
-			Where("account_id IN (?)", bun.List(accountIDs)).
+			Where("account_id IN (?)", testpkg.DBList(accountIDs)).
 			Exec(context.Background())
 		require.NoError(t, cerr)
 		testpkg.CleanupAuthFixtures(t, db, accountIDs...)
@@ -223,17 +241,17 @@ func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *tes
 
 	env.registerAccounts(guardianOn.ID, adminOn.ID, guardianNoOverride.ID, adminNoOverride.ID, guardianOff.ID)
 
-	env.mapAccount(guardianOn.ID, env.enabledTenantID, authModels.AccountTenantStatusActive)
-	env.mapAccount(guardianNoOverride.ID, env.noOverrideTenantID, authModels.AccountTenantStatusActive)
-	env.mapAccount(guardianOff.ID, env.disabledTenantID, authModels.AccountTenantStatusActive)
+	env.mapAccount(guardianOn.ID, env.enabledTenantID, "active")
+	env.mapAccount(guardianNoOverride.ID, env.noOverrideTenantID, "active")
+	env.mapAccount(guardianOff.ID, env.disabledTenantID, "active")
 	env.grantAdmin(adminOn.ID, env.enabledTenantID)
 	env.grantAdmin(adminNoOverride.ID, env.noOverrideTenantID)
 
-	env.insertSubscription(guardianOn.ID, env.enabledTenantID, iotModels.PushPortalParent)
-	env.insertSubscription(adminOn.ID, env.enabledTenantID, iotModels.PushPortalStaff)
-	env.insertSubscription(guardianNoOverride.ID, env.noOverrideTenantID, iotModels.PushPortalParent)
-	env.insertSubscription(adminNoOverride.ID, env.noOverrideTenantID, iotModels.PushPortalStaff)
-	env.insertSubscription(guardianOff.ID, env.disabledTenantID, iotModels.PushPortalParent)
+	env.insertSubscription(guardianOn.ID, env.enabledTenantID, "parent")
+	env.insertSubscription(adminOn.ID, env.enabledTenantID, "staff")
+	env.insertSubscription(guardianNoOverride.ID, env.noOverrideTenantID, "parent")
+	env.insertSubscription(adminNoOverride.ID, env.noOverrideTenantID, "staff")
+	env.insertSubscription(guardianOff.ID, env.disabledTenantID, "parent")
 
 	require.NoError(t, notificationPreferencesBackfillUp(ctx, db))
 
@@ -273,9 +291,9 @@ func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
 
 	env.registerAccounts(activeGuardian.ID, deactivatedGuardian.ID, leftSchoolGuardian.ID, unmappedGuardian.ID)
 
-	env.mapAccount(activeGuardian.ID, env.enabledTenantID, authModels.AccountTenantStatusActive)
-	env.mapAccount(deactivatedGuardian.ID, env.enabledTenantID, authModels.AccountTenantStatusActive)
-	env.mapAccount(leftSchoolGuardian.ID, env.enabledTenantID, authModels.AccountTenantStatusInactive)
+	env.mapAccount(activeGuardian.ID, env.enabledTenantID, "active")
+	env.mapAccount(deactivatedGuardian.ID, env.enabledTenantID, "active")
+	env.mapAccount(leftSchoolGuardian.ID, env.enabledTenantID, "inactive")
 	// unmappedGuardian deliberately gets no account_tenants row at all.
 
 	_, err := db.NewUpdate().
@@ -285,10 +303,10 @@ func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	env.insertSubscription(activeGuardian.ID, env.enabledTenantID, iotModels.PushPortalParent)
-	env.insertSubscription(deactivatedGuardian.ID, env.enabledTenantID, iotModels.PushPortalParent)
-	env.insertSubscription(leftSchoolGuardian.ID, env.enabledTenantID, iotModels.PushPortalParent)
-	env.insertSubscription(unmappedGuardian.ID, env.enabledTenantID, iotModels.PushPortalParent)
+	env.insertSubscription(activeGuardian.ID, env.enabledTenantID, "parent")
+	env.insertSubscription(deactivatedGuardian.ID, env.enabledTenantID, "parent")
+	env.insertSubscription(leftSchoolGuardian.ID, env.enabledTenantID, "parent")
+	env.insertSubscription(unmappedGuardian.ID, env.enabledTenantID, "parent")
 
 	require.NoError(t, notificationPreferencesBackfillUp(ctx, db))
 
@@ -308,7 +326,7 @@ func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
 // literal, so the tests survive any database state.
 type backfillTenantEnv struct {
 	t                  *testing.T
-	db                 *bun.DB
+	db                 *testpkg.DB
 	enabledTenantID    int64
 	noOverrideTenantID int64
 	disabledTenantID   int64
@@ -316,7 +334,7 @@ type backfillTenantEnv struct {
 	accountIDs         []int64
 }
 
-func setupBackfillTenants(t *testing.T, db *bun.DB) *backfillTenantEnv {
+func setupBackfillTenants(t *testing.T, db *testpkg.DB) *backfillTenantEnv {
 	t.Helper()
 	ctx := context.Background()
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -350,7 +368,7 @@ func setupBackfillTenants(t *testing.T, db *bun.DB) *backfillTenantEnv {
 	require.NoError(t, db.NewSelect().
 		TableExpr("auth.roles").
 		ColumnExpr("id").
-		Where("name = ?", authModels.BaseRoleAdmin).
+		Where("name = ?", "admin").
 		Limit(1).
 		Scan(ctx, &env.adminRoleID))
 
@@ -373,19 +391,19 @@ func setupBackfillTenants(t *testing.T, db *bun.DB) *backfillTenantEnv {
 		if len(env.accountIDs) > 0 {
 			_, cerr := db.NewDelete().
 				Table("users.notification_preferences").
-				Where("account_id IN (?)", bun.List(env.accountIDs)).
+				Where("account_id IN (?)", testpkg.DBList(env.accountIDs)).
 				Exec(cleanupCtx)
 			require.NoError(t, cerr)
 			_, cerr = db.NewDelete().
 				Table("iot.push_subscriptions").
-				Where("account_id IN (?)", bun.List(env.accountIDs)).
+				Where("account_id IN (?)", testpkg.DBList(env.accountIDs)).
 				Exec(cleanupCtx)
 			require.NoError(t, cerr)
 			testpkg.CleanupAuthFixtures(t, db, env.accountIDs...)
 		}
 		_, cerr := db.NewDelete().
 			Table("config.setting_values").
-			Where("tenant_id IN (?)", bun.List(tenantIDs)).
+			Where("tenant_id IN (?)", testpkg.DBList(tenantIDs)).
 			Exec(cleanupCtx)
 		require.NoError(t, cerr)
 		// The school and its organization stay: their IDs come from the test
@@ -403,7 +421,7 @@ func (e *backfillTenantEnv) registerAccounts(ids ...int64) {
 func (e *backfillTenantEnv) mapAccount(accountID, tenantID int64, status string) {
 	e.t.Helper()
 	now := time.Now()
-	mapping := &authModels.AccountTenant{
+	mapping := &notificationAccountTenant{
 		AccountID:   accountID,
 		TenantID:    tenantID,
 		Status:      status,
@@ -418,24 +436,23 @@ func (e *backfillTenantEnv) mapAccount(accountID, tenantID int64, status string)
 
 func (e *backfillTenantEnv) grantAdmin(accountID, tenantID int64) {
 	e.t.Helper()
-	e.mapAccount(accountID, tenantID, authModels.AccountTenantStatusActive)
+	e.mapAccount(accountID, tenantID, "active")
 
-	adminRole := &authModels.AccountRole{AccountID: accountID, RoleID: e.adminRoleID}
-	adminRole.SetTenantID(tenantID)
+	adminRole := &notificationAccountRole{TenantID: tenantID, AccountID: accountID, RoleID: e.adminRoleID}
 	_, err := e.db.NewInsert().Model(adminRole).ModelTableExpr("auth.account_roles").Exec(context.Background())
 	require.NoError(e.t, err)
 }
 
 func (e *backfillTenantEnv) insertSubscription(accountID, tenantID int64, portal string) {
 	e.t.Helper()
-	sub := &iotModels.PushSubscription{
+	sub := &notificationPushSubscription{
+		TenantID:  tenantID,
 		AccountID: accountID,
 		Portal:    portal,
 		Endpoint:  fmt.Sprintf("https://fcm.googleapis.com/backfill-%d-%d-%s", accountID, tenantID, portal),
 		P256dh:    "test-p256dh",
 		Auth:      "test-auth",
 	}
-	sub.SetTenantID(tenantID)
 	_, err := e.db.NewInsert().Model(sub).ModelTableExpr("iot.push_subscriptions").Exec(context.Background())
 	require.NoError(e.t, err)
 }

@@ -594,11 +594,12 @@ describe("SettingsContent (via renderTab)", () => {
               items: [
                 {
                   key: "operations.operational_overview_scope",
-                  label: "Sicht auf alle Räume",
-                  description: "Wer alle Räume der Schule sieht",
+                  label: "Sichtbereich für Mitarbeitende",
+                  description:
+                    "Legt fest, welche Gruppen und laufenden Betreuungen Mitarbeitende sehen.",
                   type: "select" as const,
-                  default: "own",
-                  value: "own",
+                  default: "all_staff",
+                  value: "all_staff",
                   is_default: true,
                   writable: true,
                   visible: true,
@@ -607,15 +608,11 @@ describe("SettingsContent (via renderTab)", () => {
                   depends_on: null,
                   options: {
                     static: [
-                      { label: "Nur eigene Räume", value: "own" },
                       {
-                        label: "Alle Räume für Administratoren",
-                        value: "admins",
-                      },
-                      {
-                        label: "Alle Räume für alle Mitarbeitenden",
+                        label: "Ganzes Team",
                         value: "all_staff",
                       },
+                      { label: "Eigene Zuständigkeiten", value: "own" },
                     ],
                   },
                 },
@@ -632,7 +629,7 @@ describe("SettingsContent (via renderTab)", () => {
     fireEvent.click(await screen.findByRole("combobox"));
     fireEvent.click(
       screen.getByRole("option", {
-        name: "Alle Räume für alle Mitarbeitenden",
+        name: "Eigene Zuständigkeiten",
       }),
     );
 

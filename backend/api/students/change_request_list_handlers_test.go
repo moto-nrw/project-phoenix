@@ -895,7 +895,7 @@ func TestAggregatedChangeRequests_GroupsContradictingAbsencesOnOneDay(t *testing
 	t.Parallel()
 
 	rs, fakes := newAggResource()
-	day := timezone.TodayDate().AddDays(3)
+	day := timezone.NewDate(2026, 8, 24).AddDays(3)
 	first := aggExcusedPending(1, "Mia", "Muster", aggBase)
 	first.Request.Dates = []timezone.Date{day}
 	first.Request.AbsenceStatus = "excused"
@@ -936,7 +936,7 @@ func TestAggregatedChangeRequests_EmitsCurrentStatusPerDate(t *testing.T) {
 	t.Parallel()
 
 	rs, fakes := newAggResource()
-	day := timezone.TodayDate().AddDays(3)
+	day := timezone.NewDate(2026, 8, 24).AddDays(3)
 	changed := true
 	item := aggExcusedPending(1, "Mia", "Muster", aggBase)
 	item.Request.Dates = []timezone.Date{day}

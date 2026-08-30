@@ -113,7 +113,7 @@ func decodeList(t *testing.T, w *httptest.ResponseRecorder) weeklyInstancesRespo
 }
 
 func listFutureDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.TodayDate().AddDays(offsetDays)
+	d := timezone.NewDate(2026, 8, 24).AddDays(offsetDays)
 	return d.String(), d
 }
 

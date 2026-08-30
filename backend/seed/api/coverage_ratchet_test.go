@@ -1,14 +1,13 @@
 package api_test
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/uptrace/bun/driver/pgdriver"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestSeedCoverageRatchet keeps the demo seeder honest about which tables it
@@ -89,7 +88,6 @@ var seedCoverageAllowlist = map[string]string{
 	"education.grade_transition_history":            "GAP: prod has 472 rows",
 	"education.grade_transition_mappings":           "GAP: prod has 33 rows",
 	"education.grade_transitions":                   "GAP: prod has 2 rows",
-	"education.group_substitution":                  "GAP: prod has 4 rows",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
 	"enrollment.change_request_messages":     "GAP: prod has 2 rows",
@@ -177,7 +175,7 @@ func TestSeedCoverageRatchet(t *testing.T) {
 		t.Skip("SEED_COVERAGE_DSN not set: needs a seeded stack (migrate reset + seed + simulate full-day)")
 	}
 
-	db := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	db := testpkg.OpenPostgresSQL(dsn)
 	defer func() { _ = db.Close() }()
 
 	rows, err := db.Query(tableCoverageQuery)

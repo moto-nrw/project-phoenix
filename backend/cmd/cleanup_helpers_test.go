@@ -2,25 +2,127 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestCleanupRootsExposeOnlyCommandSpecificBuilders(t *testing.T) {
+	t.Parallel()
+
+	contextType := reflect.TypeFor[cleanupContext]()
+	_, hasRepositoriesFactory := contextType.FieldByName("RepoFactory")
+	_, hasServicesFactory := contextType.FieldByName("ServiceFactory")
+	assert.False(t, hasRepositoriesFactory)
+	assert.False(t, hasServicesFactory)
+	assert.NotNil(t, defaultCleanupRoot.authCleanup)
+	assert.NotNil(t, defaultCleanupRoot.invitationCleanup)
+	assert.NotNil(t, defaultCleanupRoot.sessionCleanup)
+	assert.NotNil(t, defaultCleanupRoot.retentionCleanup)
+	assert.NotNil(t, defaultCleanupRoot.timetableCleanup)
+	assert.NotNil(t, defaultCleanupRoot.timeTrackingCleanup)
+}
+
+func TestCleanupRootFailsFastForEveryMissingCapability(t *testing.T) {
+	t.Parallel()
+
+	for _, capability := range []string{"auth", "invitation", "session", "retention", "timetable", "time-tracking"} {
+		root := defaultCleanupRoot
+		switch capability {
+		case "auth":
+			root.authCleanup = nil
+		case "invitation":
+			root.invitationCleanup = nil
+		case "session":
+			root.sessionCleanup = nil
+		case "retention":
+			root.retentionCleanup = nil
+		case "timetable":
+			root.timetableCleanup = nil
+		case "time-tracking":
+			root.timeTrackingCleanup = nil
+		}
+		require.EqualError(t, root.validateCapability(capability), capability+" cleanup service builder is required")
+	}
+
+	root := defaultCleanupRoot
+	root.openDatabase = nil
+	require.EqualError(t, root.validateCapability("auth"), "cleanup database opener is required")
+}
+
+func TestCleanupRootFailsFastForEveryNilBuiltCapability(t *testing.T) {
+	t.Parallel()
+
+	ctx := &cleanupContext{}
+	tests := []struct {
+		capability string
+		build      func() error
+	}{
+		{"auth", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) authCleanupService { return nil }, "auth")
+			return err
+		}},
+		{"invitation", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) invitationCleanupService { return nil }, "invitation")
+			return err
+		}},
+		{"session", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) sessionCleanupService { return nil }, "session")
+			return err
+		}},
+		{"retention", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) retentionCleanupService { return nil }, "retention")
+			return err
+		}},
+		{"timetable", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) timetableCleanupService { return nil }, "timetable")
+			return err
+		}},
+		{"time-tracking", func() error {
+			_, err := buildCleanupDependency(ctx, func(*cleanupContext) timeTrackingCleanupService { return nil }, "time-tracking")
+			return err
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.capability, func(t *testing.T) {
+			require.EqualError(t, test.build(), test.capability+" cleanup service builder returned nil")
+		})
+	}
+}
+
+type nilAuthCleanup struct{}
+
+func (*nilAuthCleanup) CleanupExpiredTokens(context.Context) (int, error)     { return 0, nil }
+func (*nilAuthCleanup) CleanupExpiredRateLimits(context.Context) (int, error) { return 0, nil }
+
+func TestCleanupRootRejectsTypedNilBuiltCapability(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildCleanupDependency(&cleanupContext{}, func(*cleanupContext) authCleanupService {
+		var service *nilAuthCleanup
+		return service
+	}, "auth")
+	require.EqualError(t, err, "auth cleanup service builder returned nil")
+}
+
 // =============================================================================
 // Constants Tests
 // =============================================================================
 
 func TestConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "2006-01-02", dateFormat)
 	assert.Equal(t, "2006-01-02 15:04:05", dateTimeFormat)
 	assert.Equal(t, "failed to initialize database: %w", errInitDB)
 	assert.Equal(t, "failed to close database: %v", errCloseDB)
-	assert.Equal(t, "failed to create service factory: %w", errServiceFactory)
 	assert.Equal(t, "failed to flush writer: %v", errFlushWriter)
 }
 
@@ -287,4 +389,9 @@ func TestCleanupContext_Close_WithDB(_ *testing.T) {
 
 	// Should not panic
 	ctx.Close()
+}
+
+func TestCleanupRootFailsFastWithoutDatabaseDependency(t *testing.T) {
+	_, err := (cleanupRoot{}).newContext()
+	require.ErrorContains(t, err, "cleanup database opener is required")
 }

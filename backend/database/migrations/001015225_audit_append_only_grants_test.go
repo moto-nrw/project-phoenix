@@ -8,7 +8,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // auditDeleteAllowlist names the audit tables phoenix_tenant may still DELETE
@@ -50,7 +49,7 @@ var allTablePrivileges = []string{
 // its counter moved via nextval (USAGE).
 var allSequencePrivileges = []string{"USAGE", "SELECT", "UPDATE"}
 
-func auditSchemaTables(t *testing.T, db *bun.DB) []string {
+func auditSchemaTables(t *testing.T, db *testpkg.DB) []string {
 	t.Helper()
 	var tables []string
 	require.NoError(t, db.NewRaw(`
@@ -66,7 +65,7 @@ func auditSchemaTables(t *testing.T, db *bun.DB) []string {
 // tenantACLEntries returns the raw aclitem strings granted to phoenix_tenant on
 // an audit table, e.g. "phoenix_tenant=arD/postgres". Empty means the role holds
 // no directly granted privilege of any kind.
-func tenantACLEntries(t *testing.T, db *bun.DB, table string) []string {
+func tenantACLEntries(t *testing.T, db *testpkg.DB, table string) []string {
 	t.Helper()
 	var entries []string
 	require.NoError(t, db.NewRaw(`
@@ -80,7 +79,7 @@ func tenantACLEntries(t *testing.T, db *bun.DB, table string) []string {
 	return entries
 }
 
-func tenantHasPrivilege(t *testing.T, db *bun.DB, relation, privilege string) bool {
+func tenantHasPrivilege(t *testing.T, db *testpkg.DB, relation, privilege string) bool {
 	t.Helper()
 	var granted bool
 	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, ?)`, relation, privilege).
@@ -88,7 +87,7 @@ func tenantHasPrivilege(t *testing.T, db *bun.DB, relation, privilege string) bo
 	return granted
 }
 
-func tenantHasSequencePrivilege(t *testing.T, db *bun.DB, sequence, privilege string) bool {
+func tenantHasSequencePrivilege(t *testing.T, db *testpkg.DB, sequence, privilege string) bool {
 	t.Helper()
 	var granted bool
 	require.NoError(t, db.NewRaw(`SELECT has_sequence_privilege('phoenix_tenant', ?, ?)`, sequence, privilege).
@@ -97,7 +96,7 @@ func tenantHasSequencePrivilege(t *testing.T, db *bun.DB, sequence, privilege st
 }
 
 // tenantSequenceACLEntries is the sequence counterpart of tenantACLEntries.
-func tenantSequenceACLEntries(t *testing.T, db *bun.DB, sequence string) []string {
+func tenantSequenceACLEntries(t *testing.T, db *testpkg.DB, sequence string) []string {
 	t.Helper()
 	var entries []string
 	require.NoError(t, db.NewRaw(`

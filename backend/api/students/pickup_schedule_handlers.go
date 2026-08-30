@@ -517,7 +517,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		date := timezone.TodayDate()
+		date := rs.todayDate()
 		if req.EffectiveDate != nil {
 			date = *req.EffectiveDate
 		}

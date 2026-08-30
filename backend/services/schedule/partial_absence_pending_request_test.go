@@ -32,7 +32,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Pending")
 
-	day := timezone.TodayDate().AddDays(5)
+	day := timezone.NewDate(2026, 8, 24).AddDays(5)
 	ctx := testpkg.TenantContext(chain.TenantID)
 
 	req := &activeModels.ExcusedAbsenceRequest{

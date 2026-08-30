@@ -50,11 +50,12 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		repoFactory.Group,
 		repoFactory.GroupTeacher,
 		repoFactory.ClassTeacher,
-		repoFactory.GroupSubstitution,
 		repoFactory.Room,
 		repoFactory.Teacher,
 		repoFactory.Staff,
 		repoFactory.Student,
+		repoFactory.GroupSubstitution,
+		db,
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{

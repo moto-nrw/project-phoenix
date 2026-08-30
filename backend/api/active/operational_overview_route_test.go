@@ -2,8 +2,8 @@
 //
 // These tests drive the production Router() through the real middleware chain
 // and the real settings service, because the claim under test is precisely
-// that list, detail and write paths answer the SAME question: the UI must
-// never show a running module whose detail route then returns 403.
+// that the list and detail paths answer the same visibility question. Write
+// paths deliberately keep their separate resource authorization.
 package active_test
 
 import (
@@ -88,24 +88,6 @@ func TestOperationalOverviewScope_OwnKeepsCaregiverOnOwnSupervisions(t *testing.
 		"a foreign module's detail must stay closed on the own scope")
 }
 
-// TestOperationalOverviewScope_AdminsDoesNotReachCaregivers pins the middle
-// step: opening the overview for administrators must not widen anything for a
-// Betreuungskraft.
-func TestOperationalOverviewScope_AdminsDoesNotReachCaregivers(t *testing.T) {
-	t.Parallel()
-
-	tc, router := setupProtectedRouter(t)
-	setOverviewScopeForTest(t, tc, configModel.OverviewScopeAdmins)
-
-	claims := caregiverClaims(t, tc, "Admins")
-	groupID := foreignActiveGroup(t, tc, "admins")
-
-	assert.Equal(t, http.StatusForbidden,
-		getWithClaims(t, router, "/active/supervisors/all", claims))
-	assert.Equal(t, http.StatusForbidden,
-		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims))
-}
-
 // TestOperationalOverviewScope_AllStaffOpensListAndDetail is the acceptance
 // criterion: with the freigabe a caregiver opens every running module, and the
 // list and the detail route agree — no block without a working detail call.
@@ -126,6 +108,29 @@ func TestOperationalOverviewScope_AllStaffOpensListAndDetail(t *testing.T) {
 		"every module the list shows must also answer its detail route")
 }
 
+// TestOperationalOverviewScope_SchoolPortalCannotReachTenantRoutes verifies
+// the stronger route boundary from a real school-scoped JWT. Even an account
+// that also carries an admin role cannot use tenant operational endpoints.
+func TestOperationalOverviewScope_SchoolPortalCannotReachTenantRoutes(t *testing.T) {
+	t.Parallel()
+
+	tc, router := setupProtectedRouter(t)
+	setOverviewScopeForTest(t, tc, configModel.OverviewScopeAllStaff)
+
+	claims := caregiverClaims(t, tc, "SchoolPortal")
+	claims.Scope = tenant.ScopeSchool
+	claims.IsAdmin = true
+	claims.Roles = []string{"admin"}
+	groupID := foreignActiveGroup(t, tc, "school-portal")
+
+	assert.Equal(t, http.StatusUnauthorized,
+		getWithClaims(t, router, "/active/supervisors/all", claims),
+		"the tenant middleware must reject a school-portal token")
+	assert.Equal(t, http.StatusUnauthorized,
+		getWithClaims(t, router, fmt.Sprintf("/active/groups/%d/visits/display", groupID), claims),
+		"the school portal must not expose a tenant operational detail")
+}
+
 // TestOperationalOverviewScope_GroupModeIsNotAnAccessRule pins the decoupling
 // the issue asks for: the organisational group mode alone opens nothing.
 func TestOperationalOverviewScope_GroupModeIsNotAnAccessRule(t *testing.T) {
@@ -137,6 +142,7 @@ func TestOperationalOverviewScope_GroupModeIsNotAnAccessRule(t *testing.T) {
 	require.NoError(t, tc.services.Settings.SetValue(
 		ctx, configModel.KeyGroupMode, configModel.GroupModeOpenCare, nil, nil,
 	))
+	setOverviewScopeForTest(t, tc, configModel.OverviewScopeOwn)
 
 	claims := caregiverClaims(t, tc, "GroupMode")
 	groupID := foreignActiveGroup(t, tc, "groupmode")

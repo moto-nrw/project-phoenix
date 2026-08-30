@@ -398,16 +398,21 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 // for today's date using local timezone. This ensures tests work correctly
 // regardless of when they run (e.g., 00:40 CET is still the same calendar day locally).
 func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
+	return CreateTestAttendanceForDate(tb, db, studentID, staffID, deviceID, timezone.TodayDate(), checkInTime, checkOutTime)
+}
+
+// CreateTestAttendanceForDate creates an attendance row on an explicit
+// calendar date. Fixed-date tests use this variant so the fixture date cannot
+// drift away from their injected service clock.
+func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, date timezone.Date, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	today := timezone.TodayDate()
-
 	attendance := &active.Attendance{
 		StudentID:    studentID,
-		Date:         today,
+		Date:         date,
 		CheckInTime:  checkInTime,
 		CheckOutTime: checkOutTime,
 		CheckedInBy:  staffID,
@@ -471,6 +476,11 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// ========================================
 		// Education domain cleanup (FK-dependent order)
 		// ========================================
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("audit.substitution_changes").
+			Where("group_id = ? OR target_staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"audit.substitution_changes")
 
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
@@ -1831,12 +1841,16 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	defer cancel()
 
 	substitution := &education.GroupSubstitution{
+		TargetType:        education.GroupSubstitutionTypeGroupHandover,
 		GroupID:           groupID,
 		RegularStaffID:    regularStaffID,
 		SubstituteStaffID: substituteStaffID,
 		StartDate:         startDate,
 		EndDate:           endDate,
 		Reason:            "Test substitution",
+	}
+	if regularStaffID != nil {
+		substitution.TargetType = education.GroupSubstitutionTypeLegacy
 	}
 	substitution.SetTenantID(fixtureTenantID(tb))
 
@@ -3040,6 +3054,17 @@ type ActivityInstanceOpts struct {
 	// ActivityInstanceRepository.FindPlannedTemplateBackedFrom use the column to
 	// tell an enrollment-derived roster from a hand-typed one (#405 review).
 	CalendarPeriodID *int64
+}
+
+// Date returns a calendar date for callers that should not depend on the
+// application's date implementation directly.
+func Date(year int, month time.Month, day int) timezone.Date {
+	return timezone.NewDate(year, month, day)
+}
+
+// TodayDate returns today's Berlin calendar date for fixture setup.
+func TodayDate() timezone.Date {
+	return timezone.TodayDate()
 }
 
 // CreateTestActivityInstance inserts a schedule.activity_instances row.

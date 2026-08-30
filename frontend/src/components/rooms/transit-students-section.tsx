@@ -24,7 +24,6 @@ import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
-import { useOptionalSupervision } from "~/lib/supervision-context";
 
 const DETAIL_CARD_CLASS =
   "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
@@ -60,13 +59,9 @@ export function TransitStudentsSection({
   const router = useTenantRouter();
   const { data: session } = useSession();
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  // Mirrors the backend's move authorization exactly (#2380): callers the
-  // school-wide overview covers may move children into any running module,
-  // everyone else only into a module they supervise themselves. Gating on
-  // the organisational group mode here would offer targets the server then
-  // rejects with 403.
-  const { overviewEnabled } = useOptionalSupervision();
-  const showAllTargets = canUseAllMoveTargets(session) || overviewEnabled;
+  // Visibility never grants move rights: only administrators may target any
+  // running module; staff remain limited to modules they supervise.
+  const showAllTargets = canUseAllMoveTargets(session);
   const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [collapsibleExpanded, setCollapsibleExpanded] = useState(false);

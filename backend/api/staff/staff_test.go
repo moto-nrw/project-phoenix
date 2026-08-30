@@ -45,10 +45,10 @@ type testContext struct {
 // router serves the resource through the production middleware chain
 // (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
 // TenantTxMiddleware) exactly as the real server does, mounted at /staff.
-func setupTestContext(t *testing.T) *testContext {
+func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAPITest(t, clocks...)
 
 	resource := staffAPI.NewResource(svc.Users, svc.StaffDocuments, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 
@@ -852,39 +852,6 @@ func TestGetStaffGroups_NotFound(t *testing.T) {
 // GET STAFF SUBSTITUTIONS TESTS
 // =============================================================================
 
-func TestGetStaffSubstitutions_Success(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	// Create test staff
-	staff := testpkg.CreateTestStaff(t, ctx.db, "SubstitutionsTest", "Staff")
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d/substitutions", staff.ID), nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetStaffSubstitutions_NotFound(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/substitutions", nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	testutil.AssertNotFound(t, rr)
-}
-
-// =============================================================================
-// GET AVAILABLE STAFF TESTS
-// =============================================================================
-
 func TestGetAvailableStaff_Success(t *testing.T) {
 	t.Parallel()
 
@@ -900,49 +867,6 @@ func TestGetAvailableStaff_Success(t *testing.T) {
 
 // =============================================================================
 // GET AVAILABLE FOR SUBSTITUTION TESTS
-// =============================================================================
-
-func TestGetAvailableForSubstitution_Success(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution", nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetAvailableForSubstitution_WithDateFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?date=2024-01-15", nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetAvailableForSubstitution_WithSearchFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?search=Test", nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-// =============================================================================
-// GET STAFF BY ROLE TESTS
 // =============================================================================
 
 func TestGetStaffByRole_Success(t *testing.T) {
@@ -1592,35 +1516,3 @@ func TestGetStaffGroups_InvalidID(t *testing.T) {
 // =============================================================================
 // GET STAFF SUBSTITUTIONS - INVALID ID TEST
 // =============================================================================
-
-func TestGetStaffSubstitutions_InvalidID(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid/substitutions", nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	testutil.AssertBadRequest(t, rr)
-}
-
-// =============================================================================
-// GET AVAILABLE FOR SUBSTITUTION - INVALID DATE TEST
-// =============================================================================
-
-func TestGetAvailableForSubstitution_WithInvalidDate(t *testing.T) {
-	t.Parallel()
-
-	ctx := setupTestContext(t)
-
-	// Invalid date format should fall back to current date
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?date=invalid", nil,
-		testutil.WithJWTBearer(authToken(t, "users:read")))
-
-	rr := testutil.ExecuteRequest(ctx.router, req)
-
-	// Should still succeed with fallback to current date
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}

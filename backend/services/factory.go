@@ -71,6 +71,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+type substitutionIdentity interface {
+	GetCurrentStaff(context.Context) (*userModels.Staff, error)
+	GetCurrentTeacher(context.Context) (*userModels.Teacher, error)
+}
+
+type substitutionActorResolver struct{ identity substitutionIdentity }
+
+func (r substitutionActorResolver) ResolveActor(ctx context.Context) (*education.Actor, error) {
+	staff, err := r.identity.GetCurrentStaff(ctx)
+	if err != nil {
+		if expectedMissingSubstitutionIdentity(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	teacher, err := r.identity.GetCurrentTeacher(ctx)
+	if err != nil {
+		if expectedMissingSubstitutionIdentity(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &education.Actor{StaffID: staff.ID, TeacherID: teacher.ID}, nil
+}
+
+func expectedMissingSubstitutionIdentity(err error) bool {
+	return errors.Is(err, usercontext.ErrUserNotLinkedToPerson) ||
+		errors.Is(err, usercontext.ErrUserNotLinkedToStaff) ||
+		errors.Is(err, usercontext.ErrUserNotLinkedToTeacher)
+}
+
 // Factory provides access to all services
 type Factory struct {
 	settingsRuntimeDB        *bun.DB
@@ -93,6 +124,7 @@ type Factory struct {
 	StaffTimeExport          active.StaffTimeExportService
 	Activities               activities.ActivityService
 	Education                education.Service
+	Substitution             education.SubstitutionModule
 	GradeTransition          *education.GradeTransitionService
 	Facilities               facilities.Service
 	Schulhof                 facilities.SchulhofService
@@ -274,8 +306,10 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-// NewFactory creates a new services factory; tests may pass one statistics clock.
-func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, statisticsClocks ...func() time.Time) (*Factory, error) {
+// NewFactory creates a new services factory; tests may pass one application clock.
+func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
+	now := optionalClock(clocks)
+	today := timezone.CalendarDateClock(now)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
@@ -371,14 +405,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
-		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
 		repos.Student,
+		repos.GroupSubstitution,
+		db,
 	)
-	// Announces group_access_changed after a handover, Vertretung or group-leader
-	// change (#2084) — the union of both tables decides who may open which group.
+	// Announces group_access_changed after a group-leader change (#2084).
 	if broadcastAware, ok := educationService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {
@@ -399,6 +433,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.InstanceStudent,
 		repos.StudentEnrollment,
 		logger,
+		now,
 	)
 
 	// Initialize grade transition service
@@ -414,6 +449,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ClassListEntryAudit: repos.ClassListEntryChange,
 		RosterReconciler:    rosterReconciler,
 		DB:                  db,
+		Today:               today,
 	})
 
 	// Initialize settings service (new schema-driven settings system)
@@ -486,6 +522,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		PersonRepo:      repos.Person,
 		SettingsService: settingsService,
 		Logger:          logger.With("service", "birthdays"),
+		Now:             now,
 	})
 
 	// Staff documents (#1424): metadata + per-category authority for the
@@ -803,6 +840,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
+		Now:                      now,
 	})
 
 	// Initialize feedback service
@@ -856,6 +894,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ActivityExceptionRepo:    repos.ActivityException,
 		PhaseRepo:                repos.Phase,
 		Settings:                 settingsService,
+		Today:                    today,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -949,6 +988,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		db,
 		logger.With("service", "staff_shift_series"),
 		staffShiftService,
+		today,
 	)
 	if broadcastAware, ok := staffShiftSeriesService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
@@ -1102,6 +1142,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Logger:             logger.With("service", "instance-lifecycle"),
 		Settings:           settingsService,
 		RecoveryRepo:       recoveryRepo,
+		Now:                now,
 		// E2E fixtures start future weekday instances. Dedicated unit tests
 		// construct the service with EnforceTimePolicy: true.
 		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
@@ -1213,6 +1254,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
+		Now:                now,
 		RecoveryRepo:       recoveryRepo,
 	})
 
@@ -1452,6 +1494,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ActiveService:      activeService,
 		SSESettings:        settingsService,
 	}, usercontextLogger)
+	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution,
+		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
+		Audit: repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
+		Logger: logger.With("service", "substitution"),
+		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
+			if assignmentBound {
+				return false, nil
+			}
+			scope, err := settingsService.ResolveString(ctx, configModels.KeyOperationalOverviewScope)
+			if err != nil {
+				return false, fmt.Errorf("resolve operational overview scope: %w", err)
+			}
+			return admin || (scope == configModels.OverviewScopeAllStaff && hasStaff), nil
+		},
+		Now: now,
+	})
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos, databaseLogger)
@@ -1466,6 +1525,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.DataDeletion,
 		privacyConsentService,
 		db,
+		today,
 	)
 	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
 
@@ -1813,6 +1873,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 			return nil
 		},
 		Logger: logger.With("service", "enrollment-decision"),
+		Today:  today,
 	})
 	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
 	if !ok {
@@ -2264,6 +2325,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		OfferingChanges:           offeringChangeRequestService,
 		DB:                        db,
 		Logger:                    logger.With("service", "parent"),
+		Now:                       now,
 	})
 
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
@@ -2418,11 +2480,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
 		db,
+		now,
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:            usersService,
 		Education:         educationService,
+		Substitutions:     substitutionService,
 		UserContext:       userContextService,
 		Active:            activeService,
 		Settings:          settingsService,
@@ -2434,6 +2498,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ExcusedRequests:   excusedRequestService,
 		StatusDays:        studentStatusDayService,
 		Logger:            logger.With("service", "ogs-group-live"),
+		Now:               now,
 	})
 
 	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
@@ -2482,6 +2547,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),
 		DB:                         db,
+		Today:                      today,
 	})
 	instanceSeriesConverter := schedule.NewInstanceSeriesConversionService(schedule.InstanceSeriesConversionDependencies{
 		DB:              db,
@@ -2563,6 +2629,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		StaffTimeExport:          staffTimeExportService,
 		Activities:               activitiesService,
 		Education:                educationService,
+		Substitution:             substitutionService,
 		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Schulhof:                 schulhofService,
@@ -2670,7 +2737,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 			Settings:        settingsService,
 			PrivacyConsents: repos.PrivacyConsent,
 			Logger:          logger.With("service", "statistics"),
-			Now:             optionalStatisticsClock(statisticsClocks),
+			Now:             now,
 		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,
@@ -2733,16 +2800,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		factory.RealtimeHub,
 		db,
 		logger.With("service", "shift_plan_sync"),
+		today,
 	))
 	return factory, nil
 }
 
-func optionalStatisticsClock(clocks []func() time.Time) func() time.Time {
+func optionalClock(clocks []func() time.Time) func() time.Time {
 	if len(clocks) == 0 {
 		return nil
 	}
 	if len(clocks) > 1 {
-		panic("services.NewFactory accepts at most one statistics clock")
+		panic("services.NewFactory accepts at most one clock")
 	}
 	return clocks[0]
 }

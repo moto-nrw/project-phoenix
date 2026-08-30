@@ -57,7 +57,9 @@ func buildOverdue(t *testing.T) *overdueSetup {
 		done:   make(chan struct{}),
 		logger: slog.Default()})
 
-	sched.SetInstanceOverdueDeps(repoFactory.ActivityInstance, repoFactory.Room, spy)
+	sched.instanceRepo = repoFactory.ActivityInstance
+	sched.instanceRoomRepo = repoFactory.Room
+	sched.overdueBroadcaster = spy
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OVR-Room-%d", time.Now().UnixNano()))
 	today := time.Now().UTC()

@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
@@ -31,7 +32,6 @@ import (
 	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
@@ -152,7 +152,6 @@ type API struct {
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
-	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
@@ -171,8 +170,25 @@ type API struct {
 	Platform *platformAPI.Resource
 }
 
+type apiBuildResources struct {
+	pool     *bun.DB
+	tracker  analytics.Tracker
+	released bool
+}
+
+func (resources *apiBuildResources) close() error {
+	if resources.released {
+		return nil
+	}
+	var err error
+	if resources.tracker != nil {
+		err = resources.tracker.Close()
+	}
+	return errors.Join(err, database.ClosePool(resources.pool))
+}
+
 // New creates a new API instance
-func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -183,6 +199,10 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	buildResources := apiBuildResources{pool: db}
+	defer func() {
+		resultErr = errors.Join(resultErr, buildResources.close())
+	}()
 	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
 	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
@@ -218,6 +238,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
@@ -304,6 +325,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
 
+	buildResources.released = true
 	return api, nil
 }
 
@@ -784,8 +806,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
-	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
-	api.Database = databaseAPI.NewResource(api.Services.Database, db)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
 	api.TimeTracking.HolidayService = api.Services.Holidays
@@ -1087,7 +1108,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/substitutions", a.Substitutions.Router())
 
 		// Mount database resources
-		r.Mount("/database", a.Database.Router())
+		r.Mount("/database", a.databaseStatsRouter())
 
 		// Mount import resources (CSV/Excel import endpoints)
 		r.Mount("/import", a.Import.Router())
@@ -1121,6 +1142,24 @@ func (a *API) registerTenantRoutes() {
 
 		// Add other resource routes here as they are implemented
 	})
+}
+
+func (a *API) databaseStatsRouter() chi.Router {
+	router := chi.NewRouter()
+	apiCommon.ProtectedTenantGroup(router, a.db, func(router chi.Router, withTx apiCommon.Middleware) {
+		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", a.getDatabaseStats)
+	})
+	return router
+}
+
+func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := a.Services.Database.GetStats(r.Context())
+	if err != nil {
+		slog.Default().Error("failed to get database stats", slog.String("error", err.Error()))
+		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
+		return
+	}
+	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
 }
 
 // servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.

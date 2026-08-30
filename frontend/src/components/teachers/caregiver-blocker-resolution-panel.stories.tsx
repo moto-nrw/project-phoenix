@@ -35,7 +35,6 @@ const withBlockersState: CaregiverCapabilityState = {
     {
       id: "sub-1",
       groupName: "Gruppe Mond",
-      role: "substitute",
       startDate: "01.09.2026",
       endDate: "15.09.2026",
     },

@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -336,7 +337,7 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 		return oldRaw, newRaw, &ref, false, nil
 	}
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
-		if isGuardianEmailUniqueViolation(err) && profile.Email != nil {
+		if base.IsUniqueViolationOn(err, guardianEmailUniqueIndex) && profile.Email != nil {
 			return nil, nil, nil, false, ErrGuardianEmailConflict
 		}
 		return nil, nil, nil, false, err

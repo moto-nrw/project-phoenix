@@ -63,7 +63,7 @@ func (failingOverviewEducationService) ListGroups(context.Context, *modelBase.Qu
 func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 
 	groupA := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe A")
 	groupB := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe B")
@@ -77,7 +77,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, inactiveLegacyChild.ID, groupA.ID)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, today.AddDays(2), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(1), active.StudentStatusDayClassTrip)
 	// Out of the default two-month window: must not be listed.

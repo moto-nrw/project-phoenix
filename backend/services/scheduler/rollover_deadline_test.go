@@ -56,7 +56,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 		rolloverDeadlineRunner: probe,
 		logger:                 slog.Default()})
 
-	s.checkAndRunRolloverDeadline(&ScheduledTask{})
+	s.checkAndRunRolloverDeadline(context.Background(), &ScheduledTask{})
 
 	assert.GreaterOrEqual(t, probe.calls, 1)
 	rows, err := repos.Timeframe.FindByDescription(testpkg.Ctx(t), probe.description)

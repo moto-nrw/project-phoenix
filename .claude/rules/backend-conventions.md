@@ -313,6 +313,20 @@ Placement rules: mocks for `models/*` interfaces go in `test/` (imports models o
 
 ---
 
+## 14. Calendar Fixtures Must Not Depend on the Wall Clock
+
+**RULE: Calendar-date, date-range, weekday, and ISO-week expectations in backend tests use fixed Berlin dates or instants.** Do not derive them from `time.Now()` or `timezone.TodayDate()`: a test that is green at noon can cross midnight or Sunday/Monday in CI. Prefer `timezone.NewDate(...).BerlinMidnight()` for a Berlin instant, `timezone.NewDate(...)` for a calendar date, or `time.Date(...)` for an explicit instant.
+
+`backend/test/calendar_fixture_ratchet_test.go` (`TestCalendarFixtureClockRatchet`) parses imports and Go syntax in `_test.go` files. It follows imported aliases, assigned values, and package-local test helpers across files. The ratchet rejects live-clock values used in date conversion, date-range calls or structs, date assertions, day/ISO-week operations, and weekly-summary fixture times. Comments, strings, shadowed import names, unrelated `Now` methods, fixed values, and non-test files are ignored. The check is part of the existing CI command:
+
+```bash
+cd backend && go test ./test -run Ratchet -count=1
+```
+
+If a test's purpose genuinely requires the system clock, inject a clock where possible. Otherwise add only its exact `path/to/file_test.go:TestFunction` key to `calendarFixtureClockExceptions`, with a specific non-empty reason explaining why the live clock is load-bearing. Every unexcepted finding fails immediately; there is no grandfathered count or fingerprint baseline. Stale exception keys fail the ratchet and must be removed.
+
+---
+
 ## Code Review Checklist
 
 - [ ] No repository imports/fields/getter-calls in `api/` (CI: `TestHandlerLayerRatchet`)
@@ -328,6 +342,7 @@ Placement rules: mocks for `models/*` interfaces go in `test/` (imports models o
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
+- [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
 
 ## Detection commands (one-shot health check)
 

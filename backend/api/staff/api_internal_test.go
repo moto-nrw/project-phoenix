@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/spf13/viper"
@@ -141,38 +139,6 @@ func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *tes
 }
 
 // Deliberately NOT parallel: process-global state — viper JWT keys.
-func TestBuildSubstitutionInfoList(t *testing.T) {
-	t.Parallel()
-
-	start := timezone.NewDate(2026, time.April, 1)
-	substitutions := []*education.GroupSubstitution{
-		{
-			Model:     base.Model{ID: 11},
-			GroupID:   101,
-			StartDate: start,
-			EndDate:   start,
-			Group:     &education.Group{Name: "Gruppe Blau"},
-		},
-		{
-			Model:     base.Model{ID: 12},
-			GroupID:   102,
-			StartDate: start,
-			EndDate:   start.AddDays(2),
-		},
-	}
-
-	result := buildSubstitutionInfoList(substitutions)
-
-	require.Len(t, result, 2)
-	assert.Equal(t, int64(11), result[0].ID)
-	assert.Equal(t, "Gruppe Blau", result[0].GroupName)
-	assert.True(t, result[0].IsTransfer)
-	assert.Equal(t, "2026-04-01", result[0].StartDate)
-	assert.Equal(t, "2026-04-01", result[0].EndDate)
-	assert.False(t, result[1].IsTransfer)
-	assert.Equal(t, "", result[1].GroupName)
-}
-
 // Deliberately NOT parallel: process-global state — viper JWT keys.
 func TestResource_CheckAccountLocked(t *testing.T) {
 	t.Parallel()

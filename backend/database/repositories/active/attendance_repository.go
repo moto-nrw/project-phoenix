@@ -19,16 +19,18 @@ import (
 // AttendanceRepository implements active.AttendanceRepository interface
 type AttendanceRepository struct {
 	*base.Repository[*active.Attendance]
-	db *bun.DB
+	db    *bun.DB
+	today func() timezone.Date
 }
 
 // NewAttendanceRepository creates a new AttendanceRepository
-func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
+func NewAttendanceRepository(db *bun.DB, clocks ...func() time.Time) active.AttendanceRepository {
 	repo := base.NewRepository[*active.Attendance](db, "active.attendance", "Attendance")
 	repo.TenantScoped = true
 	return &AttendanceRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -121,7 +123,7 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	today := timezone.TodayDate()
+	today := r.today()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
@@ -345,7 +347,7 @@ func (r *AttendanceRepository) getTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	today := timezone.TodayDate()
+	today := r.today()
 	var attendances []*active.Attendance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).

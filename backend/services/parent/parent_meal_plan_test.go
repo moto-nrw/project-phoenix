@@ -65,7 +65,7 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	seedMealPlanWeek(t, db, currentMonday)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
@@ -82,7 +82,7 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	nextMonday := currentMonday.AddDays(7)
 	seedMealPlanWeek(t, db, nextMonday)
 
@@ -98,7 +98,7 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.ErrorIs(t, err, parentService.ErrMealPlanDisabled)
@@ -112,7 +112,7 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	lastWeek := currentMonday.AddDays(-7)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, lastWeek)
@@ -125,7 +125,7 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	weekAfterNext := currentMonday.AddDays(14)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, weekAfterNext)
@@ -139,7 +139,7 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, currentMonday)
 	require.Error(t, err)
@@ -152,7 +152,7 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.Error(t, err)

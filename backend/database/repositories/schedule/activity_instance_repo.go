@@ -26,16 +26,18 @@ var errActivityInstanceNil = fmt.Errorf("activity instance cannot be nil")
 // ActivityInstanceRepository implements schedule.ActivityInstanceRepository.
 type ActivityInstanceRepository struct {
 	*base.Repository[*schedule.ActivityInstance]
-	db *bun.DB
+	db    *bun.DB
+	today func() timezone.Date
 }
 
 // NewActivityInstanceRepository creates a new ActivityInstanceRepository.
-func NewActivityInstanceRepository(db *bun.DB) *ActivityInstanceRepository {
+func NewActivityInstanceRepository(db *bun.DB, clocks ...func() time.Time) *ActivityInstanceRepository {
 	repo := base.NewRepository[*schedule.ActivityInstance](db, tableActivityInstances, "ActivityInstance")
 	repo.TenantScoped = true
 	return &ActivityInstanceRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -508,7 +510,7 @@ func (r *ActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(c
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
 		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
-		Where(`"activity_instance".date > ?`, timezone.TodayDate()).
+		Where(`"activity_instance".date > ?`, r.today()).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false).
 		Where(`EXTRACT(ISODOW FROM "activity_instance".date)::int IN (?)`, bun.List(weekdays))

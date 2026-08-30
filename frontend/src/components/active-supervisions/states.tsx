@@ -31,6 +31,8 @@ interface SchulhofNotSupervisingViewProps {
   readonly supervisorCount: number;
   readonly supervisorNames: string[];
   readonly isToggling: boolean;
+  readonly startDisabled?: boolean;
+  readonly startDisabledReason?: string;
   readonly onToggle: () => void;
 }
 
@@ -168,6 +170,8 @@ export function SchulhofNotSupervisingView({
   supervisorCount,
   supervisorNames,
   isToggling,
+  startDisabled = false,
+  startDisabledReason,
   onToggle,
 }: SchulhofNotSupervisingViewProps) {
   return (
@@ -176,9 +180,10 @@ export function SchulhofNotSupervisingView({
         icon={<MotoConceptIcon concept="schoolyard" size={48} />}
         title="Schulhof ohne Aufsicht"
         description={
-          supervisorCount > 0
+          startDisabledReason ??
+          (supervisorCount > 0
             ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-            : "Übernehmen Sie die Aufsicht, um Kinder zu sehen."
+            : "Übernehmen Sie die Aufsicht, um Kinder zu sehen.")
         }
         action={
           <Button
@@ -186,7 +191,7 @@ export function SchulhofNotSupervisingView({
             variant="primary"
             size="md"
             onClick={onToggle}
-            disabled={isToggling}
+            disabled={isToggling || startDisabled}
           >
             {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
           </Button>

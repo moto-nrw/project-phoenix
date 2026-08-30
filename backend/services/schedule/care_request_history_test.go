@@ -92,8 +92,8 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
-	date := timezone.TodayDate().AddDays(1)
+	f := newPickupChangeFixture(t)
+	date := timezone.NewDate(2026, 8, 24).AddDays(1)
 	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
 
 	req, err := f.svc.CreatePickupChangeRequest(
