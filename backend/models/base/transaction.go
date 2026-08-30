@@ -90,9 +90,6 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 	return nil
 }
 
-// defaultTxRetries is the number of additional attempts RunInTxWithRetry makes
-// after the first when a transaction aborts on a transient serialization or
-// deadlock failure.
 const defaultTxRetries = 3
 
 // IsRetryableTxError reports whether err is a transient PostgreSQL transaction
@@ -114,13 +111,10 @@ func IsRetryableTxError(err error) bool {
 	}
 }
 
-// RunInTxWithRetry runs fn in a transaction, retrying the entire transaction on
-// transient deadlock/serialization failures (up to defaultTxRetries extra
-// attempts). Retry is only applied when this handler owns the transaction —
-// when the caller already supplied a transaction via context, a deadlock aborts
-// that outer transaction, so re-running just the inner fn would be unsound; in
-// that case it behaves exactly like RunInTx.
-func (h *TxHandler) RunInTxWithRetry(ctx context.Context, fn func(ctx context.Context, tx bun.Tx) error) error {
+// RunInTxWithRetry runs a standalone transaction and retries transient
+// deadlock and serialization failures. An ambient transaction is never
+// replayed because Postgres has already aborted it after such a failure.
+func (h *TxHandler) RunInTxWithRetry(ctx context.Context, fn func(context.Context, bun.Tx) error) error {
 	if _, ok := TxFromContext(ctx); ok {
 		return h.RunInTx(ctx, fn)
 	}

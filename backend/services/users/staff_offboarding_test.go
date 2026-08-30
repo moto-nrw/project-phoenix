@@ -44,6 +44,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
+	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
@@ -880,7 +881,7 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 	model := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("offb-model-%d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
+		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
 	}
 	require.NoError(t, sc.repos.WorkTimeModel.Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},

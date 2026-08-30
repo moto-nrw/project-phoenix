@@ -48,6 +48,35 @@ func TestTenantTxMiddlewareMarkRollbackDiscardsWrite(t *testing.T) {
 	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)
 }
 
+func TestTenantTxMiddlewareServerErrorDiscardsWrite(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	runtime := testpkg.TenantRuntime(t, db)
+
+	email := fmt.Sprintf("rollback-5xx-%d@test.local", time.Now().UnixNano())
+	profile := &users.GuardianProfile{
+		FirstName:              "Rollback",
+		LastName:               "ServerError",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	repo := repositories.NewFactory(db).GuardianProfile
+	handler := common.TenantRuntimeMiddleware(runtime)(common.TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, repo.Create(r.Context(), profile))
+		http.Error(w, "failed", http.StatusInternalServerError)
+	})))
+
+	request := httptest.NewRequest(http.MethodPost, "/api/guardians", nil)
+	request = request.WithContext(tenant.WithTenantID(request.Context(), testpkg.Tenant(t)))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	_, err := repo.FindByID(testpkg.Ctx(t), profile.ID)
+	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)
+}
+
 // TestTestTenantTxMiddlewareDecidesLikeProduction pins the test root helper
 // (testpkg.TenantTxMiddleware) to the production decision so a test cannot
 // pass on a transaction shape production would reject.

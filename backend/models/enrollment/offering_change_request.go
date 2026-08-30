@@ -17,6 +17,9 @@ const (
 	OfferingChangeStatusApproved  = "approved"
 	OfferingChangeStatusRejected  = "rejected"
 	OfferingChangeStatusWithdrawn = "withdrawn"
+	// OfferingChangeStatusDone closes a request that only covered days already
+	// gone: nothing to apply, and "abgelehnt" would misstate what happened.
+	OfferingChangeStatusDone = "done"
 	// OfferingChangeStatusCareEnded closes an open request whose child left
 	// the OGS before anybody decided it (#2487).
 	OfferingChangeStatusCareEnded = "care_ended"
@@ -77,7 +80,8 @@ type OfferingChangeRequest struct {
 // IsTerminal reports whether the row can still be decided or withdrawn.
 func (r *OfferingChangeRequest) IsTerminal() bool {
 	switch r.Status {
-	case OfferingChangeStatusApproved, OfferingChangeStatusRejected, OfferingChangeStatusWithdrawn, OfferingChangeStatusCareEnded:
+	case OfferingChangeStatusApproved, OfferingChangeStatusRejected, OfferingChangeStatusWithdrawn,
+		OfferingChangeStatusCareEnded, OfferingChangeStatusDone:
 		return true
 	default:
 		return false
@@ -158,6 +162,11 @@ type OfferingChangeRequestRepository interface {
 	// applied on when a delayed review moves it forward to today.
 	UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom timezone.Date) error
 	UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, complete bool) error
+
+	// UpdatePending rewrites a still-pending row's selections, effective date
+	// and parent note — the guardian edit path (#2267). It refuses a decided
+	// row (ErrOfferingChangeNotPending) and bumps updated_at.
+	UpdatePending(ctx context.Context, id int64, payload map[string]any, effectiveFrom timezone.Date, note *string) error
 
 	// Decide moves a pending row to a terminal status, guarding the transition
 	// in SQL so two reviewers cannot both decide it. Returns

@@ -470,10 +470,8 @@
       "kindSick": "Report sick",
       "kindExcused": "Excuse absence",
       "kindHintSick": "For days when your child is ill. The OGS sees the sick note immediately.",
-      "kindHintSickApproval": "The OGS confirms the sick note. Until then, your child is still expected.",
       "kindHintSickUnknown": "For sick days. The OGS receives your sick note.",
       "kindHintExcused": "For appointments or other planned absences. Briefly state the reason.",
-      "kindHintExcusedApproval": "The OGS confirms the absence. Until then, your child is still expected.",
       "kindHintExcusedUnknown": "For appointments or other absences. Enter the reason.",
       "periodLabel": "Days of absence",
       "from": "First day",
@@ -492,7 +490,6 @@
       "submitExcused": "Send excuse to the OGS",
       "reasonLabelRequired": "Reason / note to the OGS",
       "reasonRequiredError": "Enter a short note for the OGS.",
-      "approvalHint": "After you send it, the OGS must still confirm the absence.",
       "requestSentTitle": "Request sent",
       "requestSentBody": "The OGS must still confirm the absence. Until then, your child is still expected."
     },
@@ -504,9 +501,7 @@
       "excusedLabel": "Excused",
       "pendingLabel": "Approval pending",
       "rejectedLabel": "Rejected",
-      "withdraw": "Withdraw",
-      "withdrawError": "Withdrawal failed. Please refresh the page.",
-      "withdrawAlreadyDecided": "The OGS has already processed this request, so it can no longer be withdrawn.",
+      "edit": "Edit request",
       "reasonPrefix": "Reason"
     },
     "pickup": {
@@ -531,7 +526,10 @@
       "alreadyHomeGeneric": "Your child is already home today. The pick-up time can no longer be changed.",
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
       "reset": "Undo the change",
-      "withdraw": "Withdraw request",
+      "edit": "Edit request",
+      "saveEdit": "Save change",
+      "editedAt": "Changed on {date}",
+      "staleError": "The request has changed in the meantime. Please reload the page.",
       "pendingChange": "{from} → {to}",
       "pendingRequested": "New pickup time: {to}",
       "statusPending": "Waiting for confirmation",
@@ -1154,6 +1152,41 @@
     "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
     "lockedAllAction": "Go to parents app"
   },
+  "parentRequestEdit": {
+    "title": "Edit request",
+    "intro": "Change your request as long as the school has not decided yet.",
+    "editedAt": "Changed on {date}",
+    "firstDay": "First day",
+    "lastDay": "Last day",
+    "day": "Day",
+    "pickupTime": "Pick-up time",
+    "timeFormatHint": "Time in the format 15:30",
+    "timeExample": "e.g. 15:30",
+    "reasonLabel": "Reason / note for the school",
+    "reasonRequired": "Please enter a short note for the school.",
+    "valueRequired": "Please enter a value.",
+    "saveError": "That did not work. Please try again.",
+    "staleError": "The request has changed in the meantime. Please reload the page.",
+    "submit": "Save change",
+    "saving": "Saving …",
+    "cancel": "Cancel",
+    "close": "Close window"
+  },
+  "parentRequestSharing": {
+    "button": "Share request",
+    "title": "Share request with others",
+    "privacyHint": "Only selected guardians can see your request and the school's reply.",
+    "recipientLegend": "Share request (optional)",
+    "protected": "This request stays private. The school has enabled family protection.",
+    "noRecipients": "There are no other guardians with access to the parents app.",
+    "loading": "Loading recipients …",
+    "error": "The recipients could not be loaded.",
+    "optionsError": "The recipients could not be loaded. You can still send the request and share it later.",
+    "save": "Save selection",
+    "saving": "Saving …",
+    "cancel": "Cancel",
+    "close": "Close window"
+  },
   "parentMasterData": {
     "title": "Details and care",
     "subtitle": "Review your child's details and booked care. Changes that require approval are clearly marked.",
@@ -1172,6 +1205,7 @@
     "requestButton": "Request change",
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestError": "The request could not be sent.",
+    "requestEdit": "Edit request",
     "pendingBadge": "Under review",
     "pendingNotice": "A change to this field is awaiting confirmation by the team.",
     "editDisabled": "Editing these details is disabled for this OGS.",
@@ -1255,10 +1289,7 @@
       "pendingEffectiveFrom": "Requested from {date}",
       "pendingNotice": "Your request is being reviewed by the team. Everything stays as it is until it is confirmed.",
       "pendingNote": "Your message: {note}",
-      "withdraw": "Withdraw request",
-      "withdrawError": "The request could not be withdrawn.",
-      "withdrawConfirmTitle": "Withdraw request?",
-      "withdrawConfirmBody": "Do you really want to withdraw your change request? The booked offerings stay unchanged.",
+      "edit": "Edit request",
       "requestButton": "Change care",
       "disabledNoEnrollment": "No further care details are available for {name}.",
       "disabledNoPermission": "You are not allowed to request changes for this child.",
@@ -1284,6 +1315,12 @@
     },
     "careOfferingsModal": {
       "title": "Change booked care",
+      "editTitle": "Edit request",
+      "editIntro": "Change your open request. Your new selection replaces the previous request.",
+      "editedAt": "Changed on {date}",
+      "saveEdit": "Save change",
+      "noteRequired": "Please say briefly why the care should change.",
+      "staleError": "The request has changed in the meantime. Please reload the page.",
       "intro": "Choose which offerings your child should attend and when the change should take effect. The team reviews your request.",
       "loadError": "The available offerings could not be loaded.",
       "noOfferings": "No care can be booked for this period.",
@@ -1318,13 +1355,16 @@
       "7": "Sun"
     },
     "careSchedule": {
+      "arrival": "Arrival time",
       "pickup": "Pick-up time",
       "modes": "Way home",
       "loadError": "The care times could not be loaded. Please refresh the page.",
+      "readOnlyNotice": "You cannot change the weekly plan here. Changes to booked offerings are in the next section.",
+      "noPermissionNotice": "You cannot request changes here. Please ask your OGS.",
       "requestButton": "Request changes",
       "requestTitle": "Request a weekly schedule change",
       "close": "Close dialog",
-      "requestIntro": "Choose what should apply regularly on each weekday from now on.",
+      "requestIntro": "Change care days, pick-up times, or ways home. You only see changes your OGS allows.",
       "requestNoticeTitle": "Request to the OGS",
       "requestNoticeBody": "This is a permanent change that applies every week. The OGS reviews your request. Your current weekly schedule remains valid until it is approved.",
       "requestSubmit": "Send request to OGS",
@@ -1335,7 +1375,8 @@
       "requestError": "The request could not be sent.",
       "requestAlreadyPending": "A change for this child is already being reviewed.",
       "requestDisabled": "This change is not enabled by your OGS.",
-      "requestInvalid": "Please check the selected care days, pick-up times, and ways home.",
+      "requestBookingLed": "Your OGS does not accept weekly plan requests. Changes go through the booked offerings.",
+      "requestInvalid": "Please check the care days, pick-up times, and ways home.",
       "modeUnchanged": "Choose way home",
       "modeCurrent": "Current: {modes}",
       "careDay": "Care on this day",
@@ -1356,11 +1397,7 @@
       "timeExample": "e.g. 15:30",
       "pendingBadge": "Under review",
       "pendingNotice": "The OGS is reviewing the change. The current weekly plan remains valid until it is approved.",
-      "requestedAt": "Requested on {date}",
-      "withdraw": "Withdraw request",
-      "withdrawError": "The request could not be withdrawn.",
-      "withdrawConfirmTitle": "Withdraw request?",
-      "withdrawConfirmBody": "Do you really want to withdraw the pick-up change request?"
+      "requestedAt": "Requested on {date}"
     }
   },
   "parentOgsMessaging": {
@@ -1542,7 +1579,8 @@
       "pickupUnknown": "The pick-up time is not available right now"
     },
     "care": {
-      "weekTitle": "OGS weekly schedule"
+      "weekTitle": "OGS weekly schedule",
+      "absenceTitle": "Absences"
     }
   },
   "parentMessages": {
@@ -1621,6 +1659,7 @@
     "subscribe": "Subscribe in the calendar",
     "linkLabel": "Subscription link (to copy)",
     "copy": "Copy",
+    "copiedButton": "Copied",
     "copied": "Link copied.",
     "copyFailed": "Copying is not possible. Please select the link by hand.",
     "linkOnce": "For security reasons you only see this link now. Copy it into your calendar right away.",
@@ -1634,6 +1673,9 @@
     "rotateError": "The subscription link could not be renewed.",
     "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
     "createNew": "Create a new subscription link"
+  },
+  "staffCalendarSubscribe": {
+    "description": "Subscribe to your appointments once in your phone calendar. New, changed and cancelled appointments then appear automatically. You do not need to add each appointment separately. Changes made in your phone calendar do not reach moto."
   },
   "parentNews": {
     "kicker": "Post from the OGS",

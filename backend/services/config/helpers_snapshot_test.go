@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"context"
@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +18,7 @@ func helperSnapshot(
 	fieldType config.FieldType,
 	defaultValue any,
 	override json.RawMessage,
-) *configService.SettingsSnapshot {
+) *SettingsSnapshot {
 	t.Helper()
 	setupTest(t)
 	registerTestSetting(key, fieldType, defaultValue)
@@ -33,19 +31,15 @@ func helperSnapshot(
 	}
 
 	service := createService(repo, &mockAuditRepo{})
-	batch, ok := service.(configService.BatchSettingsService)
+	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 	snapshot, err := batch.ResolveMany(tenantCtx(41), []string{key})
 	require.NoError(t, err)
 	return snapshot
 }
 
-func snapshotMock(snapshot *configService.SettingsSnapshot, err error) *configtest.Mock {
-	return &configtest.Mock{
-		ResolveManyFn: func(context.Context, []string) (*configService.SettingsSnapshot, error) {
-			return snapshot, err
-		},
-	}
+func snapshotMock(snapshot *SettingsSnapshot, err error) *fakeSettingsService {
+	return &fakeSettingsService{snapshot: snapshot, snapshotErr: err}
 }
 
 func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
@@ -53,7 +47,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 
 	t.Run("boolean batch failure without logger", func(t *testing.T) {
-		got := configService.ResolveBoolOrDefault(
+		got := ResolveBoolOrDefault(
 			context.Background(),
 			snapshotMock(nil, fallbackErr),
 			"test.bool",
@@ -64,7 +58,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 	})
 
 	t.Run("integer batch failure", func(t *testing.T) {
-		got := configService.ResolveIntOrDefault(
+		got := ResolveIntOrDefault(
 			context.Background(),
 			snapshotMock(nil, fallbackErr),
 			"test.int",
@@ -75,7 +69,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 	})
 
 	t.Run("string batch failure", func(t *testing.T) {
-		got := configService.ResolveStringOrDefault(
+		got := ResolveStringOrDefault(
 			context.Background(),
 			snapshotMock(nil, fallbackErr),
 			"test.string",
@@ -87,7 +81,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 
 	t.Run("boolean missing from snapshot", func(t *testing.T) {
 		snapshot := helperSnapshot(t, "test.present_bool", config.FieldBoolean, false, nil)
-		got := configService.ResolveBoolOrDefault(
+		got := ResolveBoolOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.missing_bool",
@@ -99,7 +93,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 
 	t.Run("integer missing from snapshot", func(t *testing.T) {
 		snapshot := helperSnapshot(t, "test.present_int", config.FieldNumber, 3, nil)
-		got := configService.ResolveIntOrDefault(
+		got := ResolveIntOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.missing_int",
@@ -111,7 +105,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 
 	t.Run("string missing from snapshot", func(t *testing.T) {
 		snapshot := helperSnapshot(t, "test.present_string", config.FieldText, "value", nil)
-		got := configService.ResolveStringOrDefault(
+		got := ResolveStringOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.missing_string",
@@ -129,7 +123,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 			false,
 			json.RawMessage(`"not-a-bool"`),
 		)
-		got := configService.ResolveBoolOrDefault(
+		got := ResolveBoolOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.bad_bool",
@@ -147,7 +141,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 			3,
 			json.RawMessage(`1.5`),
 		)
-		got := configService.ResolveIntOrDefault(
+		got := ResolveIntOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.bad_int",
@@ -165,7 +159,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 			"default",
 			json.RawMessage(`{`),
 		)
-		got := configService.ResolveStringOrDefault(
+		got := ResolveStringOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.bad_string",
@@ -183,7 +177,7 @@ func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
 			"default",
 			json.RawMessage(`""`),
 		)
-		got := configService.ResolveStringOrDefault(
+		got := ResolveStringOrDefault(
 			context.Background(),
 			snapshotMock(snapshot, nil),
 			"test.empty_string",

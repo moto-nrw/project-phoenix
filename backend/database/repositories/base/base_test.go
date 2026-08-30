@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,7 @@ import (
 )
 
 // Generic infrastructure test for base.Repository[T].
-// Uses configModels.SettingValue as the sample tenant-scoped entity because
+// Uses a test-local setting value as the sample tenant-scoped entity because
 // it has a real DB table (config.setting_values), implements modelBase.Entity,
 // and exercises every code path. Choice of sample entity is incidental — the
 // behavior under test is base.Repository[T] generic CRUD.
@@ -26,6 +25,34 @@ const (
 	baseTestTable      = "config.setting_values"
 	baseTestEntityName = "SettingValue"
 )
+
+type settingValue struct {
+	ID         int64           `bun:"id,pk,autoincrement"`
+	TenantID   int64           `bun:"tenant_id,notnull"`
+	SettingKey string          `bun:"setting_key,notnull"`
+	Value      json.RawMessage `bun:"value,type:jsonb,notnull"`
+	UpdatedBy  *int64          `bun:"updated_by"`
+	CreatedAt  time.Time       `bun:"created_at,notnull,default:now()"`
+	UpdatedAt  time.Time       `bun:"updated_at,notnull,default:now()"`
+}
+
+type testSettingValue = settingValue
+
+func (sv *settingValue) GetID() interface{}      { return sv.ID }
+func (sv *settingValue) GetTenantID() int64      { return sv.TenantID }
+func (sv *settingValue) SetTenantID(id int64)    { sv.TenantID = id }
+func (sv *settingValue) GetCreatedAt() time.Time { return sv.CreatedAt }
+func (sv *settingValue) GetUpdatedAt() time.Time { return sv.UpdatedAt }
+
+func (sv *settingValue) Validate() error {
+	if sv.SettingKey == "" {
+		return fmt.Errorf("setting_key is required")
+	}
+	if len(sv.Value) == 0 {
+		return fmt.Errorf("value is required")
+	}
+	return nil
+}
 
 // uniqueKey generates a unique setting key for test rows.
 func uniqueKey(prefix string) string {
@@ -39,8 +66,8 @@ func jsonValue(s string) json.RawMessage {
 
 // newSettingValue builds a SettingValue in the calling test's tenant with the given key/value.
 // updatedBy is optional (pass nil to leave the FK unset).
-func newSettingValue(tb testing.TB, key, value string, updatedBy *int64) *configModels.SettingValue {
-	sv := &configModels.SettingValue{
+func newSettingValue(tb testing.TB, key, value string, updatedBy *int64) *testSettingValue {
+	sv := &testSettingValue{
 		SettingKey: key,
 		Value:      jsonValue(value),
 		UpdatedBy:  updatedBy,
@@ -49,13 +76,36 @@ func newSettingValue(tb testing.TB, key, value string, updatedBy *int64) *config
 	return sv
 }
 
+func TestAcquireXactLockReportsContendedWait(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	key := uniqueKey("lock_wait")
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	require.NoError(t, err)
+	ctx, evidence := testpkg.CaptureUnitOfWorkEvidence(ctx)
+	testpkg.AttachLockWaitEvidence(db)
+	release := time.AfterFunc(20*time.Millisecond, func() { _ = holder.Rollback() })
+	defer release.Stop()
+
+	require.NoError(t, base.AcquireXactLock(ctx, db, key))
+
+	events := evidence()
+	require.Len(t, events, 1)
+	assert.Equal(t, "lock_wait", events[0].Kind)
+	assert.GreaterOrEqual(t, events[0].Duration, 15*time.Millisecond)
+}
+
 // TestNewRepository tests repository creation
 func TestNewRepository(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	require.NotNil(t, repo)
 	assert.Equal(t, baseTestTable, repo.TableName)
 	assert.Equal(t, baseTestEntityName, repo.EntityName)
@@ -68,7 +118,7 @@ func TestRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	sv := newSettingValue(t, uniqueKey("create"), "test_value", nil)
@@ -92,10 +142,10 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
-	var nilSV *configModels.SettingValue
+	var nilSV *testSettingValue
 	err := repo.Create(ctx, nilSV)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be nil or zero value")
@@ -107,7 +157,7 @@ func TestRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert a test row using schema-qualified table
@@ -134,7 +184,7 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	_, err := repo.FindByID(ctx, 999999)
@@ -147,7 +197,7 @@ func TestRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert a test row
@@ -181,10 +231,10 @@ func TestRepository_Update_NilEntity(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
-	var nilSV *configModels.SettingValue
+	var nilSV *testSettingValue
 	err := repo.Update(ctx, nilSV)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be nil or zero value")
@@ -196,7 +246,7 @@ func TestRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert a test row
@@ -210,7 +260,7 @@ func TestRepository_Delete(t *testing.T) {
 
 	// Verify the delete
 	var count int
-	count, err = db.NewSelect().Model((*configModels.SettingValue)(nil)).
+	count, err = db.NewSelect().Model((*testSettingValue)(nil)).
 		ModelTableExpr(baseTestTable).
 		Where("id = ?", sv.ID).
 		Count(ctx)
@@ -230,11 +280,11 @@ func TestRepository_List(t *testing.T) {
 	acct := testpkg.CreateTestAccount(t, db, "base_repo_list")
 	updatedBy := acct.ID
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert two test rows tagged with this test's account
-	settings := []*configModels.SettingValue{
+	settings := []*testSettingValue{
 		newSettingValue(t, uniqueKey("list_1"), "v1", &updatedBy),
 		newSettingValue(t, uniqueKey("list_2"), "v2", &updatedBy),
 	}
@@ -262,7 +312,7 @@ func TestRepository_List_NoFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert one row so the result slice is non-nil even on a freshly reset DB.
@@ -292,16 +342,16 @@ func TestRepository_List_NoFilters(t *testing.T) {
 // newTenantScopedRepo builds a base repository with the tenant_id
 // defense-in-depth filter enabled, matching how domain repositories
 // (students, groups, ...) construct their embedded generic.
-func newTenantScopedRepo(db *bun.DB) *base.Repository[*configModels.SettingValue] {
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+func newTenantScopedRepo(db *bun.DB) *base.Repository[*testSettingValue] {
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	repo.TenantScoped = true
 	return repo
 }
 
 // createSettingValueForTenant inserts a row for the given tenant and returns it.
-func createSettingValueForTenant(t *testing.T, db *bun.DB, tenantID int64, key, value string) *configModels.SettingValue {
+func createSettingValueForTenant(t *testing.T, db *bun.DB, tenantID int64, key, value string) *testSettingValue {
 	t.Helper()
-	sv := &configModels.SettingValue{
+	sv := &testSettingValue{
 		SettingKey: key,
 		Value:      jsonValue(value),
 	}
@@ -454,7 +504,7 @@ func TestRepository_UpdateColumns(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	sv := newSettingValue(t, uniqueKey("update_columns"), "original", nil)
@@ -496,7 +546,7 @@ func TestRepository_UpdateColumns(t *testing.T) {
 	})
 
 	t.Run("rejects nil entity", func(t *testing.T) {
-		var nilSV *configModels.SettingValue
+		var nilSV *testSettingValue
 		_, err := repo.UpdateColumns(ctx, nilSV, "value")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil or zero value")

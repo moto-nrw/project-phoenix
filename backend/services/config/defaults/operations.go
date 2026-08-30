@@ -786,6 +786,44 @@ func init() {
 		SortOrder:       68,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyParentRequestGroupLeaderReviewEnabled,
+		Label:           "Gruppenleitungen dürfen Elternanfragen entscheiden",
+		Description:     "Aus: Nur OGS-Admins entscheiden. Ein: Aktuelle Gruppenleitungen und Vertretungen entscheiden zusätzlich für Kinder ihrer Gruppen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       69,
+		AccessPolicy:    config.AccessShared,
+	})
+
+	config.Register(config.Definition{
+		Key:   config.KeyParentRequestReasonPolicy,
+		Label: "Begründung bei Anfragen",
+		Description: "Legt fest, wer bei einer Anfrage einen Grund schreiben muss. " +
+			"Eltern begründen beim Absenden. Mitarbeitende begründen beim Freigeben. " +
+			"Eine Ablehnung braucht immer einen Grund. Das ändert diese Einstellung nicht.",
+		Type:            config.FieldSelect,
+		Default:         config.ReasonPolicyBoth,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       70,
+		AccessPolicy:    config.AccessShared,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Niemand muss begründen", Value: config.ReasonPolicyNobody},
+				{Label: "Nur Eltern", Value: config.ReasonPolicyGuardians},
+				{Label: "Nur Mitarbeitende", Value: config.ReasonPolicyStaff},
+				{Label: "Eltern und Mitarbeitende", Value: config.ReasonPolicyBoth},
+			},
+		},
+	})
+
 	// Essensplan. Unlike the other parents-portal features this one is
 	// opt-out (default ON): every school gets the meal plan out of the box and
 	// can switch it off if it doesn't serve food. When on, staff maintain a

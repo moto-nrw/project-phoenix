@@ -113,7 +113,6 @@ var seedCoverageAllowlist = map[string]string{
 	"platform.operator_passkey_sessions":    "GAP: prod has 4 rows",
 
 	"schedule.activity_exceptions":              "GAP: prod has 2 rows",
-	"schedule.calendar_periods":                 "GAP: prod has 10 rows",
 	"schedule.closing_days":                     "GAP: prod has 3 rows",
 	"schedule.dateframes":                       "empty in prod too",
 	"schedule.grade_transition_roster_removals": "empty in prod too",

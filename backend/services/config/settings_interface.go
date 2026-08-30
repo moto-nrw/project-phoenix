@@ -9,6 +9,12 @@ import (
 // SettingsService defines operations for the schema-driven settings system.
 // All settings are tenant-scoped with a registry default fallback.
 type SettingsService interface {
+	// EnrollmentEnabledForTenants is the typed cross-tenant query used by
+	// enrollment discovery. Every requested positive tenant is present in the
+	// result with either its explicit override or the registered platform
+	// default.
+	EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
+
 	// GetSchema returns the full settings schema with resolved values for the
 	// current tenant, filtered by the user's permissions. Excludes settings
 	// marked AccessOperatorOnly — they are only visible via GetSchemaForOperator.

@@ -11,7 +11,9 @@ import (
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 // stubChildRepo records the account_id and replays a canned result. We
@@ -51,6 +53,22 @@ type stubEnrollableRepo struct {
 	err          error
 }
 
+type stubEnrollmentSettings struct {
+	values map[int64]bool
+	err    error
+}
+
+func (s stubEnrollmentSettings) EnrollmentEnabledForTenants(_ context.Context, tenantIDs []int64) (map[int64]bool, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	result := make(map[int64]bool, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		result[tenantID] = s.values == nil || s.values[tenantID]
+	}
+	return result, nil
+}
+
 func (s *stubEnrollableRepo) ListEnrollable(_ context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
 	s.gotAccountID = accountID
 	return s.result, s.err
@@ -75,9 +93,59 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) parentServic
 	db := testpkg.SetupTestDB(t)
 	return parentService.NewService(parentService.ServiceConfig{
 		EnrollablePhaseRepo: enroll,
+		EnrollmentSettings:  stubEnrollmentSettings{},
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
+}
+
+func fakeAdminContext(t *testing.T) context.Context {
+	t.Helper()
+	runtime, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+			return fn(ctx, bun.Tx{})
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error {
+			return fn(ctx, bun.Tx{})
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	return tenant.WithUnitOfWork(context.Background(), runtime)
+}
+
+func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSettings(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{
+		{SchoolID: 11, PhaseID: 101},
+		{SchoolID: 22, PhaseID: 202},
+	}}
+	svc := parentService.NewService(parentService.ServiceConfig{
+		EnrollablePhaseRepo: repo,
+		EnrollmentSettings:  stubEnrollmentSettings{values: map[int64]bool{11: true, 22: false}},
+		Logger:              slog.Default(),
+	})
+
+	got, err := svc.ListEnrollableForAccount(fakeAdminContext(t), 999)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(11), got[0].SchoolID)
+}
+
+func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *testing.T) {
+	t.Parallel()
+
+	want := errors.New("settings unavailable")
+	svc := parentService.NewService(parentService.ServiceConfig{
+		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{{SchoolID: 11}}},
+		EnrollmentSettings:  stubEnrollmentSettings{err: want},
+		Logger:              slog.Default(),
+	})
+
+	_, err := svc.ListEnrollableForAccount(fakeAdminContext(t), 999)
+	assert.ErrorIs(t, err, want)
 }
 
 // --- ListChildrenForAccount ----------------------------------------------

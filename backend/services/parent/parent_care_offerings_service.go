@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -13,6 +14,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -160,18 +162,37 @@ func (s *service) loadOfferingChangeState(
 	if err != nil {
 		return err
 	}
+	visibility, err := s.loadRequestShareVisibility(ctx, studentID)
+	if err != nil {
+		return err
+	}
 	if pending != nil {
-		view.LastDecision = pending.LastDecision
+		view.LastDecision = visibleOfferingDecision(pending.LastDecision, accountID, visibility)
 	}
 	if pending != nil && pending.Request != nil {
-		view.PendingRequest = pendingOfferingChange(pending, accountID)
+		view.PendingRequest = pendingOfferingChange(
+			pending, accountID,
+			visibility.allows(RequestShareOffering, pending.Request.ID, accountID, pending.Request.SubmittedBy),
+		)
 	}
 	view.EarliestEffectiveFrom, err = s.OfferingChanges.EarliestEffectiveFrom(ctx)
 	return err
 }
 
-func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64) *PendingOfferingChange {
-	if view.Request == nil {
+func visibleOfferingDecision(
+	decision *enrollmentSvc.OfferingChangeDecision,
+	accountID int64,
+	visibility *requestShareVisibility,
+) *enrollmentSvc.OfferingChangeDecision {
+	if decision == nil || !visibility.allows(RequestShareOffering, decision.ID, accountID, decision.SubmittedBy) {
+		return nil
+	}
+	decision.SubmittedBySelf = decision.SubmittedBy == accountID
+	return decision
+}
+
+func pendingOfferingChange(view *enrollmentSvc.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
+	if view.Request == nil || !visible {
 		return nil
 	}
 	pending := &PendingOfferingChange{
@@ -236,6 +257,7 @@ func (s *service) CreateOfferingChangeRequest(
 	effectiveFrom timezone.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
+	recipientGuardianProfileIDs []int64,
 ) (*ChildCareOfferings, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
@@ -249,6 +271,11 @@ func (s *service) CreateOfferingChangeRequest(
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
+	// The note is mandatory only while the school asks the family for a
+	// reason (#2267, story 28).
+	if strings.TrimSpace(note) == "" && s.guardianReasonRequired(ctx, child.tenantID) {
+		return nil, usersSvc.ErrParentRequestReasonRequired
+	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -257,7 +284,7 @@ func (s *service) CreateOfferingChangeRequest(
 		if student.CareEndedOn(timezone.TodayDate()) {
 			return ErrChildCareEnded
 		}
-		_, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
+		created, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,
@@ -265,7 +292,14 @@ func (s *service) CreateOfferingChangeRequest(
 			Note:                        note,
 			CompleteWithdrawalConfirmed: completeWithdrawalConfirmed,
 		})
-		return createErr
+		if createErr != nil {
+			return createErr
+		}
+		// Same transaction as the request row, so a refused share never leaves
+		// a request the family cannot see (#2267).
+		return s.ShareRequestInTx(
+			txCtx, accountID, studentID, RequestShareOffering, created.ID, recipientGuardianProfileIDs,
+		)
 	})
 	if txErr != nil {
 		return nil, txErr
@@ -278,14 +312,19 @@ func (s *service) CreateOfferingChangeRequest(
 	return s.GetChildCareOfferings(ctx, accountID, studentID)
 }
 
-// WithdrawOfferingChangeRequest flips the caller's own pending request to
-// withdrawn. It stays available after the school switches the feature off, but
-// not after the child's care has ended.
-func (s *service) WithdrawOfferingChangeRequest(
+// EditOfferingChangeRequest rewrites the caller's own pending offering change
+// (#2267, story 37). It replaces withdrawal, so the request keeps its id and
+// the co-guardians it was shared with stay recipients.
+func (s *service) EditOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
+	selections []enrollmentSvc.OfferingChangeSelection,
+	effectiveFrom timezone.Date,
+	note string,
+	completeWithdrawalConfirmed bool,
+	expectedVersion string,
 ) (*ChildCareOfferings, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -295,6 +334,11 @@ func (s *service) WithdrawOfferingChangeRequest(
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
+	// The note is mandatory only while the school asks the family for a
+	// reason (#2267, story 28).
+	if strings.TrimSpace(note) == "" && s.guardianReasonRequired(ctx, child.tenantID) {
+		return nil, usersSvc.ErrParentRequestReasonRequired
+	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -303,7 +347,15 @@ func (s *service) WithdrawOfferingChangeRequest(
 		if student.CareEndedOn(timezone.TodayDate()) {
 			return ErrChildCareEnded
 		}
-		return s.OfferingChanges.Withdraw(txCtx, requestID, accountID, studentID)
+		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, enrollmentSvc.CreateOfferingChangeInput{
+			StudentID:                   studentID,
+			AccountID:                   accountID,
+			Selections:                  selections,
+			EffectiveFrom:               effectiveFrom,
+			Note:                        note,
+			CompleteWithdrawalConfirmed: completeWithdrawalConfirmed,
+		}, expectedVersion)
+		return editErr
 	})
 	if txErr != nil {
 		return nil, txErr

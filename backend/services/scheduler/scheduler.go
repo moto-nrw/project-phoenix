@@ -50,6 +50,16 @@ type CleanupJob struct {
 	Run         func(context.Context) (int, error)
 }
 
+// WorkerTracer is injected by the Worker composition root. The scheduler owns
+// job names and outcomes; the adapter owns correlation, logs, and metrics.
+type WorkerTracer struct {
+	StartJob func(context.Context, string) (context.Context, error)
+	Logger   func(context.Context) *slog.Logger
+	Failure  func(context.Context, string, string, error)
+}
+
+var errWorkerTraceStart = errors.New("start worker trace")
+
 // WorkSessionCleaner exposes the cleanup routine for stale work sessions.
 type WorkSessionCleaner interface {
 	CleanupOpenSessions(ctx context.Context) (int, error)
@@ -74,6 +84,10 @@ type EmailChangeTokenCleaner interface {
 // OperatorInvitationCleaner exposes the cleanup routine for operator invitation tokens.
 type OperatorInvitationCleaner interface {
 	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
+}
+
+type CalendarFeedCleaner interface {
+	CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
 }
 
 // FeedbackCleaner exposes the cleanup routine for old feedback entries.
@@ -127,6 +141,7 @@ type Scheduler struct {
 	fileStoreCleaner           FileStoreCleaner
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
+	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
@@ -138,9 +153,11 @@ type Scheduler struct {
 	settings                   SettingsResolver
 	db                         *bun.DB
 	schoolRepo                 platform.SchoolRepository
-	tenantRuntime              tenant.Runtime
+	tenantRuntime              tenant.UnitOfWork
 	tenantRuntimeConfigured    bool
 	tenantRuntimeObserver      func(entryPoint, outcome string)
+	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
+	workerTracer               WorkerTracer
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
 	minuteSnapshotNow          func() time.Time
@@ -329,6 +346,12 @@ func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService)
 	s.timetableCleanup = svc
 }
 
+// SetCalendarFeedCleanup adds calendar tombstone retention to the nightly
+// tenant cleanup window shared with the timetable.
+func (s *Scheduler) SetCalendarFeedCleanup(svc CalendarFeedCleaner) {
+	s.calendarFeedCleanup = svc
+}
+
 // SetTimeTrackingCleanup wires the time-tracking retention cleanup service
 // (Tranche 0b). Same opt-in shape as SetTimetableCleanup — nil is fine, the
 // task simply doesn't register in Start().
@@ -390,7 +413,7 @@ func (s *Scheduler) SetSchoolRepo(repo platform.SchoolRepository) {
 }
 
 // SetTenantRuntime wires the fail-fast tenant execution seam used by workers.
-func (s *Scheduler) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *Scheduler) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = runtime
 	s.tenantRuntimeConfigured = true
 }
@@ -398,6 +421,48 @@ func (s *Scheduler) SetTenantRuntime(runtime tenant.Runtime) {
 // SetTenantRuntimeObserver records fail-closed worker entry and transaction outcomes.
 func (s *Scheduler) SetTenantRuntimeObserver(observer func(entryPoint, outcome string)) {
 	s.tenantRuntimeObserver = observer
+}
+
+// SetUnitOfWorkObserver records transaction, retry, pool-wait, and lock-wait
+// evidence for worker commands.
+func (s *Scheduler) SetUnitOfWorkObserver(observer func(entryPoint, kind, result string, duration time.Duration, retries int)) {
+	s.unitOfWorkObserver = observer
+}
+
+func (s *Scheduler) SetWorkerTracer(tracer WorkerTracer) {
+	s.workerTracer = tracer
+}
+
+func (s *Scheduler) startWorkerJob(ctx context.Context, operation string) (context.Context, error) {
+	if s.workerTracer.StartJob == nil {
+		return ctx, nil
+	}
+	return s.workerTracer.StartJob(ctx, operation)
+}
+
+func (s *Scheduler) traceWorkerFailure(ctx context.Context, operation, outcome string, err error) bool {
+	if s.workerTracer.Failure != nil {
+		s.workerTracer.Failure(ctx, operation, outcome, err)
+		return true
+	}
+	return false
+}
+
+func (s *Scheduler) workerLogger(ctx context.Context) *slog.Logger {
+	if s.workerTracer.Logger != nil {
+		return s.workerTracer.Logger(ctx)
+	}
+	return s.getLogger()
+}
+
+func (s *Scheduler) withUnitOfWork(ctx context.Context) context.Context {
+	ctx = tenant.WithUnitOfWork(ctx, s.tenantRuntime)
+	if s.unitOfWorkObserver == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
+		s.unitOfWorkObserver("worker", string(event.Kind), string(event.Result), event.Duration, event.Retries)
+	})
 }
 
 func (s *Scheduler) observeTenantRuntime(outcome string) {
@@ -482,7 +547,7 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 		return fmt.Errorf("tenant runtime is not configured for %s", opName)
 	}
 
-	ctx = tenant.WithRuntime(ctx, s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	var tenantIDs []int64
 	if s.allTenantIDsLoader != nil {
 		var err error
@@ -556,9 +621,8 @@ func (s *Scheduler) Start() {
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
 
-	// Schedule daily timetable GDPR cleanup (WP-B14). Shares the same toggle
-	// and time as scheduleCleanupTask so admins configure one nightly window
-	// for all retention jobs.
+	// Schedule daily timetable and calendar-feed cleanup. Both share the same
+	// toggle and time as scheduleCleanupTask.
 	s.scheduleTimetableCleanupTask()
 
 	// Schedule daily time-tracking GDPR cleanup (Tranche 0b). Same toggle
@@ -1034,32 +1098,37 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	s.getLogger().Info("running scheduled token cleanup")
-	startTime := time.Now()
-
-	// Use reflection to call CleanupExpiredTokens method
-	if err := s.RunCleanupJobs(); err != nil {
-		s.getLogger().Error("token cleanup failed", "error", err)
-		return
+	if err := s.RunCleanupJobs(); errors.Is(err, errWorkerTraceStart) {
+		s.getLogger().Error("token cleanup trace setup failed")
 	}
-
-	duration := time.Since(startTime)
-	s.getLogger().Info("token cleanup completed",
-		slog.Duration("duration", duration.Round(time.Millisecond)))
 }
 
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.
 func (s *Scheduler) RunCleanupJobs() error {
+	started := time.Now()
+	ctx, err := s.startWorkerJob(context.Background(), "cleanup-jobs")
+	if err != nil {
+		return fmt.Errorf("%w: %v", errWorkerTraceStart, err)
+	}
+	logger := s.workerLogger(ctx)
+	logger.InfoContext(ctx, "running scheduled token cleanup")
 	if len(s.cleanupJobs) == 0 {
-		s.getLogger().Info("no cleanup jobs registered, skipping token cleanup")
+		logger.InfoContext(ctx, "no cleanup jobs registered, skipping token cleanup")
 		return nil
 	}
 
 	if !s.tenantRuntimeConfigured {
-		s.observeTenantRuntime("missing_tenant")
+		if !s.traceWorkerFailure(ctx, "cleanup-jobs", "missing_tenant", tenant.ErrRuntimeRequired) {
+			s.observeTenantRuntime("missing_tenant")
+			logger.ErrorContext(ctx, "runtime operation failed",
+				slog.String("entry_point", "worker"),
+				slog.String("operation", "cleanup-jobs"),
+				slog.String("outcome", "missing_tenant"),
+			)
+		}
 		return tenant.ErrRuntimeRequired
 	}
-	ctx := tenant.WithRuntime(context.Background(), s.tenantRuntime)
+	ctx = s.withUnitOfWork(ctx)
 	var firstErr error
 
 	for _, job := range s.cleanupJobs {
@@ -1079,19 +1148,21 @@ func (s *Scheduler) RunCleanupJobs() error {
 			count, err = job.Run(ctx)
 		}
 		if err != nil {
-			s.getLogger().Error("cleanup job failed",
-				slog.String("job", job.Description),
-				slog.Any("error", err),
-			)
+			if !s.traceWorkerFailure(ctx, job.Description, "transaction_failure", err) {
+				logger.ErrorContext(ctx, "cleanup job failed", slog.String("job", job.Description))
+			}
 			if firstErr == nil {
 				firstErr = err
 			}
 			continue
 		}
 
-		s.getLogger().Info("cleanup job completed",
+		logger.InfoContext(ctx, "cleanup job completed",
 			slog.String("job", job.Description),
 			slog.Int("records_deleted", count))
+	}
+	if firstErr == nil {
+		logger.InfoContext(ctx, "token cleanup completed", slog.Duration("duration", time.Since(started).Round(time.Millisecond)))
 	}
 
 	return firstErr
@@ -2295,11 +2366,11 @@ func combineDayAndTime(day timezone.Date, tod time.Time) time.Time {
 // and activity_exceptions older than the tenant's gdpr.timetable_retention_days.
 // Per-tenant iteration via forEachTenantSettings; dedupe via lastTimetableCleanup.
 
-// scheduleTimetableCleanupTask registers the daily timetable cleanup task
-// when a TimetableCleanupService has been wired in. Nil service → no task.
+// scheduleTimetableCleanupTask registers the shared daily timetable/calendar
+// cleanup task when either cleanup service has been wired in.
 func (s *Scheduler) scheduleTimetableCleanupTask() {
-	if s.timetableCleanup == nil {
-		s.getLogger().Info("timetable GDPR cleanup not configured (no TimetableCleanupService)")
+	if s.timetableCleanup == nil && s.calendarFeedCleanup == nil {
+		s.getLogger().Info("timetable cleanup not configured")
 		return
 	}
 
@@ -2330,24 +2401,39 @@ func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		result, err := s.timetableCleanup.CleanupExpiredTimetableData(cleanupCtx)
-		if err != nil {
-			s.getLogger().Error("timetable cleanup failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return fmt.Errorf("timetable cleanup for tenant %d: %w", tenantID, err)
+		if s.timetableCleanup != nil {
+			result, err := s.timetableCleanup.CleanupExpiredTimetableData(cleanupCtx)
+			if err != nil {
+				s.getLogger().Error("timetable cleanup failed for tenant",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+				return fmt.Errorf("timetable cleanup for tenant %d: %w", tenantID, err)
+			}
+
+			if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
+				s.getLogger().Info("timetable cleanup completed for tenant",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int("instances_deleted", result.InstancesDeleted),
+					slog.Int("exceptions_deleted", result.ExceptionsDeleted),
+					slog.Int("students_affected", result.StudentsAffected),
+					slog.Int("retention_days", result.RetentionDays),
+					slog.Int64("duration_ms", result.DurationMS),
+				)
+			}
 		}
 
-		if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
-			s.getLogger().Info("timetable cleanup completed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("instances_deleted", result.InstancesDeleted),
-				slog.Int("exceptions_deleted", result.ExceptionsDeleted),
-				slog.Int("students_affected", result.StudentsAffected),
-				slog.Int("retention_days", result.RetentionDays),
-				slog.Int64("duration_ms", result.DurationMS),
-			)
+		if s.calendarFeedCleanup != nil {
+			deleted, err := s.calendarFeedCleanup.CleanupExpiredFeedTombstones(cleanupCtx)
+			if err != nil {
+				return fmt.Errorf("calendar feed cleanup for tenant %d: %w", tenantID, err)
+			}
+			if deleted > 0 {
+				s.getLogger().Info("calendar feed cleanup completed for tenant",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int("tombstones_deleted", deleted),
+				)
+			}
 		}
 		return nil
 	})

@@ -97,7 +97,7 @@ type invitationService struct {
 	db                *bun.DB
 	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
-	tenantRuntime     *tenant.Runtime
+	tenantRuntime     *tenant.UnitOfWork
 }
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
@@ -143,10 +143,10 @@ func (s *invitationService) withTenantRuntime(ctx context.Context) context.Conte
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
-func (s *invitationService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *invitationService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 

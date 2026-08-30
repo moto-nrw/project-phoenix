@@ -1,4 +1,4 @@
-package applog_test
+package applog
 
 import (
 	"bytes"
@@ -9,14 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/applog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // newTestLogger creates a logger that writes to a buffer for output inspection.
-// This bypasses applog.New() to avoid mutating slog.SetDefault() across parallel tests.
-// Use applog.New() only in TestNew_SetsDefault where we explicitly test that behavior.
+// This bypasses New() to avoid mutating slog.SetDefault() across parallel tests.
+// Use New() only in TestNew_SetsDefault where we explicitly test that behavior.
 func newTestLogger(buf *bytes.Buffer, format string, level string) *slog.Logger {
 	lvl := slog.LevelInfo
 	switch level {
@@ -40,7 +39,7 @@ func newTestLogger(buf *bytes.Buffer, format string, level string) *slog.Logger 
 func TestNew_SetsDefault(t *testing.T) {
 	t.Parallel()
 
-	logger := applog.New(applog.Config{Level: "info", Format: "json"})
+	logger := New(Config{Level: "info", Format: "json"})
 	require.NotNil(t, logger)
 	assert.Equal(t, logger.Handler(), slog.Default().Handler())
 }
@@ -131,7 +130,7 @@ func TestNew_ParsesLevels(t *testing.T) {
 		{"garbage", slog.LevelInfo}, // fallback
 	} {
 		t.Run(tc.level, func(t *testing.T) {
-			logger := applog.New(applog.Config{Level: tc.level, Format: "json"})
+			logger := New(Config{Level: tc.level, Format: "json"})
 			require.NotNil(t, logger)
 		})
 	}

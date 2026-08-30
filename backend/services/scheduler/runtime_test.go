@@ -29,7 +29,7 @@ func newUnitScheduler(
 		operatorInvitationCleaner,
 		logger,
 	)
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
@@ -37,6 +37,7 @@ func newUnitScheduler(
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	if err != nil {
 		panic(err)
@@ -60,7 +61,7 @@ func unitScheduler(scheduler *Scheduler) *Scheduler {
 			panic("tenant runtime is not configured for the scheduler test package")
 		}
 		scheduler.SetTenantRuntime(runtime)
-		if setter, ok := scheduler.settings.(interface{ SetTenantRuntime(tenant.Runtime) }); ok {
+		if setter, ok := scheduler.settings.(interface{ SetTenantRuntime(tenant.UnitOfWork) }); ok {
 			setter.SetTenantRuntime(runtime)
 		}
 	}

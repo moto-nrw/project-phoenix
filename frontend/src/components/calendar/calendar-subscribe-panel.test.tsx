@@ -1,13 +1,21 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockToastSuccess, mockToastError, mockGetFeed, mockRotateFeed } =
-  vi.hoisted(() => ({
-    mockToastSuccess: vi.fn(),
-    mockToastError: vi.fn(),
-    mockGetFeed: vi.fn(),
-    mockRotateFeed: vi.fn(),
-  }));
+const {
+  mockToastSuccess,
+  mockToastError,
+  mockGetFeed,
+  mockRotateFeed,
+  mockGetStaffFeed,
+  mockRotateStaffFeed,
+} = vi.hoisted(() => ({
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  mockGetFeed: vi.fn(),
+  mockRotateFeed: vi.fn(),
+  mockGetStaffFeed: vi.fn(),
+  mockRotateStaffFeed: vi.fn(),
+}));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
@@ -21,6 +29,8 @@ vi.mock("~/lib/personal-calendar-api", async () => {
     ...actual,
     getParentCalendarFeed: mockGetFeed,
     rotateParentCalendarFeed: mockRotateFeed,
+    getStaffCalendarFeed: mockGetStaffFeed,
+    rotateStaffCalendarFeed: mockRotateStaffFeed,
   };
 });
 
@@ -56,6 +66,32 @@ describe("CalendarSubscribePanel", () => {
     expect(
       screen.getByDisplayValue("https://parents.test/api/calendar-feed/abc"),
     ).toBeInTheDocument();
+  });
+
+  it("shows a visible success state after copying the link", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    mockGetFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/abc",
+      webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Kopieren$/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Kopiert$/ })).toHaveClass(
+        "bg-moto-green",
+      ),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      "https://parents.test/api/calendar-feed/abc",
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("Link kopiert.");
   });
 
   it("passes the subscription URL to Apple Calendar on macOS", async () => {
@@ -138,5 +174,44 @@ describe("CalendarSubscribePanel", () => {
       ).toBeInTheDocument(),
     );
     expect(mockToastSuccess).toHaveBeenCalled();
+  });
+});
+
+describe("CalendarSubscribePanel staff audience", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads the staff feed and explains that the subscription is read-only", async () => {
+    mockGetStaffFeed.mockResolvedValue({
+      url: "https://school.test/api/calendar-feed/staff-token",
+      webcal_url: "webcal://school.test/api/calendar-feed/staff-token",
+    });
+
+    render(<CalendarSubscribePanel audience="staff" />);
+
+    expect(
+      screen.getByText(/Neue, geänderte und abgesagte Termine/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    await waitFor(() => expect(mockGetStaffFeed).toHaveBeenCalledOnce());
+    expect(
+      await screen.findByDisplayValue(
+        "https://school.test/api/calendar-feed/staff-token",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("states that creating a new link ends the previous subscription", async () => {
+    mockGetStaffFeed.mockResolvedValue({ url: "", webcal_url: "" });
+
+    render(<CalendarSubscribePanel audience="staff" />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    expect(
+      await screen.findByText(/der bisherige gilt dann nicht mehr/),
+    ).toBeInTheDocument();
+    expect(mockRotateStaffFeed).not.toHaveBeenCalled();
   });
 });

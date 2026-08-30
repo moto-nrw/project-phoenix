@@ -363,7 +363,10 @@ func (s *service) loadGroupsWithRelations(ctx context.Context, groups []*activeM
 // organisational group mode is deliberately not consulted here: it describes
 // how the school organises children, not who may open a running module.
 func (s *service) hasOperationalOverview(ctx context.Context) (bool, error) {
-	allowed, err := authorize.HasOperationalOverview(ctx, s.deps.Settings, s.deps.UserContext)
+	principal, principalErr := permissions.PrincipalFromContext(ctx)
+	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
+	admin := principalErr == nil && principal.HasAdminScope()
+	allowed, err := authorize.HasOperationalOverview(ctx, s.deps.Settings, s.deps.UserContext, assignmentBound, admin)
 	if err != nil {
 		return false, fmt.Errorf("resolve operational overview scope: %w", err)
 	}

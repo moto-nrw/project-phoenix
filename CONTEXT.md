@@ -9,8 +9,16 @@ auszuführen, bleibt beim Suchen und Filtern erhalten und wird nicht gespeichert
 ## Gruppe
 
 Eine **Gruppe** ist eine dauerhaft gespeicherte OGS-Zuordnung eines Kindes.
-Gruppen strukturieren Berechtigungen und den Betreuungsalltag. Eine Auswahl
-erstellt oder verändert keine Gruppe.
+Gruppen strukturieren den Betreuungsalltag, aber nicht die Sichtbarkeit von
+Kinderdaten. Eine Auswahl erstellt oder verändert keine Gruppe.
+
+Eine **Gruppenübergabe** ordnet eine Gruppe einer weiteren Betreuungskraft
+zeitlich begrenzt als eigene Zuständigkeit zu. Sie erweitert nicht die
+Sichtbarkeit von Kinderdaten.
+
+Der **Sichtbereich** legt fest, ob Betreuungskräfte alle oder nur ihre eigenen
+und übergebenen Gruppen und laufenden Betreuungen sehen. Admins sehen immer
+alles; der Sichtbereich erteilt keine zusätzlichen Handlungsrechte.
 
 ## Rücknahme
 
@@ -91,6 +99,14 @@ Ersatzperson eingetragen ist.
 
 Eine **Vertretung** ordnet einer abwesenden Person für ausgewählte Termine eine
 Ersatzperson zu. Sie kann alle oder nur einen Teil ihrer Abwesenheit abdecken.
+
+Eine **zusätzliche Aufsicht** ordnet einer bereits laufenden Betreuung eine
+weitere Betreuungskraft zu. Sie ersetzt keine abwesende Person und verändert
+weder Gruppenübergaben noch geplante Termine.
+
+Die **Vertretungsübersicht** ist die gemeinsame Arbeitsfläche für
+Gruppenübergaben, Vertretungen und zusätzliche Aufsichten. Die drei Vorgänge
+bleiben trotz der gemeinsamen Arbeitsfläche fachlich getrennt.
 
 ## Anmeldungsänderung
 
@@ -386,3 +402,22 @@ wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
 Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
 sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
 Auftreten eine andere Vorgangskennung.
+
+## Träger
+
+Ein **Träger** ist die Organisation, die mehrere OGS betreibt und finanziert
+(zum Beispiel eine Stadt, ein Wohlfahrtsverband, eine gGmbH). Im System ist
+jede OGS genau einem Träger zugeordnet. Eine einzelne OGS ohne weitere
+Standorte arbeitet direkt im OGS-Portal; der Träger als Ebene wird erst
+sichtbar, wenn mehrere OGS zu ihm gehören.
+_Vermeiden_: Organisation (nur im Code), Umbrella, Trägerverein, Kommune (das
+ist eine Rolle, die ein Träger haben kann, kein Synonym).
+
+## Träger-Büro
+
+Das **Träger-Büro** sind die Personen beim Träger, die über alle seine OGS
+hinweg planen, steuern und nachweisen (Bereichsleitung, Personal, Verwaltung).
+Sie betreuen keine Kinder und sind keine OGS-Admins; ein OGS-Admin mit Zugang
+zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
+_Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
+Träger-Büro, nicht das Büro).

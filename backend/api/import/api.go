@@ -13,7 +13,6 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
@@ -93,63 +92,64 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(common.SecurityPrincipalMiddleware)
 		r.Use(common.TenantOperationMiddleware)
 		withTx := common.TenantTxMiddleware
 
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.downloadStudentTemplate)
+			r.With(common.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.downloadStudentTemplate)
 
 			// Preview - requires UsersCreate
 			// Note: no withTx here — the handler owns its tenant transaction
 			// so the GDPR audit row is committed before the success response.
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.previewStudentImport)
+			r.With(common.RequiresPermission(permUsersCreate)).Post(routePreview, rs.previewStudentImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.importStudents)
+			r.With(common.RequiresPermission(permUsersCreate)).Post(routeImport, rs.importStudents)
 		})
 
 		// Opening balance (Eröffnungssalden) import endpoints (#2132).
 		// Stundenkonto and vacation takeover values are payroll data —
 		// everything sits behind time_tracking:manage.
 		r.Route("/opening-balances", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permTimeTrackingManage), withTx).Get(routeTemplate, rs.DownloadOpeningBalanceTemplate)
+			r.With(common.RequiresPermission(permTimeTrackingManage), withTx).Get(routeTemplate, rs.DownloadOpeningBalanceTemplate)
 			// Note: no withTx on the preview either — the handler owns its
 			// tenant transaction so the GDPR audit row is committed before
 			// the success response.
-			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routePreview, rs.PreviewOpeningBalanceImport)
+			r.With(common.RequiresPermission(permTimeTrackingManage)).Post(routePreview, rs.PreviewOpeningBalanceImport)
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
+			r.With(common.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
 		})
 
 		// Class-list entry (Klassenlisteneintrag, #2382) import endpoints
 		r.Route("/class-list-entries", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadClassListTemplate)
+			r.With(common.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadClassListTemplate)
 			// Note: no withTx on preview/import — the handler owns its tenant
 			// transaction so the GDPR audit row is committed before the
 			// success response.
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewClassListImport)
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportClassList)
+			r.With(common.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewClassListImport)
+			r.With(common.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportClassList)
 		})
 
 		// Staff (Mitarbeiter) import endpoints
 		r.Route("/teachers", func(r chi.Router) {
 			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
+			r.With(common.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadStaffTemplate)
 
 			// Preview - requires UsersCreate
 			// Note: no withTx here — the handler owns its tenant transaction
 			// so the GDPR audit row is committed before the success response.
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
+			r.With(common.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewStaffImport)
 
 			// Actual import - requires UsersCreate
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
-			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
+			r.With(common.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportStaff)
 		})
 	})
 

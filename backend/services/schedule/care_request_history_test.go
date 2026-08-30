@@ -37,7 +37,10 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 	second := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 2, "arrival": "07:30"},
 	))
-	_, err = f.svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), second.ID, f.chain.StudentID, f.chain.AccountID)
+	// Withdrawal is retired (#2267); the status stays valid for historic rows.
+	err = f.repos.CareScheduleChangeRequest.Decide(
+		f.staffCtx(f.chain.AccountID), second.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false,
+	)
 	require.NoError(t, err)
 
 	// Request 3: still pending — must never surface in the history.

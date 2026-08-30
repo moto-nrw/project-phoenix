@@ -98,7 +98,7 @@ type EnrollmentBackfiller interface {
 type guardianInvitationService struct {
 	GuardianInvitationServiceConfig
 	txHandler     *modelBase.TxHandler
-	tenantRuntime *tenant.Runtime
+	tenantRuntime *tenant.UnitOfWork
 }
 
 // NewGuardianInvitationService builds a guardian invitation service. A nil
@@ -121,7 +121,7 @@ func (s *guardianInvitationService) getLogger() *slog.Logger {
 	return cmp.Or(s.Logger, slog.Default())
 }
 
-func (s *guardianInvitationService) SetTenantRuntime(runtime tenant.Runtime) {
+func (s *guardianInvitationService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
 
@@ -129,7 +129,7 @@ func (s *guardianInvitationService) withTenantRuntime(ctx context.Context) conte
 	if s.tenantRuntime == nil {
 		return ctx
 	}
-	return tenant.WithRuntime(ctx, *s.tenantRuntime)
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
 // resolveTokenExpiry follows the documented HasTenantOverride → ResolveInt →

@@ -12,7 +12,7 @@ import (
 
 func savepointContext(t *testing.T, control func(tenant.SavepointAction) error) context.Context {
 	t.Helper()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(_ context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(context.Background(), struct{}{})
 		},
@@ -20,9 +20,10 @@ func savepointContext(t *testing.T, control func(tenant.SavepointAction) error) 
 			return fn(context.Background(), struct{}{})
 		},
 		func(_ context.Context, action tenant.SavepointAction) error { return control(action) },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
-	return tenant.WithRuntime(context.Background(), runtime)
+	return tenant.WithUnitOfWork(context.Background(), runtime)
 }
 
 func TestWithSavepoint_Success(t *testing.T) {

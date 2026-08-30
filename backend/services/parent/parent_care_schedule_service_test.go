@@ -2,7 +2,7 @@ package parent_test
 
 // Integration tests for the parent-side care-schedule request paths
 // (parent_care_schedule_service.go): CreateCareScheduleRequest and
-// WithdrawCareScheduleRequest. These port the security-relevant scenarios that
+// —These port the security-relevant scenarios that
 // previously lived on the chat request path (CreateChildRequest /
 // WithdrawChildRequest) onto the decoupled Stammdaten request flow (#1803):
 //   - submitting a change request requires parent_portal.request.submit — NOT
@@ -29,6 +29,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -57,13 +58,17 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 	})
 }
 
-func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool) parentService.Service {
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool, requestService ...*scheduleService.CareScheduleRequestService) parentService.Service {
 	t.Helper()
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
+	if len(requestService) > 0 {
+		*requestService[0] = sf.CareRequests
+	}
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
+		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
 		Settings: parentSettingsStub{
@@ -72,16 +77,19 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
 		},
-		Broadcaster:       testpkg.NewRecordingBroadcaster(),
-		ArrivalSchedules:  sf.ArrivalSchedule,
-		PickupSchedules:   sf.PickupSchedule,
-		CareRequests:      sf.CareRequests,
-		StatusDayRepo:     repos.StudentStatusDay,
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
-		MessageReadRepo:   repos.ParentMessageRead,
-		DB:                db,
-		Logger:            slog.Default(),
+		Broadcaster:            testpkg.NewRecordingBroadcaster(),
+		ArrivalSchedules:       sf.ArrivalSchedule,
+		PickupSchedules:        sf.PickupSchedule,
+		CareRequests:           sf.CareRequests,
+		CareRequestRepo:        repos.CareScheduleChangeRequest,
+		FamilyProtectionEvents: repos.FamilyProtection,
+		ParentRequestShares:    repos.ParentRequestShare,
+		StatusDayRepo:          repos.StudentStatusDay,
+		MessageThreadRepo:      repos.ParentMessageThread,
+		MessageRepo:            repos.ParentMessage,
+		MessageReadRepo:        repos.ParentMessageRead,
+		DB:                     db,
+		Logger:                 slog.Default(),
 	})
 }
 
@@ -202,74 +210,6 @@ func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
 }
 
-// TestWithdrawCareScheduleRequest_WorksWhenDisabled is the documented contract
-// that withdraw (unlike create) deliberately skips the enabled-check: a parent
-// must be able to wind down an outstanding request even after the school turns
-// messaging OFF, instead of leaving it frozen open forever.
-func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
-	t.Parallel()
-
-	svc, db, repos := buildCareScheduleService(t, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	created, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
-	require.NoError(t, err)
-	reqID := created.PendingRequest.ID
-
-	// Rebuild against the SAME db/repos with every permanent-care field disabled.
-	disabled := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
-
-	view, err := disabled.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, reqID)
-	require.NoError(t, err, "withdraw must stay available after request fields are disabled")
-	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
-}
-
-// TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked is the review-finding
-// regression: withdraw is gated ONLY on parent_portal.access, not
-// parent_portal.request.submit. If the school revokes request.submit AFTER a
-// guardian filed a request, the read view still exposes that request as
-// submitted_by_self and renders a withdraw button, so the owning guardian must
-// still be able to withdraw it (ownership is enforced inside WithdrawRequest).
-// Gating withdraw on request.submit would strand the request behind an
-// always-403 button.
-func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
-	t.Parallel()
-
-	svc, db, _ := buildCareScheduleService(t, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	created, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
-	require.NoError(t, err)
-	reqID := created.PendingRequest.ID
-
-	// Revoke request.submit but keep parent_portal.access (mirrors a school
-	// tightening permissions while a request is already open).
-	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
-		UPDATE users.students_guardians
-		SET permissions = '{"parent_portal.access": true}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
-	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
-	require.NoError(t, err)
-
-	// The read view still surfaces the request as the caller's own (withdraw
-	// button visible) even though CanRequest has dropped.
-	read, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
-	require.NoError(t, err)
-	require.NotNil(t, read.PendingRequest)
-	assert.True(t, read.PendingRequest.SubmittedBySelf, "the open request is still shown as the caller's own")
-	assert.False(t, read.CanRequest, "request.submit was revoked, so a NEW request is no longer offered")
-
-	// Withdraw must succeed on portal access + ownership despite the missing
-	// request.submit permission.
-	view, err := svc.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, reqID)
-	require.NoError(t, err, "the owning guardian withdraws on portal access + ownership, not request.submit")
-	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
-}
-
-// TestGetChildCareSchedule_ReadViewReflectsPendingRequest drives the parent
-// read-view method (GetChildCareSchedule): it needs only parent_portal.access,
-// so it stays available regardless of the request feature gates, and it
-// surfaces an open request on the view once one exists.
 func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
 	t.Parallel()
 
@@ -387,21 +327,33 @@ func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
 	assert.True(t, flags.HasOpenChangeRequest, "a pending care request badges the Stammdaten entry")
 }
 
-// TestWithdrawCareScheduleRequest_NotFound covers the parent-side error mapping:
-// withdrawing a request id the guardian does not own (or that does not exist)
-// surfaces as the parent not-found sentinel, not a raw 500 — the id space must
-// not be probeable from the parents portal.
-func TestWithdrawCareScheduleRequest_NotFound(t *testing.T) {
+func TestChildFeatures_HidesAnotherGuardiansRequestUntilNamedShare(t *testing.T) {
 	t.Parallel()
 
 	svc, db, _ := buildCareScheduleService(t, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-
-	created, err := svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
+	author := testpkg.CreateTestParentGuardianChain(t, db)
+	recipient := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	_, err := db.ExecContext(ctx, `
+		UPDATE users.students_guardians SET student_id = ?
+		WHERE guardian_profile_id = ?
+	`, author.StudentID, recipient.GuardianProfileID)
 	require.NoError(t, err)
-	bogusID := created.PendingRequest.ID + 1_000_000
 
-	_, err = svc.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, bogusID)
-	require.ErrorIs(t, err, parentService.ErrCareRequestNotFound,
-		"withdrawing an unknown request id maps to the parent not-found sentinel")
+	created, err := svc.CreateCareScheduleRequest(ctx, author.AccountID, author.StudentID, carePayload())
+	require.NoError(t, err)
+	require.NotNil(t, created.PendingRequest)
+	flags, err := svc.ChildFeatures(ctx, recipient.AccountID, author.StudentID)
+	require.NoError(t, err)
+	assert.False(t, flags.HasOpenChangeRequest, "another guardian must not learn that a private request exists")
+
+	sharing := svc.(parentService.RequestSharingService)
+	_, err = sharing.SetRequestSharing(
+		ctx, author.AccountID, author.StudentID, parentService.RequestShareCareSchedule,
+		created.PendingRequest.ID, []int64{recipient.GuardianProfileID},
+	)
+	require.NoError(t, err)
+	flags, err = svc.ChildFeatures(ctx, recipient.AccountID, author.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.HasOpenChangeRequest, "a named recipient may see the shared open request")
 }

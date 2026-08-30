@@ -13,16 +13,23 @@ import (
 // such as file deletion or broadcasts.
 type KeyHandler func(ctx context.Context, tenantID int64, value any) (postCommit func(), err error)
 
+type FailureObserver func(key string)
+
 // Registry maps setting keys to their domain-owned handlers. Construct via
 // NewRegistry, populate at boot via Register, then pass Dispatch to the
 // settings/operator resources.
 type Registry struct {
-	handlers map[string]KeyHandler
+	handlers       map[string]KeyHandler
+	observeFailure FailureObserver
 }
 
 // NewRegistry constructs an empty registry.
 func NewRegistry() *Registry {
 	return &Registry{handlers: make(map[string]KeyHandler)}
+}
+
+func (r *Registry) SetFailureObserver(observer FailureObserver) {
+	r.observeFailure = observer
 }
 
 // Register binds a handler to a setting key.
@@ -43,5 +50,9 @@ func (r *Registry) Dispatch(ctx context.Context, tenantID int64, key string, val
 	if !ok {
 		return nil, nil
 	}
-	return handler(ctx, tenantID, value)
+	postCommit, err := handler(ctx, tenantID, value)
+	if err != nil && r.observeFailure != nil {
+		r.observeFailure(key)
+	}
+	return postCommit, err
 }

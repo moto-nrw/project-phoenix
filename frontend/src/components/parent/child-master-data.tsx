@@ -29,6 +29,11 @@ import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ChildMasterDataRequestModal } from "~/components/parent/child-master-data-request-modal";
+import {
+  RequestSharingControl,
+  RequestSharingSelector,
+} from "~/components/parent/request-sharing-control";
+import { RequestEditModal } from "~/components/parent/request-edit-modal";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -308,14 +313,34 @@ function IdentitySection({
   const locale = useLocale();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const requestable = features.master_data_request_enabled;
-  const firstNamePending = pendingByField.has("person/first_name");
-  const lastNamePending = pendingByField.has("person/last_name");
-  const birthdayPending = pendingByField.has("person/birthday");
-  const schoolClassPending = pendingByField.has("student/school_class");
+  const refresh = useCallback(() => {
+    void (async () => {
+      try {
+        onApplied(await getChildMasterData(studentId));
+      } catch (err) {
+        logger.warn("master_data_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: studentId,
+        });
+      }
+    })();
+  }, [onApplied, studentId]);
 
-  const submit = async (changes: MasterDataChangeInput[]) => {
-    const submitted = await submitMasterDataRequest(studentId, changes);
+  const requestable = features.master_data_request_enabled;
+  const firstNamePending = pendingByField.get("person/first_name");
+  const lastNamePending = pendingByField.get("person/last_name");
+  const birthdayPending = pendingByField.get("person/birthday");
+  const schoolClassPending = pendingByField.get("student/school_class");
+
+  const submit = async (
+    changes: MasterDataChangeInput[],
+    recipientIds: string[],
+  ) => {
+    const submitted = await submitMasterDataRequest(
+      studentId,
+      changes,
+      recipientIds,
+    );
     onApplied({
       ...data,
       pending_changes: mergePendingChanges(data.pending_changes, submitted),
@@ -360,16 +385,21 @@ function IdentitySection({
     >
       <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <IdentityFact
+          studentId={studentId}
           label={t("fields.firstName")}
           value={data.first_name}
           pending={firstNamePending}
+          onEdited={refresh}
         />
         <IdentityFact
+          studentId={studentId}
           label={t("fields.lastName")}
           value={data.last_name}
           pending={lastNamePending}
+          onEdited={refresh}
         />
         <IdentityFact
+          studentId={studentId}
           label={t("fields.birthday")}
           value={
             data.birthday
@@ -377,11 +407,14 @@ function IdentitySection({
               : t("notSet")
           }
           pending={birthdayPending}
+          onEdited={refresh}
         />
         <IdentityFact
+          studentId={studentId}
           label={t("fields.schoolClass")}
           value={data.school_class || t("notSet")}
           pending={schoolClassPending}
+          onEdited={refresh}
         />
       </dl>
       {!requestable && (
@@ -389,6 +422,7 @@ function IdentitySection({
       )}
       {modalOpen && (
         <ChildMasterDataRequestModal
+          studentId={studentId}
           data={data}
           pendingFields={pendingFields}
           onClose={() => setModalOpen(false)}
@@ -403,17 +437,64 @@ type IdentityFieldKey =
   "first_name" | "last_name" | "birthday" | "school_class";
 
 function IdentityFact({
+  studentId,
   label,
   value,
   pending,
-}: Readonly<{ label: string; value: string; pending: boolean }>) {
+  onEdited,
+}: Readonly<{
+  studentId: string;
+  label: string;
+  value: string;
+  pending?: MasterDataChange;
+  onEdited?: () => void;
+}>) {
   const t = useTranslations("parentMasterData");
+  const [editing, setEditing] = useState(false);
+  // Nur Textwerte lassen sich hier ändern. Die Abholarten sind eine Tabelle
+  // und werden im eigenen Abschnitt geändert.
+  const editableValue =
+    typeof pending?.new_value === "string" ? pending.new_value : null;
   return (
     <div className="min-w-0">
-      <dt className="flex min-h-6 items-center gap-2 text-sm text-gray-500">
+      <dt className="flex min-h-6 flex-wrap items-center gap-2 text-sm text-gray-500">
         <span>{label}</span>
-        {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
+        {pending && (
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge label={t("pendingBadge")} tone="orange" />
+            <RequestSharingControl
+              studentId={studentId}
+              requestType="master_data"
+              requestId={pending.id}
+              isSelf={pending.is_self === true}
+            />
+            {pending.is_self === true && editableValue !== null && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="max-sm:min-h-11"
+                onClick={() => setEditing(true)}
+              >
+                {t("requestEdit")}
+              </Button>
+            )}
+          </div>
+        )}
       </dt>
+      {pending && editing && editableValue !== null && (
+        <RequestEditModal
+          studentId={studentId}
+          request={{
+            type: "master_data",
+            id: pending.id,
+            label,
+            value: editableValue,
+          }}
+          onClose={() => setEditing(false)}
+          onSaved={() => onEdited?.()}
+        />
+      )}
       <dd className="mt-1 text-base font-medium break-words text-gray-900">
         {value}
       </dd>
@@ -442,6 +523,8 @@ function DepartureSection({
   );
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [requestSaved, setRequestSaved] = useState(false);
   const current = useMemo(
     () => normalizeDepartureModes(data.allowed_departure_modes),
     [data.allowed_departure_modes],
@@ -483,19 +566,24 @@ function DepartureSection({
     setStatus("saving");
     setMessage(null);
     try {
-      const submitted = await submitMasterDataRequest(studentId, [
-        {
-          target: "departure",
-          field_key: "allowed_departure_modes",
-          value: modes,
-        },
-      ]);
-      setStatus("saved");
-      setMessage(t("requestSubmitted"));
+      const submitted = await submitMasterDataRequest(
+        studentId,
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: modes,
+          },
+        ],
+        recipientIds,
+      );
       onApplied({
         ...data,
         pending_changes: mergePendingChanges(data.pending_changes, submitted),
       });
+      setRequestSaved(true);
+      setStatus("saved");
+      setMessage(t("requestSubmitted"));
       try {
         const next = await getChildMasterData(studentId);
         onApplied(next);
@@ -525,6 +613,14 @@ function DepartureSection({
       concept="pickup"
     >
       {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
+      {pending && (
+        <RequestSharingControl
+          studentId={studentId}
+          requestType="master_data"
+          requestId={pending.id}
+          isSelf={pending.is_self === true}
+        />
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {DEPARTURE_DAYS.map((day) => (
           <fieldset
@@ -555,6 +651,13 @@ function DepartureSection({
           </fieldset>
         ))}
       </div>
+      {requestable && !requestSaved && (
+        <RequestSharingSelector
+          studentId={studentId}
+          selected={recipientIds}
+          onChange={setRecipientIds}
+        />
+      )}
       {features.master_data_request_enabled ? (
         <div className="flex flex-col-reverse items-stretch gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-end">
           {message && (
@@ -574,7 +677,9 @@ function DepartureSection({
             variant="primary"
             size="md"
             className="min-h-11 sm:min-h-0"
-            disabled={!changed || !requestable || status === "saving"}
+            disabled={
+              !changed || !requestable || status === "saving" || requestSaved
+            }
             onClick={() => void submit()}
           >
             {t("requestButton")}

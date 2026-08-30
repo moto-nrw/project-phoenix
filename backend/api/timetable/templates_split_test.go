@@ -18,7 +18,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
@@ -74,6 +73,11 @@ func splitRouter(parentCtx context.Context, res *Resource, perms []string) chi.R
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 1, TenantID: tenantID, Permissions: perms})
+			if err != nil {
+				panic(err)
+			}
+			ctx = permissions.WithPrincipal(ctx, principal)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
@@ -82,9 +86,19 @@ func splitRouter(parentCtx context.Context, res *Resource, perms []string) chi.R
 	r.Get("/templates", res.listTemplates)
 	r.Get("/templates/{id}", res.getTemplate)
 	r.Put("/templates/{id}", res.updateTemplate)
-	r.With(authorize.RequiresPermission(permissions.SchedulesManage)).
+	requireSchedulesManage := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			principal, err := permissions.PrincipalFromContext(req.Context())
+			if err != nil || !principal.HasPermission(permissions.SchedulesManage) {
+				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, req)
+		})
+	}
+	r.With(requireSchedulesManage).
 		Post("/templates/{id}/split", res.splitTemplate)
-	r.With(authorize.RequiresPermission(permissions.SchedulesManage)).
+	r.With(requireSchedulesManage).
 		Post("/templates/{id}/end", res.endTemplate)
 	return r
 }

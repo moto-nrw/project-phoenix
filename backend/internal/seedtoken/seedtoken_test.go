@@ -1,8 +1,6 @@
 package seedtoken
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,13 +32,7 @@ func TestShouldExposeInvitationToken(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodPost, "http://"+tt.host+"/", nil)
-			req.Host = tt.host
-			if tt.header != "" {
-				req.Header.Set(Header, tt.header)
-			}
-
-			assert.Equal(t, tt.want, ShouldExposeInvitationToken(req, tt.env))
+			assert.Equal(t, tt.want, ShouldExposeInvitationToken(tt.header, tt.host, tt.env))
 		})
 	}
 }

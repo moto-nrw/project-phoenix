@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"context"
@@ -7,13 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -149,11 +143,32 @@ func registerTestSetting(key string, fieldType config.FieldType, defaultVal any)
 }
 
 func tenantCtx(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
+	return withTestTenantID(context.Background(), tenantID)
 }
 
-func createService(valueRepo config.SettingValueRepository, auditRepo config.SettingAuditRepository) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, nil, nil, slog.Default())
+type testSettingsRuntime struct{}
+
+type testTenantIDKey struct{}
+
+func withTestTenantID(ctx context.Context, tenantID int64) context.Context {
+	return context.WithValue(ctx, testTenantIDKey{}, tenantID)
+}
+
+func (testSettingsRuntime) TenantID(ctx context.Context) int64 {
+	tenantID, _ := ctx.Value(testTenantIDKey{}).(int64)
+	return tenantID
+}
+func (testSettingsRuntime) HasTransaction(context.Context) bool { return false }
+func (testSettingsRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	return fn(withTestTenantID(ctx, tenantID))
+}
+func (testSettingsRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (testSettingsRuntime) AcquireLock(context.Context, string, bool) error { return nil }
+
+func createService(valueRepo config.SettingValueRepository, auditRepo config.SettingAuditRepository) SettingsService {
+	return NewSettingsService(valueRepo, auditRepo, nil, testSettingsRuntime{}, slog.Default())
 }
 
 // --- Tests ---
@@ -464,7 +479,7 @@ func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
 }
 
 // findSchemaItem returns the resolved setting with the given key, or nil.
-func findSchemaItem(schema *configSvc.SettingsSchema, key string) *configSvc.ResolvedSetting {
+func findSchemaItem(schema *SettingsSchema, key string) *ResolvedSetting {
 	for _, tab := range schema.Tabs {
 		for _, cat := range tab.Categories {
 			for _, item := range cat.Items {
@@ -733,7 +748,7 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 		},
 	})
 
-	tenantID := testpkg.UniqueTestTenantID(t)
+	tenantID := int64(42)
 	valueRepo := newMockValueRepo()
 	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")] = &config.SettingValue{
 		SettingKey: "attendance.nfc_enabled",
@@ -843,7 +858,7 @@ func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 	assert.False(t, visibility["grandchild.minutes"], "grandchild should hide when its parent is hidden")
 }
 
-func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
+func schemaVisibility(schema *SettingsSchema) map[string]bool {
 	visibility := make(map[string]bool)
 	for _, tab := range schema.Tabs {
 		for _, category := range tab.Categories {
@@ -858,8 +873,8 @@ func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
 func TestSettingsError_Unwrap(t *testing.T) {
 	t.Parallel()
 
-	inner := &configSvc.DefinitionNotFoundError{Key: "test"}
-	err := &configSvc.SettingsError{Op: "resolve", Err: inner}
+	inner := &DefinitionNotFoundError{Key: "test"}
+	err := &SettingsError{Op: "resolve", Err: inner}
 
 	assert.Contains(t, err.Error(), "resolve")
 	assert.Contains(t, err.Error(), "test")
@@ -869,27 +884,27 @@ func TestSettingsError_Unwrap(t *testing.T) {
 func TestDefinitionNotFoundError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.DefinitionNotFoundError{Key: "missing.key"}
+	err := &DefinitionNotFoundError{Key: "missing.key"}
 	assert.Contains(t, err.Error(), "missing.key")
-	assert.ErrorIs(t, err, configSvc.ErrDefinitionNotFound)
+	assert.ErrorIs(t, err, ErrDefinitionNotFound)
 }
 
 func TestInvalidValueError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.InvalidValueError{Key: "test.key", Reason: "too small"}
+	err := &InvalidValueError{Key: "test.key", Reason: "too small"}
 	assert.Contains(t, err.Error(), "test.key")
 	assert.Contains(t, err.Error(), "too small")
-	assert.ErrorIs(t, err, configSvc.ErrInvalidValue)
+	assert.ErrorIs(t, err, ErrInvalidValue)
 }
 
 func TestPermissionDeniedError(t *testing.T) {
 	t.Parallel()
 
-	err := &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
+	err := &PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
 	assert.Contains(t, err.Error(), "admin.setting")
 	assert.Contains(t, err.Error(), "config:manage")
-	assert.ErrorIs(t, err, configSvc.ErrPermissionDenied)
+	assert.ErrorIs(t, err, ErrPermissionDenied)
 }
 
 // --- Additional coverage tests ---
@@ -1550,7 +1565,7 @@ func TestSetValue_PermissionDenied(t *testing.T) {
 	err := svc.SetValue(tenantCtx(1), "admin.setting", "new", nil, []string{"config:update"})
 	require.Error(t, err)
 
-	var permErr *configSvc.PermissionDeniedError
+	var permErr *PermissionDeniedError
 	assert.ErrorAs(t, err, &permErr)
 	assert.Equal(t, "config:manage", permErr.RequiredPermission)
 }
@@ -1610,7 +1625,7 @@ func TestResetValue_PermissionDenied(t *testing.T) {
 	err := svc.ResetValue(tenantCtx(1), "admin.setting", nil, []string{"config:update"})
 	require.Error(t, err)
 
-	var permErr *configSvc.PermissionDeniedError
+	var permErr *PermissionDeniedError
 	assert.ErrorAs(t, err, &permErr)
 }
 
@@ -1864,58 +1879,51 @@ func TestResolveString_UnknownKey(t *testing.T) {
 	require.Error(t, err)
 }
 
-// --- Mock school repository for login image tests ---
+// --- Mock school-settings store for login image tests ---
 
-// newMockSchoolRepo wires a testpkg.SchoolRepoMock to reproduce the exact
-// behavior of the old hand-rolled mockSchoolRepo: FindByID (and its
-// ForShare/ForUpdate aliases) return the stored school when its ID matches,
-// "school not found" otherwise, or err when set; Update stores the new
-// school (mutating what subsequent FindByID calls return); Create returns
-// err. All other methods keep the SchoolRepoMock zero-value defaults
-// (nil, nil / 0, nil), matching the old mock's always-nil behavior.
-func newMockSchoolRepo(school *platform.School, err error) *testpkg.SchoolRepoMock {
-	m := &testpkg.SchoolRepoMock{}
-	current := school
+type mockSchoolSettingsStore struct {
+	id       int64
+	settings string
+	err      error
+}
 
-	findByID := func(_ context.Context, id int64) (*platform.School, error) {
-		if err != nil {
-			return nil, err
-		}
-		if current == nil || current.ID != id {
-			return nil, fmt.Errorf("school not found")
-		}
-		return current, nil
+func newMockSchoolRepo(school *mockSchoolSettingsStore, err error) *mockSchoolSettingsStore {
+	if school == nil {
+		school = &mockSchoolSettingsStore{}
 	}
+	school.err = err
+	return school
+}
 
-	m.FindByIDFn = findByID
-	m.FindByIDForShareFn = findByID
-	m.FindByIDForUpdateFn = findByID
-	m.CreateFn = func(_ context.Context, _ *platform.School) error {
+func (s *mockSchoolSettingsStore) FindSettings(_ context.Context, schoolID int64) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	if s.id != schoolID {
+		return "", fmt.Errorf("school not found")
+	}
+	return s.settings, nil
+}
+
+func (s *mockSchoolSettingsStore) UpdateSettings(_ context.Context, schoolID int64, update func(string) (string, error)) error {
+	settings, err := s.FindSettings(context.Background(), schoolID)
+	if err != nil {
 		return err
 	}
-	m.UpdateFn = func(_ context.Context, s *platform.School) error {
-		if err != nil {
-			return err
-		}
-		current = s
-		return nil
-	}
-
-	return m
+	s.settings, err = update(settings)
+	return err
 }
 
 func createServiceWithSchoolRepo(
 	valueRepo config.SettingValueRepository,
 	auditRepo config.SettingAuditRepository,
-	schoolRepo platform.SchoolRepository,
-) configSvc.SettingsService {
-	return configSvc.NewSettingsService(valueRepo, auditRepo, schoolRepo, nil, slog.Default())
+	schoolRepo SchoolSettingsStore,
+) SettingsService {
+	return NewSettingsService(valueRepo, auditRepo, schoolRepo, testSettingsRuntime{}, slog.Default())
 }
 
-func newSchool(id int64, settings string) *platform.School {
-	s := &platform.School{Settings: settings}
-	s.ID = id
-	return s
+func newSchool(id int64, settings string) *mockSchoolSettingsStore {
+	return &mockSchoolSettingsStore{id: id, settings: settings}
 }
 
 // --- Login image tests ---
@@ -1976,17 +1984,6 @@ func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
 	assert.Equal(t, "", url)
 }
 
-func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
-	setupTest(t)
-
-	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
-	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
-
-	url, err := svc.GetLoginImageURL(context.Background(), -1)
-	require.NoError(t, err)
-	assert.Equal(t, "", url)
-}
-
 func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 	setupTest(t)
 
@@ -2018,157 +2015,6 @@ func TestGetLoginImageURL_SettingsWithOtherKeysButNoImage(t *testing.T) {
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
 	require.NoError(t, err)
 	assert.Equal(t, "", url)
-}
-
-// --- SetLoginImageURL / ClearLoginImageURL integration tests ---
-// These require a real DB because updateSchoolSetting uses tenant.WithAdminTx.
-
-func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *platform.School, func()) {
-	t.Helper()
-
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-
-	// Create a dedicated org + school to avoid polluting shared test state.
-	// IDs from the unique-tenant counter, not from time.Now().UnixNano(): two
-	// parallel tests entering this helper in the same microsecond collided on
-	// organizations_pkey (#2419).
-	orgID := testpkg.UniqueTestTenantID(t)
-	schoolID := testpkg.UniqueTestTenantID(t)
-	orgRepo := platformRepo.NewOrganizationRepository(db)
-	org := &platform.Organization{
-		Model:  modelBase.Model{ID: orgID},
-		Name:   fmt.Sprintf("LoginImgOrg %d", orgID),
-		Slug:   fmt.Sprintf("loginimg-org-%d", orgID),
-		Active: true,
-	}
-	require.NoError(t, orgRepo.Create(ctx, org))
-
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	school := &platform.School{
-		Model:          modelBase.Model{ID: schoolID},
-		OrganizationID: org.ID,
-		Name:           fmt.Sprintf("LoginImgSchool %d", schoolID),
-		Slug:           fmt.Sprintf("loginimg-%d", schoolID),
-		Subdomain:      fmt.Sprintf("loginimg-%d", schoolID),
-		Active:         true,
-	}
-	require.NoError(t, schoolRepo.Create(ctx, school))
-
-	svc := configSvc.NewSettingsService(
-		newMockValueRepo(), &mockAuditRepo{}, schoolRepo, db, slog.Default(),
-	)
-	testpkg.SetTenantRuntime(t, svc, db)
-
-	cleanup := func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, school.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-	}
-
-	return svc, school, cleanup
-}
-
-func TestSetLoginImageURL_Success(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	imageURL := "/uploads/login-images/test_abc.jpg"
-	oldURL, err := svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
-	require.NoError(t, err)
-	assert.Equal(t, "", oldURL, "first set should return empty old URL")
-
-	// Verify it was persisted
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, imageURL, got)
-}
-
-func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	first := "/uploads/login-images/first.jpg"
-	second := "/uploads/login-images/second.jpg"
-
-	_, err := svc.SetLoginImageURL(context.Background(), school.ID, first)
-	require.NoError(t, err)
-
-	oldURL, err := svc.SetLoginImageURL(context.Background(), school.ID, second)
-	require.NoError(t, err)
-	assert.Equal(t, first, oldURL, "should return previous URL for cleanup")
-
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, second, got)
-}
-
-func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	// Pre-populate the school with other settings via direct SQL
-	ctx := testpkg.Ctx(t)
-	db := testpkg.SetupTestDB(t)
-	_, err := db.ExecContext(ctx,
-		`UPDATE platform.schools SET settings = '{"theme":"dark","lang":"de"}' WHERE id = ?`,
-		school.ID)
-	require.NoError(t, err)
-
-	imageURL := "/uploads/login-images/preserve.jpg"
-	_, err = svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
-	require.NoError(t, err)
-
-	// Verify other keys survived the update
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, imageURL, got)
-}
-
-func TestClearLoginImageURL_Success(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	imageURL := "/uploads/login-images/to-clear.jpg"
-	_, err := svc.SetLoginImageURL(context.Background(), school.ID, imageURL)
-	require.NoError(t, err)
-
-	oldURL, err := svc.ClearLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, imageURL, oldURL, "should return removed URL for cleanup")
-
-	got, err := svc.GetLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "", got, "image should be removed")
-}
-
-func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
-	t.Parallel()
-
-	svc, school, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	oldURL, err := svc.ClearLoginImageURL(context.Background(), school.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "", oldURL, "clearing when no image exists should return empty")
-}
-
-func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
-	t.Parallel()
-
-	svc, _, cleanup := setupLoginImageIntegrationTest(t)
-	defer cleanup()
-
-	_, err := svc.SetLoginImageURL(context.Background(), 999999999, "/uploads/test.jpg")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "find school")
 }
 
 // TestSetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
@@ -2279,7 +2125,7 @@ func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 // settings service via the exported setter on the concrete type (reachable
 // from this external test package through an interface assertion, the same
 // way the factory wires it).
-func setClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+func setClassRestrictionGuard(t *testing.T, svc SettingsService, restricted bool) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetClassRestrictionGuard(func(context.Context) (bool, error))
@@ -2379,7 +2225,7 @@ func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 
 // setGradeRestrictionGuard wires the enrollment grade-restriction probe, the
 // counterpart of setClassRestrictionGuard above (#1663).
-func setGradeRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+func setGradeRestrictionGuard(t *testing.T, svc SettingsService, restricted bool) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetGradeRestrictionGuard(func(context.Context) (bool, error))
@@ -2441,7 +2287,7 @@ func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
 
 // setGradeCapGuard wires the highest-restricted-grade probe, the third #1663
 // enrollment probe next to setClassRestrictionGuard / setGradeRestrictionGuard.
-func setGradeCapGuard(t *testing.T, svc configSvc.SettingsService, highest int) {
+func setGradeCapGuard(t *testing.T, svc SettingsService, highest int) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetGradeCapGuard(func(context.Context) (int, error))

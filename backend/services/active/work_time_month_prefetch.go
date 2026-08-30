@@ -166,7 +166,7 @@ func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffI
 
 type prefetchedScheduleReader struct{ p *monthPrefetch }
 
-func (r prefetchedScheduleReader) FindByStaffIDsValidInRange(_ context.Context, staffIDs []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+func (r prefetchedScheduleReader) FindByStaffIDsValidInRange(_ context.Context, staffIDs []int64, _, _ configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 	var entries []*configModels.StaffWorkSchedule
 	for _, staffID := range staffIDs {
 		entries = append(entries, r.p.schedules[staffID]...)

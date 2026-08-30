@@ -13,11 +13,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.Runtime {
+func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.UnitOfWork {
 	if db != nil {
 		return testpkg.TenantRuntime(t, db)
 	}
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, bun.Tx{})
 		},
@@ -25,6 +25,7 @@ func newMockTenantRuntime(t testing.TB, db *bun.DB) tenant.Runtime {
 			return fn(ctx, bun.Tx{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	if err != nil {
 		panic(err)
@@ -41,7 +42,7 @@ func newMockPushSubscriptionService(
 	logger *slog.Logger,
 ) PushSubscriptionService {
 	service := NewPushSubscriptionService(db, repo, accountTenants, vapid, logger)
-	service.(interface{ SetTenantRuntime(tenant.Runtime) }).SetTenantRuntime(newMockTenantRuntime(t, db))
+	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(newMockTenantRuntime(t, db))
 	return service
 }
 

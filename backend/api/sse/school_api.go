@@ -54,7 +54,6 @@ func (rs *Resource) SchoolRouter() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.SchoolMiddleware)
-
 		r.Get("/events", rs.schoolEventsHandler)
 	})
 

@@ -13,7 +13,7 @@ import (
 
 func TestDetachedTenantContextDropsAmbientTransactionAndHooks(t *testing.T) {
 	t.Parallel()
-	runtime, err := tenant.NewRuntime(
+	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
 			return fn(ctx, struct{}{})
 		},
@@ -21,11 +21,12 @@ func TestDetachedTenantContextDropsAmbientTransactionAndHooks(t *testing.T) {
 			return fn(ctx, struct{}{})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
 	)
 	require.NoError(t, err)
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
-	ctx := tenant.WithRuntime(context.Background(), runtime)
+	ctx := tenant.WithUnitOfWork(context.Background(), runtime)
 
 	require.NoError(t, tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		var tx bun.Tx

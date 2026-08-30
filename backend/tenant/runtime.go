@@ -5,35 +5,64 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 var ErrRuntimeRequired = errors.New("tenant: runtime is required")
 
 type runtimeKey struct{}
 type runtimeObserverKey struct{}
+type transactionKey struct{}
 
-type RuntimeOutcome string
+type UnitOfWorkEventKind string
 
 const (
-	RuntimeTransaction   RuntimeOutcome = "transaction"
-	RuntimeMissingTenant RuntimeOutcome = "missing_tenant"
+	UnitOfWorkTransaction   UnitOfWorkEventKind = "transaction"
+	UnitOfWorkMissingTenant UnitOfWorkEventKind = "missing_tenant"
+	UnitOfWorkPoolWait      UnitOfWorkEventKind = "pool_wait"
+	UnitOfWorkLockWait      UnitOfWorkEventKind = "lock_wait"
 )
 
-type RuntimeEvent struct {
-	Outcome RuntimeOutcome
-	Err     error
+type UnitOfWorkResult string
+
+const (
+	UnitOfWorkCommitted     UnitOfWorkResult = "commit"
+	UnitOfWorkRolledBack    UnitOfWorkResult = "rollback"
+	UnitOfWorkPanicked      UnitOfWorkResult = "panic"
+	UnitOfWorkNotStarted    UnitOfWorkResult = "not_started"
+	UnitOfWorkCommitUnknown UnitOfWorkResult = "commit_unknown"
+)
+
+type UnitOfWorkEvent struct {
+	Kind     UnitOfWorkEventKind
+	Result   UnitOfWorkResult
+	Err      error
+	Duration time.Duration
+	Retries  int
 }
 
-// Runtime is the tenant execution seam shared by HTTP requests and workers.
-// Its functions are supplied by the composition root; the tenant package does
-// not know which database or transaction implementation backs them.
-type Runtime struct {
+// Compatibility names for callers migrating from the tenant-propagation
+// runtime introduced by #2642. They are aliases, not a second implementation.
+type RuntimeOutcome = UnitOfWorkEventKind
+type RuntimeEvent = UnitOfWorkEvent
+
+const (
+	RuntimeTransaction   = UnitOfWorkTransaction
+	RuntimeMissingTenant = UnitOfWorkMissingTenant
+)
+
+// UnitOfWork is the transaction lifecycle seam shared by HTTP and workers.
+// Its functions are supplied by the composition root; this package does not
+// know which database or transaction adapter backs them.
+type UnitOfWork struct {
 	withinTenant func(context.Context, int64, func(context.Context, any) error) error
 	withinAdmin  func(context.Context, func(context.Context, any) error) error
 	savepoint    func(context.Context, SavepointAction) error
+	retryable    func(error) bool
+	acquireLock  func(context.Context, string, bool) error
 }
 
-// SavepointAction is private to this package's protocol with Runtime; the
+// SavepointAction is private to this package's UnitOfWork protocol; the
 // transaction adapter never sees these values (see SavepointController).
 type SavepointAction uint8
 
@@ -53,7 +82,7 @@ type SavepointController interface {
 	ReleaseSavepoint(context.Context) error
 }
 
-// SavepointFunc adapts a SavepointController to the function NewRuntime takes.
+// SavepointFunc adapts a SavepointController to the function NewUnitOfWork takes.
 func SavepointFunc(controller SavepointController) func(context.Context, SavepointAction) error {
 	return func(ctx context.Context, action SavepointAction) error {
 		switch action {
@@ -69,29 +98,39 @@ func SavepointFunc(controller SavepointController) func(context.Context, Savepoi
 	}
 }
 
-func NewRuntime(
+func NewUnitOfWork(
 	withinTenant func(context.Context, int64, func(context.Context, any) error) error,
 	withinAdmin func(context.Context, func(context.Context, any) error) error,
 	savepoint func(context.Context, SavepointAction) error,
-) (Runtime, error) {
-	if withinTenant == nil || withinAdmin == nil || savepoint == nil {
-		return Runtime{}, fmt.Errorf("%w: transaction functions are required", ErrRuntimeRequired)
+	retryable func(error) bool,
+	acquireLocks ...func(context.Context, string, bool) error,
+) (UnitOfWork, error) {
+	if withinTenant == nil || withinAdmin == nil || savepoint == nil || retryable == nil {
+		return UnitOfWork{}, fmt.Errorf("%w: transaction functions are required", ErrRuntimeRequired)
 	}
-	return Runtime{withinTenant: withinTenant, withinAdmin: withinAdmin, savepoint: savepoint}, nil
+	var acquireLock func(context.Context, string, bool) error
+	if len(acquireLocks) > 0 {
+		acquireLock = acquireLocks[0]
+	}
+	return UnitOfWork{withinTenant: withinTenant, withinAdmin: withinAdmin, savepoint: savepoint, retryable: retryable, acquireLock: acquireLock}, nil
 }
 
-func WithRuntime(ctx context.Context, runtime Runtime) context.Context {
-	return context.WithValue(ctx, runtimeKey{}, runtime)
+func WithUnitOfWork(ctx context.Context, uow UnitOfWork) context.Context {
+	return context.WithValue(ctx, runtimeKey{}, uow)
 }
 
-// WithRuntimeObserver reports completed runtime transactions to a composition
-// boundary without coupling this package to HTTP or worker metrics.
-func WithRuntimeObserver(ctx context.Context, observer func(RuntimeEvent)) context.Context {
+// WithUnitOfWorkObserver reports completed transactions to a composition seam
+// without coupling this package to HTTP or worker metrics.
+func WithUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent)) context.Context {
 	return context.WithValue(ctx, runtimeObserverKey{}, observer)
 }
 
-func observeRuntime(ctx context.Context, event RuntimeEvent) {
-	observer, _ := ctx.Value(runtimeObserverKey{}).(func(RuntimeEvent))
+func WithRuntimeObserver(ctx context.Context, observer func(RuntimeEvent)) context.Context {
+	return WithUnitOfWorkObserver(ctx, observer)
+}
+
+func observeUnitOfWork(ctx context.Context, event UnitOfWorkEvent) {
+	observer, _ := ctx.Value(runtimeObserverKey{}).(func(UnitOfWorkEvent))
 	if observer != nil {
 		observer(event)
 	}
@@ -100,30 +139,131 @@ func observeRuntime(ctx context.Context, event RuntimeEvent) {
 // ObserveMissingTenant reports an entry-point rejection that happens before a
 // tenant runtime operation can start, such as an invalid tenant ID in a token.
 func ObserveMissingTenant(ctx context.Context, err error) {
-	observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeMissingTenant, Err: err})
+	observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkMissingTenant, Err: err})
 }
 
-func runtimeFromContext(ctx context.Context) (Runtime, error) {
-	runtime, ok := ctx.Value(runtimeKey{}).(Runtime)
-	if !ok || runtime.withinTenant == nil || runtime.withinAdmin == nil || runtime.savepoint == nil {
-		return Runtime{}, ErrRuntimeRequired
+// ObservePoolWait and ObserveLockWait let transaction adapters and repository
+// lock helpers contribute timing evidence through the same entry-point
+// observer as the UnitOfWork itself.
+func ObservePoolWait(ctx context.Context, duration time.Duration) {
+	observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkPoolWait, Duration: duration})
+}
+
+func ObserveLockWait(ctx context.Context, duration time.Duration) {
+	observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkLockWait, Duration: duration})
+}
+
+func unitOfWorkFromContext(ctx context.Context) (UnitOfWork, error) {
+	uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork)
+	if !ok || uow.withinTenant == nil || uow.withinAdmin == nil || uow.savepoint == nil || uow.retryable == nil {
+		return UnitOfWork{}, ErrRuntimeRequired
 	}
-	return runtime, nil
+	return uow, nil
+}
+
+// TransactionFromContext returns the adapter-owned transaction attached to
+// the active unit of work. Consumers may type-assert the value to their
+// database driver's transaction type without coupling tenant to that driver.
+func TransactionFromContext(ctx context.Context) (any, bool) {
+	tx := ctx.Value(transactionKey{})
+	return tx, tx != nil
+}
+
+// AcquireLock delegates a transaction-scoped advisory lock to the active
+// unit-of-work adapter.
+func AcquireLock(ctx context.Context, key string, shared bool) error {
+	uow, err := unitOfWorkFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if uow.acquireLock == nil {
+		return fmt.Errorf("%w: advisory lock function is required", ErrRuntimeRequired)
+	}
+	return uow.acquireLock(ctx, key, shared)
 }
 
 // WithinTenant runs fn in the tenant transaction selected by id. It installs
 // the validated tenant context before the transaction adapter can invoke fn.
 func WithinTenant(ctx context.Context, id TenantID, fn func(context.Context) error) error {
+	return withinTenant(ctx, id, false, fn)
+}
+
+// WithinTenantRetry runs an explicitly retry-safe outer command, replaying
+// the whole transaction after a deadlock or serialization failure. A nested
+// call joins the ambient transaction and never owns a retry.
+func WithinTenantRetry(ctx context.Context, id TenantID, fn func(context.Context) error) error {
+	return withinTenant(ctx, id, true, fn)
+}
+
+const maxTransactionRetries = 3
+
+func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.Context) error) (err error) {
+	if HasAfterCommitHooks(ctx) {
+		return run(ctx)
+	}
+
+	started := time.Now()
+	retries := 0
+	committed := false
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			if !committed {
+				observeTransaction(ctx, UnitOfWorkPanicked, nil, started, retries)
+			}
+			panic(panicValue)
+		}
+	}()
+
+	for attempt := 0; ; attempt++ {
+		attemptCtx, commitHooks := withAfterCommitHooks(ctx)
+		err = run(attemptCtx)
+		if err == nil {
+			committed = true
+			observeTransaction(ctx, UnitOfWorkCommitted, nil, started, retries)
+			runAfterCommitHooks(commitHooks)
+			return nil
+		}
+		if !retry || attempt == maxTransactionRetries || !uow.retryable(err) {
+			observeTransaction(ctx, transactionResult(err), err, started, retries)
+			return err
+		}
+		retries++
+	}
+}
+
+func observeTransaction(ctx context.Context, result UnitOfWorkResult, err error, started time.Time, retries int) {
+	observeUnitOfWork(ctx, UnitOfWorkEvent{
+		Kind:     UnitOfWorkTransaction,
+		Result:   result,
+		Err:      err,
+		Duration: time.Since(started),
+		Retries:  retries,
+	})
+}
+
+func transactionResult(err error) UnitOfWorkResult {
+	var notStarted interface{ TransactionNotStarted() }
+	if errors.As(err, &notStarted) {
+		return UnitOfWorkNotStarted
+	}
+	var unknownCommit interface{ CommitOutcomeUnknown() }
+	if errors.As(err, &unknownCommit) {
+		return UnitOfWorkCommitUnknown
+	}
+	return UnitOfWorkRolledBack
+}
+
+func withinTenant(ctx context.Context, id TenantID, retry bool, fn func(context.Context) error) error {
 	if id.IsZero() {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeMissingTenant, Err: ErrTenantRequired})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkMissingTenant, Err: ErrTenantRequired})
 		return ErrTenantRequired
 	}
 	if fn == nil {
 		return errors.New("tenant: callback is required")
 	}
-	runtime, err := runtimeFromContext(ctx)
+	runtime, err := unitOfWorkFromContext(ctx)
 	if err != nil {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Result: UnitOfWorkNotStarted, Err: err})
 		return err
 	}
 
@@ -131,29 +271,19 @@ func WithinTenant(ctx context.Context, id TenantID, fn func(context.Context) err
 		return fmt.Errorf("tenant: nested transaction with mismatched tenant ID (%d vs %d)", current.Int64(), id.Int64())
 	}
 
-	ownsCommitHooks := !HasAfterCommitHooks(ctx)
 	scoped := WithTenant(ctx, id)
-	scoped, commitHooks := withAfterCommitHooks(scoped)
-	err = runtime.withinTenant(scoped, id.Int64(), func(txCtx context.Context, _ any) error {
-		return fn(txCtx)
+	return runtime.execute(scoped, retry, func(attemptCtx context.Context) error {
+		return runtime.withinTenant(attemptCtx, id.Int64(), func(txCtx context.Context, tx any) error {
+			return fn(context.WithValue(txCtx, transactionKey{}, tx))
+		})
 	})
-	if ownsCommitHooks {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
-	}
-	if err != nil {
-		return err
-	}
-	if ownsCommitHooks {
-		runAfterCommitHooks(commitHooks)
-	}
-	return nil
 }
 
 // WithinCurrentTenant runs fn for the validated tenant already in ctx.
 func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
 	id, err := TenantFromContext(ctx)
 	if err != nil {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeMissingTenant, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkMissingTenant, Err: err})
 		return err
 	}
 	return WithinTenant(ctx, id, fn)
@@ -164,71 +294,52 @@ func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
 	if fn == nil {
 		return errors.New("tenant: callback is required")
 	}
-	runtime, err := runtimeFromContext(ctx)
+	runtime, err := unitOfWorkFromContext(ctx)
 	if err != nil {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Err: err})
 		return err
 	}
 
-	ownsCommitHooks := !HasAfterCommitHooks(ctx)
 	ctx = ContextWithoutTenant(ctx)
-	ctx, commitHooks := withAfterCommitHooks(ctx)
-	err = runtime.withinAdmin(ctx, func(txCtx context.Context, _ any) error {
-		return fn(withAdminTxFlag(txCtx))
+	return runtime.execute(ctx, false, func(attemptCtx context.Context) error {
+		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, tx any) error {
+			txCtx = context.WithValue(txCtx, transactionKey{}, tx)
+			return fn(withAdminTxFlag(txCtx))
+		})
 	})
-	if ownsCommitHooks {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
-	}
-	if err != nil {
-		return err
-	}
-	if ownsCommitHooks {
-		runAfterCommitHooks(commitHooks)
-	}
-	return nil
 }
 
 // WithTenantTx is the compatibility entry point for callers that still need
-// the concrete transaction value. Database ownership stays behind Runtime;
+// the concrete transaction value. Database ownership stays behind UnitOfWork;
 // the db argument is retained only while callers move to WithinTenant.
 func WithTenantTx[DB, TX any](ctx context.Context, _ DB, rawID int64, fn func(context.Context, TX) error) error {
 	id, err := NewTenantID(rawID)
 	if err != nil {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeMissingTenant, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkMissingTenant, Err: err})
 		return err
 	}
 	if fn == nil {
 		return errors.New("tenant: callback is required")
 	}
-	runtime, err := runtimeFromContext(ctx)
+	runtime, err := unitOfWorkFromContext(ctx)
 	if err != nil {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Err: err})
 		return err
 	}
 	if current, currentErr := TenantFromContext(ctx); currentErr == nil && current != id {
 		return fmt.Errorf("tenant: nested transaction with mismatched tenant ID (%d vs %d)", current.Int64(), id.Int64())
 	}
 
-	ownsCommitHooks := !HasAfterCommitHooks(ctx)
 	scoped := WithTenant(ctx, id)
-	scoped, commitHooks := withAfterCommitHooks(scoped)
-	err = runtime.withinTenant(scoped, id.Int64(), func(txCtx context.Context, rawTX any) error {
-		tx, ok := rawTX.(TX)
-		if !ok {
-			return fmt.Errorf("tenant: runtime returned transaction type %T", rawTX)
-		}
-		return fn(txCtx, tx)
+	return runtime.execute(scoped, false, func(attemptCtx context.Context) error {
+		return runtime.withinTenant(attemptCtx, id.Int64(), func(txCtx context.Context, rawTX any) error {
+			tx, ok := rawTX.(TX)
+			if !ok {
+				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
+			}
+			return fn(context.WithValue(txCtx, transactionKey{}, rawTX), tx)
+		})
 	})
-	if ownsCommitHooks {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
-	}
-	if err != nil {
-		return err
-	}
-	if ownsCommitHooks {
-		runAfterCommitHooks(commitHooks)
-	}
-	return nil
 }
 
 // WithAdminTx is the compatibility entry point for callers that still need
@@ -237,36 +348,27 @@ func WithAdminTx[DB, TX any](ctx context.Context, _ DB, fn func(context.Context,
 	if fn == nil {
 		return errors.New("tenant: callback is required")
 	}
-	runtime, err := runtimeFromContext(ctx)
+	runtime, err := unitOfWorkFromContext(ctx)
 	if err != nil {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Err: err})
 		return err
 	}
-	ownsCommitHooks := !HasAfterCommitHooks(ctx)
 	ctx = ContextWithoutTenant(ctx)
-	ctx, commitHooks := withAfterCommitHooks(ctx)
-	err = runtime.withinAdmin(ctx, func(txCtx context.Context, rawTX any) error {
-		tx, ok := rawTX.(TX)
-		if !ok {
-			return fmt.Errorf("tenant: runtime returned transaction type %T", rawTX)
-		}
-		return fn(withAdminTxFlag(txCtx), tx)
+	return runtime.execute(ctx, false, func(attemptCtx context.Context) error {
+		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, rawTX any) error {
+			tx, ok := rawTX.(TX)
+			if !ok {
+				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
+			}
+			txCtx = context.WithValue(txCtx, transactionKey{}, rawTX)
+			return fn(withAdminTxFlag(txCtx), tx)
+		})
 	})
-	if ownsCommitHooks {
-		observeRuntime(ctx, RuntimeEvent{Outcome: RuntimeTransaction, Err: err})
-	}
-	if err != nil {
-		return err
-	}
-	if ownsCommitHooks {
-		runAfterCommitHooks(commitHooks)
-	}
-	return nil
 }
 
 // WithAdminTxOrDirect keeps nil-database unit compositions usable without
 // inventing an administrative transaction. A configured database always
-// requires Runtime; missing runtime wiring never degrades to a direct call.
+// requires UnitOfWork; missing wiring never degrades to a direct call.
 // An ambient admin transaction is reused; an ambient tenant transaction is
 // rejected by the adapter, so callers reachable from a tenant request must
 // check for an ambient transaction themselves before calling this.

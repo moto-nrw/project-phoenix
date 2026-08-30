@@ -55,7 +55,7 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	ctx := testpkg.TenantContext(tenantID)
 	require.NoError(t, settingsService.SetValue(ctx, configModel.KeyDisplayEnabled, true, nil, nil))
@@ -64,7 +64,7 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	testpkg.SetTenantRuntime(t, settingsService, db)
 	svc := displayService.NewService(displayService.Dependencies{
 		DisplayRepo: repos.Display,
@@ -667,7 +667,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
 		repos := repositories.NewFactory(db)
-		settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+		settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
 
 		rec = doDashboardRequest(t, router, rawToken)

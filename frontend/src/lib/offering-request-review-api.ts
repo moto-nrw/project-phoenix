@@ -153,6 +153,7 @@ export async function decideOfferingChangeRequest(
   excludedOfferingIds?: readonly string[],
   effectiveFrom?: string,
   completeWithdrawalConfirmed?: boolean,
+  expectedVersion?: string,
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
@@ -167,6 +168,7 @@ export async function decideOfferingChangeRequest(
         ...(completeWithdrawalConfirmed
           ? { complete_withdrawal_confirmed: true }
           : {}),
+        ...(expectedVersion ? { expected_version: expectedVersion } : {}),
       }),
     },
   );
