@@ -14,7 +14,7 @@ import (
 const bulkMoveForbiddenMessage = "not authorized to move the selected students"
 
 func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*activeSvc.StudentMoveAuthorization, bool) {
-	if canBypassBulkMoveResourceChecks(r) || rs.operationalOverview(r.Context()) {
+	if canBypassBulkMoveResourceChecks(r) {
 		return &activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}, true
 	}
 
@@ -27,7 +27,7 @@ func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.
 }
 
 func (rs *Resource) authorizeBulkStudentMove(w http.ResponseWriter, r *http.Request, studentIDs []int64, targetActiveGroupID *int64) bool {
-	if canBypassBulkMoveResourceChecks(r) || rs.operationalOverview(r.Context()) {
+	if canBypassBulkMoveResourceChecks(r) {
 		return true
 	}
 

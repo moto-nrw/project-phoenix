@@ -2188,6 +2188,9 @@ func TestClaimGroup(t *testing.T) {
 func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
+	require.NoError(t, tc.services.Settings.SetValue(
+		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
+	))
 
 	// Create staff with account for claims
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Display", "Staff")
@@ -2260,12 +2263,11 @@ func TestGetAllActiveSupervisions(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 	})
 
-	t.Run("forbidden for admin when setting is disabled (default)", func(t *testing.T) {
-		// The setting defaults to false, so admin should get 403
+	t.Run("allowed for admin with the whole-team default", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/all", nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
-		testutil.AssertForbidden(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	})
 
 	t.Run("forbidden without groups:read permission", func(t *testing.T) {

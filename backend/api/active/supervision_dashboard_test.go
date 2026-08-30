@@ -333,6 +333,9 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	t.Parallel()
 	tc, router := setupDashboardContext(t)
+	require.NoError(t, tc.services.Settings.SetValue(
+		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
+	))
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Leader")
 	room := testpkg.CreateTestRoom(t, tc.db, "DashErrRoom")
