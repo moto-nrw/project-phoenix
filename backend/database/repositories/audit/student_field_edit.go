@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -111,25 +112,22 @@ func (r *StudentFieldEditRepository) CountOlderThanByStudent(ctx context.Context
 	return counts, nil
 }
 
-// DeleteOlderThan removes edit rows created strictly before cutoff and returns
-// the number deleted. Tenant isolation comes from RLS on the caller's tx.
+// DeleteOlderThan removes edit rows through the fixed, tenant-bound retention
+// capability and returns the number deleted.
 func (r *StudentFieldEditRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*audit.StudentFieldEdit)(nil)).
-		ModelTableExpr(tableStudentFieldEditsAliased).
-		Where(`"student_field_edit".created_at < ?`, cutoff).
-		Exec(ctx)
-	if err != nil {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
 		return 0, &modelBase.DatabaseError{
-			Op:  "delete older than",
-			Err: err,
+			Op:  "delete expired student field edits",
+			Err: errors.New("tenant context is required"),
 		}
 	}
-
-	deleted, err := res.RowsAffected()
-	if err != nil {
+	var deleted int64
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		`SELECT audit.delete_expired_student_field_edits(?, ?)`, tenantID, cutoff,
+	).Scan(ctx, &deleted); err != nil {
 		return 0, &modelBase.DatabaseError{
-			Op:  "delete older than rows affected",
+			Op:  "delete expired student field edits",
 			Err: err,
 		}
 	}

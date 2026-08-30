@@ -10,30 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// auditDeleteAllowlist names the audit tables phoenix_tenant may still DELETE
-// from, because their GDPR retention job runs per tenant inside a
-// WithTenantTx (SET LOCAL ROLE phoenix_tenant):
-//
-//   - deviation_events:       TimetableCleanupService.CleanupExpiredTimetableData
-//   - student_field_edits:    StudentChangeLogCleanupService.CleanupExpiredChangeLog
-//   - unregistered_tag_scans: UnregisteredTagScanService.DeleteOlderThan
-//
-// Shrink-only. Adding an entry means a new table is no longer append-only —
-// justify it in the PR description or find another way to expire the rows
-// (an ON DELETE CASCADE from the owning table needs no privilege at all).
-var auditDeleteAllowlist = map[string]string{
-	"deviation_events":       "timetable GDPR retention runs under phoenix_tenant",
-	"student_field_edits":    "student change-log GDPR retention runs under phoenix_tenant",
-	"unregistered_tag_scans": "90-day scan retention runs under phoenix_tenant",
-}
-
-// auditUpdateAllowlist is intentionally EMPTY: no application path modifies an
-// existing audit row under the tenant role. ON DELETE SET NULL columns
-// (deviation_events.instance_id, data_access_log.student_id,
-// unregistered_tag_scans.device_id, …) do not need UPDATE — referential
-// actions run with the table owner's privileges.
-var auditUpdateAllowlist = map[string]string{}
-
 // allTablePrivileges is the complete PostgreSQL 17 table privilege set. Checking
 // only SELECT/INSERT/UPDATE/DELETE would let a lone TRUNCATE (or REFERENCES,
 // TRIGGER, MAINTAIN) grant slip through an assertion that claims "no privilege
@@ -111,8 +87,7 @@ func tenantSequenceACLEntries(t *testing.T, db *testpkg.DB, sequence string) []s
 }
 
 // TestAuditSchemaAppendOnlyForTenantRole is the ratchet for issue #1924. The
-// audit schema must stay append-only for phoenix_tenant: never UPDATE, and
-// DELETE only where a tenant-scoped retention job needs it.
+// audit schema must stay append-only for phoenix_tenant: never UPDATE or DELETE.
 func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -122,28 +97,15 @@ func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 	for _, table := range tables {
 		relation := "audit." + table
 
-		if _, allowed := auditUpdateAllowlist[table]; !allowed {
-			assert.Falsef(t, tenantHasPrivilege(t, db, relation, "UPDATE"),
-				"%s: phoenix_tenant must not hold UPDATE — audit rows are append-only. "+
-					"A new table inherits this from the schema default ACL only if migration "+
-					"1.15.225's ALTER DEFAULT PRIVILEGES was undone; otherwise some migration "+
-					"granted it explicitly.", relation)
-		}
+		assert.Falsef(t, tenantHasPrivilege(t, db, relation, "UPDATE"),
+			"%s: phoenix_tenant must not hold UPDATE — audit rows are append-only. "+
+				"A new table inherits this from the schema default ACL only if migration "+
+				"1.15.225's ALTER DEFAULT PRIVILEGES was undone; otherwise some migration "+
+				"granted it explicitly.", relation)
 
-		if reason, allowed := auditDeleteAllowlist[table]; allowed {
-			// The allowlist is a requirement, not an exemption: revoking DELETE
-			// from one of these breaks the nightly retention job with
-			// "permission denied" — a failure that surfaces in production logs
-			// at 02:00, not in CI. Assert the privilege is actually there.
-			assert.Truef(t, tenantHasPrivilege(t, db, relation, "DELETE"),
-				"%s: phoenix_tenant MUST hold DELETE — %s. Without it the job fails under "+
-					"phoenix_tenant. Drop the allowlist entry only together with the job.", relation, reason)
-		} else {
-			assert.Falsef(t, tenantHasPrivilege(t, db, relation, "DELETE"),
-				"%s: phoenix_tenant must not hold DELETE. If a retention job needs it, add the "+
-					"table to auditDeleteAllowlist with a reason; if rows expire through an "+
-					"ON DELETE CASCADE, no privilege is required.", relation)
-		}
+		assert.Falsef(t, tenantHasPrivilege(t, db, relation, "DELETE"),
+			"%s: phoenix_tenant must not hold DELETE. Retention must run through a fixed "+
+				"database capability; ON DELETE CASCADE needs no table privilege.", relation)
 
 		// TRUNCATE has no allowlist: the retention jobs delete row by row with a
 		// date predicate, so nothing legitimately empties an audit table under
