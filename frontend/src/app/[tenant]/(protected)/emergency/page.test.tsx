@@ -42,36 +42,7 @@ vi.mock("~/components/ui/button", () => ({
   ),
 }));
 
-// Das PDF liegt seit der Kopfkarte im Kebab-Menue. Der Mock rendert die
-// Eintraege flach, damit die Tests sie ohne Portal ansteuern koennen.
-vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
-  OverflowMenu: ({
-    items,
-  }: {
-    items: Array<{ label?: string; onClick?: () => void; disabled?: boolean }>;
-  }) => (
-    <div data-testid="overflow-menu">
-      {items
-        .filter((item) => item.label)
-        .map((item) => (
-          <button
-            type="button"
-            key={item.label}
-            disabled={item.disabled}
-            onClick={item.onClick}
-          >
-            {item.label}
-          </button>
-        ))}
-    </div>
-  ),
-}));
-
-// Nur die beiden Symbole der Seite bekommen ein Testkennzeichen; alle
-// weiteren Symbole zieht das Seitengerüst über das UI-Kit nach und braucht
-// dafür das echte Paket.
-vi.mock("lucide-react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("lucide-react")>()),
+vi.mock("lucide-react", () => ({
   Download: (props: Record<string, unknown>) => (
     <svg data-testid="download-icon" {...props} />
   ),

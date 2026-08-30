@@ -285,15 +285,6 @@ export function TenantPage({
 
   return (
     <div className="w-full" data-testid={testId}>
-      {back && (
-        <MobileBackButton
-          href={backHref}
-          // Ohne eigenen Text würde der Standardtext „Zurück zur
-          // Datenverwaltung" ein falsches Ziel ansagen.
-          ariaLabel={backLabel ?? (backHref ? "Zurück" : undefined)}
-        />
-      )}
-
       {/* Die Kopfkarte trägt Titel, Statuszeile, Aktionen und die Such- und
           Filterzeile. Sie schließt eng um ihren Inhalt: 20 px Rand, 4 px
           zwischen Titel und Statuszeile, 16 px vor der Suchzeile. Kein
@@ -301,7 +292,19 @@ export function TenantPage({
       {/* Eine Fläche von Titel bis Reiter. Die Reiter lagen vorher frei auf
           dem gemusterten Grund und sahen aus wie nachträglich dazwischen
           geschoben; sie sind jetzt die letzte Zeile des Kopfes. */}
-      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent! max-sm:p-0 max-sm:shadow-none! max-sm:backdrop-blur-none!">
+      {/* Unter sm ist der Kopf ein weißes Band, das die Kopfzeile der Shell
+          nach unten verlängert: randlos, ohne Rundung und Schatten, mit
+          12 px Innenrand. Text direkt auf dem gemusterten Grund gibt es
+          nicht -- auch der Zurück-Knopf steht im Band. */}
+      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:-mx-4 max-sm:-mt-4 max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:px-4 max-sm:py-3 max-sm:shadow-none!">
+        {back && (
+          <MobileBackButton
+            href={backHref}
+            // Ohne eigenen Text würde der Standardtext „Zurück zur
+            // Datenverwaltung" ein falsches Ziel ansagen.
+            ariaLabel={backLabel ?? (backHref ? "Zurück" : undefined)}
+          />
+        )}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
               lassen, statt mit seiner natürlichen Breite zu ringen. Vorher
@@ -353,8 +356,8 @@ export function TenantPage({
                 // Zwei gedrungene Knöpfe neben einem Rest Leerraum sahen
                 // unaufgeräumt aus; eine gefüllte Zeile liest sich als
                 // Bedienleiste.
-                "max-sm:[&:has(>*:nth-child(2))]:w-full",
-                "max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:min-w-[40%] max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:flex-1",
+                "max-sm:[&:has(>*:nth-child(2))]:contents",
+                "max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:order-last max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:basis-full",
                 CONTROL_HEIGHT,
               )}
             >
@@ -609,7 +612,7 @@ function TenantPageTabs({
   return (
     // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
     // die volle Kartenbreite, auf jedem Geraet.
-    <div className="-mx-5 mt-4 max-sm:mx-0 max-sm:mt-3">
+    <div className="-mx-5 mt-4 max-sm:-mx-4 max-sm:mt-3">
       {/* EIN Band auf allen Breiten. Unter sm scrollt es waagerecht und zeigt
           jeden Reiter; ab sm wird gemessen und der Ueberhang steht unter
           „Mehr". Vorher stand unter sm eine Auswahlliste -- sie zeigte nur den
@@ -630,7 +633,7 @@ function TenantPageTabs({
           ref={rowRef}
           role="tablist"
           aria-label={label}
-          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:[&::-webkit-scrollbar]:hidden"
+          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 max-sm:[&::-webkit-scrollbar]:hidden"
         >
           {visible.map((item) => renderTab(item))}
           {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
