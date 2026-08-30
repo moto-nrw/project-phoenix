@@ -209,7 +209,9 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
-    mockHasEffectiveAdminScope.mockImplementation(() => mockIsAdmin());
+    mockHasEffectiveAdminScope.mockImplementation((session) =>
+      mockIsAdmin(session),
+    );
     restoreDefaultHasPermission();
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseNFCEnabled.mockReturnValue(true);
