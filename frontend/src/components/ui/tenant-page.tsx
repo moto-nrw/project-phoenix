@@ -351,14 +351,14 @@ export function TenantPage({
                 // dort rechts (`ml-auto`), wie auf dem Desktop. Linksbündig
                 // stand der tote Raum rechts neben den Knöpfen.
                 "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2",
-                // Unter sm ab zwei Aktionen eine eigene, volle Zeile, in der
-                // die Textknöpfe die Breite füllen; reine Symbolknöpfe (das
-                // Kebab-Menü, `Button size="icon"`, per `data-icon-only`) behalten ihr Maß.
-                // Zwei gedrungene Knöpfe neben einem Rest Leerraum sahen
-                // unaufgeräumt aus; eine gefüllte Zeile liest sich als
-                // Bedienleiste.
-                "max-sm:[&:has(>*:nth-child(2))]:contents",
-                "max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:order-last max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:basis-full",
+                // Unter sm gilt: JEDE Zeile ist voll. Textknöpfe bekommen
+                // eine eigene, volle Zeile (auch ein einzelner — rechtsbündig
+                // neben Leerraum las er sich als toter Bereich); reine
+                // Symbolknöpfe (das Kebab-Menü, `Button size="icon"`, per
+                // `data-icon-only`) behalten ihr Maß und bleiben in der
+                // Titel-/Statuszeile, die ihr Text füllt.
+                "max-sm:contents",
+                "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
                 CONTROL_HEIGHT,
               )}
             >
