@@ -44,6 +44,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
+	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
