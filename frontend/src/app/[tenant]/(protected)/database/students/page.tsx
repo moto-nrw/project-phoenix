@@ -683,7 +683,7 @@ function StudentsPageContent() {
         title: "Kinder",
         description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
-          <div className="flex items-center gap-2">
+          <>
             {!isMobile ? (
               <>
                 <DatabaseGroupingToggle
@@ -759,7 +759,7 @@ function StudentsPageContent() {
                   : []),
               ]}
             />
-          </div>
+          </>
         ),
       }}
       search={

@@ -704,31 +704,29 @@ function VertretungContent() {
       statsLoading={showSkeleton || isLoading}
       actions={
         <>
-          {/* Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
-              Kopfkarte, mit demselben Wortlaut wie im Betreuungsplan. */}
-          {menuItems.length > 0 && (
-            <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
-          )}
           {/* Sammel-Vertretung (#2284): mehrtägige Abwesenheit + Ersatz in
-              einem Schritt. Reine Mutation, daher nur mit schedules:manage. */}
+              einem Schritt. Reine Mutation, daher nur mit schedules:manage.
+              Auch auf dem Telefon mit Beschriftung: das Gerüst gibt dem
+              Knopf dort die volle Zeile, ein Symbol allein müsste man
+              raten. */}
           {canManageSchedules ? (
             <Button
               type="button"
               variant="primary"
               size="md"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
               aria-label="Sammel-Vertretung eintragen"
               onClick={() => setBulkOpen(true)}
             >
-              <CalendarRange
-                className="h-4 w-4 shrink-0 sm:mr-1.5"
-                aria-hidden
-              />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Sammel-Vertretung
-              </span>
+              <CalendarRange className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
+              <span className="whitespace-nowrap">Sammel-Vertretung</span>
             </Button>
           ) : null}
+          {/* Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
+              Kopfkarte, rechts der Hauptaktion, mit demselben Wortlaut wie im
+              Betreuungsplan. */}
+          {menuItems.length > 0 && (
+            <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
+          )}
         </>
       }
       searchSlot={

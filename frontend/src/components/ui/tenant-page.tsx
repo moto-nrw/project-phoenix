@@ -345,10 +345,16 @@ export function TenantPage({
                 // seiner Mindestbreite (11rem unter sm) Platz haben; sonst
                 // brechen sie als Gruppe in eine eigene Zeile um und stehen
                 // dort rechts (`ml-auto`), wie auf dem Desktop. Linksbündig
-                // stand der tote Raum rechts neben den Knöpfen; ein Umbruch
-                // nach Anzahl der Aktionen traf es nicht -- zwei Symbole
-                // passen neben den Titel, ein Datumsfeld nicht.
+                // stand der tote Raum rechts neben den Knöpfen.
                 "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2",
+                // Unter sm ab zwei Aktionen eine eigene, volle Zeile, in der
+                // die Textknöpfe die Breite füllen; reine Symbolknöpfe (das
+                // Kebab-Menü, `Button size="icon"`, per `data-icon-only`) behalten ihr Maß.
+                // Zwei gedrungene Knöpfe neben einem Rest Leerraum sahen
+                // unaufgeräumt aus; eine gefüllte Zeile liest sich als
+                // Bedienleiste.
+                "max-sm:[&:has(>*:nth-child(2))]:w-full",
+                "max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:min-w-[40%] max-sm:[&:has(>*:nth-child(2))>*:not([data-icon-only])]:flex-1",
                 CONTROL_HEIGHT,
               )}
             >

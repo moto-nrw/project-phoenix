@@ -280,7 +280,12 @@ export function OverflowMenu({
   if (items.length === 0) return null;
 
   return (
-    <div className="relative inline-block">
+    <div
+      className="relative inline-block"
+      // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
+      // Zeile; ein reines Symbol behält sein Maß.
+      data-icon-only={triggerContent == null ? "" : undefined}
+    >
       <button
         ref={triggerRef}
         type="button"

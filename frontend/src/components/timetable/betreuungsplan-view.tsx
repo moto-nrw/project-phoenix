@@ -1614,14 +1614,6 @@ function TimetablesContent() {
       statsLoading={statsLoading}
       actions={
         <>
-          {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
-              Konflikte und Drucken lagen vorher in zwei Menüs und einem
-              eigenen Knopf, je nach Ansicht und Recht mal so, mal so.
-              Neben dem Titel steht damit eine sichtbare Aktion ("Neu") und
-              das Menü -- dieselbe Aufteilung wie auf jeder anderen Seite. */}
-          {menuItems.length > 0 && (
-            <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
-          )}
           {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
               das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
           {canManageSchedules ? (
@@ -1636,6 +1628,15 @@ function TimetablesContent() {
               tone="gray"
               title="Sie können den Betreuungsplan ansehen. Ändern können ihn nur Admins."
             />
+          )}
+          {/* Ein Menü statt dreier Einstiege: Zeilenhöhe, ausgeblendete
+              Konflikte und Drucken lagen vorher in zwei Menüs und einem
+              eigenen Knopf, je nach Ansicht und Recht mal so, mal so.
+              Neben dem Titel steht damit eine sichtbare Aktion ("Neu") und
+              rechts davon das Menü -- dieselbe Aufteilung wie auf jeder
+              anderen Seite. */}
+          {menuItems.length > 0 && (
+            <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
           )}
         </>
       }

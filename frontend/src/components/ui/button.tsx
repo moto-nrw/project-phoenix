@@ -109,6 +109,7 @@ export function Button({
     <button
       type="submit"
       disabled={isLoading}
+      data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className })}
       {...props}
     >
