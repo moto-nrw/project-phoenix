@@ -318,6 +318,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
+		"services/platform/outbox_worker_reply_to_test.go",       // Uses sqlmock + in-memory doubles; IDs are only outbox-state sentinels, not database fixtures
 		"api/enrollment/change_request_handlers_test.go",         // Pure handler unit tests against a service mock; int64 literals are URL parser sentinels, not DB rows
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
 		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows

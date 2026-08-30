@@ -55,6 +55,40 @@ type OutboxWorker struct {
 	logger        *slog.Logger
 	db            *bun.DB
 	tenantRuntime *tenant.UnitOfWork
+	// mailIdentity stamps the tenant reply address onto every rendered
+	// message. It lives here rather than in each renderer because every
+	// outbox kind is tenant-bound, so one choke point covers all of them and
+	// no renderer can forget it (#1936). Optional: nil means no Reply-To.
+	mailIdentity email.ReplyToResolver
+}
+
+// SetMailIdentityResolver wires the tenant reply-address resolver.
+func (w *OutboxWorker) SetMailIdentityResolver(r email.ReplyToResolver) {
+	w.mailIdentity = r
+}
+
+// applyTenantReplyTo points replies at the OGS instead of moto. The visible
+// From is untouched, so SPF/DKIM alignment for the central sender is
+// unaffected. A renderer that already set ReplyTo wins — this only fills the
+// gap. Any resolver error is logged and the mail goes out without the header,
+// because losing the return path must never cost the message.
+func (w *OutboxWorker) applyTenantReplyTo(ctx context.Context, row *platformModels.EmailOutbox, msg *email.Message) {
+	if w.mailIdentity == nil || msg == nil || msg.ReplyTo.Address != "" {
+		return
+	}
+	identity, err := w.mailIdentity.ResolveReplyTo(ctx, row.GetTenantID())
+	if err != nil {
+		w.logger.Warn("outbox: reply-to lookup failed, sending without it",
+			slog.Int64("outbox_id", row.ID),
+			slog.String("kind", row.Kind),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if identity.IsZero() {
+		return
+	}
+	msg.ReplyTo = email.NewEmail(identity.Name, identity.Address)
 }
 
 // SetTenantRuntime wires the transaction runtime used by this cross-tenant worker.
@@ -215,6 +249,8 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		w.recordFailure(ctx, row, fmt.Sprintf("render: %v", renderErr))
 		return
 	}
+
+	w.applyTenantReplyTo(tenantCtx, row, msg)
 
 	// Send and MarkSent share one admin transaction that first re-locks
 	// the claimed row (FOR UPDATE). Features cancel queued emails by
