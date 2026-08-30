@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -257,7 +258,7 @@ func (srv *Server) Start() {
 
 	// Set up channel to listen for signals
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	// Block until we receive a signal
 	sig := <-quit

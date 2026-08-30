@@ -2206,6 +2206,30 @@ func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
 	})
 }
 
+func TestRunSessionCleanupTask_StopsDuringStartupDelay(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{done: make(chan struct{})}
+		s.wg.Add(1)
+		go s.runSessionCleanupTaskPolling(&ScheduledTask{Name: "session-cleanup"})
+
+		synctest.Wait()
+		close(s.done)
+
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("session cleanup did not stop during startup delay")
+		}
+	})
+}
+
 func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 	t.Parallel()
 
