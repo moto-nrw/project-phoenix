@@ -195,7 +195,7 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	if err := s.validateDependencies(); err != nil {
 		return nil, err
 	}
-	groups, selected, err := s.resolveGroups(ctx, requestedGroupID)
+	groups, selected, err := s.resolveGroups(ctx, requestedGroupID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (s *service) ListGroups(ctx context.Context) ([]Group, error) {
 	if err := s.validateGroupDependencies(); err != nil {
 		return nil, err
 	}
-	groups, _, err := s.resolveGroups(ctx, 0)
+	groups, _, err := s.resolveGroups(ctx, 0, true)
 	return groups, err
 }
 
@@ -263,7 +263,7 @@ func (s *service) prefetchSettings(ctx context.Context) (context.Context, error)
 	return configService.WithSettingsSnapshot(ctx, snapshot), nil
 }
 
-func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64) ([]Group, *educationModels.Group, error) {
+func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64, allowMissingRoomNames bool) ([]Group, *educationModels.Group, error) {
 	myGroups, err := s.deps.UserContext.GetMyGroups(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load supervised groups: %w", err)
@@ -300,12 +300,9 @@ func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64) ([]
 
 	substituted, err := s.deps.UserContext.GetSubstitutedGroupIDs(ctx)
 	if err != nil {
-		s.logger().Warn("load substitution metadata failed",
-			"error", err,
-		)
-		substituted = map[int64]bool{}
+		return nil, nil, fmt.Errorf("load substitution metadata: %w", err)
 	}
-	groups, err := s.mapGroups(ctx, visibleGroups, personalIDs, substituted)
+	groups, err := s.mapGroups(ctx, visibleGroups, personalIDs, substituted, allowMissingRoomNames)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -335,7 +332,7 @@ func selectGroup(groups []*educationModels.Group, personalIDs map[int64]bool, re
 	return nil
 }
 
-func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group, personalIDs, substituted map[int64]bool) ([]Group, error) {
+func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group, personalIDs, substituted map[int64]bool, allowMissingRoomNames bool) ([]Group, error) {
 	// One bulk query resolves every room name; a per-group FindGroupWithRoom
 	// loop would run on every aggregate refresh including SSE revalidations.
 	roomGroupIDs := make([]int64, 0, len(groups))
@@ -348,6 +345,9 @@ func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group
 	if len(roomGroupIDs) > 0 {
 		loaded, err := s.deps.Education.GetGroupsWithRoomsByIDs(ctx, roomGroupIDs)
 		if err != nil {
+			if !allowMissingRoomNames {
+				return nil, fmt.Errorf("load group rooms: %w", err)
+			}
 			s.logger().Warn("load group rooms failed",
 				"error", err,
 			)

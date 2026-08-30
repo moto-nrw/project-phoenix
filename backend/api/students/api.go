@@ -149,8 +149,10 @@ func (rs *Resource) Router() chi.Router {
 		// missing — mirroring the permission split of the replaced single
 		// endpoints instead of failing the whole roster.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get(
-			"/ogs-group-navigation",
+		// Navigation only exposes groups already scoped to the authenticated
+		// caller. Unlike the live projection, it must remain available to staff
+		// who can read groups but cannot access the user directory.
+		r.With(withTx).Get("/ogs-group-navigation",
 			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
 				return rs.OGSGroupLiveService.ListGroups(ctx)
 			}, common.ErrorInternalServer, "OGS group navigation retrieved successfully"),

@@ -111,7 +111,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 		}, states)
 
 		navigationReq := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
-		navigationRR := authExec(t, tc, navigationReq, testutil.TeacherTestClaims(int(ownerAccount.ID)), ogsLivePerms)
+		navigationRR := authExec(t, tc, navigationReq, testutil.TeacherTestClaims(int(ownerAccount.ID)), []string{"groups:read"})
 		require.Equal(t, http.StatusOK, navigationRR.Code, "body: %s", navigationRR.Body.String())
 		assert.Equal(t, states, groupPersonalState(decodeOGSGroupNavigation(t, navigationRR.Body.Bytes())))
 	})
