@@ -366,6 +366,9 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	assert.True(t, *service.lastSpontaneousInput.IsSpontaneous)
 	assert.Equal(t, []int64{321, 320}, service.lastSpontaneousInput.StaffIDs)
 	assert.Empty(t, service.lastSpontaneousInput.StudentIDs)
+	assert.Equal(t, timezone.NewDate(2026, 5, 11), service.lastSpontaneousInput.Date)
+	assert.Equal(t, "14:00", service.lastSpontaneousInput.StartTime.Format("15:04"))
+	assert.Equal(t, "15:00", service.lastSpontaneousInput.EndTime.Format("15:04"))
 	assert.Equal(t, int64(241), service.lastInstanceID)
 	assert.Contains(t, rr.Body.String(), `"active_group_id":341`)
 }

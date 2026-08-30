@@ -37,6 +37,32 @@ var ErrForbiddenGroup = errors.New("caller does not supervise the requested acti
 
 const studentPhotoStoredURLPrefix = "/uploads/student-photos/"
 
+const SpontaneousStartBlockedWeekend = "weekend"
+
+type SpontaneousStartAvailability struct {
+	Available     bool   `json:"available"`
+	BlockedReason string `json:"blocked_reason,omitempty"`
+}
+
+type daySnapshot struct {
+	instant          time.Time
+	businessDay      timezone.Date
+	spontaneousStart SpontaneousStartAvailability
+}
+
+func newDaySnapshot(now time.Time) daySnapshot {
+	businessDay := timezone.DateFromTime(now)
+	availability := SpontaneousStartAvailability{Available: true}
+	if weekday := businessDay.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
+		availability = SpontaneousStartAvailability{BlockedReason: SpontaneousStartBlockedWeekend}
+	}
+	return daySnapshot{
+		instant:          now,
+		businessDay:      businessDay,
+		spontaneousStart: availability,
+	}
+}
+
 type Getter interface {
 	Get(ctx context.Context, requestedGroupID int64) (*Projection, error)
 }
@@ -139,11 +165,13 @@ type Capabilities struct {
 }
 
 type Projection struct {
-	Groups            []Group            `json:"groups"`
-	SelectedGroupID   *int64             `json:"selected_group_id,string,omitempty"`
-	UnclaimedGroups   []UnclaimedGroup   `json:"unclaimed_groups"`
-	CurrentStaffID    *int64             `json:"current_staff_id,string,omitempty"`
-	EducationalGroups []EducationalGroup `json:"educational_groups"`
+	BusinessDay                  timezone.Date                `json:"business_day"`
+	SpontaneousStartAvailability SpontaneousStartAvailability `json:"spontaneous_start_availability"`
+	Groups                       []Group                      `json:"groups"`
+	SelectedGroupID              *int64                       `json:"selected_group_id,string,omitempty"`
+	UnclaimedGroups              []UnclaimedGroup             `json:"unclaimed_groups"`
+	CurrentStaffID               *int64                       `json:"current_staff_id,string,omitempty"`
+	EducationalGroups            []EducationalGroup           `json:"educational_groups"`
 	// Schulhof is nil only when the caller has no staff identity (and thus no
 	// Schulhof workflow) — never because a sub-load failed.
 	Schulhof           *facilitiesService.SchulhofStatus          `json:"schulhof_status"`
@@ -180,12 +208,15 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	if err := s.validateDependencies(); err != nil {
 		return nil, err
 	}
+	snapshot := newDaySnapshot(s.deps.Now())
 	ctx, err := s.prefetchSettings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve dashboard settings: %w", err)
 	}
 
 	projection := emptyProjection()
+	projection.BusinessDay = snapshot.businessDay
+	projection.SpontaneousStartAvailability = snapshot.spontaneousStart
 
 	staffID, err := s.loadCurrentStaffID(ctx)
 	if err != nil {
@@ -216,11 +247,11 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	if err := s.loadStaticSections(ctx, projection); err != nil {
 		return nil, err
 	}
-	if err := s.loadScheduleSections(ctx, projection); err != nil {
+	if err := s.loadScheduleSections(ctx, projection, snapshot); err != nil {
 		return nil, err
 	}
 	if selected != nil {
-		if err := s.loadSelectedGroupSections(ctx, projection, *selected); err != nil {
+		if err := s.loadSelectedGroupSections(ctx, projection, *selected, snapshot.businessDay); err != nil {
 			return nil, err
 		}
 	}
@@ -489,15 +520,13 @@ func (s *service) loadEducationRooms(ctx context.Context, groupIDs []int64) (map
 // These mirror the former /timetable/operations/* endpoints, which were gated
 // on schedules:read — a caller without it gets them deterministically empty
 // (permission-based redaction), never a swallowed error.
-func (s *service) loadScheduleSections(ctx context.Context, projection *Projection) error {
+func (s *service) loadScheduleSections(ctx context.Context, projection *Projection, snapshot daySnapshot) error {
 	if !authorize.HasPermission(permissions.SchedulesRead, jwt.PermissionsFromCtx(ctx)) {
 		return nil
 	}
 	claims := jwt.ClaimsFromCtx(ctx)
-	now := s.deps.Now()
-	today := timezone.DateFromTime(now)
 
-	planned, err := s.deps.Operations.PlannedNow(ctx, int64(claims.ID), claims.IsAdmin, today, now, scheduleService.PlannedNowOptions{
+	planned, err := s.deps.Operations.PlannedNow(ctx, int64(claims.ID), claims.IsAdmin, snapshot.businessDay, snapshot.instant, scheduleService.PlannedNowOptions{
 		HorizonMinutes: plannedNowHorizonMinutes,
 		Limit:          plannedNowLimit,
 		IncludeRoster:  true,
@@ -512,7 +541,7 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 		projection.PlannedNow = planned
 	}
 
-	sessions, err := s.deps.Operations.ActiveSessions(ctx, today)
+	sessions, err := s.deps.Operations.ActiveSessions(ctx, snapshot.businessDay)
 	if err != nil {
 		return fmt.Errorf("load active sessions: %w", err)
 	}
@@ -555,7 +584,7 @@ func (s *service) resolveCapabilities(ctx context.Context) (Capabilities, error)
 
 // loadSelectedGroupSections fills visits, tracking indicators, and pickup /
 // arrival times for the selected session's students.
-func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Projection, selectedGroupID int64) error {
+func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Projection, selectedGroupID int64, businessDay timezone.Date) error {
 	rows, err := s.deps.Active.GetActiveGroupVisitsWithDisplay(ctx, selectedGroupID)
 	if err != nil {
 		return fmt.Errorf("load group visits: %w", err)
@@ -601,7 +630,7 @@ func (s *service) loadSelectedGroupSections(ctx context.Context, projection *Pro
 	}
 	projection.TrackingIndicators = tracking
 
-	return s.loadPlanningTimes(ctx, projection, studentIDs, fullAccess)
+	return s.loadPlanningTimes(ctx, projection, studentIDs, fullAccess, businessDay)
 }
 
 func buildVisits(rows []*activeModels.VisitWithStudentDisplay, attendance map[int64]*activeService.AttendanceStatus, fullAccess, photosEnabled bool) []Visit {
@@ -679,18 +708,16 @@ func (s *service) loadTracking(ctx context.Context, studentIDs []int64) (Trackin
 // were gated on users:read; without it the sections stay deterministically
 // empty. Times are additionally scoped to full-access callers, matching the
 // actual arrival/pickup gate on the visit rows.
-func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection, studentIDs []int64, fullAccess bool) error {
+func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection, studentIDs []int64, fullAccess bool, businessDay timezone.Date) error {
 	if len(studentIDs) == 0 || !fullAccess ||
 		!authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx)) {
 		return nil
 	}
-	today := timezone.DateFromTime(s.deps.Now())
-
-	pickups, err := s.deps.Pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, today)
+	pickups, err := s.deps.Pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, businessDay)
 	if err != nil {
 		return fmt.Errorf("load pickup times: %w", err)
 	}
-	arrivals, err := s.deps.Arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, today)
+	arrivals, err := s.deps.Arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, businessDay)
 	if err != nil {
 		return fmt.Errorf("load arrival times: %w", err)
 	}

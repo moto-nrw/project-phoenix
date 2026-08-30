@@ -36,6 +36,8 @@ type mockActiveService struct {
 	getRoomsByIDsFn            func(ids []int64) ([]*facilitiesModels.Room, error)
 	getUnclaimedActiveGroupsFn func() ([]*activeModels.Group, error)
 	getTrackingIndicatorsFn    func(studentIDs []int64, labels []string) (map[int64][]bool, error)
+	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error)
+	getAttendanceStatusesFn    func(studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
 }
 
 func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOptions) ([]*activeModels.Group, error) {
@@ -56,6 +58,14 @@ func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*acti
 
 func (m *mockActiveService) GetTrackingIndicators(_ context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
 	return m.getTrackingIndicatorsFn(studentIDs, labels)
+}
+
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
+	return m.getActiveGroupVisitsFn(activeGroupID)
+}
+
+func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error) {
+	return m.getAttendanceStatusesFn(studentIDs)
 }
 
 type mockUserContextService struct {
@@ -91,15 +101,23 @@ type mockSchulhofService struct {
 }
 type mockOperationsService struct {
 	scheduleService.TimetableOperationsService
-	plannedNowFn     func(scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error)
-	activeSessionsFn func() ([]scheduleService.OperationActiveSession, error)
+	plannedNowFn          func(scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error)
+	activeSessionsFn      func() ([]scheduleService.OperationActiveSession, error)
+	plannedNowInputFn     func(timezone.Date, time.Time, scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error)
+	activeSessionsInputFn func(timezone.Date) ([]scheduleService.OperationActiveSession, error)
 }
 
-func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, _ timezone.Date, _ time.Time, opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, day timezone.Date, now time.Time, opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+	if m.plannedNowInputFn != nil {
+		return m.plannedNowInputFn(day, now, opts)
+	}
 	return m.plannedNowFn(opts)
 }
 
-func (m *mockOperationsService) ActiveSessions(_ context.Context, _ timezone.Date) ([]scheduleService.OperationActiveSession, error) {
+func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.Date) ([]scheduleService.OperationActiveSession, error) {
+	if m.activeSessionsInputFn != nil {
+		return m.activeSessionsInputFn(day)
+	}
 	return m.activeSessionsFn()
 }
 

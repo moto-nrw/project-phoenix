@@ -18329,7 +18329,7 @@
       "declaration": "TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures",
       "target": "database/repositories.NewFactory",
       "lines": [
-        378
+        381
       ],
       "tables": []
     },
