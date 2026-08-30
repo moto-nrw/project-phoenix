@@ -54,6 +54,10 @@ func pingServer(ctx context.Context, cfg *Config) error {
 // startTestContainer starts the postgres-test compose service from the
 // project root (the parent of the backend module root, where the tracked
 // docker-compose.example.yml lives).
+// composeProject is the compose project name of the long-lived local stack
+// (the main checkout's directory name), shared by all worktrees.
+const composeProject = "project-phoenix"
+
 func startTestContainer(ctx context.Context) error {
 	backend, err := backendRoot()
 	if err != nil {
@@ -68,10 +72,14 @@ func startTestContainer(ctx context.Context) error {
 	startCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(startCtx, "docker", "compose", "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
+	// Fixed project name: compose derives it from the directory otherwise, so
+	// every worktree would start its own postgres-test on the same host port
+	// and collide with the one already running. One container serves all
+	// worktrees (templates are keyed by migrations hash).
+	cmd := exec.CommandContext(startCtx, "docker", "compose", "-p", composeProject, "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
 	cmd.Dir = projectRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker compose -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", err, out)
+		return fmt.Errorf("docker compose -p %s -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", composeProject, err, out)
 	}
 	return nil
 }
