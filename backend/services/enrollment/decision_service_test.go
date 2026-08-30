@@ -169,6 +169,7 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			slog.Default(),
 		),
 		Logger: slog.Default(),
+		Today:  func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	})
 }
 
@@ -2162,7 +2163,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 	ctx := testpkg.Ctx(t)
 
 	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
-	startDate := timezone.TodayDate().AddDays(-1)
+	startDate := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	setSourcePhaseServiceStartDate(t, env, startDate)
 
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
@@ -3663,7 +3664,7 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	setSourcePhaseServiceStartDate(t, env, today.AddDays(-30))
 	reqID, childID := submitOneChild(t, env, "lco-attrs@example.com", "Lina", "Attrs")
 

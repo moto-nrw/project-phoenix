@@ -49,23 +49,12 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 
 // UpdateAvatar updates a profile's avatar
 func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Profile)(nil)).
-		ModelTableExpr(`users.profiles AS "profile"`).
-		Set("avatar = ?", avatar).
-		Where(`"profile".id = ?`, id)
-
-	query = base.WithTenantFilter(ctx, query, "profile")
-
-	result, err := query.Exec(ctx)
+	profile := &users.Profile{Model: modelBase.Model{ID: id}, Avatar: avatar}
+	updated, err := r.UpdateColumns(ctx, profile, "avatar")
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update avatar",
-			Err: err,
-		}
+		return base.UpdateOperationError(err, "update avatar")
 	}
-
-	return base.AssertRowsAffected(result, 1, "update avatar")
+	return base.AssertRowsAffectedCount(updated, 1, "update avatar")
 }
 
 // Delete overrides the base Delete method

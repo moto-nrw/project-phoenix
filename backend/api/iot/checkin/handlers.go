@@ -107,7 +107,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 // devicePickupQuery handles read-only pickup information lookups for students.
 func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	now := time.Now()
+	now := rs.currentTime()
 
 	deviceCtx := validateDeviceContext(w, r)
 	if deviceCtx == nil {
@@ -258,7 +258,7 @@ func (rs *Resource) updatePickupQuerySessionActivity(ctx context.Context, device
 // deviceCheckin handles student check-in/check-out requests from RFID devices
 func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	now := time.Now()
+	now := rs.currentTime()
 
 	// Step 1: Validate device context
 	deviceCtx := validateDeviceContext(w, r)

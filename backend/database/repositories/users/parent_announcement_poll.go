@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -37,8 +38,8 @@ import (
 // parent_portal.access guardian link, a guardian profile with a linked account,
 // and an ACTIVE account_tenants membership. Staff results must include every
 // child the announcement reaches, even if no guardian may answer the poll.
-func pollAudienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
-	return audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, "")
+func pollAudienceStudentsSQL(annExpr, tenantExpr, accountFilter string, today timezone.Date) string {
+	return audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, "", today)
 }
 
 // pollAnswerableStudentsSQL is the subset of the normal portal-visible
@@ -46,19 +47,20 @@ func pollAudienceStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
 // the completion denominator and reminder source; the broader audience remains
 // available to staff so inaccessible targets are visible rather than appearing
 // as permanently unanswered.
-func pollAnswerableStudentsSQL(annExpr, tenantExpr, accountFilter string) string {
+func pollAnswerableStudentsSQL(annExpr, tenantExpr, accountFilter string, today timezone.Date) string {
 	return audienceStudentsSQLForPermission(
 		annExpr,
 		tenantExpr,
 		accountFilter,
 		`sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`,
+		today,
 	)
 }
 
 // audienceStudentsSQLForPermission is the permission-specific variant used by
 // actions that need stronger authority than merely seeing a child in the
 // portal. permissionPredicate is a trusted SQL predicate over sg.
-func audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, permissionPredicate string) string {
+func audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, permissionPredicate string, today timezone.Date) string {
 	if permissionPredicate != "" {
 		permissionPredicate = " AND " + permissionPredicate
 	}
@@ -82,7 +84,7 @@ func audienceStudentsSQLForPermission(annExpr, tenantExpr, accountFilter, permis
 		JOIN auth.account_tenants act ON act.account_id = gp.account_id
 			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 		WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s`,
-		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr), accountFilter, permissionPredicate)
+		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr, today), accountFilter, permissionPredicate)
 }
 
 // audienceStudentArgs returns the bind args for audienceStudentsSQL("?","?",...)
@@ -113,7 +115,7 @@ func audienceStudentArgs(announcementID, tenantID int64, accountID *int64) []any
 // parent badge: a guardian who read a poll but never answered it still counts as
 // outstanding, because a poll that quietly stops nagging is a poll nobody
 // answers.
-func openPollForAccountPredicate(annExpr, tenantExpr, accPlace string) string {
+func openPollForAccountPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date) string {
 	return fmt.Sprintf(`(
 		%[1]s.response_type <> 'none'
 		AND (%[1]s.response_deadline IS NULL OR %[1]s.response_deadline > NOW())
@@ -141,7 +143,7 @@ func openPollForAccountPredicate(annExpr, tenantExpr, accPlace string) string {
 					WHERE resp.announcement_id = %[1]s.id AND resp.student_id = s.id
 				)
 		)
-	)`, annExpr, tenantExpr, accPlace, activeActivityGroupExists(tenantExpr))
+	)`, annExpr, tenantExpr, accPlace, activeActivityGroupExists(tenantExpr, today))
 }
 
 // ReplaceOptions swaps a DRAFT poll's answer options wholesale. It locks the
@@ -263,7 +265,7 @@ func (r *ParentAnnouncementRepository) AnswerableChildren(ctx context.Context, a
 		) sel ON TRUE
 		WHERE a.id IN (?)
 		ORDER BY last_name ASC, first_name ASC, student_id ASC`,
-		activeActivityGroupExists("a.tenant_id"))
+		activeActivityGroupExists("a.tenant_id", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, accountID, bun.List(announcementIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list answerable children for parent announcements", Err: err}
 	}
@@ -277,7 +279,7 @@ func (r *ParentAnnouncementRepository) AnswerableChildren(ctx context.Context, a
 // not reach, nor for a reached child that is not theirs.
 func (r *ParentAnnouncementRepository) AccountMayAnswerForStudent(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error) {
 	var allowed bool
-	inner := audienceStudentsSQLForPermission("?", "?", "AND gp.account_id = ?", `sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`)
+	inner := audienceStudentsSQLForPermission("?", "?", "AND gp.account_id = ?", `sg.permissions @> '{"parent_portal.poll.response": true}'::jsonb`, r.today())
 	sqlStr := "SELECT EXISTS (SELECT 1 FROM (" + inner + ") reached WHERE reached.student_id = ?)"
 	args := append(audienceStudentArgs(announcementID, tenantID, &accountID), studentID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &allowed); err != nil {
@@ -322,7 +324,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-				OR ` + activeActivityGroupExists("a.tenant_id") + `
+				OR ` + activeActivityGroupExists("a.tenant_id", r.today()) + `
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL AND s.status <> 'alumnus'
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = a.tenant_id
@@ -410,8 +412,8 @@ func parentAnnouncementResponseLockKey(announcementID, studentID int64) string {
 // answerable audience, so a child who left the school or lost response
 // permission stops counting toward completion.
 func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID, announcementID int64) (*users.AnnouncementPollResults, error) {
-	targetAudience := pollAudienceStudentsSQL("?", "?", "")
-	answerableAudience := pollAnswerableStudentsSQL("?", "?", "")
+	targetAudience := pollAudienceStudentsSQL("?", "?", "", r.today())
+	answerableAudience := pollAnswerableStudentsSQL("?", "?", "", r.today())
 	args := audienceStudentArgs(announcementID, tenantID, nil)
 
 	results := &users.AnnouncementPollResults{}
@@ -453,8 +455,8 @@ func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID
 // option labels answered for them and whether someone may currently answer.
 // This lets staff see inaccessible targets without treating them as overdue.
 func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementPollChildStatus, error) {
-	audience := pollAudienceStudentsSQL("?", "?", "")
-	answerableAudience := pollAnswerableStudentsSQL("?", "?", "")
+	audience := pollAudienceStudentsSQL("?", "?", "", r.today())
+	answerableAudience := pollAnswerableStudentsSQL("?", "?", "", r.today())
 	args := audienceStudentArgs(announcementID, tenantID, nil)
 	sqlStr := `WITH audience AS (` + audience + `),
 		answerable_audience AS (` + answerableAudience + `)
@@ -518,7 +520,7 @@ func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.
 					AND resp.tenant_id = pt.tenant_id
 					AND resp.student_id = s.id
 			)
-		GROUP BY gp.account_id`, activeActivityGroupExists("?"))
+		GROUP BY gp.account_id`, activeActivityGroupExists("?", r.today()))
 	var rows []*users.AnnouncementPollReminderRecipient
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
@@ -573,7 +575,7 @@ func (r *ParentAnnouncementRepository) UnacknowledgedReminderRecipients(ctx cont
 					AND osg.permissions @> '{"parent_portal.access": true}'::jsonb
 					AND par.acknowledged_at IS NOT NULL
 			)
-		GROUP BY gp.account_id`, activeActivityGroupExists("?"))
+		GROUP BY gp.account_id`, activeActivityGroupExists("?", r.today()))
 	var rows []*users.AnnouncementPollReminderRecipient
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,

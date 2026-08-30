@@ -66,13 +66,13 @@ const (
 // Returns the shared package database pool and a service factory. Tests must
 // not close the pool — it is shared by every test in the binary. The optional
 // statistics clock pins calendar-day semantics in time-dependent API tests.
-func SetupAPITest(t *testing.T, statisticsClocks ...func() time.Time) (*bun.DB, *services.Factory) {
+func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), statisticsClocks...)
+	repoFactory := repositories.NewFactory(db, clocks...)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
 

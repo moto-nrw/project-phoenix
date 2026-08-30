@@ -169,7 +169,7 @@ func TestCreateInstance_Validation(t *testing.T) {
 	router := createRouter(s.ctx, s.res)
 
 	tomorrow := nextTimetableWorkday().String()
-	weekend := timezone.TodayDate()
+	weekend := timezone.NewDate(2026, 8, 24)
 	for weekend.Weekday() != time.Saturday {
 		weekend = weekend.AddDays(1)
 	}
@@ -280,7 +280,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
-		timezone.TodayDate().AddDays(-1), timezone.TodayDate().AddDays(7))
+		timezone.NewDate(2026, 8, 24).AddDays(-1), timezone.NewDate(2026, 8, 24).AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().

@@ -2395,6 +2395,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 	t.Parallel()
 	// Checkin for a student with a weekly pickup schedule should return pickup_time in response.
 	ctx := setupTestContext(t)
+	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-time-checkin")
 
@@ -2415,7 +2416,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 	// Create pickup schedule for today's weekday.
 	// Use timezone.DateOf (Europe/Berlin) to match the production lookup in
 	// GetEffectivePickupTimeForDate, avoiding flaky results on non-Berlin CI runners.
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7 // ISO: Sunday = 7
@@ -2511,6 +2512,7 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	t.Parallel()
 	ctx := setupTestContext(t)
+	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-success")
 
@@ -2521,7 +2523,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPQUERY")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7
@@ -2534,7 +2536,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	// timezone (UTC). DateOf returns midnight Berlin which can shift to the previous day
 	// in UTC (e.g. 2026-04-01 00:00+02 → 2026-03-31 22:00 UTC → DATE 2026-03-31).
 	// DateOfUTC avoids this by encoding the Berlin calendar date as midnight UTC.
-	todayUTC := timezone.TodayDate()
+	todayUTC := timezone.NewDate(2026, 8, 24)
 
 	tenantCtx := testpkg.Ctx(t)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -2749,6 +2751,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	t.Parallel()
 	ctx := setupTestContext(t)
+	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-note-precedence")
 
@@ -2759,7 +2762,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPNOTEPRIO")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7
@@ -2768,7 +2771,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 		t.Skip("Skipping pickup query note precedence test on weekend — no pickup schedule applies")
 	}
 
-	todayUTC := timezone.TodayDate()
+	todayUTC := timezone.NewDate(2026, 8, 24)
 	tenantCtx := testpkg.Ctx(t)
 	recurringNote := "Papa holt normalerweise ab"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -2820,6 +2823,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *testing.T) {
 	t.Parallel()
 	ctx := setupTestContext(t)
+	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-exception-fallback")
 
@@ -2830,7 +2834,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "PICKUPEXCEPTION")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7
@@ -2839,7 +2843,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 		t.Skip("Skipping pickup query exception fallback test on weekend — no pickup schedule applies")
 	}
 
-	todayUTC := timezone.TodayDate()
+	todayUTC := timezone.NewDate(2026, 8, 24)
 	tenantCtx := testpkg.Ctx(t)
 	recurringNote := "Bitte am Seiteneingang klingeln"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)

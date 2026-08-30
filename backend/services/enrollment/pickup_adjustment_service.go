@@ -411,8 +411,12 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 }
 
 func appliesArrivalSchedules(resolution string, effectiveFrom timezone.Date) bool {
+	return appliesArrivalSchedulesOn(resolution, effectiveFrom, timezone.TodayDate())
+}
+
+func appliesArrivalSchedulesOn(resolution string, effectiveFrom, today timezone.Date) bool {
 	return resolution == PickupAdjustmentResolutionException &&
-		!effectiveFrom.After(timezone.TodayDate())
+		!effectiveFrom.After(today)
 }
 
 func (s *pickupAdjustmentService) preparePickupAdjustment(

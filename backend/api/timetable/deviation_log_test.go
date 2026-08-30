@@ -144,7 +144,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	_, date := futureSubDate(1)
 
 	activeGroupRepo := activeRepo.NewGroupRepository(s.db)
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	ag := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,

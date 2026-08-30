@@ -133,7 +133,7 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 
 	// The displayed occupancy must be the number the capacity gate will apply
 	// on save, so the window has to match applyCapacityOverflowCore's.
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	phase := &enrollmentModels.Phase{
 		ServiceStartDate: today.AddDays(-30),
 		ServiceEndDate:   today.AddDays(60),
@@ -142,8 +142,9 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 	offering.ID = 1
 	links := &bookingStatsLinkRepo{peaks: map[int64]int{1: 0}}
 
-	_, err := bookingStatsService(phase, []*enrollmentModels.CareOffering{offering}, links).
-		ListBookingStats(context.Background(), 5)
+	svc := bookingStatsService(phase, []*enrollmentModels.CareOffering{offering}, links)
+	svc.Today = func() timezone.Date { return today }
+	_, err := svc.ListBookingStats(context.Background(), 5)
 	require.NoError(t, err)
 
 	assert.Equal(t, today, links.gotFrom, "a running phase counts from today")
@@ -197,13 +198,13 @@ func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) 
 func TestBookingStatsWindow_DefaultsToTodayWithoutPhaseDates(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
-	from, until := bookingStatsWindow(nil)
+	from, until := bookingStatsWindowOn(nil, today)
 	assert.Equal(t, today, from)
 	assert.Equal(t, today.AddDays(1), until)
 
-	from, until = bookingStatsWindow(&enrollmentModels.Phase{})
+	from, until = bookingStatsWindowOn(&enrollmentModels.Phase{}, today)
 	assert.Equal(t, today, from)
 	assert.Equal(t, today.AddDays(1), until)
 	assert.True(t, from.Before(until), "the window is never empty")

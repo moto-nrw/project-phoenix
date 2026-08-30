@@ -1,4 +1,4 @@
-package main
+package architecture
 
 import (
 	"encoding/json"
@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/internal/architecture"
 )
 
 type projectionOptions struct {
@@ -17,15 +15,15 @@ type projectionOptions struct {
 }
 
 type projectionInputs struct {
-	policy   *architecture.Policy
-	graph    *architecture.Graph
-	baseline *architecture.LegacyManifest
+	policy   *Policy
+	graph    *Graph
+	baseline *LegacyManifest
 }
 
 type diagramBundle struct {
-	SchemaVersion int                     `json:"schema_version"`
-	Target        architecture.Projection `json:"target"`
-	Migration     architecture.Projection `json:"migration"`
+	SchemaVersion int        `json:"schema_version"`
+	Target        Projection `json:"target"`
+	Migration     Projection `json:"migration"`
 }
 
 func runDiagram(args []string) error {
@@ -33,12 +31,12 @@ func runDiagram(args []string) error {
 	if err != nil {
 		return err
 	}
-	inputs, err := loadProjectionInputs(options)
+	inputs, err := loadProjectionCommandInputs(options)
 	if err != nil {
 		return err
 	}
-	target := architecture.TargetProjection(inputs.policy)
-	migration := architecture.MigrationProjection(inputs.policy, inputs.graph, inputs.baseline)
+	target := TargetProjection(inputs.policy)
+	migration := MigrationProjection(inputs.policy, inputs.graph, inputs.baseline)
 	artifacts, err := diagramArtifacts(inputs.policy, target, migration)
 	if err != nil {
 		return err
@@ -51,11 +49,11 @@ func runDependencies(args []string) error {
 	if err != nil {
 		return err
 	}
-	inputs, err := loadProjectionInputs(options)
+	inputs, err := loadProjectionCommandInputs(options)
 	if err != nil {
 		return err
 	}
-	projection, err := architecture.DependenciesProjection(inputs.policy, inputs.graph, inputs.baseline, options.focus)
+	projection, err := DependenciesProjection(inputs.policy, inputs.graph, inputs.baseline, options.focus)
 	if err != nil {
 		return err
 	}
@@ -92,18 +90,18 @@ func parseProjectionOptions(command string, args []string, requireFocus bool) (p
 	return projectionOptions{project: absoluteProject, policy: projectPath(absoluteProject, *policyPath), baseline: projectPath(absoluteProject, *baselinePath), output: *output, focus: *focus}, nil
 }
 
-func loadProjectionInputs(options projectionOptions) (projectionInputs, error) {
-	policy, err := architecture.LoadPolicy(options.policy)
+func loadProjectionCommandInputs(options projectionOptions) (projectionInputs, error) {
+	policy, err := LoadPolicy(options.policy)
 	if err != nil {
 		return projectionInputs{}, err
 	}
-	graph, err := architecture.LoadGraph(options.project, policy)
+	graph, err := LoadGraph(options.project, policy)
 	if err != nil {
 		return projectionInputs{}, err
 	}
-	var baseline *architecture.LegacyManifest
+	var baseline *LegacyManifest
 	if options.baseline != "" {
-		baseline, err = architecture.LoadLegacyManifest(options.baseline)
+		baseline, err = LoadLegacyManifest(options.baseline)
 		if err != nil {
 			return projectionInputs{}, err
 		}
@@ -111,35 +109,35 @@ func loadProjectionInputs(options projectionOptions) (projectionInputs, error) {
 	return projectionInputs{policy: policy, graph: graph, baseline: baseline}, nil
 }
 
-func diagramArtifacts(policy *architecture.Policy, target, migration architecture.Projection) (map[string][]byte, error) {
-	targetSVG, err := architecture.RenderSVG(target)
+func diagramArtifacts(policy *Policy, target, migration Projection) (map[string][]byte, error) {
+	targetSVG, err := RenderSVG(target)
 	if err != nil {
 		return nil, err
 	}
-	migrationSVG, err := architecture.RenderSVG(migration)
+	migrationSVG, err := RenderSVG(migration)
 	if err != nil {
 		return nil, err
 	}
-	bundleJSON, err := json.MarshalIndent(diagramBundle{SchemaVersion: architecture.ProjectionSchemaVersion, Target: target, Migration: migration}, "", "  ")
+	bundleJSON, err := json.MarshalIndent(diagramBundle{SchemaVersion: ProjectionSchemaVersion, Target: target, Migration: migration}, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal diagram bundle: %w", err)
 	}
 	return map[string][]byte{
 		"target.svg": targetSVG, "migration.svg": migrationSVG,
-		"architecture.json": append(bundleJSON, '\n'), "go-arch-lint.yml": architecture.GoArchLintProjection(policy),
+		"architecture.json": append(bundleJSON, '\n'), "go-arch-lint.yml": GoArchLintProjection(policy),
 	}, nil
 }
 
-func dependencyArtifacts(policy *architecture.Policy, graph *architecture.Graph, projection architecture.Projection, focus string) (map[string][]byte, error) {
-	svg, err := architecture.RenderSVG(projection)
+func dependencyArtifacts(policy *Policy, graph *Graph, projection Projection, focus string) (map[string][]byte, error) {
+	svg, err := RenderSVG(projection)
 	if err != nil {
 		return nil, err
 	}
-	projectionJSON, err := architecture.MarshalProjection(projection)
+	projectionJSON, err := MarshalProjection(projection)
 	if err != nil {
 		return nil, err
 	}
-	query, err := architecture.GodaQuery(policy, graph, focus)
+	query, err := GodaQuery(policy, graph, focus)
 	if err != nil {
 		return nil, err
 	}

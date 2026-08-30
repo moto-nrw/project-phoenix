@@ -35,7 +35,9 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	scope := testpkg.NewTenantScope(t, db)
 	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Serie", fmt.Sprintf("Dienstplan-%d", scope.TenantID))
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	require.NoError(t, err)
 
 	env := &seriesTestEnv{
@@ -121,7 +123,7 @@ func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodStart := today.AddDays(-7)
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, periodStart, periodEnd, 1, nil)
@@ -156,7 +158,7 @@ func TestStaffShiftSeries_WeekPatternARespectsCycle(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	// Anchor on the Monday of the current week so week parity is stable.
 	isoToday := (int(today.Weekday()) + 6) % 7 // 0 = Monday
 	anchor := today.AddDays(-isoToday)
@@ -182,7 +184,7 @@ func TestStaffShiftSeries_WeekPatternRequiresCycle(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternA)
@@ -197,7 +199,7 @@ func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	t.Run("unknown calendar period", func(t *testing.T) {
@@ -233,7 +235,7 @@ func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
@@ -271,7 +273,7 @@ func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 	periodEnd := today.AddDays(10)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
@@ -310,7 +312,7 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
@@ -361,7 +363,7 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
 	env.inTx(t, func(ctx context.Context) error {
@@ -446,7 +448,7 @@ func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *tes
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	originalDate := today.AddDays(1)
 	for originalDate.Weekday() != time.Monday {
 		originalDate = originalDate.AddDays(1)
@@ -510,7 +512,7 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	originalMonday := today.AddDays(1)
 	for originalMonday.Weekday() != time.Monday {
 		originalMonday = originalMonday.AddDays(1)
@@ -610,7 +612,7 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -713,7 +715,7 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(14)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -767,7 +769,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
 
 	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
@@ -812,7 +814,7 @@ func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -862,7 +864,7 @@ func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodEnd := today.AddDays(20)
 	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
 
@@ -893,7 +895,7 @@ func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
 	t.Parallel()
 
 	env := setupSeriesTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
 
 	validFrom := today.AddDays(7)

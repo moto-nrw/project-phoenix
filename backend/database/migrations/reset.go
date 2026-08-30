@@ -4,21 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/uptrace/bun"
 )
 
 // ResetDatabase drops all schemas and recreates them to start fresh
-func ResetDatabase() error {
-	db, err := database.DBConn()
-	if err != nil {
-		return err
+func ResetDatabase(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return fmt.Errorf("migration database is required")
 	}
-	defer func() { _ = db.Close() }()
-
 	fmt.Println("Resetting database: Dropping and recreating all schemas...")
 
 	// First disable all triggers
-	_, err = db.ExecContext(context.Background(), "SET session_replication_role = 'replica'")
+	_, err := db.ExecContext(ctx, "SET session_replication_role = 'replica'")
 	if err != nil {
 		return fmt.Errorf("failed to disable triggers: %w", err)
 	}
@@ -54,14 +51,14 @@ func ResetDatabase() error {
 	// 1. Drop all schemas with CASCADE to remove all objects inside them
 	for _, schema := range schemas {
 		fmt.Printf("Dropping schema %s...\n", schema)
-		_, err := db.ExecContext(context.Background(), fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", schema))
+		_, err := db.ExecContext(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", schema))
 		if err != nil {
 			return fmt.Errorf("failed to drop schema %s: %w", schema, err)
 		}
 	}
 
 	// First drop the bun migration tables in the public schema
-	_, err = db.ExecContext(context.Background(), `
+	_, err = db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS bun_migrations CASCADE;
 		DROP TABLE IF EXISTS bun_migration_locks CASCADE;
 	`)
@@ -71,7 +68,7 @@ func ResetDatabase() error {
 	}
 
 	// 2. Look for and drop all custom types
-	rows, err := db.QueryContext(context.Background(), `
+	rows, err := db.QueryContext(ctx, `
 		SELECT typname FROM pg_type t 
 		JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace 
 		WHERE n.nspname = 'public'
@@ -95,7 +92,7 @@ func ResetDatabase() error {
 			}
 
 			fmt.Printf("Dropping custom type %s...\n", typeName)
-			_, err := db.ExecContext(context.Background(), fmt.Sprintf("DROP TYPE IF EXISTS %s CASCADE", typeName))
+			_, err := db.ExecContext(ctx, fmt.Sprintf("DROP TYPE IF EXISTS %s CASCADE", typeName))
 			if err != nil {
 				fmt.Printf("Warning: Failed to drop type %s: %v\n", typeName, err)
 			}
@@ -103,7 +100,7 @@ func ResetDatabase() error {
 	}
 
 	// 3. Drop specific known types that might be in any schema
-	_, err = db.ExecContext(context.Background(), `
+	_, err = db.ExecContext(ctx, `
 		DROP TYPE IF EXISTS occupancy_status CASCADE;
 		DROP TYPE IF EXISTS device_status CASCADE;
 		
@@ -118,7 +115,7 @@ func ResetDatabase() error {
 	// 3. Recreate the schemas (this will be skipped when migrations run)
 	for _, schema := range schemas {
 		fmt.Printf("Recreating schema %s...\n", schema)
-		_, err := db.ExecContext(context.Background(), fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema))
+		_, err := db.ExecContext(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema))
 		if err != nil {
 			return fmt.Errorf("failed to create schema %s: %w", schema, err)
 		}
@@ -127,7 +124,7 @@ func ResetDatabase() error {
 	// We already dropped the bun_migrations tables earlier
 
 	// Re-enable triggers
-	_, err = db.ExecContext(context.Background(), "SET session_replication_role = 'origin'")
+	_, err = db.ExecContext(ctx, "SET session_replication_role = 'origin'")
 	if err != nil {
 		return fmt.Errorf("failed to re-enable triggers: %w", err)
 	}

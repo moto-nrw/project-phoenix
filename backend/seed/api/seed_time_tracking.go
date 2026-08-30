@@ -9,11 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // seedTimeTrackingHistoryStep populates Soll/Ist data for the demo tenant
@@ -78,8 +73,8 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	rng := rand.New(rand.NewPCG(0xC0FFEE, 0xBEEF))
-	today := timezone.TodayDate().UTCMidnight()
-	loc := timezone.Berlin
+	today := todaySeedDate().UTCMidnight()
+	loc := seedBerlinLocation()
 
 	sessionCount := 0
 	absenceCount := 0
@@ -102,7 +97,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		if rng.Float64() < 0.25 {
 			day := mostRecentWeekday(today.AddDate(0, 0, -rng.IntN(timeTrackingDaysBack)), time.Wednesday)
 			sickDay = &day
-			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung", nil); err != nil {
+			if err := postAbsence(rt, day, day, "sick", "Krankmeldung", nil); err != nil {
 				return fmt.Errorf("seed sick day for staff %d: %w", staffID, err)
 			}
 			absenceCount++
@@ -114,7 +109,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		if idx == 1 {
 			day := mostRecentWeekday(today.AddDate(0, 0, -7), time.Monday)
 			customDay = &day
-			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeOther, "Regenerationstag", &customAbsenceTypeID); err != nil {
+			if err := postAbsence(rt, day, day, "other", "Regenerationstag", &customAbsenceTypeID); err != nil {
 				return fmt.Errorf("seed custom absence for staff %d: %w", staffID, err)
 			}
 			absenceCount++
@@ -176,8 +171,8 @@ func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {
 
 func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail map[string]int64) (int, error) {
 	rt.Client.BindAuth(rt.TenantAuth)
-	entries := make([]map[string]any, 0, configModels.DayFriday-configModels.DayMonday+1)
-	for d := configModels.DayMonday; d <= configModels.DayFriday; d++ {
+	entries := make([]map[string]any, 0, 4-0+1)
+	for d := 0; d <= 4; d++ {
 		entries = append(entries, map[string]any{
 			"week_index":     0,
 			"day_of_week":    d,
@@ -202,7 +197,7 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 	return count, nil
 }
 
-func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (phoenixapi.AuthRef, error) {
+func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (AuthRef, error) {
 	currentAuth := rt.Client.auth
 	defer rt.Client.BindAuth(currentAuth)
 
@@ -211,11 +206,11 @@ func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (phoenixapi.Au
 			continue
 		}
 		if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
-			return phoenixapi.AuthRef{}, fmt.Errorf("login vacation approver %s: %w", cred.Email, err)
+			return AuthRef{}, fmt.Errorf("login vacation approver %s: %w", cred.Email, err)
 		}
 		return rt.Client.auth, nil
 	}
-	return phoenixapi.AuthRef{}, fmt.Errorf("no OGS-Büro staff credential available for vacation approval")
+	return AuthRef{}, fmt.Errorf("no OGS-Büro staff credential available for vacation approval")
 }
 
 // seedSessionViaAPI walks the live clocking flow for one historical day:
@@ -223,9 +218,9 @@ func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (phoenixapi.Au
 // whether a session was created (false when the staff already had an
 // open session that we couldn't safely close).
 func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Location) (bool, error) {
-	status := activeModels.WorkSessionStatusPresent
+	status := "present"
 	if rng.Float64() < 0.1 {
-		status = activeModels.WorkSessionStatusHomeOffice
+		status = "home_office"
 	}
 
 	checkInResp, err := rt.Client.Post("/api/time-tracking/check-in", map[string]any{
@@ -315,7 +310,7 @@ func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note st
 	return nil
 }
 
-func requestAndApproveVacation(rt *Runtime, approverAuth phoenixapi.AuthRef, dateStart, dateEnd time.Time, note string) error {
+func requestAndApproveVacation(rt *Runtime, approverAuth AuthRef, dateStart, dateEnd time.Time, note string) error {
 	staffAuth := rt.Client.auth
 	defer rt.Client.BindAuth(staffAuth)
 

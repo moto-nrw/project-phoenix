@@ -2,6 +2,7 @@ package base_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -551,4 +552,56 @@ func TestRepository_UpdateColumns(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil or zero value")
 	})
+}
+
+func TestRepository_UpdateColumnsIfNull(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := newTenantScopedRepo(db)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, uniqueKey("guard_actor"))
+
+	sv := newSettingValue(t, uniqueKey("guarded_update"), "original", nil)
+	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	results := make(chan int64, 2)
+	errors := make(chan error, 2)
+	for _, value := range []string{"first", "second"} {
+		go func(value string) {
+			<-start
+			candidate := &testSettingValue{
+				ID:        sv.ID,
+				Value:     jsonValue(value),
+				UpdatedBy: &account.ID,
+			}
+			updated, updateErr := repo.UpdateColumnsIfNull(ctx, candidate, "updated_by", "value", "updated_by")
+			results <- updated
+			errors <- updateErr
+		}(value)
+	}
+	close(start)
+
+	require.NoError(t, <-errors)
+	require.NoError(t, <-errors)
+	assert.ElementsMatch(t, []int64{0, 1}, []int64{<-results, <-results})
+
+	found, err := repo.FindByID(ctx, sv.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found.UpdatedBy)
+	assert.Equal(t, account.ID, *found.UpdatedBy)
+	assert.Contains(t, []string{`"first"`, `"second"`}, string(found.Value))
+}
+
+func TestDatabaseErrorCause(t *testing.T) {
+	t.Parallel()
+
+	cause := errors.New("driver failure")
+	databaseErr := &modelBase.DatabaseError{Op: "update columns", Err: cause}
+	assert.Same(t, cause, base.DatabaseErrorCause(databaseErr))
+
+	plainErr := errors.New("plain failure")
+	assert.Same(t, plainErr, base.DatabaseErrorCause(plainErr))
 }

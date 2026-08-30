@@ -128,6 +128,7 @@ type ServiceDependencies struct {
 
 	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
 	Logger *slog.Logger
+	Now    func() time.Time
 }
 
 // Service implements the Active Service interface
@@ -143,6 +144,17 @@ type service struct {
 	// Anwesenheitsaenderung, damit die Eltern-App ihren Tagesstatus (#2252)
 	// live nachlaedt. Injiziert via SetGuardianWaker; nil ist ein No-op.
 	guardianWaker GuardianWaker
+}
+
+func (s *service) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
+}
+
+func (s *service) todayDate() timezone.Date {
+	return timezone.DateFromTime(s.now())
 }
 
 // SetSettingsService injects the tenant-scoped settings resolver.
@@ -670,7 +682,7 @@ func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int
 	// Checked against the enrollment interval rather than the lifecycle
 	// status: the status only follows once the scheduler ticks, and the kiosk
 	// must not let a departed child in during that window.
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return ErrStudentCareEnded
 	}
 	return nil
@@ -1344,7 +1356,7 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 	// working right now — auto-open their work session so they show as
 	// "Anwesend" (issue #1439). Kiosk-driven session starts already do this
 	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
-	if supervisor.StartDate == timezone.TodayDate() {
+	if supervisor.StartDate == s.todayDate() {
 		source := active.WorkSessionSourceApp
 		if device.IsIoTDeviceRequest(ctx) {
 			source = active.WorkSessionSourceNFC

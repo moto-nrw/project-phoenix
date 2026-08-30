@@ -4,6 +4,7 @@ package active
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -16,16 +17,18 @@ import (
 // GroupSupervisorRepository implements active.GroupSupervisorRepository interface
 type GroupSupervisorRepository struct {
 	*base.Repository[*active.GroupSupervisor]
-	db *bun.DB
+	db    *bun.DB
+	today func() timezone.Date
 }
 
 // NewGroupSupervisorRepository creates a new GroupSupervisorRepository
-func NewGroupSupervisorRepository(db *bun.DB) active.GroupSupervisorRepository {
+func NewGroupSupervisorRepository(db *bun.DB, clocks ...func() time.Time) active.GroupSupervisorRepository {
 	repo := base.NewRepository[*active.GroupSupervisor](db, "active.group_supervisors", "GroupSupervisor")
 	repo.TenantScoped = true
 	return &GroupSupervisorRepository{
 		Repository: repo,
 		db:         db,
+		today:      timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -75,7 +78,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Contex
 		TableExpr(`active.group_supervisors AS "group_supervisor"`).
 		ColumnExpr(`"group_supervisor".staff_id, "group".room_id`).
 		Join(`JOIN active.groups AS "group" ON "group".id = "group_supervisor".group_id`).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate()).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today()).
 		Where(`"group".end_time IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")

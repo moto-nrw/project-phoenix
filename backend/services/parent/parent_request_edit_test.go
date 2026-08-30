@@ -53,7 +53,7 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	svc, _, events, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(5)
+	day := timezone.NewDate(2026, 8, 24).AddDays(5)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)

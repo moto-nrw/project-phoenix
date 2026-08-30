@@ -242,6 +242,31 @@ func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 	})
 }
 
+func TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).AccountParent
+	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
+	account := testpkg.CreateTestParentAccount(t, db, "cross-tenant-field-update")
+
+	err := repo.UpdatePassword(testpkg.TenantContext(otherTenantID), account.ID, "wrong-tenant-hash")
+	require.Error(t, err)
+
+	updatedHash := "background-hash"
+	require.NoError(t, repo.UpdatePassword(context.Background(), account.ID, updatedHash))
+	require.NoError(t, repo.UpdateLastLogin(context.Background(), account.ID))
+
+	var found auth.AccountParent
+	require.NoError(t, db.NewSelect().Model(&found).
+		ModelTableExpr(`auth.accounts_parents AS "account_parent"`).
+		Where(`"account_parent".id = ?`, account.ID).
+		Scan(context.Background()))
+	require.NotNil(t, found.PasswordHash)
+	assert.Equal(t, updatedHash, *found.PasswordHash)
+	assert.NotNil(t, found.LastLogin)
+}
+
 // ============================================================================
 // AccountParentRepository List Tests
 // ============================================================================

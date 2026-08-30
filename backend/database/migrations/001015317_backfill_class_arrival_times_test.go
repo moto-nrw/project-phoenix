@@ -8,9 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -19,7 +17,7 @@ import (
 // retain their independent tenants and parallel execution.
 var backfillClassArrivalTimesMu sync.Mutex
 
-func classArrivalTimesOf(t *testing.T, db *bun.DB, tenantID int64, class string) map[string]string {
+func classArrivalTimesOf(t *testing.T, db *testpkg.DB, tenantID int64, class string) map[string]string {
 	t.Helper()
 	var raw []byte
 	require.NoError(t, db.NewRaw(`
@@ -32,7 +30,7 @@ func classArrivalTimesOf(t *testing.T, db *bun.DB, tenantID int64, class string)
 	return times
 }
 
-func storedArrivalTime(t *testing.T, db *bun.DB, rowID int64) *string {
+func storedArrivalTime(t *testing.T, db *testpkg.DB, rowID int64) *string {
 	t.Helper()
 	var hhmm *string
 	require.NoError(t, db.NewRaw(`
@@ -62,11 +60,11 @@ func TestBackfillClassArrivalTimes(t *testing.T) {
 	_, err := db.ExecContext(context.Background(), `UPDATE users.students SET status = 'alumnus' WHERE id = ?`, alumnus.ID)
 	require.NoError(t, err)
 
-	rowA := testpkg.CreateTestArrivalSchedule(t, db, majorityA.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
-	rowB := testpkg.CreateTestArrivalSchedule(t, db, majorityB.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
-	rowDeviating := testpkg.CreateTestArrivalSchedule(t, db, deviating.ID, scheduleModels.WeekdayMonday, staff.ID, "12:15")
-	rowTuesday := testpkg.CreateTestArrivalSchedule(t, db, majorityA.ID, scheduleModels.WeekdayTuesday, staff.ID, "13:30")
-	rowAlumnus := testpkg.CreateTestArrivalSchedule(t, db, alumnus.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
+	rowA := testpkg.CreateTestArrivalSchedule(t, db, majorityA.ID, 1, staff.ID, "11:45")
+	rowB := testpkg.CreateTestArrivalSchedule(t, db, majorityB.ID, 1, staff.ID, "11:45")
+	rowDeviating := testpkg.CreateTestArrivalSchedule(t, db, deviating.ID, 1, staff.ID, "12:15")
+	rowTuesday := testpkg.CreateTestArrivalSchedule(t, db, majorityA.ID, 2, staff.ID, "13:30")
+	rowAlumnus := testpkg.CreateTestArrivalSchedule(t, db, alumnus.ID, 1, staff.ID, "11:45")
 
 	require.NoError(t, backfillClassArrivalTimesUp(context.Background(), db))
 
@@ -126,9 +124,9 @@ func TestBackfillClassArrivalTimesCombinesNormalizedClassLabels(t *testing.T) {
 		WHERE id IN (?, ?)
 	`, second.ID, third.ID, second.ID, third.ID)
 	require.NoError(t, err)
-	testpkg.CreateTestArrivalSchedule(t, db, first.ID, scheduleModels.WeekdayMonday, staff.ID, "12:15")
-	testpkg.CreateTestArrivalSchedule(t, db, second.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
-	testpkg.CreateTestArrivalSchedule(t, db, third.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, db, first.ID, 1, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, second.ID, 1, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, db, third.ID, 1, staff.ID, "11:45")
 
 	require.NoError(t, backfillClassArrivalTimesUp(context.Background(), db))
 	times := classArrivalTimesOf(t, db, tenantID, "6x")

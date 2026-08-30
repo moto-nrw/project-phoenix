@@ -537,10 +537,12 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := usersRepo.NewParentAnnouncementRepository(db, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+	})
 	ctx := tenantCtx(t)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Wochentag")
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	todayWeekday := int(today.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = activitiesModels.WeekdaySunday

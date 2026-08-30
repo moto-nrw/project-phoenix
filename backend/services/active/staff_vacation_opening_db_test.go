@@ -67,6 +67,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	svc := active.NewStaffAbsenceService(
 		repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota,
 		repos.StaffAbsenceAudit, wtmIntSettings{}, nil,
+		func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	)
 	// Setter injection, wired exactly like services/factory.go does.
 	openingAware, ok := svc.(interface {
@@ -101,7 +102,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 // skips instead of exercising a case the service rejects by design.
 func openingCutoffDate(t *testing.T) timezone.Date {
 	t.Helper()
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	cutoff := today.AddDays(-1)
 	if cutoff.Year != today.Year || timezone.NewDate(today.Year, time.January, 1).DaysUntil(cutoff) < 5 {
 		t.Skip("no closed Stichtag with room for earlier absences in the current vacation year yet")
@@ -300,8 +301,8 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 	f := newVacationOpeningFixture(t)
 
 	for _, effectiveDate := range []timezone.Date{
-		timezone.TodayDate(),
-		timezone.TodayDate().AddDays(1),
+		timezone.NewDate(2026, 8, 24),
+		timezone.NewDate(2026, 8, 24).AddDays(1),
 	} {
 		_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
 			EffectiveDate: effectiveDate,
@@ -312,7 +313,7 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 		assert.Contains(t, err.Error(), "effective_date must be before today")
 	}
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, timezone.TodayDate().Year)
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff.ID, timezone.NewDate(2026, 8, 24).Year)
 	require.NoError(t, err)
 	assert.Nil(t, stored)
 }
@@ -326,7 +327,7 @@ func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
 
 	f := newVacationOpeningFixture(t)
 
-	lastYear := timezone.NewDate(timezone.TodayDate().Year-1, time.June, 10)
+	lastYear := timezone.NewDate(timezone.NewDate(2026, 8, 24).Year-1, time.June, 10)
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
 		EffectiveDate: lastYear,
 		RemainingDays: 12,

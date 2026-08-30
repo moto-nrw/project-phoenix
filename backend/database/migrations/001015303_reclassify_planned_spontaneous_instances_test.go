@@ -3,9 +3,8 @@ package migrations
 import (
 	"context"
 	"testing"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,21 +19,21 @@ func TestReclassifyPlannedSpontaneousInstances(t *testing.T) {
 	ctx := context.Background()
 
 	room := testpkg.CreateTestRoom(t, db, "Migration-2299-Room")
-	date := timezone.NewDate(2026, 9, 1)
+	date := testpkg.Date(2026, time.September, 1)
 	plannedSpont := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status:        schedule.InstanceStatusPlanned,
+		Status:        "planned",
 		IsSpontaneous: true,
 	})
 	activeSpont := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status:        schedule.InstanceStatusActive,
+		Status:        "active",
 		IsSpontaneous: true,
 	})
 	completedSpont := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status:        schedule.InstanceStatusCompleted,
+		Status:        "completed",
 		IsSpontaneous: true,
 	})
 	plannedNormal := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
-		Status: schedule.InstanceStatusPlanned,
+		Status: "planned",
 	})
 
 	require.NoError(t, reclassifyPlannedSpontaneousInstancesUp(ctx, db))

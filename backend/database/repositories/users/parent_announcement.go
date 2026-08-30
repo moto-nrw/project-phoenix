@@ -21,13 +21,14 @@ import (
 // selector to the guardian accounts it reaches.
 type ParentAnnouncementRepository struct {
 	*base.Repository[*users.ParentAnnouncement]
+	today func() timezone.Date
 }
 
 // NewParentAnnouncementRepository wires a fresh repository.
-func NewParentAnnouncementRepository(db *bun.DB) users.ParentAnnouncementRepository {
+func NewParentAnnouncementRepository(db *bun.DB, clocks ...func() time.Time) users.ParentAnnouncementRepository {
 	repo := base.NewRepository[*users.ParentAnnouncement](db, "users.parent_announcements", "ParentAnnouncement")
 	repo.TenantScoped = true
-	return &ParentAnnouncementRepository{Repository: repo}
+	return &ParentAnnouncementRepository{Repository: repo, today: timezone.CalendarDateClock(clocks...)}
 }
 
 // pendingEnrollmentStatuses are the request-child states that count as an "open
@@ -67,8 +68,8 @@ func pendingStatusList() string {
 // the feed). The Berlin date is rendered from validated integer fields, so
 // inlining it as a literal is injection-safe and — like pendingStatusList — keeps
 // the runtime `?` args limited to the ids, preserving their positional order.
-func activeActivityGroupExists(tenantExpr string) string {
-	today := "'" + timezone.TodayDate().String() + "'"
+func activeActivityGroupExists(tenantExpr string, date timezone.Date) string {
+	today := "'" + date.String() + "'"
 	return fmt.Sprintf(`(pt.target_type = 'activity_group' AND EXISTS (
 						SELECT 1 FROM activities.student_enrollments se
 						WHERE se.student_id = s.id AND se.tenant_id = %[1]s
@@ -103,7 +104,7 @@ func activeActivityGroupExists(tenantExpr string) string {
 // Without the fallback an applicant whose submission was never stamped (e.g. a
 // silently-failed invite-accept backfill) sees the school in the feed's tenant
 // set yet no announcement, while staff stats/e-mail counted them symmetrically.
-func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
+func reachedPredicate(annExpr, tenantExpr, accPlace string, today timezone.Date) string {
 	return fmt.Sprintf(`(
 		EXISTS (
 			SELECT 1
@@ -149,7 +150,7 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
 				AND pt.target_type = 'pending_enrollment'
 		)
-	)`, annExpr, tenantExpr, accPlace, pendingStatusList(), activeActivityGroupExists(tenantExpr))
+	)`, annExpr, tenantExpr, accPlace, pendingStatusList(), activeActivityGroupExists(tenantExpr, today))
 }
 
 // FindByID returns the announcement by id (tenant-scoped), or nil when absent.
@@ -445,7 +446,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
-		) reached`, activeActivityGroupExists("?"), pendingStatusList())
+		) reached`, activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
@@ -459,7 +460,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 // announcement's audience right now.
 func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {
 	var matched bool
-	predicate := reachedPredicate("?", "?", "?")
+	predicate := reachedPredicate("?", "?", "?", r.today())
 	sqlStr := "SELECT " + predicate
 	// reachedPredicate references, in order: ann (student), tenant (student x4
 	// inside the fragment), acc (student); ann (pending), tenant (pending), acc
@@ -568,7 +569,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			AND (req.guardian_account_id IS NOT NULL OR ea.id IS NOT NULL)
 		) recips
 		GROUP BY account_id, email`,
-		activeActivityGroupExists("?"), pendingStatusList())
+		activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
@@ -589,7 +590,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 // "almost everyone confirmed" instead of "110 children have no portal contact".
 //
 // Bind order: tenant (students), tenant (activity-group sub-EXISTS), ann, tenant.
-func letterReachedStudentsSQL(annExpr, tenantExpr string) string {
+func letterReachedStudentsSQL(annExpr, tenantExpr string, today timezone.Date) string {
 	return fmt.Sprintf(`
 		SELECT DISTINCT s.id AS student_id
 		FROM users.parent_announcement_targets pt
@@ -603,7 +604,7 @@ func letterReachedStudentsSQL(annExpr, tenantExpr string) string {
 		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 		AND s.status <> 'alumnus'
 		WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s`,
-		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr))
+		annExpr, tenantExpr, activeActivityGroupExists(tenantExpr, today))
 }
 
 // letterReachedStudentArgs mirrors the placeholder order of
@@ -628,8 +629,8 @@ func letterReachedStudentArgs(announcementID, tenantID int64) []any {
 // Nothing here is stored: because acknowledgement lives on the account, one
 // confirmation covers every addressed sibling of that guardian automatically.
 func (r *ParentAnnouncementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementLetterChildStatus, error) {
-	reached := letterReachedStudentsSQL("?", "?")
-	confirmable := pollAudienceStudentsSQL("?", "?", "")
+	reached := letterReachedStudentsSQL("?", "?", r.today())
+	confirmable := pollAudienceStudentsSQL("?", "?", "", r.today())
 	args := append(letterReachedStudentArgs(announcementID, tenantID),
 		audienceStudentArgs(announcementID, tenantID, nil)...)
 	sqlStr := `WITH reached AS (` + reached + `),
@@ -717,7 +718,7 @@ func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Con
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 		GROUP BY gp.id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale
 		ORDER BY LOWER(COALESCE(gp.last_name, '')), LOWER(COALESCE(gp.first_name, '')), gp.id`,
-		activeActivityGroupExists("?"))
+		activeActivityGroupExists("?", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
 	).Scan(ctx, &rows); err != nil {
@@ -797,7 +798,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			ON par.announcement_id = ? AND par.account_id = acc.account_id
 		GROUP BY acc.account_id, par.read_at, par.acknowledged_at
 		ORDER BY last_name ASC, first_name ASC, acc.account_id ASC`,
-		activeActivityGroupExists("?"), pendingStatusList())
+		activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
@@ -859,7 +860,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 		return []*users.AnnouncementFeedItem{}, nil
 	}
 	var rows []*users.AnnouncementFeedItem
-	reached := reachedPredicate("a.id", "a.tenant_id", "?")
+	reached := reachedPredicate("a.id", "a.tenant_id", "?", r.today())
 	sqlStr := `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
@@ -897,8 +898,8 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 		return 0, nil
 	}
 	var count int
-	reached := reachedPredicate("a.id", "a.tenant_id", "?")
-	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?")
+	reached := reachedPredicate("a.id", "a.tenant_id", "?", r.today())
+	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?", r.today())
 	// Reading an actionable item must not clear its reminder. It stays outstanding
 	// until the requested confirmation or every required poll answer is stored.
 	sqlStr := `
@@ -1052,7 +1053,7 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 			(SELECT COUNT(*) FROM users.parent_announcement_reads par
 				WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
 					AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`,
-		activeActivityGroupExists("?"), pendingStatusList())
+		activeActivityGroupExists("?", r.today()), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(audienceCTE,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path

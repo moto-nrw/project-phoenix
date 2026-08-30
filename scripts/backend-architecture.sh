@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root/backend"
+export PHOENIX_ARCHITECTURE_PROJECT="$repo_root/backend"
 
 run_with_default_baseline() {
   local command=$1
@@ -16,7 +17,8 @@ run_with_default_baseline() {
   if "$use_default"; then
     set -- --baseline "$repo_root/backend/architecture/legacy.jsonl" "$@"
   fi
-  exec go run ./internal/architecture/cmd "$command" "$@"
+  cd "$repo_root/scripts/backend-architecture"
+  exec go run . "$command" "$@"
 }
 
 case "${1:-}" in
@@ -26,7 +28,8 @@ case "${1:-}" in
     ;;
   explain)
     shift
-    exec go run ./internal/architecture/cmd explain "$@"
+    cd "$repo_root/scripts/backend-architecture"
+    exec go run . explain "$@"
     ;;
   audit-issues)
     shift

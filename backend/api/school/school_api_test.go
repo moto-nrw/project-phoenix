@@ -77,13 +77,21 @@ func newSchoolChiRouter(db *bun.DB, factory *services.Factory) chi.Router {
 
 // newSchoolTimetableResource builds the timetable resource behind
 // /school/supervisions (#2527) with the deps that surface actually consumes.
-func newSchoolTimetableResource(db *bun.DB, factory *services.Factory) *timetable.Resource {
+func newSchoolTimetableResource(db *bun.DB, factory *services.Factory, clocks ...func() time.Time) *timetable.Resource {
 	return timetable.NewResource(timetable.Dependencies{
 		OperationsService: factory.TimetableOperations,
 		ReportService:     factory.EnrollmentReport,
 		SettingsService:   factory.Settings,
+		Now:               firstSchoolClock(clocks),
 		DB:                db,
 	})
+}
+
+func firstSchoolClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
 }
 
 // pushSubscriptionPortal reads back through which portal a device was

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -188,7 +189,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 
 	t.Run("returns sessions in date range", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 		twoDaysAgo := today.AddDays(-2)
 
@@ -224,7 +225,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 
 	t.Run("returns empty for date range with no sessions", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		futureDate := timezone.TodayDate().AddDays(365)
+		futureDate := timezone.NewDate(2026, 8, 24).AddDays(365)
 		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, futureDate, futureDate)
 		require.NoError(t, err)
 		assert.Empty(t, history)
@@ -239,7 +240,7 @@ func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.
 
 	repo := repositories.NewFactory(db).WorkSession
 	ctx := testpkg.Ctx(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	_, err := repo.GetHistoryByStaffID(ctx, 7, today, today)
 	require.Error(t, err)
@@ -323,30 +324,32 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSession
+	repo := activeRepo.NewWorkSessionRepository(db, func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns presence map for today", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 
 		// Active session
 		session1 := &active.WorkSession{
 			StaffID:     staff1.ID,
 			Date:        today,
 			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now(),
+			CheckInTime: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC),
 			CreatedBy:   staff1.ID,
 		}
 
 		// Checked-out session
-		checkOutTime := time.Now()
+		checkOutTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		session2 := &active.WorkSession{
 			StaffID:      staff2.ID,
 			Date:         today,
 			Status:       active.WorkSessionStatusHomeOffice,
-			CheckInTime:  time.Now().Add(-2 * time.Hour),
+			CheckInTime:  time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour),
 			CheckOutTime: &checkOutTime,
 			CreatedBy:    staff2.ID,
 		}
@@ -365,7 +368,7 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 	t.Run("open blocks past the live limit stop reporting presence", func(t *testing.T) {
 		running := testpkg.CreateTestStaff(t, db, "Night", "Block")
 		forgotten := testpkg.CreateTestStaff(t, db, "Forgotten", "Checkout")
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		today := timezone.DateFromTime(now)
 
 		// Filed yesterday, checked in two hours ago: a block that ran across
@@ -707,7 +710,7 @@ func TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts(t *te
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Early", "Staff")
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	to := from.AddDays(6)
 
 	start := from.AddDays(-5)

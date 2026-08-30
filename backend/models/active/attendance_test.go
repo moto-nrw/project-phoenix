@@ -25,7 +25,7 @@ func TestAttendance_GetID(t *testing.T) {
 func TestAttendance_GetCreatedAt(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	attendance := &Attendance{
 		StudentID:   1,
 		Date:        timezone.DateFromTime(now),
@@ -39,7 +39,7 @@ func TestAttendance_GetCreatedAt(t *testing.T) {
 func TestAttendance_GetUpdatedAt(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	attendance := &Attendance{
 		StudentID:   1,
 		Date:        timezone.DateFromTime(now),
@@ -53,7 +53,7 @@ func TestAttendance_GetUpdatedAt(t *testing.T) {
 func TestAttendance_IsCheckedIn_WhenCheckedIn(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	attendance := &Attendance{
 		StudentID:    1,
 		Date:         timezone.DateFromTime(now),
@@ -67,7 +67,7 @@ func TestAttendance_IsCheckedIn_WhenCheckedIn(t *testing.T) {
 func TestAttendance_IsCheckedIn_WhenCheckedOut(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	checkoutTime := now.Add(2 * time.Hour)
 
 	attendance := &Attendance{
@@ -97,7 +97,7 @@ func TestAttendance_IsCheckedIn_ZeroValue(t *testing.T) {
 func TestAttendance_CompleteLifecycle(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	// Create attendance record (check-in)
 	attendance := &Attendance{
@@ -136,7 +136,7 @@ func TestAttendance_CompleteLifecycle(t *testing.T) {
 func TestAttendance_MultipleRecords(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name          string
@@ -182,7 +182,7 @@ func TestAttendance_MultipleRecords(t *testing.T) {
 func TestAttendance_Fields(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	checkoutTime := now.Add(2 * time.Hour)
 	checkedOutBy := int64(99)
 

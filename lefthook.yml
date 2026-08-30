@@ -33,11 +33,12 @@ pre-commit:
             failed=true
             continue
           fi
-          while IFS= read -r line; do
-            echo "❌ Plaintext value in $f: ${line%%=*}="
+          plaintext=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_' || true)
+          if [ -n "$plaintext" ]; then
+            echo "❌ Plaintext value in $f: ${plaintext%%=*}="
             echo "   Re-encrypt: sops encrypt --in-place $f"
             failed=true
-          done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.+' "$f" | grep -v 'ENC\[' | grep -v '^sops_')
+          fi
         done
         if [ "$failed" = true ]; then
           exit 1

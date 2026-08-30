@@ -4,27 +4,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestSeederFailsFastWithoutAdapter(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewSeeder(nil, newSeedTestRandom(), false, SeedOptions{}).Seed(t.Context(), "operator@example.com", "secret", "1234")
+	require.EqualError(t, err, "seed API adapter is required")
+}
+
 func TestGenerateSeedPassword(t *testing.T) {
 	t.Parallel()
+	random := newSeedTestRandom()
 
 	// Run multiple times to verify deterministic compliance (was probabilistic before fix).
 	for i := 0; i < 50; i++ {
-		password, err := generateSeedPassword()
+		password, err := generateSeedPassword(random)
 		require.NoError(t, err)
 		assert.Len(t, password, seedPasswordLength)
 		for _, char := range password {
@@ -42,8 +45,8 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 	t.Parallel()
 
 	seen := make(map[string]any)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, http.MethodPut, r.Method)
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		require.Equal(t, seedHTTPMethodPut, r.Method)
 
 		var body struct {
 			Value any `json:"value"`
@@ -53,24 +56,24 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
-	}))
+	})
 	defer srv.Close()
 
 	rt := &Runtime{Client: newTestClient(srv.URL, false)}
 	step := parentEnrollmentSeedStep{}
 
-	settings, err := step.seedSettings(rt, phoenixapi.AuthRef{})
+	settings, err := step.seedSettings(rt, AuthRef{})
 	require.NoError(t, err)
 
-	assert.Equal(t, false, settings[configModels.KeyEnrollmentRequireCaptcha])
-	assert.Equal(t, false, seen[configModels.KeyEnrollmentRequireCaptcha])
+	assert.Equal(t, false, settings["enrollment.require_captcha"])
+	assert.Equal(t, false, seen["enrollment.require_captcha"])
 }
 
 func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -82,7 +85,7 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		}
-	}))
+	})
 	defer srv.Close()
 
 	step := seedStatisticsDemoStep{}
@@ -126,17 +129,17 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 		PickupTimes   map[string]string `json:"pickup_times"`
 	}
 	var received []offeringPayload
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		require.Equal(t, "/api/enrollment/care-offerings", r.URL.Path)
 		var body offeringPayload
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		received = append(received, body)
 		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d"}}`, len(received))
-	}))
+	})
 	defer srv.Close()
 
 	step := parentEnrollmentSeedStep{}
-	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, phoenixapi.AuthRef{}, 1)
+	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1)
 	require.NoError(t, err)
 	require.Len(t, received, 4)
 
@@ -187,11 +190,11 @@ func TestClientPostPublicWithHeaders(t *testing.T) {
 	t.Parallel()
 
 	var forwardedFor string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		forwardedFor = r.Header.Get("X-Forwarded-For")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newTestClient(srv.URL, false)
@@ -206,10 +209,10 @@ func TestWrapConflictError(t *testing.T) {
 	t.Parallel()
 
 	t.Run("wraps 409 APIError with helpful message", func(t *testing.T) {
-		apiErr := &phoenixapi.APIError{
+		apiErr := &APIError{
 			Method:     "POST",
 			Path:       "/operator/organizations",
-			StatusCode: http.StatusConflict,
+			StatusCode: seedHTTPStatusConflict,
 			Message:    "slug already taken",
 		}
 		err := wrapConflictError(apiErr, "organization")
@@ -218,10 +221,10 @@ func TestWrapConflictError(t *testing.T) {
 	})
 
 	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
-		apiErr := &phoenixapi.APIError{
+		apiErr := &APIError{
 			Method:     "POST",
 			Path:       "/operator/organizations",
-			StatusCode: http.StatusInternalServerError,
+			StatusCode: seedHTTPStatusInternalServerError,
 			Message:    "internal error",
 		}
 		err := wrapConflictError(apiErr, "organization")
@@ -238,7 +241,7 @@ func TestWrapConflictError(t *testing.T) {
 func TestExtractBootstrapInvitationToken(t *testing.T) {
 	t.Parallel()
 
-	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{"token":"seed-token"}}`))
 	require.NoError(t, err)
@@ -248,7 +251,7 @@ func TestExtractBootstrapInvitationToken(t *testing.T) {
 func TestExtractBootstrapInvitationToken_MissingToken(t *testing.T) {
 	t.Parallel()
 
-	s := NewSeeder("http://localhost:8080", false, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, SeedOptions{})
 
 	token, err := s.extractBootstrapInvitationToken([]byte(`{"data":{}}`))
 	require.Error(t, err)
@@ -396,7 +399,7 @@ func TestFormatError(t *testing.T) {
 func TestNewSeeder(t *testing.T) {
 	t.Parallel()
 
-	s := NewSeeder("http://localhost:8080", true, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), true, SeedOptions{})
 	assert.NotNil(t, s.client)
 	assert.True(t, s.verbose)
 	assert.Equal(t, "http://localhost:8080", s.client.baseURL)
@@ -410,7 +413,7 @@ func TestNewSeeder_WithOptions(t *testing.T) {
 		StaffPassword: "MyPass1!",
 		AdminEmail:    "admin@test.com",
 	}
-	s := NewSeeder("http://localhost:8080", false, opts)
+	s := NewSeeder(newSeedTestAdapter("http://localhost:8080"), newSeedTestRandom(), false, opts)
 	assert.Equal(t, "my-school", s.options.TenantSlug)
 	assert.Equal(t, "MyPass1!", s.options.StaffPassword)
 	assert.Equal(t, "admin@test.com", s.options.AdminEmail)
@@ -483,7 +486,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer func() { _ = os.Chdir(origDir) }()
 
-	s := NewSeeder(srv.URL, false, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{})
 	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -507,7 +510,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
 	t.Parallel()
 
-	s := NewSeeder("http://localhost:1", false, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter("http://localhost:1"), newSeedTestRandom(), false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Server health check failed")
@@ -516,18 +519,18 @@ func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
 func TestSeeder_Seed_LoginFails(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		switch r.URL.Path {
 		case "/health":
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(seedHTTPStatusOK)
 		case "/operator/auth/login":
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(seedHTTPStatusUnauthorized)
 			_, _ = fmt.Fprint(w, `{"error":"bad creds"}`)
 		}
-	}))
+	})
 	defer srv.Close()
 
-	s := NewSeeder(srv.URL, false, SeedOptions{})
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{})
 	_, err := s.Seed(context.Background(), "bad@test.de", "wrong", "1234")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "Login failed")
@@ -599,21 +602,21 @@ type fullSeedAPITrace struct {
 	withdrawalRemovals []map[string]any
 	withdrawalPreviews int
 	withdrawalEnds     int
-	withdrawalToday    timezone.Date
+	withdrawalToday    seedDate
 }
 
 func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
 	t.Helper()
 	require.Len(t, trace.withdrawalRemovals, 3)
-	dates := make([]timezone.Date, 0, 3)
+	dates := make([]seedDate, 0, 3)
 	for _, body := range trace.withdrawalRemovals {
 		assert.Equal(t, true, body["complete_withdrawal_confirmed"])
 		assert.Empty(t, body["offerings"])
-		date, err := timezone.ParseDate(body["effective_from"].(string))
+		date, err := parseSeedDate(body["effective_from"].(string))
 		require.NoError(t, err)
 		dates = append(dates, date)
 	}
-	slices.SortFunc(dates, func(a, b timezone.Date) int { return a.Compare(b) })
+	slices.SortFunc(dates, func(a, b seedDate) int { return a.Compare(b) })
 	assert.Equal(t, trace.withdrawalToday, dates[0])
 	assert.Equal(t, dates[0].AddDays(1), dates[1])
 	assert.Equal(t, dates[0].AddDays(7), dates[2])
@@ -622,7 +625,7 @@ func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
 }
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
-func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *httptest.Server {
+func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestServer {
 	t.Helper()
 	idCounter := int64(0)
 	var trace *fullSeedAPITrace
@@ -630,10 +633,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *httptest.Server
 		trace = traces[0]
 	}
 
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(seedHTTPStatusOK)
 
 		if strings.HasPrefix(r.URL.Path, "/api/guardians/") && strings.HasSuffix(r.URL.Path, "/invite") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -675,7 +678,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *httptest.Server
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			if trace != nil && body["complete_withdrawal_confirmed"] == true {
 				if trace.withdrawalToday.IsZero() {
-					trace.withdrawalToday = timezone.TodayDate()
+					trace.withdrawalToday = todaySeedDate()
 				}
 				trace.withdrawalRemovals = append(trace.withdrawalRemovals, body)
 			}
@@ -897,7 +900,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *httptest.Server
 				},
 			})
 		}
-	}))
+	})
 }
 
 func TestFixedResult_Fields(t *testing.T) {

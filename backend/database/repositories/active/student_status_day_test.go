@@ -25,7 +25,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 
-	date := timezone.TodayDate().AddDays(3)
+	date := timezone.NewDate(2026, 8, 24).AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
 	entry := &active.StudentStatusDay{
 		StudentID:  student.ID,
@@ -89,7 +89,7 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	firstDate := timezone.DateFromTime(now).AddDays(4)
 	secondDate := timezone.DateFromTime(now).AddDays(5)
 	for _, date := range []timezone.Date{firstDate, secondDate} {
@@ -138,7 +138,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	repo := repositories.NewFactory(db).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
-	date := timezone.TodayDate().AddDays(6)
+	date := timezone.NewDate(2026, 8, 24).AddDays(6)
 	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
 		TenantModel: modelBase.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   student.ID,
@@ -268,7 +268,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 
-	date := timezone.TodayDate().AddDays(5)
+	date := timezone.NewDate(2026, 8, 24).AddDays(5)
 	reason := "Fieber"
 
 	// 1. Report sick with a reason.

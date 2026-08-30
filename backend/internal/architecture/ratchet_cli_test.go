@@ -1,17 +1,14 @@
-package architecture_test
+package architecture
 
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/architecture"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
@@ -65,11 +62,11 @@ func TestRatchetMismatchReportsViolationLocations(t *testing.T) {
 func TestLegacyBaselineJSONOmitsLocations(t *testing.T) {
 	t.Parallel()
 
-	entry := architecture.LegacyEntry{
-		Violation: architecture.Violation{
-			Scope: architecture.ScopeProduction, Rule: "imports.forbidden",
+	entry := LegacyEntry{
+		Violation: Violation{
+			Scope: ScopeProduction, Rule: "imports.forbidden",
 			Source: "example.test/architecture-fixture/source", Target: "example.test/architecture-fixture/target",
-			Locations: []architecture.Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
+			Locations: []Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
 		},
 		Issue: "https://github.com/moto-nrw/project-phoenix/issues/2583",
 	}
@@ -164,7 +161,7 @@ func TestCheckReadsBasePolicyAtRequestedPathDespiteCandidateSymlink(t *testing.T
 		t.Fatalf("symlink candidate policy: %v", err)
 	}
 
-	basePolicy, _, err := architecture.LoadBasePolicyAndManifest(repo, policyPath, filepath.Join(repo, "architecture", "legacy.jsonl"), baseRef)
+	basePolicy, _, err := LoadBasePolicyAndManifest(repo, policyPath, filepath.Join(repo, "architecture", "legacy.jsonl"), baseRef)
 	if err != nil {
 		t.Fatalf("load base policy: %v", err)
 	}
@@ -460,13 +457,13 @@ func TestCheckHasNoApprovalOrRebaselineSwitch(t *testing.T) {
 func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2583" {
-			http.NotFound(w, r)
+			w.WriteHeader(testpkg.HTTPStatusNotFound)
 			return
 		}
 		_, _ = w.Write([]byte(`{"state":"closed","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	}))
+	})
 	defer server.Close()
 
 	manifest := writeManifest(t, legacyRecord(2583))
@@ -488,9 +485,9 @@ func TestAuditIssuesRequiresAPIURL(t *testing.T) {
 func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
 		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	}))
+	})
 	defer server.Close()
 	manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/another") + legacyRecord(2583)
 
@@ -504,10 +501,10 @@ func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 	t.Parallel()
 
 	authorization := make(chan string, 1)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		authorization <- r.Header.Get("Authorization")
 		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	}))
+	})
 	defer server.Close()
 
 	output, err := runArchitectureWithEnv(t, map[string]string{"GITHUB_TOKEN": "top-secret"}, "audit-issues", "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
@@ -680,8 +677,7 @@ func runRepositoryCheck(t *testing.T, repo, baseRef string) (string, error) {
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	command := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	output, err := command.CombinedOutput()
+	output, err := processOutput(dir, nil, "git", append([]string{"-C", dir}, args...)...)
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, output)
 	}

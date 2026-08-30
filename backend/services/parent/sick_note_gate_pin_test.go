@@ -26,7 +26,7 @@ func TestSickNoteStaysImmediateWhenApprovalDisabled(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	day := timezone.TodayDate()
+	day := timezone.NewDate(2026, 8, 24)
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick, nil)
 	require.NoError(t, err)

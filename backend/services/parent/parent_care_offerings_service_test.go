@@ -232,6 +232,9 @@ func careOfferingsService(
 		StudentRepo: careOfferingsStudentRepoStub{},
 		DB:          db,
 		Logger:      slog.Default(),
+		Now: func() time.Time {
+			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+		},
 	}}
 	if changes != nil {
 		svc.OfferingChanges = changes
@@ -243,7 +246,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	t.Parallel()
 
 	db := careOfferingsTestDB(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	description := "Mit Mittagessen"
 	price := 4200
 	sourceChildID := int64(301)
