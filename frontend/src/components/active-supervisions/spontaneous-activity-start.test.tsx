@@ -117,6 +117,25 @@ describe("SpontaneousActivityStart", () => {
     );
   });
 
+  it("keeps the weekend action visible and explains why it is blocked", () => {
+    render(
+      <SpontaneousActivityStart
+        disabled
+        disabledReason="Spontane Aktivitäten sind nur montags bis freitags möglich."
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Spontane Aktivitäten sind nur montags bis freitags möglich.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("starts an existing activity in the selected room with optional staff", async () => {
     const onStart = vi.fn();
     render(

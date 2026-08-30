@@ -229,8 +229,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	if !ok {
 		return
 	}
-	window, err := spontaneousStartWorkdayWindow(rs.Now())
-	if err != nil {
+	if _, err := spontaneousStartWorkdayWindow(rs.Now()); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -250,6 +249,14 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
 	createdBy := currentStaffID
+	// Room and caller validation can span a Berlin day boundary. Capture the
+	// authoritative start window immediately before the first write-capable
+	// step so a request that crosses into a weekend cannot mutate anything.
+	window, err := spontaneousStartWorkdayWindow(rs.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
 	if err != nil {
 		renderSpontaneousActivityResolutionError(w, r, err)
