@@ -15,7 +15,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -75,7 +74,7 @@ type GuardianServiceDependencies struct {
 	// MailIdentity points replies to this invitation at the OGS instead of
 	// moto (#1936). Optional: nil sends without a Reply-To, exactly as before.
 	// This send bypasses the outbox, so it stamps the header itself.
-	MailIdentity platformModels.TenantMailIdentityResolver
+	MailIdentity email.ReplyToResolver
 
 	// Infrastructure
 	DB *bun.DB
@@ -1339,6 +1338,6 @@ func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64)
 // value when none is configured. This send bypasses the outbox, so it stamps
 // the header itself; the degradation policy is shared (#1936).
 func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
-	identity := platformModels.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
-	return email.NewEmail(identity.ReplyToName, identity.ReplyToAddress)
+	identity := email.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
+	return email.NewEmail(identity.Name, identity.Address)
 }

@@ -15,15 +15,15 @@ import (
 // stubMailIdentity is a behaviourally divergent double (it records the tenant
 // it was asked about and can inject an error), so it stays local per Rule 13.
 type stubMailIdentity struct {
-	identity     platformModels.TenantMailIdentity
+	identity     email.ReplyToIdentity
 	err          error
 	askedTenants []int64
 }
 
-func (s *stubMailIdentity) ResolveTenantMailIdentity(
+func (s *stubMailIdentity) ResolveReplyTo(
 	_ context.Context,
 	tenantID int64,
-) (platformModels.TenantMailIdentity, error) {
+) (email.ReplyToIdentity, error) {
 	s.askedTenants = append(s.askedTenants, tenantID)
 	return s.identity, s.err
 }
@@ -51,9 +51,9 @@ func TestOutboxWorker_RunOnce_StampsTenantReplyTo(t *testing.T) {
 	row := makeRow(1001, 99, "welcome", 0)
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
 	mailer := &stubMailer{}
-	identity := &stubMailIdentity{identity: platformModels.TenantMailIdentity{
-		ReplyToName:    "OGS Am Berg",
-		ReplyToAddress: "ogs@schule.example",
+	identity := &stubMailIdentity{identity: email.ReplyToIdentity{
+		Name:    "OGS Am Berg",
+		Address: "ogs@schule.example",
 	}}
 
 	w := newMockOutboxWorker(t, OutboxWorkerConfig{
@@ -96,8 +96,8 @@ func TestOutboxWorker_RunOnce_RendererReplyToWins(t *testing.T) {
 			ReplyTo: email.NewEmail("Renderer", "renderer@example.test"),
 		}), Mailer: mailer, DB: db, MaxAttempts: 3,
 	})
-	w.SetMailIdentityResolver(&stubMailIdentity{identity: platformModels.TenantMailIdentity{
-		ReplyToAddress: "ogs@schule.example",
+	w.SetMailIdentityResolver(&stubMailIdentity{identity: email.ReplyToIdentity{
+		Address: "ogs@schule.example",
 	}})
 
 	_, err := w.RunOnce(context.Background(), 10)

@@ -8,9 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -24,15 +22,8 @@ func schoolRepoReturning(school *platformModels.School, err error) *test.SchoolR
 	}
 }
 
-func settingsReturning(value string, err error) *configtest.Mock {
-	return &configtest.Mock{
-		ResolveStringForTenantFn: func(_ context.Context, _ int64, key string) (string, error) {
-			if key != configModels.KeyEmailReplyToAddress {
-				return "", nil
-			}
-			return value, err
-		},
-	}
+func settingsReturning(value string, err error) func(context.Context, int64) (string, error) {
+	return func(context.Context, int64) (string, error) { return value, err }
 }
 
 // The explicit setting is the school's own decision and must win over the
@@ -46,10 +37,10 @@ func TestResolveTenantMailIdentity_SettingWinsOverSchoolContact(t *testing.T) {
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), mailIdentityTenantID)
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
-	assert.Equal(t, "eltern@schule.example", identity.ReplyToAddress)
-	assert.Equal(t, "OGS Am Berg", identity.ReplyToName)
+	assert.Equal(t, "eltern@schule.example", identity.Address)
+	assert.Equal(t, "OGS Am Berg", identity.Name)
 }
 
 // Without an explicit setting the school contact address is used. This is the
@@ -64,9 +55,9 @@ func TestResolveTenantMailIdentity_FallsBackToSchoolContact(t *testing.T) {
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), mailIdentityTenantID)
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
-	assert.Equal(t, "buero@schule.example", identity.ReplyToAddress)
+	assert.Equal(t, "buero@schule.example", identity.Address)
 }
 
 // Neither source configured must stay silent: no Reply-To header, mail
@@ -80,7 +71,7 @@ func TestResolveTenantMailIdentity_NothingConfigured_IsZero(t *testing.T) {
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), mailIdentityTenantID)
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
 	assert.True(t, identity.IsZero())
 }
@@ -96,9 +87,9 @@ func TestResolveTenantMailIdentity_BlankSettingFallsThrough(t *testing.T) {
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), mailIdentityTenantID)
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
-	assert.Equal(t, "buero@schule.example", identity.ReplyToAddress)
+	assert.Equal(t, "buero@schule.example", identity.Address)
 }
 
 // A failing settings lookup must degrade to the school contact address, never
@@ -112,9 +103,9 @@ func TestResolveTenantMailIdentity_SettingsErrorFallsBackToSchool(t *testing.T) 
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), mailIdentityTenantID)
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
-	assert.Equal(t, "buero@schule.example", identity.ReplyToAddress)
+	assert.Equal(t, "buero@schule.example", identity.Address)
 }
 
 // Same rule for a failing school lookup: no identity, no error, mail still goes.
@@ -127,7 +118,7 @@ func TestResolveTenantMailIdentity_SchoolErrorDegradesToNoReplyTo(t *testing.T) 
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), mailIdentityTenantID)
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
 	assert.True(t, identity.IsZero())
 }
@@ -143,7 +134,7 @@ func TestResolveTenantMailIdentity_NoTenant_IsZero(t *testing.T) {
 		nil,
 	)
 
-	identity, err := svc.ResolveTenantMailIdentity(context.Background(), 0)
+	identity, err := svc.ResolveReplyTo(context.Background(), 0)
 	require.NoError(t, err)
 	assert.True(t, identity.IsZero())
 }

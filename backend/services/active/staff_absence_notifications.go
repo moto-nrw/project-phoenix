@@ -42,7 +42,7 @@ type AbsenceEmailDeps struct {
 	FrontendURL string
 	// MailIdentity points replies at the OGS instead of moto (#1936).
 	// Optional: nil sends without a Reply-To, exactly as before.
-	MailIdentity platformModels.TenantMailIdentityResolver
+	MailIdentity email.ReplyToResolver
 	Logger       *slog.Logger
 }
 
@@ -323,8 +323,8 @@ func (s *staffAbsenceService) dispatchAbsenceEmail(ctx context.Context, metaType
 		// context would panic. Send exactly as before in that case.
 		if tenantID > 0 {
 			sendCtx = tenant.WithTenantID(sendCtx, tenantID)
-			identity := platformModels.ResolveReplyToIdentity(sendCtx, resolver, tenantID, logger)
-			request.Message.ReplyTo = email.NewEmail(identity.ReplyToName, identity.ReplyToAddress)
+			identity := email.ResolveReplyToIdentity(sendCtx, resolver, tenantID, logger)
+			request.Message.ReplyTo = email.NewEmail(identity.Name, identity.Address)
 		}
 		dispatcher.Dispatch(sendCtx, request)
 	})

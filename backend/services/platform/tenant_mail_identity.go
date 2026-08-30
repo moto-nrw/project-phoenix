@@ -5,9 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // tenantMailIdentityService resolves the reply address of one school (#1936).
@@ -22,9 +21,9 @@ import (
 // that never open the setting, which is the whole point: the reported failure
 // (17.07.2026) was that answers to Eltern-Einladungen landed at moto.
 type tenantMailIdentityService struct {
-	schoolRepo platformModels.SchoolRepository
-	settings   config.SettingsService
-	logger     *slog.Logger
+	schoolRepo        platformModels.SchoolRepository
+	configuredAddress func(context.Context, int64) (string, error)
+	logger            *slog.Logger
 }
 
 // NewTenantMailIdentityService builds the resolver. Both dependencies are
@@ -33,25 +32,25 @@ type tenantMailIdentityService struct {
 // behaviour rather than an error.
 func NewTenantMailIdentityService(
 	schoolRepo platformModels.SchoolRepository,
-	settings config.SettingsService,
+	configuredAddress func(context.Context, int64) (string, error),
 	logger *slog.Logger,
-) platformModels.TenantMailIdentityResolver {
+) email.ReplyToResolver {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &tenantMailIdentityService{
-		schoolRepo: schoolRepo,
-		settings:   settings,
-		logger:     logger.With("component", "tenant_mail_identity"),
+		schoolRepo:        schoolRepo,
+		configuredAddress: configuredAddress,
+		logger:            logger.With("component", "tenant_mail_identity"),
 	}
 }
 
-func (s *tenantMailIdentityService) ResolveTenantMailIdentity(
+func (s *tenantMailIdentityService) ResolveReplyTo(
 	ctx context.Context,
 	tenantID int64,
-) (platformModels.TenantMailIdentity, error) {
+) (email.ReplyToIdentity, error) {
 	if tenantID <= 0 {
-		return platformModels.TenantMailIdentity{}, nil
+		return email.ReplyToIdentity{}, nil
 	}
 
 	school, err := s.resolveSchool(ctx, tenantID)
@@ -70,16 +69,16 @@ func (s *tenantMailIdentityService) ResolveTenantMailIdentity(
 	}
 
 	if addr := s.resolveConfiguredAddress(ctx, tenantID); addr != "" {
-		return platformModels.TenantMailIdentity{ReplyToName: name, ReplyToAddress: addr}, nil
+		return email.ReplyToIdentity{Name: name, Address: addr}, nil
 	}
 
 	if school != nil {
 		if addr := strings.TrimSpace(school.Email); addr != "" {
-			return platformModels.TenantMailIdentity{ReplyToName: name, ReplyToAddress: addr}, nil
+			return email.ReplyToIdentity{Name: name, Address: addr}, nil
 		}
 	}
 
-	return platformModels.TenantMailIdentity{}, nil
+	return email.ReplyToIdentity{}, nil
 }
 
 func (s *tenantMailIdentityService) resolveSchool(
@@ -96,10 +95,10 @@ func (s *tenantMailIdentityService) resolveSchool(
 // opens its own tenant transaction, which is required here: the outbox worker
 // renders mail on a background goroutine with no tenant middleware.
 func (s *tenantMailIdentityService) resolveConfiguredAddress(ctx context.Context, tenantID int64) string {
-	if s.settings == nil {
+	if s.configuredAddress == nil {
 		return ""
 	}
-	value, err := s.settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+	value, err := s.configuredAddress(ctx, tenantID)
 	if err != nil {
 		s.logger.Warn("reply-to setting lookup failed, falling back to school contact address",
 			slog.Int64("tenant_id", tenantID),

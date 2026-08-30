@@ -59,11 +59,11 @@ type OutboxWorker struct {
 	// message. It lives here rather than in each renderer because every
 	// outbox kind is tenant-bound, so one choke point covers all of them and
 	// no renderer can forget it (#1936). Optional: nil means no Reply-To.
-	mailIdentity platformModels.TenantMailIdentityResolver
+	mailIdentity email.ReplyToResolver
 }
 
 // SetMailIdentityResolver wires the tenant reply-address resolver.
-func (w *OutboxWorker) SetMailIdentityResolver(r platformModels.TenantMailIdentityResolver) {
+func (w *OutboxWorker) SetMailIdentityResolver(r email.ReplyToResolver) {
 	w.mailIdentity = r
 }
 
@@ -76,7 +76,7 @@ func (w *OutboxWorker) applyTenantReplyTo(ctx context.Context, row *platformMode
 	if w.mailIdentity == nil || msg == nil || msg.ReplyTo.Address != "" {
 		return
 	}
-	identity, err := w.mailIdentity.ResolveTenantMailIdentity(ctx, row.GetTenantID())
+	identity, err := w.mailIdentity.ResolveReplyTo(ctx, row.GetTenantID())
 	if err != nil {
 		w.logger.Warn("outbox: reply-to lookup failed, sending without it",
 			slog.Int64("outbox_id", row.ID),
@@ -88,7 +88,7 @@ func (w *OutboxWorker) applyTenantReplyTo(ctx context.Context, row *platformMode
 	if identity.IsZero() {
 		return
 	}
-	msg.ReplyTo = email.NewEmail(identity.ReplyToName, identity.ReplyToAddress)
+	msg.ReplyTo = email.NewEmail(identity.Name, identity.Address)
 }
 
 // SetTenantRuntime wires the transaction runtime used by this cross-tenant worker.
