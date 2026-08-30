@@ -125,6 +125,25 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
     Bericht melden, nichts umschreiben.
 15. **Keine AI-Attribution** irgendwo (Code, Kommentare, Commits).
 
+## Unter `sm`: dieselbe Reihenfolge, andere Fläche
+
+Auf dem Telefon gilt dasselbe Gerüst mit derselben Reihenfolge, aber ohne
+die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
+`TenantPage` und das Kit, nie die Seite:
+
+- **Kein Kopf als Karte.** Statuszeile und Aktionen stehen flach unter der
+  Kopfzeile der Shell (kein Rahmen, kein Schatten, kein Innenrand). Der
+  Seitenname steht mobil nur in der Kopfzeile; das `h1` bleibt für
+  Screenreader (`sr-only`). Unterseiten mit `back` und Objektseiten mit
+  `leading` behalten ihren Titel, weil die Kopfzeile dort nur den Bereich
+  nennt.
+- **Reiter als Pillen** im scrollenden Band: aktiv gefüllt, der Rest grau.
+  Die Grundlinie des Desktops liest sich mobil als Text.
+- **Dichte**: Blöcke im 12-px-Rhythmus (`space-y-3`), `SectionCard` mit
+  `p-4` und `rounded-xl`, `StatCard` ohne Symbol mit `p-3`, Kacheln
+  (`TileCard`, Kinderkarte) mit `p-3`. Der 24-px-Rhythmus ist ein
+  Desktop-Maß.
+
 ## Planungsflächen
 
 Betreuungsplan, Dienstplan, Vertretung und Kalender haben keinen zweiten

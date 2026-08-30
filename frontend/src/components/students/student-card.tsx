@@ -191,7 +191,7 @@ export function StudentCard({
       className={`${TILE_CARD_SURFACE} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
     >
       <div
-        className={`relative ${checkinMode && !selectMode ? "p-4 pb-0 sm:p-5 sm:pb-0" : "p-4 sm:p-5"}`}
+        className={`relative ${checkinMode && !selectMode ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}
       >
         {/* Card body content */}
         <div className="relative">

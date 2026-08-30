@@ -301,7 +301,7 @@ export function TenantPage({
       {/* Eine Fläche von Titel bis Reiter. Die Reiter lagen vorher frei auf
           dem gemusterten Grund und sahen aus wie nachträglich dazwischen
           geschoben; sie sind jetzt die letzte Zeile des Kopfes. */}
-      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent! max-sm:p-0 max-sm:shadow-none! max-sm:backdrop-blur-none!">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
               lassen, statt mit seiner natürlichen Breite zu ringen. Vorher
@@ -315,6 +315,12 @@ export function TenantPage({
               <h1
                 className={cn(
                   "font-semibold tracking-tight text-balance text-gray-900",
+                  // Auf dem Telefon steht der Seitenname schon in der
+                  // Kopfzeile der Shell. Ein zweites Mal darunter kostete
+                  // 60 px pro Seite. Unterseiten (mit Zurück-Knopf) und
+                  // Objektseiten (mit Avatar) behalten ihren Titel: dort
+                  // nennt die Kopfzeile nur den Bereich.
+                  !back && leading == null && "max-sm:sr-only",
                   prominent
                     ? "text-2xl leading-tight sm:text-[28px]"
                     : "text-xl leading-tight sm:text-2xl",
@@ -359,7 +365,7 @@ export function TenantPage({
         {(searchSlot ?? hasSearchRow) && (
           <div
             className={cn(
-              "mt-4",
+              "mt-4 max-sm:mt-3",
               searchSlotHeight === "controls" && CONTROL_HEIGHT,
             )}
           >
@@ -386,7 +392,7 @@ export function TenantPage({
         )}
       </header>
 
-      <div className={cn("space-y-6", tabs ? "mt-6" : "mt-6")}>
+      <div className="mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
         <TenantPageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `${title} wird geladen…`}
@@ -493,9 +499,13 @@ function TenantPageTabs({
   const tabClass = (active: boolean, disabled?: boolean) =>
     cn(
       "flex shrink-0 items-center gap-1.5 border-b-[3px] pb-3 text-base whitespace-nowrap transition-colors",
+      // Auf dem Telefon Pillen statt Grundlinie: eine graue Schrift mit
+      // 3-px-Strich liest sich in einer 390-px-Spalte als Text, nicht als
+      // Navigation. Die gefüllte Pille ist erkennbar ein Bedienelement.
+      "max-sm:rounded-full max-sm:border-0 max-sm:px-3 max-sm:py-1.5 max-sm:pb-1.5 max-sm:text-sm",
       active
-        ? "border-moto-green font-semibold text-gray-900"
-        : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900",
+        ? "border-moto-green font-semibold text-gray-900 max-sm:bg-gray-900 max-sm:text-white"
+        : "border-transparent font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900 max-sm:bg-gray-100 max-sm:text-gray-700",
       disabled && "cursor-not-allowed opacity-50",
     );
 
@@ -593,7 +603,7 @@ function TenantPageTabs({
   return (
     // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
     // die volle Kartenbreite, auf jedem Geraet.
-    <div className="-mx-5 mt-4">
+    <div className="-mx-5 mt-4 max-sm:mx-0 max-sm:mt-3">
       {/* EIN Band auf allen Breiten. Unter sm scrollt es waagerecht und zeigt
           jeden Reiter; ab sm wird gemessen und der Ueberhang steht unter
           „Mehr". Vorher stand unter sm eine Auswahlliste -- sie zeigte nur den
@@ -609,12 +619,12 @@ function TenantPageTabs({
           ihnen trägt. Die Linie verbindet den Reiter zugleich sichtbar mit
           dem Inhalt darunter; eine einzeln getönte Pille sagt das nicht, sie
           liest sich als Filter. */}
-      <div className="border-b border-gray-200 sm:px-5">
+      <div className="border-b border-gray-200 max-sm:border-0 sm:px-5">
         <div
           ref={rowRef}
           role="tablist"
           aria-label={label}
-          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:overflow-x-auto max-sm:px-5 max-sm:[&::-webkit-scrollbar]:hidden"
+          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:[&::-webkit-scrollbar]:hidden"
         >
           {visible.map((item) => renderTab(item))}
           {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im

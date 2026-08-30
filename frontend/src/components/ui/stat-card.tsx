@@ -126,7 +126,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
   const card = (
     <div
       title={title}
-      className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm sm:p-5 ${
+      className={`moto-content-surface relative flex h-full flex-col rounded-2xl border p-4 shadow-sm max-sm:rounded-xl max-sm:p-3 sm:p-5 ${
         href
           ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
           : ""
@@ -139,15 +139,17 @@ export function StatCard(props: StatCardProps | StatTileProps) {
       ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+          <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:text-[10px] max-sm:tracking-wide">
             {label}
           </p>
           {loading ? (
             <Skeleton className="mt-2 h-8 w-16" />
           ) : (
             <p
-              className={`mt-2 font-bold ${
-                compactValue ? "text-xl whitespace-nowrap" : "text-2xl"
+              className={`mt-2 font-bold max-sm:mt-1 ${
+                compactValue
+                  ? "text-xl whitespace-nowrap"
+                  : "text-2xl max-sm:text-lg"
               }`}
               style={{ color: getAccessibleTextColor(TONE_COLOR[tone]) }}
             >
@@ -156,7 +158,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
           )}
         </div>
         {icon != null ? (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:hidden">
             {icon}
           </span>
         ) : null}
