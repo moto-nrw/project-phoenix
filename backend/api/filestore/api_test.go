@@ -20,8 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
@@ -55,18 +53,19 @@ func fakeXLSX(t *testing.T) []byte {
 }
 
 type apiContext struct {
-	t      *testing.T
-	db     *bun.DB
-	svc    *services.Factory
-	router chi.Router
+	t                     *testing.T
+	db                    *bun.DB
+	resource              *filestoreAPI.Resource
+	setStaffUploadEnabled func() error
+	router                chi.Router
 	// admin holds admin:*; member holds only a plain permission.
 	admin  int64
 	member int64
 }
 
-func setupAPI(t *testing.T) *apiContext {
+func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
-	db, svc := testutil.SetupFileStoreRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
@@ -80,7 +79,12 @@ func setupAPI(t *testing.T) *apiContext {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "files", fmt.Sprint(testpkg.Tenant(t))))
 		}
 	})
-	return &apiContext{t: t, db: db, svc: svc, router: router, admin: adminAccount.ID, member: memberAccount.ID}
+	return &apiContext{
+		t: t, db: db, resource: resource, router: router, admin: adminAccount.ID, member: memberAccount.ID,
+		setStaffUploadEnabled: func() error {
+			return svc.Settings.SetValue(testpkg.Ctx(t), configModel.KeyFilesStaffUploadEnabled, true, nil, nil)
+		},
+	}
 }
 
 func (c *apiContext) token(accountID int64, perms ...string) string {
@@ -181,7 +185,7 @@ func folderIDs(list folderListData) []int64 {
 }
 
 func (c *apiContext) enableStaffUpload() {
-	err := c.svc.Settings.SetValue(testpkg.Ctx(c.t), configModel.KeyFilesStaffUploadEnabled, true, nil, nil)
+	err := c.setStaffUploadEnabled()
 	require.NoError(c.t, err)
 }
 
@@ -199,7 +203,7 @@ func (c *apiContext) assignRole(accountID, roleID int64) {
 
 func TestFolderVisibilityPerViewer(t *testing.T) {
 	t.Parallel()
-	c := setupAPI(t)
+	c := setupFileStoreRoute(t)
 
 	role := testpkg.CreateTestRoleForTenant(t, c.db, "hausaufgaben", testpkg.Tenant(t))
 	_, viaRole := testpkg.CreateTestPersonWithAccount(t, c.db, "Rolle", "Mitglied")
@@ -252,7 +256,7 @@ func TestFolderVisibilityPerViewer(t *testing.T) {
 
 func TestFolderManagementRequiresPermission(t *testing.T) {
 	t.Parallel()
-	c := setupAPI(t)
+	c := setupFileStoreRoute(t)
 
 	rec := c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Verboten", Visibility: "all_staff"}, c.member, permissions.UsersRead)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
@@ -309,7 +313,7 @@ func TestFolderManagementRequiresPermission(t *testing.T) {
 
 func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	t.Parallel()
-	c := setupAPI(t)
+	c := setupFileStoreRoute(t)
 	folder := c.createFolder(folderPayload{Name: "Vorlagen", Visibility: "all_staff"})
 
 	// Members cannot upload while the setting is off.
@@ -398,7 +402,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 
 func TestStaffUploadSetting(t *testing.T) {
 	t.Parallel()
-	c := setupAPI(t)
+	c := setupFileStoreRoute(t)
 	folder := c.createFolder(folderPayload{Name: "Team-Ablage", Visibility: "all_staff"})
 	hidden := c.createFolder(folderPayload{Name: "Leitung", Visibility: "admins"})
 	c.enableStaffUpload()
@@ -438,7 +442,7 @@ func TestStaffUploadSetting(t *testing.T) {
 
 func TestDeleteFolderQueuesCleanupForItsFiles(t *testing.T) {
 	t.Parallel()
-	c := setupAPI(t)
+	c := setupFileStoreRoute(t)
 	folder := c.createFolder(folderPayload{Name: "Temporär", Visibility: "all_staff"})
 
 	rec := c.upload(folder, "Alt.pdf", fakePDF, c.admin, permissions.AdminWildcard)
@@ -460,7 +464,7 @@ func TestDeleteFolderQueuesCleanupForItsFiles(t *testing.T) {
 	assert.Equal(t, 1, pending, "the stored object has an immediately eligible cleanup intent")
 
 	// The scheduler pass reclaims the object and settles the intent.
-	resource := filestoreAPI.NewResource(c.svc.FileStore, c.db, slog.Default())
+	resource := filestoreAPI.NewResource(c.resource.Service, c.db, slog.Default())
 	removed, err := resource.CleanupOrphanedFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, removed)

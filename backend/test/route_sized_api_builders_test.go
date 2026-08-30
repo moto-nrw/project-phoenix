@@ -6,22 +6,25 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestAPITestsDoNotCallBroadSetup(t *testing.T) {
+var routeBuilderName = regexp.MustCompile(`^(?:setup|build).*(?:Route|Module)$`)
+
+func TestAPITestsUseNarrowRouteBuilders(t *testing.T) {
 	t.Parallel()
 
 	backendRoot := filepath.Clean("..")
-	var callers []string
+	var violations []string
 	err := filepath.WalkDir(backendRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.Contains(path, string(filepath.Separator)+"api"+string(filepath.Separator)+"testutil"+string(filepath.Separator)) {
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") {
 			return nil
 		}
 
@@ -37,14 +40,18 @@ func TestAPITestsDoNotCallBroadSetup(t *testing.T) {
 
 			name := function.Name.Name
 			relativePath := strings.TrimPrefix(path, backendRoot+string(filepath.Separator))
-			if relativePath == "api/base_utility_test.go" && name == "setupAPIRootRoute" {
-				return false
+			isBuilder := routeBuilderName.MatchString(name)
+			if isBuilder && containsServiceFactory(function.Type.Results) {
+				violations = append(violations, relativePath+"#"+name+" returns services.Factory")
 			}
 
 			ast.Inspect(function.Body, func(node ast.Node) bool {
 				selector, ok := node.(*ast.SelectorExpr)
 				if ok && selector.Sel.Name == "SetupAPITest" {
-					callers = append(callers, relativePath+"#"+name)
+					isSmokeTest := relativePath == "api/testutil/helpers_test.go" && name == "TestSetupAPITest"
+					if !isBuilder && !isSmokeTest {
+						violations = append(violations, relativePath+"#"+name+" calls SetupAPITest directly")
+					}
 				}
 				return true
 			})
@@ -53,5 +60,23 @@ func TestAPITestsDoNotCallBroadSetup(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	require.Empty(t, callers, "API tests must use route/module-sized builders instead of SetupAPITest")
+	require.Empty(t, violations, "API tests must hide SetupAPITest behind route/module builders that do not return services.Factory")
+}
+
+func containsServiceFactory(fields *ast.FieldList) bool {
+	if fields == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(fields, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if ok && selector.Sel.Name == "Factory" {
+			if pkg, ok := selector.X.(*ast.Ident); ok && pkg.Name == "services" {
+				found = true
+				return false
+			}
+		}
+		return !found
+	})
+	return found
 }

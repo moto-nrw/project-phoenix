@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,16 +50,15 @@ func adminBearer(t *testing.T, accountID int64) testutil.RequestOption {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	repos    *repositories.Factory
 	resource *importAPI.Resource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupImportRoute initializes test database, services, and resource.
+func setupImportRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupImportRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 	repos := repositories.NewFactory(db)
 
 	// Create import resource
@@ -69,7 +66,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		repos:    repos,
 		resource: resource,
 	}
@@ -82,7 +78,7 @@ func setupTestContext(t *testing.T) *testContext {
 func TestDownloadTemplate_NoAuth(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	// Use the full router which has JWT middleware
 	router := ctx.resource.Router()
@@ -99,7 +95,7 @@ func TestDownloadTemplate_NoAuth(t *testing.T) {
 func TestDownloadTemplate_CSV(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin")
 
@@ -120,7 +116,7 @@ func TestDownloadTemplate_CSV(t *testing.T) {
 func TestDownloadTemplate_XLSX(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin2")
 
@@ -141,7 +137,7 @@ func TestDownloadTemplate_XLSX(t *testing.T) {
 func TestDownloadTemplate_DefaultFormat(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin3")
 
@@ -165,7 +161,7 @@ func TestDownloadTemplate_DefaultFormat(t *testing.T) {
 func TestPreviewImport_NoAuth(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -181,7 +177,7 @@ func TestPreviewImport_NoAuth(t *testing.T) {
 func TestPreviewImport_NoFile(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin4")
 
@@ -205,7 +201,7 @@ func TestPreviewImport_NoFile(t *testing.T) {
 func TestImportStudents_NoAuth(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -221,7 +217,7 @@ func TestImportStudents_NoAuth(t *testing.T) {
 func TestImportStudents_NoFile(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin5")
 
@@ -245,7 +241,7 @@ func TestImportStudents_NoFile(t *testing.T) {
 func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin6")
 
@@ -269,7 +265,7 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 func TestDownloadTemplate_CSVAdvertisesBirthdayFormats(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "AdminBirthday")
 
@@ -295,7 +291,7 @@ func TestDownloadTemplate_CSVAdvertisesBirthdayFormats(t *testing.T) {
 func TestPreviewImport_WithValidCSV(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
 
@@ -320,7 +316,7 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "EmptyCSV")
 
@@ -343,7 +339,7 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "MissingHeaders")
 
@@ -370,7 +366,7 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 func TestImportStudents_WithValidCSV(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
 
@@ -392,7 +388,7 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 func TestImportStudents_WithDuplicateData(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
 
@@ -417,7 +413,7 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 func TestImportStudents_PersistsBusPermission(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "BusTest")
 
@@ -456,7 +452,7 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "DepTest")
 
@@ -492,7 +488,7 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "LegacyTest")
 
@@ -530,7 +526,7 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "EnrollTest")
 
@@ -580,7 +576,7 @@ func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 func TestImportStudents_PersistsConsentDates(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "ConsentTest")
 
@@ -623,7 +619,7 @@ func TestImportStudents_PersistsConsentDates(t *testing.T) {
 func TestPreviewImport_NoClaims(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -641,7 +637,7 @@ func TestPreviewImport_NoClaims(t *testing.T) {
 func TestPreviewImport_AccountWithoutPerson(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	// Create account without person/staff chain
 	account := testpkg.CreateTestAccount(t, ctx.db, "noperson")
@@ -663,7 +659,7 @@ func TestPreviewImport_AccountWithoutPerson(t *testing.T) {
 func TestPreviewImport_PersonWithoutStaff(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	// Create account + person but no staff record
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoStaff", "User")
@@ -685,7 +681,7 @@ func TestPreviewImport_PersonWithoutStaff(t *testing.T) {
 func TestImportStudents_AccountWithoutPerson(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	// Create account without person/staff chain
 	account := testpkg.CreateTestAccount(t, ctx.db, "noperson-import")
@@ -708,7 +704,7 @@ func TestImportStudents_AccountWithoutPerson(t *testing.T) {
 func TestImportStudents_PersonWithoutStaff(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	// Create account + person but no staff record
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoStaff", "Import")
@@ -735,7 +731,7 @@ func TestImportStudents_PersonWithoutStaff(t *testing.T) {
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupImportRoute(t)
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should return a valid chi.Router")
@@ -748,7 +744,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 func TestDownloadStaffTemplate_CSV(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	router := chi.NewRouter()
 	router.Get("/template", tc.resource.DownloadStaffTemplate)
@@ -768,7 +764,7 @@ func TestDownloadStaffTemplate_CSV(t *testing.T) {
 func TestDownloadStaffTemplate_XLSX(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	router := chi.NewRouter()
 	router.Get("/template", tc.resource.DownloadStaffTemplate)
@@ -788,7 +784,7 @@ func TestDownloadStaffTemplate_XLSX(t *testing.T) {
 func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	// Role visible to the caller: claims are rebased onto this test's tenant.
 	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportRolle", testpkg.Tenant(t))
@@ -835,7 +831,7 @@ func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "DisplayRole")
 
@@ -879,7 +875,7 @@ func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	role := testpkg.CreateTestRoleForTenant(t, tc.db, "PreviewRolle", testpkg.Tenant(t))
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffPreview", "Admin")
@@ -914,7 +910,7 @@ func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 func TestStaffImport_UploadValidation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffUpload", "Admin")
 	claims := testutil.WithClaims(t, testutil.AdminTestClaims(int(account.ID)))
@@ -978,7 +974,7 @@ func findImportAuditRecords(t *testing.T, db *bun.DB, filename string) []*auditM
 func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditPrev", "Regression")
 
@@ -1002,7 +998,7 @@ func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
 func TestImportStudents_PersistsAuditRecord(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditImp", "Regression")
 
@@ -1050,7 +1046,7 @@ func newMultipartRequestWithMode(t *testing.T, target, fileName, content, mode s
 // instead of reporting a duplicate, and empty cells keep their values.
 func TestImportStudents_UpsertModeUpdatesExisting(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Upsert", "Admin")
 	claims := adminBearer(t, account.ID)
 	router := tc.resource.Router()
@@ -1102,7 +1098,7 @@ func TestImportStudents_UpsertModeUpdatesExisting(t *testing.T) {
 // points at that person, without one the row is a directory entry only.
 func TestImportStaff_FilesStammdatensatz(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupImportRoute(t)
 	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportStammdaten", testpkg.Tenant(t))
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "Admin")
 	router := chi.NewRouter()

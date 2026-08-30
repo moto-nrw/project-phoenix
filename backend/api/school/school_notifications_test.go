@@ -27,10 +27,10 @@ import (
 
 func TestSchoolNotificationPreferences(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, factory, tenantID, _ := setupSchoolRoute(t)
 	schoolRouter := newSchoolChiRouter(db, factory)
 
-	require.NoError(t, factory.Settings.SetValue(
+	require.NoError(t, factory.Timetable.SettingsService.SetValue(
 		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
@@ -95,7 +95,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 
 func TestSchoolPushSubscriptionIsRecordedAsSchoolDevice(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, factory, tenantID, _ := setupSchoolRoute(t)
 	schoolRouter := newSchoolChiRouter(db, factory)
 
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Push", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))

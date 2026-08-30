@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -33,18 +31,18 @@ import (
 )
 
 type testContext struct {
-	db       *bun.DB
-	services *services.Factory
-	resource *statisticsAPI.Resource
+	db               *bun.DB
+	resource         *statisticsAPI.Resource
+	createClosingDay func(context.Context, *scheduleModels.ClosingDay) error
 }
 
-func setupTestContext(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
+func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
 	t.Helper()
-	db, svc := testutil.SetupStatisticsRoute(t, statisticsClocks...)
+	db, svc := testutil.SetupAPITest(t, statisticsClocks...)
 	return &testContext{
-		db:       db,
-		services: svc,
-		resource: statisticsAPI.NewResource(svc.Statistics, svc.ListExport, db, slog.Default()),
+		db:               db,
+		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, db, slog.Default()),
+		createClosingDay: svc.ClosingDays.Create,
 	}
 }
 
@@ -205,7 +203,7 @@ func insertHolidayPeriod(t *testing.T, db *bun.DB, tenantID int64, name string, 
 
 func TestStatisticsReport_RequiresBothPermissions(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, testpkg.Tenant(t), "Nur", "Lesen")
 	claims := claimsFor(t, account.ID)
 
@@ -222,7 +220,7 @@ func TestStatisticsReport_RequiresBothPermissions(t *testing.T) {
 
 func TestStatisticsReport_RejectsInvalidRanges(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, testpkg.Tenant(t), "Range", "Tester")
 	claims := claimsFor(t, account.ID)
 
@@ -242,7 +240,7 @@ func TestStatisticsReport_RejectsInvalidRanges(t *testing.T) {
 
 func TestStatisticsReport_AcceptsNoGroupFilter(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	tenantID := testpkg.Tenant(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "NoGroup", "Tester")
 	claims := claimsFor(t, account.ID)
@@ -255,7 +253,7 @@ func TestStatisticsReport_AcceptsNoGroupFilter(t *testing.T) {
 
 func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Quote", "Tester")
@@ -286,7 +284,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 
 	// Tue 09.06. is a closing day, Fri 12.06. lies in a holiday period.
 	// Care days: Mon, Wed, Thu = 3.
-	require.NoError(t, tc.services.ClosingDays.Create(ctx, &scheduleModels.ClosingDay{
+	require.NoError(t, tc.createClosingDay(ctx, &scheduleModels.ClosingDay{
 		StartDate: timezone.NewDate(2026, 6, 9),
 		EndDate:   timezone.NewDate(2026, 6, 9),
 		Reason:    "Pädagogischer Tag",
@@ -405,7 +403,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 // entry.
 func TestStatisticsReport_DropsCollapsedRoomVisits(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Klemm", "Tester")
@@ -460,7 +458,7 @@ func TestStatisticsReport_DropsCollapsedRoomVisits(t *testing.T) {
 func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, timezone.Berlin)
-	tc := setupTestContext(t, func() time.Time { return now })
+	tc := setupStatisticsRoute(t, func() time.Time { return now })
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Sofort", "Tester")
@@ -554,7 +552,7 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 // can never populate.
 func TestStatisticsReport_ScopesRoomRetentionToTheFilteredPopulation(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Frist", "Tester")
@@ -601,7 +599,7 @@ func TestStatisticsReport_ScopesRoomRetentionToTheFilteredPopulation(t *testing.
 
 func TestStatisticsExport_RendersAndAudits(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStatisticsRoute(t)
 	tenantID := testpkg.Tenant(t)
 	ctx := testpkg.Ctx(t)
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Export", "Tester")

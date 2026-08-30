@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +27,7 @@ import (
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
 // groupsAPI.Resource.Router) succeeds in CI environments without a populated
-// .env. Required because setupTestContext constructs the resource, and the
+// .env. Required because setupGroupsRoute constructs the resource, and the
 // tests mint real signed JWTs via testutil.MintTestJWT.
 func init() {
 	testutil.SeedTestJWTConfig()
@@ -52,15 +50,14 @@ func newReq(t *testing.T, method, target string, body interface{}, claims jwt.Ap
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *groupsAPI.Resource
 }
 
-// setupTestContext creates test resources for groups handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupGroupsRoute creates test resources for groups handler tests
+func setupGroupsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupGroupsRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 
 	// Groups resource requires multiple services and repositories
 	resource := groupsAPI.NewResource(
@@ -73,7 +70,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -85,7 +81,7 @@ func setupTestContext(t *testing.T) *testContext {
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupGroupsRoute(t)
 
 	router := chi.NewRouter()
 	router.Mount("/groups", tc.resource.Router())
@@ -550,7 +546,7 @@ func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupGroupsRoute(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }

@@ -28,7 +28,7 @@ import (
 func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// The caller is verified staff, so they have full read access to the child
 	// (#2329) — HasFullAccess is true for BOTH calls below, isolating the
@@ -44,7 +44,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	// Seed a pending excused request covering today for this child.
 	const note = "Zahnarzttermin am Vormittag"
 	err := testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		_, e := tc.services.ExcusedRequests.CreateRequest(
+		_, e := tc.resource.ExcusedRequestService.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
 		)
@@ -86,7 +86,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AbsenceNote", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceNoteGroup")
@@ -97,7 +97,7 @@ func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 
 	const note = "Familienfeier, kommt später"
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		_, e := tc.services.ExcusedRequests.CreateRequest(
+		_, e := tc.resource.ExcusedRequestService.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
 		)

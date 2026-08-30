@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,12 +44,12 @@ func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
-	db, svc := testutil.SetupAuthRoute(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	// The blanket attachment in api/base.go is what production requests run
 	// through; mirror it here so the request cache is present.

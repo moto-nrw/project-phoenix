@@ -36,9 +36,9 @@ type shiftTypeTestSetup struct {
 	ctx    context.Context
 }
 
-func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
+func setupShiftTypeRoute(t *testing.T) *shiftTypeTestSetup {
 	t.Helper()
-	db, svcs := testutil.SetupShiftTypesRoute(t)
+	db, svcs := testutil.SetupAPITest(t)
 
 	res := NewResource(svcs.ShiftTypes, svcs.Activities, db, slog.Default())
 
@@ -85,7 +85,7 @@ func decodeShiftTypeID(t *testing.T, w *httptest.ResponseRecorder) int64 {
 
 func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 	t.Parallel()
-	s := buildShiftTypeSetup(t)
+	s := setupShiftTypeRoute(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-2")
@@ -107,7 +107,7 @@ func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 
 func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 	t.Parallel()
-	s := buildShiftTypeSetup(t)
+	s := setupShiftTypeRoute(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-2")
@@ -141,7 +141,7 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 
 func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
 	t.Parallel()
-	s := buildShiftTypeSetup(t)
+	s := setupShiftTypeRoute(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-unknown-1")
 

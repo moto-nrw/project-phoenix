@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -13,17 +12,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resource) {
+func setupActivitiesInternalRoute(t *testing.T) (*bun.DB, *Resource) {
 	t.Helper()
 
-	db, svc := testutil.SetupActivitiesRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 	resource := NewResource(svc.Activities, svc.Schedule, svc.Users, svc.UserContext, db)
-	return db, svc, resource
+	return db, resource
 }
 
 func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 	t.Parallel()
-	db, _, resource := setupActivitiesResource(t)
+	db, resource := setupActivitiesInternalRoute(t)
 
 	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
 	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
@@ -43,7 +42,7 @@ func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 
 func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 	t.Parallel()
-	db, _, resource := setupActivitiesResource(t)
+	db, resource := setupActivitiesInternalRoute(t)
 
 	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
 	_, err := db.NewUpdate().

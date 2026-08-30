@@ -50,7 +50,7 @@ type operatorSettingsTestContext struct {
 	router   chi.Router
 }
 
-func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
+func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
 	// Reset viper app_env to "test" — provisioning_internal_test.go sets it to
@@ -60,7 +60,7 @@ func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
 	viper.Set("app_env", "test")
 	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
-	db, svc := testutil.SetupOperatorSettingsRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
@@ -105,7 +105,7 @@ func schoolPath(tb testing.TB, suffix string) string {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/schema"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -145,7 +145,7 @@ func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorGetSchoolSettingsSchema_InvalidSchoolID(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/not-a-number/settings/schema", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -159,7 +159,7 @@ func TestOperatorGetSchoolSettingsSchema_InvalidSchoolID(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	body := map[string]interface{}{"value": "18:30"}
 	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/operations.session_end_time"), body)
@@ -191,7 +191,7 @@ func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	// feedback.enabled requires config:manage for tenant users and is a
 	// shared setting operators may write. Operators have empty permissions
@@ -206,7 +206,7 @@ func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_UnknownKey(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	body := map[string]interface{}{"value": "anything"}
 	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/nonexistent.key"), body)
@@ -217,7 +217,7 @@ func TestOperatorSetSchoolSettingValue_UnknownKey(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	// session_end_enabled is a boolean — string value should fail validation.
 	body := map[string]interface{}{"value": "not-a-boolean"}
@@ -229,7 +229,7 @@ func TestOperatorSetSchoolSettingValue_InvalidValue(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := httptest.NewRequest(http.MethodPut, schoolPath(t, "/settings/values/operations.session_end_time"), bytes.NewReader([]byte("{not-json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -242,7 +242,7 @@ func TestOperatorSetSchoolSettingValue_InvalidJSON(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	body := map[string]interface{}{"value": "18:30"}
 	req := newOperatorRequest(t, http.MethodPut, "/schools/abc/settings/values/operations.session_end_time", body)
@@ -257,7 +257,7 @@ func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 	tenantCtx := testpkg.Ctx(t)
 	require.NoError(t, ctx.settings.SetValue(
 		tenantCtx, configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
@@ -284,7 +284,7 @@ func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/nonexistent.key"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -294,7 +294,7 @@ func TestOperatorResetSchoolSettingValue_UnknownKey(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodDelete, "/schools/xyz/settings/values/operations.session_end_time", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -308,7 +308,7 @@ func TestOperatorResetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/values/operations.session_end_time/reveal"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -324,7 +324,7 @@ func TestOperatorRevealSchoolSettingValue_Success(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorRevealSchoolSettingValue_UnknownKey(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/values/nonexistent.key/reveal"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -334,7 +334,7 @@ func TestOperatorRevealSchoolSettingValue_UnknownKey(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorRevealSchoolSettingValue_InvalidSchoolID(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, "/schools/bogus/settings/values/operations.session_end_time/reveal", nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -348,7 +348,7 @@ func TestOperatorRevealSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	// security.ogs_device_pin is AccessAdminOnly — operators must not change it.
 	body := map[string]interface{}{"value": "1234"}
@@ -360,7 +360,7 @@ func TestOperatorSetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/security.ogs_device_pin"), nil)
 
@@ -370,7 +370,7 @@ func TestOperatorResetSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/values/security.ogs_device_pin/reveal"), nil)
 
@@ -380,7 +380,7 @@ func TestOperatorRevealSchoolSettingValue_AdminOnlyForbidden(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	req := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/schema"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
@@ -414,7 +414,7 @@ func TestOperatorGetSchoolSettingsSchema_HidesAdminOnly(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	// Register a hook and assert it fires with the expected args.
 	var called bool
@@ -442,7 +442,7 @@ func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	// Count rows for this key before the failed write. The rollback test
 	// only requires that the count does NOT change; tolerating any pre-
@@ -475,7 +475,7 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	seed := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/checkout.schulhof_enabled"), map[string]interface{}{
 		"value": true,
@@ -561,7 +561,7 @@ func presenceModePath(tenantID int64, suffix string) string {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
@@ -588,7 +588,7 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *t
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
@@ -614,7 +614,7 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorSetSchoolSettingValue_PresenceMode_PassesWithNoOpenAttendance(t *testing.T) {
-	ctx := setupOperatorSettingsTest(t)
+	ctx := setupOperatorSettingsRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, ctx.db, tenantID)

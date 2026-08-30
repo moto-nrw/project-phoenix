@@ -76,7 +76,7 @@ func TestInformationSchemaRecorderMatchesSchemaCatalogs(t *testing.T) {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Budget", "Student", "QB1")
 

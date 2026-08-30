@@ -425,9 +425,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
-		"Route(t",                         // api/testutil route-sized builders
 		"setupTestContext",                // Indirect setup via shared helper (calls SetupAPITest)
-		"newScenario",                     // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",               // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupRequestTest",                // services/enrollment request-service integration tests — wraps SetupTestDB
 		"setupDecisionTest",               // services/enrollment decision integration tests — wraps setupRolloverTest
@@ -438,7 +436,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"makeRosterChain",                 // services/schedule split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
 		"makeMoveSetup",                   // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                   // api/timetable deviations/protocol tests — wraps SetupTestDB
-		"setupCheckinServiceTest",         // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 		"setupAbsenceAdminTest",           // api/staff absence question tests (#1419) — wraps setupTestContext
 		"newOverviewFixture",              // services/active overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                // api/staff overview/export tests (#1417) — wraps setupTestContext
@@ -524,6 +521,9 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 				usesSetup = true
 				break
 			}
+		}
+		if !usesSetup && routeSizedSetupCall.MatchString(contentStr) {
+			usesSetup = true
 		}
 
 		// Check if file uses mocks
@@ -859,9 +859,13 @@ func parallelGlobalStateViolations(files []globalStateFile, tainted map[string]b
 // `db := testpkg.SetupTestDB(t)` or a two-result api/testutil setup builder.
 // Only the first identifier can hold the pool in either signature.
 var sharedPoolAssign = regexp.MustCompile(
-	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest|Setup\w+Route)\(`)
+	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest)\(`)
 
-var routeSizedSetupCall = regexp.MustCompile(`\bSetup\w+Route\(`)
+// routeSizedSetupCall matches an actual builder invocation at the start of a
+// statement. It deliberately does not match function declarations or test
+// names that merely contain "Route(t".
+var routeSizedSetupCall = regexp.MustCompile(
+	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:setup|build)\w+(?:Route|Module)\(t(?:,|\))`)
 
 func usesSharedDBSetup(content []byte) bool {
 	return bytes.Contains(content, []byte("SetupTestDB(")) ||

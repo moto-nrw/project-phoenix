@@ -25,7 +25,7 @@ import (
 func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-race")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "RaceGraduate", "4a")
@@ -44,7 +44,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	// The mock answers the unlocked lookup with the stale "active" snapshot and
 	// delegates the locked one to the real service, which reads the committed
 	// row. A handler that decides from the unlocked read writes the entry.
-	realUsers := ctx.services.Users
+	realUsers := ctx.resource.UsersService
 	racingUsers := &userstest.PersonServiceMock{
 		GetStudentByIDFn: func(context.Context, int64) (*usersModel.Student, error) {
 			return &snapshot, nil
@@ -52,7 +52,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 		GetStudentByIDForUpdateFn: realUsers.GetStudentByIDForUpdate,
 	}
 
-	resource := dataAPI.NewFeedbackResource(ctx.services.IoT, racingUsers, ctx.services.Feedback, nil)
+	resource := dataAPI.NewFeedbackResource(ctx.resource.IoTService, racingUsers, ctx.resource.FeedbackService, nil)
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -83,7 +83,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupFeedbackTestContext(t)
+	ctx := setupFeedbackRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "FallbackGraduate", "4a")
@@ -100,7 +100,7 @@ func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 		},
 	}
 
-	resource := dataAPI.NewFeedbackResource(ctx.services.IoT, stubbedUsers, ctx.services.Feedback, nil)
+	resource := dataAPI.NewFeedbackResource(ctx.resource.IoTService, stubbedUsers, ctx.resource.FeedbackService, nil)
 
 	body := map[string]interface{}{
 		"student_id": student.ID,

@@ -92,7 +92,7 @@ func findAbsenceRequest(items []absenceRequestItem, id int64) *absenceRequestIte
 // decider, and returns the router context and a vacation:approve token.
 func setupAbsenceRequestTest(t *testing.T) (tc *testContext, token string, mueller, schmidt, decider int64) {
 	t.Helper()
-	tc = setupTestContext(t)
+	tc = setupStaffRoute(t)
 	suffix := time.Now().UnixNano()
 
 	a := testpkg.CreateTestStaff(t, tc.db, "Mira", fmt.Sprintf("Muellerson-%d", suffix))

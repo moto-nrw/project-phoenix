@@ -25,7 +25,7 @@ import (
 func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
+	s := setupTimetableScenarioRoute(t)
 	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday, >=7 days out

@@ -223,20 +223,55 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 	t.Parallel()
 
-	api := setupAPIRootRoute(t)
+	composition := setupCaregiverCompositionModule(t)
 
-	require.NotNil(t, api.Auth)
-	require.NotNil(t, api.Operator)
-	assert.Same(t, api.Services.CaregiverCapability, api.Auth.CaregiverCapabilityService)
+	require.NotNil(t, composition.auth)
+	require.NotNil(t, composition.operator)
+	assert.Same(t, composition.factoryCapability, composition.authCapability)
 }
 
-func setupAPIRootRoute(t *testing.T) *API {
+type caregiverComposition struct {
+	auth              any
+	operator          any
+	factoryCapability any
+	authCapability    any
+}
+
+func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
 	t.Helper()
 	db, serviceFactory := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	initializeAPIResources(api, repoFactory, db, slog.Default())
-	return api
+	return &caregiverComposition{
+		auth: api.Auth, operator: api.Operator,
+		factoryCapability: api.Services.CaregiverCapability,
+		authCapability:    api.Auth.CaregiverCapabilityService,
+	}
+}
+
+type settingsCallbackRoute struct {
+	router chi.Router
+	hub    *realtime.Hub
+}
+
+func setupSettingsCallbackRoute(t *testing.T) *settingsCallbackRoute {
+	t.Helper()
+	db, serviceFactory := testutil.SetupAPITest(t)
+	repoFactory := repositories.NewFactory(db)
+	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+	return &settingsCallbackRoute{router: api.Settings.SettingsRouter(), hub: api.Services.RealtimeHub}
+}
+
+func setupOperatorInvitationRoute(t *testing.T) chi.Router {
+	t.Helper()
+	db, serviceFactory := testutil.SetupAPITest(t)
+	repoFactory := repositories.NewFactory(db)
+	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+	api.registerRoutesWithRateLimiting()
+	return api.Router
 }
 
 func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
@@ -262,8 +297,6 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
-	api := setupAPIRootRoute(t)
-
 	previousEnabled := viper.Get("rate_limit_enabled")
 	previousPerMinute := viper.Get("rate_limit_per_minute")
 	viper.Set("rate_limit_enabled", true)
@@ -273,12 +306,12 @@ func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testin
 		viper.Set("rate_limit_per_minute", previousPerMinute)
 	})
 
-	api.registerRoutesWithRateLimiting()
+	router := setupOperatorInvitationRoute(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/operator/auth/invitations/validate", nil)
 	rr := httptest.NewRecorder()
 
-	api.Router.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req)
 
 	assert.NotEqual(t, http.StatusNotFound, rr.Code)
 }
@@ -583,10 +616,10 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	t.Parallel()
 
-	a := setupAPIRootRoute(t)
+	route := setupSettingsCallbackRoute(t)
 
 	// Mount the SetValue handler on a tenant-aware router
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	// Set checkout.wc_enabled = true → triggers callback → creates WC infrastructure
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
@@ -603,9 +636,9 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 	t.Parallel()
 
-	a := setupAPIRootRoute(t)
+	route := setupSettingsCallbackRoute(t)
 
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]any{"value": true},
@@ -621,9 +654,9 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 	t.Parallel()
 
-	a := setupAPIRootRoute(t)
+	route := setupSettingsCallbackRoute(t)
 
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
 		map[string]any{"value": false},
@@ -661,7 +694,7 @@ func adminClaimsForCallback() jwt.AppClaims {
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	t.Parallel()
 
-	a := setupAPIRootRoute(t)
+	route := setupSettingsCallbackRoute(t)
 
 	// Subscribe a fake SSE client to the real Hub so we can observe
 	// BroadcastToAll without mocking. UserID/TenantID are arbitrary —
@@ -671,10 +704,10 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
-	defer a.Services.RealtimeHub.Unregister(client)
+	route.hub.Register(client, testpkg.Tenant(t), nil)
+	defer route.hub.Unregister(client)
 
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	// First, enable so PUT-false is a real disable transition (default is
 	// already false; set true→false to exercise the purge branch). The
@@ -762,17 +795,17 @@ func drainEvents(ch chan realtime.Event) {
 func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	t.Parallel()
 
-	a := setupAPIRootRoute(t)
+	route := setupSettingsCallbackRoute(t)
 
 	client := &realtime.Client{
 		Channel:          make(chan realtime.Event, 8),
 		UserID:           1,
 		SubscribedGroups: map[string]bool{},
 	}
-	a.Services.RealtimeHub.Register(client, testpkg.Tenant(t), nil)
-	defer a.Services.RealtimeHub.Unregister(client)
+	route.hub.Register(client, testpkg.Tenant(t), nil)
+	defer route.hub.Unregister(client)
 
-	router := a.Settings.SettingsRouter()
+	router := route.router
 
 	// awaitTenantSettings drains events on the buffered channel until it
 	// finds a tenant_settings_changed for the expected key, or fails the

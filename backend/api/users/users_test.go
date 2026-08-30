@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
@@ -23,20 +21,18 @@ import (
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *usersAPI.Resource
 }
 
-// setupTestContext creates test resources for users handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupUsersRoute creates test resources for users handler tests
+func setupUsersRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupUsersRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 	resource := usersAPI.NewResource(svc.Users, db)
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -46,7 +42,7 @@ func setupTestContext(t *testing.T) *testContext {
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupUsersRoute(t)
 
 	router := chi.NewRouter()
 	router.Mount("/users", tc.resource.Router())

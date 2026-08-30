@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +25,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// init seeds JWT viper defaults before any test (and before setupTestContext
+// init seeds JWT viper defaults before any test (and before setupStaffRoute
 // constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
@@ -37,19 +35,18 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *staffAPI.Resource
 	router   chi.Router
 }
 
-// setupTestContext initializes test database, services, and resource. The
+// setupStaffRoute initializes test database, services, and resource. The
 // router serves the resource through the production middleware chain
 // (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
 // TenantTxMiddleware) exactly as the real server does, mounted at /staff.
-func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
+func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupStaffRoute(t, clocks...)
+	db, svc := testutil.SetupAPITest(t, clocks...)
 
 	resource := staffAPI.NewResource(svc.Users, svc.StaffDocuments, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 
@@ -59,7 +56,6 @@ func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 		router:   router,
 	}
@@ -161,7 +157,7 @@ func assignSystemRoleToAccount(
 func TestListStaff_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -178,7 +174,7 @@ func TestListStaff_Success(t *testing.T) {
 func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -191,7 +187,7 @@ func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
 func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "TeacherOnly")
 
@@ -221,7 +217,7 @@ func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testi
 func TestListStaff_WithNameFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?first_name=Test", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -234,7 +230,7 @@ func TestListStaff_WithNameFilter(t *testing.T) {
 func TestListStaff_WithAccountEmail(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create staff with an account so the email-loading path is exercised
 	_, _ = testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailList", "Staff")
@@ -254,7 +250,7 @@ func TestListStaff_WithAccountEmail(t *testing.T) {
 func TestGetStaff_WithAccountEmail(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create staff with an account so the email-loading path is exercised
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, ctx.db, "EmailGet", "Staff")
@@ -280,7 +276,7 @@ func TestGetStaff_WithAccountEmail(t *testing.T) {
 func TestGetStaff_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "GetStaff", "Test")
@@ -296,7 +292,7 @@ func TestGetStaff_Success(t *testing.T) {
 func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "TimeTrackingManager", "Profile")
 
@@ -311,7 +307,7 @@ func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
 func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Payroll", "Profile")
 
@@ -326,7 +322,7 @@ func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
 func TestGetDocumentProfile_AllowsHealthDocuments(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Health", "Documents")
 
@@ -341,7 +337,7 @@ func TestGetDocumentProfile_AllowsHealthDocuments(t *testing.T) {
 func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UnrelatedPermission", "Profile")
 
@@ -356,7 +352,7 @@ func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
 func TestGetStaff_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -369,7 +365,7 @@ func TestGetStaff_NotFound(t *testing.T) {
 func TestGetStaff_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -385,7 +381,7 @@ func TestGetStaff_InvalidID(t *testing.T) {
 func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Consistent", "Status")
 
@@ -447,7 +443,7 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 func TestCreateStaff_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a person without staff record
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -471,7 +467,7 @@ func TestCreateStaff_Success(t *testing.T) {
 func TestCreateStaff_AsTeacher(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a person without staff record
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -519,7 +515,7 @@ func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accou
 	rawStaffID, ok := data["id"].(float64)
 	require.True(t, ok, "create staff response should contain the staff ID")
 
-	granted, err := ctx.services.Auth.GetAccountDirectPermissions(testpkg.Ctx(t), int(accountID))
+	granted, err := ctx.resource.AuthService.GetAccountDirectPermissions(testpkg.Ctx(t), int(accountID))
 	require.NoError(t, err)
 
 	names := make([]string, 0, len(granted))
@@ -536,7 +532,7 @@ func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accou
 // auth.roles, whose name is unique across the whole clone (idx_roles_name_system
 // has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Lehrkraft"+uniqueSuffix, "Person")
@@ -555,7 +551,7 @@ func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 // auth.roles, whose name is unique across the whole clone (idx_roles_name_system
 // has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "PlainStaff"+uniqueSuffix, "Person")
@@ -575,7 +571,7 @@ func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Vorhandene", "Kraft")
 
@@ -607,7 +603,7 @@ func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 // auth.roles, whose name is unique across the whole clone (idx_roles_name_system
 // has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "LehrkraftProfil"+uniqueSuffix, "Person")
@@ -640,7 +636,7 @@ func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
 func TestCreateStaff_PersonNotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	body := map[string]interface{}{
 		"person_id": 999999,
@@ -657,7 +653,7 @@ func TestCreateStaff_PersonNotFound(t *testing.T) {
 func TestCreateStaff_MissingPersonID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	body := map[string]interface{}{
 		"staff_notes": "Missing person ID",
@@ -678,7 +674,7 @@ func TestCreateStaff_MissingPersonID(t *testing.T) {
 func TestUpdateStaff_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateStaff", "Test")
@@ -699,7 +695,7 @@ func TestUpdateStaff_Success(t *testing.T) {
 func TestUpdateStaff_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	body := map[string]interface{}{
 		"person_id":   1,
@@ -717,7 +713,7 @@ func TestUpdateStaff_NotFound(t *testing.T) {
 func TestUpdateStaff_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	body := map[string]interface{}{
 		"person_id": 1,
@@ -738,7 +734,7 @@ func TestUpdateStaff_InvalidID(t *testing.T) {
 func TestDeleteStaff_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "DeleteStaff", "Test")
@@ -772,7 +768,7 @@ func TestDeleteStaff_Success(t *testing.T) {
 func TestDeleteStaff_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
 	defer cleanupActor()
@@ -789,7 +785,7 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 func TestDeleteStaff_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/invalid", nil,
 		testutil.WithJWTBearer(authToken(t, "users:delete")))
@@ -806,7 +802,7 @@ func TestDeleteStaff_InvalidID(t *testing.T) {
 func TestGetStaffGroups_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a teacher with the full chain (person -> staff -> teacher)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupsTest", "Teacher")
@@ -822,7 +818,7 @@ func TestGetStaffGroups_Success(t *testing.T) {
 func TestGetStaffGroups_NonTeacher(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create regular staff (not a teacher)
 	staff := testpkg.CreateTestStaff(t, ctx.db, "NonTeacher", "Staff")
@@ -839,7 +835,7 @@ func TestGetStaffGroups_NonTeacher(t *testing.T) {
 func TestGetStaffGroups_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/groups", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -856,7 +852,7 @@ func TestGetStaffGroups_NotFound(t *testing.T) {
 func TestGetAvailableStaff_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -873,7 +869,7 @@ func TestGetAvailableStaff_Success(t *testing.T) {
 func TestGetStaffByRole_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -887,7 +883,7 @@ func TestGetStaffByRole_Success(t *testing.T) {
 // auth.roles, whose name is unique across the whole clone (idx_roles_name_system
 // has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "RoleTeacher")
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
@@ -920,7 +916,7 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 // auth.roles, whose name is unique across the whole clone (idx_roles_name_system
 // has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Caregiver")
 	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, testpkg.Tenant(t))
@@ -954,7 +950,7 @@ func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))
@@ -971,7 +967,7 @@ func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
 func TestGetPINStatus_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "PINTest", "Staff")
@@ -992,7 +988,7 @@ func TestGetPINStatus_Success(t *testing.T) {
 func TestGetPINStatus_InvalidToken(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Request with invalid (zero) user ID
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
@@ -1010,7 +1006,7 @@ func TestGetPINStatus_InvalidToken(t *testing.T) {
 func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdatePIN", "Staff")
@@ -1035,7 +1031,7 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "NonDigit", "PIN")
@@ -1060,7 +1056,7 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a staff with account
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "MissingPIN", "Test")
@@ -1082,7 +1078,7 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 func TestUpdatePIN_InvalidToken(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	body := map[string]interface{}{
 		"new_pin": "1234",
@@ -1100,7 +1096,7 @@ func TestUpdatePIN_InvalidToken(t *testing.T) {
 func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a staff with account (no existing PIN)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "FirstPIN", "Setup")
@@ -1128,7 +1124,7 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 func TestListStaff_WithAnwesendFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Test that the anwesend filter works (even if no staff are currently present)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?anwesend=true", nil,
@@ -1142,7 +1138,7 @@ func TestListStaff_WithAnwesendFilter(t *testing.T) {
 func TestListStaff_WithRoleFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Test filtering by role (the role filter branch)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?role=admin", nil,
@@ -1156,7 +1152,7 @@ func TestListStaff_WithRoleFilter(t *testing.T) {
 func TestListStaff_WithLastNameFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Test filtering by last name
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?last_name=Test", nil,
@@ -1170,7 +1166,7 @@ func TestListStaff_WithLastNameFilter(t *testing.T) {
 func TestListStaff_WithCombinedFilters(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Test multiple filters combined
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?first_name=Test&last_name=Staff&teachers_only=true", nil,
@@ -1188,7 +1184,7 @@ func TestListStaff_WithCombinedFilters(t *testing.T) {
 func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create regular staff (not a teacher)
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ConvertTo", "Teacher")
@@ -1221,7 +1217,7 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a teacher with the full chain
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdateTeacher", "Test")
@@ -1247,7 +1243,7 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a teacher
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "KeepTeacher", "Test")
@@ -1269,7 +1265,7 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 func TestUpdateStaff_InvalidRequest(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidReq", "Staff")
 
@@ -1289,7 +1285,7 @@ func TestUpdateStaff_InvalidRequest(t *testing.T) {
 func TestUpdateStaff_ChangePersonID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create two persons
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -1316,7 +1312,7 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidPerson", "Staff")
 
@@ -1341,7 +1337,7 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create a teacher (this creates person -> staff -> teacher chain)
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test")
@@ -1361,7 +1357,7 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	// Create staff with active supervision
 	staff := testpkg.CreateTestStaff(t, ctx.db, "SupervisorDelete", "Test")
@@ -1383,7 +1379,7 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
 	repos := repositories.NewFactory(ctx.db)
@@ -1452,7 +1448,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
 	repos := repositories.NewFactory(ctx.db)
@@ -1481,7 +1477,7 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Only")
 	otherStaff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleOther", "Denied")
@@ -1504,7 +1500,7 @@ func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
 func TestGetStaffGroups_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid/groups", nil,
 		testutil.WithJWTBearer(authToken(t, "users:read")))

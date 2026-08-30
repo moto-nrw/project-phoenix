@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,15 +25,14 @@ import (
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *sessionsAPI.Resource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupSessionsRoute initializes the sessions route.
+func setupSessionsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupIoTSessionsRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 
 	// Create sessions resource
 	resource := sessionsAPI.NewResource(
@@ -49,7 +46,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -60,7 +56,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 func TestStartSession_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -79,7 +75,7 @@ func TestStartSession_NoDevice(t *testing.T) {
 
 func TestStartSession_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-1")
 
@@ -99,7 +95,7 @@ func TestStartSession_InvalidJSON(t *testing.T) {
 
 func TestStartSession_MissingActivityID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-2")
 
@@ -121,7 +117,7 @@ func TestStartSession_MissingActivityID(t *testing.T) {
 
 func TestStartSession_InvalidActivityID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-3")
 
@@ -147,7 +143,7 @@ func TestStartSession_InvalidActivityID(t *testing.T) {
 
 func TestEndSession_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -162,7 +158,7 @@ func TestEndSession_NoDevice(t *testing.T) {
 
 func TestEndSession_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-4")
 
@@ -185,7 +181,7 @@ func TestEndSession_NoActiveSession(t *testing.T) {
 
 func TestGetCurrentSession_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -200,7 +196,7 @@ func TestGetCurrentSession_NoDevice(t *testing.T) {
 
 func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-5")
 
@@ -219,7 +215,7 @@ func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 
 func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	// Create real fixtures for a full session
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-current-1")
@@ -282,7 +278,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 
 func TestCheckConflict_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -301,7 +297,7 @@ func TestCheckConflict_NoDevice(t *testing.T) {
 
 func TestCheckConflict_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-6")
 
@@ -321,7 +317,7 @@ func TestCheckConflict_InvalidJSON(t *testing.T) {
 
 func TestCheckConflict_MissingActivityID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-7")
 
@@ -345,7 +341,7 @@ func TestCheckConflict_MissingActivityID(t *testing.T) {
 
 func TestUpdateSupervisors_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -364,7 +360,7 @@ func TestUpdateSupervisors_NoDevice(t *testing.T) {
 
 func TestUpdateSupervisors_InvalidSessionID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-8")
 
@@ -386,7 +382,7 @@ func TestUpdateSupervisors_InvalidSessionID(t *testing.T) {
 
 func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-9")
 
@@ -413,7 +409,7 @@ func TestUpdateSupervisors_EmptySupervisors(t *testing.T) {
 
 func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-11")
 
@@ -441,7 +437,7 @@ func TestUpdateActivity_InvalidActivityType(t *testing.T) {
 
 func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-12")
 
@@ -464,7 +460,7 @@ func TestValidateTimeout_MissingTimeoutMinutes(t *testing.T) {
 
 func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-13")
 
@@ -493,7 +489,7 @@ func TestValidateTimeout_InvalidTimeoutMinutes(t *testing.T) {
 
 func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-14")
 
@@ -517,7 +513,7 @@ func TestGetTimeoutInfo_NoActiveSession(t *testing.T) {
 
 func TestProcessTimeout_NoActiveSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-15")
 
@@ -540,7 +536,7 @@ func TestProcessTimeout_NoActiveSession(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should return a valid chi.Router")
@@ -552,7 +548,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 func TestStartSession_NonExistentActivity(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-16")
 
@@ -575,7 +571,7 @@ func TestStartSession_NonExistentActivity(t *testing.T) {
 
 func TestStartSession_WithRealActivity(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	// Create real fixtures
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-17")
@@ -605,7 +601,7 @@ func TestStartSession_WithRealActivity(t *testing.T) {
 
 func TestStartSession_WithForceFlag(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-18")
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Force Session Activity")
@@ -634,7 +630,7 @@ func TestStartSession_WithForceFlag(t *testing.T) {
 
 func TestCheckConflict_NoConflict(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-19")
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "NoConflict Activity")
@@ -662,7 +658,7 @@ func TestCheckConflict_NoConflict(t *testing.T) {
 
 func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-20")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateSup", "Test")
@@ -686,7 +682,7 @@ func TestUpdateSupervisors_NonExistentSession(t *testing.T) {
 
 func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-21")
 
@@ -710,7 +706,7 @@ func TestUpdateSupervisors_InvalidJSON(t *testing.T) {
 
 func TestUpdateActivity_ValidTypes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-22")
 
@@ -740,7 +736,7 @@ func TestUpdateActivity_ValidTypes(t *testing.T) {
 
 func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-23")
 
@@ -769,7 +765,7 @@ func TestUpdateActivity_MissingTimestamp(t *testing.T) {
 
 func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-24")
 
@@ -793,7 +789,7 @@ func TestValidateTimeout_ValidRequest_NoSession(t *testing.T) {
 
 func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-25")
 
@@ -818,7 +814,7 @@ func TestValidateTimeout_InvalidTimeoutZero(t *testing.T) {
 
 func TestValidateTimeout_NegativeTimeout(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-26")
 
@@ -842,7 +838,7 @@ func TestValidateTimeout_NegativeTimeout(t *testing.T) {
 
 func TestValidateTimeout_ExceedsMaximum(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupSessionsRoute(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-27")
 

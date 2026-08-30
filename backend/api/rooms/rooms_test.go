@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +22,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// init seeds JWT viper defaults before any test (and before setupTestContext
+// init seeds JWT viper defaults before any test (and before setupRoomsRoute
 // constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
@@ -34,19 +32,18 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *roomsAPI.Resource
 	router   chi.Router
 }
 
-// setupTestContext initializes the test environment. The router serves the
+// setupRoomsRoute initializes the test environment. The router serves the
 // resource through the production middleware chain (Verifier → Authenticator →
 // TenantMiddleware → RequiresPermission → TenantTxMiddleware) exactly as the
 // real server does.
-func setupTestContext(t *testing.T) *testContext {
+func setupRoomsRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupRoomsRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 
 	resource := roomsAPI.NewResource(roomsAPI.ResourceConfig{
 		FacilityService:    svc.Facilities,
@@ -58,7 +55,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 		router:   resource.Router(),
 	}
@@ -71,7 +67,7 @@ func setupTestContext(t *testing.T) *testContext {
 func TestListRooms(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	// Create test rooms
 	_ = testpkg.CreateTestRoom(t, tc.db, "Test Room 1")
@@ -109,7 +105,7 @@ func TestListRooms(t *testing.T) {
 func TestGetRoom(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	// Create test room
 	room := testpkg.CreateTestRoom(t, tc.db, "Get Room Test")
@@ -147,7 +143,7 @@ func TestGetRoom(t *testing.T) {
 func TestCreateRoom(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	t.Run("success_creates_room", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("Created Room %d", time.Now().UnixNano())
@@ -226,7 +222,7 @@ func TestCreateRoom(t *testing.T) {
 func TestUpdateRoom(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	// Create test room
 	room := testpkg.CreateTestRoom(t, tc.db, "Update Room Test")
@@ -275,7 +271,7 @@ func TestUpdateRoom(t *testing.T) {
 func TestDeleteRoom(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	t.Run("success_deletes_room", func(t *testing.T) {
 		// Create room specifically for deletion
@@ -325,7 +321,7 @@ func TestDeleteRoom(t *testing.T) {
 func TestGetRoomsByCategory(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	t.Run("success_gets_rooms_by_category", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/by-category?category=classroom", nil)
@@ -351,7 +347,7 @@ func TestGetRoomsByCategory(t *testing.T) {
 func TestGetBuildingList(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	t.Run("success_gets_building_list", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/buildings", nil)
@@ -366,7 +362,7 @@ func TestGetBuildingList(t *testing.T) {
 func TestGetCategoryList(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	t.Run("success_gets_category_list", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/categories", nil)
@@ -385,7 +381,7 @@ func TestGetCategoryList(t *testing.T) {
 func TestGetAvailableRooms(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	t.Run("success_gets_available_rooms", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/available", nil)
@@ -411,16 +407,16 @@ func TestGetAvailableRooms(t *testing.T) {
 func TestGetRoomHistory(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	// Room history is gated by gdpr.attendance_log_enabled — opt-in per
 	// tenant. Enable it so the smoke checks below exercise the happy path
 	// instead of the feature-disabled branch (which has its own coverage
 	// in TestGetRoomHistory_FeatureDisabled).
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	// Create test room
@@ -485,7 +481,7 @@ func TestGetRoomHistory(t *testing.T) {
 func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FeatureDisabled Room")
 
@@ -513,12 +509,12 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 func TestGetRoomHistory_StaffScope(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ScopeRoom")
@@ -629,14 +625,14 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyRoomDetailVisibleDays, 1, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyRoomDetailVisibleDays, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ClampRoom")
@@ -686,12 +682,12 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupRoomsRoute(t)
 
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
 
 	room := testpkg.CreateTestRoom(t, tc.db, "DurationRoom")

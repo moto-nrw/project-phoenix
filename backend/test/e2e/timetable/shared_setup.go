@@ -20,8 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -44,12 +42,20 @@ import (
 
 // scenario bundles the common infrastructure a single flow needs.
 type scenario struct {
-	t         *testing.T
-	db        *bun.DB
-	factory   *services.Factory
-	repos     *repositories.Factory
-	router    chi.Router
-	tokenAuth *jwt.TokenAuth
+	t        *testing.T
+	db       *bun.DB
+	resource *timetableAPI.Resource
+	// The two active method values are erased because this legacy helper is a
+	// non-test file and importing the concrete visit type would add a new
+	// production architecture violation. A typed test-only accessor restores
+	// their signatures at the call sites.
+	createVisitFn    any
+	endVisitFn       any
+	previewCleanupFn func(context.Context) (any, error)
+	cleanupFn        func(context.Context) (any, error)
+	repos            *repositories.Factory
+	router           chi.Router
+	tokenAuth        *jwt.TokenAuth
 
 	primaryTenant   int64
 	secondaryTenant int64
@@ -59,12 +65,12 @@ type scenario struct {
 	extraCleanup []func()
 }
 
-// newScenario returns a ready-to-use scenario with real DB + timetable services
+// setupTimetableScenarioRoute returns a ready-to-use scenario with real DB + timetable services
 // + fully mounted timetable router + JWT signer.
-func newScenario(t *testing.T) *scenario {
+func setupTimetableScenarioRoute(t *testing.T) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupTimetableRoute(t)
+	db, factory := testutil.SetupAPITest(t)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
@@ -74,10 +80,29 @@ func newScenario(t *testing.T) *scenario {
 
 	repos := repositories.NewFactory(db)
 
+	resource := timetableAPI.NewResource(timetableAPI.Dependencies{
+		CalendarPeriodService:  factory.CalendarPeriod,
+		MaterializationService: factory.Materialization,
+		InstanceService:        factory.Instance,
+		PersonService:          factory.Users,
+		TimetableData:          factory.TimetableData,
+		UserContextService:     factory.UserContext,
+		SettingsService:        factory.Settings,
+		Broadcaster:            factory.RealtimeHub,
+		Logger:                 slog.Default(), DB: db,
+	})
 	s := &scenario{
-		t:               t,
-		db:              db,
-		factory:         factory,
+		t:             t,
+		db:            db,
+		resource:      resource,
+		createVisitFn: factory.Active.CreateVisit,
+		endVisitFn:    factory.Active.EndVisit,
+		previewCleanupFn: func(ctx context.Context) (any, error) {
+			return factory.TimetableCleanup.PreviewExpiredTimetableData(ctx)
+		},
+		cleanupFn: func(ctx context.Context) (any, error) {
+			return factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+		},
 		repos:           repos,
 		tokenAuth:       ta,
 		primaryTenant:   primaryTenant,
@@ -135,21 +160,7 @@ func (s *scenario) tenantCtx() context.Context {
 // mountRouter builds the full timetable Resource with real services and
 // returns its router (with JWT + tenant middleware intact).
 func (s *scenario) mountRouter() chi.Router {
-	deps := timetableAPI.Dependencies{
-		CalendarPeriodService:  s.factory.CalendarPeriod,
-		MaterializationService: s.factory.Materialization,
-		InstanceService:        s.factory.Instance,
-		PersonService:          s.factory.Users,
-		TimetableData:          s.factory.TimetableData,
-		UserContextService:     s.factory.UserContext,
-		SettingsService:        s.factory.Settings,
-		Broadcaster:            s.factory.RealtimeHub,
-		Logger:                 slog.Default(),
-		DB:                     s.db,
-	}
-
-	resource := timetableAPI.NewResource(deps)
-	return resource.Router()
+	return s.resource.Router()
 }
 
 // do executes an HTTP request against the timetable router.
@@ -247,7 +258,7 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	require.NoError(s.t, s.factory.CalendarPeriod.CreatePeriod(s.tenantCtx(), period))
+	require.NoError(s.t, s.resource.CalendarPeriodService.CreatePeriod(s.tenantCtx(), period))
 	s.registerCleanup("schedule.calendar_periods", period.ID)
 	return period
 }

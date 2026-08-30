@@ -28,7 +28,7 @@ import (
 func TestFlowF_GDPRCleanup(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
+	s := setupTimetableScenarioRoute(t)
 	defer s.teardown()
 
 	// --- Fixtures: students, room, old + fresh instances -------------------
@@ -105,7 +105,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 
 	// --- Preview first (dry-run) ------------------------------------------
 	preview := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
-		return s.factory.TimetableCleanup.PreviewExpiredTimetableData(ctx)
+		return s.previewTimetableCleanup(ctx)
 	}).(*scheduleSvc.TimetableCleanupPreview)
 	assert.GreaterOrEqual(t, preview.InstancesToDelete, 1,
 		"at least the old instance is previewed for delete")
@@ -115,7 +115,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 
 	// --- Run the actual cleanup -------------------------------------------
 	result := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
-		return s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+		return s.cleanupTimetable(ctx)
 	}).(*scheduleSvc.TimetableCleanupResult)
 
 	assert.True(t, result.Success)
@@ -140,7 +140,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 
 	// --- Idempotency: second run deletes nothing --------------------------
 	result2 := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
-		return s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+		return s.cleanupTimetable(ctx)
 	}).(*scheduleSvc.TimetableCleanupResult)
 	assert.True(t, result2.Success)
 	assert.Equal(t, 0, result2.InstancesDeleted, "idempotent: nothing left to delete")
@@ -152,7 +152,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// instance is still intact.
 	t2Scope := tenant.WithTenantID(context.Background(), s.secondaryTenant)
 	err = testpkg.WithTenantTx(t, t2Scope, s.db, s.secondaryTenant, func(ctx context.Context, _ bun.Tx) error {
-		_, err := s.factory.TimetableCleanup.CleanupExpiredTimetableData(ctx)
+		_, err := s.cleanupTimetable(ctx)
 		return err
 	})
 	require.NoError(t, err, "T2 cleanup ran cleanly")
@@ -193,14 +193,14 @@ func setRetentionDays(t *testing.T, s *scenario, days int) {
 	}
 	err := testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 		func(ctx context.Context, _ bun.Tx) error {
-			return s.factory.Settings.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
+			return s.resource.SettingsService.SetValue(ctx, "gdpr.timetable_retention_days", days, nil, perms)
 		})
 	require.NoError(t, err, "set gdpr.timetable_retention_days=%d", days)
 	s.extraCleanup = append(s.extraCleanup, func() {
 		// Reset the override so a subsequent test sees the registry default.
 		_ = testpkg.WithTenantTx(t, context.Background(), s.db, s.primaryTenant,
 			func(ctx context.Context, _ bun.Tx) error {
-				return s.factory.Settings.ResetValue(ctx, "gdpr.timetable_retention_days", nil, perms)
+				return s.resource.SettingsService.ResetValue(ctx, "gdpr.timetable_retention_days", nil, perms)
 			})
 	})
 }

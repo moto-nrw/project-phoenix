@@ -8,8 +8,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 
 	"github.com/go-chi/chi/v5"
@@ -24,7 +22,7 @@ import (
 func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAuthRoute(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -34,8 +32,8 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

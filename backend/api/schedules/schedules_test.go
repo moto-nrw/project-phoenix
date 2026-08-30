@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -25,7 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
-// init seeds JWT viper defaults before any test (and before setupTestContext
+// init seeds JWT viper defaults before any test (and before setupSchedulesRoute
 // constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
@@ -35,25 +33,23 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *schedulesAPI.Resource
 	router   chi.Router
 }
 
-// setupTestContext initializes test database, services, and resource. The
+// setupSchedulesRoute initializes test database, services, and resource. The
 // router serves the resource through the production middleware chain (Verifier →
 // Authenticator → TenantMiddleware → RequiresPermission → TenantTxMiddleware)
 // exactly as the real server does.
-func setupTestContext(t *testing.T) *testContext {
+func setupSchedulesRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupSchedulesRoute(t)
+	db, svc := testutil.SetupAPITest(t)
 
 	resource := schedulesAPI.NewResource(svc.Schedule, db)
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 		router:   resource.Router(),
 	}
@@ -68,7 +64,7 @@ func setupTestContext(t *testing.T) *testContext {
 // tenant filter on that delete, and none would help: the assertion is about
 // the absence of a row the sibling test creates.
 func TestGetCurrentDateframe_Success(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	// Create a dateframe that spans today
 	today := time.Now()
@@ -107,7 +103,7 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 // tenant filter on that delete, and none would help: the assertion is about
 // the absence of a row the sibling test creates.
 func TestGetCurrentDateframe_NotFound(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	// Ensure no dateframes exist that span today by querying all
 	// and deleting any current ones (cleanup)
@@ -135,7 +131,7 @@ func TestGetCurrentDateframe_NotFound(t *testing.T) {
 func TestCreateDateframe_InvalidDateFormat(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	testCases := []struct {
 		name      string
@@ -167,7 +163,7 @@ func TestCreateDateframe_InvalidDateFormat(t *testing.T) {
 func TestCreateDateframe_EndBeforeStart(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-03-01",
@@ -191,7 +187,7 @@ func TestCreateDateframe_EndBeforeStart(t *testing.T) {
 func TestCreateTimeframe_InvalidTimeFormat(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	testCases := []struct {
 		name      string
@@ -220,7 +216,7 @@ func TestCreateTimeframe_InvalidTimeFormat(t *testing.T) {
 func TestCreateTimeframe_EndBeforeStart(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	endTime := "2026-01-14T07:00:00Z" // Before start time
 	body := map[string]interface{}{
@@ -245,7 +241,7 @@ func TestCreateTimeframe_EndBeforeStart(t *testing.T) {
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
@@ -258,7 +254,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 func TestListDateframes_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes", nil)
 
@@ -274,7 +270,7 @@ func TestListDateframes_Success(t *testing.T) {
 func TestListDateframes_WithNameFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes?name=test", nil)
 
@@ -290,7 +286,7 @@ func TestListDateframes_WithNameFilter(t *testing.T) {
 func TestGetDateframe_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes/99999", nil)
 
@@ -302,7 +298,7 @@ func TestGetDateframe_NotFound(t *testing.T) {
 func TestGetDateframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes/invalid", nil)
 
@@ -318,7 +314,7 @@ func TestGetDateframe_InvalidID(t *testing.T) {
 func TestCreateDateframe_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date":  "2026-02-01",
@@ -344,7 +340,7 @@ func TestCreateDateframe_Success(t *testing.T) {
 func TestCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"end_date": "2026-02-28",
@@ -361,7 +357,7 @@ func TestCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
 func TestCreateDateframe_BadRequest_MissingEndDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-02-01",
@@ -378,7 +374,7 @@ func TestCreateDateframe_BadRequest_MissingEndDate(t *testing.T) {
 func TestCreateDateframe_BadRequest_InvalidStartDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "invalid-date",
@@ -399,7 +395,7 @@ func TestCreateDateframe_BadRequest_InvalidStartDate(t *testing.T) {
 func TestUpdateDateframe_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-02-01",
@@ -416,7 +412,7 @@ func TestUpdateDateframe_NotFound(t *testing.T) {
 func TestUpdateDateframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-02-01",
@@ -437,7 +433,7 @@ func TestUpdateDateframe_InvalidID(t *testing.T) {
 func TestDeleteDateframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("DELETE", "/dateframes/invalid", nil)
 
@@ -453,7 +449,7 @@ func TestDeleteDateframe_InvalidID(t *testing.T) {
 func TestGetDateframesByDate_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes/by-date?date=2026-01-15", nil)
 
@@ -465,7 +461,7 @@ func TestGetDateframesByDate_Success(t *testing.T) {
 func TestGetDateframesByDate_BadRequest_MissingDate(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes/by-date", nil)
 
@@ -477,7 +473,7 @@ func TestGetDateframesByDate_BadRequest_MissingDate(t *testing.T) {
 func TestGetOverlappingDateframes_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes/overlapping?start_date=2026-01-01&end_date=2026-12-31", nil)
 
@@ -489,7 +485,7 @@ func TestGetOverlappingDateframes_Success(t *testing.T) {
 func TestGetOverlappingDateframes_BadRequest_MissingParams(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/dateframes/overlapping", nil)
 
@@ -505,7 +501,7 @@ func TestGetOverlappingDateframes_BadRequest_MissingParams(t *testing.T) {
 func TestListTimeframes_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/timeframes", nil)
 
@@ -525,7 +521,7 @@ func TestListTimeframes_Success(t *testing.T) {
 func TestGetTimeframe_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/timeframes/99999", nil)
 
@@ -537,7 +533,7 @@ func TestGetTimeframe_NotFound(t *testing.T) {
 func TestGetTimeframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/timeframes/invalid", nil)
 
@@ -553,7 +549,7 @@ func TestGetTimeframe_InvalidID(t *testing.T) {
 func TestCreateTimeframe_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	endTime := "2026-01-14T17:00:00Z"
 	body := map[string]interface{}{
@@ -580,7 +576,7 @@ func TestCreateTimeframe_Success(t *testing.T) {
 func TestCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"end_time": "2026-01-14T17:00:00Z",
@@ -596,7 +592,7 @@ func TestCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
 func TestCreateTimeframe_BadRequest_InvalidStartTime(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_time": "invalid-time",
@@ -616,7 +612,7 @@ func TestCreateTimeframe_BadRequest_InvalidStartTime(t *testing.T) {
 func TestUpdateTimeframe_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_time": "2026-01-14T08:00:00Z",
@@ -632,7 +628,7 @@ func TestUpdateTimeframe_NotFound(t *testing.T) {
 func TestUpdateTimeframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_time": "2026-01-14T08:00:00Z",
@@ -652,7 +648,7 @@ func TestUpdateTimeframe_InvalidID(t *testing.T) {
 func TestDeleteTimeframe_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("DELETE", "/timeframes/invalid", nil)
 
@@ -668,7 +664,7 @@ func TestDeleteTimeframe_InvalidID(t *testing.T) {
 func TestGetActiveTimeframes_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/timeframes/active", nil)
 
@@ -680,7 +676,7 @@ func TestGetActiveTimeframes_Success(t *testing.T) {
 func TestGetTimeframesByRange_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/timeframes/by-range?start_time=2026-01-01T00:00:00Z&end_time=2026-12-31T23:59:59Z", nil)
 
@@ -692,7 +688,7 @@ func TestGetTimeframesByRange_Success(t *testing.T) {
 func TestGetTimeframesByRange_BadRequest_MissingParams(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/timeframes/by-range", nil)
 
@@ -708,7 +704,7 @@ func TestGetTimeframesByRange_BadRequest_MissingParams(t *testing.T) {
 func TestListRecurrenceRules_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules", nil)
 
@@ -724,7 +720,7 @@ func TestListRecurrenceRules_Success(t *testing.T) {
 func TestListRecurrenceRules_WithFrequencyFilter(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules?frequency=weekly", nil)
 
@@ -740,7 +736,7 @@ func TestListRecurrenceRules_WithFrequencyFilter(t *testing.T) {
 func TestGetRecurrenceRule_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/99999", nil)
 
@@ -752,7 +748,7 @@ func TestGetRecurrenceRule_NotFound(t *testing.T) {
 func TestGetRecurrenceRule_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/invalid", nil)
 
@@ -768,7 +764,7 @@ func TestGetRecurrenceRule_InvalidID(t *testing.T) {
 func TestCreateRecurrenceRule_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"frequency":      schedule.FrequencyWeekly,
@@ -793,7 +789,7 @@ func TestCreateRecurrenceRule_Success(t *testing.T) {
 func TestCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"interval_count": 1,
@@ -809,7 +805,7 @@ func TestCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {
 func TestCreateRecurrenceRule_BadRequest_InvalidFrequency(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"frequency":      "invalid",
@@ -830,7 +826,7 @@ func TestCreateRecurrenceRule_BadRequest_InvalidFrequency(t *testing.T) {
 func TestUpdateRecurrenceRule_NotFound(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"frequency":      schedule.FrequencyDaily,
@@ -847,7 +843,7 @@ func TestUpdateRecurrenceRule_NotFound(t *testing.T) {
 func TestUpdateRecurrenceRule_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"frequency":      schedule.FrequencyDaily,
@@ -868,7 +864,7 @@ func TestUpdateRecurrenceRule_InvalidID(t *testing.T) {
 func TestDeleteRecurrenceRule_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("DELETE", "/recurrence-rules/invalid", nil)
 
@@ -884,7 +880,7 @@ func TestDeleteRecurrenceRule_InvalidID(t *testing.T) {
 func TestGetRecurrenceRulesByFrequency_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-frequency?frequency=weekly", nil)
 
@@ -896,7 +892,7 @@ func TestGetRecurrenceRulesByFrequency_Success(t *testing.T) {
 func TestGetRecurrenceRulesByFrequency_BadRequest_MissingFrequency(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-frequency", nil)
 
@@ -908,7 +904,7 @@ func TestGetRecurrenceRulesByFrequency_BadRequest_MissingFrequency(t *testing.T)
 func TestGetRecurrenceRulesByWeekday_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-weekday?weekday=MO", nil)
 
@@ -920,7 +916,7 @@ func TestGetRecurrenceRulesByWeekday_Success(t *testing.T) {
 func TestGetRecurrenceRulesByWeekday_BadRequest_MissingWeekday(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-weekday", nil)
 
@@ -936,7 +932,7 @@ func TestGetRecurrenceRulesByWeekday_BadRequest_MissingWeekday(t *testing.T) {
 func TestGenerateEvents_InvalidID(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-01-01",
@@ -953,7 +949,7 @@ func TestGenerateEvents_InvalidID(t *testing.T) {
 func TestGenerateEvents_BadRequest_MissingDates(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{}
 
@@ -971,7 +967,7 @@ func TestGenerateEvents_BadRequest_MissingDates(t *testing.T) {
 func TestCheckConflict_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_time": "2026-01-14T09:00:00Z",
@@ -994,7 +990,7 @@ func TestCheckConflict_Success(t *testing.T) {
 func TestCheckConflict_BadRequest_MissingTimes(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{}
 
@@ -1008,7 +1004,7 @@ func TestCheckConflict_BadRequest_MissingTimes(t *testing.T) {
 func TestCheckConflict_BadRequest_InvalidTime(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_time": "invalid-time",
@@ -1029,7 +1025,7 @@ func TestCheckConflict_BadRequest_InvalidTime(t *testing.T) {
 func TestFindAvailableSlots_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-01-01",
@@ -1053,7 +1049,7 @@ func TestFindAvailableSlots_Success(t *testing.T) {
 func TestFindAvailableSlots_BadRequest_MissingDuration(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-01-01",
@@ -1070,7 +1066,7 @@ func TestFindAvailableSlots_BadRequest_MissingDuration(t *testing.T) {
 func TestFindAvailableSlots_BadRequest_InvalidDuration(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupSchedulesRoute(t)
 
 	body := map[string]interface{}{
 		"start_date": "2026-01-01",

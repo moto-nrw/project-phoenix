@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +31,7 @@ type resolveCareOfferingsResponse struct {
 func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	t.Parallel()
 
-	db, services := testutil.SetupAuthRoute(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -55,7 +53,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	schoolService := platformSvc.NewSchoolService(platformRepo.NewSchoolRepository(db))
 	request := func(t *testing.T, settings configSvc.SettingsService) resolveCareOfferingsResponse {
 		t.Helper()
-		resource := authAPI.NewResource(services.Auth, services.Invitation, schoolService, db)
+		resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, schoolService, db)
 		resource.SettingsService = settings
 		router := chi.NewRouter()
 		router.Mount("/auth", resource.Router())
@@ -71,18 +69,18 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	}
 
 	t.Run("registry default stays enabled", func(t *testing.T) {
-		response := request(t, services.Settings)
+		response := request(t, authRoute.SettingsService)
 		assert.True(t, response.Data.CareOfferingsEnabled)
 	})
 
 	t.Run("tenant override disables editor", func(t *testing.T) {
 		ctx := testpkg.TenantContext(tenantID)
-		require.NoError(t, services.Settings.SetValue(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, false, nil, nil))
+		require.NoError(t, authRoute.SettingsService.SetValue(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, false, nil, nil))
 		t.Cleanup(func() {
 			cleanupExec(`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled)
 		})
 
-		response := request(t, services.Settings)
+		response := request(t, authRoute.SettingsService)
 		assert.False(t, response.Data.CareOfferingsEnabled)
 	})
 

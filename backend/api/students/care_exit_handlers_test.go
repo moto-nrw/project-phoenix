@@ -64,7 +64,7 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 
 func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresence(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	wireCareLifecycleWithBookingMode(t, tc, true)
 	repos := repositories.NewFactory(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
@@ -151,7 +151,7 @@ func listedCareStudentIDs(t *testing.T, tc *testContext, claims jwt.AppClaims, q
 
 func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
 	repos := repositories.NewFactory(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "StaleDeletion", "3a")
@@ -199,7 +199,7 @@ func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Gate", "1a")
@@ -237,7 +237,7 @@ func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 
 func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
 	repos := repositories.NewFactory(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abmeldung", "2a")
@@ -263,7 +263,7 @@ func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *te
 
 func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
 	repos := repositories.NewFactory(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
@@ -313,7 +313,7 @@ func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	wireCareLifecycle(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Exit", "2a")
@@ -393,7 +393,7 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Validation", "2a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-validation@example.com")
@@ -418,7 +418,7 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	wireCareLifecycle(t, tc)
 
 	running := testpkg.CreateTestStudent(t, tc.db, "Listed", "Running", "3a")
@@ -561,7 +561,7 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 func TestStudentList_MarksRecordedExitsOnly(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	wireCareLifecycle(t, tc)
 
 	recorded := testpkg.CreateTestStudent(t, tc.db, "Flagged", "Recorded", "4a")

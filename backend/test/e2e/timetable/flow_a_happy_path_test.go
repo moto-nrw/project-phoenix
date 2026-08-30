@@ -26,7 +26,7 @@ import (
 func TestFlowA_PlanToReport(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
+	s := setupTimetableScenarioRoute(t)
 	defer s.teardown()
 
 	// --- Setup: period, room, staff, students, template --------------------
@@ -247,6 +247,6 @@ func checkInStudent(t *testing.T, s *scenario, studentID, activeGroupID int64, s
 		ActiveGroupID: activeGroupID,
 		EntryTime:     time.Now(),
 	}
-	err := s.factory.Active.CreateVisit(ctx, visit)
+	err := s.createActiveVisit(ctx, visit)
 	require.NoError(t, err, "CreateVisit for student %d", studentID)
 }

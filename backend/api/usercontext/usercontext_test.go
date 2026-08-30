@@ -15,8 +15,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +27,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// init seeds JWT viper defaults before any test (and before setupTestContext
+// init seeds JWT viper defaults before any test (and before setupUserContextRoute
 // constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
@@ -39,25 +37,23 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	repos    *repositories.Factory
 	resource *usercontextAPI.Resource
 	router   chi.Router
 }
 
-// setupTestContext initializes test database, services, resource, and a router
+// setupUserContextRoute initializes test database, services, resource, and a router
 // that serves the resource at the same paths it would in production.
-func setupTestContext(t *testing.T) *testContext {
+func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
-	db, serviceFactory := testutil.SetupUserContextRoute(t)
+	db, serviceFactory := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
 
 	resource := usercontextAPI.NewResource(serviceFactory.UserContext, db)
 
 	return &testContext{
 		db:       db,
-		services: serviceFactory,
 		repos:    repoFactory,
 		resource: resource,
 		router:   resource.Router(),
@@ -70,7 +66,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 func TestGetCurrentUser_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "usercontext-test@example.com")
 
@@ -86,7 +82,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 
 func TestGetCurrentUser_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil)
 
@@ -101,7 +97,7 @@ func TestGetCurrentUser_Unauthenticated(t *testing.T) {
 
 func TestGetCurrentProfile_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Profile", "Test")
 
@@ -117,7 +113,7 @@ func TestGetCurrentProfile_Success(t *testing.T) {
 
 func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile", nil)
 
@@ -132,7 +128,7 @@ func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
 
 func TestUpdateCurrentProfile_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Update", "ProfileTest")
 
@@ -153,7 +149,7 @@ func TestUpdateCurrentProfile_Success(t *testing.T) {
 
 func TestUpdateCurrentProfile_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	body := map[string]interface{}{"first_name": "Updated"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/profile", body)
@@ -165,7 +161,7 @@ func TestUpdateCurrentProfile_Unauthenticated(t *testing.T) {
 
 func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Empty", "Update")
 
@@ -187,7 +183,7 @@ func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
 
 func TestGetCurrentStaff_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Staff", "Test")
 	personnelNumber := "90001"
@@ -213,7 +209,7 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 
 func TestGetCurrentStaff_NotStaff(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "not-staff@example.com")
 
@@ -229,7 +225,7 @@ func TestGetCurrentStaff_NotStaff(t *testing.T) {
 
 func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil)
 
@@ -244,7 +240,7 @@ func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
 
 func TestGetCurrentTeacher_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Teacher", "Test")
 
@@ -260,7 +256,7 @@ func TestGetCurrentTeacher_Success(t *testing.T) {
 
 func TestGetCurrentTeacher_NotTeacher(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "not-teacher@example.com")
 
@@ -276,7 +272,7 @@ func TestGetCurrentTeacher_NotTeacher(t *testing.T) {
 
 func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil)
 
@@ -291,7 +287,7 @@ func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
 
 func TestGetMyGroups_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Groups", "Test")
 
@@ -307,7 +303,7 @@ func TestGetMyGroups_Success(t *testing.T) {
 
 func TestGetMyGroups_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil)
 
@@ -322,7 +318,7 @@ func TestGetMyGroups_Unauthenticated(t *testing.T) {
 
 func TestGetMyActivityGroups_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Activity", "Groups")
 
@@ -338,7 +334,7 @@ func TestGetMyActivityGroups_Success(t *testing.T) {
 
 func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/activity", nil)
 
@@ -353,7 +349,7 @@ func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
 
 func TestGetMyActiveGroups_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Active", "Groups")
 
@@ -369,7 +365,7 @@ func TestGetMyActiveGroups_Success(t *testing.T) {
 
 func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/active", nil)
 
@@ -384,7 +380,7 @@ func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
 
 func TestGetMySupervisedGroups_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Supervised", "Groups")
 
@@ -400,7 +396,7 @@ func TestGetMySupervisedGroups_Success(t *testing.T) {
 
 func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/supervised", nil)
 
@@ -415,7 +411,7 @@ func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
 
 func TestGetGroupStudents_InvalidGroupID(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	claims := testutil.DefaultTestClaims()
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/students", nil,
@@ -429,7 +425,7 @@ func TestGetGroupStudents_InvalidGroupID(t *testing.T) {
 
 func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupStudentsUnauth")
 	room := testpkg.CreateTestRoom(t, tc.db, "GroupStudentsUnauthRoom")
@@ -448,7 +444,7 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 
 func TestGetGroupVisits_InvalidGroupID(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	claims := testutil.DefaultTestClaims()
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/invalid/visits", nil,
@@ -462,7 +458,7 @@ func TestGetGroupVisits_InvalidGroupID(t *testing.T) {
 
 func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupVisitsUnauth")
 	room := testpkg.CreateTestRoom(t, tc.db, "GroupVisitsUnauthRoom")
@@ -481,7 +477,7 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 
 func TestDeleteAvatar_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil)
 
@@ -492,7 +488,7 @@ func TestDeleteAvatar_Unauthenticated(t *testing.T) {
 
 func TestDeleteAvatar_NoAvatar(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NoAvatar", "Test")
 
@@ -508,7 +504,7 @@ func TestDeleteAvatar_NoAvatar(t *testing.T) {
 
 func TestServeAvatar_MissingFilename(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Avatar", "Serve")
 
@@ -524,7 +520,7 @@ func TestServeAvatar_MissingFilename(t *testing.T) {
 
 func TestServeAvatar_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/test.jpg", nil)
 
@@ -535,7 +531,7 @@ func TestServeAvatar_Unauthenticated(t *testing.T) {
 
 func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Avatar", "GlobalFile")
 
@@ -579,7 +575,7 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	router := tc.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
@@ -591,7 +587,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "FullUpdate", "ProfileTest")
 
@@ -619,7 +615,7 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 
 func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupStudents", "Teacher")
 
@@ -643,7 +639,7 @@ func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 
 func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupVisits", "Teacher")
 
@@ -667,7 +663,7 @@ func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
 
 func TestServeAvatar_InvalidFilename(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "InvalidPath", "Avatar")
 
@@ -683,7 +679,7 @@ func TestServeAvatar_InvalidFilename(t *testing.T) {
 
 func TestServeAvatar_NonExistentFile(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonExistent", "Avatar")
 
@@ -703,7 +699,7 @@ func TestServeAvatar_NonExistentFile(t *testing.T) {
 
 func TestUploadAvatar_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/profile/avatar", nil)
 
@@ -715,7 +711,7 @@ func TestUploadAvatar_Unauthenticated(t *testing.T) {
 
 func TestUploadAvatar_NoFile(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NoFile", "Upload")
 
@@ -731,7 +727,7 @@ func TestUploadAvatar_NoFile(t *testing.T) {
 
 func TestUploadAvatar_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Upload", "Success")
 
@@ -781,7 +777,7 @@ func TestUploadAvatar_Success(t *testing.T) {
 
 func TestDeleteAvatar_WithAvatar(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete")
 	avatarDir := filepath.Join("public", "uploads", "avatars", "global")
@@ -820,7 +816,7 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 
 func TestGetMyGroups_WithSubstitution(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupUserContextRoute(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "SubstGroups", "Teacher")
 

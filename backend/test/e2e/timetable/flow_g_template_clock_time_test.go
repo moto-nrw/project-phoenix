@@ -16,7 +16,7 @@ import (
 func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
+	s := setupTimetableScenarioRoute(t)
 	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 1, 7) // Monday, at least 7 days out.

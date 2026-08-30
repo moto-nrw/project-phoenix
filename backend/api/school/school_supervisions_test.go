@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/go-chi/chi/v5"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +31,7 @@ import (
 // assignment-bound surface reads.
 type supervisionFixture struct {
 	db       *bun.DB
-	factory  *services.Factory
+	factory  *school.Resource
 	tenantID int64
 	router   chi.Router
 	claims   jwt.AppClaims
@@ -48,7 +46,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	clock := func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	}
-	db, factory := testutil.SetupSchoolRoute(t, clock)
+	db, factory, _, _ := setupSchoolRoute(t, clock)
 	tenantID := testpkg.Tenant(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
@@ -57,8 +55,8 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	// provisioning service gives every real school.
 	testpkg.EnsureWebManualDevice(t, db)
 
-	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	router := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory, clock), nil, nil).Router()
+	classDayResource := classday.NewResource(factory.ClassDay.ReportService, factory.ClassDay.UserContextService, db, nil)
+	router := school.NewResource(factory.AuthService, factory.MFAService, classDayResource, newSchoolTimetableResource(db, factory, clock), nil, nil).Router()
 
 	return &supervisionFixture{
 		db:       db,
@@ -241,7 +239,7 @@ func TestSchoolSupervisionsIgnoreOperationalOverview(t *testing.T) {
 	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.tenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
 	testpkg.CreateTestInstanceStaff(t, f.db, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
-	require.NoError(t, f.factory.Settings.SetValue(
+	require.NoError(t, f.factory.Timetable.SettingsService.SetValue(
 		testpkg.TenantContext(f.tenantID),
 		configModel.KeyOperationalOverviewScope,
 		configModel.OverviewScopeAllStaff,
