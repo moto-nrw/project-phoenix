@@ -32,7 +32,7 @@ import (
 //
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// No configured checkout time → the time gate is open, so this test
 	// exercises the ROOM gate in isolation. Restored afterwards so a value in
@@ -110,7 +110,7 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 // default for tenants created after the all-room setting was introduced.
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestDeviceCheckout_OrdinaryRoomOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	previousCheckoutTime, hadCheckoutTime := os.LookupEnv("STUDENT_DAILY_CHECKOUT_TIME")
 	require.NoError(t, os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME"))

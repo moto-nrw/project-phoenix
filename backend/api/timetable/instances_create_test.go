@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,10 +22,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -274,14 +272,15 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
+	clock := func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin) }
+	instanceDate := timezone.DateFromTime(clock()).AddDays(1)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
-	date := timezone.NewDate(2026, 8, 24)
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
-		date.AddDays(-1), date.AddDays(7))
+		timezone.NewDate(2026, 8, 24).AddDays(-1), timezone.NewDate(2026, 8, 24).AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -291,18 +290,10 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 			Exec(ctx)
 	})
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err)
-	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
-		InstanceService: serviceFactory.Instance,
-		DB:              db,
-	})
-	router := createRouter(ctx, res)
+	router := setupDuplicateInstanceRoute(t, db, ctx, clock)
 
 	body := map[string]any{
-		"date":              date.String(),
+		"date":              instanceDate.String(),
 		"start_time":        "10:00",
 		"end_time":          "11:00",
 		"title":             "Duplicate slot",
@@ -316,6 +307,20 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	second := doCreate(t, router, body)
 	assert.Equal(t, http.StatusConflict, second.Code, "body=%s", second.Body.String())
 	assert.Contains(t, second.Body.String(), "duplicate_instance")
+}
+
+func setupDuplicateInstanceRoute(
+	t *testing.T, db *bun.DB, ctx context.Context, clock func() time.Time,
+) chi.Router {
+	t.Helper()
+
+	_, serviceFactory := testutil.SetupAPITest(t)
+	resource := NewResource(Dependencies{
+		TimetableData:   testTimetableData(db, clock),
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
+	})
+	return createRouter(ctx, resource)
 }
 
 func TestCreateInstance_UnwiredResource(t *testing.T) {

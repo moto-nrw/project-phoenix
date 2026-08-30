@@ -25,10 +25,10 @@ const testIBAN = "DE89370400440532013000"
 const financialPerm = "guardians:financial"
 
 // paymentContext wires the resource with the export renderer, which the shared
-// setupTestContext leaves nil because no other guardian route renders files.
+// setupGuardiansRoute leaves nil because no other guardian route renders files.
 func paymentContext(t *testing.T) *testContext {
 	t.Helper()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 	ctx.resource.ListExportService = listexport.NewService()
 	return ctx
 }
@@ -37,7 +37,7 @@ func paymentContext(t *testing.T) *testContext {
 func linkGuardian(t *testing.T, ctx *testContext, studentID int64, email string) *users.GuardianProfile {
 	t.Helper()
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, email)
-	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
+	_, err := ctx.resource.GuardianService.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         studentID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -161,7 +161,7 @@ func TestRemoveGuardian_PayerNeedsFinancialPermission(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, code, body)
 	assert.Contains(t, body, "Zahler", "the refusal must say why the person cannot be removed")
 
-	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	linked, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.Len(t, linked, 2, "a refused unlink must leave both relationships in place")
 	for _, gwr := range linked {
@@ -173,7 +173,7 @@ func TestRemoveGuardian_PayerNeedsFinancialPermission(t *testing.T) {
 	code, body = unlink(financialClaims, payer.ID)
 	require.Equal(t, http.StatusOK, code, "with guardians:financial the payer unlinks: %s", body)
 
-	linked, err = ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	linked, err = ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Empty(t, linked)
 }
@@ -268,7 +268,7 @@ func TestStudentPayer_OnlyOnePerChild(t *testing.T) {
 // assertPayer asserts exactly which guardian carries the mark for a child.
 func assertPayer(t *testing.T, ctx *testContext, studentID int64, want *int64) {
 	t.Helper()
-	relationships, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), studentID)
+	relationships, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), studentID)
 	require.NoError(t, err)
 
 	var payers []int64
@@ -345,7 +345,7 @@ func TestStudentPayer_SiblingsShareOneMaintainedIBAN(t *testing.T) {
 	younger := testpkg.CreateTestStudent(t, ctx.db, "Sibling", "Younger", "1a")
 
 	parent := linkGuardian(t, ctx, older.ID, "sibling-parent")
-	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
+	_, err := ctx.resource.GuardianService.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         younger.ID,
 		GuardianProfileID: parent.ID,
 		RelationshipType:  "parent",
@@ -360,7 +360,7 @@ func TestStudentPayer_SiblingsShareOneMaintainedIBAN(t *testing.T) {
 	}
 
 	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-siblings")
-	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
+	rows, err := ctx.resource.GuardianService.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
 	require.NoError(t, err)
 
 	seen := 0
@@ -385,7 +385,7 @@ func TestPaymentOverview_ListsChildrenWithoutAPayer(t *testing.T) {
 	linkGuardian(t, ctx, unassigned.ID, "overview-unassigned")
 
 	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-unassigned-actor")
-	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
+	rows, err := ctx.resource.GuardianService.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
 	require.NoError(t, err)
 
 	var found *usersSvc.GuardianPaymentRow
@@ -414,7 +414,7 @@ func TestPaymentOverview_ExcludesSoftDeletedStudents(t *testing.T) {
 	require.NoError(t, err)
 
 	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-deleted-actor")
-	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
+	rows, err := ctx.resource.GuardianService.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
 	require.NoError(t, err)
 	for _, row := range rows {
 		assert.NotEqual(t, student.ID, row.StudentID)

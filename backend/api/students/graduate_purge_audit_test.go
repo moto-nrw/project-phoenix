@@ -21,7 +21,7 @@ import (
 func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	repos := repositories.NewFactory(tc.db)
 	tc.resource.StudentDeletionService = usersService.NewStudentDeletionService(
 		tc.resource.StudentService,
@@ -34,7 +34,6 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 		tc.db,
 	)
 	usersService.WireStudentDeletionCareWithdrawals(tc.resource.StudentDeletionService, repos.CareWithdrawal)
-	tc.resource.GradeTransitionService = tc.services.GradeTransition
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Purge", "Audited", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "graduate-purge-audit@example.com")

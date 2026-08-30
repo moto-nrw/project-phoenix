@@ -1,7 +1,7 @@
 // Handler tests for POST /templates/{id}/split (WP-B3).
 //
 // Hermetic: real repos + real split service against the test DB (fixtures via
-// buildTemplateSetup); materialization mocked so no calendar period is
+// buildTemplateModule); materialization mocked so no calendar period is
 // required. The router mirrors the production wiring: tenant context +
 // permission middleware, so the 403 path exercises the real gate.
 package timetable
@@ -182,7 +182,7 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 	mat := &mockMaterializationService{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 5},
 	}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -215,7 +215,7 @@ func TestTemplateSplitHandler_RejectsOverlongNotes(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -235,7 +235,7 @@ func TestTemplateSplitHandler_RejectsOverlongNotes(t *testing.T) {
 func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
@@ -304,7 +304,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	t.Parallel()
 
 	t.Run("allows an unchanged legacy above-cap Jahrgang", func(t *testing.T) {
-		s := buildTemplateSetup(t, nil)
+		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		attachSplitService(s, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 		router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -338,7 +338,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	})
 
 	t.Run("rejects a changed above-cap Jahrgang before capping the source", func(t *testing.T) {
-		s := buildTemplateSetup(t, nil)
+		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		attachSplitService(s, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 		router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -365,7 +365,7 @@ func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	})
 
 	t.Run("settings failure returns 500 without mutating the source", func(t *testing.T) {
-		s := buildTemplateSetup(t, nil)
+		s := buildTemplateModule(t, nil)
 		defer s.cleanupFn()
 		attachSplitService(s, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 		router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -393,7 +393,7 @@ func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitServiceWithValidator(s, mat, func(context.Context, int64) error {
 		return fmt.Errorf("%w: linked care offering would become invalid", enrollmentModel.ErrCareOfferingInvalid)
@@ -442,7 +442,7 @@ func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric50
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitServiceWithValidator(s, mat, func(context.Context, int64) error {
 		return errors.New("synthetic database details")
@@ -471,7 +471,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 	created := createSourceTemplate(t, router, s, "Tpl-Update-Rollback-Quelle")
@@ -571,7 +571,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -633,7 +633,7 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
@@ -672,7 +672,7 @@ func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -707,7 +707,7 @@ func TestTemplateSplitHandler_UnknownTemplate(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -721,7 +721,7 @@ func TestTemplateSplitHandler_ForbiddenForReadOnly(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 
@@ -739,7 +739,7 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -761,7 +761,7 @@ func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -795,7 +795,7 @@ func TestTemplateEndHandler_BadEffectiveDate(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -827,7 +827,7 @@ func TestTemplateEndHandler_UnknownTemplate(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -841,7 +841,7 @@ func TestTemplateEndHandler_ForbiddenForReadOnly(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	s := buildTemplateModule(t, mat)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 

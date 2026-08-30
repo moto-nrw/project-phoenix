@@ -14,27 +14,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
+	resource *staffclockAPI.Resource
 	device   *iotModels.Device
 }
 
-func setupTestContext(t *testing.T) *testContext {
+func setupStaffClockRoute(t *testing.T) *testContext {
 	t.Helper()
 	db, serviceFactory := testutil.SetupAPITest(t)
 	testDevice := testpkg.CreateTestDevice(t, db, "staff-clock-device")
-	return &testContext{db: db, services: serviceFactory, device: testDevice}
+	return &testContext{db: db, resource: staffclockAPI.NewResource(serviceFactory.StaffClock), device: testDevice}
 }
 
 func (ctx *testContext) execute(t *testing.T, path string, body map[string]any) map[string]any {
 	t.Helper()
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", staffclockAPI.NewResource(ctx.services.StaffClock).Router())
+	router.Mount("/", ctx.resource.Router())
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body, testutil.WithDeviceContext(ctx.device))
 	response := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, response.Code, "response: %s", response.Body.String())
@@ -44,7 +43,7 @@ func (ctx *testContext) execute(t *testing.T, path string, body map[string]any) 
 func TestStaffClock_FullNFCFlow(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffClockRoute(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Nora", "Kiosk")
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "A1654BEEF")
@@ -67,7 +66,7 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 	assert.Equal(t, activeModels.WorkSessionStatusPresent, session["status"])
 
 	duplicateRouter := testutil.NewTenantRouter(ctx.db)
-	duplicateRouter.Mount("/", staffclockAPI.NewResource(ctx.services.StaffClock).Router())
+	duplicateRouter.Mount("/", ctx.resource.Router())
 	duplicateReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff-clock", map[string]any{
 		"rfid_tag": card.ID,
 		"action":   "checkin",
@@ -115,14 +114,14 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 func TestStaffClock_RejectsStudentCard(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupTestContext(t)
+	ctx := setupStaffClockRoute(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Sam", "Schueler", "1a")
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, "B1654CAFE")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", staffclockAPI.NewResource(ctx.services.StaffClock).Router())
+	router.Mount("/", ctx.resource.Router())
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff-clock/state", map[string]any{"rfid_tag": card.ID}, testutil.WithDeviceContext(ctx.device))
 	response := testutil.ExecuteRequest(router, req)
 

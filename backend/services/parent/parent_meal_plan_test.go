@@ -45,9 +45,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub)
 		Broadcaster:   testpkg.NewRecordingBroadcaster(),
 		DB:            db,
 		Logger:        slog.Default(),
-		Now: func() time.Time {
-			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-		},
+		Now:           func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin) },
 	})
 }
 

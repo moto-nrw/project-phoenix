@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -47,18 +46,18 @@ func resolveReasonPolicy(t *testing.T, slug string, resource *authAPI.Resource) 
 func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, configModel.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
 		"a school that never touched the setting gets the registry default")
 
 	require.NoError(t,
-		svc.Settings.SetValue(scope.Context(), configModel.KeyParentRequestReasonPolicy,
+		authRoute.SettingsService.SetValue(scope.Context(), configModel.KeyParentRequestReasonPolicy,
 			configModel.ReasonPolicyNobody, nil, nil),
 		"switch the reason requirement off for the isolated tenant")
 	assert.Equal(t, configModel.ReasonPolicyNobody, resolveReasonPolicy(t, slug, resource),
@@ -71,7 +70,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	// Stored straight through the repository: SetValue would reject a value
@@ -87,8 +86,8 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 		"store an unknown parent_request_reason_policy override")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, configModel.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource))
 }

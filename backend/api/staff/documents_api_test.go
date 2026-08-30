@@ -69,7 +69,7 @@ type documentsAPIContext struct {
 
 func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupStaffRoute(t)
 	suffix := time.Now().UnixNano()
 
 	target := testpkg.CreateTestStaff(t, tc.db, "Dokumente", fmt.Sprintf("API-%d", suffix))
@@ -145,7 +145,7 @@ func TestStaffDocumentsAPI_UploadListDownloadDelete(t *testing.T) {
 	docID, filename := uploadedDocument(t, rec.Body.Bytes())
 	require.NotZero(t, docID)
 	assert.Equal(t, "Erste-Hilfe Zeugnis.pdf", filename)
-	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(testpkg.Ctx(t))
+	cleanups, err := c.tc.resource.StaffDocumentService.ListQueuedStaffDocumentFileCleanups(testpkg.Ctx(t))
 	require.NoError(t, err)
 	assert.Empty(t, cleanups, "a persisted document must complete its cleanup intent")
 
@@ -217,14 +217,14 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 	const orphanStaffID = int64(987654321)
 	storedName := fmt.Sprintf("orphan-%d.pdf", time.Now().UnixNano())
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
+	require.NoError(t, c.tc.resource.StaffDocumentService.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
 	var retryAfter time.Time
 	require.NoError(t, c.tc.db.NewRaw(`SELECT retry_after FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName).Scan(ctx, &retryAfter))
 	assert.WithinDuration(t, time.Now().Add(5*time.Minute), retryAfter, 5*time.Second)
-	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	cleanups, err := c.tc.resource.StaffDocumentService.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, cleanups, "an in-progress upload must not be picked up by cleanup retries")
-	require.NoError(t, c.tc.services.StaffDocuments.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
+	require.NoError(t, c.tc.resource.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
 	t.Cleanup(func() {
 		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
 	})
@@ -241,7 +241,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 	_, err = os.Stat(filePath)
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
-	cleanups, err = c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	cleanups, err = c.tc.resource.StaffDocumentService.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, cleanups)
 }
@@ -257,11 +257,11 @@ func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) 
 	const orphanStaffID = int64(987654322)
 	storedName := fmt.Sprintf("inflight-%d.pdf", time.Now().UnixNano())
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, c.tc.services.StaffDocuments.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
+	require.NoError(t, c.tc.resource.StaffDocumentService.QueueStaffDocumentFileCleanup(ctx, orphanStaffID, storedName))
 	t.Cleanup(func() {
 		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
 	})
-	require.NoError(t, c.tc.services.StaffDocuments.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
+	require.NoError(t, c.tc.resource.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
 
 	pubDir, err := common.ResolvePublicDir()
 	require.NoError(t, err)
@@ -283,7 +283,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) 
 		`UPDATE users.staff_document_file_cleanup SET cleaned_at = NOW() WHERE filename_stored = ?`, storedName)
 	require.NoError(t, err)
 
-	cleanups, err := c.tc.services.StaffDocuments.ListQueuedStaffDocumentFileCleanups(ctx)
+	cleanups, err := c.tc.resource.StaffDocumentService.ListQueuedStaffDocumentFileCleanups(ctx)
 	require.NoError(t, err)
 	assert.False(t, containsStoredName(cleanups, storedName),
 		"an uncommitted upload's intent must not be eligible for cleanup")

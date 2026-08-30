@@ -42,7 +42,7 @@ func createWCRoomAliasIntegrationRoom(t *testing.T, db *bun.DB, name string) *fa
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-auto")
 
@@ -96,7 +96,7 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-no-dup")
 

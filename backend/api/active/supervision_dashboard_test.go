@@ -94,8 +94,7 @@ func decodeDashboard(t *testing.T, body []byte) *dashboardEnvelope {
 // does).
 func setupDashboardContext(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
-	tc.resource.SupervisionDashboardService = tc.services.SupervisionDashboard
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -134,11 +133,11 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
 	settingsCtx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
-		_ = tc.services.Settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
 	})
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
@@ -347,7 +346,7 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	t.Parallel()
 	tc, router := setupDashboardContext(t)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
 	))
 

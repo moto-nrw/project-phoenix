@@ -53,7 +53,7 @@ type dayLogTestBody struct {
 func TestGetStudentsDayLog_FeatureDisabled(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	req := testutil.NewRequest("GET", "/day-log", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -65,7 +65,7 @@ func TestGetStudentsDayLog_FeatureDisabled(t *testing.T) {
 func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Gruppe A")
@@ -137,7 +137,7 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 func TestGetStudentsDayLog_StaffSeesEveryGroup(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	// #2329: the day log is tenant-wide for staff — supervision of the group no
@@ -174,7 +174,7 @@ func TestGetStudentsDayLog_StaffSeesEveryGroup(t *testing.T) {
 func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	// Account without a person/staff row: supervisor-only mode must answer
@@ -190,7 +190,7 @@ func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
 func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	tomorrow := timezone.TodayDate().AddDays(1)
@@ -204,7 +204,7 @@ func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {
 func TestGetStudentsDayLog_HistoricalDateRejected(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	tooOld := timezone.TodayDate().AddDays(-40)
@@ -218,7 +218,7 @@ func TestGetStudentsDayLog_HistoricalDateRejected(t *testing.T) {
 func TestGetStudentsDayLog_RejectsHistoricalRosterWithoutGroupAssignments(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	date := timezone.TodayDate().AddDays(-1)
@@ -232,7 +232,7 @@ func TestGetStudentsDayLog_RejectsHistoricalRosterWithoutGroupAssignments(t *tes
 // in the clone to get an exact count, so it and any test running beside it
 // would delete each other's evidence.
 func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Audit")
@@ -269,7 +269,7 @@ func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
 func TestExportStudentsDayLog_RendersFile(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Export")

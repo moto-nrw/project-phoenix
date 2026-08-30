@@ -35,7 +35,7 @@ func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
 func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -69,7 +69,7 @@ func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -103,7 +103,7 @@ func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -150,7 +150,7 @@ func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Cleanup", "2c")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Visit", "Caller")
@@ -179,7 +179,7 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 	// Confirm the visit is now closed (ExitTime set).
-	updatedVisit, err := tc.services.Active.GetVisit(t.Context(), visit.ID)
+	updatedVisit, err := tc.resource.ActiveService.GetVisit(t.Context(), visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, updatedVisit)
 	assert.NotNil(t, updatedVisit.ExitTime, "open visit must be closed after web checkout")
@@ -192,7 +192,7 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
 	_ = testpkg.EnsureWebManualDevice(t, tc.db)
@@ -222,7 +222,7 @@ func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
 func TestSchoolCheckin_AccountWithoutStaffRecordDenied(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Denied", "Target", "3d")
 	guest := testpkg.CreateTestAccount(t, tc.db, "school-checkin-guest@example.com")
@@ -244,7 +244,7 @@ func TestSchoolCheckin_AccountWithoutStaffRecordDenied(t *testing.T) {
 func TestSchoolCheckin_InvalidAction_Rejects(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Invalid", "Target", "4d")
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Invalid", "Caller")

@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,7 +39,6 @@ func init() {
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *activeAPI.Resource
 }
 
@@ -54,16 +52,16 @@ func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Conte
 	return s.Service.EndActiveGroupSession(ctx, id)
 }
 
-// setupTestContext creates test resources for active handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupActiveRoute creates test resources for active handler tests
+func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
 	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Education, svc.Schulhof, svc.UserContext, svc.Settings, db, slog.Default())
+	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -81,7 +79,7 @@ func mountActiveRouter(tc *testContext) chi.Router {
 // setupProtectedRouter builds the production router mounted at /active.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -90,7 +88,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 // already exposes every one of those endpoints.
 func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -265,13 +263,13 @@ func TestEndActiveGroup(t *testing.T) {
 				return false, nil
 			},
 		}
-		recordingService := &recordingEndActiveGroupService{Service: tc.services.Active}
+		recordingService := &recordingEndActiveGroupService{Service: tc.resource.ActiveService}
 		disabledResource := activeAPI.NewResource(
 			recordingService,
-			tc.services.Users,
-			tc.services.Education,
-			tc.services.Schulhof,
-			tc.services.UserContext,
+			tc.resource.PersonService,
+			tc.resource.EducationService,
+			tc.resource.SchulhofService,
+			tc.resource.UserContextService,
 			disabledSettings,
 			tc.db,
 			slog.Default(),
@@ -286,7 +284,7 @@ func TestEndActiveGroup(t *testing.T) {
 		testutil.AssertForbidden(t, rr)
 		assert.Contains(t, rr.Body.String(), common.ErrCodeAttendanceWebDisabled)
 		assert.Zero(t, recordingService.endCalls, "the disabled route must not invoke group teardown")
-		stored, err := tc.services.Active.GetActiveGroup(settingCtx, activeGroup.ID)
+		stored, err := tc.resource.ActiveService.GetActiveGroup(settingCtx, activeGroup.ID)
 		require.NoError(t, err)
 		assert.Nil(t, stored.EndTime, "the disabled route must not invoke group teardown")
 	})
@@ -1608,7 +1606,7 @@ func TestListSupervisorsWithFilters(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }
@@ -1869,7 +1867,7 @@ func TestCreateVisitAdditional(t *testing.T) {
 // checkout endpoint lives under /active/visits/student/{studentId}/checkout).
 func setupCheckoutRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -2084,7 +2082,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 // production Router() exposes.
 func setupFullCoverageRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
-	tc := setupTestContext(t)
+	tc := setupActiveRoute(t)
 	return tc, mountActiveRouter(tc)
 }
 
@@ -2188,7 +2186,7 @@ func TestClaimGroup(t *testing.T) {
 func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, nil, nil,
 	))
 

@@ -26,8 +26,7 @@ import (
 func TestFlowA_PlanToReport(t *testing.T) {
 	t.Parallel()
 
-	s := newScenario(t)
-	defer s.teardown()
+	s := setupTimetableScenarioModule(t)
 
 	// --- Setup: period, room, staff, students, template --------------------
 	// Pick a Wednesday far enough ahead that the scheduler accepts the window.
@@ -35,16 +34,12 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-A-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowA-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "Frau", "Schmidt")
 	staff2 := testpkg.CreateTestStaff(t, s.db, "Herr", "Meier")
 	student1 := testpkg.CreateTestStudent(t, s.db, "Anna", "A", "3a")
 	student2 := testpkg.CreateTestStudent(t, s.db, "Ben", "B", "3a")
 	student3 := testpkg.CreateTestStudent(t, s.db, "Cleo", "C", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	tmpl := s.buildTemplate(templateSpec{
 		name:       "Mathe-AG",
@@ -75,7 +70,6 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	// Find the created instance (for later asserts + start/complete).
 	instance := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 	require.Equal(t, scheduleModel.InstanceStatusPlanned, instance.Status)
 
 	// --- Step 2: assert DB baseline ---------------------------------------
@@ -247,6 +241,6 @@ func checkInStudent(t *testing.T, s *scenario, studentID, activeGroupID int64, s
 		ActiveGroupID: activeGroupID,
 		EntryTime:     time.Now(),
 	}
-	err := s.factory.Active.CreateVisit(ctx, visit)
+	err := s.createActiveVisit(ctx, visit)
 	require.NoError(t, err, "CreateVisit for student %d", studentID)
 }

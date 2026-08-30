@@ -15,7 +15,7 @@ import (
 func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	// Create staff for the created_by FK constraint
 	db := testpkg.SetupTestDB(t)
@@ -36,7 +36,7 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 func TestWcActivityGroup_FindsExisting(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	db := testpkg.SetupTestDB(t)
 
@@ -58,7 +58,7 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	db := testpkg.SetupTestDB(t)
 
@@ -78,7 +78,7 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	db := testpkg.SetupTestDB(t)
 
@@ -104,7 +104,7 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := testpkg.Ctx(t)
 
@@ -120,7 +120,7 @@ func TestWcActivityGroup_NoStaffContext(t *testing.T) {
 func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
 	t.Parallel()
 
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := testpkg.Ctx(t)
 

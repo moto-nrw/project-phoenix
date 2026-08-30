@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	additionalSupervisionAuditVersion     = "1.15.353"
+	additionalSupervisionAuditVersion     = "1.15.354"
 	additionalSupervisionAuditDescription = "Audit additional active supervisors"
 )
 

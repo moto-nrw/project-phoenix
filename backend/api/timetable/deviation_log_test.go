@@ -41,7 +41,7 @@ func loadEventsForInstance(t *testing.T, db *bun.DB, ctx context.Context, instan
 func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -89,7 +89,7 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -115,7 +115,7 @@ func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -139,7 +139,7 @@ func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 

@@ -46,7 +46,7 @@ func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (
 func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Extra", "Fields", "3a")
 
 	linkedStudentID := student.ID
@@ -153,7 +153,7 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 func TestGetStudentEnrollmentExtraFields_EmptyWhenNoLinkedAnswers(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "No", "Extras", "3a")
 
 	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{}
@@ -173,7 +173,7 @@ func TestGetStudentEnrollmentExtraFields_EmptyWhenNoLinkedAnswers(t *testing.T) 
 func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Schema", "Failure", "3a")
 
 	linkedStudentID := student.ID
@@ -215,7 +215,7 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Schema", "Missing", "3a")
 
 	linkedStudentID := student.ID
