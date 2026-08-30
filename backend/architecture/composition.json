@@ -17843,7 +17843,7 @@
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1532
+        1533
       ],
       "tables": []
     },
@@ -17853,10 +17853,8 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1465,
-        1495,
-        1501,
-        1518
+        1464,
+        1503
       ],
       "tables": [
         "config.work_time_models",
@@ -30984,8 +30982,8 @@
       "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        363,
-        453
+        367,
+        457
       ],
       "tables": []
     },
@@ -31006,7 +31004,7 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        307
+        311
       ],
       "tables": []
     },
@@ -31017,7 +31015,7 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         194,
-        221
+        224
       ],
       "tables": [
         "users.staff"
