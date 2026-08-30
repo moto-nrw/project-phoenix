@@ -170,6 +170,7 @@ type CareOfferingServiceConfig struct {
 	// tenant recurrence gate; focused service tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
 	Logger                 *slog.Logger
+	Today                  func() timezone.Date
 }
 
 // CareOfferingSourcedTemplateResyncer re-reconciles the rosters of every
@@ -208,6 +209,13 @@ type careOfferingService struct {
 	CareOfferingServiceConfig
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
 	pickupResyncer          CareOfferingPickupResyncer
+}
+
+func (s *careOfferingService) todayDate() timezone.Date {
+	if s.Today != nil {
+		return s.Today()
+	}
+	return timezone.TodayDate()
 }
 
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
@@ -1242,7 +1250,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	return &clone, nil
 }
 
-// bookingStatsWindow is the half-open date range ListBookingStats counts in.
+// bookingStatsWindowOn is the half-open date range ListBookingStats counts in.
 // It reproduces applyCapacityOverflowCore's window so the displayed occupancy
 // is the same number the capacity gate will apply at save time: from today
 // (or the phase start, if the phase has not begun) through the last service
@@ -1251,8 +1259,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 // A phase whose service window has already ended would otherwise yield an
 // empty range. Rather than reporting a meaningless zero, the window collapses
 // onto the final service day so the dialog shows the phase's end state.
-func bookingStatsWindow(phase *enrollmentModels.Phase) (from, until timezone.Date) {
-	today := timezone.TodayDate()
+func bookingStatsWindowOn(phase *enrollmentModels.Phase, today timezone.Date) (from, until timezone.Date) {
 	if phase == nil || phase.ServiceEndDate.IsZero() {
 		return today, today.AddDays(1)
 	}
@@ -1293,7 +1300,7 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 		return stats, nil
 	}
 
-	from, until := bookingStatsWindow(phase)
+	from, until := bookingStatsWindowOn(phase, s.todayDate())
 	ids := make([]int64, 0, len(offerings))
 	for _, offering := range offerings {
 		ids = append(ids, offering.ID)

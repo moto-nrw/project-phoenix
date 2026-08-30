@@ -30,7 +30,7 @@ func (rs *Resource) templateRosterValidFrom(
 		if startDate != nil {
 			return *startDate, nil
 		}
-		return timezone.TodayDate(), nil
+		return rs.todayDate(), nil
 	}
 	if rs.CalendarPeriodService == nil {
 		return timezone.Date{}, errors.New("calendar period service not wired")

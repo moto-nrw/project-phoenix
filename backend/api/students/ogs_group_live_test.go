@@ -78,7 +78,7 @@ func assignRoomToEducationGroup(t *testing.T, db *bun.DB, groupID, roomID int64)
 func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSLive", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSLiveGroupA")
@@ -97,12 +97,13 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "OGSLiveDevice")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "OGSLiveActivity")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	testpkg.CreateTestAttendance(t, tc.db, inRoom.ID, teacher.Staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
-	testpkg.CreateTestVisit(t, tc.db, inRoom.ID, activeGroup.ID, time.Now().Add(-1*time.Hour), nil)
+	fixtureNow := fixedCalendarClock()
+	testpkg.CreateTestAttendanceForDate(t, tc.db, inRoom.ID, teacher.Staff.ID, device.ID, timezone.NewDate(2026, 8, 24), fixtureNow.Add(-time.Hour), nil)
+	testpkg.CreateTestVisit(t, tc.db, inRoom.ID, activeGroup.ID, fixtureNow.Add(-time.Hour), nil)
 
 	// Same-day transfer: substitution with unassigned regular staff slot.
 	substitute := testpkg.CreateTestStaff(t, tc.db, "OGSLive", "Vertretung")
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	sub := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, substitute.ID, today, today)
 
 	// Tracking indicators: enable the feature with one label so the aggregate

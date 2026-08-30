@@ -37,10 +37,10 @@ type testContext struct {
 	resource *birthdaysAPI.Resource
 }
 
-func setupTestContext(t *testing.T) *testContext {
+func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAPITest(t, clocks...)
 	return &testContext{
 		db:       db,
 		services: svc,
@@ -179,12 +179,14 @@ func TestOverviewRejectsUnauthenticated(t *testing.T) {
 func TestOverviewListsTodaysChildren(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	})
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-children@example.com")
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	celebrating := testpkg.CreateTestStudent(t, tc.db, "Lina", "Geburtstagskind", "1a")
 	_ = testpkg.CreateTestStudent(t, tc.db, "Ohne", "Datum", "1a")
 

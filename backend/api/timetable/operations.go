@@ -77,7 +77,7 @@ func (rs *Resource) operationsActiveSessions(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
-	result, err := rs.OperationsService.ActiveSessions(r.Context(), timezone.TodayDate())
+	result, err := rs.OperationsService.ActiveSessions(r.Context(), rs.todayDate())
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -94,7 +94,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	today := timezone.TodayDate()
+	today := rs.todayDate()
 	date := today
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		parsed, err := timezone.ParseDate(raw)

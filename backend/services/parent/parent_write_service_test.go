@@ -354,7 +354,7 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
 
-	date := timezone.TodayDate().AddDays(7)
+	date := timezone.NewDate(2026, 8, 24).AddDays(7)
 	from := timezone.NormalizeWallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
 	staffID := staff.ID
 	pickup := &scheduleModels.StudentPickupException{
@@ -420,7 +420,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	studentSvc := usersService.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
 	staffAttempted := make(chan struct{})
 	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}
-	date := timezone.TodayDate().AddDays(40)
+	date := timezone.NewDate(2026, 8, 24).AddDays(40)
 
 	ctx, cancel := context.WithTimeout(testpkg.WithPackageTenantRuntime(context.Background()), 5*time.Second)
 	defer cancel()
@@ -558,7 +558,7 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(chain.TenantID)
-	date := timezone.TodayDate().AddDays(7)
+	date := timezone.NewDate(2026, 8, 24).AddDays(7)
 	require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  chain.StudentID,
 		Date:       date,
@@ -619,7 +619,7 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	day := timezone.TodayDate().AddDays(3)
+	day := timezone.NewDate(2026, 8, 24).AddDays(3)
 	_, err = svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Vertraulicher Grund", activeModels.StudentStatusDaySick, nil)
 	require.NoError(t, err)
@@ -662,7 +662,7 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(2)
+	day := timezone.NewDate(2026, 8, 24).AddDays(2)
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Krank", activeModels.StudentStatusDaySick, nil)
 	require.NoError(t, err)
@@ -684,7 +684,7 @@ func TestListSickDays_NotOwned(t *testing.T) {
 	t.Parallel()
 
 	svc, _, _ := buildWriteService(t, true, true)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	_, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), 999999, 888888, from, timezone.NewDate(from.Year, from.Month+1, from.Day))
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
@@ -702,7 +702,7 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	tctx := testpkg.Ctx(t)
 
-	base := timezone.TodayDate().AddDays(7)
+	base := timezone.NewDate(2026, 8, 24).AddDays(7)
 	mon := base
 	tue := base.AddDays(1)
 	wed := base.AddDays(2)
@@ -796,8 +796,8 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	sickDay := timezone.TodayDate().AddDays(2)
-	excusedDay := timezone.TodayDate().AddDays(4)
+	sickDay := timezone.NewDate(2026, 8, 24).AddDays(2)
+	excusedDay := timezone.NewDate(2026, 8, 24).AddDays(4)
 	_, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{sickDay}, "Krank", activeModels.StudentStatusDaySick, nil)
 	require.NoError(t, err)
@@ -805,7 +805,7 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 		[]timezone.Date{excusedDay}, "Termin", activeModels.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
@@ -831,8 +831,8 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	tctx := testpkg.Ctx(t)
 
-	staffExcusedDay := timezone.TodayDate().AddDays(2)
-	parentExcusedDay := timezone.TodayDate().AddDays(4)
+	staffExcusedDay := timezone.NewDate(2026, 8, 24).AddDays(2)
+	parentExcusedDay := timezone.NewDate(2026, 8, 24).AddDays(4)
 	staffNote := "interner Hinweis"
 
 	// Staff-created excused row (source=manual, carries a staff note).
@@ -850,7 +850,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 		[]timezone.Date{parentExcusedDay}, "Termin", activeModels.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)

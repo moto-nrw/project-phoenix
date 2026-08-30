@@ -503,6 +503,7 @@ type ServiceConfig struct {
 
 	DB     *bun.DB
 	Logger *slog.Logger
+	Now    func() time.Time
 }
 
 type enrollmentSettingsQueries interface {
@@ -518,7 +519,21 @@ func NewService(cfg ServiceConfig) Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	if cfg.Now == nil {
+		cfg.Now = timezone.Now
+	}
 	return &service{ServiceConfig: cfg}
+}
+
+func (s *service) now() time.Time {
+	if s.Now == nil {
+		return timezone.Now()
+	}
+	return s.Now()
+}
+
+func (s *service) todayDate() timezone.Date {
+	return timezone.DateFromTime(s.now())
 }
 
 // AbsenceNotifierSetter injects the sick/excused producer after construction.

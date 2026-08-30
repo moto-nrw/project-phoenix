@@ -171,7 +171,7 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "DeleteUpcoming")
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	past := newShift(staff.ID, today.AddDays(-1), 8, 12, staff.ID)
 	sameDay := newShift(staff.ID, today, 8, 12, staff.ID)
 	future := newShift(staff.ID, today.AddDays(1), 8, 12, staff.ID)

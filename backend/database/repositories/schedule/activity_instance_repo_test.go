@@ -790,7 +790,9 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityInstanceRepository(db)
+	repo := scheduleRepo.NewActivityInstanceRepository(db, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+	})
 	legacyWeekendRepo, ok := any(repo).(interface {
 		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
 	})
@@ -798,7 +800,7 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 	fx := newActivityInstanceFixtures(t, db, "legacy-weekend-delete")
 	defer fx.cleanup()
 
-	saturday := timezone.TodayDate().AddDays(1)
+	saturday := timezone.NewDate(2026, 8, 24).AddDays(1)
 	for saturday.Weekday() != time.Saturday {
 		saturday = saturday.AddDays(1)
 	}

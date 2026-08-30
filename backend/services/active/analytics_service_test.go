@@ -22,7 +22,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	service := setupActiveService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns dashboard analytics without error", func(t *testing.T) {
@@ -67,11 +67,11 @@ func TestGetDashboardAnalytics(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		for _, studentID := range []int64{plannedExcusedStudent.ID, legacyOverlapStudent.ID} {
 			require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
 				StudentID:  studentID,
-				Date:       timezone.TodayDate(),
+				Date:       timezone.NewDate(2026, 8, 24),
 				Status:     activeModels.StudentStatusDayExcused,
 				ReportedAt: now,
 				Source:     activeModels.StudentStatusSourcePlanned,
@@ -109,7 +109,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 			Exec(ctx)
 		require.NoError(t, err)
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		for _, studentID := range []int64{classTripStudent.ID, alreadyExcusedStudent.ID, sickClassTripStudent.ID} {
 			_, err = db.NewRaw(`
 				INSERT INTO active.student_status_days
@@ -121,7 +121,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 				// The DATE column must hold the Berlin calendar date; the driver
 				// binds raw time.Time values as UTC, which is one day behind
 				// Berlin between 00:00 and 02:00 local time.
-				timezone.TodayDate(),
+				timezone.NewDate(2026, 8, 24),
 				activeModels.StudentStatusDayClassTrip,
 				now,
 				activeModels.StudentStatusSourcePlanned,
@@ -153,7 +153,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "TenantB", "ClassTrip", "CTB")
 
 		statusRepo := repositories.NewFactory(db).StudentStatusDay
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, statusRepo.UpsertReported(ctxA, &activeModels.StudentStatusDay{
 			StudentID:  studentA.ID,
 			Date:       timezone.DateFromTime(now),

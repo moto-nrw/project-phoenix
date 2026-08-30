@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"hash/fnv"
 	"io/fs"
 	"os"
 	pathpkg "path"
@@ -18,11 +17,10 @@ import (
 )
 
 type calendarClockFinding struct {
-	file        string
-	function    string
-	line        int
-	risk        string
-	fingerprint string
+	file     string
+	function string
+	line     int
+	risk     string
 }
 
 type calendarFunctionScan struct {
@@ -30,9 +28,11 @@ type calendarFunctionScan struct {
 	file              string
 	fset              *token.FileSet
 	instantVars       calendarVariables
+	scalarVars        calendarVariables
 	dateVars          calendarVariables
 	rangeVars         calendarVariables
 	instantHelpers    map[string]bool
+	scalarHelpers     map[string]bool
 	weeklyHelpers     map[string]bool
 	weekdayHelpers    map[string]bool
 	dateHelpers       map[string]bool
@@ -44,6 +44,7 @@ type calendarFunctionScan struct {
 type calendarPackageHelpers struct {
 	dates      map[string]map[string]bool
 	instants   map[string]map[string]bool
+	scalars    map[string]map[string]bool
 	weekly     map[string]map[string]bool
 	weekdays   map[string]map[string]bool
 	candidates map[string]map[string][]calendarHelperCandidate
@@ -59,7 +60,6 @@ type calendarHelperCandidate struct {
 	receiver         string
 	resultType       string
 	fn               *ast.FuncDecl
-	fingerprint      string
 	timePackages     map[string]bool
 	timezonePackages map[string]bool
 }
@@ -96,37 +96,6 @@ func scanCalendarFixtureClockRisks(root string) ([]calendarClockFinding, error) 
 		return nil, err
 	}
 	return findings, nil
-}
-
-func applyCalendarClockLegacyBaseline(findings []calendarClockFinding, baseline map[string]string) ([]calendarClockFinding, error) {
-	matched := make(map[string]bool, len(baseline))
-	changed := map[string]calendarClockFinding{}
-	kept := findings[:0]
-	for _, finding := range findings {
-		key := finding.file + ":" + finding.function
-		if fingerprint, ok := baseline[key]; ok {
-			matched[key] = true
-			if fingerprint == finding.fingerprint {
-				continue
-			}
-			changed[key] = finding
-		}
-		kept = append(kept, finding)
-	}
-	var stale []string
-	for key := range baseline {
-		if !matched[key] {
-			stale = append(stale, key)
-		}
-	}
-	if len(stale) != 0 {
-		sort.Strings(stale)
-		return nil, fmt.Errorf("legacy calendar fixture clock baseline has no matching finding:\n\t%s", strings.Join(stale, "\n\t"))
-	}
-	if len(changed) != 0 {
-		return nil, fmt.Errorf("legacy calendar fixture functions changed:\n%s", formatChangedCalendarFunctions(changed))
-	}
-	return kept, nil
 }
 
 func applyCalendarClockExceptions(findings []calendarClockFinding, exceptions map[string]string) ([]calendarClockFinding, error) {
@@ -172,10 +141,10 @@ func scanCalendarFixtureFile(root, path string, fset *token.FileSet, helpers cal
 		rel = path
 	}
 	key := calendarPackageKey(path, file.Name.Name)
-	return scanCalendarFixtureFunctions(filepath.ToSlash(rel), fset, file, source, helpers, key)
+	return scanCalendarFixtureFunctions(filepath.ToSlash(rel), fset, file, helpers, key), nil
 }
 
-func scanCalendarFixtureFunctions(rel string, fset *token.FileSet, file *ast.File, source []byte, helpers calendarPackageHelpers, key string) ([]calendarClockFinding, error) {
+func scanCalendarFixtureFunctions(rel string, fset *token.FileSet, file *ast.File, helpers calendarPackageHelpers, key string) []calendarClockFinding {
 	timePackages, timezonePackages := timeImportNames(file)
 	assertionPackages := assertionImportNames(file)
 	var findings []calendarClockFinding
@@ -184,92 +153,19 @@ func scanCalendarFixtureFunctions(rel string, fset *token.FileSet, file *ast.Fil
 			continue
 		}
 		instantVars := currentCalendarInstantVariables(fn.Body, helpers.instants[key], timePackages, timezonePackages, nil)
+		scalarVars := currentLiveInstantScalarVariables(fn.Body, instantVars, helpers.scalars[key], helpers.instants[key], timePackages, timezonePackages)
 		dateVars := currentCalendarDateVariables(fn.Body, helpers.dates[key], timezonePackages)
 		rangeVars := currentLiveCalendarRangeVariables(fn.Body, dateVars, helpers.dates[key], timezonePackages)
 		scan := calendarFunctionScan{
 			fn: fn, file: rel, fset: fset,
-			instantVars: instantVars, dateVars: dateVars, rangeVars: rangeVars,
-			instantHelpers: helpers.instants[key], weeklyHelpers: helpers.weekly[key], weekdayHelpers: helpers.weekdays[key], dateHelpers: helpers.dates[key],
+			instantVars: instantVars, scalarVars: scalarVars, dateVars: dateVars, rangeVars: rangeVars,
+			instantHelpers: helpers.instants[key], scalarHelpers: helpers.scalars[key], weeklyHelpers: helpers.weekly[key], weekdayHelpers: helpers.weekdays[key], dateHelpers: helpers.dates[key],
 			timePackages: timePackages, timezonePackages: timezonePackages,
 			assertionPackages: assertionPackages,
 		}
-		functionFindings := scan.findings()
-		helperFingerprint := calendarHelperClosureFingerprint(fn, helpers.candidates[key])
-		if err := stampCalendarFunctionFingerprint(fset, fn, source, helperFingerprint, functionFindings); err != nil {
-			return nil, err
-		}
-		findings = append(findings, functionFindings...)
+		findings = append(findings, scan.findings()...)
 	}
-	return findings, nil
-}
-
-func stampCalendarFunctionFingerprint(fset *token.FileSet, fn *ast.FuncDecl, source []byte, helperFingerprint string, findings []calendarClockFinding) error {
-	fingerprint, err := calendarFunctionFingerprint(fset, fn, source)
-	if err != nil {
-		return err
-	}
-	for i := range findings {
-		findings[i].fingerprint = calendarFingerprint(fingerprint + ":" + helperFingerprint)
-	}
-	return nil
-}
-
-func calendarFunctionFingerprint(fset *token.FileSet, fn *ast.FuncDecl, source []byte) (string, error) {
-	start := fset.Position(fn.Pos()).Offset
-	end := fset.Position(fn.End()).Offset
-	if start < 0 || end < start || end > len(source) {
-		return "", fmt.Errorf("invalid source range for calendar ratchet fingerprint: %s", fn.Name.Name)
-	}
-	return calendarFingerprint(string(source[start:end])), nil
-}
-
-func calendarFingerprint(source string) string {
-	hash := fnv.New64a()
-	_, _ = hash.Write([]byte(source))
-	return fmt.Sprintf("%016x", hash.Sum64())
-}
-
-func calendarHelperClosureFingerprint(fn *ast.FuncDecl, candidates map[string][]calendarHelperCandidate) string {
-	seen := map[*ast.FuncDecl]bool{}
-	var fingerprints []string
-	collectCalendarHelperFingerprints(fn, candidates, seen, &fingerprints)
-	sort.Strings(fingerprints)
-	return calendarFingerprint(strings.Join(fingerprints, "\x00"))
-}
-
-func collectCalendarHelperFingerprints(fn *ast.FuncDecl, candidates map[string][]calendarHelperCandidate, seen map[*ast.FuncDecl]bool, fingerprints *[]string) {
-	receiverTypes := calendarReceiverTypes(fn)
-	ast.Inspect(fn.Body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		for _, candidate := range candidates[calendarCalledHelper(call, receiverTypes)] {
-			if seen[candidate.fn] {
-				continue
-			}
-			seen[candidate.fn] = true
-			identity := calendarHelperIdentity(candidate.receiver, candidate.name)
-			*fingerprints = append(*fingerprints, identity+":"+candidate.fingerprint)
-			collectCalendarHelperFingerprints(candidate.fn, candidates, seen, fingerprints)
-		}
-		return true
-	})
-}
-
-func formatChangedCalendarFunctions(findings map[string]calendarClockFinding) string {
-	keys := make([]string, 0, len(findings))
-	for key := range findings {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	var lines []string
-	for _, key := range keys {
-		finding := findings[key]
-		lines = append(lines, fmt.Sprintf("\t%s:%d: %s: %s; remediation: replace the live clock with a fixed calendar fixture (new fingerprint %q)",
-			finding.file, finding.line, finding.function, finding.risk, finding.fingerprint))
-	}
-	return strings.Join(lines, "\n")
+	return findings
 }
 
 func declaredFunctions(file *ast.File) []*ast.FuncDecl {
@@ -492,7 +388,7 @@ func fieldListArity(fields *ast.FieldList) int {
 
 func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error) {
 	result := calendarPackageHelpers{
-		dates: map[string]map[string]bool{}, instants: map[string]map[string]bool{}, weekly: map[string]map[string]bool{}, weekdays: map[string]map[string]bool{},
+		dates: map[string]map[string]bool{}, instants: map[string]map[string]bool{}, scalars: map[string]map[string]bool{}, weekly: map[string]map[string]bool{}, weekdays: map[string]map[string]bool{},
 		candidates: map[string]map[string][]calendarHelperCandidate{},
 	}
 	candidates := map[string][]calendarHelperCandidate{}
@@ -543,19 +439,16 @@ func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates ma
 	timePackages, timezonePackages := timeImportNames(file)
 	for _, fn := range declaredFunctions(file) {
 		if !isTestFunction(fn) {
-			fingerprint, err := calendarFunctionFingerprint(fset, fn, source)
-			if err != nil {
-				return err
-			}
 			candidates[key] = append(candidates[key], calendarHelperCandidate{
 				name: fn.Name.Name, receiver: calendarReceiverName(fn), resultType: calendarResultType(fn),
-				fn: fn, fingerprint: fingerprint,
+				fn:           fn,
 				timePackages: timePackages, timezonePackages: timezonePackages,
 			})
 		}
 	}
 	helpers.dates[key] = map[string]bool{}
 	helpers.instants[key] = map[string]bool{}
+	helpers.scalars[key] = map[string]bool{}
 	helpers.weekly[key] = map[string]bool{}
 	helpers.weekdays[key] = map[string]bool{}
 	return nil
@@ -586,6 +479,7 @@ func syncCalendarMethodAliases(candidates []calendarHelperCandidate, helpers cal
 			alias := calendarHelperIdentity(factory.name+"()", method.name)
 			helpers.dates[key][alias] = helpers.dates[key][identity]
 			helpers.instants[key][alias] = helpers.instants[key][identity]
+			helpers.scalars[key][alias] = helpers.scalars[key][identity]
 			helpers.weekly[key][alias] = helpers.weekly[key][identity]
 			helpers.weekdays[key][alias] = helpers.weekdays[key][identity]
 		}
@@ -604,6 +498,7 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 			for _, candidate := range packageCandidates {
 				identity := calendarHelperIdentity(candidate.receiver, candidate.name)
 				instantVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.instants[key], candidate.timePackages, candidate.timezonePackages, nil)
+				scalarVars := currentLiveInstantScalarVariables(candidate.fn.Body, instantVars, helpers.scalars[key], helpers.instants[key], candidate.timePackages, candidate.timezonePackages)
 				dateVars := currentCalendarDateVariables(candidate.fn.Body, helpers.dates[key], candidate.timezonePackages)
 				weeklyVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages, weeklyFixtureInstantField)
 				weekdayVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.weekdays[key], candidate.timePackages, candidate.timezonePackages, nil)
@@ -612,6 +507,9 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 				}
 				if !helpers.instants[key][identity] && functionReturnsLiveInstant(candidate.fn, instantVars, helpers.instants[key], candidate.timePackages, candidate.timezonePackages) {
 					helpers.instants[key][identity], changed = true, true
+				}
+				if !helpers.scalars[key][identity] && functionReturnsLiveScalar(candidate.fn, scalarVars, instantVars, helpers.scalars[key], helpers.instants[key], candidate.timePackages, candidate.timezonePackages) {
+					helpers.scalars[key][identity], changed = true, true
 				}
 				if !helpers.weekly[key][identity] && functionReturnsLiveWeeklyInstant(candidate.fn, weeklyVars, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages) {
 					helpers.weekly[key][identity], changed = true, true
@@ -664,6 +562,12 @@ func functionReturnsLiveInstant(fn *ast.FuncDecl, instantVars calendarVariables,
 	})
 }
 
+func functionReturnsLiveScalar(fn *ast.FuncDecl, scalarVars, instantVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+	return functionReturns(fn, func(expr ast.Expr) bool {
+		return expressionUsesLiveInstantScalar(expr, scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages)
+	})
+}
+
 func functionReturnsLiveWeeklyInstant(fn *ast.FuncDecl, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
 	return functionReturns(fn, func(expr ast.Expr) bool {
 		return expressionUsesWeeklyFixtureInstant(expr, instantVars, instantHelpers, timePackages, timezonePackages)
@@ -693,15 +597,16 @@ func returnedResults(statement *ast.ReturnStmt, ok bool) []ast.Expr {
 }
 
 func (scan calendarFunctionScan) findings() []calendarClockFinding {
-	findings := findInstantDateConversions(scan.fn, scan.file, scan.fset, scan.instantVars, scan.instantHelpers, scan.timePackages, scan.timezonePackages)
+	findings := findInstantDateConversions(scan.fn, scan.file, scan.fset, scan.instantVars, scan.scalarVars, scan.scalarHelpers, scan.instantHelpers, scan.timePackages, scan.timezonePackages)
 	findings = append(findings, findDirectCalendarBoundaryCalls(scan.fn, scan.file, scan.fset, scan.instantVars, scan.dateVars, scan.instantHelpers, scan.dateHelpers, scan.timePackages, scan.timezonePackages)...)
 	findings = append(findings, findLiveWeekdayHelperCalls(scan.fn, scan.file, scan.fset, scan.weekdayHelpers, scan.timePackages, scan.timezonePackages)...)
 	findings = append(findings, findLiveCalendarRangeCalls(scan.fn, scan.file, scan.fset, scan.dateVars, scan.rangeVars, scan.dateHelpers, scan.timezonePackages)...)
 	findings = append(findings, findLiveCalendarAssertions(scan.fn, scan.file, scan.fset, scan.dateVars, scan.dateHelpers, scan.timezonePackages, scan.assertionPackages)...)
 	findings = append(findings, findLiveCalendarComparisons(scan.fn, scan.file, scan.fset, scan.dateVars, scan.dateHelpers, scan.timezonePackages)...)
+	findings = append(findings, findLiveScalarDateShifts(scan.fn, scan.file, scan.fset, scan.instantVars, scan.scalarVars, scan.scalarHelpers, scan.instantHelpers, scan.timePackages, scan.timezonePackages)...)
 	if hasWeeklySummaryExpectation(scan.fn.Body) {
 		findings = append(findings, findLiveDateShifts(scan.fn, scan.file, scan.fset, scan.dateVars, scan.dateHelpers, scan.timezonePackages)...)
-		findings = append(findings, findLiveWeeklyFixtureInstants(scan.fn, scan.file, scan.fset, scan.weeklyHelpers, scan.timePackages, scan.timezonePackages)...)
+		findings = append(findings, findLiveWeeklyFixtureInstants(scan.fn, scan.file, scan.fset, scan.scalarVars, scan.scalarHelpers, scan.weeklyHelpers, scan.timePackages, scan.timezonePackages)...)
 	}
 	return findings
 }
@@ -924,14 +829,15 @@ func calendarRangeFieldName(name string) bool {
 	}
 }
 
-func findInstantDateConversions(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+func findInstantDateConversions(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, scalarVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
 	var findings []calendarClockFinding
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok || !isImportedCall(call.Fun, timezonePackages, "DateFromTime") || len(call.Args) == 0 {
 			return true
 		}
-		if expressionUsesCalendarInstant(call.Args[0], instantVars, instantHelpers, timePackages, timezonePackages) {
+		if expressionUsesCalendarInstant(call.Args[0], instantVars, instantHelpers, timePackages, timezonePackages) ||
+			expressionContainsLiveInstantReconstruction(call.Args[0], scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
 			findings = append(findings, calendarClockFinding{
 				file: rel, function: fn.Name.Name, line: fset.Position(call.Pos()).Line,
 				risk: "live instant converted to a calendar date",
@@ -997,6 +903,13 @@ func expressionUsesCalendarInstant(expr ast.Expr, instantVars calendarVariables,
 			return false
 		}
 		call, called := node.(*ast.CallExpr)
+		if called && liveInstantReconstruction(call, instantVars, instantHelpers, timePackages, timezonePackages) {
+			found = true
+			return false
+		}
+		if called && calendarInstantScalarConversion(call) {
+			return false
+		}
 		if called && isLiveInstantSource(call, instantHelpers, timePackages, timezonePackages) {
 			found = true
 			return false
@@ -1006,10 +919,61 @@ func expressionUsesCalendarInstant(expr ast.Expr, instantVars calendarVariables,
 	return found
 }
 
+func liveInstantReconstruction(call *ast.CallExpr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+	return liveInstantReconstructionWithScalars(call, calendarVariables{}, instantVars, map[string]bool{}, instantHelpers, timePackages, timezonePackages)
+}
+
+func liveInstantReconstructionWithScalars(call *ast.CallExpr, scalarVars, instantVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+	if !isImportedCall(call.Fun, timePackages, "Unix") &&
+		!isImportedCall(call.Fun, timePackages, "UnixMilli") &&
+		!isImportedCall(call.Fun, timePackages, "UnixMicro") {
+		return false
+	}
+	for _, argument := range call.Args {
+		if expressionUsesLiveInstantScalar(argument, scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
+			return true
+		}
+	}
+	return false
+}
+
+func expressionContainsLiveInstantReconstruction(expr ast.Expr, scalarVars, instantVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+	found := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if ok && liveInstantReconstructionWithScalars(call, scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
+func calendarInstantScalarConversion(call *ast.CallExpr) bool {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || len(call.Args) != 0 {
+		return false
+	}
+	switch selector.Sel.Name {
+	case "Unix", "UnixMilli", "UnixMicro", "UnixNano":
+		return true
+	default:
+		return false
+	}
+}
+
 func expressionUsesWeeklyFixtureInstant(expr ast.Expr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
 	found := false
 	ast.Inspect(expr, func(node ast.Node) bool {
 		if field, ok := node.(*ast.KeyValueExpr); ok && !weeklyFixtureInstantField(field.Key) {
+			return false
+		}
+		if call, ok := node.(*ast.CallExpr); ok && liveInstantReconstruction(call, instantVars, instantHelpers, timePackages, timezonePackages) {
+			found = true
+			return false
+		}
+		if call, ok := node.(*ast.CallExpr); ok && calendarInstantScalarConversion(call) {
 			return false
 		}
 		id, named := node.(*ast.Ident)
@@ -1151,6 +1115,88 @@ func findLiveDateShifts(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateV
 	return findings
 }
 
+func findLiveScalarDateShifts(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, scalarVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+	var findings []calendarClockFinding
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != "AddDays" {
+			return true
+		}
+		for _, argument := range call.Args {
+			if expressionUsesLiveInstantScalar(argument, scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
+				findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(call.Pos()).Line, "live scalar clock value shifts a calendar date"))
+				break
+			}
+		}
+		return true
+	})
+	return findings
+}
+
+func expressionUsesLiveInstantScalar(expr ast.Expr, scalarVars, instantVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+	found := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		id, named := node.(*ast.Ident)
+		if named && id.Obj != nil && scalarVars[id.Obj] {
+			found = true
+			return false
+		}
+		call, ok := node.(*ast.CallExpr)
+		if ok && scalarHelpers[calendarCalledHelper(call, nil)] {
+			found = true
+			return false
+		}
+		if !ok || !calendarInstantScalarConversion(call) {
+			return !found
+		}
+		selector := call.Fun.(*ast.SelectorExpr)
+		if expressionUsesCalendarInstant(selector.X, instantVars, instantHelpers, timePackages, timezonePackages) {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
+func currentLiveInstantScalarVariables(body *ast.BlockStmt, instantVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) calendarVariables {
+	scalarVars := calendarVariables{}
+	for changed := true; changed; {
+		changed = false
+		ast.Inspect(body, func(node ast.Node) bool {
+			switch declaration := node.(type) {
+			case *ast.AssignStmt:
+				for i, lhs := range declaration.Lhs {
+					id, ok := lhs.(*ast.Ident)
+					if !ok || id.Obj == nil || scalarVars[id.Obj] || i >= len(declaration.Rhs) {
+						continue
+					}
+					if expressionUsesLiveInstantScalar(declaration.Rhs[i], scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
+						scalarVars[id.Obj] = true
+						changed = true
+					}
+				}
+			case *ast.ValueSpec:
+				for i, name := range declaration.Names {
+					if name.Obj == nil || scalarVars[name.Obj] || i >= len(declaration.Values) {
+						continue
+					}
+					if expressionUsesLiveInstantScalar(declaration.Values[i], scalarVars, instantVars, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
+						scalarVars[name.Obj] = true
+						changed = true
+					}
+				}
+			}
+			return true
+		})
+	}
+	return scalarVars
+}
+
 var weeklySummarySelectors = map[string]bool{
 	"WeeklySummary":   true,
 	"WeeklySummaries": true,
@@ -1217,12 +1263,12 @@ func expressionUsesLiveWeekday(expr ast.Expr, instantVars calendarVariables, ins
 			expressionUsesTodayDate(selector.X, calendarVariables{}, dateHelpers, timezonePackages))
 }
 
-func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.FileSet, scalarVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
 	assignments := assignedCalendarExpressions(fn.Body)
 	sources := map[token.Pos]ast.Expr{}
 	receiverTypes := calendarReceiverTypes(fn)
 	for _, root := range weeklySummaryRoots(fn.Body) {
-		collectLiveInstantSources(root, assignments, instantHelpers, timePackages, timezonePackages, receiverTypes, calendarVariables{}, sources)
+		collectLiveInstantSources(root, assignments, scalarVars, scalarHelpers, instantHelpers, timePackages, timezonePackages, receiverTypes, calendarVariables{}, sources)
 	}
 	positions := make([]token.Pos, 0, len(sources))
 	for position := range sources {
@@ -1276,12 +1322,19 @@ func weeklySummaryRoots(body *ast.BlockStmt) []ast.Expr {
 	return roots
 }
 
-func collectLiveInstantSources(expr ast.Expr, assignments map[*calendarObject][]ast.Expr, instantHelpers, timePackages, timezonePackages map[string]bool, receiverTypes map[*calendarObject]string, seen calendarVariables, sources map[token.Pos]ast.Expr) {
+func collectLiveInstantSources(expr ast.Expr, assignments map[*calendarObject][]ast.Expr, scalarVars calendarVariables, scalarHelpers, instantHelpers, timePackages, timezonePackages map[string]bool, receiverTypes map[*calendarObject]string, seen calendarVariables, sources map[token.Pos]ast.Expr) {
 	ast.Inspect(expr, func(node ast.Node) bool {
 		if field, ok := node.(*ast.KeyValueExpr); ok && !weeklyFixtureInstantField(field.Key) {
 			return false
 		}
 		call, called := node.(*ast.CallExpr)
+		if called && liveInstantReconstructionWithScalars(call, scalarVars, calendarVariables{}, scalarHelpers, instantHelpers, timePackages, timezonePackages) {
+			sources[call.Pos()] = call
+			return false
+		}
+		if called && calendarInstantScalarConversion(call) {
+			return false
+		}
 		if called && isLiveInstantSourceWithReceiverTypes(call, instantHelpers, timePackages, timezonePackages, receiverTypes) {
 			sources[call.Pos()] = call
 			return false
@@ -1296,7 +1349,7 @@ func collectLiveInstantSources(expr ast.Expr, assignments map[*calendarObject][]
 		}
 		seen[id.Obj] = true
 		for _, value := range values {
-			collectLiveInstantSources(value, assignments, instantHelpers, timePackages, timezonePackages, receiverTypes, seen, sources)
+			collectLiveInstantSources(value, assignments, scalarVars, scalarHelpers, instantHelpers, timePackages, timezonePackages, receiverTypes, seen, sources)
 		}
 		return false
 	})

@@ -1335,11 +1335,11 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 	t.Run("closes the open row and clears yard_since", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Open", "2x")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		yard := now.Add(-15 * time.Minute)
 		open := &active.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayDate(),
+			Date:        timezone.NewDate(2026, 8, 24),
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,
@@ -1362,7 +1362,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 	t.Run("no open row returns nil without error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), timezone.TodayDate(), data.Staff1.ID, 0)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC), timezone.NewDate(2026, 8, 24), data.Staff1.ID, 0)
 		require.NoError(t, err)
 		assert.Nil(t, closed, "no open row → idempotent success, repo returns nil")
 	})
@@ -1372,10 +1372,10 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		// staff PIN is in scope.
 		student := testpkg.CreateTestStudent(t, db, "Close", "NoStaff", "2z")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		open := &active.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayDate(),
+			Date:        timezone.NewDate(2026, 8, 24),
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,
@@ -1396,10 +1396,10 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		otherDevice := testpkg.CreateTestDeviceForTenant(t, db, otherTenantID, "cross-tenant-checkout-device")
 		student := testpkg.CreateTestStudent(t, db, "Close", "CrossTenant", "2w")
 
-		now := time.Now()
+		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		open := &active.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayDate(),
+			Date:        timezone.NewDate(2026, 8, 24),
 			CheckInTime: now.Add(-time.Hour),
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,

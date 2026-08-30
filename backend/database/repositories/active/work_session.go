@@ -22,16 +22,22 @@ const (
 // WorkSessionRepository implements active.WorkSessionRepository interface
 type WorkSessionRepository struct {
 	*base.Repository[*active.WorkSession]
-	db *bun.DB
+	db  *bun.DB
+	now func() time.Time
 }
 
 // NewWorkSessionRepository creates a new WorkSessionRepository
-func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
+func NewWorkSessionRepository(db *bun.DB, clocks ...func() time.Time) active.WorkSessionRepository {
+	now := time.Now
+	if len(clocks) > 0 && clocks[0] != nil {
+		now = clocks[0]
+	}
 	repo := base.NewRepository[*active.WorkSession](db, tableActiveWorkSessions, "WorkSession")
 	repo.TenantScoped = true
 	return &WorkSessionRepository{
 		Repository: repo,
 		db:         db,
+		now:        now,
 	}
 }
 
@@ -105,7 +111,7 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
 
-	now := time.Now()
+	now := r.now()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
@@ -276,7 +282,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 // forgotten checkout would keep its owner "present" for weeks, in today's
 // overview as well as in on-duty notification filtering.
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	now := time.Now()
+	now := r.now()
 	today := timezone.DateFromTime(now)
 	liveOpenSince := now.Add(-active.MaxOpenWorkSessionDuration)
 

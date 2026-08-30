@@ -77,7 +77,9 @@ type bulkDayPlan struct {
 // ApplyBulkSubstitution applies the whole multi-day save atomically. Runs
 // inside the caller's tenant tx (TenantTxMiddleware).
 func (s *instanceService) ApplyBulkSubstitution(ctx context.Context, in BulkSubstitutionInput) (*BulkSubstitutionResult, error) {
-	dates, err := normalizeBulkDates(in.Dates)
+	dates, err := normalizeBulkDates(in.Dates, func() timezone.Date {
+		return timezone.DateFromTime(s.now())
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -252,11 +254,14 @@ func (s *instanceService) executeBulkPlans(ctx context.Context, actor *int64, pl
 // normalizeBulkDates validates, dedupes, and sorts the selected dates
 // ascending (the lock-ordering requirement). Past dates are historical record,
 // exactly like the single-day past-block guard.
-func normalizeBulkDates(dates []timezone.Date) ([]timezone.Date, error) {
+func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) ([]timezone.Date, error) {
 	if len(dates) == 0 {
 		return nil, devErrBadRequest("dates must not be empty")
 	}
 	today := timezone.TodayDate()
+	if len(clocks) > 0 && clocks[0] != nil {
+		today = clocks[0]()
+	}
 	seen := make(map[timezone.Date]bool, len(dates))
 	out := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {

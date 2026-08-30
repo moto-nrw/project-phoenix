@@ -153,6 +153,10 @@ func newFakeService(req *fakeReqRepo, status *fakeStatusRepo, student *fakeStude
 	return absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(req, status, nil, student, person, nil, nil, nil, testpkg.AbsenceRequestReviewPolicy{}, nil, nil, nil)
 }
 
+func newFakeServiceOn(req *fakeReqRepo, status *fakeStatusRepo, student *fakeStudentRepo, person *fakePersonRepo, today timezone.Date) absenceSvc.ExcusedAbsenceRequestService {
+	return absenceSvc.NewExcusedAbsenceRequestServiceWithPolicy(req, status, nil, student, person, nil, nil, nil, testpkg.AbsenceRequestReviewPolicy{}, nil, nil, nil, func() timezone.Date { return today })
+}
+
 // okStatusRepo returns a status repo whose writes all succeed.
 func okStatusRepo() *fakeStatusRepo {
 	return &fakeStatusRepo{
@@ -413,14 +417,14 @@ func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
 		reviewer  int64 = 77
 		submitter int64 = 88
 	)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	row := pendingRow(5, studentID, today)
 	row.TenantID = tenantID
 	row.SubmittedBy = submitter
 	student := &usersModels.Student{}
 	student.ID = studentID
 
-	svc := newFakeService(&fakeReqRepo{
+	svc := newFakeServiceOn(&fakeReqRepo{
 		findPending: func(context.Context, int64) (*activeModels.ExcusedAbsenceRequest, error) {
 			return row, nil
 		},
@@ -434,7 +438,7 @@ func TestDecide_ApprovalNotifiesAfterCommit(t *testing.T) {
 		findByID:          func(context.Context, any) (*usersModels.Student, error) { return student, nil },
 		findByIDForUpdate: func(context.Context, int64) (*usersModels.Student, error) { return student, nil },
 		update:            func(context.Context, *usersModels.Student) error { return nil },
-	}, &fakePersonRepo{})
+	}, &fakePersonRepo{}, today)
 	notifier := &recordingAbsenceNotifier{}
 	svc.(absenceSvc.AbsenceNotifierSetter).SetAbsenceNotifier(notifier)
 

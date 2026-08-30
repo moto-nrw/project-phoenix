@@ -68,13 +68,15 @@ func buildDevSetup(t *testing.T) *devSetup {
 	// the deviation writes (#1886) to the real service so the DB-effect
 	// assertions keep exercising real rows.
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	clock := func() time.Time { return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clock)
 	require.NoError(t, err)
 	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
-		TimetableData:   testTimetableData(db),
+		TimetableData:   testTimetableData(db, clock),
 		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: usersRepo.NewStaffRepository(db)}),
 		InstanceService: mock,
+		Now:             clock,
 		DB:              db,
 	})
 
@@ -727,7 +729,7 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 // timezone.Date for fixture rows. (Moved from the removed substitute endpoint
 // tests, #1886.)
 func futureSubDate(offsetDays int) (string, timezone.Date) {
-	d := timezone.TodayDate().AddDays(offsetDays)
+	d := timezone.NewDate(2030, 8, 26).AddDays(offsetDays)
 	return d.String(), d
 }
 

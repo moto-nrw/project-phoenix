@@ -285,7 +285,7 @@ func (rs *Resource) getStaffVacationQuota(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	year, err := parseYearQuery(r)
+	year, err := parseYearQuery(r, timezone.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -341,10 +341,10 @@ func parseInt64Param(r *http.Request, name string) (int64, error) {
 	return v, nil
 }
 
-func parseYearQuery(r *http.Request) (int, error) {
+func parseYearQuery(r *http.Request, today timezone.Date) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
-		return timezone.TodayDate().Year, nil
+		return today.Year, nil
 	}
 	year, err := strconv.Atoi(yearStr)
 	if err != nil || year < 2000 || year > 2100 {

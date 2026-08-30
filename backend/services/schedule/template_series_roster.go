@@ -72,7 +72,7 @@ func (s *TimetableDataService) reconcileSeriesPredecessorRoster(
 		return nil
 	}
 	anchor := *in.SeriesRosterFrom
-	if today := timezone.TodayDate(); anchor.Before(today) {
+	if today := s.deps.Today(); anchor.Before(today) {
 		// History is never rewritten; a stale client anchor degrades to "from
 		// today on" instead of erroring a save that is otherwise valid.
 		anchor = today
@@ -469,7 +469,7 @@ func (s *TimetableDataService) reconcilePredecessorInstanceStaff(
 	if templateID <= 0 || len(staffIDs) == 0 {
 		return nil
 	}
-	if today := timezone.TodayDate(); from.Before(today) {
+	if today := s.deps.Today(); from.Before(today) {
 		from = today
 	}
 	all, err := s.deps.ActivityInstanceRepo.FindPlannedTemplateBackedFrom(ctx, from)

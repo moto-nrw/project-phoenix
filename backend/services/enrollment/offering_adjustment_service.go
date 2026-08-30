@@ -216,7 +216,7 @@ func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, wor
 	if err != nil || phase == nil {
 		return fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
-	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase)
+	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase, s.todayDate())
 	if err != nil {
 		return err
 	}
@@ -658,11 +658,12 @@ func grandfatheredOfferingsFromLinks(links []*enrollmentModels.RequestChildOffer
 func validateAdjustmentEffectiveFrom(
 	effectiveFrom *timezone.Date,
 	phase *enrollmentModels.Phase,
+	today timezone.Date,
 ) (*timezone.Date, error) {
 	if effectiveFrom == nil {
 		return nil, nil
 	}
-	if effectiveFrom.Before(timezone.TodayDate()) {
+	if effectiveFrom.Before(today) {
 		return nil, fmt.Errorf("%w: effective_from must not be in the past", ErrOfferingAdjustmentInvalid)
 	}
 	if effectiveFrom.After(phase.ServiceEndDate) {

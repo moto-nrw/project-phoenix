@@ -454,6 +454,7 @@ type DecisionServiceConfig struct {
 	// leave it nil.
 	LockPickupStudents func(ctx context.Context, studentIDs []int64) error
 	Logger             *slog.Logger
+	Today              func() timezone.Date
 }
 
 type decisionService struct {
@@ -464,11 +465,18 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
+	if cfg.Today == nil {
+		cfg.Today = timezone.TodayDate
+	}
 	cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
 	if cfg.ParentsURL == "" {
 		cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	}
 	return &decisionService{DecisionServiceConfig: cfg}
+}
+
+func (s *decisionService) todayDate() timezone.Date {
+	return s.Today()
 }
 
 func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
