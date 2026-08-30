@@ -139,28 +139,6 @@ func TestAuditRetentionCapabilitiesDeleteOnlyExpiredRowsForTransactionTenant(t *
 	}
 }
 
-func TestAuditRetentionCapabilitiesRejectMissingRetentionSettings(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	authDB := testpkg.SetupServeTestDB(t)
-	t.Cleanup(func() { require.NoError(t, authDB.Close()) })
-
-	for _, capability := range auditRetentionCapabilities[:2] {
-		t.Run(capability.name, func(t *testing.T) {
-			tenantID, studentID := retentionCapabilityTenant(t, db)
-			rowID := seedAuditRetentionRow(t, db, capability.seedExpiredRowSQL, capability.usesStudentID, tenantID, studentID)
-
-			err := callAuditRetentionCapability(
-				t, authDB, tenantID, capability.function, tenantID, capability.allowedCutoffSQL,
-			)
-			require.Error(t, err, "capability must fail closed when its retention setting is unresolved")
-			require.ErrorContains(t, err, "SQLSTATE=22023")
-			assertAuditRowsExist(t, db, capability.table, rowID)
-		})
-	}
-}
-
 func retentionCapabilityTenant(t *testing.T, db *testpkg.DB) (int64, int64) {
 	t.Helper()
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

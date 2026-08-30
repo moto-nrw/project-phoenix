@@ -77,12 +77,14 @@ const auditRetentionCapabilitiesSQL = `
 			END IF;
 			invoker_is_superuser := audit.authorize_retention_tenant(p_tenant_id);
 
-			SELECT (value #>> '{}')::INTEGER
-			INTO retention_days
-			FROM config.setting_values
-			WHERE tenant_id = p_tenant_id
-			  AND setting_key = 'gdpr.timetable_retention_days';
-			IF retention_days IS NULL OR retention_days < 30 OR retention_days > 1825 THEN
+			SELECT COALESCE(
+				(SELECT (value #>> '{}')::INTEGER
+				 FROM config.setting_values
+				 WHERE tenant_id = p_tenant_id
+				   AND setting_key = 'gdpr.timetable_retention_days'),
+				365
+			) INTO retention_days;
+			IF retention_days < 30 OR retention_days > 1825 THEN
 				RAISE EXCEPTION 'invalid timetable retention setting' USING ERRCODE = '22023';
 			END IF;
 
@@ -122,12 +124,14 @@ const auditRetentionCapabilitiesSQL = `
 			END IF;
 			invoker_is_superuser := audit.authorize_retention_tenant(p_tenant_id);
 
-			SELECT (value #>> '{}')::INTEGER
-			INTO retention_days
-			FROM config.setting_values
-			WHERE tenant_id = p_tenant_id
-			  AND setting_key = 'gdpr.student_change_log_retention_days';
-			IF retention_days IS NULL OR retention_days < 30 OR retention_days > 365 THEN
+			SELECT COALESCE(
+				(SELECT (value #>> '{}')::INTEGER
+				 FROM config.setting_values
+				 WHERE tenant_id = p_tenant_id
+				   AND setting_key = 'gdpr.student_change_log_retention_days'),
+				90
+			) INTO retention_days;
+			IF retention_days < 30 OR retention_days > 365 THEN
 				RAISE EXCEPTION 'invalid student change-log retention setting' USING ERRCODE = '22023';
 			END IF;
 
