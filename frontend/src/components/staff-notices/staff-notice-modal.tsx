@@ -262,19 +262,17 @@ export function StaffNoticeModal({
             {WEEKDAYS.map((day) => {
               const selected = form.weekdays.includes(day.value);
               return (
-                <button
+                <Button
                   key={day.value}
                   type="button"
                   aria-pressed={selected}
                   onClick={() => toggleWeekday(day.value)}
-                  className={`h-9 w-11 rounded-md border text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    selected
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
+                  variant={selected ? "primary" : "outline"}
+                  size="compact"
+                  className="h-9 w-11 px-0"
                 >
                   {day.label}
-                </button>
+                </Button>
               );
             })}
           </div>

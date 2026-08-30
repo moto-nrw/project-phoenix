@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { hasPermission } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { fetchTodaysNotices } from "~/lib/staff-notices-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -20,7 +21,10 @@ export function useStaffNoticesPending() {
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
   return useUnreadCount({
-    enabled: status === "authenticated" && mode === "teacher",
+    enabled:
+      status === "authenticated" &&
+      mode === "teacher" &&
+      hasPermission(session, "users:read"),
     fetcher: async () => {
       const notices = await fetchTodaysNotices();
       return notices.filter(
