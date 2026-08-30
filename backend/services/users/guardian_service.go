@@ -71,6 +71,11 @@ type GuardianServiceDependencies struct {
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
 
+	// MailIdentity points replies to this invitation at the OGS instead of
+	// moto (#1936). Optional: nil sends without a Reply-To, exactly as before.
+	// This send bypasses the outbox, so it stamps the header itself.
+	MailIdentity email.ReplyToResolver
+
 	// Infrastructure
 	DB *bun.DB
 }
@@ -494,6 +499,7 @@ func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *a
 
 	message := email.Message{
 		From:     s.DefaultFrom,
+		ReplyTo:  s.resolveReplyTo(ctx),
 		To:       email.NewEmail("", *profile.Email),
 		Subject:  "Einladung zum Eltern-Portal",
 		Template: "guardian-invitation.html",
@@ -1326,4 +1332,12 @@ func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianI
 // GetPhoneNumberByID retrieves a phone number by ID
 func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
+}
+
+// resolveReplyTo returns the OGS reply address for this tenant, or the zero
+// value when none is configured. This send bypasses the outbox, so it stamps
+// the header itself; the degradation policy is shared (#1936).
+func (s *GuardianService) resolveReplyTo(ctx context.Context) email.Email {
+	identity := email.ResolveReplyToIdentity(ctx, s.MailIdentity, tenant.FromContext(ctx), nil)
+	return email.NewEmail(identity.Name, identity.Address)
 }

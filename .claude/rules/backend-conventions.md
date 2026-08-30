@@ -323,7 +323,7 @@ Placement rules: mocks for `models/*` interfaces go in `test/` (imports models o
 cd backend && go test ./test -run Ratchet -count=1
 ```
 
-If a test's purpose genuinely requires the system clock, inject a clock where possible. Otherwise add only its exact `path/to/file_test.go:TestFunction` key to `calendarFixtureClockExceptions`, with a specific non-empty reason explaining why the live clock is load-bearing. Never add a count baseline. Stale exception keys fail the ratchet and must be removed. The pre-#2571 baseline stores function-source fingerprints: editing one of those functions fails the ratchet, and the baseline may only shrink.
+If a test's purpose genuinely requires the system clock, inject a clock where possible. Otherwise add only its exact `path/to/file_test.go:TestFunction` key to `calendarFixtureClockExceptions`, with a specific non-empty reason explaining why the live clock is load-bearing. Every unexcepted finding fails immediately; there is no grandfathered count or fingerprint baseline. Stale exception keys fail the ratchet and must be removed.
 
 ---
 

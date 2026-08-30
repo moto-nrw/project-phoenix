@@ -49,8 +49,10 @@ func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	cleanup := func() {
 	}
 
+	clock := func() time.Time { return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db, clock),
+		Now:           clock,
 		DB:            db,
 	})
 
@@ -105,7 +107,7 @@ func decodeConflicts(t *testing.T, w *httptest.ResponseRecorder) ConflictsRespon
 // The base date is deterministic across the week so the test never crosses a
 // Saturday/Sunday boundary where arrival_schedules don't apply.
 func nextMonday() (string, timezone.Date) {
-	d := timezone.TodayDate().AddDays(1)
+	d := timezone.NewDate(2026, 8, 24).AddDays(1)
 	for d.Weekday() != time.Monday {
 		d = d.AddDays(1)
 	}
@@ -115,7 +117,7 @@ func nextMonday() (string, timezone.Date) {
 // nextTuesday mirrors nextMonday for tests that exercise a different weekday
 // relative to the materialised instance and the arrival schedule.
 func nextTuesday() (string, timezone.Date) {
-	d := timezone.TodayDate().AddDays(1)
+	d := timezone.NewDate(2026, 8, 24).AddDays(1)
 	for d.Weekday() != time.Tuesday {
 		d = d.AddDays(1)
 	}
@@ -833,7 +835,7 @@ func TestExceptionConflicts_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("date in the past → 400", func(t *testing.T) {
-		past := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+		past := timezone.NewDate(2026, 8, 24).AddDays(-2).String()
 		w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", past))
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})

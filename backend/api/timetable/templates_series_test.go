@@ -46,12 +46,15 @@ type splitSeriesSetup struct {
 func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 	t.Helper()
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateSetup(t, mat)
+	clock := func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	}
+	s := buildTemplateSetup(t, mat, clock)
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, name+"-Quelle")
-	effective := timezone.TodayDate().AddDays(7)
+	effective := timezone.NewDate(2026, 8, 24).AddDays(7)
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
 		splitBody(s, name+"-Nachfolger", effective))
@@ -137,7 +140,7 @@ func TestSplitTemplate_RejectsSeriesRosterFrom(t *testing.T) {
 	defer s.cleanupFn()
 
 	body := splitBody(s.templateSetup, "Tpl-SeriesSplitReject-Zweiter", s.effective.AddDays(7))
-	body["series_roster_from"] = timezone.TodayDate().String()
+	body["series_roster_from"] = timezone.NewDate(2026, 8, 24).String()
 	w := doTemplateJSON(t, s.router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", s.newID), body)
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
@@ -156,7 +159,7 @@ func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
 	suffix := time.Now().UnixNano()
 	latecomer := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("Nachzuegler-%d", suffix), "3a")
 
-	anchor := timezone.TodayDate().AddDays(3)
+	anchor := timezone.NewDate(2026, 8, 24).AddDays(3)
 	body := createTemplateBody(s.templateSetup, "Tpl-SeriesRoster-Update")
 	body["student_ids"] = []int64{s.studentA, s.studentB, latecomer.ID}
 	body["series_roster_from"] = anchor.String()

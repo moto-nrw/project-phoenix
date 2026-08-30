@@ -199,6 +199,14 @@ type excusedAbsenceRequestService struct {
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
 	shareVisibility RequestShareVisibilityResolver
 	events          usersService.ParentRequestEventRecorder
+	today           func() timezone.Date
+}
+
+func (s *excusedAbsenceRequestService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
 }
 
 type RequestReviewPolicy interface {
@@ -221,13 +229,14 @@ func NewExcusedAbsenceRequestServiceWithPolicy(
 	events usersService.ParentRequestEventRecorder,
 	logger *slog.Logger,
 	db *bun.DB,
+	today ...func() timezone.Date,
 ) ExcusedAbsenceRequestService {
 	if reviewPolicy == nil {
 		panic("excused absence request review policy is required")
 	}
 	return newExcusedAbsenceRequestService(
 		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
-		userContext, emitter, broadcaster, reviewPolicy, events, logger, db,
+		userContext, emitter, broadcaster, reviewPolicy, events, logger, db, today...,
 	)
 }
 
@@ -244,11 +253,12 @@ func newExcusedAbsenceRequestService(
 	events usersService.ParentRequestEventRecorder,
 	logger *slog.Logger,
 	db *bun.DB,
+	today ...func() timezone.Date,
 ) ExcusedAbsenceRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &excusedAbsenceRequestService{
+	service := &excusedAbsenceRequestService{
 		requestRepo:   requestRepo,
 		statusDayRepo: statusDayRepo,
 		pickupRepo:    pickupRepo,
@@ -262,6 +272,10 @@ func newExcusedAbsenceRequestService(
 		logger:        logger,
 		db:            db,
 	}
+	if len(today) > 0 {
+		service.today = today[0]
+	}
+	return service
 }
 
 // absenceWritable is the per-child visibility predicate shared by the review
@@ -313,7 +327,7 @@ func (s *excusedAbsenceRequestService) GetExcusedBulkCandidate(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	if student == nil || !writable(student) || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
+	if student == nil || !writable(student) || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
 		return nil, nil
 	}
 	view, err := s.currentStatusView(ctx, req)
@@ -748,7 +762,7 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 		// A child whose care has ended leaves the queue the same way: the
 		// effect-day pass closes their open requests, and until it runs the
 		// queue must not offer a decision on a departed child (#2487).
-		if students[r.StudentID].IsAlumnus() || students[r.StudentID].CareEndedOn(timezone.TodayDate()) {
+		if students[r.StudentID].IsAlumnus() || students[r.StudentID].CareEndedOn(s.todayDate()) {
 			continue
 		}
 		view, viewErr := s.currentStatusView(ctx, r)
@@ -786,7 +800,7 @@ func (s *excusedAbsenceRequestService) excusedBulkEligibility(
 	student *usersModels.Student,
 	view currentStatusView,
 ) (bool, string, string, error) {
-	if !usersService.AbsenceBulkEligible(req.Dates, timezone.TodayDate()) {
+	if !usersService.AbsenceBulkEligible(req.Dates, s.todayDate()) {
 		return false, usersService.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
 	}
 	if requestExtendsBeyondCare(req, student) {
@@ -878,7 +892,7 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 		// graduated child must not raise a pending-approval marker anywhere on the
 		// staff surface (#405 review).
 		if writable(students[studentID]) && !students[studentID].IsAlumnus() &&
-			!students[studentID].CareEndedOn(timezone.TodayDate()) {
+			!students[studentID].CareEndedOn(s.todayDate()) {
 			out[studentID] = req
 		}
 	}
@@ -941,7 +955,7 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 	// The child left the OGS after filing this request; approving it would
 	// write absence status days for a day they are no longer in care (#2487).
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
 	allowed, authErr := s.canReviewStudent(ctx, student)
@@ -956,7 +970,7 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		// Approving a request whose days have all passed would write absence
 		// records into a settled past. Staff either reject it or mark it done
 		// (#2267, story 14). Rejecting stays allowed.
-		if usersService.ParentRequestIsPast(excusedScopeEnd(req), timezone.TodayDate()) {
+		if usersService.ParentRequestIsPast(excusedScopeEnd(req), s.todayDate()) {
 			return nil, usersService.ErrParentRequestPast
 		}
 		if requestExtendsBeyondCare(req, student) {
@@ -1314,7 +1328,7 @@ func (s *excusedAbsenceRequestService) applyAbsenceRequest(ctx context.Context, 
 		}
 	}
 
-	if containsDate(req.Dates, timezone.TodayDate()) {
+	if containsDate(req.Dates, s.todayDate()) {
 		fresh, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 		if err != nil {
 			return err
@@ -1508,7 +1522,7 @@ func (s *excusedAbsenceRequestService) MarkDone(
 	if !allowed {
 		return ErrExcusedRequestForbidden
 	}
-	if !usersService.ParentRequestIsPast(excusedScopeEnd(req), timezone.TodayDate()) {
+	if !usersService.ParentRequestIsPast(excusedScopeEnd(req), s.todayDate()) {
 		return usersService.ErrParentRequestNotPast
 	}
 	trimmed := strings.TrimSpace(reason)
@@ -1600,7 +1614,7 @@ func (s *excusedAbsenceRequestService) Correct(
 	if !allowed {
 		return ErrExcusedRequestForbidden
 	}
-	if usersService.ParentRequestIsPast(excusedScopeEnd(req), timezone.TodayDate()) {
+	if usersService.ParentRequestIsPast(excusedScopeEnd(req), s.todayDate()) {
 		// Correcting into an approval would write absence days into a settled
 		// past, exactly as a fresh approval would.
 		if approve {

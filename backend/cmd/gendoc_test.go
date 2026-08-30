@@ -2,11 +2,50 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDocumentationRouterDoesNotRequireDatabase(t *testing.T) {
+	t.Setenv("DB_DSN", "")
+	t.Setenv("TEST_DB_DSN", "")
+
+	routes, err := documentationRoutes()
+	require.NoError(t, err)
+	require.NotEmpty(t, routes)
+
+	_, dbDSNWasSet := os.LookupEnv("DB_DSN")
+	assert.True(t, dbDSNWasSet, "the test must exercise an explicitly empty DB_DSN")
+}
+
+// Deliberately serial: Cobra flags and the working directory are process-global.
+func TestGendocRoutesCLIWorksWithoutDatabase(t *testing.T) {
+	t.Setenv("DB_DSN", "")
+	t.Setenv("TEST_DB_DSN", "")
+	workingDirectory, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(t.TempDir()))
+	t.Cleanup(func() { require.NoError(t, os.Chdir(workingDirectory)) })
+
+	routes, openapi = true, false
+	t.Cleanup(func() { routes, openapi = false, false })
+	require.NoError(t, gendocCmd.RunE(gendocCmd, nil))
+	content, err := os.ReadFile("routes.md")
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "/api")
+}
+
+func TestGenRoutesDocReportsWriteFailure(t *testing.T) {
+	t.Parallel()
+	path := t.TempDir() + "/routes.md"
+	require.NoError(t, os.Mkdir(path, 0755))
+
+	err := genRoutesDocAt(path)
+	require.ErrorContains(t, err, "write routes documentation")
+}
 
 // =============================================================================
 // Command Registration Tests
@@ -16,7 +55,7 @@ func TestGendocCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "gendoc", gendocCmd.Use)
 	assert.Contains(t, gendocCmd.Short, "Generate")
 	assert.Contains(t, gendocCmd.Long, "OpenAPI")
-	assert.NotNil(t, gendocCmd.Run)
+	assert.NotNil(t, gendocCmd.RunE)
 }
 
 func TestGendocCmd_IsRegisteredOnRoot(t *testing.T) {

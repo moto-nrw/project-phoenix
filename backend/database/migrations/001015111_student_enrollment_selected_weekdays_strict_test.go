@@ -7,7 +7,6 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestStudentEnrollmentSelectedWeekdaysStrictConstraint(t *testing.T) {
@@ -33,7 +32,7 @@ func TestStudentEnrollmentSelectedWeekdaysStrictConstraint(t *testing.T) {
 	require.Error(t, insertSelectedWeekdaysForConstraintTest(db, tenantID, student.ID, group.ID, `[1,1]`))
 }
 
-func insertSelectedWeekdaysForConstraintTest(db *bun.DB, tenantID, studentID, groupID int64, selectedWeekdays string) error {
+func insertSelectedWeekdaysForConstraintTest(db *testpkg.DB, tenantID, studentID, groupID int64, selectedWeekdays string) error {
 	_, err := db.NewRaw(`
 		INSERT INTO activities.student_enrollments (
 			tenant_id, student_id, activity_group_id, valid_from, valid_until, selected_weekdays

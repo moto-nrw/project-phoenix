@@ -6,12 +6,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func roleHasTablePrivilege(t *testing.T, db *bun.DB, role, relation, privilege string) bool {
+func roleHasTablePrivilege(t *testing.T, db *testpkg.DB, role, relation, privilege string) bool {
 	t.Helper()
 
 	var granted bool

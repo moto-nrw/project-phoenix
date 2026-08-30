@@ -167,7 +167,7 @@ func TestValidateSetVacationOpening(t *testing.T) {
 				actualDecided = 0
 			}
 
-			err := validateSetVacationOpening(actualStaff, actualDecided, req)
+			err := validateSetVacationOpening(actualStaff, actualDecided, req, timezone.TodayDate())
 
 			if tc.wantMsg == "" {
 				require.NoError(t, err)

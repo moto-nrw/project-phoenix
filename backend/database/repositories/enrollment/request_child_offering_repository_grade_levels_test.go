@@ -37,7 +37,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// Two graded children on one offering, so the grouping has something to
@@ -73,7 +73,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGra
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// makeChild leaves TargetGradeLevel nil. An availability rule never
@@ -101,7 +101,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOnceP
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	laterFrom := from.AddDays(30)
 
@@ -136,7 +136,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalC
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	requestID := requestIDOf(t, db, tenantID, childID)
@@ -162,7 +162,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervals
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	endedAt := from.AddDays(-10)
 	startedAt := from.AddDays(-40)
 
@@ -189,7 +189,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWin
 	t.Parallel()
 
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		_, listErr := repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, today, today)
@@ -204,7 +204,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTh
 	t.Parallel()
 
 	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -225,7 +225,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSin
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 	requestID := requestIDOf(t, db, tenantID, childID)
 	second := addGradedChild(t, db, tenantID, requestID, "Mira", int16Ptr(2), enrollmentModels.ChildStatusApproved)
@@ -262,7 +262,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// A second offering in the same phase, deliberately left unbooked.
@@ -289,7 +289,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInpu
 	t.Parallel()
 
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	var empty map[int64]int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -317,7 +317,7 @@ func TestRequestChildOfferingRepository_Aggregates_CountEveryPhaseLikeTheGate(t 
 	t.Parallel()
 
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	until := from.AddDays(90)
 
 	// A child of ANOTHER phase holding the same offering row.

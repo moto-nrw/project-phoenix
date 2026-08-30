@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 func (s *FixedSeeder) seedGroupHandover(_ context.Context) error {
@@ -17,7 +15,7 @@ func (s *FixedSeeder) seedGroupHandover(_ context.Context) error {
 		return fmt.Errorf("staff not found: Birgit Braun")
 	}
 
-	today := timezone.TodayDate()
+	today := todaySeedDate()
 	_, err := s.client.Post("/api/substitutions", map[string]any{
 		"type": "group_handover",
 		"group_handover": map[string]any{

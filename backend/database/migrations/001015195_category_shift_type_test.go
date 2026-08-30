@@ -8,10 +8,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func categoryShiftTypeColumnExists(t *testing.T, db *bun.DB) bool {
+func categoryShiftTypeColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -24,7 +23,7 @@ func categoryShiftTypeColumnExists(t *testing.T, db *bun.DB) bool {
 	return exists
 }
 
-func categoryShiftTypeFKExists(t *testing.T, db *bun.DB) bool {
+func categoryShiftTypeFKExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -39,7 +38,7 @@ func categoryShiftTypeFKExists(t *testing.T, db *bun.DB) bool {
 }
 
 // insertShiftTypeRaw inserts a schedule.shift_types row for a tenant and returns its id.
-func insertShiftTypeRaw(t *testing.T, db *bun.DB, tenantID int64, name string) int64 {
+func insertShiftTypeRaw(t *testing.T, db *testpkg.DB, tenantID int64, name string) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`
@@ -92,9 +91,9 @@ func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
 	t.Cleanup(func() {
 		testpkg.CleanupTenantTestData(t, db, tenantA)
 		testpkg.CleanupTenantTestData(t, db, tenantB)
-		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
 	})
 
 	stA := insertShiftTypeRaw(t, db, tenantA, fmt.Sprintf("A-%d", tenantA))

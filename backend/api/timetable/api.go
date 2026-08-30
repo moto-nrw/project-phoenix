@@ -134,6 +134,10 @@ func NewResource(deps Dependencies) *Resource {
 	return &Resource{Dependencies: deps}
 }
 
+func (rs *Resource) todayDate() timezone.Date {
+	return timezone.DateFromTime(rs.Now())
+}
+
 // Router returns a configured router for timetable endpoints
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()

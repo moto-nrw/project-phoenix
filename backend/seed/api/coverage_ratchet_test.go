@@ -1,14 +1,13 @@
 package api_test
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"testing"
 
-	"github.com/uptrace/bun/driver/pgdriver"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestSeedCoverageRatchet keeps the demo seeder honest about which tables it
@@ -176,7 +175,7 @@ func TestSeedCoverageRatchet(t *testing.T) {
 		t.Skip("SEED_COVERAGE_DSN not set: needs a seeded stack (migrate reset + seed + simulate full-day)")
 	}
 
-	db := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	db := testpkg.OpenPostgresSQL(dsn)
 	defer func() { _ = db.Close() }()
 
 	rows, err := db.Query(tableCoverageQuery)

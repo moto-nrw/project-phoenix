@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/uptrace/bun"
 )
 
 func TestFamilyProtectionEventsAreTenantScopedAndAppendOnly(t *testing.T) {
@@ -54,7 +53,7 @@ func TestFamilyProtectionEventsAreTenantScopedAndAppendOnly(t *testing.T) {
 }
 
 func assertTenantRowsIsolated(
-	t *testing.T, db *bun.DB, relation string, tenantID int64, crossTenantInsert string, args ...any,
+	t *testing.T, db *testpkg.DB, relation string, tenantID int64, crossTenantInsert string, args ...any,
 ) {
 	t.Helper()
 	tx, err := db.BeginTx(t.Context(), nil)

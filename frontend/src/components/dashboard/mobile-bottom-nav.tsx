@@ -360,6 +360,16 @@ const additionalNavItems: AdditionalNavItem[] = [
     concept: "messages",
   },
   {
+    // Tagesinformationen (#2180): Hinweise der Leitung an das Team. Auf
+    // kleinen Bildschirmen der einzige Zugang, wie beim Team-Chat. Wie die
+    // Route /today ist der Eintrag an users:read gebunden.
+    href: "/tagesinformationen",
+    label: "Tagesinformationen",
+    iconKey: "newspaper",
+    concept: "announcements",
+    requiresPermission: "users:read",
+  },
+  {
     // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
     // canOpenRequestsPage: requiresPermission kann das
     // users:absence+users:read-Paar nicht ausdrücken.
@@ -819,6 +829,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     item.href === "/eltern" ||
                     item.href === "/anfragen" ||
                     item.href === "/team-chat" ||
+                    item.href === "/tagesinformationen" ||
                     isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;

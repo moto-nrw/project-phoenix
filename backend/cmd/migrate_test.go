@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/migrations"
@@ -11,6 +12,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMigrateRootMapsCommandsToStableOperations(t *testing.T) {
+	t.Parallel()
+
+	root := defaultMigrateRoot
+	expected := map[string]migrationOperation{
+		"migrate": migrations.Migrate,
+		"reset":   migrations.Reset,
+		"status":  migrations.MigrateStatus,
+	}
+	for command, want := range expected {
+		op, err := root.operation(command)
+		require.NoError(t, err)
+		assert.Equal(t, reflect.ValueOf(want).Pointer(), reflect.ValueOf(op).Pointer())
+	}
+	_, err := root.operation("unknown")
+	require.EqualError(t, err, `unknown migration operation "unknown"`)
+}
 
 // =============================================================================
 // migrateCmd Tests
@@ -20,21 +39,27 @@ func TestMigrateCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "migrate", migrateCmd.Use)
 	assert.Equal(t, "use bun migration tool", migrateCmd.Short)
 	assert.Equal(t, "run bun migrations", migrateCmd.Long)
-	assert.NotNil(t, migrateCmd.Run)
+	assert.NotNil(t, migrateCmd.RunE)
+}
+
+func TestMigrateRootFailsFastWithoutDatabaseDependency(t *testing.T) {
+	err := (migrateRoot{}).run(t.Context(), nil)
+
+	require.ErrorContains(t, err, "database opener is required")
 }
 
 func TestMigrateResetCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "reset", migrateResetCmd.Use)
 	assert.Equal(t, "reset database and run all migrations", migrateResetCmd.Short)
 	assert.Contains(t, migrateResetCmd.Long, "WARNING")
-	assert.NotNil(t, migrateResetCmd.Run)
+	assert.NotNil(t, migrateResetCmd.RunE)
 }
 
 func TestMigrateStatusCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "status", migrateStatusCmd.Use)
 	assert.Equal(t, "show migration status", migrateStatusCmd.Short)
 	assert.Contains(t, migrateStatusCmd.Long, "status of all migrations")
-	assert.NotNil(t, migrateStatusCmd.Run)
+	assert.NotNil(t, migrateStatusCmd.RunE)
 }
 
 func TestMigrateValidateCmd_Metadata(t *testing.T) {
@@ -78,10 +103,6 @@ func TestMigrateCmd_SubcommandCount(t *testing.T) {
 	assert.Len(t, migrateCmd.Commands(), 3, "migrateCmd should have exactly 3 subcommands")
 }
 
-// =============================================================================
-// Run Function Tests (using function variable overrides)
-// =============================================================================
-
 // captureStdout captures stdout output during a function call.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
@@ -99,36 +120,6 @@ func captureStdout(t *testing.T, fn func()) string {
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	return buf.String()
-}
-
-func TestMigrateCmd_Run_CallsMigrate(t *testing.T) {
-	called := false
-	original := migrateFn
-	migrateFn = func() { called = true }
-	defer func() { migrateFn = original }()
-
-	migrateCmd.Run(migrateCmd, []string{})
-	assert.True(t, called, "migrateCmd.Run should call migrateFn")
-}
-
-func TestMigrateResetCmd_Run_CallsReset(t *testing.T) {
-	called := false
-	original := migrateResetFn
-	migrateResetFn = func() { called = true }
-	defer func() { migrateResetFn = original }()
-
-	migrateResetCmd.Run(migrateResetCmd, []string{})
-	assert.True(t, called, "migrateResetCmd.Run should call migrateResetFn")
-}
-
-func TestMigrateStatusCmd_Run_CallsStatus(t *testing.T) {
-	called := false
-	original := migrateStatusFn
-	migrateStatusFn = func() { called = true }
-	defer func() { migrateStatusFn = original }()
-
-	migrateStatusCmd.Run(migrateStatusCmd, []string{})
-	assert.True(t, called, "migrateStatusCmd.Run should call migrateStatusFn")
 }
 
 // Deliberately NOT parallel: the test reaches process-global state (env

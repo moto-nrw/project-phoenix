@@ -21,7 +21,7 @@ func TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild(t *testing.T)
 	student := testpkg.CreateTestStudent(t, db, "Mira", "Kurz", "2a")
 	actor := testpkg.CreateTestAccount(t, db, "withdrawal-actor")
 	studentID := student.ID
-	firstGap := timezone.TodayDate().AddDays(3)
+	firstGap := timezone.NewDate(2026, 8, 24).AddDays(3)
 
 	first := &userModels.CareWithdrawalCompletion{
 		StudentID:               &studentID,
@@ -88,19 +88,19 @@ func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testin
 	repo := repositories.NewFactory(db).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Echte", "Lücke", "3b")
 	studentID := student.ID
-	firstGap := timezone.TodayDate().AddDays(-2)
+	firstGap := timezone.NewDate(2026, 8, 24).AddDays(-2)
 	completion := &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
 	}
 	require.NoError(t, repo.UpsertPending(ctx, completion))
 	completion.ID = 0
-	completion.FirstBookinglessDay = timezone.TodayDate().AddDays(5)
+	completion.FirstBookinglessDay = timezone.NewDate(2026, 8, 24).AddDays(5)
 	require.NoError(t, repo.UpsertPending(ctx, completion))
 	rows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	assert.Equal(t, timezone.TodayDate().AddDays(5), rows[0].FirstBookinglessDay)
+	assert.Equal(t, timezone.NewDate(2026, 8, 24).AddDays(5), rows[0].FirstBookinglessDay)
 }
 
 func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingCompletionWhenEnrollmentIsOpen(t *testing.T) {
@@ -110,7 +110,7 @@ func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingComp
 	repo := repositories.NewFactory(db).CareWithdrawal
 	student := testpkg.CreateTestStudent(t, db, "Offen", "Grenze", "3b")
 	studentID := student.ID
-	firstGap := timezone.TodayDate().AddDays(4)
+	firstGap := timezone.NewDate(2026, 8, 24).AddDays(4)
 
 	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,

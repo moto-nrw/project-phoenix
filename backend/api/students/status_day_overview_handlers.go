@@ -63,7 +63,7 @@ type statusDayOverviewEntry struct {
 func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := rs.dayLogLogger()
-	today := timezone.TodayDate()
+	today := rs.todayDate()
 
 	from, to, err := parseStatusDayOverviewRange(r, today)
 	if err != nil {

@@ -379,6 +379,38 @@ func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
 	})
 }
 
+func TestWorkSessionBreakRepository_EndBreakRejectsStaleState(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	staff := testpkg.CreateTestStaff(t, db, "Break", "Guard")
+	session := &active.WorkSession{
+		StaffID:     staff.ID,
+		Date:        timezone.TodayDate(),
+		Status:      active.WorkSessionStatusPresent,
+		CheckInTime: time.Now(),
+		CreatedBy:   staff.ID,
+	}
+	require.NoError(t, repos.WorkSession.Create(ctx, session))
+	brk := &active.WorkSessionBreak{
+		SessionID: session.ID,
+		StartedAt: time.Now().Add(-30 * time.Minute),
+	}
+	require.NoError(t, repos.WorkSessionBreak.Create(ctx, brk))
+
+	endedAt := time.Now()
+	require.NoError(t, repos.WorkSessionBreak.EndBreak(ctx, brk.ID, endedAt, 30))
+	require.Error(t, repos.WorkSessionBreak.EndBreak(ctx, brk.ID, endedAt.Add(time.Minute), 31))
+
+	unchanged, err := repos.WorkSessionBreak.FindByID(ctx, brk.ID)
+	require.NoError(t, err)
+	require.NotNil(t, unchanged.EndedAt)
+	assert.WithinDuration(t, endedAt, *unchanged.EndedAt, time.Second)
+	assert.Equal(t, 30, unchanged.DurationMinutes)
+}
+
 func TestWorkSessionBreakRepository_List(t *testing.T) {
 	t.Parallel()
 

@@ -526,13 +526,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/database",
-      "owner": "inbound-database",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "api/display",
       "owner": "inbound-display",
       "role": "http",
@@ -1044,23 +1037,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "integration/phoenixapi",
-      "owner": "dev-tools",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
       "path": "internal/architecture",
       "owner": "architecture-check",
       "role": "application",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "internal/architecture/cmd",
-      "owner": "architecture-check",
-      "role": "cli",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -1903,6 +1882,8 @@
     {"name": "users.parent_message_reads", "write_owner": "communication"},
     {"name": "users.parent_message_threads", "write_owner": "communication"},
     {"name": "users.parent_messages", "write_owner": "communication"},
+    {"name": "users.staff_notice_acks", "write_owner": "timetable-activities"},
+    {"name": "users.staff_notices", "write_owner": "timetable-activities"},
     {"name": "users.parent_request_share_events", "write_owner": "people-directory"},
     {"name": "users.parent_request_events", "write_owner": "people-directory"},
     {"name": "users.persons", "write_owner": "people-directory"},
@@ -2071,10 +2052,6 @@
     },
     {
       "path": "github.com/go-chi/cors",
-      "class": "http-router"
-    },
-    {
-      "path": "github.com/go-chi/docgen",
       "class": "http-router"
     },
     {

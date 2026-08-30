@@ -99,7 +99,7 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 	return nil, nil
 }
 
-func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *templateSetup {
+func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService, clocks ...func() time.Time) *templateSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
@@ -112,17 +112,18 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	studentA := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentA-%d", suffix), "3a")
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err)
 
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
+		TimetableData: testTimetableData(db, clocks...),
 		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
 			Repo: scheduleRepo.NewCalendarPeriodRepository(db),
 		}),
 		MaterializationService: mat,
 		InstanceService:        serviceFactory.Instance,
 		SettingsService:        templateGradeSettings(schoolclass.DefaultGradeLevelMax, nil),
+		Now:                    firstTemplateClock(clocks),
 		DB:                     db,
 	})
 	res.InstanceSeriesConverter = scheduleSvc.NewInstanceSeriesConversionService(
@@ -149,6 +150,13 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 		studentB:  studentB.ID,
 		cleanupFn: cleanup,
 	}
+}
+
+func firstTemplateClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
 }
 
 func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
@@ -452,7 +460,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	createTemplateTestPeriodRange(
 		t,
 		s.db,

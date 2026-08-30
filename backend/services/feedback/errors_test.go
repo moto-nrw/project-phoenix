@@ -62,8 +62,8 @@ func TestInvalidDateRangeError_Unwrap(t *testing.T) {
 	t.Parallel()
 
 	err := &InvalidDateRangeError{
-		StartDate: timezone.TodayDate(),
-		EndDate:   timezone.TodayDate(),
+		StartDate: timezone.NewDate(2026, 8, 24),
+		EndDate:   timezone.NewDate(2026, 8, 24),
 	}
 
 	assert.Equal(t, ErrInvalidDateRange, err.Unwrap())

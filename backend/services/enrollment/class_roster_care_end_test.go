@@ -18,7 +18,7 @@ func TestClassRosterFiltersCareDate(t *testing.T) {
 	t.Parallel()
 
 	t.Run("defaults to today", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		assert.Equal(t, today, ClassRosterFilters{}.careDate(today))
 	})
 
@@ -26,6 +26,6 @@ func TestClassRosterFiltersCareDate(t *testing.T) {
 		// The Lehrkraft class day view pages through the week. A sheet for
 		// last Tuesday must show who was in care THEN, not who is today.
 		paged := timezone.NewDate(2026, 5, 12)
-		assert.Equal(t, paged, ClassRosterFilters{OfferingDate: &paged}.careDate(timezone.TodayDate()))
+		assert.Equal(t, paged, ClassRosterFilters{OfferingDate: &paged}.careDate(timezone.NewDate(2026, 8, 24)))
 	})
 }

@@ -29,16 +29,20 @@ import (
 // setupAbsenceAdminTest builds the router context plus an editor (admin
 // account linked to a staff row, required by resolveEditorStaffID) and a
 // subject staff member with one plain shift tomorrow.
-func setupAbsenceAdminTest(t *testing.T) (tc *testContext, token string, subjectID int64, shiftID int64) {
+func setupAbsenceAdminTest(t *testing.T, clocks ...func() time.Time) (tc *testContext, token string, subjectID int64, shiftID int64) {
 	t.Helper()
-	tc = setupTestContext(t)
+	tc = setupTestContext(t, clocks...)
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Absence", fmt.Sprintf("Editor-%d", suffix))
 	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
 	subject := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Subject-%d", suffix))
 
-	tomorrow := timezone.TodayDate().AddDays(1)
+	today := timezone.TodayDate()
+	if len(clocks) > 0 {
+		today = timezone.DateFromTime(clocks[0]())
+	}
+	tomorrow := today.AddDays(1)
 	shift := &scheduleModels.StaffShift{
 		StaffID:   subject.ID,
 		Date:      tomorrow,
@@ -70,8 +74,10 @@ func postAbsence(t *testing.T, tc *testContext, token string, staffID int64, bod
 func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	t.Parallel()
 
-	tc, token, subjectID, shiftID := setupAbsenceAdminTest(t)
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tc, token, subjectID, shiftID := setupAbsenceAdminTest(t, func() time.Time {
+		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+	})
+	tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
 
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type": "sick",
@@ -116,7 +122,7 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	t.Parallel()
 
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
 
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type": "comp_time",

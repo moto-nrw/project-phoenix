@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"time"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
@@ -283,11 +285,21 @@ type Factory struct {
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
+
+	// Staff notices (Tagesinformationen: interne Hinweise der Leitung, #2180)
+	StaffNotice userModels.StaffNoticeRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
-func NewFactory(db *bun.DB) *Factory {
-	activityInstance := schedule.NewActivityInstanceRepository(db)
+func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
+	var now func() time.Time
+	if len(clocks) > 0 && clocks[0] != nil {
+		now = clocks[0]
+	}
+	activityInstance := schedule.NewActivityInstanceRepository(db, now)
+	groupSupervisor := active.NewGroupSupervisorRepository(db, now)
+	attendance := active.NewAttendanceRepository(db, now)
+	parentAnnouncement := users.NewParentAnnouncementRepository(db, now)
 	return &Factory{
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
@@ -399,14 +411,14 @@ func NewFactory(db *bun.DB) *Factory {
 		// Active repositories
 		ActiveGroup:           active.NewGroupRepository(db),
 		ActiveVisit:           active.NewVisitRepository(db),
-		GroupSupervisor:       active.NewGroupSupervisorRepository(db),
+		GroupSupervisor:       groupSupervisor,
 		CombinedGroup:         active.NewCombinedGroupRepository(db),
 		GroupMapping:          active.NewGroupMappingRepository(db),
-		Attendance:            active.NewAttendanceRepository(db),
+		Attendance:            attendance,
 		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
 		Statistics:            active.NewStatisticsRepository(db),
 		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
-		WorkSession:           active.NewWorkSessionRepository(db),
+		WorkSession:           active.NewWorkSessionRepository(db, now),
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
@@ -520,7 +532,8 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
-		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
+		ParentAnnouncement:                parentAnnouncement,
+		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
 }
 

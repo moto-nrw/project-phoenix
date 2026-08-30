@@ -12,12 +12,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // countCategoriesNamed returns how many rows of the tenant carry the given
 // name, case-insensitively — the same predicate the migration uses.
-func countCategoriesNamed(t *testing.T, db *bun.DB, tenantID int64, name string) int {
+func countCategoriesNamed(t *testing.T, db *testpkg.DB, tenantID int64, name string) int {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -30,7 +29,7 @@ func countCategoriesNamed(t *testing.T, db *bun.DB, tenantID int64, name string)
 	return count
 }
 
-func insertMensaTestCategory(t *testing.T, db *bun.DB, tenantID int64, name string) {
+func insertMensaTestCategory(t *testing.T, db *testpkg.DB, tenantID int64, name string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

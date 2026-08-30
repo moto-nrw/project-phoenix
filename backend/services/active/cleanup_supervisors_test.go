@@ -16,7 +16,7 @@ import (
 // utcToday returns today's date (Berlin calendar day) at midnight UTC,
 // matching how DATE values scan back into instants.
 func utcToday() time.Time {
-	return timezone.TodayDate().UTCMidnight()
+	return timezone.NewDate(2026, 8, 24).UTCMidnight()
 }
 
 // =============================================================================
@@ -103,7 +103,7 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	cleanupService := setupCleanupService(t, db)
+	cleanupService := setupCleanupService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures

@@ -86,7 +86,8 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
-	svc := newCareLifecycleService(t, db)
+	today := timezone.NewDate(2026, 8, 24)
+	svc := newCareLifecycleServiceAt(t, db, today)
 	presence := newActiveService(t, db)
 	actorID := careActor(t, db)
 
@@ -110,8 +111,6 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Petra", "Sommer")
 	device := testpkg.CreateTestDevice(t, db, "kiosk-altenberge")
-	today := timezone.TodayDate()
-
 	// The child is at the OGS on their last care day, and is still checked in
 	// when the day ends — the case the effect pass has to close cleanly.
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-3*time.Hour), nil)

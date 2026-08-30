@@ -18,6 +18,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,7 +61,9 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 
 func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool, requestService ...*scheduleService.CareScheduleRequestService) parentService.Service {
 	t.Helper()
-	sf, err := services.NewFactory(repos, db, slog.Default())
+	sf, err := services.NewFactory(repos, db, slog.Default(), func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	require.NoError(t, err)
 	if len(requestService) > 0 {
 		*requestService[0] = sf.CareRequests
@@ -90,6 +93,9 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 		MessageReadRepo:        repos.ParentMessageRead,
 		DB:                     db,
 		Logger:                 slog.Default(),
+		Now: func() time.Time {
+			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+		},
 	})
 }
 
@@ -278,7 +284,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 		INSERT INTO active.student_status_days
 			(tenant_id, student_id, date, status, reported_at, source)
 		VALUES (?, ?, ?, ?, now(), ?)
-	`, chain.TenantID, chain.StudentID, timezone.TodayDate(),
+	`, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24),
 		activeModels.StudentStatusDayClassTrip, activeModels.StudentStatusSourcePlanned)
 	require.NoError(t, err)
 	defer func() {
@@ -294,7 +300,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 	// ...even though ListSickDays still hides the staff-created class-trip row,
 	// which is exactly why the tile needs a separate parent-safe signal.
 	days, err := svc.ListSickDays(ctx, chain.AccountID, chain.StudentID,
-		timezone.TodayDate(), timezone.TodayDate())
+		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	assert.Empty(t, days, "class-trip days stay hidden from the parent sick-day list")
 }

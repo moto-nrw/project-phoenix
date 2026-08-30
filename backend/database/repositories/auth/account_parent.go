@@ -84,50 +84,23 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 
 // UpdateLastLogin updates the last login timestamp for a parent account
 func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.AccountParent)(nil)).
-		ModelTableExpr(accountParentTable).
-		Set("last_login = ?", time.Now()).
-		Where(whereID, id)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	result, err := query.Exec(ctx)
-
+	now := time.Now()
+	account := &auth.AccountParent{Model: modelBase.Model{ID: id}, LastLogin: &now}
+	updated, err := r.UpdateColumns(ctx, account, "last_login")
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update last login",
-			Err: err,
-		}
+		return base.UpdateOperationError(err, "update last login")
 	}
-
-	return base.AssertRowsAffected(result, 1, "update last login")
+	return base.AssertRowsAffectedCount(updated, 1, "update last login")
 }
 
 // UpdatePassword updates the password hash for a parent account
 func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.AccountParent)(nil)).
-		ModelTableExpr(accountParentTable).
-		Set("password_hash = ?", passwordHash).
-		Where(whereID, id)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	result, err := query.Exec(ctx)
-
+	account := &auth.AccountParent{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash}
+	updated, err := r.UpdateColumns(ctx, account, "password_hash")
 	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update password",
-			Err: err,
-		}
+		return base.UpdateOperationError(err, "update password")
 	}
-
-	return base.AssertRowsAffected(result, 1, "update password")
+	return base.AssertRowsAffectedCount(updated, 1, "update password")
 }
 
 // List retrieves parent accounts matching the provided filters

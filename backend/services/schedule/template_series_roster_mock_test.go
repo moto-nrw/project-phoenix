@@ -29,9 +29,9 @@ const (
 
 var errSeriesMock = errors.New("repository exploded")
 
-func seriesMockAnchor() timezone.Date { return timezone.TodayDate().AddDays(7) }
+func seriesMockAnchor() timezone.Date { return timezone.NewDate(2026, 8, 24).AddDays(7) }
 
-func seriesMockUntil() timezone.Date { return timezone.TodayDate().AddDays(21) }
+func seriesMockUntil() timezone.Date { return timezone.NewDate(2026, 8, 24).AddDays(21) }
 
 // ---------------------------------------------------------------- fakes ----
 
@@ -172,7 +172,7 @@ func seriesMockChain(
 			seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
 		}},
 		ActivityScheduleRepo: &seriesMockScheduleRepo{byGroup: map[int64][]*activitiesModel.Schedule{
-			seriesMockOldID:    {seriesMockSchedule(seriesMockOldID, timezone.TodayDate(), &until)},
+			seriesMockOldID:    {seriesMockSchedule(seriesMockOldID, timezone.NewDate(2026, 8, 24), &until)},
 			seriesMockLivingID: {seriesMockSchedule(seriesMockLivingID, until, nil)},
 		}},
 		StudentEnrollmentRepo:  enrollments,
@@ -287,7 +287,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TimetableDataService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{
-					rows:     []*activitiesModel.StudentEnrollment{seriesMockEnrollmentRow(1, timezone.TodayDate(), &until, nil)},
+					rows:     []*activitiesModel.StudentEnrollment{seriesMockEnrollmentRow(1, timezone.NewDate(2026, 8, 24), &until, nil)},
 					closeErr: errSeriesMock,
 				}, &seriesMockSupervisorRepo{})
 			},
@@ -300,7 +300,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TimetableDataService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{}, &seriesMockSupervisorRepo{
-					rows:     []*activitiesModel.SupervisorPlanned{seriesMockSupervisorRow(1, timezone.TodayDate(), &until, nil)},
+					rows:     []*activitiesModel.SupervisorPlanned{seriesMockSupervisorRow(1, timezone.NewDate(2026, 8, 24), &until, nil)},
 					closeErr: errSeriesMock,
 				})
 			},
@@ -342,17 +342,17 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 	t.Parallel()
 
 	otherPeriod := int64(4242)
-	longPast := timezone.TodayDate().AddDays(-90)
-	pastEnd := timezone.TodayDate().AddDays(-60)
+	longPast := timezone.NewDate(2026, 8, 24).AddDays(-90)
+	pastEnd := timezone.NewDate(2026, 8, 24).AddDays(-60)
 	wednesday := activitiesModel.WeekdayWednesday
 	until := seriesMockUntil()
 
 	enrollments := &seriesMockEnrollmentRepo{rows: []*activitiesModel.StudentEnrollment{
 		// Another calendar period — owned by a different planning window.
-		seriesMockEnrollmentRow(11, timezone.TodayDate(), &until, &otherPeriod),
+		seriesMockEnrollmentRow(11, timezone.NewDate(2026, 8, 24), &until, &otherPeriod),
 		// A weekday the edit does not describe.
 		func() *activitiesModel.StudentEnrollment {
-			row := seriesMockEnrollmentRow(12, timezone.TodayDate(), &until, nil)
+			row := seriesMockEnrollmentRow(12, timezone.NewDate(2026, 8, 24), &until, nil)
 			row.Weekday = &wednesday
 			return row
 		}(),
@@ -360,9 +360,9 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 		seriesMockEnrollmentRow(13, longPast, &pastEnd, nil),
 	}}
 	supervisors := &seriesMockSupervisorRepo{rows: []*activitiesModel.SupervisorPlanned{
-		seriesMockSupervisorRow(21, timezone.TodayDate(), &until, &otherPeriod),
+		seriesMockSupervisorRow(21, timezone.NewDate(2026, 8, 24), &until, &otherPeriod),
 		func() *activitiesModel.SupervisorPlanned {
-			row := seriesMockSupervisorRow(22, timezone.TodayDate(), &until, nil)
+			row := seriesMockSupervisorRow(22, timezone.NewDate(2026, 8, 24), &until, nil)
 			row.Weekday = &wednesday
 			return row
 		}(),
@@ -390,8 +390,8 @@ func TestLoadTemplateSeriesSegments_SkipsBrokenSibling(t *testing.T) {
 	until := seriesMockUntil()
 	other := until.AddDays(7)
 	broken := []*activitiesModel.Schedule{
-		seriesMockSchedule(seriesMockOldID, timezone.TodayDate(), &until),
-		seriesMockSchedule(seriesMockOldID, timezone.TodayDate(), &other),
+		seriesMockSchedule(seriesMockOldID, timezone.NewDate(2026, 8, 24), &until),
+		seriesMockSchedule(seriesMockOldID, timezone.NewDate(2026, 8, 24), &other),
 	}
 	groupRepo := &seriesMockGroupRepo{groups: []*activitiesModel.Group{
 		seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),

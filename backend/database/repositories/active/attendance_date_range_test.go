@@ -42,7 +42,7 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	yesterday := today.AddDays(-1)
 	twoDaysAgo := today.AddDays(-2)
 	threeDaysAgo := today.AddDays(-3)

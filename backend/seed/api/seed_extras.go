@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // seedAnnouncementsStep creates demo operator announcements.
@@ -242,12 +240,12 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("fixed seeder not available")
 	}
 
-	today := timezone.TodayDate()
+	today := todaySeedDate()
 	// Two children from the tail of the demo cohort, so the exits never
 	// collide with the children the other steps mark sick or check in.
 	plans := []struct {
 		StudentIndex int
-		LastCareDay  timezone.Date
+		LastCareDay  seedDate
 		Reason       string
 		Note         string
 	}{

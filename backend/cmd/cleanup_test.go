@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -38,17 +37,23 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	)
 	return &cleanupContext{
 		DB:             db,
-		RepoFactory:    repoFactory,
 		CleanupService: cleanupSvc,
 	}
 }
 
-// setupTestCleanupContextWithServices creates a cleanupContext with ServiceFactory
+// setupTestCleanupContextWithServices creates the narrow session-cleanup service.
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
+	sessionService := active.NewService(active.ServiceDependencies{
+		GroupRepo:                repoFactory.ActiveGroup,
+		VisitRepo:                repoFactory.ActiveVisit,
+		SupervisorRepo:           repoFactory.GroupSupervisor,
+		DeviceRepo:               repoFactory.Device,
+		TimetableBridgeCompleter: repoFactory.ActivityInstance,
+		DB:                       db,
+		Logger:                   slog.Default(),
+	})
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
 		repoFactory.Attendance,
@@ -59,10 +64,9 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		db,
 	)
 	return &cleanupContext{
-		DB:             db,
-		RepoFactory:    repoFactory,
-		ServiceFactory: serviceFactory,
-		CleanupService: cleanupSvc,
+		DB:                    db,
+		SessionCleanupService: sessionService,
+		CleanupService:        cleanupSvc,
 	}
 }
 

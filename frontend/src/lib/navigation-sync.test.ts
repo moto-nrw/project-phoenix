@@ -16,6 +16,8 @@ import {
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
+  COMMUNICATION_SECTION,
+  COMMUNICATION_SUB_PAGES,
   PLANNING_SECTION,
   STAFF_FLAT_PAGES,
   type SectionRoot,
@@ -49,6 +51,11 @@ const CATALOGS: readonly {
   },
   { name: "Planung", root: PLANNING_SECTION, pages: PLANNING_SUB_PAGES },
   { name: "Eltern", root: PARENT_SECTION, pages: PARENT_SUB_PAGES },
+  {
+    name: "Kommunikation",
+    root: COMMUNICATION_SECTION,
+    pages: COMMUNICATION_SUB_PAGES,
+  },
   {
     name: "Anmeldungen",
     root: ENROLLMENT_SECTION,

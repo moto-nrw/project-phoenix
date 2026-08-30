@@ -2,6 +2,7 @@ package timetable
 
 import (
 	"context"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -13,21 +14,23 @@ import (
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
 
 // testTimetableData builds the full TimetableDataService against the test
 // database — the test-side equivalent of the factory wiring.
-func testTimetableData(db *bun.DB) *scheduleSvc.TimetableDataService {
-	return testTimetableDataWithCareValidator(db, nil)
+func testTimetableData(db *bun.DB, clocks ...func() time.Time) *scheduleSvc.TimetableDataService {
+	return testTimetableDataWithCareValidator(db, nil, clocks...)
 }
 
 func testTimetableDataWithCareValidator(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
+	clocks ...func() time.Time,
 ) *scheduleSvc.TimetableDataService {
-	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil)
+	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil, clocks...)
 }
 
 func testTimetableDataWithOfferingCallbacks(
@@ -35,10 +38,20 @@ func testTimetableDataWithOfferingCallbacks(
 	validateCareOfferingSeries func(context.Context, int64) error,
 	validateOfferingSource func(context.Context, []int64, []int64, *int64) error,
 	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
+	clocks ...func() time.Time,
 ) *scheduleSvc.TimetableDataService {
+	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	supervisorRepo := activeRepo.NewGroupSupervisorRepository(db)
+	var today func() timezone.Date
+	if len(clocks) > 0 && clocks[0] != nil {
+		clock := clocks[0]
+		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
+		activityInstanceRepo = scheduleRepo.NewActivityInstanceRepository(db, clock)
+		supervisorRepo = activeRepo.NewGroupSupervisorRepository(db, clock)
+	}
 	deps := scheduleSvc.TimetableDataDependencies{
 		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(db),
-		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(db),
+		ActivityInstanceRepo:  activityInstanceRepo,
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
 		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
 		InstanceStaffRepo:     scheduleRepo.NewInstanceStaffRepository(db),
@@ -46,7 +59,7 @@ func testTimetableDataWithOfferingCallbacks(
 		StaffRepo:             usersRepo.NewStaffRepository(db),
 		CalendarPeriodRepo:    scheduleRepo.NewCalendarPeriodRepository(db),
 		ActiveGroupRepo:       activeRepo.NewGroupRepository(db),
-		SupervisorRepo:        activeRepo.NewGroupSupervisorRepository(db),
+		SupervisorRepo:        supervisorRepo,
 		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),
 		ArrivalBaselines: scheduleSvc.NewArrivalBaselineService(
 			scheduleRepo.NewStudentArrivalScheduleRepository(db),
@@ -79,6 +92,7 @@ func testTimetableDataWithOfferingCallbacks(
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
 		RecoveryRepo:               scheduleRepo.NewActivityRecoveryRepository(db),
 		DB:                         db,
+		Today:                      today,
 	}
 	return scheduleSvc.NewTimetableDataService(deps)
 }
