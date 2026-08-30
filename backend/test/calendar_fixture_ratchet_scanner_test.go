@@ -48,7 +48,9 @@ type calendarPackageHelpers struct {
 }
 
 //nolint:staticcheck // The scanner deliberately relies on parser-resolved local bindings.
-type calendarVariables map[*ast.Object]bool
+type calendarObject = ast.Object
+
+type calendarVariables map[*calendarObject]bool
 
 type calendarHelperCandidate struct {
 	name             string
@@ -293,9 +295,8 @@ func calendarReceiverName(fn *ast.FuncDecl) string {
 	return expressionName(fn.Recv.List[0].Type)
 }
 
-//nolint:staticcheck // The scanner deliberately relies on parser-resolved local bindings.
-func calendarReceiverTypes(fn *ast.FuncDecl) map[*ast.Object]string {
-	types := map[*ast.Object]string{}
+func calendarReceiverTypes(fn *ast.FuncDecl) map[*calendarObject]string {
+	types := map[*calendarObject]string{}
 	recordCalendarFieldTypes(fn.Recv, types)
 	recordCalendarFieldTypes(fn.Type.Params, types)
 	for changed := true; changed; {
@@ -304,7 +305,7 @@ func calendarReceiverTypes(fn *ast.FuncDecl) map[*ast.Object]string {
 	return types
 }
 
-func recordCalendarFieldTypes(fields *ast.FieldList, types map[*ast.Object]string) {
+func recordCalendarFieldTypes(fields *ast.FieldList, types map[*calendarObject]string) {
 	if fields == nil {
 		return
 	}
@@ -317,7 +318,7 @@ func recordCalendarFieldTypes(fields *ast.FieldList, types map[*ast.Object]strin
 	}
 }
 
-func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*ast.Object]string) bool {
+func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*calendarObject]string) bool {
 	changed := false
 	ast.Inspect(body, func(node ast.Node) bool {
 		switch declaration := node.(type) {
@@ -342,7 +343,7 @@ func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*ast.Object]stri
 	return changed
 }
 
-func recordCalendarType(object *ast.Object, typeName string, types map[*ast.Object]string) bool {
+func recordCalendarType(object *calendarObject, typeName string, types map[*calendarObject]string) bool {
 	if object == nil || typeName == "" || types[object] != "" {
 		return false
 	}
@@ -350,7 +351,7 @@ func recordCalendarType(object *ast.Object, typeName string, types map[*ast.Obje
 	return true
 }
 
-func calendarExpressionType(expr ast.Expr, types map[*ast.Object]string) string {
+func calendarExpressionType(expr ast.Expr, types map[*calendarObject]string) string {
 	switch value := expr.(type) {
 	case *ast.CompositeLit:
 		return expressionName(value.Type)
@@ -362,7 +363,7 @@ func calendarExpressionType(expr ast.Expr, types map[*ast.Object]string) string 
 		if types != nil && types[value.Obj] != "" {
 			return types[value.Obj]
 		}
-		return calendarObjectType(value.Obj, types, map[*ast.Object]bool{})
+		return calendarObjectType(value.Obj, types, calendarVariables{})
 	case *ast.CallExpr:
 		if resultType := calendarFunctionResultType(value.Fun); resultType != "" {
 			return resultType
@@ -392,7 +393,7 @@ func calendarResultType(fn *ast.FuncDecl) string {
 	return expressionName(fn.Type.Results.List[0].Type)
 }
 
-func calendarObjectType(object *ast.Object, types map[*ast.Object]string, seen map[*ast.Object]bool) string {
+func calendarObjectType(object *calendarObject, types map[*calendarObject]string, seen calendarVariables) string {
 	if object == nil || seen[object] {
 		return ""
 	}
@@ -420,7 +421,7 @@ func calendarObjectType(object *ast.Object, types map[*ast.Object]string, seen m
 	return ""
 }
 
-func calendarCalledHelper(call *ast.CallExpr, receiverTypes map[*ast.Object]string) string {
+func calendarCalledHelper(call *ast.CallExpr, receiverTypes map[*calendarObject]string) string {
 	switch function := call.Fun.(type) {
 	case *ast.Ident:
 		return function.Name
@@ -709,7 +710,7 @@ func currentLiveCalendarRangeVariables(body *ast.BlockStmt, dateVars calendarVar
 	return rangeVars
 }
 
-func selectorRootObject(selector *ast.SelectorExpr, ok bool) (*ast.Object, bool) {
+func selectorRootObject(selector *ast.SelectorExpr, ok bool) (*calendarObject, bool) {
 	if !ok {
 		return nil, false
 	}
@@ -901,7 +902,7 @@ func currentCalendarInstantVariables(body *ast.BlockStmt, instantHelpers, timePa
 	return instantVars
 }
 
-func markCurrentInstant(object *ast.Object, value ast.Expr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool, fieldFilter func(ast.Expr) bool) bool {
+func markCurrentInstant(object *calendarObject, value ast.Expr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool, fieldFilter func(ast.Expr) bool) bool {
 	usesInstant := expressionUsesCalendarInstant(value, instantVars, instantHelpers, timePackages, timezonePackages)
 	if fieldFilter != nil {
 		usesInstant = expressionUsesWeeklyFixtureInstant(value, instantVars, instantHelpers, timePackages, timezonePackages)
@@ -984,7 +985,7 @@ func currentCalendarDateVariables(body *ast.BlockStmt, dateHelpers, timezonePack
 	return dateVars
 }
 
-func markCurrentDate(object *ast.Object, value ast.Expr, dateVars calendarVariables, dateHelpers, timezonePackages map[string]bool) bool {
+func markCurrentDate(object *calendarObject, value ast.Expr, dateVars calendarVariables, dateHelpers, timezonePackages map[string]bool) bool {
 	if object == nil || dateVars[object] || !expressionUsesTodayDate(value, dateVars, dateHelpers, timezonePackages) {
 		return false
 	}
@@ -1100,7 +1101,7 @@ func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.Fil
 	assignments := assignedCalendarExpressions(fn.Body)
 	sources := map[token.Pos]ast.Expr{}
 	for _, root := range weeklySummaryRoots(fn.Body) {
-		collectLiveInstantSources(root, assignments, instantHelpers, timePackages, timezonePackages, map[*ast.Object]bool{}, sources)
+		collectLiveInstantSources(root, assignments, instantHelpers, timePackages, timezonePackages, calendarVariables{}, sources)
 	}
 	positions := make([]token.Pos, 0, len(sources))
 	for position := range sources {
@@ -1114,8 +1115,8 @@ func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.Fil
 	return findings
 }
 
-func assignedCalendarExpressions(body *ast.BlockStmt) map[*ast.Object][]ast.Expr {
-	assignments := map[*ast.Object][]ast.Expr{}
+func assignedCalendarExpressions(body *ast.BlockStmt) map[*calendarObject][]ast.Expr {
+	assignments := map[*calendarObject][]ast.Expr{}
 	ast.Inspect(body, func(node ast.Node) bool {
 		switch declaration := node.(type) {
 		case *ast.AssignStmt:
@@ -1154,7 +1155,7 @@ func weeklySummaryRoots(body *ast.BlockStmt) []ast.Expr {
 	return roots
 }
 
-func collectLiveInstantSources(expr ast.Expr, assignments map[*ast.Object][]ast.Expr, instantHelpers, timePackages, timezonePackages map[string]bool, seen map[*ast.Object]bool, sources map[token.Pos]ast.Expr) {
+func collectLiveInstantSources(expr ast.Expr, assignments map[*calendarObject][]ast.Expr, instantHelpers, timePackages, timezonePackages map[string]bool, seen calendarVariables, sources map[token.Pos]ast.Expr) {
 	ast.Inspect(expr, func(node ast.Node) bool {
 		if field, ok := node.(*ast.KeyValueExpr); ok && !weeklyFixtureInstantField(field.Key) {
 			return false
