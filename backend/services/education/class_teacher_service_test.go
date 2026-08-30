@@ -20,11 +20,12 @@ func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
-		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
 		repos.Student,
+		repos.GroupSubstitution,
+		db,
 	)
 	// Same duck-typed wiring the service factory uses: assignment rewrites
 	// must land in the Stammdaten audit trail.

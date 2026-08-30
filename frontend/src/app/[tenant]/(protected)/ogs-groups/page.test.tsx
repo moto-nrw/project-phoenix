@@ -4262,37 +4262,11 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
     expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
   });
 
-  it("filters current user from transfer modal available users", async () => {
-    // Current user has personId "p1"
-    mockUserContext.mockReturnValue({
-      userContext: {
-        currentStaff: { id: "s1", personId: "p1" },
-      },
-      isLoading: false,
-      error: undefined,
-      isReady: true,
-    });
-
-    // Staff list includes the current user (personId "p1")
-
+  it("passes the module's narrow targets to the transfer modal", async () => {
     vi.mocked(groupTransferService.getAllAvailableStaff).mockResolvedValue([
       {
-        id: "s1",
-        personId: "p1",
-        firstName: "Current",
-        lastName: "User",
-        fullName: "Current User",
-        accountId: "a1",
-        email: "current@example.com",
-      },
-      {
         id: "s2",
-        personId: "p2",
-        firstName: "Other",
-        lastName: "Teacher",
         fullName: "Other Teacher",
-        accountId: "a2",
-        email: "other@example.com",
       },
     ]);
 
@@ -4319,15 +4293,38 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
       expect(groupTransferService.getAllAvailableStaff).toHaveBeenCalled();
     });
 
-    // The modal should receive only "Other Teacher", not "Current User"
     await waitFor(() => {
       const lastCall = mockTransferModalProps.mock.calls[
         mockTransferModalProps.mock.calls.length - 1
-      ] as [{ availableUsers: Array<{ personId: string; fullName: string }> }];
+      ] as [{ availableUsers: Array<{ id: string; fullName: string }> }];
       const passedUsers = lastCall?.[0]?.availableUsers;
       expect(passedUsers).toBeDefined();
       expect(passedUsers).toHaveLength(1);
       expect(passedUsers[0]?.fullName).toBe("Other Teacher");
+    });
+  });
+
+  it("passes transfer data load failures to the modal", async () => {
+    vi.mocked(groupTransferService.getAllAvailableStaff).mockRejectedValueOnce(
+      new Error("network failure"),
+    );
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ students: [] }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+    fireEvent.click(await screen.findByLabelText("Gruppe übergeben"));
+
+    await waitFor(() => {
+      const lastCall = mockTransferModalProps.mock.calls.at(-1) as
+        [{ loadError?: string }] | undefined;
+      expect(lastCall?.[0].loadError).toBe(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
     });
   });
 });

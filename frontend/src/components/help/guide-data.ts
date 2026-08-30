@@ -962,9 +962,9 @@ export const appChapters: readonly GuideChapter[] = [
   },
   {
     id: "raeume-team-vertretung",
-    title: "Räume, Team und Gruppenzugriff",
+    title: "Räume, Team und Gruppenübergaben",
     description:
-      "Den Überblick über Angebote, Räume und das Team behalten und kurzfristigen Gruppenzugriff organisieren.",
+      "Den Überblick über Angebote, Räume und das Team behalten und Gruppen vorübergehend übergeben.",
     icon: Building2,
     tone: "blue",
     steps: [
@@ -1206,26 +1206,25 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungen",
-        title: "Gruppenzugriff",
+        title: "Gruppenübergaben",
         icon: Repeat,
         summary:
-          "Gewährt verfügbaren Fachkräften vorübergehend Zugriff auf eine OGS-Gruppe, etwa wenn jemand kurzfristig einspringt (nur für Admins, nur bei Arbeit mit festen Gruppen).",
+          "Überträgt die Verantwortung für eine feste OGS-Gruppe vorübergehend an eine andere Betreuungskraft.",
         steps: [
-          "`Gruppenzugriff` öffnen.",
+          "`Gruppenübergaben` öffnen. Admins können alle Gruppen planen. Betreuungskräfte können nur ihre eigene Gruppe und nur den heutigen Tag übergeben.",
           "Filter `Verfügbar` wählen und eine Person suchen.",
           "In der Zeile der Person auf `Zuweisen` klicken.",
-          "`OGS-Gruppe` wählen und unter `Dauer` zwischen `Heute`, `3 Tage`, `1 Woche` oder `Individuell` entscheiden. Unter der Auswahl steht, bis wann der Zugriff gilt.",
+          "Admins wählen `Startdatum` und `OGS-Gruppe`. Unter `Dauer` stehen `1 Tag`, `3 Tage`, `1 Woche` und `Individuell` zur Auswahl. Unter der Auswahl steht, bis wann die Übergabe gilt.",
           "Mit `Zuweisen` speichern.",
-          "Nach Ende im aktiven Eintrag auf `Beenden` klicken.",
+          "Die ursprüngliche Gruppenleitung oder ein Admin kann die Übergabe mit `Beenden` löschen.",
         ],
         callout: {
-          title: "Zugriff ist keine Vertretungsplanung",
-          body: "Gruppenzugriff regelt nur, wer die Kinder einer fremden Gruppe sehen und betreuen darf. Wer Personalausfälle in geplanten Betreuungsblöcken organisiert, nutzt dafür den Bereich `Planung` -> `Vertretung`. Bei offener Betreuung ohne feste Gruppen wird dieser Bereich nicht angezeigt.",
+          title: "Verantwortung statt Datenzugriff",
+          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Die Berechtigung für Kinderdaten ändert sich nicht. Für Personalausfälle in geplanten Betreuungsblöcken nutzen Sie `Planung` -> `Vertretung`. Bei offener Betreuung wird dieser Bereich nicht angezeigt.",
           tone: "blue",
         },
         screenshot:
-          "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
-        image: "/help/screens/vertretungen.webp",
+          "Gruppenübergaben mit verfügbaren Fachkräften und dem Dialog `Gruppe übergeben`.",
       },
       {
         id: "abrechnung-vorbereiten",

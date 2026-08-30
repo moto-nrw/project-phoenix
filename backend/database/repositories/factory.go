@@ -98,9 +98,10 @@ type Factory struct {
 	StudentDocument userModels.StudentDocumentRepository
 
 	// School file storage (#2596)
-	FileFolder filestoreModels.FolderRepository
-	File       filestoreModels.FileRepository
-	FileEvent  auditModels.FileEventRepository
+	FileFolder         filestoreModels.FolderRepository
+	File               filestoreModels.FileRepository
+	FileEvent          auditModels.FileEventRepository
+	SubstitutionChange auditModels.SubstitutionChangeCreator
 
 	NotificationPreference userModels.NotificationPreferenceRepository
 
@@ -339,9 +340,10 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentDocument: users.NewStudentDocumentRepository(db),
 
 		// School file storage (#2596)
-		FileFolder: filestore.NewFolderRepository(db),
-		File:       filestore.NewFileRepository(db),
-		FileEvent:  audit.NewFileEventRepository(db),
+		FileFolder:         filestore.NewFolderRepository(db),
+		File:               filestore.NewFileRepository(db),
+		FileEvent:          audit.NewFileEventRepository(db),
+		SubstitutionChange: audit.NewSubstitutionChangeRepository(db),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 

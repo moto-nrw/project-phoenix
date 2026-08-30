@@ -9,13 +9,11 @@ const logger = createLogger({ component: "GroupTransferAPI" });
 // Staff member with role info for dropdown
 export interface StaffWithRole {
   id: string;
-  personId: string;
-  teacherId?: string;
-  firstName: string;
-  lastName: string;
   fullName: string;
-  accountId: string;
-  email: string;
+}
+
+export interface StaffGroupLeaderCandidate extends StaffWithRole {
+  teacherId?: string;
 }
 
 // Transfer info
@@ -28,28 +26,22 @@ export interface GroupTransfer {
 }
 
 // Backend response for staff by role
-interface BackendStaffWithRole {
+interface BackendHandoverTarget {
   id: number;
-  person_id: number;
-  teacher_id?: number;
-  first_name: string;
-  last_name: string;
   full_name: string;
-  account_id: number;
-  email: string;
+}
+
+interface BackendStaffGroupLeaderCandidate {
+  id: number;
+  teacher_id?: number;
+  full_name: string;
 }
 
 // Map backend response to frontend type
-function mapStaffWithRole(data: BackendStaffWithRole): StaffWithRole {
+function mapStaffWithRole(data: BackendHandoverTarget): StaffWithRole {
   return {
     id: data.id.toString(),
-    personId: data.person_id.toString(),
-    teacherId: data.teacher_id?.toString(),
-    firstName: data.first_name,
-    lastName: data.last_name,
     fullName: data.full_name,
-    accountId: data.account_id.toString(),
-    email: data.email,
   };
 }
 
@@ -58,76 +50,65 @@ export const groupTransferService = {
   // Uses the canonical caregiver pool so admin-only staff never appear here.
   async getAllAvailableStaff(): Promise<StaffWithRole[]> {
     try {
-      const response = await sessionFetch(`/api/staff/by-role?role=user`, {
+      const response = await sessionFetch(`/api/substitutions`, {
         method: "GET",
       });
 
       if (!response.ok) {
-        logger.error("fetch_staff_by_roles_failed", {
-          status: response.status,
-        });
-        return [];
+        throw new Error("Fachkräfte konnten nicht geladen werden.");
       }
 
       const data = (await response.json()) as {
-        data: BackendStaffWithRole[] | null;
+        targets?: BackendHandoverTarget[];
       };
 
-      if (!data.data || !Array.isArray(data.data)) {
-        return [];
+      if (!Array.isArray(data.targets)) {
+        throw new Error("Ungültige Antwort für verfügbare Fachkräfte.");
       }
 
-      return data.data.map(mapStaffWithRole);
+      return data.targets.map(mapStaffWithRole);
     } catch (error) {
       logger.error("fetch_all_available_staff_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      return [];
-    }
-  },
-
-  // Get staff members with a specific role (for dropdown)
-  async getStaffByRole(role: string): Promise<StaffWithRole[]> {
-    try {
-      const response = await sessionFetch(`/api/staff/by-role?role=${role}`, {
-        method: "GET",
-      });
-
-      if (!response.ok) {
-        const errorMessage = `Laden der Betreuer fehlgeschlagen`;
-        const error = new Error(errorMessage);
-        error.name = "FetchStaffError";
-        throw error;
-      }
-
-      const data = (await response.json()) as {
-        data: BackendStaffWithRole[] | null;
-      };
-
-      if (!data.data || !Array.isArray(data.data)) {
-        return [];
-      }
-
-      return data.data.map(mapStaffWithRole);
-    } catch (error) {
-      // Only log unexpected errors
-      if (error instanceof Error && error.name !== "FetchStaffError") {
-        logger.error("unexpected error fetching staff by role", {
-          role,
-          error: String(error),
-        });
-      }
       throw error;
     }
   },
 
-  // Transfer group to another user (until end of day)
-  async transferGroup(groupId: string, targetPersonId: string): Promise<void> {
+  // Group-leader replacement is a separate admin workflow. Keep only the
+  // staff/teacher identifiers and display name from its broader endpoint.
+  async getStaffByRole(role: string): Promise<StaffGroupLeaderCandidate[]> {
+    const response = await sessionFetch(
+      `/api/staff/by-role?role=${encodeURIComponent(role)}`,
+      { method: "GET" },
+    );
+    if (!response.ok) {
+      throw new Error("Fachkräfte konnten nicht geladen werden.");
+    }
+    const data = (await response.json()) as {
+      data: BackendStaffGroupLeaderCandidate[] | null;
+    };
+    if (!Array.isArray(data.data)) {
+      throw new Error("Ungültige Antwort für verfügbare Fachkräfte.");
+    }
+    return data.data.map((staff) => ({
+      id: staff.id.toString(),
+      teacherId: staff.teacher_id?.toString(),
+      fullName: staff.full_name,
+    }));
+  },
+
+  // Hand over responsibility for a group until the end of the Berlin school day.
+  async transferGroup(groupId: string, targetStaffId: string): Promise<void> {
     try {
-      const response = await sessionFetch(`/api/groups/${groupId}/transfer`, {
+      const response = await sessionFetch(`/api/substitutions`, {
         method: "POST",
         body: JSON.stringify({
-          target_user_id: Number.parseInt(targetPersonId, 10),
+          type: "group_handover",
+          group_handover: {
+            group_id: Number.parseInt(groupId, 10),
+            target_staff_id: Number.parseInt(targetStaffId, 10),
+          },
         }),
       });
 
@@ -156,113 +137,62 @@ export const groupTransferService = {
   },
 
   // Get all active transfers for a group (from substitutions)
-  async getActiveTransfersForGroup(
-    groupId: string,
-    _token?: string,
-  ): Promise<GroupTransfer[]> {
+  async getActiveTransfersForGroup(groupId: string): Promise<GroupTransfer[]> {
     try {
       const response = await sessionFetch(
-        `/api/groups/${groupId}/substitutions`,
-        {
-          method: "GET",
-        },
+        `/api/substitutions?group_id=${encodeURIComponent(groupId)}`,
+        { method: "GET" },
       );
 
       if (!response.ok) {
-        // Return empty array instead of throwing if not found
-        return [];
+        const errorData = (await response.json()) as { error?: string };
+        const error = new Error(
+          errorData.error ?? "Gruppenübergaben konnten nicht geladen werden.",
+        );
+        error.name = "FetchGroupTransfersError";
+        throw error;
       }
 
       const responseData = (await response.json()) as {
-        success?: boolean;
-        data?: Array<{
+        group_handovers: Array<{
           id: number;
-          group_id: number;
-          regular_staff_id: number | null;
-          substitute_staff_id: number;
-          substitute_staff?: {
-            person?: {
-              first_name: string;
-              last_name: string;
-            };
-          };
-          start_date: string;
-          end_date: string;
-        }> | null;
+          group: { id: number };
+          target: { id: number; full_name: string };
+          period: { end_date: string };
+        }>;
       };
 
-      // Handle both wrapped and unwrapped responses
-      let substitutionsList: Array<{
-        id: number;
-        group_id: number;
-        regular_staff_id: number | null;
-        substitute_staff_id: number;
-        substitute_staff?: {
-          person?: {
-            first_name: string;
-            last_name: string;
-          };
-        };
-        start_date: string;
-        end_date: string;
-      }> = [];
-
-      if (Array.isArray(responseData)) {
-        // Direct array response
-        substitutionsList = responseData;
-      } else if (responseData.data && Array.isArray(responseData.data)) {
-        // Wrapped response
-        substitutionsList = responseData.data;
-      } else {
-        logger.warn("unexpected response format for active transfers", {
-          group_id: groupId,
-        });
-        return [];
-      }
-
-      // Find ALL transfers (regular_staff_id IS NULL/undefined/missing)
-      // In Go, NULL values might be omitted from JSON or sent as null
-      const transfers = substitutionsList.filter(
-        (sub) => !sub.regular_staff_id,
-      );
-
-      const result = transfers.map((transfer) => {
-        const targetName = transfer.substitute_staff?.person
-          ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
-          : "Unbekannt";
-
-        return {
-          substitutionId: transfer.id.toString(),
-          groupId: transfer.group_id.toString(),
-          targetStaffId: transfer.substitute_staff_id.toString(),
-          targetName,
-          validUntil: transfer.end_date,
-        };
-      });
-
-      return result;
+      return responseData.group_handovers.map((handover) => ({
+        substitutionId: handover.id.toString(),
+        groupId: handover.group.id.toString(),
+        targetStaffId: handover.target.id.toString(),
+        targetName: handover.target.full_name,
+        validUntil: handover.period.end_date,
+      }));
     } catch (error) {
-      // Log unexpected errors only
-      logger.error("unexpected error getting active transfers", {
-        group_id: groupId,
-        error: String(error),
-      });
-      return [];
+      if (
+        !(error instanceof Error) ||
+        error.name !== "FetchGroupTransfersError"
+      ) {
+        logger.error("unexpected error getting active transfers", {
+          group_id: groupId,
+          error: String(error),
+        });
+      }
+      throw error;
     }
   },
 
   // Delete a specific transfer by substitution ID (with ownership check)
-  async cancelTransferBySubstitutionId(
-    groupId: string,
-    substitutionId: string,
-  ): Promise<void> {
+  async cancelTransferBySubstitutionId(substitutionId: string): Promise<void> {
     try {
-      const response = await sessionFetch(
-        `/api/groups/${groupId}/transfer/${substitutionId}`,
-        {
-          method: "DELETE",
-        },
-      );
+      const response = await sessionFetch(`/api/substitutions/end`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: "group_handover",
+          id: Number.parseInt(substitutionId, 10),
+        }),
+      });
 
       if (!response.ok) {
         const errorData = (await response.json()) as {
@@ -278,7 +208,6 @@ export const groupTransferService = {
       // Only log unexpected errors
       if (error instanceof Error && error.name !== "CancelTransferError") {
         logger.error("unexpected error cancelling transfer", {
-          group_id: groupId,
           substitution_id: substitutionId,
           error: String(error),
         });

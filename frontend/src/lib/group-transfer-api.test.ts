@@ -1,496 +1,98 @@
-/**
- * Tests for group-transfer-api.ts
- *
- * Tests the groupTransferService functions:
- * - getStaffByRole
- * - transferGroup
- * - getActiveTransfersForGroup
- * - cancelTransferBySubstitutionId
- */
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { MockInstance } from "vitest";
+const sessionFetch = vi.hoisted(() => vi.fn());
+vi.mock("./session-cache", () => ({ sessionFetch }));
 
-// Mock session-cache before importing the module
-vi.mock("./session-cache", () => {
-  const getCachedSession = vi.fn();
-  return {
-    getCachedSession,
-    clearSessionCache: vi.fn(),
-    sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
-      const session = (await getCachedSession()) as {
-        user?: { token?: string };
-      } | null;
-      const token = session?.user?.token;
-      if (!token) throw new Error("No authentication token available");
-      return fetch(url, {
-        ...init,
-        headers: {
-          "Content-Type": "application/json",
-          ...(init?.headers as Record<string, string> | undefined),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-    }),
-  };
-});
-
-// Import after mocking
-import { getCachedSession } from "./session-cache";
 import { groupTransferService } from "./group-transfer-api";
-import type { StaffWithRole, GroupTransfer } from "./group-transfer-api";
-
-const mockedGetSession = vi.mocked(getCachedSession);
 
 describe("groupTransferService", () => {
-  let fetchMock: MockInstance<typeof fetch>;
+  beforeEach(() => vi.clearAllMocks());
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fetchMock = vi.spyOn(globalThis, "fetch");
+  it("assigns a typed group handover", async () => {
+    sessionFetch.mockResolvedValue({ ok: true });
 
-    // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
+    await groupTransferService.transferGroup("12", "34");
+
+    expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "group_handover",
+        group_handover: { group_id: 12, target_staff_id: 34 },
+      }),
     });
   });
 
-  afterEach(() => {
-    fetchMock.mockRestore();
-  });
-
-  describe("getAllAvailableStaff", () => {
-    it("fetches all staff with a single multi-role request", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [
-              {
-                id: 1,
-                person_id: 10,
-                teacher_id: 101,
-                first_name: "Teacher",
-                last_name: "One",
-                full_name: "Teacher One",
-                account_id: 100,
-                email: "teacher1@example.com",
-              },
-              {
-                id: 2,
-                person_id: 20,
-                first_name: "Staff",
-                last_name: "Member",
-                full_name: "Staff Member",
-                account_id: 200,
-                email: "staff@example.com",
-              },
-              {
-                id: 3,
-                person_id: 30,
-                first_name: "User",
-                last_name: "Account",
-                full_name: "User Account",
-                account_id: 300,
-                email: "user@example.com",
-              },
-            ],
-          }),
-      } as Response);
-
-      const result = await groupTransferService.getAllAvailableStaff();
-
-      expect(result).toHaveLength(3);
-      expect(result.map((s) => s.id)).toEqual(["1", "2", "3"]);
-
-      // Single request against the canonical caregiver pool
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/staff/by-role?role=user",
-        expect.anything(),
-      );
-    });
-
-    it("maps backend response to frontend types correctly", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            data: [
-              {
-                id: 1,
-                person_id: 10,
-                teacher_id: 101,
-                first_name: "Multi",
-                last_name: "Role",
-                full_name: "Multi Role",
-                account_id: 100,
-                email: "multi@example.com",
-              },
-              {
-                id: 2,
-                person_id: 20,
-                first_name: "Unique",
-                last_name: "User",
-                full_name: "Unique User",
-                account_id: 200,
-                email: "unique@example.com",
-              },
-            ],
-          }),
-      } as Response);
-
-      const result = await groupTransferService.getAllAvailableStaff();
-
-      // Backend deduplicates; frontend maps int64 → string
-      expect(result).toHaveLength(2);
-      expect(result.map((s) => s.id)).toEqual(["1", "2"]);
-    });
-
-    it("returns empty array when request fails", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-      } as Response);
-
-      const result = await groupTransferService.getAllAvailableStaff();
-
-      // Single request failure returns empty array
-      expect(result).toEqual([]);
-    });
-
-    it("returns empty array when fetch throws", async () => {
-      fetchMock.mockRejectedValueOnce(new Error("Network error"));
-
-      const result = await groupTransferService.getAllAvailableStaff();
-
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe("getStaffByRole", () => {
-    it("returns mapped staff list on success", async () => {
-      const backendData = [
-        {
-          id: 1,
-          person_id: 10,
-          teacher_id: 11,
-          first_name: "Max",
-          last_name: "Mustermann",
-          full_name: "Max Mustermann",
-          account_id: 100,
-          email: "max@example.com",
-        },
-        {
-          id: 2,
-          person_id: 20,
-          first_name: "Anna",
-          last_name: "Schmidt",
-          full_name: "Anna Schmidt",
-          account_id: 200,
-          email: "anna@example.com",
-        },
-      ];
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: backendData }),
-      } as Response);
-
-      const result = await groupTransferService.getStaffByRole("teacher");
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual<StaffWithRole>({
-        id: "1",
-        personId: "10",
-        teacherId: "11",
-        firstName: "Max",
-        lastName: "Mustermann",
-        fullName: "Max Mustermann",
-        accountId: "100",
-        email: "max@example.com",
-      });
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/staff/by-role?role=teacher",
-        expect.objectContaining({
-          method: "GET",
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
-          }) as HeadersInit,
-        }),
-      );
-    });
-
-    it("returns empty array when data is null", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: null }),
-      } as Response);
-
-      const result = await groupTransferService.getStaffByRole("staff");
-
-      expect(result).toEqual([]);
-    });
-
-    it("throws error on fetch failure", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-      } as Response);
-
-      await expect(
-        groupTransferService.getStaffByRole("teacher"),
-      ).rejects.toThrow("Laden der Betreuer fehlgeschlagen");
-    });
-  });
-
-  describe("transferGroup", () => {
-    it("completes successfully", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      } as Response);
-
-      await expect(
-        groupTransferService.transferGroup("123", "456"),
-      ).resolves.toBeUndefined();
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/groups/123/transfer",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ target_user_id: 456 }),
-        }),
-      );
-    });
-
-    it("throws error with backend message on failure", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ error: "Gruppe bereits übertragen" }),
-      } as Response);
-
-      await expect(
-        groupTransferService.transferGroup("123", "456"),
-      ).rejects.toThrow("Gruppe bereits übertragen");
-    });
-
-    it("throws default error when no backend message", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({}),
-      } as Response);
-
-      await expect(
-        groupTransferService.transferGroup("123", "456"),
-      ).rejects.toThrow("Transfer fehlgeschlagen");
-    });
-  });
-
-  describe("getActiveTransfersForGroup", () => {
-    it("returns mapped transfers from wrapped response", async () => {
-      const backendData = [
-        {
-          id: 1,
-          group_id: 100,
-          regular_staff_id: null, // This is a transfer (no regular staff)
-          substitute_staff_id: 50,
-          substitute_staff: {
-            person: {
-              first_name: "Lisa",
-              last_name: "Müller",
-            },
+  it("maps the narrow overview projection", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        targets: [],
+        group_handovers: [
+          {
+            id: 5,
+            group: { id: 12 },
+            target: { id: 34, full_name: "Toni Test" },
+            period: { end_date: "2026-08-29" },
           },
-          start_date: "2024-01-01",
-          end_date: "2024-01-02",
-        },
-      ];
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: backendData }),
-      } as Response);
-
-      const result =
-        await groupTransferService.getActiveTransfersForGroup("100");
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual<GroupTransfer>({
-        substitutionId: "1",
-        groupId: "100",
-        targetStaffId: "50",
-        targetName: "Lisa Müller",
-        validUntil: "2024-01-02",
-      });
+        ],
+      }),
     });
 
-    it("returns mapped transfers from direct array response", async () => {
-      const backendData = [
-        {
-          id: 2,
-          group_id: 200,
-          regular_staff_id: null,
-          substitute_staff_id: 60,
-          substitute_staff: {
-            person: {
-              first_name: "Peter",
-              last_name: "Schmidt",
-            },
-          },
-          start_date: "2024-01-01",
-          end_date: "2024-01-03",
-        },
-      ];
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(backendData),
-      } as Response);
-
-      const result =
-        await groupTransferService.getActiveTransfersForGroup("200");
-
-      expect(result).toHaveLength(1);
-      expect(result[0]?.targetName).toBe("Peter Schmidt");
-    });
-
-    it("filters out regular substitutions (has regular_staff_id)", async () => {
-      const backendData = [
-        {
-          id: 1,
-          group_id: 100,
-          regular_staff_id: 30, // Not a transfer - has regular staff
-          substitute_staff_id: 50,
-          start_date: "2024-01-01",
-          end_date: "2024-01-02",
-        },
-        {
-          id: 2,
-          group_id: 100,
-          regular_staff_id: null, // This is a transfer
-          substitute_staff_id: 60,
-          substitute_staff: {
-            person: {
-              first_name: "Anna",
-              last_name: "Test",
-            },
-          },
-          start_date: "2024-01-01",
-          end_date: "2024-01-02",
-        },
-      ];
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: backendData }),
-      } as Response);
-
-      const result =
-        await groupTransferService.getActiveTransfersForGroup("100");
-
-      expect(result).toHaveLength(1);
-      expect(result[0]?.targetName).toBe("Anna Test");
-    });
-
-    it("returns empty array on fetch error", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-      } as Response);
-
-      const result =
-        await groupTransferService.getActiveTransfersForGroup("999");
-
-      expect(result).toEqual([]);
-    });
-
-    it("uses session token even when token parameter is provided", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
-
-      await groupTransferService.getActiveTransfersForGroup(
-        "100",
-        "custom-token",
-      );
-
-      // sessionFetch always uses the session token, the _token parameter is unused
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-token",
-          }) as HeadersInit,
-        }),
-      );
-    });
-
-    it("returns Unbekannt when substitute_staff.person is missing", async () => {
-      const backendData = [
-        {
-          id: 1,
-          group_id: 100,
-          regular_staff_id: null,
-          substitute_staff_id: 50,
-          // No substitute_staff.person
-          start_date: "2024-01-01",
-          end_date: "2024-01-02",
-        },
-      ];
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: backendData }),
-      } as Response);
-
-      const result =
-        await groupTransferService.getActiveTransfersForGroup("100");
-
-      expect(result[0]?.targetName).toBe("Unbekannt");
-    });
+    await expect(
+      groupTransferService.getActiveTransfersForGroup("12"),
+    ).resolves.toEqual([
+      {
+        substitutionId: "5",
+        groupId: "12",
+        targetStaffId: "34",
+        targetName: "Toni Test",
+        validUntil: "2026-08-29",
+      },
+    ]);
   });
 
-  describe("cancelTransferBySubstitutionId", () => {
-    it("completes successfully", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      } as Response);
-
-      await expect(
-        groupTransferService.cancelTransferBySubstitutionId("100", "1"),
-      ).resolves.toBeUndefined();
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/groups/100/transfer/1",
-        expect.objectContaining({
-          method: "DELETE",
-        }),
-      );
+  it("rejects malformed target data instead of showing nobody", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ targets: null, group_handovers: [] }),
     });
 
-    it("throws error with backend message on failure", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ error: "Nicht berechtigt" }),
-      } as Response);
+    await expect(groupTransferService.getAllAvailableStaff()).rejects.toThrow(
+      "Ungültige Antwort",
+    );
+  });
 
-      await expect(
-        groupTransferService.cancelTransferBySubstitutionId("100", "1"),
-      ).rejects.toThrow("Nicht berechtigt");
+  it("rejects malformed group-leader candidate data", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: null }),
     });
 
-    it("throws default error when no backend message", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({}),
-      } as Response);
+    await expect(groupTransferService.getStaffByRole("user")).rejects.toThrow(
+      "Ungültige Antwort",
+    );
+  });
 
-      await expect(
-        groupTransferService.cancelTransferBySubstitutionId("100", "1"),
-      ).rejects.toThrow("Löschen fehlgeschlagen");
+  it("does not hide overview failures as an empty list", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: "Keine Berechtigung" }),
+    });
+
+    await expect(
+      groupTransferService.getActiveTransfersForGroup("12"),
+    ).rejects.toThrow("Keine Berechtigung");
+  });
+
+  it("ends a typed group handover", async () => {
+    sessionFetch.mockResolvedValue({ ok: true });
+
+    await groupTransferService.cancelTransferBySubstitutionId("5");
+
+    expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions/end", {
+      method: "POST",
+      body: JSON.stringify({ type: "group_handover", id: 5 }),
     });
   });
 });

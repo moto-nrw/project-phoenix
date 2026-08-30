@@ -471,6 +471,11 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// ========================================
 		// Education domain cleanup (FK-dependent order)
 		// ========================================
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("audit.substitution_changes").
+			Where("group_id = ? OR target_staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"audit.substitution_changes")
 
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
@@ -1831,12 +1836,16 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	defer cancel()
 
 	substitution := &education.GroupSubstitution{
+		TargetType:        education.GroupSubstitutionTypeGroupHandover,
 		GroupID:           groupID,
 		RegularStaffID:    regularStaffID,
 		SubstituteStaffID: substituteStaffID,
 		StartDate:         startDate,
 		EndDate:           endDate,
 		Reason:            "Test substitution",
+	}
+	if regularStaffID != nil {
+		substitution.TargetType = education.GroupSubstitutionTypeLegacy
 	}
 	substitution.SetTenantID(fixtureTenantID(tb))
 

@@ -38,7 +38,6 @@ import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
@@ -171,7 +170,6 @@ function OGSGroupPageContent() {
   });
 
   const { success: showSuccessToast } = useToast();
-  const { userContext } = useUserContext();
   const { setGroupAttendanceCount } = useGroupAttendanceCounts();
 
   // Only binary-mode tenants expose the web check-in toggle; in detailed
@@ -249,6 +247,9 @@ function OGSGroupPageContent() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
   const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
+  const [transferLoadError, setTransferLoadError] = useState<string | null>(
+    null,
+  );
   const tenantMutate = useTenantMutate();
 
   // Single aggregated live fetch (#2056): one backend request returns groups,
@@ -478,72 +479,59 @@ function OGSGroupPageContent() {
     currentGroupRef.current = currentGroup;
   }, [currentGroup]);
 
-  // Load available users for transfer dropdown
-  // Query "teacher", "staff", and "user" roles to cover all deployment configurations
-  // Most production accounts use the "user" role (Nutzer)
-  const loadAvailableUsers = useCallback(async () => {
+  const loadTransferModalData = useCallback(async (groupId: string) => {
     try {
-      const users = await groupTransferService.getAllAvailableStaff();
+      const [users, transfers] = await Promise.all([
+        groupTransferService.getAllAvailableStaff(),
+        groupTransferService.getActiveTransfersForGroup(groupId),
+      ]);
       setAvailableUsers(users);
+      setActiveTransfers(transfers);
+      setTransferLoadError(null);
     } catch (error) {
-      logger.error("failed to load available users", {
+      logger.error("failed to load group handover modal", {
         error: error instanceof Error ? error.message : String(error),
       });
-      setAvailableUsers([]);
+      setTransferLoadError(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
     }
   }, []);
 
-  // Check if current group has active transfers
-  // Pass token to skip redundant getSession() call (saves ~600ms)
-  const checkActiveTransfers = useCallback(
-    async (groupId: string, token?: string) => {
-      try {
-        const transfers = await groupTransferService.getActiveTransfersForGroup(
-          groupId,
-          token,
-        );
-        setActiveTransfers(transfers);
-      } catch (error) {
-        logger.error("failed to check active transfers", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        setActiveTransfers([]);
-      }
-    },
-    [],
-  );
+  // Check if current group has active transfers.
+  const checkActiveTransfers = useCallback(async (groupId: string) => {
+    try {
+      const transfers =
+        await groupTransferService.getActiveTransfersForGroup(groupId);
+      setActiveTransfers(transfers);
+      setTransferLoadError(null);
+    } catch (error) {
+      logger.error("failed to check active transfers", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setTransferLoadError(
+        "Die Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+  }, []);
 
   // Load users when modal opens
   // IMPORTANT: Use currentGroupId as dependency, not currentGroup object
   // Otherwise setAllGroups() creates new object references and triggers this effect again
   useEffect(() => {
     if (showTransferModal && currentGroupId) {
-      loadAvailableUsers().catch((err: unknown) =>
-        logger.error("failed to load available users", {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      checkActiveTransfers(currentGroupId).catch((err: unknown) =>
-        logger.error("failed to check active transfers", {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+      void loadTransferModalData(currentGroupId);
     }
-  }, [
-    showTransferModal,
-    currentGroupId,
-    loadAvailableUsers,
-    checkActiveTransfers,
-  ]);
+  }, [showTransferModal, currentGroupId, loadTransferModalData]);
 
   // Handle group transfer
   const handleTransferGroup = async (
-    targetPersonId: string,
+    targetStaffId: string,
     targetName: string,
   ) => {
     if (!currentGroup) return;
 
-    await groupTransferService.transferGroup(currentGroup.id, targetPersonId);
+    await groupTransferService.transferGroup(currentGroup.id, targetStaffId);
 
     // Reload transfers for this group to show updated list
     await checkActiveTransfers(currentGroup.id);
@@ -571,12 +559,7 @@ function OGSGroupPageContent() {
     );
     const recipientName = transfer?.targetName ?? "Betreuer";
 
-    // Use the secure ownership-checked endpoint instead of direct substitution deletion
-    // This ensures only the original group leader can cancel transfers
-    await groupTransferService.cancelTransferBySubstitutionId(
-      currentGroup.id,
-      substitutionId,
-    );
+    await groupTransferService.cancelTransferBySubstitutionId(substitutionId);
 
     // Reload transfers for this group
     await checkActiveTransfers(currentGroup.id);
@@ -1215,21 +1198,11 @@ function OGSGroupPageContent() {
               }
             : null
         }
-        availableUsers={
-          userContext?.currentStaff?.personId
-            ? availableUsers.filter(
-                (u) => u.personId !== userContext.currentStaff!.personId,
-              )
-            : availableUsers
-        }
+        availableUsers={availableUsers}
+        loadError={transferLoadError}
         onTransfer={handleTransferGroup}
         existingTransfers={activeTransfers}
         onCancelTransfer={handleCancelTransfer}
-        onRefreshTransfers={
-          currentGroup
-            ? async () => checkActiveTransfers(currentGroup.id)
-            : undefined
-        }
       />
     </>
   );

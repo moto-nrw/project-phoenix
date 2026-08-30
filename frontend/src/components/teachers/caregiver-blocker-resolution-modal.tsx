@@ -16,7 +16,7 @@ import type {
 } from "~/lib/caregiver-capability-api";
 import {
   groupTransferService,
-  type StaffWithRole,
+  type StaffGroupLeaderCandidate,
 } from "~/lib/group-transfer-api";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -45,14 +45,16 @@ async function endActiveSupervision(id: string): Promise<void> {
   }
 }
 
-async function deleteSubstitution(id: string): Promise<void> {
-  const response = await fetch(`/api/substitutions/${encodeURIComponent(id)}`, {
-    method: "DELETE",
+async function endGroupHandover(id: string): Promise<void> {
+  const response = await fetch("/api/substitutions/end", {
+    method: "POST",
     credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: "group_handover", id: Number(id) }),
   });
   if (!response.ok) {
     throw new Error(
-      `Vertretung konnte nicht entfernt werden (${response.status})`,
+      `Gruppenübergabe konnte nicht beendet werden (${response.status})`,
     );
   }
 }
@@ -146,7 +148,9 @@ export function CaregiverBlockerResolutionModal({
   onResolved,
 }: CaregiverBlockerResolutionModalProps) {
   const { success: toastSuccess } = useToast();
-  const [availableStaff, setAvailableStaff] = useState<StaffWithRole[]>([]);
+  const [availableStaff, setAvailableStaff] = useState<
+    StaffGroupLeaderCandidate[]
+  >([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
 
   const [supervisions, setSupervisions] = useState<BlockerSupervision[]>([]);
@@ -163,6 +167,7 @@ export function CaregiverBlockerResolutionModal({
 
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [staffLoadError, setStaffLoadError] = useState("");
 
   const totalRemaining =
     supervisions.length +
@@ -173,12 +178,16 @@ export function CaregiverBlockerResolutionModal({
   const loadStaff = useCallback(async () => {
     try {
       setLoadingStaff(true);
-      const staff = await groupTransferService.getAllAvailableStaff();
+      const staff = await groupTransferService.getStaffByRole("user");
       setAvailableStaff(staff.filter((s) => s.id !== state.staffId));
+      setStaffLoadError("");
     } catch (error) {
       logger.error("failed to load available staff", {
         error: error instanceof Error ? error.message : String(error),
       });
+      setStaffLoadError(
+        "Ersatzkräfte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
     } finally {
       setLoadingStaff(false);
     }
@@ -193,6 +202,7 @@ export function CaregiverBlockerResolutionModal({
     setActivityReplacements({});
     setGroupReplacements({});
     setErrorMessage("");
+    setStaffLoadError("");
     void loadStaff();
   }, [isOpen, state, loadStaff]);
 
@@ -228,9 +238,9 @@ export function CaregiverBlockerResolutionModal({
     try {
       setItemProcessing(key, true);
       setErrorMessage("");
-      await deleteSubstitution(item.id);
+      await endGroupHandover(item.id);
       setSubstitutions((prev) => prev.filter((s) => s.id !== item.id));
-      toastSuccess(`Vertretung für "${item.groupName}" entfernt.`);
+      toastSuccess(`Gruppenübergabe für "${item.groupName}" beendet.`);
     } catch (error) {
       logger.error("failed to end substitution", {
         id: item.id,
@@ -239,7 +249,7 @@ export function CaregiverBlockerResolutionModal({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Fehler beim Entfernen der Vertretung.",
+          : "Fehler beim Beenden der Gruppenübergabe.",
       );
     } finally {
       setItemProcessing(key, false);
@@ -413,14 +423,14 @@ export function CaregiverBlockerResolutionModal({
           </InfoSection>
         ) : null}
 
-        {/* Active substitutions */}
+        {/* Active group handovers */}
         {substitutions.length > 0 ? (
           <InfoSection
-            title={`Aktive Vertretungen (${substitutions.length})`}
+            title={`Aktive Gruppenübergaben (${substitutions.length})`}
             icon={
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.substitution.icon}
-                tone={MOTO_CONCEPTS.substitution.tone}
+                icon={MOTO_CONCEPTS.groupAccess.icon}
+                tone={MOTO_CONCEPTS.groupAccess.tone}
                 size={18}
               />
             }
@@ -439,10 +449,7 @@ export function CaregiverBlockerResolutionModal({
                         {item.groupName}
                       </span>
                       <span className="ml-2 text-xs text-gray-500">
-                        {item.role === "substitute"
-                          ? "Vertretung"
-                          : "Stammkraft"}{" "}
-                        ({item.startDate} — {item.endDate})
+                        {item.startDate} — {item.endDate}
                       </span>
                     </div>
                     <button
@@ -593,7 +600,7 @@ export function CaregiverBlockerResolutionModal({
           </InfoSection>
         ) : null}
 
-        <Alert type="error" message={errorMessage} />
+        <Alert type="error" message={errorMessage || staffLoadError} />
       </div>
     </FormModal>
   );
