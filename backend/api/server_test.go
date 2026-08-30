@@ -2,13 +2,31 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+type blockingScheduler struct {
+	release <-chan struct{}
+}
+
+func (scheduler blockingScheduler) Start() {}
+
+func (scheduler blockingScheduler) Stop() {
+	<-scheduler.release
+}
+
+type testListener struct{}
+
+func (testListener) Accept() (net.Conn, error) { return nil, net.ErrClosed }
+func (testListener) Close() error              { return nil }
+func (testListener) Addr() net.Addr            { return &net.TCPAddr{} }
 
 func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
@@ -88,4 +106,26 @@ func TestRuntimeServeReturnsListenFailure(t *testing.T) {
 	err = runtime.Serve(context.Background())
 
 	require.ErrorContains(t, err, "listen on")
+}
+
+func TestRuntimeShutdownWaitsForSchedulerBeforeReturning(t *testing.T) {
+	releaseScheduler := make(chan struct{})
+	runtime := &Runtime{
+		server:    &http.Server{},
+		scheduler: blockingScheduler{release: releaseScheduler},
+		logger:    slog.Default(),
+	}
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- runtime.shutdownWithTimeout(testListener{}, errors.New("test shutdown"), 50*time.Millisecond)
+	}()
+
+	select {
+	case err := <-shutdownDone:
+		t.Fatalf("shutdown returned before scheduler stopped: %v", err)
+	case <-time.After(75 * time.Millisecond):
+	}
+
+	close(releaseScheduler)
+	require.NoError(t, <-shutdownDone)
 }

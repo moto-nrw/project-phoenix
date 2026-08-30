@@ -31,10 +31,17 @@ type ServeConfig struct {
 type Runtime struct {
 	server         *http.Server
 	api            *API
-	scheduler      *scheduler.Scheduler
+	scheduler      backgroundScheduler
 	capacityLogger *capacityLogger
 	tracker        analytics.Tracker
 	logger         *slog.Logger
+}
+
+// backgroundScheduler is the lifecycle contract Runtime needs from its worker
+// graph. Serve must wait for Stop before it releases shared resources.
+type backgroundScheduler interface {
+	Start()
+	Stop()
 }
 
 // WithRuntime constructs one production Serve graph, runs fn, and releases all
@@ -314,11 +321,7 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 		runErr = runtime.shutdown(listener, ctx.Err())
 	}
 
-	if runtime.scheduler != nil {
-		stopCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		runErr = errors.Join(runErr, runtime.stopScheduler(stopCtx))
-		cancel()
-	}
+	runtime.stopScheduler()
 	if runErr == nil {
 		runtime.logger.Info("server gracefully stopped")
 	}
@@ -336,43 +339,46 @@ func (runtime *Runtime) startBackground(capacityCtx context.Context) {
 }
 
 func (runtime *Runtime) shutdown(listener net.Listener, reason error) error {
+	return runtime.shutdownWithTimeout(listener, reason, shutdownTimeout)
+}
+
+func (runtime *Runtime) shutdownWithTimeout(listener net.Listener, reason error, timeout time.Duration) error {
 	runtime.logger.Info("server shutting down", slog.String("reason", reason.Error()))
 	listenerErr := listener.Close()
 	if errors.Is(listenerErr, net.ErrClosed) {
 		listenerErr = nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	// Scheduler jobs can still use the tracker and database pool. Keep Serve
+	// alive until they stop, while giving HTTP requests their own full drain
+	// deadline.
+	schedulerStopped := make(chan struct{})
+	go func() {
+		runtime.stopScheduler()
+		close(schedulerStopped)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	schedulerErr := runtime.stopScheduler(ctx)
 	if err := runtime.server.Shutdown(ctx); err != nil {
+		<-schedulerStopped
 		return errors.Join(
 			listenerErr,
-			schedulerErr,
 			fmt.Errorf("shutdown HTTP server: %w", err),
 			runtime.server.Close(),
 		)
 	}
-	return errors.Join(listenerErr, schedulerErr)
+	<-schedulerStopped
+	return listenerErr
 }
 
-func (runtime *Runtime) stopScheduler(ctx context.Context) error {
+func (runtime *Runtime) stopScheduler() {
 	if runtime.scheduler == nil {
-		return nil
+		return
 	}
 	scheduler := runtime.scheduler
 	runtime.scheduler = nil
-	stopped := make(chan struct{})
-	go func() {
-		scheduler.Stop()
-		close(stopped)
-	}()
-	select {
-	case <-stopped:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("stop scheduler: %w", ctx.Err())
-	}
+	scheduler.Stop()
 }
 
 func (runtime *Runtime) closeResources() error {
