@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	auditRetentionCapabilitiesVersion     = "1.15.352"
+	auditRetentionCapabilitiesVersion     = "1.15.353"
 	auditRetentionCapabilitiesDescription = "Move audit retention deletes behind tenant-bound database capabilities (#2850)"
 )
 
