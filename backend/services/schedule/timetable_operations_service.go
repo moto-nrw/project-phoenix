@@ -807,6 +807,13 @@ func (s *timetableOperationsService) requireCanView(ctx context.Context, account
 		return 0, err
 	}
 	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+		inst, err := s.loadInstance(ctx, instanceID)
+		if err != nil {
+			return 0, err
+		}
+		if inst.Status != scheduleModel.InstanceStatusActive || inst.ActiveGroupID == nil {
+			return 0, ErrTimetableOperationForbidden
+		}
 		return staffID, nil
 	}
 	if !hasStaff {

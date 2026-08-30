@@ -69,3 +69,67 @@ func TestOperationalOverviewTwoModesPreservesExistingSchools(t *testing.T) {
 	`, adminsTenant, allStaffTenant, ownTenant, missingTenant, operationalOverviewScopeKey).Scan(ctx, &auditCount))
 	assert.Equal(t, 2, auditCount, "only the canonicalized and newly pinned values need audit entries")
 }
+
+func TestOperationalOverviewTwoModesRollbackRestoresOnlyUntouchedAdminsScope(t *testing.T) {
+	t.Parallel()
+	operationalOverviewMigrationTests.Lock()
+	defer operationalOverviewMigrationTests.Unlock()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+
+	untouchedTenant, _ := testpkg.CreateTestTenant(t, db)
+	changedTenant, _ := testpkg.CreateTestTenant(t, db)
+	resetTenant, _ := testpkg.CreateTestTenant(t, db)
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES
+			(?, ?, '"admins"'::jsonb),
+			(?, ?, '"admins"'::jsonb),
+			(?, ?, '"admins"'::jsonb)
+	`,
+		untouchedTenant, operationalOverviewScopeKey,
+		changedTenant, operationalOverviewScopeKey,
+		resetTenant, operationalOverviewScopeKey,
+	).Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, operationalOverviewTwoModesUp(ctx, db))
+
+	changedBy := int64(1)
+	_, err = db.NewRaw(`
+		UPDATE config.setting_values
+		SET value = '"all_staff"'::jsonb
+		WHERE tenant_id = ? AND setting_key = ?;
+		DELETE FROM config.setting_values
+		WHERE tenant_id = ? AND setting_key = ?;
+		INSERT INTO config.setting_audit (tenant_id, setting_key, old_value, new_value, action, changed_by) VALUES
+			(?, ?, '"own"'::jsonb, '"all_staff"'::jsonb, 'set', ?),
+			(?, ?, '"own"'::jsonb, NULL, 'reset', ?);
+	`,
+		changedTenant, operationalOverviewScopeKey,
+		resetTenant, operationalOverviewScopeKey,
+		changedTenant, operationalOverviewScopeKey, changedBy,
+		resetTenant, operationalOverviewScopeKey, changedBy,
+	).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, operationalOverviewTwoModesDown(ctx, db))
+
+	scopeOf := func(tenantID int64) *string {
+		t.Helper()
+		var scope string
+		err := db.NewRaw(`
+			SELECT value #>> '{}'
+			FROM config.setting_values
+			WHERE tenant_id = ? AND setting_key = ?
+		`, tenantID, operationalOverviewScopeKey).Scan(ctx, &scope)
+		if err != nil {
+			return nil
+		}
+		return &scope
+	}
+
+	assert.Equal(t, "admins", *scopeOf(untouchedTenant))
+	assert.Equal(t, "all_staff", *scopeOf(changedTenant))
+	assert.Nil(t, scopeOf(resetTenant))
+}

@@ -1353,6 +1353,43 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		assert.Empty(t, deps.instanceService.completed)
 	})
 
+	t.Run("all_staff scope rejects non-running rosters", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			name     string
+			instance *scheduleModel.ActivityInstance
+		}{
+			{
+				name:     "planned",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "completed",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted, now.Add(-time.Hour), now),
+			},
+			{
+				name:     "cancelled",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCancelled, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "active without active group",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusActive, now, now.Add(time.Hour)),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				deps := newTimetableOpsDeps()
+				deps.settings.scope = configModel.OverviewScopeAllStaff
+				wireAssignedStaff(deps, 694, 516, 275, instanceID)
+				deps.staffRepo.byInstance[instanceID] = nil
+				deps.instanceRepo.byID[instanceID] = tc.instance
+
+				_, err := deps.service.Roster(context.Background(), 694, false, instanceID)
+
+				require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+			})
+		}
+	})
+
 	// The organisational group mode no longer opens running modules (#2380):
 	// on its own it leaves the school on the restrictive default.
 	t.Run("open care alone does not open foreign modules", func(t *testing.T) {

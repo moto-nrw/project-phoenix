@@ -62,13 +62,41 @@ func operationalOverviewTwoModesUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// Stored values may have been changed after rollout and the audit table has no
-// migration identifier. Keeping the explicit values is safer than guessing
-// which tenant changes a rollback should undo.
-func operationalOverviewTwoModesDown(_ context.Context, _ *bun.DB) error {
-	slog.Info("migration rollback keeps existing values",
+func operationalOverviewTwoModesDown(ctx context.Context, db *bun.DB) error {
+	slog.Info("migration rollback restores untouched admin scopes",
 		slog.String("migration", operationalOverviewTwoModesVersion),
-		slog.String("detail", "operational overview scope values are retained"),
+		slog.String("detail", "restoring admins scopes without later setting changes"),
 	)
+
+	if _, err := db.NewRaw(`
+		WITH migration_changes AS (
+			SELECT id, tenant_id
+			FROM config.setting_audit
+			WHERE setting_key = ?
+				AND action = 'set'
+				AND changed_by IS NULL
+				AND old_value = '"admins"'::jsonb
+				AND new_value = '"own"'::jsonb
+		), unchanged AS (
+			SELECT migration_changes.tenant_id
+			FROM migration_changes
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM config.setting_audit AS later
+				WHERE later.tenant_id = migration_changes.tenant_id
+					AND later.setting_key = ?
+					AND later.id > migration_changes.id
+			)
+		)
+		UPDATE config.setting_values AS stored
+		SET value = '"admins"'::jsonb
+		FROM unchanged
+		WHERE stored.tenant_id = unchanged.tenant_id
+			AND stored.setting_key = ?
+			AND stored.value = '"own"'::jsonb;
+	`, operationalOverviewScopeKey, operationalOverviewScopeKey, operationalOverviewScopeKey).Exec(ctx); err != nil {
+		return fmt.Errorf("restore operational overview admin scopes: %w", err)
+	}
+
 	return nil
 }
