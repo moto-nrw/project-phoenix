@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -42,6 +43,19 @@ type Runtime struct {
 type backgroundScheduler interface {
 	Start()
 	Stop()
+}
+
+// startupListener signals after http.Server has registered the listener and is
+// ready to accept connections. Shutdown must not begin before that point.
+type startupListener struct {
+	net.Listener
+	started chan struct{}
+	once    sync.Once
+}
+
+func (listener *startupListener) Accept() (net.Conn, error) {
+	listener.once.Do(func() { close(listener.started) })
+	return listener.Listener.Accept()
 }
 
 // WithRuntime constructs one production Serve graph, runs fn, and releases all
@@ -306,20 +320,21 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 	runtime.startBackground(capacityCtx)
 
 	serveErr := make(chan error, 1)
+	servingListener := &startupListener{Listener: listener, started: make(chan struct{})}
 	go func() {
 		runtime.logger.Info("server listening", slog.String("addr", runtime.server.Addr))
-		serveErr <- runtime.server.Serve(listener)
+		serveErr <- runtime.server.Serve(servingListener)
 	}()
+	select {
+	case <-servingListener.started:
+	case err := <-serveErr:
+		return runtime.handleServeExit(err)
+	}
 
 	var runErr error
 	select {
 	case err := <-serveErr:
-		shutdownErr := runtime.shutdown(err)
-		if !errors.Is(err, http.ErrServerClosed) {
-			runErr = errors.Join(fmt.Errorf("serve HTTP: %w", err), shutdownErr)
-		} else {
-			runErr = shutdownErr
-		}
+		runErr = runtime.handleServeExit(err)
 	case <-ctx.Done():
 		runErr = runtime.shutdown(ctx.Err())
 	}
@@ -328,6 +343,14 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 		runtime.logger.Info("server gracefully stopped")
 	}
 	return runErr
+}
+
+func (runtime *Runtime) handleServeExit(err error) error {
+	shutdownErr := runtime.shutdown(err)
+	if errors.Is(err, http.ErrServerClosed) {
+		return shutdownErr
+	}
+	return errors.Join(fmt.Errorf("serve HTTP: %w", err), shutdownErr)
 }
 
 func (runtime *Runtime) startBackground(capacityCtx context.Context) {

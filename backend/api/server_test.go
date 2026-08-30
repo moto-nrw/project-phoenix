@@ -149,3 +149,18 @@ func TestRuntimeShutdownLetsServerCloseItsListener(t *testing.T) {
 	require.NoError(t, runtime.shutdown(errors.New("test shutdown")))
 	require.ErrorIs(t, <-serveDone, http.ErrServerClosed)
 }
+
+func TestRuntimeServeReturnsNilAfterCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	runtime := &Runtime{
+		server: &http.Server{Addr: "127.0.0.1:0"},
+		logger: slog.Default(),
+	}
+	serveDone := make(chan error, 1)
+	go func() { serveDone <- runtime.Serve(ctx) }()
+
+	cancel()
+	require.NoError(t, <-serveDone)
+}

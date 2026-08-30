@@ -16704,7 +16704,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        80
+        94
       ],
       "tables": []
     },
@@ -16714,7 +16714,7 @@
       "declaration": "newScheduler",
       "target": "services/scheduler.NewScheduler",
       "lines": [
-        146
+        160
       ],
       "tables": []
     },
