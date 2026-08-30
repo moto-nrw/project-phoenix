@@ -17703,8 +17703,8 @@
       "declaration": "TestWithRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        73,
-        84
+        67,
+        78
       ],
       "tables": []
     },

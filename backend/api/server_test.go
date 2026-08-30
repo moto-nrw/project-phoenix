@@ -22,12 +22,6 @@ func (scheduler blockingScheduler) Stop() {
 	<-scheduler.release
 }
 
-type testListener struct{}
-
-func (testListener) Accept() (net.Conn, error) { return nil, net.ErrClosed }
-func (testListener) Close() error              { return nil }
-func (testListener) Addr() net.Addr            { return &net.TCPAddr{} }
-
 func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +113,7 @@ func TestRuntimeShutdownWaitsForSchedulerBeforeReturning(t *testing.T) {
 	}
 	shutdownDone := make(chan error, 1)
 	go func() {
-		shutdownDone <- runtime.shutdownWithTimeout(testListener{}, errors.New("test shutdown"), 50*time.Millisecond)
+		shutdownDone <- runtime.shutdownWithTimeout(errors.New("test shutdown"), 50*time.Millisecond)
 	}()
 
 	select {
@@ -130,4 +124,28 @@ func TestRuntimeShutdownWaitsForSchedulerBeforeReturning(t *testing.T) {
 
 	close(releaseScheduler)
 	require.NoError(t, <-shutdownDone)
+}
+
+func TestRuntimeShutdownLetsServerCloseItsListener(t *testing.T) {
+	t.Parallel()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	runtime := &Runtime{
+		server: &http.Server{Handler: http.NotFoundHandler()},
+		logger: slog.Default(),
+	}
+	serveDone := make(chan error, 1)
+	go func() { serveDone <- runtime.server.Serve(listener) }()
+
+	require.Eventually(t, func() bool {
+		connection, err := net.Dial("tcp", listener.Addr().String())
+		if err != nil {
+			return false
+		}
+		return connection.Close() == nil
+	}, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, runtime.shutdown(errors.New("test shutdown")))
+	require.ErrorIs(t, <-serveDone, http.ErrServerClosed)
 }

@@ -314,14 +314,16 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 	var runErr error
 	select {
 	case err := <-serveErr:
+		shutdownErr := runtime.shutdown(err)
 		if !errors.Is(err, http.ErrServerClosed) {
-			runErr = fmt.Errorf("serve HTTP: %w", err)
+			runErr = errors.Join(fmt.Errorf("serve HTTP: %w", err), shutdownErr)
+		} else {
+			runErr = shutdownErr
 		}
 	case <-ctx.Done():
-		runErr = runtime.shutdown(listener, ctx.Err())
+		runErr = runtime.shutdown(ctx.Err())
 	}
 
-	runtime.stopScheduler()
 	if runErr == nil {
 		runtime.logger.Info("server gracefully stopped")
 	}
@@ -338,16 +340,12 @@ func (runtime *Runtime) startBackground(capacityCtx context.Context) {
 	}
 }
 
-func (runtime *Runtime) shutdown(listener net.Listener, reason error) error {
-	return runtime.shutdownWithTimeout(listener, reason, shutdownTimeout)
+func (runtime *Runtime) shutdown(reason error) error {
+	return runtime.shutdownWithTimeout(reason, shutdownTimeout)
 }
 
-func (runtime *Runtime) shutdownWithTimeout(listener net.Listener, reason error, timeout time.Duration) error {
+func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration) error {
 	runtime.logger.Info("server shutting down", slog.String("reason", reason.Error()))
-	listenerErr := listener.Close()
-	if errors.Is(listenerErr, net.ErrClosed) {
-		listenerErr = nil
-	}
 
 	// Scheduler jobs can still use the tracker and database pool. Keep Serve
 	// alive until they stop, while giving HTTP requests their own full drain
@@ -363,13 +361,12 @@ func (runtime *Runtime) shutdownWithTimeout(listener net.Listener, reason error,
 	if err := runtime.server.Shutdown(ctx); err != nil {
 		<-schedulerStopped
 		return errors.Join(
-			listenerErr,
 			fmt.Errorf("shutdown HTTP server: %w", err),
 			runtime.server.Close(),
 		)
 	}
 	<-schedulerStopped
-	return listenerErr
+	return nil
 }
 
 func (runtime *Runtime) stopScheduler() {
