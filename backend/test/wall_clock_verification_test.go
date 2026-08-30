@@ -209,7 +209,7 @@ func isImportedCall(expr ast.Expr, packageNames map[string]bool, functionName st
 		return false
 	}
 	pkg, ok := selector.X.(*ast.Ident)
-	return ok && packageNames[pkg.Name]
+	return ok && pkg.Obj == nil && packageNames[pkg.Name]
 }
 
 func timeImportNames(file *ast.File) (map[string]bool, map[string]bool) {

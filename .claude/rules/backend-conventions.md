@@ -317,7 +317,7 @@ Placement rules: mocks for `models/*` interfaces go in `test/` (imports models o
 
 **RULE: Calendar-date, date-range, weekday, and ISO-week expectations in backend tests use fixed Berlin dates or instants.** Do not derive them from `time.Now()` or `timezone.TodayDate()`: a test that is green at noon can cross midnight or Sunday/Monday in CI. Prefer `timezone.NewDate(...).BerlinMidnight()` for a Berlin instant, `timezone.NewDate(...)` for a calendar date, or `time.Date(...)` for an explicit instant.
 
-`backend/test/calendar_fixture_ratchet_test.go` (`TestCalendarFixtureClockRatchet`) parses imports and Go syntax in `_test.go` files. It follows local aliases and rejects live-clock values that feed date conversion, date/week-sensitive operations, or weekly-summary fixtures. Comments, strings, unrelated `Now` methods, fixed values, and non-test files are ignored. The check is part of the existing CI command:
+`backend/test/calendar_fixture_ratchet_test.go` (`TestCalendarFixtureClockRatchet`) parses imports and Go syntax in `_test.go` files. It follows imported aliases, assigned values, and same-file date helpers. The ratchet rejects live-clock values used in date conversion, date-range calls or structs, date assertions, day/ISO-week operations, and weekly-summary fixture times. Comments, strings, shadowed import names, unrelated `Now` methods, fixed values, and non-test files are ignored. The check is part of the existing CI command:
 
 ```bash
 cd backend && go test ./test -run Ratchet -count=1

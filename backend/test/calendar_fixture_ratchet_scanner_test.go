@@ -6,8 +6,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	pathpkg "path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -18,7 +20,7 @@ type calendarClockFinding struct {
 	risk     string
 }
 
-func scanCalendarFixtureClockRisks(root string, exceptions map[string]string) ([]calendarClockFinding, error) {
+func scanCalendarFixtureClockRisks(root string) ([]calendarClockFinding, error) {
 	fset := token.NewFileSet()
 	var findings []calendarClockFinding
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -45,7 +47,26 @@ func scanCalendarFixtureClockRisks(root string, exceptions map[string]string) ([
 	if err != nil {
 		return nil, err
 	}
-	return applyCalendarClockExceptions(findings, exceptions)
+	return findings, nil
+}
+
+func applyCalendarClockLegacyBaseline(findings []calendarClockFinding, baseline map[string]string) ([]calendarClockFinding, error) {
+	matched := make(map[string]bool, len(baseline))
+	kept := findings[:0]
+	for _, finding := range findings {
+		key := finding.file + ":" + finding.function
+		if _, ok := baseline[key]; ok {
+			matched[key] = true
+			continue
+		}
+		kept = append(kept, finding)
+	}
+	for key := range baseline {
+		if !matched[key] {
+			return nil, fmt.Errorf("legacy calendar fixture clock baseline %q has no matching finding", key)
+		}
+	}
+	return kept, nil
 }
 
 func applyCalendarClockExceptions(findings []calendarClockFinding, exceptions map[string]string) ([]calendarClockFinding, error) {
@@ -87,33 +108,79 @@ func scanCalendarFixtureFile(root, path string, fset *token.FileSet) ([]calendar
 		rel = path
 	}
 	timePackages, timezonePackages := timeImportNames(file)
+	assertionPackages := assertionImportNames(file)
+	functions := declaredFunctions(file)
+	dateHelpers := liveDateHelpers(functions, timezonePackages)
 	var findings []calendarClockFinding
-	for _, declaration := range file.Decls {
-		fn, ok := declaration.(*ast.FuncDecl)
-		if !ok || fn.Body == nil || !strings.HasPrefix(fn.Name.Name, "Test") {
+	for _, fn := range functions {
+		if !isTestFunction(fn) {
 			continue
 		}
 		instantVars := currentInstantVariables(fn.Body, timePackages, timezonePackages)
-		dateVars := currentCalendarDateVariables(fn.Body, timezonePackages)
+		dateVars := currentCalendarDateVariables(fn.Body, dateHelpers, timezonePackages)
 		findings = append(findings, findFunctionCalendarClockRisks(
-			fn, filepath.ToSlash(rel), fset, instantVars, dateVars, timePackages, timezonePackages,
+			fn, filepath.ToSlash(rel), fset, instantVars, dateVars, dateHelpers, timePackages, timezonePackages, assertionPackages,
 		)...)
 	}
 	return findings, nil
 }
 
-func findFunctionCalendarClockRisks(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, dateVars, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+func declaredFunctions(file *ast.File) map[string]*ast.FuncDecl {
+	functions := map[string]*ast.FuncDecl{}
+	for _, declaration := range file.Decls {
+		fn, ok := declaration.(*ast.FuncDecl)
+		if ok && fn.Body != nil {
+			functions[fn.Name.Name] = fn
+		}
+	}
+	return functions
+}
+
+func isTestFunction(fn *ast.FuncDecl) bool {
+	return strings.HasPrefix(fn.Name.Name, "Test") || strings.HasPrefix(fn.Name.Name, "Benchmark") ||
+		strings.HasPrefix(fn.Name.Name, "Fuzz") || strings.HasPrefix(fn.Name.Name, "Example")
+}
+
+func liveDateHelpers(functions map[string]*ast.FuncDecl, timezonePackages map[string]bool) map[string]bool {
+	helpers := map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for name, fn := range functions {
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				returned, ok := node.(*ast.ReturnStmt)
+				for _, value := range returnedResults(returned, ok) {
+					if !helpers[name] && expressionUsesTodayDate(value, nil, helpers, timezonePackages) {
+						helpers[name], changed = true, true
+					}
+				}
+				return true
+			})
+		}
+	}
+	return helpers
+}
+
+func returnedResults(statement *ast.ReturnStmt, ok bool) []ast.Expr {
+	if !ok {
+		return nil
+	}
+	return statement.Results
+}
+
+func findFunctionCalendarClockRisks(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, dateVars, dateHelpers, timePackages, timezonePackages, assertionPackages map[string]bool) []calendarClockFinding {
 	findings := findInstantDateConversions(fn, rel, fset, instantVars, timePackages, timezonePackages)
-	findings = append(findings, findDirectCalendarBoundaryCalls(fn, rel, fset, instantVars, dateVars, timePackages, timezonePackages)...)
-	findings = append(findings, findLiveCalendarRangeCalls(fn, rel, fset, dateVars, timezonePackages)...)
+	findings = append(findings, findDirectCalendarBoundaryCalls(fn, rel, fset, instantVars, dateVars, dateHelpers, timePackages, timezonePackages)...)
+	findings = append(findings, findLiveCalendarRangeCalls(fn, rel, fset, dateVars, dateHelpers, timezonePackages)...)
+	findings = append(findings, findLiveCalendarRangeLiterals(fn, rel, fset, dateVars, dateHelpers, timezonePackages)...)
+	findings = append(findings, findLiveCalendarAssertions(fn, rel, fset, dateVars, dateHelpers, timezonePackages, assertionPackages)...)
 	if hasWeeklySummaryExpectation(fn.Body) {
-		findings = append(findings, findLiveDateShifts(fn, rel, fset, dateVars, timezonePackages)...)
-		findings = append(findings, findLiveInstants(fn, rel, fset, timePackages, timezonePackages)...)
+		findings = append(findings, findLiveDateShifts(fn, rel, fset, dateVars, dateHelpers, timezonePackages)...)
+		findings = append(findings, findLiveWeeklyFixtureInstants(fn, rel, fset, instantVars, timePackages, timezonePackages)...)
 	}
 	return findings
 }
 
-func findLiveCalendarRangeCalls(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars, timezonePackages map[string]bool) []calendarClockFinding {
+func findLiveCalendarRangeCalls(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars, dateHelpers, timezonePackages map[string]bool) []calendarClockFinding {
 	var findings []calendarClockFinding
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -122,11 +189,11 @@ func findLiveCalendarRangeCalls(fn *ast.FuncDecl, rel string, fset *token.FileSe
 		}
 		liveDateArgs := 0
 		for _, arg := range call.Args {
-			if expressionUsesTodayDate(arg, dateVars, timezonePackages) {
+			if expressionUsesTodayDate(arg, dateVars, dateHelpers, timezonePackages) {
 				liveDateArgs++
 			}
 		}
-		if liveDateArgs >= 2 {
+		if liveDateArgs >= 1 {
 			findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(call.Pos()).Line, "live clock defines a calendar range"))
 		}
 		return true
@@ -134,8 +201,92 @@ func findLiveCalendarRangeCalls(fn *ast.FuncDecl, rel string, fset *token.FileSe
 	return findings
 }
 
+func findLiveCalendarRangeLiterals(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars, dateHelpers, timezonePackages map[string]bool) []calendarClockFinding {
+	var findings []calendarClockFinding
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		literal, ok := node.(*ast.CompositeLit)
+		if !ok || !calendarRangeTypeName(expressionName(literal.Type)) {
+			return true
+		}
+		for _, element := range literal.Elts {
+			field, ok := element.(*ast.KeyValueExpr)
+			if isCalendarRangeField(field, ok) && expressionUsesTodayDate(field.Value, dateVars, dateHelpers, timezonePackages) {
+				findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(field.Value.Pos()).Line, "live clock defines a calendar range"))
+				break
+			}
+		}
+		return true
+	})
+	return findings
+}
+
+func isCalendarRangeField(field *ast.KeyValueExpr, ok bool) bool {
+	if !ok {
+		return false
+	}
+	name, named := field.Key.(*ast.Ident)
+	return named && calendarRangeFieldName(name.Name)
+}
+
+func findLiveCalendarAssertions(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars, dateHelpers, timezonePackages, assertionPackages map[string]bool) []calendarClockFinding {
+	var findings []calendarClockFinding
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || !isAssertionCall(call.Fun, assertionPackages) {
+			return true
+		}
+		for _, arg := range call.Args[1:] {
+			if expressionUsesTodayDate(arg, dateVars, dateHelpers, timezonePackages) {
+				findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(arg.Pos()).Line, "live calendar date used as an expectation"))
+				break
+			}
+		}
+		return true
+	})
+	return findings
+}
+
+func isAssertionCall(expr ast.Expr, assertionPackages map[string]bool) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || (selector.Sel.Name != "Equal" && selector.Sel.Name != "EqualValues" && selector.Sel.Name != "NotEqual") {
+		return false
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Obj == nil && assertionPackages[pkg.Name]
+}
+
+func assertionImportNames(file *ast.File) map[string]bool {
+	packages := map[string]bool{}
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || (!strings.HasSuffix(importPath, "/assert") && !strings.HasSuffix(importPath, "/require")) {
+			continue
+		}
+		name := pathpkg.Base(importPath)
+		if spec.Name != nil && spec.Name.Name != "." && spec.Name.Name != "_" {
+			name = spec.Name.Name
+		}
+		packages[name] = true
+	}
+	return packages
+}
+
 func calendarRangeCallName(name string) bool {
-	return name == "GetHistory"
+	return strings.Contains(name, "History") || strings.Contains(name, "Range") ||
+		strings.Contains(name, "Period") || strings.Contains(name, "Between")
+}
+
+func calendarRangeTypeName(name string) bool {
+	return strings.Contains(name, "Range") || strings.Contains(name, "Period") || strings.Contains(name, "Window")
+}
+
+func calendarRangeFieldName(name string) bool {
+	switch name {
+	case "From", "To", "Start", "End", "DateFrom", "DateTo", "StartDate", "EndDate":
+		return true
+	default:
+		return false
+	}
 }
 
 func findInstantDateConversions(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
@@ -156,7 +307,7 @@ func findInstantDateConversions(fn *ast.FuncDecl, rel string, fset *token.FileSe
 	return findings
 }
 
-func currentCalendarDateVariables(body *ast.BlockStmt, timezonePackages map[string]bool) map[string]bool {
+func currentCalendarDateVariables(body *ast.BlockStmt, dateHelpers, timezonePackages map[string]bool) map[string]bool {
 	dateVars := map[string]bool{}
 	for changed := true; changed; {
 		changed = false
@@ -165,13 +316,13 @@ func currentCalendarDateVariables(body *ast.BlockStmt, timezonePackages map[stri
 			case *ast.AssignStmt:
 				for i, lhs := range declaration.Lhs {
 					id, isID := lhs.(*ast.Ident)
-					if isID && i < len(declaration.Rhs) && markCurrentDate(id.Name, declaration.Rhs[i], dateVars, timezonePackages) {
+					if isID && i < len(declaration.Rhs) && markCurrentDate(id.Name, declaration.Rhs[i], dateVars, dateHelpers, timezonePackages) {
 						changed = true
 					}
 				}
 			case *ast.ValueSpec:
 				for i, name := range declaration.Names {
-					if i < len(declaration.Values) && markCurrentDate(name.Name, declaration.Values[i], dateVars, timezonePackages) {
+					if i < len(declaration.Values) && markCurrentDate(name.Name, declaration.Values[i], dateVars, dateHelpers, timezonePackages) {
 						changed = true
 					}
 				}
@@ -182,34 +333,37 @@ func currentCalendarDateVariables(body *ast.BlockStmt, timezonePackages map[stri
 	return dateVars
 }
 
-func markCurrentDate(name string, value ast.Expr, dateVars, timezonePackages map[string]bool) bool {
-	if dateVars[name] || !expressionUsesTodayDate(value, dateVars, timezonePackages) {
+func markCurrentDate(name string, value ast.Expr, dateVars, dateHelpers, timezonePackages map[string]bool) bool {
+	if dateVars[name] || !expressionUsesTodayDate(value, dateVars, dateHelpers, timezonePackages) {
 		return false
 	}
 	dateVars[name] = true
 	return true
 }
 
-func expressionUsesTodayDate(expr ast.Expr, dateVars, timezonePackages map[string]bool) bool {
+func expressionUsesTodayDate(expr ast.Expr, dateVars, dateHelpers, timezonePackages map[string]bool) bool {
 	switch value := expr.(type) {
 	case *ast.Ident:
 		return dateVars[value.Name]
 	case *ast.ParenExpr:
-		return expressionUsesTodayDate(value.X, dateVars, timezonePackages)
+		return expressionUsesTodayDate(value.X, dateVars, dateHelpers, timezonePackages)
 	case *ast.CallExpr:
+		if id, ok := value.Fun.(*ast.Ident); ok && dateHelpers[id.Name] {
+			return true
+		}
 		if isImportedCall(value.Fun, timezonePackages, "TodayDate") {
 			return true
 		}
 		selector, ok := value.Fun.(*ast.SelectorExpr)
-		return ok && expressionUsesTodayDate(selector.X, dateVars, timezonePackages)
+		return ok && expressionUsesTodayDate(selector.X, dateVars, dateHelpers, timezonePackages)
 	case *ast.SelectorExpr:
-		return expressionUsesTodayDate(value.X, dateVars, timezonePackages)
+		return expressionUsesTodayDate(value.X, dateVars, dateHelpers, timezonePackages)
 	default:
 		return false
 	}
 }
 
-func findLiveDateShifts(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars, timezonePackages map[string]bool) []calendarClockFinding {
+func findLiveDateShifts(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateVars, dateHelpers, timezonePackages map[string]bool) []calendarClockFinding {
 	var findings []calendarClockFinding
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -217,7 +371,7 @@ func findLiveDateShifts(fn *ast.FuncDecl, rel string, fset *token.FileSet, dateV
 			return true
 		}
 		selector, ok := call.Fun.(*ast.SelectorExpr)
-		if ok && selector.Sel.Name == "AddDays" && expressionUsesTodayDate(selector.X, dateVars, timezonePackages) {
+		if ok && selector.Sel.Name == "AddDays" && expressionUsesTodayDate(selector.X, dateVars, dateHelpers, timezonePackages) {
 			findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(call.Pos()).Line, "live calendar date shifted into a range"))
 		}
 		return true
@@ -243,7 +397,7 @@ func hasWeeklySummaryExpectation(body *ast.BlockStmt) bool {
 	return found
 }
 
-func findDirectCalendarBoundaryCalls(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, dateVars, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+func findDirectCalendarBoundaryCalls(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, dateVars, dateHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
 	var findings []calendarClockFinding
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -255,7 +409,7 @@ func findDirectCalendarBoundaryCalls(fn *ast.FuncDecl, rel string, fset *token.F
 			return true
 		}
 		usesInstant := expressionUsesCurrentInstant(selector.X, instantVars, timePackages, timezonePackages)
-		usesDate := expressionUsesTodayDate(selector.X, dateVars, timezonePackages)
+		usesDate := expressionUsesTodayDate(selector.X, dateVars, dateHelpers, timezonePackages)
 		if usesInstant || usesDate {
 			findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(call.Pos()).Line, "live clock feeds a day or ISO-week expectation"))
 		}
@@ -264,12 +418,23 @@ func findDirectCalendarBoundaryCalls(fn *ast.FuncDecl, rel string, fset *token.F
 	return findings
 }
 
-func findLiveInstants(fn *ast.FuncDecl, rel string, fset *token.FileSet, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
+var weeklyInstantFixtureFields = map[string]bool{
+	"CheckInTime":  true,
+	"CheckOutTime": true,
+	"StartTime":    true,
+	"EndTime":      true,
+}
+
+func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantVars, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
 	var findings []calendarClockFinding
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if ok && (isImportedCall(call.Fun, timePackages, "Now") || isImportedCall(call.Fun, timezonePackages, "Now")) {
-			findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(call.Pos()).Line, "live instant feeds an ISO-week expectation"))
+		field, ok := node.(*ast.KeyValueExpr)
+		if !ok {
+			return true
+		}
+		name, ok := field.Key.(*ast.Ident)
+		if ok && weeklyInstantFixtureFields[name.Name] && expressionUsesCurrentInstant(field.Value, instantVars, timePackages, timezonePackages) {
+			findings = append(findings, newCalendarClockFinding(rel, fn.Name.Name, fset.Position(field.Value.Pos()).Line, "live instant feeds an ISO-week expectation"))
 		}
 		return true
 	})
