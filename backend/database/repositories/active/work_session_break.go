@@ -115,7 +115,7 @@ func (r *WorkSessionBreakRepository) EndBreak(ctx context.Context, id int64, end
 		EndedAt:         &endedAt,
 		DurationMinutes: durationMinutes,
 	}
-	updated, err := r.UpdateColumnsIfNull(ctx, brk, "ended_at", "duration_minutes", "updated_at")
+	updated, err := r.UpdateColumnsIfNull(ctx, brk, "ended_at", "ended_at", "duration_minutes", "updated_at")
 	if err != nil {
 		return base.UpdateOperationError(err, "end break")
 	}
