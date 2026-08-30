@@ -204,6 +204,9 @@ func expressionUsesCurrentInstant(expr ast.Expr, instantVars, timePackages, time
 }
 
 func isImportedCall(expr ast.Expr, packageNames map[string]bool, functionName string) bool {
+	if identifier, ok := expr.(*ast.Ident); ok {
+		return identifier.Obj == nil && identifier.Name == functionName && packageNames["."]
+	}
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || selector.Sel.Name != functionName {
 		return false
@@ -221,8 +224,12 @@ func timeImportNames(file *ast.File) (map[string]bool, map[string]bool) {
 			continue
 		}
 		name := pathpkg.Base(importPath)
-		if spec.Name != nil && spec.Name.Name != "." && spec.Name.Name != "_" {
-			name = spec.Name.Name
+		if spec.Name != nil {
+			if spec.Name.Name == "." {
+				name = "."
+			} else if spec.Name.Name != "_" {
+				name = spec.Name.Name
+			}
 		}
 		switch {
 		case importPath == "time":

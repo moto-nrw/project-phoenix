@@ -233,7 +233,6 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"database/migrations/001015314_template_source_school_classes_test.go:TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory":                                                                       "78973faba2674a8c",
 	"database/repositories/active/attendance_date_range_test.go:TestAttendanceRepository_FindByStudentAndDateRange":                                                                                                   "5b3252aad4ccb6ab",
 	"database/repositories/active/bulk_readers_test.go:TestGroupSupervisorRepository_ListActiveSupervisedRooms":                                                                                                       "4a84319ecaaa2636",
-	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_EndAllActiveByStaffID":                                                                                            "5230b9d1baa861e6",
 	"database/repositories/active/staff_absence_test.go:TestStaffAbsenceRepository_GetByStaffAndDateRange":                                                                                                            "76bf7b2e9b89f770",
 	"database/repositories/active/student_status_day_test.go:TestStudentStatusDayRepository_NoteOnReReport":                                                                                                           "57f427a2c609a31b",
 	"database/repositories/active/student_status_day_test.go:TestStudentStatusDayRepository_TenantScope":                                                                                                              "17f70a9cf3ac5296",
@@ -358,6 +357,23 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"database/repositories/users/care_withdrawal_completion_test.go:TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild":                                                                                    "4a84dc3114fe62bb",
 	"services/schedule/shift_plan_sync_service_test.go:TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation":                                                                                                   "b74151a3386dbed1",
 	"services/schedule/shift_plan_sync_service_test.go:TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta":                                                                                                        "ef491ef68f3de3e2",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_FindByID":                                                                                                         "e390a916b4dd2a08",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_Update":                                                                                                           "34a88928f2ef96f6",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_Delete":                                                                                                           "f3aa66c435f2f414",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_EndSupervision":                                                                                                   "2cef41393cada2df",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_EndAllActiveByStaffID":                                                                                            "5230b9d1baa861e6",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_EndByActiveGroupAndStaffID":                                                                                       "6e0408bd298800fa",
+	"services/active/supervisor_service_test.go:TestActiveService_GetGroupSupervisor":                                                                                                                                 "009a5d506efb354c",
+	"services/active/supervisor_service_test.go:TestActiveService_UpdateGroupSupervisor":                                                                                                                              "a42781a3d4c5a8b5",
+	"services/active/supervisor_service_test.go:TestActiveService_DeleteGroupSupervisor":                                                                                                                              "aee0464810f033ce",
+	"services/active/supervisor_service_test.go:TestActiveService_EndSupervision":                                                                                                                                     "f46a63e14525833e",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_EnabledByDefault":                                                                                                                            "4a7fc1dc1f14c956",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_WasRunToday":                                                                                                                                 "585a4b874a228472",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_HappyPath":                                                                                                                                   "3ebd9269f35721d3",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_ZeroCounters":                                                                                                                                "f52945f289265919",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_MaterializerError":                                                                                                                           "0c17996e78855cb9",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_OnlyRacedCounter":                                                                                                                            "e23a47bd6a4560fc",
+	"services/scheduler/scheduler_test.go:TestIsoWeekdayMatchesNow_NonSundayMismatch":                                                                                                                                 "5355bfe0662b3f3a",
 }
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
@@ -758,6 +774,7 @@ type liveClock struct{}
 type fakeClock struct{}
 func (liveClock) Now() time.Time { return time.Now() }
 func (fakeClock) Now() time.Time { return time.Time{} }
+func currentISOWeekday() int { return int(time.Now().Weekday()) }
 func TestLiveMethod(t *testing.T) {
 	t.Parallel()
 	history := GetHistory(WorkSession{CheckInTime: liveClock{}.Now()})
@@ -777,7 +794,16 @@ func TestExplicitReceiverTypeConverges(t *testing.T) {
 	t.Parallel()
 	var clock Clock
 	clock = liveClock{}
-	_ = clock.Now()
+	history := GetHistory(WorkSession{CheckInTime: clock.Now()})
+	_ = history.WeeklySummaries
+}
+func TestAnonymousRange(t *testing.T) {
+	t.Parallel()
+	_ = List(struct{ From, To Date }{From: TodayDate(), To: fixedDate})
+}
+func TestLiveWeekdayFixture(t *testing.T) {
+	t.Parallel()
+	_ = map[string]int{"weekday": currentISOWeekday()}
 }
 `)
 	writeCalendarFixtureSourceAt(t, root, "sample/factory_test.go", `package sample
@@ -786,12 +812,36 @@ type Clock interface { Now() time.Time }
 func newLiveClock() liveClock { return liveClock{} }
 func factoryTime() time.Time { return newLiveClock().Now() }
 `)
+	writeCalendarFixtureSourceAt(t, root, "sample/live_date_test.go", `package sample
+import (
+	. "time"
+	assertpkg "github.com/stretchr/testify/assert"
+	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
+)
+type Date = tz.Date
+var fixedDate = tz.NewDate(2026, 8, 30)
+func TodayDate() Date { return tz.TodayDate() }
+func liveDate() Date { return tz.DateFromTime(Now()) }
+func List(value any) any { return value }
+func TestLiveDateConversionHelper(t *testing.T) {
+	t.Parallel()
+	assertpkg.Equal(t, liveDate(), fixedDate)
+}
+func TestDotImportedNow(t *testing.T) {
+	t.Parallel()
+	history := GetHistory(WorkSession{CheckInTime: Now()})
+	_ = history.WeeklySummaries
+}
+`)
 	findings, err := scanCalendarFixtureClockRisks(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	joined := strings.Join(formatCalendarClockFindings(findings), "\n")
-	if !strings.Contains(joined, "TestLiveMethod") || !strings.Contains(joined, "TestFactoryMethod") || strings.Contains(joined, "TestFakeMethod") {
+	if !strings.Contains(joined, "TestLiveMethod") || !strings.Contains(joined, "TestFactoryMethod") ||
+		!strings.Contains(joined, "TestExplicitReceiverTypeConverges") || !strings.Contains(joined, "TestDotImportedNow") ||
+		!strings.Contains(joined, "TestLiveDateConversionHelper") || !strings.Contains(joined, "TestAnonymousRange") ||
+		!strings.Contains(joined, "TestLiveWeekdayFixture") || strings.Contains(joined, "TestFakeMethod") {
 		t.Fatalf("receiver-qualified findings were %q", joined)
 	}
 }
