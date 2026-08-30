@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -155,6 +156,9 @@ func (rs *Resource) Router() chi.Router {
 		// controls whether the service includes further tenant groups.
 		r.With(withTx).Get("/ogs-group-navigation",
 			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+				if rs.OGSGroupLiveService == nil {
+					return nil, errors.New("OGS group live service is not configured")
+				}
 				return rs.OGSGroupLiveService.ListGroups(ctx)
 			}, common.ErrorInternalServer, "OGS group navigation retrieved successfully"),
 		)

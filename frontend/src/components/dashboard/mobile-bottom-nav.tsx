@@ -324,6 +324,13 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
 
 const additionalNavItems: AdditionalNavItem[] = [
   {
+    href: "/ogs-groups",
+    label: "Gruppe",
+    iconKey: "group",
+    concept: "groups",
+    alwaysShow: true,
+  },
+  {
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",

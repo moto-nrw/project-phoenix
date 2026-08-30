@@ -229,10 +229,17 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Admin main items - check by href
-      const links = screen.getAllByRole("link");
-      const hrefs = links.map((link) => link.getAttribute("href"));
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/dashboard");
       expect(hrefs).toContain("/students/search");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+        "href",
+        "/ogs-groups",
+      );
     });
 
     it("renders with custom className", () => {

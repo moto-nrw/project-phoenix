@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 import { isPlanningPath } from "~/lib/planning-navigation";
 import { isElternPath, isEnrollmentPath } from "~/lib/section-navigation";
@@ -63,6 +63,7 @@ export function useSidebarAccordion(
   const [expanded, setExpanded] = useState<AccordionSection>(
     () => sectionFromPathname(pathname, fromParam) ?? defaultSection,
   );
+  const hasAppliedInitialRoute = useRef(false);
 
   // Restore from localStorage on mount when pathname doesn't determine a section.
   // This runs client-only after hydration, avoiding SSR/client mismatches.
@@ -88,13 +89,17 @@ export function useSidebarAccordion(
   // - Navigate to child page with ?from= → keep that section open
   // - Navigate to unrelated page → collapse all
   useEffect(() => {
-    const fromPath = sectionFromPathname(pathname, fromParam) ?? defaultSection;
+    if (!hasAppliedInitialRoute.current) {
+      hasAppliedInitialRoute.current = true;
+      return;
+    }
+    const fromPath = sectionFromPathname(pathname, fromParam);
     if (fromPath !== expanded) {
       setExpanded(fromPath);
     }
     // Only react to pathname/fromParam changes, not expanded changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, fromParam, defaultSection]);
+  }, [pathname, fromParam]);
 
   // Persist to localStorage whenever expanded changes
   useEffect(() => {

@@ -62,6 +62,18 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe(null);
   });
 
+  it("uses the default section only on initial render", () => {
+    const { result, rerender } = renderHook(
+      ({ pathname }) => useSidebarAccordion(pathname, undefined, "groups"),
+      { initialProps: { pathname: "/dashboard" } },
+    );
+
+    expect(result.current.expanded).toBe("groups");
+
+    rerender({ pathname: "/activities" });
+    expect(result.current.expanded).toBeNull();
+  });
+
   it("expands groups from fromParam on child pages", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/students/123", "/ogs-groups"),

@@ -177,6 +177,19 @@ func TestOGSGroupLive_AdminSeesAllGroupsInPersonalScope(t *testing.T) {
 	}, states)
 }
 
+func TestOGSGroupNavigation_ReturnsServerErrorWithoutService(t *testing.T) {
+	t.Parallel()
+
+	tc := setupTestContext(t)
+	tc.resource.OGSGroupLiveService = nil
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Navigation", "Service")
+	req := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), nil)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "OGS group live service is not configured")
+}
+
 func TestOGSGroupLive_HandoverMovesGroupIntoPersonalSection(t *testing.T) {
 	t.Parallel()
 
