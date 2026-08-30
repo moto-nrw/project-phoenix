@@ -799,6 +799,7 @@ func (liveClock) Now() time.Time { return time.Now() }
 func (fakeClock) Now() time.Time { return time.Time{} }
 func currentISOWeekday() int { return int(time.Now().Weekday()) }
 func delegatedISOWeekday() int { return currentISOWeekday() }
+func weekdayFromFixtureDate() int { return fixtureDate().Weekday() }
 func TestLiveMethod(t *testing.T) {
 	t.Parallel()
 	history := GetHistory(WorkSession{CheckInTime: liveClock{}.Now()})
@@ -841,6 +842,10 @@ func TestIndirectLiveWeekdayFixture(t *testing.T) {
 	t.Parallel()
 	_ = map[string]int{"weekday": delegatedISOWeekday()}
 }
+func TestWeekdayFromLiveDateHelper(t *testing.T) {
+	t.Parallel()
+	_ = map[string]int{"weekday": weekdayFromFixtureDate()}
+}
 `)
 	writeCalendarFixtureSourceAt(t, root, "sample/factory_test.go", `package sample
 import "time"
@@ -858,7 +863,9 @@ import (
 type Date = tz.Date
 var fixedDate = tz.NewDate(2026, 8, 30)
 func TodayDate() Date { return tz.TodayDate() }
-func liveDate() Date { return tz.DateFromTime(Now()) }
+func fixtureNow() Time { return Now() }
+func liveDate() Date { return tz.DateFromTime(fixtureNow()) }
+func fixtureDate() Date { return tz.TodayDate() }
 func List(value any) any { return value }
 func TestLiveDateConversionHelper(t *testing.T) {
 	t.Parallel()
@@ -885,7 +892,7 @@ func TestDotImportedNow(t *testing.T) {
 		!strings.Contains(joined, "TestExplicitReceiverTypeConverges") || !strings.Contains(joined, "TestDotImportedNow") ||
 		!strings.Contains(joined, "TestLiveDateConversionHelper") || !strings.Contains(joined, "TestAnonymousRange") ||
 		!strings.Contains(joined, "TestLiveWeekdayFixture") || !strings.Contains(joined, "TestIndirectLiveWeekdayFixture") ||
-		!strings.Contains(joined, "TestWrappedLiveDate") || strings.Contains(joined, "TestFakeMethod") ||
+		!strings.Contains(joined, "TestWeekdayFromLiveDateHelper") || !strings.Contains(joined, "TestWrappedLiveDate") || strings.Contains(joined, "TestFakeMethod") ||
 		strings.Contains(joined, "TestRepeatedInterfaceAssignmentsUseLastConcreteClock") {
 		t.Fatalf("receiver-qualified findings were %q", joined)
 	}

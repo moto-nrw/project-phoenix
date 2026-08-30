@@ -607,7 +607,7 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 				dateVars := currentCalendarDateVariables(candidate.fn.Body, helpers.dates[key], candidate.timezonePackages)
 				weeklyVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages, weeklyFixtureInstantField)
 				weekdayVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.weekdays[key], candidate.timePackages, candidate.timezonePackages, nil)
-				if !helpers.dates[key][identity] && functionReturnsLiveDate(candidate.fn, dateVars, instantVars, helpers.dates[key], candidate.timePackages, candidate.timezonePackages) {
+				if !helpers.dates[key][identity] && functionReturnsLiveDate(candidate.fn, dateVars, instantVars, helpers.dates[key], helpers.instants[key], candidate.timePackages, candidate.timezonePackages) {
 					helpers.dates[key][identity], changed = true, true
 				}
 				if !helpers.instants[key][identity] && functionReturnsLiveInstant(candidate.fn, instantVars, helpers.instants[key], candidate.timePackages, candidate.timezonePackages) {
@@ -616,7 +616,7 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 				if !helpers.weekly[key][identity] && functionReturnsLiveWeeklyInstant(candidate.fn, weeklyVars, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages) {
 					helpers.weekly[key][identity], changed = true, true
 				}
-				if !helpers.weekdays[key][identity] && functionReturnsLiveWeekday(candidate.fn, weekdayVars, helpers.weekdays[key], candidate.timePackages, candidate.timezonePackages) {
+				if !helpers.weekdays[key][identity] && functionReturnsLiveWeekday(candidate.fn, weekdayVars, helpers.weekdays[key], helpers.dates[key], candidate.timePackages, candidate.timezonePackages) {
 					helpers.weekdays[key][identity], changed = true, true
 				}
 			}
@@ -624,11 +624,11 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 	}
 }
 
-func functionReturnsLiveWeekday(fn *ast.FuncDecl, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+func functionReturnsLiveWeekday(fn *ast.FuncDecl, instantVars calendarVariables, instantHelpers, dateHelpers, timePackages, timezonePackages map[string]bool) bool {
 	found := false
 	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		expr, ok := node.(ast.Expr)
-		if ok && expressionUsesLiveWeekday(expr, instantVars, instantHelpers, timePackages, timezonePackages) {
+		if ok && expressionUsesLiveWeekday(expr, instantVars, instantHelpers, dateHelpers, timePackages, timezonePackages) {
 			found = true
 			return false
 		}
@@ -637,19 +637,19 @@ func functionReturnsLiveWeekday(fn *ast.FuncDecl, instantVars calendarVariables,
 	return found
 }
 
-func functionReturnsLiveDate(fn *ast.FuncDecl, dateVars, instantVars calendarVariables, dateHelpers, timePackages, timezonePackages map[string]bool) bool {
+func functionReturnsLiveDate(fn *ast.FuncDecl, dateVars, instantVars calendarVariables, dateHelpers, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
 	return functionReturns(fn, func(expr ast.Expr) bool {
 		return expressionContainsTodayDate(expr, dateVars, dateHelpers, timezonePackages) ||
-			expressionUsesLiveDateConversion(expr, instantVars, timePackages, timezonePackages)
+			expressionUsesLiveDateConversion(expr, instantVars, instantHelpers, timePackages, timezonePackages)
 	})
 }
 
-func expressionUsesLiveDateConversion(expr ast.Expr, instantVars calendarVariables, timePackages, timezonePackages map[string]bool) bool {
+func expressionUsesLiveDateConversion(expr ast.Expr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
 	found := false
 	ast.Inspect(expr, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if ok && isImportedCall(call.Fun, timezonePackages, "DateFromTime") && len(call.Args) > 0 &&
-			expressionUsesCalendarInstant(call.Args[0], instantVars, nil, timePackages, timezonePackages) {
+			expressionUsesCalendarInstant(call.Args[0], instantVars, instantHelpers, timePackages, timezonePackages) {
 			found = true
 			return false
 		}
@@ -1203,7 +1203,7 @@ func findLiveWeekdayHelperCalls(fn *ast.FuncDecl, rel string, fset *token.FileSe
 	return findings
 }
 
-func expressionUsesLiveWeekday(expr ast.Expr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+func expressionUsesLiveWeekday(expr ast.Expr, instantVars calendarVariables, instantHelpers, dateHelpers, timePackages, timezonePackages map[string]bool) bool {
 	if call, ok := expr.(*ast.CallExpr); ok && instantHelpers[calendarCalledHelper(call, nil)] {
 		return true
 	}
@@ -1214,7 +1214,7 @@ func expressionUsesLiveWeekday(expr ast.Expr, instantVars calendarVariables, ins
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	return ok && (selector.Sel.Name == "Weekday" || selector.Sel.Name == "ISOWeek") &&
 		(expressionUsesCalendarInstant(selector.X, instantVars, instantHelpers, timePackages, timezonePackages) ||
-			expressionUsesTodayDate(selector.X, calendarVariables{}, nil, timezonePackages))
+			expressionUsesTodayDate(selector.X, calendarVariables{}, dateHelpers, timezonePackages))
 }
 
 func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
