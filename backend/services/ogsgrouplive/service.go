@@ -278,7 +278,7 @@ func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64, all
 	if err != nil {
 		return nil, nil, err
 	}
-	if broad {
+	if broad && authorize.HasPermission(permissions.GroupsRead, jwt.PermissionsFromCtx(ctx)) {
 		visibleGroups, err = s.deps.Education.ListGroups(ctx, nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("load tenant groups: %w", err)

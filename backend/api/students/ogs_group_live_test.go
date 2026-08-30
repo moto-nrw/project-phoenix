@@ -116,6 +116,21 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 		assert.Equal(t, states, groupPersonalState(decodeOGSGroupNavigation(t, navigationRR.Body.Bytes())))
 	})
 
+	t.Run("all_staff does not broaden groups without groups:read", func(t *testing.T) {
+		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
+		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(ownerAccount.ID)), []string{"users:read"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		assert.Equal(t, map[string]bool{
+			strconv.FormatInt(ownedGroup.ID, 10): true,
+		}, groupPersonalState(decodeOGSLive(t, rr.Body.Bytes()).Data.Groups))
+
+		navigationReq := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
+		navigationRR := authExec(t, tc, navigationReq, testutil.TeacherTestClaims(int(ownerAccount.ID)), []string{"users:read"})
+		assert.Equal(t, http.StatusForbidden, navigationRR.Code, "body: %s", navigationRR.Body.String())
+	})
+
 	t.Run("personal scope hides groups without a fixed or transferred responsibility", func(t *testing.T) {
 		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeOwn)
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
