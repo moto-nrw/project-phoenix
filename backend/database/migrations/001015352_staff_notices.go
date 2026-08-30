@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	staffNoticesVersion     = "1.15.350"
+	staffNoticesVersion     = "1.15.352"
 	staffNoticesDescription = "Tagesinformationen: interne Hinweise der Leitung an das Team, wiederkehrend nach Wochentag (#2180)"
 )
 
