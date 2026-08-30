@@ -15202,7 +15202,7 @@
       "declaration": "TestCareLifecycle_ArchiveHoldsEveryRegularlyEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        628
+        620
       ],
       "tables": [
         "users.students"
@@ -15214,7 +15214,7 @@
       "declaration": "TestCareLifecycle_CancelOnlyBeforeItTakesEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        392
       ],
       "tables": []
     },
@@ -15224,7 +15224,7 @@
       "declaration": "TestCareLifecycle_CancelPutsThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        715
+        707
       ],
       "tables": [
         "schedule.instance_students"
@@ -15236,7 +15236,7 @@
       "declaration": "TestCareLifecycle_CancelRefusedAfterItTookEffect",
       "target": "database/repositories.NewFactory",
       "lines": [
-        469
+        461
       ],
       "tables": [
         "users.students"
@@ -15248,7 +15248,7 @@
       "declaration": "TestCareLifecycle_ChangingTheDayReplansFromTheBaseline",
       "target": "database/repositories.NewFactory",
       "lines": [
-        842
+        834
       ],
       "tables": []
     },
@@ -15258,7 +15258,7 @@
       "declaration": "TestCareLifecycle_ConfirmAuditsOnlyCareEnd",
       "target": "database/repositories.NewFactory",
       "lines": [
-        102
+        94
       ],
       "tables": [
         "users.students"
@@ -15270,7 +15270,7 @@
       "declaration": "TestCareLifecycle_EndsBookingsAtTheLastCareDay",
       "target": "database/repositories.NewFactory",
       "lines": [
-        332
+        324
       ],
       "tables": []
     },
@@ -15280,7 +15280,7 @@
       "declaration": "TestCareLifecycle_Resume",
       "target": "database/repositories.NewFactory",
       "lines": [
-        497
+        489
       ],
       "tables": [
         "users.students"
@@ -15292,7 +15292,7 @@
       "declaration": "TestCareLifecycle_ResumeDoesNotBringThePlanBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        910
+        902
       ],
       "tables": [
         "users.students"
@@ -15304,7 +15304,7 @@
       "declaration": "TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler",
       "target": "database/repositories.NewFactory",
       "lines": [
-        586
+        578
       ],
       "tables": [
         "users.students"
@@ -15316,7 +15316,7 @@
       "declaration": "TestCareLifecycle_TenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        319
+        311
       ],
       "tables": []
     },
@@ -15326,7 +15326,7 @@
       "declaration": "TestStudentDeletion_RetentionReasonOnlyForEndedCare",
       "target": "database/repositories.NewFactory",
       "lines": [
-        662
+        654
       ],
       "tables": [
         "users.students"
@@ -15338,7 +15338,7 @@
       "declaration": "loadStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        131
+        123
       ],
       "tables": []
     },
@@ -15348,7 +15348,7 @@
       "declaration": "newCareLifecycleServiceWithLockAt",
       "target": "database/repositories.NewFactory",
       "lines": [
-        61
+        53
       ],
       "tables": []
     },
