@@ -1882,6 +1882,8 @@
     {"name": "users.parent_message_reads", "write_owner": "communication"},
     {"name": "users.parent_message_threads", "write_owner": "communication"},
     {"name": "users.parent_messages", "write_owner": "communication"},
+    {"name": "users.staff_notice_acks", "write_owner": "timetable-activities"},
+    {"name": "users.staff_notices", "write_owner": "timetable-activities"},
     {"name": "users.parent_request_share_events", "write_owner": "people-directory"},
     {"name": "users.parent_request_events", "write_owner": "people-directory"},
     {"name": "users.persons", "write_owner": "people-directory"},
