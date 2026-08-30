@@ -19,28 +19,35 @@ import (
 // MailpitURL Tests
 // =============================================================================
 
-func TestMailpitURL_Default(t *testing.T) {
+func TestMailpitURL_MissingEnv(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "http://mailpit:8025", mailpitURLFrom(func(string) string { return "" }))
+	_, err := mailpitURLFrom(func(string) string { return "" })
+	require.EqualError(t, err, "MAILPIT_URL is not set")
 }
 
 func TestMailpitURL_FromEnv(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "http://localhost:8025", mailpitURLFrom(func(string) string { return "http://localhost:8025" }))
+	url, err := mailpitURLFrom(func(string) string { return "http://localhost:8025" })
+	require.NoError(t, err)
+	assert.Equal(t, "http://localhost:8025", url)
 }
 
 func TestMailpitURL_TrimsTrailingSlash(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "http://mp.local:8025", mailpitURLFrom(func(string) string { return "http://mp.local:8025/" }))
+	url, err := mailpitURLFrom(func(string) string { return "http://mp.local:8025/" })
+	require.NoError(t, err)
+	assert.Equal(t, "http://mp.local:8025", url)
 }
 
 func TestMailpitURL_TrimsWhitespace(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "http://mp.local:8025", mailpitURLFrom(func(string) string { return "   http://mp.local:8025  " }))
+	url, err := mailpitURLFrom(func(string) string { return "   http://mp.local:8025  " })
+	require.NoError(t, err)
+	assert.Equal(t, "http://mp.local:8025", url)
 }
 
 // =============================================================================

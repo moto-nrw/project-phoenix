@@ -12,18 +12,16 @@ import (
 	"time"
 )
 
-// MailpitURL returns the base URL used to reach mailpit's REST API.
-// Defaults to the docker-compose service hostname; override with
-// MAILPIT_URL when running the seeder from outside Docker.
-func MailpitURL() string {
+// MailpitURL returns the configured base URL used to reach mailpit's REST API.
+func MailpitURL() (string, error) {
 	return mailpitURLFrom(os.Getenv)
 }
 
-func mailpitURLFrom(getenv func(string) string) string {
+func mailpitURLFrom(getenv func(string) string) (string, error) {
 	if v := strings.TrimSpace(getenv("MAILPIT_URL")); v != "" {
-		return strings.TrimSuffix(v, "/")
+		return strings.TrimSuffix(v, "/"), nil
 	}
-	return "http://mailpit:8025"
+	return "", fmt.Errorf("MAILPIT_URL is not set")
 }
 
 type mailpitAddress struct {
@@ -57,7 +55,11 @@ var sixDigitCode = regexp.MustCompile(`\b(\d{6})\b`)
 // the seeder uses this to drive the operator MFA enrollment introduced
 // by branch feat/1308-2fa-email.
 func FetchLatestMFACode(ctx context.Context, recipient string, notBefore time.Time) (string, error) {
-	return fetchLatestMFACodeAt(ctx, MailpitURL(), recipient, notBefore)
+	baseURL, err := MailpitURL()
+	if err != nil {
+		return "", err
+	}
+	return fetchLatestMFACodeAt(ctx, baseURL, recipient, notBefore)
 }
 
 func fetchLatestMFACodeAt(ctx context.Context, baseURL, recipient string, notBefore time.Time) (string, error) {
