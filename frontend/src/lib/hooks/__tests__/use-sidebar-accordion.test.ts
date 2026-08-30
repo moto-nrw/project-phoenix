@@ -40,7 +40,7 @@ describe("useSidebarAccordion", () => {
       });
   });
 
-  it("expands 'groups' section for /ogs-groups path", () => {
+  it("expands the groups section for /ogs-groups", () => {
     const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
     expect(result.current.expanded).toBe("groups");
   });
@@ -62,7 +62,19 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe(null);
   });
 
-  it("expands 'groups' from fromParam on child pages", () => {
+  it("uses the default section only on initial render", () => {
+    const { result, rerender } = renderHook(
+      ({ pathname }) => useSidebarAccordion(pathname, undefined, "groups"),
+      { initialProps: { pathname: "/dashboard" } },
+    );
+
+    expect(result.current.expanded).toBe("groups");
+
+    rerender({ pathname: "/activities" });
+    expect(result.current.expanded).toBeNull();
+  });
+
+  it("expands groups from fromParam on child pages", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/students/123", "/ogs-groups"),
     );
@@ -175,12 +187,12 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
     expect(result.current.expanded).toBe(null);
   });
@@ -189,9 +201,9 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
 
     act(() => {
       result.current.toggle("database");
@@ -200,10 +212,10 @@ describe("useSidebarAccordion", () => {
   });
 
   it("persists expanded section to localStorage", () => {
-    renderHook(() => useSidebarAccordion("/ogs-groups"));
+    renderHook(() => useSidebarAccordion("/active-supervisions"));
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       "sidebar-accordion-expanded",
-      "groups",
+      "supervisions",
     );
   });
 
@@ -211,11 +223,11 @@ describe("useSidebarAccordion", () => {
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
 
     act(() => {
-      result.current.toggle("groups");
+      result.current.toggle("supervisions");
     });
 
     expect(localStorageMock.removeItem).toHaveBeenCalledWith(
@@ -235,10 +247,12 @@ describe("useSidebarAccordion", () => {
   it("does not restore from localStorage when pathname determines section", () => {
     localStorageMock.getItem.mockReturnValueOnce("database");
 
-    const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/active-supervisions"),
+    );
 
     // Should use pathname, not localStorage
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
   });
 
   it("ignores invalid localStorage values", () => {
@@ -267,10 +281,10 @@ describe("useSidebarAccordion", () => {
   it("collapses when navigating to unrelated page", () => {
     const { result, rerender } = renderHook(
       ({ pathname }) => useSidebarAccordion(pathname),
-      { initialProps: { pathname: "/ogs-groups" } },
+      { initialProps: { pathname: "/active-supervisions" } },
     );
 
-    expect(result.current.expanded).toBe("groups");
+    expect(result.current.expanded).toBe("supervisions");
 
     rerender({ pathname: "/dashboard" });
     expect(result.current.expanded).toBe(null);

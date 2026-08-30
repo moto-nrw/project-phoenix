@@ -79,6 +79,7 @@ import {
 
 import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
@@ -130,7 +131,8 @@ function areOgsGroupsEqual(a: OGSGroup[], b: OGSGroup[]): boolean {
       group.room_name === other.room_name &&
       group.student_count === other.student_count &&
       group.present_count === other.present_count &&
-      group.viaSubstitution === other.viaSubstitution
+      group.viaSubstitution === other.viaSubstitution &&
+      group.isPersonal === other.isPersonal
     );
   });
 }
@@ -171,6 +173,7 @@ function OGSGroupPageContent() {
 
   const { success: showSuccessToast } = useToast();
   const { setGroupAttendanceCount } = useGroupAttendanceCounts();
+  const canAdministerGroups = hasEffectiveAdminScope(session);
 
   // Only binary-mode tenants expose the web check-in toggle; in detailed
   // mode the kiosk owns check-in/out and a parallel web button would
@@ -323,6 +326,7 @@ function OGSGroupPageContent() {
         present_count: undefined as number | undefined,
         supervisor_name: undefined,
         viaSubstitution: group.viaSubstitution,
+        isPersonal: group.isPersonal,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
@@ -887,6 +891,7 @@ function OGSGroupPageContent() {
   const overflowItems = currentGroup
     ? buildGroupOverflowItems({
         viaSubstitution: currentGroup.viaSubstitution ?? false,
+        canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
         activeTransfersCount: activeTransfers.length,
         onOpenTransfer: () => setShowTransferModal(true),
       })
@@ -1221,7 +1226,7 @@ export default function OGSGroupPage() {
 
 function OGSGroupPageGuarded() {
   return (
-    <RoleGuard variant="staffOnly" fallback={<OgsGroupsPageSkeleton />}>
+    <RoleGuard variant="staffOrAdmin" fallback={<OgsGroupsPageSkeleton />}>
       <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />

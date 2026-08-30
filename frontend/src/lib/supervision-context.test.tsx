@@ -265,6 +265,55 @@ describe("SupervisionProvider", () => {
     },
   );
 
+  it("updates a group's personal section after a handover", async () => {
+    setupFetchMock({
+      groups: {
+        groups: [
+          {
+            id: "10",
+            name: "Incoming Group",
+            is_personal: false,
+            via_substitution: false,
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.groups[0]?.is_personal).toBe(false);
+    });
+
+    setupFetchMock({
+      groups: {
+        groups: [
+          {
+            id: "10",
+            name: "Incoming Group",
+            is_personal: true,
+            via_substitution: true,
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await result.current.refresh({
+        force: true,
+        groupsOnly: true,
+        silent: true,
+      });
+    });
+
+    expect(result.current.groups[0]).toMatchObject({
+      is_personal: true,
+      via_substitution: true,
+    });
+  });
+
   it("should debounce rapid refresh calls", async () => {
     setupFetchMock(); // Use defaults
 

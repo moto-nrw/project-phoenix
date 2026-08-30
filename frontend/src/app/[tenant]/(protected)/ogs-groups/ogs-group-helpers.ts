@@ -18,6 +18,7 @@ export interface OGSGroup {
   supervisor_name?: string;
   students?: Student[];
   viaSubstitution?: boolean;
+  isPersonal?: boolean;
 }
 
 type StudentLocationLike = {

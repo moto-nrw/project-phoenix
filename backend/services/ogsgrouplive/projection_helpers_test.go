@@ -169,9 +169,11 @@ func TestSelectGroupFallsBackAndMatches(t *testing.T) {
 	second.ID = 2
 	groups := []*educationModels.Group{first, second}
 
-	assert.Same(t, first, selectGroup(groups, 0), "no request resolves the first sorted group")
-	assert.Same(t, second, selectGroup(groups, 2))
-	assert.Nil(t, selectGroup(groups, 99), "unsupervised group must not resolve")
+	assert.Same(t, first, selectGroup(groups, nil, 0), "no request resolves the first sorted group")
+	assert.Same(t, second, selectGroup(groups, nil, 2))
+	assert.Nil(t, selectGroup(groups, nil, 99), "invisible group must not resolve")
+	assert.Same(t, second, selectGroup(groups, map[int64]bool{2: true}, 0),
+		"the default selection prefers a personal group")
 }
 
 // applyPlanning attaches the guardian's pending note regardless of read scope:

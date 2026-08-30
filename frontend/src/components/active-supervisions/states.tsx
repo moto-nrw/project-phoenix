@@ -39,6 +39,8 @@ interface SchulhofNotSupervisingViewProps {
   readonly supervisorCount: number;
   readonly supervisorNames: string[];
   readonly isToggling: boolean;
+  readonly startDisabled?: boolean;
+  readonly startDisabledReason?: string;
   readonly onToggle: () => void;
 }
 
@@ -197,6 +199,8 @@ export function SchulhofNotSupervisingView({
   supervisorCount,
   supervisorNames,
   isToggling,
+  startDisabled = false,
+  startDisabledReason,
   onToggle,
 }: SchulhofNotSupervisingViewProps) {
   return (
@@ -206,14 +210,15 @@ export function SchulhofNotSupervisingView({
         Schulhof ohne Aufsicht
       </p>
       <p className="text-sm text-gray-500">
-        {supervisorCount > 0
-          ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-          : "Übernimm die Aufsicht, um Kinder zu sehen."}
+        {startDisabledReason ??
+          (supervisorCount > 0
+            ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
+            : "Übernimm die Aufsicht, um Kinder zu sehen.")}
       </p>
       <button
         type="button"
         onClick={onToggle}
-        disabled={isToggling}
+        disabled={isToggling || startDisabled}
         className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
       >
         {isToggling ? "Wird übernommen..." : "Beaufsichtigen"}
