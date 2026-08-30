@@ -1170,13 +1170,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "internal/tenanttest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "internal/timezone",
       "owner": "legacy-shared",
       "role": "domain",

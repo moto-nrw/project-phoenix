@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/tenanttest"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,7 +172,7 @@ func TestParseMFAChallengeJWT_RejectsGarbageToken(t *testing.T) {
 func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T) {
 	t.Parallel()
 
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 	issuer, err := NewTokenAuthWithSecret("issuer-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 	verifier, err := NewTokenAuthWithSecret("verifier-secret-must-be-at-least-32-characters-long")
@@ -193,7 +193,7 @@ func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T
 func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
 	t.Parallel()
 
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 

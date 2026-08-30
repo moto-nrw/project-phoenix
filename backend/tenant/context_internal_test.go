@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/tenanttest"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 )
 
 func TestWithAdminTxFlag_KeepsTenantID(t *testing.T) {
 	t.Parallel()
 
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 	ctx := withAdminTxFlag(WithTenantID(context.Background(), tenantID))
 	if !IsAdminTx(ctx) {
 		t.Fatal("expected admin tx flag")

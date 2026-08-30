@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/tenanttest"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
@@ -558,7 +558,7 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 	// would leave clients frozen on the first horizon they saw, dropping later
 	// occurrences. DTSTART is still anchored to the first real occurrence.
 	oldMonday := timezone.NewDate(2020, 1, 6)
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 	appt := &calModels.Appointment{
 		Model:       base.Model{ID: 9},
 		TenantModel: base.TenantModel{TenantID: tenantID},
@@ -597,8 +597,8 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
 	t.Parallel()
 
-	firstTenantID := tenanttest.NewTenantID()
-	secondTenantID := tenanttest.NewTenantID()
+	firstTenantID := ptrtest.NewTenantID()
+	secondTenantID := ptrtest.NewTenantID()
 	children := []*parentModels.ChildSummary{
 		{TenantID: secondTenantID, GuardianProfileID: 20},
 		{TenantID: firstTenantID, GuardianProfileID: 10},

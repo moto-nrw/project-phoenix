@@ -10,7 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/internal/tenanttest"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -80,7 +80,7 @@ func TestWithClaims(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest("GET", "/test", nil)
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 
 	claims := jwt.AppClaims{
 		ID:       42,
@@ -168,7 +168,7 @@ func TestNewRequest(t *testing.T) {
 func TestNewRequest_WithOptions(t *testing.T) {
 	t.Parallel()
 
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 	req := testutil.NewRequest("GET", "/api/test", nil,
 		testutil.WithPermissions("test:read"),
 		testutil.WithClaims(t, jwt.AppClaims{ID: 1, TenantID: tenantID}),
@@ -278,7 +278,7 @@ func TestNewMultipartRequest_EmptyContent(t *testing.T) {
 func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	t.Parallel()
 
-	tenantID := tenanttest.NewTenantID()
+	tenantID := ptrtest.NewTenantID()
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"document", "data.json", `{"key": "value"}`,
 		testutil.WithPermissions("uploads:create"),
@@ -488,7 +488,7 @@ func TestClaimsFollowTheTestIntoItsOwnTenant(t *testing.T) {
 	assert.Equal(t, own, req.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
 		"bootstrap-tenant claims must follow the test")
 
-	otherTenantID := tenanttest.NewTenantID()
+	otherTenantID := ptrtest.NewTenantID()
 	require.NotEqual(t, own, otherTenantID)
 	other := httptest.NewRequest("GET", "/test", nil)
 	testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: otherTenantID})(other)
