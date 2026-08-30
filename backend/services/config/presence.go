@@ -12,7 +12,9 @@ import (
 // missing, empty, or cannot be resolved. It wraps its own tenant transaction
 // via ResolveStringForTenant, suitable for device auth (IoT handshake) and
 // scheduler per-tenant loops.
-func ResolvePresenceModeForTenant(ctx context.Context, svc SettingsService, tenantID int64, logger *slog.Logger) string {
+func ResolvePresenceModeForTenant(ctx context.Context, svc interface {
+	ResolveStringForTenant(context.Context, int64, string) (string, error)
+}, tenantID int64, logger *slog.Logger) string {
 	if svc == nil {
 		return configModel.PresenceModeDetailed
 	}

@@ -376,7 +376,7 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 	modelReader := &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
 		ID:                 modelID,
 		RotationLength:     1,
-		RotationAnchorDate: monday,
+		RotationAnchorDate: workforceDate(monday),
 		Entries: []*configModel.WorkTimeModelEntry{
 			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
 			{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 60},
@@ -395,8 +395,8 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 		context.Background(),
 		[]*users.Staff{scheduledStaff, modelStaff},
 		[]*configModel.StaffWorkSchedule{
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: validFrom},
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: validFrom},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: workforceDate(validFrom)},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: workforceDate(validFrom)},
 		},
 		[]timezone.Date{monday},
 	)

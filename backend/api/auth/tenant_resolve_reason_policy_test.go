@@ -20,6 +20,7 @@ import (
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type reasonPolicyResolveResp struct {
@@ -82,7 +83,7 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 	}
 	stored.SetTenantID(scope.TenantID)
 	require.NoError(t,
-		configRepo.NewSettingValueRepository(db).Upsert(scope.Context(), stored),
+		configRepo.NewSettingValueRepository(testpkg.ConfigRuntime(db)).Upsert(scope.Context(), stored),
 		"store an unknown parent_request_reason_policy override")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)

@@ -4,15 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"github.com/uptrace/bun"
 )
 
 // SettingAuditEntry records a change to a setting value. Append-only.
 // Does NOT embed base.Model because the table has no created_at/updated_at columns.
 type SettingAuditEntry struct {
-	bun.BaseModel `bun:"schema:config,table:setting_audit"`
-
 	ID       int64 `bun:"id,pk,autoincrement" json:"id"`
 	TenantID int64 `bun:"tenant_id,notnull" json:"tenant_id"`
 

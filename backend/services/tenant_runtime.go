@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -14,11 +15,19 @@ func BindTenantRuntime(
 	savepoints tenant.SavepointController,
 	retryable func(error) bool,
 ) (tenant.UnitOfWork, error) {
+	lockController, _ := savepoints.(interface {
+		AcquireLock(context.Context, string, bool) error
+	})
+	var acquireLock func(context.Context, string, bool) error
+	if lockController != nil {
+		acquireLock = lockController.AcquireLock
+	}
 	return tenant.NewUnitOfWork(
 		withinTenant,
 		withinAdmin,
 		tenant.SavepointFunc(savepoints),
 		retryable,
+		acquireLock,
 	)
 }
 
@@ -40,6 +49,9 @@ type tenantRuntimeSetter interface {
 // one. Fields are discovered by reflection so a new service with a
 // SetTenantRuntime method cannot be forgotten in a hand-maintained list.
 func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
+	if setter, ok := f.Settings.(interface{ SetRuntime(config.Runtime) }); ok {
+		setter.SetRuntime(newSettingsRuntime(f.settingsRuntimeDB, &runtime))
+	}
 	fields := reflect.ValueOf(f).Elem()
 	for i := 0; i < fields.NumField(); i++ {
 		field := fields.Field(i)

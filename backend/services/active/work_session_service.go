@@ -651,7 +651,7 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 		return fmt.Errorf("staff work schedule repository not configured")
 	}
 
-	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, today)
+	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, workforceDate(today))
 	if err != nil {
 		return fmt.Errorf("failed to load planned start schedule: %w", err)
 	}
@@ -660,12 +660,12 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	}
 
 	staff := s.resolveStaffForTargets(ctx, staffID)
-	anchor := configModels.ResolveScheduleAnchor(staffAnchorOf(staff), entries)
+	anchor := configModels.ResolveScheduleAnchor(workforceDatePointer(staffAnchorOf(staff)), entries)
 	if anchor.IsZero() {
 		return nil
 	}
-	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(today))
-	dayIndex := configModels.ISODayIndex(today)
+	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(workforceDate(today)))
+	dayIndex := configModels.ISODayIndex(workforceDate(today))
 	for _, entry := range entries {
 		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
 			continue
@@ -1868,13 +1868,17 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		}
 		anchor := model.RotationAnchorDate
 		if staff.RotationAnchorDate != nil {
-			anchor = *staff.RotationAnchorDate
+			anchor = workforceDate(*staff.RotationAnchorDate)
 		}
-		targets := configModels.WeeklyTargetsFromModel(model, anchor, sessionWeekStarts(sessions))
+		targets := configModels.WeeklyTargetsFromModel(model, anchor, workforceDates(sessionWeekStarts(sessions)))
 		for weekStart, target := range targets {
-			targets[weekStart] = target - holidayModelMinutes(model, anchor, weekStart, holidaySet)
+			targets[weekStart] = target - holidayModelMinutes(model, anchor, calendarDate(weekStart), holidaySet)
 		}
-		return summaryKeysOf(targets)
+		converted := make(map[timezone.Date]int, len(targets))
+		for weekStart, target := range targets {
+			converted[calendarDate(weekStart)] = target
+		}
+		return summaryKeysOf(converted)
 	}
 	return nil
 }
@@ -1914,7 +1918,7 @@ func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnch
 		if !holidaySet[day] {
 			continue
 		}
-		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, staffAnchor, day)
+		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, workforceDatePointer(staffAnchor), workforceDate(day))
 		total += dayTarget
 	}
 	return total
@@ -1922,14 +1926,14 @@ func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnch
 
 // holidayModelMinutes is holidayScheduleMinutes for the work-time-model
 // fallback path.
-func holidayModelMinutes(model *configModels.WorkTimeModel, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+func holidayModelMinutes(model *configModels.WorkTimeModel, anchor configModels.CalendarDate, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
 	total := 0
 	for offset := 0; offset < 7; offset++ {
 		day := weekStart.AddDays(offset)
 		if !holidaySet[day] {
 			continue
 		}
-		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, day)
+		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, workforceDate(day))
 		total += dayTarget
 	}
 	return total
@@ -1971,13 +1975,13 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 			to = weekStart
 		}
 	}
-	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to.AddDays(6))
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, workforceDate(from), workforceDate(to.AddDays(6)))
 	if err != nil || len(entries) == 0 {
 		return nil
 	}
 	targetsByWeek := make(map[summaryWeekKey]int)
 	for _, weekStart := range weekStarts {
-		if target, ok := configModels.WeeklyTargetFromSchedule(entries, staffAnchorOf(staff), weekStart); ok {
+		if target, ok := configModels.WeeklyTargetFromSchedule(entries, workforceDatePointer(staffAnchorOf(staff)), workforceDate(weekStart)); ok {
 			target -= holidayScheduleMinutes(entries, staffAnchorOf(staff), weekStart, holidaySet)
 			targetsByWeek[summaryKeyOf(weekStart)] = target
 		}
@@ -2005,7 +2009,7 @@ func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
-			weekStart := configModels.MondayOf(day)
+			weekStart := calendarDate(configModels.MondayOf(workforceDate(day)))
 			if _, ok := seen[weekStart]; ok {
 				continue
 			}
@@ -2822,7 +2826,8 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	staff.RotationAnchorDate = &anchor
+	staffAnchor := calendarDate(anchor)
+	staff.RotationAnchorDate = &staffAnchor
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
 	}
@@ -2847,7 +2852,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if effective.IsZero() && isRotationalSchedule(entries) {
 		effective = timezone.TodayDate()
 	}
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, workforceDate(effective)); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
@@ -2871,13 +2876,13 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 	model := &configModels.WorkTimeModel{
 		Name:               name,
 		RotationLength:     rotation,
-		RotationAnchorDate: anchor,
+		RotationAnchorDate: workforceDate(anchor),
 	}
 	if err := s.workModelRepo.Create(ctx, model, entries); err != nil {
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, workforceDate(anchor)); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 

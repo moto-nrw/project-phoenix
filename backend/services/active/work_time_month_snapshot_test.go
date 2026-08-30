@@ -94,7 +94,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 		DayOfWeek:     configModels.DayMonday,
 		TargetMinutes: 480,
 		WeekIndex:     0, RotationLength: 1,
-		ValidFrom: timezone.NewDate(2020, time.January, 1),
+		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
 	}
 	_, err := db.NewInsert().Model(schedule).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 	require.NoError(t, err)

@@ -105,6 +105,45 @@ func WithClaims(tb testing.TB, claims jwt.AppClaims) RequestOption {
 	}
 }
 
+// WithTestTenant supplies the package test's tenant without exposing tenant
+// runtime details to adapter tests.
+func WithTestTenant(tb testing.TB) RequestOption {
+	tenantID := testpkg.Tenant(tb)
+	return func(req *http.Request) {
+		*req = *req.WithContext(tenant.WithTenantID(req.Context(), tenantID))
+	}
+}
+
+// ProtectedTestTenantGroup is the authorization-free test boundary for HTTP
+// adapters whose permission middleware is tested separately. It retains the
+// real tenant transaction and request caches.
+func ProtectedTestTenantGroup(db *bun.DB, r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+	r.Group(func(gr chi.Router) {
+		gr.Use(testpkg.TenantTxMiddleware(db))
+		fn(gr, func(next http.Handler) http.Handler { return next })
+	})
+}
+
+func ProtectedTestTenantGroupFunc(db *bun.DB) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		ProtectedTestTenantGroup(db, r, fn)
+	}
+}
+
+func IdentityMiddleware(next http.Handler) http.Handler { return next }
+
+func RespondSuccess(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
+	render.Status(r, status)
+	render.JSON(w, r, Response{Status: "success", Data: data, Message: message})
+}
+
+func RespondNoContent(w http.ResponseWriter, r *http.Request) { render.NoContent(w, r) }
+
+func RespondError(w http.ResponseWriter, r *http.Request, status int, err error) {
+	render.Status(r, status)
+	render.JSON(w, r, Response{Status: "error", Error: err.Error()})
+}
+
 // WithJWTBearer sets an Authorization: Bearer <token> header on the request.
 // Use together with MintTestJWT when exercising a Resource via Router(), where
 // the production JWT middleware chain (Verifier → Authenticator → TenantMiddleware)

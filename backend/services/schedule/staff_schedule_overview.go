@@ -113,7 +113,7 @@ type StaffOverviewReader interface {
 }
 
 type StaffWorkScheduleBatchReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModel.StaffWorkSchedule, error)
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModel.CalendarDate) ([]*configModel.StaffWorkSchedule, error)
 }
 
 type WorkTimeModelBatchReader interface {
@@ -259,7 +259,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 				staffIDs = append(staffIDs, member.ID)
 			}
 		}
-		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, firstWeekFrom, lastWeekTo)
+		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(firstWeekFrom), workforceDate(lastWeekTo))
 		if err != nil {
 			return nil, fmt.Errorf("load staff work schedules: %w", err)
 		}
@@ -625,11 +625,11 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		found := false
 		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
 			for _, weekStart := range weekStarts {
-				if target, ok := configModel.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
+				if target, ok := configModel.WeeklyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(weekStart)); ok {
 					for offset := 0; offset < 7; offset++ {
 						day := weekStart.AddDays(offset)
 						if holidaySet[day] {
-							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
+							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(day))
 							target -= dayTarget
 						}
 					}
@@ -668,17 +668,17 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		}
 		anchor := model.RotationAnchorDate
 		if member.RotationAnchorDate != nil {
-			anchor = *member.RotationAnchorDate
+			anchor = workforceDate(*member.RotationAnchorDate)
 		}
-		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, weekStarts) {
+		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, workforceDates(weekStarts)) {
 			for offset := 0; offset < 7; offset++ {
-				day := weekStart.AddDays(offset)
+				day := calendarDate(weekStart.AddDays(offset))
 				if holidaySet[day] {
-					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, day)
+					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, workforceDate(day))
 					target -= dayTarget
 				}
 			}
-			targets[staffDateKey{member.ID, weekStart}] = target
+			targets[staffDateKey{member.ID, calendarDate(weekStart)}] = target
 		}
 	}
 	return targets, nil

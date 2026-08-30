@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +23,7 @@ var errGuardProbe = errors.New("phase probe query failed")
 
 // setFailingGradeCapGuard wires a highest-restricted-grade probe that fails,
 // standing in for a broken phase query rather than a real grade restriction.
-func setFailingGradeCapGuard(t *testing.T, svc configSvc.SettingsService, err error) {
+func setFailingGradeCapGuard(t *testing.T, svc SettingsService, err error) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetGradeCapGuard(func(context.Context) (int, error))
@@ -35,7 +34,7 @@ func setFailingGradeCapGuard(t *testing.T, svc configSvc.SettingsService, err er
 
 // setFailingClassRestrictionGuard is the class-probe counterpart of
 // setFailingGradeCapGuard.
-func setFailingClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService, err error) {
+func setFailingClassRestrictionGuard(t *testing.T, svc SettingsService, err error) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetClassRestrictionGuard(func(context.Context) (bool, error))
@@ -46,7 +45,7 @@ func setFailingClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService
 
 // setFailingGradeRestrictionGuard is the grade-probe counterpart of
 // setFailingGradeCapGuard.
-func setFailingGradeRestrictionGuard(t *testing.T, svc configSvc.SettingsService, err error) {
+func setFailingGradeRestrictionGuard(t *testing.T, svc SettingsService, err error) {
 	t.Helper()
 	guarded, ok := svc.(interface {
 		SetGradeRestrictionGuard(func(context.Context) (bool, error))
@@ -65,7 +64,7 @@ func assertOperationalFailure(t *testing.T, err error, wantMessage string) {
 	assert.Contains(t, err.Error(), wantMessage)
 	assert.ErrorIs(t, err, errGuardProbe, "the probe's cause must stay wrapped for the 500 log")
 
-	var invalid *configSvc.InvalidValueError
+	var invalid *InvalidValueError
 	assert.False(t, errors.As(err, &invalid),
 		"a failed probe is an operational failure (500), not an invalid value (400)")
 }
@@ -165,7 +164,7 @@ func TestSetValue_ClassCollectionGuard_UnresolvablePairedToggle(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "resolve paired class-collection toggle")
 
-	var invalid *configSvc.InvalidValueError
+	var invalid *InvalidValueError
 	assert.False(t, errors.As(err, &invalid),
 		"an unresolvable sibling toggle is operational, not an invalid value")
 }

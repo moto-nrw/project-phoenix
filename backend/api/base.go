@@ -221,6 +221,10 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
+	serviceFactory.SetSettingsObservers(
+		observability.ObserveSettingsLookup,
+		observability.RecordSettingsSideEffectFailure,
+	)
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
 		stats := database.SnapshotCapacity(db)
 		return observability.DBStats{
@@ -683,9 +687,73 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
-	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
-	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
+	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
+		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(r, db, fn)
+		},
+		Permission: func(access configAPI.Access) configAPI.Middleware {
+			switch access {
+			case configAPI.AccessRead:
+				return apiCommon.RequireConfigRead()
+			case configAPI.AccessManage:
+				return apiCommon.RequireConfigManage()
+			case configAPI.AccessReadOrWrite:
+				return apiCommon.RequireConfigReadOrWrite()
+			default:
+				return apiCommon.RequireConfigWrite()
+			}
+		},
+		TenantGuard: apiCommon.TenantOperationMiddleware,
+		RequestActor: func(ctx context.Context) (int64, int64, []string) {
+			principal, err := apiCommon.CurrentPrincipal(ctx)
+			if err != nil {
+				return 0, 0, nil
+			}
+			return principal.TenantID(), principal.AccountID(), principal.Permissions()
+		},
+		Editable:  apiCommon.CanEditConfig,
+		Success:   apiCommon.Respond,
+		NoContent: apiCommon.RespondNoContent,
+		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
+			switch status {
+			case http.StatusBadRequest:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+			case http.StatusForbidden:
+				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
+			case http.StatusNotFound:
+				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
+			default:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
+			}
+		},
+		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*configAPI.UploadedFile, error) {
+			file, err := apiCommon.ParseImage(w, r, field, maxBody)
+			if err != nil {
+				return nil, err
+			}
+			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+		},
+		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*configAPI.UploadedFile, error) {
+			file, err := apiCommon.ParsePDFWithLimits(w, r, field, maxFile, maxBody)
+			if err != nil {
+				return nil, err
+			}
+			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+		},
+		ImageSave:  apiCommon.SaveImage,
+		PDFSave:    apiCommon.SavePDF,
+		FileRemove: apiCommon.RemoveImage,
+		StoredPath: apiCommon.ResolveStoredPath,
+		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
+			publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
+			referenced, err := repoFactory.FormSchema.HasLegalDocumentReference(ctx, storedURL, publicURL)
+			if err != nil {
+				return false, fmt.Errorf("check AGB document references: %w", err)
+			}
+			return referenced, nil
+		},
+	})
+	api.Settings = configAPI.NewSettingsResource(api.Services.TenantSettings, settingsRuntime)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{

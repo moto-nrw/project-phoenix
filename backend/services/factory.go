@@ -73,6 +73,7 @@ import (
 
 // Factory provides access to all services
 type Factory struct {
+	settingsRuntimeDB        *bun.DB
 	Auth                     auth.AuthService
 	StaffPINAuth             auth.StaffPINAuthenticator
 	MFA                      auth.MFAService
@@ -104,6 +105,7 @@ type Factory struct {
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
+	TenantSettings           *config.TenantOperations
 	PayrollStatus            config.PayrollStatusGetter
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
@@ -256,8 +258,26 @@ type Factory struct {
 	StudentPhotos users.StudentPhotoService
 }
 
+// SetSettingsObservers wires delivery-owned metrics without coupling the
+// settings application layer to a metrics implementation.
+func (f *Factory) SetSettingsObservers(
+	lookup config.SettingsLookupObserver,
+	sideEffectFailure sideeffects.FailureObserver,
+) {
+	if observable, ok := f.Settings.(interface {
+		SetLookupObserver(config.SettingsLookupObserver)
+	}); ok {
+		observable.SetLookupObserver(lookup)
+	}
+	if f.SettingsSideEffects != nil {
+		f.SettingsSideEffects.SetFailureObserver(sideEffectFailure)
+	}
+}
+
 // NewFactory creates a new services factory; tests may pass one statistics clock.
 func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, statisticsClocks ...func() time.Time) (*Factory, error) {
+	settingsRuntime := newSettingsRuntime(db, nil)
+	repos.SetConfigRuntime(settingsRuntime)
 
 	mailer, err := email.NewMailer()
 	if err != nil {
@@ -400,8 +420,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
-		repos.School,
-		db,
+		newSchoolSettingsStore(repos.School),
+		settingsRuntime,
 		logger,
 	)
 	// Wire the enrollment class-restriction probe so the settings service can
@@ -654,7 +674,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	// writes an audit.data_access_logs row or fails.
 	// One payroll-status instance: the /payroll page and the DATEV writers
 	// must judge completeness identically.
-	payrollStatusService := config.NewPayrollStatusService(settingsService, repos.Staff)
+	payrollStatusService := config.NewPayrollStatusService(settingsService, func(ctx context.Context) (int, int, error) {
+		staff, err := repos.Staff.List(ctx, nil)
+		if err != nil {
+			return 0, 0, err
+		}
+		withoutPersonnelNumber := 0
+		for _, member := range staff {
+			if member.PersonnelNumber == nil || *member.PersonnelNumber == "" {
+				withoutPersonnelNumber++
+			}
+		}
+		return len(staff), withoutPersonnelNumber, nil
+	})
 
 	staffTimeExportService := active.NewStaffTimeExportService(
 		staffOverviewService,
@@ -2190,6 +2222,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:                 repos.ParentChild,
 		EnrollablePhaseRepo:       repos.ParentEnrollablePhase,
+		EnrollmentSettings:        settingsService,
 		EnrollmentRequestRepo:     repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:       repos.GuardianProfile,
 		AttendanceRepo:            repos.Attendance,
@@ -2378,7 +2411,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	})
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
-	workTimeModelService.SetBroadcaster(realtimeHub)
+	workTimeModelService.SetChangeNotifier(func(ctx context.Context) {
+		realtime.QueueStaffTimeTrackingChanged(ctx, realtimeHub, nil)
+	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
@@ -2508,6 +2543,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
 	factory := &Factory{
+		settingsRuntimeDB:        db,
 		Auth:                     authService,
 		StaffPINAuth:             authService,
 		MFA:                      mfaService,
@@ -2673,6 +2709,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
 	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	tenantSettings := config.NewTenantOperations(
+		settingsService,
+		payrollStatusService,
+		settingsRuntime,
+		factory.SettingsSideEffects.Dispatch,
+		func(_ context.Context, tenantID int64, key string) {
+			event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
+			_ = realtimeHub.BroadcastToTenant(tenantID, event)
+		},
+	)
+	factory.TenantSettings = tenantSettings
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence
