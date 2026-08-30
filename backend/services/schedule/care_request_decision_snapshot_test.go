@@ -245,7 +245,7 @@ func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 
 	// Next Monday (always in the future), so the exception's weekday fallback
 	// (the live Monday plan) supplies the old side.
-	date := timezone.TodayDate().AddDays(1)
+	date := timezone.NewDate(2026, 8, 24).AddDays(1)
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)
 	}

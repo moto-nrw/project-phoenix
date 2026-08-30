@@ -291,8 +291,8 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
 	t.Parallel()
 
-	entryTime := time.Now().Add(-time.Hour)
-	exitTime := time.Now()
+	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-time.Hour)
+	exitTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	existing := &activeModels.Visit{
 		Model: base.Model{ID: 101}, StudentID: 201, ActiveGroupID: 301, EntryTime: entryTime,
 	}

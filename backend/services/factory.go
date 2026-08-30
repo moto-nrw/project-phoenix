@@ -306,8 +306,10 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-// NewFactory creates a new services factory; tests may pass one statistics clock.
-func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, statisticsClocks ...func() time.Time) (*Factory, error) {
+// NewFactory creates a new services factory; tests may pass one application clock.
+func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
+	now := optionalClock(clocks)
+	today := timezone.CalendarDateClock(now)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
@@ -431,6 +433,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.InstanceStudent,
 		repos.StudentEnrollment,
 		logger,
+		now,
 	)
 
 	// Initialize grade transition service
@@ -446,6 +449,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ClassListEntryAudit: repos.ClassListEntryChange,
 		RosterReconciler:    rosterReconciler,
 		DB:                  db,
+		Today:               today,
 	})
 
 	// Initialize settings service (new schema-driven settings system)
@@ -518,6 +522,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		PersonRepo:      repos.Person,
 		SettingsService: settingsService,
 		Logger:          logger.With("service", "birthdays"),
+		Now:             now,
 	})
 
 	// Staff documents (#1424): metadata + per-category authority for the
@@ -835,6 +840,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
+		Now:                      now,
 	})
 
 	// Initialize feedback service
@@ -888,6 +894,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ActivityExceptionRepo:    repos.ActivityException,
 		PhaseRepo:                repos.Phase,
 		Settings:                 settingsService,
+		Today:                    today,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -981,6 +988,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		db,
 		logger.With("service", "staff_shift_series"),
 		staffShiftService,
+		today,
 	)
 	if broadcastAware, ok := staffShiftSeriesService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
@@ -1134,6 +1142,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Logger:             logger.With("service", "instance-lifecycle"),
 		Settings:           settingsService,
 		RecoveryRepo:       recoveryRepo,
+		Now:                now,
 		// E2E fixtures start future weekday instances. Dedicated unit tests
 		// construct the service with EnforceTimePolicy: true.
 		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
@@ -1245,6 +1254,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
+		Now:                now,
 		RecoveryRepo:       recoveryRepo,
 	})
 
@@ -1499,6 +1509,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 			}
 			return admin || (scope == configModels.OverviewScopeAllStaff && hasStaff), nil
 		},
+		Now: now,
 	})
 
 	// Initialize database stats service
@@ -1514,6 +1525,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.DataDeletion,
 		privacyConsentService,
 		db,
+		today,
 	)
 	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
 
@@ -1861,6 +1873,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 			return nil
 		},
 		Logger: logger.With("service", "enrollment-decision"),
+		Today:  today,
 	})
 	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
 	if !ok {
@@ -2312,6 +2325,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		OfferingChanges:           offeringChangeRequestService,
 		DB:                        db,
 		Logger:                    logger.With("service", "parent"),
+		Now:                       now,
 	})
 
 	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
@@ -2466,6 +2480,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
 		db,
+		now,
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
@@ -2483,6 +2498,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ExcusedRequests:   excusedRequestService,
 		StatusDays:        studentStatusDayService,
 		Logger:            logger.With("service", "ogs-group-live"),
+		Now:               now,
 	})
 
 	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
@@ -2531,6 +2547,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),
 		DB:                         db,
+		Today:                      today,
 	})
 	instanceSeriesConverter := schedule.NewInstanceSeriesConversionService(schedule.InstanceSeriesConversionDependencies{
 		DB:              db,
@@ -2720,7 +2737,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 			Settings:        settingsService,
 			PrivacyConsents: repos.PrivacyConsent,
 			Logger:          logger.With("service", "statistics"),
-			Now:             optionalStatisticsClock(statisticsClocks),
+			Now:             now,
 		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,
@@ -2783,16 +2800,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		factory.RealtimeHub,
 		db,
 		logger.With("service", "shift_plan_sync"),
+		today,
 	))
 	return factory, nil
 }
 
-func optionalStatisticsClock(clocks []func() time.Time) func() time.Time {
+func optionalClock(clocks []func() time.Time) func() time.Time {
 	if len(clocks) == 0 {
 		return nil
 	}
 	if len(clocks) > 1 {
-		panic("services.NewFactory accepts at most one statistics clock")
+		panic("services.NewFactory accepts at most one clock")
 	}
 	return clocks[0]
 }

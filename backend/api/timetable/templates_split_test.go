@@ -577,7 +577,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Update-Quelle")
-	effective := timezone.TodayDate().AddDays(7)
+	effective := timezone.NewDate(2026, 8, 24).AddDays(7)
 	splitW := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
 		splitBody(s, "Tpl-Split-Update-Nachfolger", effective))
@@ -640,7 +640,7 @@ func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutatio
 	created := createSourceTemplate(t, router, s, "Tpl-Update-Inconsistent-Quelle")
 	before := templateSchedules(t, s, created.TemplateID)
 	require.Len(t, before, 2)
-	inconsistentFrom := timezone.TodayDate().AddDays(14)
+	inconsistentFrom := timezone.NewDate(2026, 8, 24).AddDays(14)
 	_, err := s.db.NewUpdate().
 		Model((*activitiesModel.Schedule)(nil)).
 		ModelTableExpr(`activities.schedules AS "schedule"`).
@@ -745,7 +745,7 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-End-Quelle")
-	effective := timezone.TodayDate().AddDays(7)
+	effective := timezone.NewDate(2026, 8, 24).AddDays(7)
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))

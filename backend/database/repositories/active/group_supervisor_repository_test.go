@@ -126,7 +126,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing group supervisor", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -158,7 +158,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 
 	t.Run("updates supervisor role", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -188,7 +188,7 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -220,7 +220,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 
 	t.Run("lists all group supervisors", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -237,7 +237,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 
 	t.Run("filters active_only supervisors", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 
 		// Create an active supervisor (no end_date)
@@ -293,7 +293,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 
 	t.Run("finds active supervisions for staff", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -465,7 +465,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 
 	t.Run("ends active supervision", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -797,7 +797,7 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 		// staff_id + end_date IS NULL, so an ended session changes nothing
 		// about what this test exercises.
 		require.NoError(t, factory.ActiveGroup.EndSession(ctx, data.ActiveGroup.ID))
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		// Create multiple active supervisions for same staff
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
@@ -840,7 +840,7 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 	t.Run("does not affect already ended supervisions", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		endDate := today.AddDays(-1)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
@@ -865,7 +865,7 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 	t.Run("ends only active supervisions for specific staff", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		// Create active supervisions for two different staff members
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
@@ -921,7 +921,7 @@ func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 		sup := &active.GroupSupervisor{
 			GroupID:   groupID,
 			StaffID:   staffID,
-			StartDate: timezone.TodayDate(),
+			StartDate: timezone.NewDate(2026, 8, 24),
 			Role:      "supervisor",
 		}
 		require.NoError(t, repo.Create(ctx, sup))

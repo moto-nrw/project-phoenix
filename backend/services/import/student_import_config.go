@@ -898,7 +898,11 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 }
 
 func enrollmentStartsInFuture(enrolledFrom *timezone.Date) bool {
-	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayDate())
+	return enrollmentStartsAfter(enrolledFrom, timezone.TodayDate())
+}
+
+func enrollmentStartsAfter(enrolledFrom *timezone.Date, today timezone.Date) bool {
+	return enrolledFrom != nil && enrolledFrom.After(today)
 }
 
 // createGuardianRelationships creates all guardian relationships

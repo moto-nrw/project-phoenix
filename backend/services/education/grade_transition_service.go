@@ -200,6 +200,7 @@ type GradeTransitionService struct {
 	rosterReconciler       RosterReconciler
 	offeringSourceResyncer OfferingSourceResyncer
 	db                     *bun.DB
+	today                  func() timezone.Date
 }
 
 // SetOfferingSourceResyncer wires the offering-source roster resync (#2137).
@@ -238,10 +239,14 @@ type GradeTransitionServiceDependencies struct {
 	// Optional; nil disables reconciliation for tests that don't exercise it.
 	RosterReconciler RosterReconciler
 	DB               *bun.DB
+	Today            func() timezone.Date
 }
 
 // NewGradeTransitionService creates a new grade transition service
 func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTransitionService {
+	if deps.Today == nil {
+		deps.Today = timezone.TodayDate
+	}
 	return &GradeTransitionService{
 		transitionRepo:      deps.TransitionRepo,
 		studentRepo:         deps.StudentRepo,
@@ -254,6 +259,7 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTr
 		classListEntryAudit: deps.ClassListEntryAudit,
 		rosterReconciler:    deps.RosterReconciler,
 		db:                  deps.DB,
+		today:               deps.Today,
 	}
 }
 
@@ -942,7 +948,7 @@ func (s *GradeTransitionService) resyncOfferingSourcedTemplates(ctx context.Cont
 	if s.offeringSourceResyncer == nil {
 		return nil
 	}
-	if err := s.offeringSourceResyncer.ResyncOfferingSourcedTemplates(ctx, timezone.TodayDate()); err != nil {
+	if err := s.offeringSourceResyncer.ResyncOfferingSourcedTemplates(ctx, s.today()); err != nil {
 		return fmt.Errorf("failed to resync offering-sourced templates: %w", err)
 	}
 	return nil

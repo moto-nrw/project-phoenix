@@ -361,7 +361,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUn
 
 	// A switch that lands before the care period even starts: nothing was
 	// attended yet, so the superseded row has no interval worth keeping.
-	switchDate := timezone.TodayDate()
+	switchDate := timezone.NewDate(2026, 8, 24)
 	require.True(t, switchDate.Before(env.sourcePhase.ServiceStartDate),
 		"fixture phase must still lie in the future for this case")
 
@@ -404,7 +404,7 @@ func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(
 	)
 
 	cases := map[string]timezone.Date{
-		"past":            timezone.TodayDate().AddDays(-1),
+		"past":            timezone.NewDate(2026, 8, 24).AddDays(-1),
 		"after care ends": env.sourcePhase.ServiceEndDate.AddDays(1),
 	}
 	for name, switchDate := range cases {

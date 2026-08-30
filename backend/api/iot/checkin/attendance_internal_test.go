@@ -182,7 +182,7 @@ func TestAttendanceToggleResponse_Fields(t *testing.T) {
 func TestAttendanceInfo_Fields(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	later := now.Add(1 * time.Hour)
 	info := AttendanceInfo{
 		Status:       "checked_out",

@@ -28,7 +28,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupVisitHelperService(t, db)
+	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
@@ -47,7 +47,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		visit := &activeModels.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
-			EntryTime:     time.Now(),
+			EntryTime:     time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC),
 		}
 
 		// ACT
@@ -70,7 +70,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupVisitHelperService(t, db)
+	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "completed-visit")
 	room := testpkg.CreateTestRoom(t, db, "Completed Visit Room")
@@ -81,7 +81,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
-	entryTime := time.Now().Add(-2 * time.Hour)
+	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	exitTime := entryTime.Add(time.Hour)
 	visit := &activeModels.Visit{
 		StudentID: student.ID, ActiveGroupID: activeGroup.ID,
@@ -113,7 +113,7 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
-	entryTime := time.Now().Add(-2 * time.Hour)
+	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	visit := &activeModels.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
 
@@ -151,7 +151,7 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 
 	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
-	entryTime := time.Now().Add(-2 * time.Hour)
+	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	visit := &activeModels.Visit{
 		StudentID: student.ID, ActiveGroupID: sourceGroup.ID, EntryTime: entryTime,
 	}
@@ -191,7 +191,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REENTRY-001")
 
 		// Create existing attendance with checkout time (student left earlier)
-		checkoutTime := time.Now().Add(-2 * time.Hour)
+		checkoutTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 		existingAttendance := createAttendanceWithCheckout(t, db, student.ID, staff.ID, rfidDevice.ID, checkoutTime)
 
 		// Create context with staff and device
@@ -201,7 +201,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		visit := &activeModels.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
-			EntryTime:     time.Now(),
+			EntryTime:     time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC),
 		}
 
 		// ACT: Student re-enters
@@ -397,7 +397,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupVisitHelperService(t, db)
+	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	repoFactory := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 
@@ -409,7 +409,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PCS-001")
 
 	trueVal := true
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	student.Sick = &trueVal
 	student.SickSince = &now
 	student.Excused = &trueVal
@@ -474,7 +474,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupVisitHelperService(t, db)
+	service := setupVisitHelperService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	repoFactory := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
 
@@ -487,7 +487,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 
 	// No live sick flag set — this is the future-reported path the live-flag
 	// clear does not cover.
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	today := timezone.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  student.ID,
@@ -526,9 +526,9 @@ func TestWebManualDeviceCode(t *testing.T) {
 // Helper Functions
 // =============================================================================
 
-func setupVisitHelperService(t *testing.T, db *bun.DB) active.Service {
+func setupVisitHelperService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }
@@ -558,8 +558,8 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 	checkedOutBy := staffID
 	attendance := &activeModels.Attendance{
 		StudentID:    studentID,
-		Date:         timezone.TodayDate(),
-		CheckInTime:  time.Now().Add(-4 * time.Hour),
+		Date:         timezone.DateFromTime(checkoutTime),
+		CheckInTime:  checkoutTime.Add(-4 * time.Hour),
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  staffID,
 		CheckedOutBy: &checkedOutBy,

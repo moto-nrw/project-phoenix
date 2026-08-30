@@ -274,7 +274,7 @@ func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 	defer c.runCleanup(t)
 
 	added := c.students[2]
-	staleAnchor := timezone.TodayDate().AddDays(-7)
+	staleAnchor := timezone.NewDate(2026, 8, 24).AddDays(-7)
 
 	in := c.livingUpdateInput(t,
 		[]int64{c.students[0], c.students[1], added}, []int64{c.staffID}, &c.staffID)

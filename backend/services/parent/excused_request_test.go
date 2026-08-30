@@ -78,6 +78,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 		nil,
 		slog.Default(),
 		db,
+		func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 	)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -92,6 +93,9 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 		ExcusedRequests: excused,
 		DB:              db,
 		Logger:          slog.Default(),
+		Now: func() time.Time {
+			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+		},
 	})
 	return svc, excused, bc, db
 }
@@ -141,7 +145,7 @@ func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
 
 	svc, requests, _, db := buildAbsenceApprovalServices(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{today}, "Fieber", activeModels.StudentStatusDaySick, nil)
@@ -252,7 +256,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	day := timezone.TodayDate().AddDays(3)
+	day := timezone.NewDate(2026, 8, 24).AddDays(3)
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
@@ -274,7 +278,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 	require.NoError(t, err)
 
 	// The approved absence now shows as a confirmed excused status day.
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
