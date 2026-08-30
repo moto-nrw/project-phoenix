@@ -372,10 +372,9 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
-    // Alt-Bereich für temporären Gruppen-Datenzugriff (#1940) — nur bei
-    // festen Gruppen sichtbar (Filter unten).
+    // Gruppenübergaben sind nur bei festen Gruppen relevant (Filter unten).
     href: "/substitutions",
-    label: "Gruppenzugriff",
+    label: "Gruppenübergaben",
     iconKey: "substitutions",
     concept: "groupAccess",
     requiresAdmin: true,
@@ -615,7 +614,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
-  // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
+  // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
   const staffMessagingEnabled = useStaffMessagingEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches

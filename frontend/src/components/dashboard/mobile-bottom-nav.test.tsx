@@ -396,8 +396,7 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretung")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      // "Übergaben" heißt jetzt "Gruppenzugriff" (#1940).
-      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
@@ -1111,7 +1110,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(screen.queryByText("Gruppenzugriff")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppenübergaben")).not.toBeInTheDocument();
       // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
     });
@@ -1169,8 +1168,7 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
-      // Gruppenzugriff bleibt sichtbar (fixed_groups default).
-      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
     });
 
     it("reads timetable.enabled from the tenant-scoped SWR key", () => {

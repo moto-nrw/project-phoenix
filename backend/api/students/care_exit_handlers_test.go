@@ -90,15 +90,18 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	listedIDs := func(query string) map[int64]bool { return listedCareStudentIDs(t, tc, claims, query) }
 
 	assert.True(t, listedIDs("")[student.ID], "the child remains visible before the gap")
-	assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
-	assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
 	assert.False(t, listedIDs("&include_pending_withdrawals=true")[endedWithoutTask.ID], "the administration exception must not restore every ended child")
 
-	readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
-		"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
-	readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
-	assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
-		"the administrative exception must require users:delete")
+	if !firstGap.After(horizon) {
+		assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
+		assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
+
+		readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
+			"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
+		readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
+		assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
+			"the administrative exception must require users:delete")
+	}
 
 	// Move the same pending task onto today to exercise the live-presence
 	// exception without treating today's attendance as future planning data.

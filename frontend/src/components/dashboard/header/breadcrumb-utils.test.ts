@@ -116,8 +116,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Gruppenzugriff' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Gruppenzugriff");
+      it("should return 'Gruppenübergaben' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Gruppenübergaben");
       });
 
       it("titles the three planning areas and their redirect frames", () => {

@@ -115,9 +115,7 @@ func (rs *Resource) Router() chi.Router {
 		// using a stricter tier).
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/school-classes", rs.getStaffSchoolClasses)
 		r.With(common.RequiresPermission(permissions.UsersManage), withTx).Put("/{id}/school-classes", rs.updateStaffSchoolClasses)
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/available", rs.getAvailableStaff)
-		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/available-for-substitution", rs.getAvailableForSubstitution)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/by-role", rs.getStaffByRole)
 
 		// Write operations require users:create, users:update, or users:delete permission
