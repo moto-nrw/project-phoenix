@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -46,7 +45,7 @@ type ActivityService interface {
 	// partial failure rolls everything back (issue #575 B10).
 	UpdateGroupWithDetails(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error)
 	DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error
-	ListGroups(ctx context.Context, queryOptions *base.QueryOptions) ([]*activities.Group, error)
+	ListGroups(ctx context.Context, query *activities.GroupListQuery) ([]*activities.Group, error)
 	GetGroupWithDetails(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error)
 	GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error)
 	FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error)

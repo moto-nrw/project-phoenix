@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -205,15 +204,13 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	// Get filter parameters
 	categoryIDStr := r.URL.Query().Get("category_id")
 
-	// Create query options with filter
-	queryOptions := base.NewQueryOptions()
-	filter := base.NewFilter()
+	query := &activities.GroupListQuery{}
 
 	// Apply filters
 	if categoryIDStr != "" {
 		categoryID, err := strconv.ParseInt(categoryIDStr, 10, 64)
 		if err == nil {
-			filter.Equal("category_id", categoryID)
+			query.CategoryID = &categoryID
 		}
 	}
 
@@ -221,14 +218,12 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	// unless the caller explicitly opts in — they are IoT infrastructure,
 	// not joinable activities (issue #923).
 	if r.URL.Query().Get("include_system") != "true" {
-		filter.Equal("is_system", false)
+		isSystem := false
+		query.IsSystem = &isSystem
 	}
 
-	// Set the filter to query options
-	queryOptions.Filter = filter
-
 	// Get activities
-	groups, err := rs.ActivityService.ListGroups(r.Context(), queryOptions)
+	groups, err := rs.ActivityService.ListGroups(r.Context(), query)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

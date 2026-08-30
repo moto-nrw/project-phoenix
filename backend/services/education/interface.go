@@ -4,7 +4,6 @@ package education
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -17,8 +16,8 @@ type Service interface {
 	CreateGroup(ctx context.Context, group *education.Group) error
 	UpdateGroup(ctx context.Context, group *education.Group) error
 	DeleteGroup(ctx context.Context, id int64) error
-	ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error)
-	CountGroups(ctx context.Context, options *base.QueryOptions) (int, error)
+	ListGroups(ctx context.Context, query *education.GroupListQuery) ([]*education.Group, error)
+	CountGroups(ctx context.Context, query *education.GroupListQuery) (int, error)
 	FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error)
 	// GetGroupsWithRoomsByIDs bulk-loads groups with their room relation in
 	// one query — use instead of per-group FindGroupWithRoom loops.

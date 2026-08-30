@@ -174,51 +174,18 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	return combinedGroup, nil
 }
 
-// applyActiveOnlyFilter handles the special active_only filter for combined groups.
-// Returns the modified query with the appropriate WHERE clause applied.
-func (r *CombinedGroupRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
-	activeOnly, ok := filter.Get("active_only")
-	if !ok {
-		return query
-	}
-
-	// Remove from filter so ApplyToQuery doesn't try to use it as a column
-	filter.Remove("active_only")
-
-	isActive, isBool := activeOnly.(bool)
-	if !isBool {
-		return query
-	}
-
-	if isActive {
-		// Match FindByTimeRange semantics: active means not yet ended (includes future end_time)
-		return query.Where(`"combined_group".end_time IS NULL OR "combined_group".end_time > NOW()`)
-	}
-	// active=false returns only inactive (ended) combined groups
-	return query.Where(`"combined_group".end_time IS NOT NULL AND "combined_group".end_time <= NOW()`)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
-	var groups []*active.CombinedGroup
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
-
-	query = base.WithTenantFilter(ctx, query, "combined_group")
-
-	if options != nil {
-		if options.Filter != nil {
-			query = r.applyActiveOnlyFilter(query, options.Filter)
-			options.Filter.WithTableAlias("combined_group")
-		}
-		query = options.ApplyToQuery(query)
+	if options != nil && options.Filter != nil {
+		rewriteActiveOnlyFilter(options.Filter, "end_time", bun.Safe("NOW()"))
 	}
 
-	err := query.Scan(ctx)
+	groups, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: base.DatabaseErrorCause(err)}
+	}
+	if len(groups) == 0 {
+		return nil, nil
 	}
 
 	return groups, nil

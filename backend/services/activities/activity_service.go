@@ -396,9 +396,8 @@ func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) 
 }
 
 // ListGroups lists activity groups with optional filters
-func (s *Service) ListGroups(ctx context.Context, queryOptions *base.QueryOptions) ([]*activities.Group, error) {
-	// Use the repository's List method instead since ListWithOptions is not defined
-	groups, err := s.groupRepo.List(ctx, queryOptions)
+func (s *Service) ListGroups(ctx context.Context, query *activities.GroupListQuery) ([]*activities.Group, error) {
+	groups, err := s.groupRepo.ListWithCategory(ctx, query)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups", Err: err}
 	}
@@ -408,7 +407,7 @@ func (s *Service) ListGroups(ctx context.Context, queryOptions *base.QueryOption
 
 // ListGroupsWithOccupancy returns all activity groups with their active session status
 func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error) {
-	groups, err := s.groupRepo.List(ctx, nil)
+	groups, err := s.groupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
 		return nil, &ActivityError{Op: "list groups with occupancy", Err: err}
 	}
