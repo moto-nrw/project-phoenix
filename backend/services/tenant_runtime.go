@@ -15,11 +15,19 @@ func BindTenantRuntime(
 	savepoints tenant.SavepointController,
 	retryable func(error) bool,
 ) (tenant.UnitOfWork, error) {
+	lockController, _ := savepoints.(interface {
+		AcquireLock(context.Context, string, bool) error
+	})
+	var acquireLock func(context.Context, string, bool) error
+	if lockController != nil {
+		acquireLock = lockController.AcquireLock
+	}
 	return tenant.NewUnitOfWork(
 		withinTenant,
 		withinAdmin,
 		tenant.SavepointFunc(savepoints),
 		retryable,
+		acquireLock,
 	)
 }
 

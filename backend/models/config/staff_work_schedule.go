@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+//nolint:unused // BUN reads this marker through the embedded field's struct tag.
 type staffWorkScheduleTable struct{}
 
 // Day of week constants (ISO: 0=Monday, 6=Sunday)
@@ -24,6 +25,7 @@ const (
 // rotation (e.g. A/B-Wochen). Existing rows from the single-week era default to
 // week_index=0 / rotation_length=1 and behave exactly as before.
 type StaffWorkSchedule struct {
+	//nolint:unused // BUN reads this embedded marker through reflection.
 	staffWorkScheduleTable `bun:"table:config.staff_work_schedules,alias:staff_work_schedule"`
 
 	ID             int64      `bun:"id,pk,autoincrement" json:"id"`

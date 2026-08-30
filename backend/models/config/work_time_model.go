@@ -13,12 +13,14 @@ const (
 	WorkTimeModelMaxDailyMinutes = 720
 )
 
+//nolint:unused // BUN reads this marker through the embedded field's struct tag.
 type workTimeModelTable struct{}
 
 // WorkTimeModel is a tenant-scoped, named template that captures a working-time
 // pattern (e.g. "Vollzeit 40h Mo-Fr" or "Teilzeit 30h A/B"). Multiple staff
 // members can share a model, and a model can span up to four rotation weeks.
 type WorkTimeModel struct {
+	//nolint:unused // BUN reads this embedded marker through reflection.
 	workTimeModelTable `bun:"table:config.work_time_models,alias:work_time_model"`
 
 	ID                 int64        `bun:"id,pk,autoincrement" json:"id"`

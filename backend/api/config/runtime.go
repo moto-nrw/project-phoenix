@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/settings"
 )
 
 type Middleware = func(http.Handler) http.Handler
@@ -25,13 +24,19 @@ type UploadedFile struct {
 	ContentType string
 }
 
+type Actor struct {
+	TenantID    int64
+	AccountID   int64
+	Permissions []string
+}
+
 // Runtime supplies delivery and request-context mechanics to the isolated
 // settings HTTP adapter. Implementations live in the composition root.
 type Runtime interface {
 	ProtectedTenantGroup(chi.Router, func(chi.Router, Middleware))
 	Require(Access) Middleware
 	TenantOperation() Middleware
-	Actor(context.Context) settings.Actor
+	Actor(context.Context) Actor
 	CanEdit(context.Context) bool
 
 	Respond(http.ResponseWriter, *http.Request, int, any, string)
@@ -69,8 +74,8 @@ type runtime struct{ deps RuntimeDependencies }
 
 func NewRuntime(deps RuntimeDependencies) Runtime { return &runtime{deps: deps} }
 
-func NewActor(tenantID, accountID int64, permissions []string) settings.Actor {
-	return settings.Actor{TenantID: tenantID, AccountID: accountID, Permissions: permissions}
+func NewActor(tenantID, accountID int64, permissions []string) Actor {
+	return Actor{TenantID: tenantID, AccountID: accountID, Permissions: permissions}
 }
 
 func (rt *runtime) ProtectedTenantGroup(r chi.Router, fn func(chi.Router, Middleware)) {
@@ -78,7 +83,7 @@ func (rt *runtime) ProtectedTenantGroup(r chi.Router, fn func(chi.Router, Middle
 }
 func (rt *runtime) Require(access Access) Middleware { return rt.deps.Permission(access) }
 func (rt *runtime) TenantOperation() Middleware      { return rt.deps.TenantGuard }
-func (rt *runtime) Actor(ctx context.Context) settings.Actor {
+func (rt *runtime) Actor(ctx context.Context) Actor {
 	tenantID, accountID, permissions := rt.deps.RequestActor(ctx)
 	return NewActor(tenantID, accountID, permissions)
 }

@@ -12,6 +12,7 @@ var ErrRuntimeRequired = errors.New("tenant: runtime is required")
 
 type runtimeKey struct{}
 type runtimeObserverKey struct{}
+type transactionKey struct{}
 
 type UnitOfWorkEventKind string
 
@@ -58,6 +59,7 @@ type UnitOfWork struct {
 	withinAdmin  func(context.Context, func(context.Context, any) error) error
 	savepoint    func(context.Context, SavepointAction) error
 	retryable    func(error) bool
+	acquireLock  func(context.Context, string, bool) error
 }
 
 // SavepointAction is private to this package's UnitOfWork protocol; the
@@ -101,11 +103,16 @@ func NewUnitOfWork(
 	withinAdmin func(context.Context, func(context.Context, any) error) error,
 	savepoint func(context.Context, SavepointAction) error,
 	retryable func(error) bool,
+	acquireLocks ...func(context.Context, string, bool) error,
 ) (UnitOfWork, error) {
 	if withinTenant == nil || withinAdmin == nil || savepoint == nil || retryable == nil {
 		return UnitOfWork{}, fmt.Errorf("%w: transaction functions are required", ErrRuntimeRequired)
 	}
-	return UnitOfWork{withinTenant: withinTenant, withinAdmin: withinAdmin, savepoint: savepoint, retryable: retryable}, nil
+	var acquireLock func(context.Context, string, bool) error
+	if len(acquireLocks) > 0 {
+		acquireLock = acquireLocks[0]
+	}
+	return UnitOfWork{withinTenant: withinTenant, withinAdmin: withinAdmin, savepoint: savepoint, retryable: retryable, acquireLock: acquireLock}, nil
 }
 
 func WithUnitOfWork(ctx context.Context, uow UnitOfWork) context.Context {
@@ -152,6 +159,27 @@ func unitOfWorkFromContext(ctx context.Context) (UnitOfWork, error) {
 		return UnitOfWork{}, ErrRuntimeRequired
 	}
 	return uow, nil
+}
+
+// TransactionFromContext returns the adapter-owned transaction attached to
+// the active unit of work. Consumers may type-assert the value to their
+// database driver's transaction type without coupling tenant to that driver.
+func TransactionFromContext(ctx context.Context) (any, bool) {
+	tx := ctx.Value(transactionKey{})
+	return tx, tx != nil
+}
+
+// AcquireLock delegates a transaction-scoped advisory lock to the active
+// unit-of-work adapter.
+func AcquireLock(ctx context.Context, key string, shared bool) error {
+	uow, err := unitOfWorkFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if uow.acquireLock == nil {
+		return fmt.Errorf("%w: advisory lock function is required", ErrRuntimeRequired)
+	}
+	return uow.acquireLock(ctx, key, shared)
 }
 
 // WithinTenant runs fn in the tenant transaction selected by id. It installs
@@ -245,8 +273,8 @@ func withinTenant(ctx context.Context, id TenantID, retry bool, fn func(context.
 
 	scoped := WithTenant(ctx, id)
 	return runtime.execute(scoped, retry, func(attemptCtx context.Context) error {
-		return runtime.withinTenant(attemptCtx, id.Int64(), func(txCtx context.Context, _ any) error {
-			return fn(txCtx)
+		return runtime.withinTenant(attemptCtx, id.Int64(), func(txCtx context.Context, tx any) error {
+			return fn(context.WithValue(txCtx, transactionKey{}, tx))
 		})
 	})
 }
@@ -274,7 +302,8 @@ func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
 
 	ctx = ContextWithoutTenant(ctx)
 	return runtime.execute(ctx, false, func(attemptCtx context.Context) error {
-		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, _ any) error {
+		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, tx any) error {
+			txCtx = context.WithValue(txCtx, transactionKey{}, tx)
 			return fn(withAdminTxFlag(txCtx))
 		})
 	})
@@ -308,7 +337,7 @@ func WithTenantTx[DB, TX any](ctx context.Context, _ DB, rawID int64, fn func(co
 			if !ok {
 				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
 			}
-			return fn(txCtx, tx)
+			return fn(context.WithValue(txCtx, transactionKey{}, rawTX), tx)
 		})
 	})
 }
@@ -331,6 +360,7 @@ func WithAdminTx[DB, TX any](ctx context.Context, _ DB, fn func(context.Context,
 			if !ok {
 				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
 			}
+			txCtx = context.WithValue(txCtx, transactionKey{}, rawTX)
 			return fn(withAdminTxFlag(txCtx), tx)
 		})
 	})

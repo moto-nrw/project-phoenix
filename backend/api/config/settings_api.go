@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/settings"
 )
 
 // Login image upload constants
@@ -31,15 +30,36 @@ const (
 
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
-	operations *settings.Operations
+	operations Operations
 	runtime    Runtime
 }
 
-func NewSettingsResource(operations *settings.Operations, runtime Runtime) *SettingsResource {
+type Operations interface {
+	SetValueSetHook(func(context.Context, int64, string, any) (func(), error))
+	Schema(context.Context, []string) (any, error)
+	Reveal(context.Context, string, []string) (any, error)
+	SetValue(context.Context, int64, int64, []string, string, any) error
+	ResetValue(context.Context, int64, int64, []string, string) error
+	PayrollStatus(context.Context) (any, error)
+	LoginImageURL(context.Context, int64) (string, error)
+	SetLoginImageURL(context.Context, int64, string) (string, error)
+	ClearLoginImageURL(context.Context, int64) (string, error)
+	SetLegalDocument(context.Context, int64, int64, []string, string, func(context.Context, int64, string, string) (func(), error)) error
+	DeleteLegalDocument(context.Context, int64, int64, []string, func(context.Context, int64, string, string) (func(), error)) error
+	ClassifyError(error) string
+}
+
+const (
+	settingsErrorNotFound  = "not_found"
+	settingsErrorInvalid   = "invalid"
+	settingsErrorForbidden = "forbidden"
+)
+
+func NewSettingsResource(operations Operations, runtime Runtime) *SettingsResource {
 	return &SettingsResource{operations: operations, runtime: runtime}
 }
 
-func (rs *SettingsResource) OnValueSet(hook settings.ValueSetHook) {
+func (rs *SettingsResource) OnValueSet(hook func(context.Context, int64, string, any) (func(), error)) {
 	if rs.operations != nil {
 		rs.operations.SetValueSetHook(hook)
 	}
@@ -126,7 +146,8 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := rs.operations.SetValue(r.Context(), rs.runtime.Actor(r.Context()), key, req.Value)
+	actor := rs.runtime.Actor(r.Context())
+	err := rs.operations.SetValue(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions, key, req.Value)
 	if err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
@@ -137,7 +158,8 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 
 func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
-	err := rs.operations.ResetValue(r.Context(), rs.runtime.Actor(r.Context()), key)
+	actor := rs.runtime.Actor(r.Context())
+	err := rs.operations.ResetValue(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions, key)
 	if err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
@@ -271,7 +293,7 @@ func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWrit
 	}
 
 	documentURL := legalAGBDocumentPrefix + filepath.Base(filePath)
-	err = rs.operations.SetLegalDocument(r.Context(), actor, documentURL, rs.prepareEnrollmentLegalAGBDocumentCleanup)
+	err = rs.operations.SetLegalDocument(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions, documentURL, rs.prepareEnrollmentLegalAGBDocumentCleanup)
 	if err != nil {
 		rs.runtime.RemoveFile(filePath)
 		rs.renderSettingsError(w, r, err)
@@ -289,7 +311,7 @@ func (rs *SettingsResource) deleteEnrollmentLegalAGBDocument(w http.ResponseWrit
 		return
 	}
 
-	err := rs.operations.DeleteLegalDocument(r.Context(), actor, rs.prepareEnrollmentLegalAGBDocumentCleanup)
+	err := rs.operations.DeleteLegalDocument(r.Context(), actor.TenantID, actor.AccountID, actor.Permissions, rs.prepareEnrollmentLegalAGBDocumentCleanup)
 	if err != nil {
 		rs.renderSettingsError(w, r, err)
 		return
@@ -353,12 +375,12 @@ func legalAGBDocumentBelongsToTenant(storedURL string, tenantID int64) bool {
 
 func (rs *SettingsResource) renderSettingsError(w http.ResponseWriter, r *http.Request, err error) {
 	status := http.StatusInternalServerError
-	switch settings.ClassifyError(err) {
-	case settings.ErrorNotFound:
+	switch rs.operations.ClassifyError(err) {
+	case settingsErrorNotFound:
 		status = http.StatusNotFound
-	case settings.ErrorInvalid:
+	case settingsErrorInvalid:
 		status = http.StatusBadRequest
-	case settings.ErrorForbidden:
+	case settingsErrorForbidden:
 		status = http.StatusForbidden
 	}
 	// All resources are constructed with a runtime; nil is accepted only by the

@@ -5,7 +5,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	displayRepo "github.com/moto-nrw/project-phoenix/database/repositories/display"
@@ -421,10 +420,10 @@ func NewFactory(db *bun.DB) *Factory {
 		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
-		SettingValue:      config.NewSettingValueRepository(repoBase.NewConfigRuntime(db)),
-		SettingAudit:      config.NewSettingAuditRepository(repoBase.NewConfigRuntime(db)),
-		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(repoBase.NewConfigRuntime(db)),
-		WorkTimeModel:     config.NewWorkTimeModelRepository(repoBase.NewConfigRuntime(db)),
+		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
+		SettingAudit:      config.NewSettingAuditRepository(config.NewRuntime(db)),
+		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(config.NewRuntime(db)),
+		WorkTimeModel:     config.NewWorkTimeModelRepository(config.NewRuntime(db)),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
@@ -515,4 +514,13 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
+}
+
+// SetConfigRuntime replaces the bootstrap repositories with tenant-aware
+// instances before the service graph captures them.
+func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
+	f.SettingValue = config.NewSettingValueRepository(runtime)
+	f.SettingAudit = config.NewSettingAuditRepository(runtime)
+	f.StaffWorkSchedule = config.NewStaffWorkScheduleRepository(runtime)
+	f.WorkTimeModel = config.NewWorkTimeModelRepository(runtime)
 }

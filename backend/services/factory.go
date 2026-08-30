@@ -68,7 +68,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -106,7 +105,7 @@ type Factory struct {
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
-	TenantSettings           *settings.Operations
+	TenantSettings           *config.TenantOperations
 	PayrollStatus            config.PayrollStatusGetter
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
@@ -271,6 +270,8 @@ func (f *Factory) SetSettingsObservers(
 
 // NewFactory creates a new services factory; tests may pass one statistics clock.
 func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, statisticsClocks ...func() time.Time) (*Factory, error) {
+	settingsRuntime := newSettingsRuntime(db, nil)
+	repos.SetConfigRuntime(settingsRuntime)
 
 	mailer, err := email.NewMailer()
 	if err != nil {
@@ -410,7 +411,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	})
 
 	// Initialize settings service (new schema-driven settings system)
-	settingsRuntime := newSettingsRuntime(db, nil)
 	settingsService := config.NewSettingsService(
 		repos.SettingValue,
 		repos.SettingAudit,
@@ -2197,7 +2197,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:                repos.ParentChild,
 		EnrollablePhaseRepo:      repos.ParentEnrollablePhase,
-		EnrollmentSettings:       settings.NewQueries(settingsService),
+		EnrollmentSettings:       settingsService,
 		EnrollmentRequestRepo:    repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		AttendanceRepo:           repos.Attendance,
@@ -2633,7 +2633,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 			_ = realtimeHub.BroadcastToTenant(tenantID, event)
 		},
 	)
-	factory.TenantSettings = settings.NewOperations(tenantSettings)
+	factory.TenantSettings = tenantSettings
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence

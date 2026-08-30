@@ -13,14 +13,6 @@ var (
 	ErrActiveLegalAGBPDF    = errors.New("AGB-PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden")
 )
 
-// TenantActor is the authenticated tenant identity needed by setting writes.
-// Transport-specific JWT claims stay outside the settings boundary.
-type TenantActor struct {
-	TenantID    int64
-	AccountID   int64
-	Permissions []string
-}
-
 // TenantValueSetHook runs domain-owned side effects in the write transaction.
 type TenantValueSetHook func(context.Context, int64, string, any) (func(), error)
 
@@ -47,7 +39,9 @@ func NewTenantOperations(settings SettingsService, payroll PayrollStatusGetter, 
 	return &TenantOperations{settings: settings, payroll: payroll, runtime: runtime, hook: hook, notify: notify}
 }
 
-func (o *TenantOperations) SetValueSetHook(hook TenantValueSetHook) { o.hook = hook }
+func (o *TenantOperations) SetValueSetHook(hook func(context.Context, int64, string, any) (func(), error)) {
+	o.hook = hook
+}
 
 func (o *TenantOperations) Schema(ctx context.Context, permissions []string) (any, error) {
 	return o.settings.GetSchema(ctx, permissions)
@@ -64,27 +58,27 @@ func (o *TenantOperations) Reveal(ctx context.Context, key string, permissions [
 	return o.settings.Resolve(ctx, key)
 }
 
-func (o *TenantOperations) SetValue(ctx context.Context, actor TenantActor, key string, value any) error {
+func (o *TenantOperations) SetValue(ctx context.Context, tenantID, accountID int64, permissions []string, key string, value any) error {
 	if o == nil || o.settings == nil || o.runtime == nil {
 		return ErrRuntimeUnavailable
 	}
 	if _, err := tenantWritableDefinition(key); err != nil {
 		return err
 	}
-	return o.runtime.WithinTenant(ctx, actor.TenantID, func(txCtx context.Context) error {
-		changedBy := actor.AccountID
-		if err := o.settings.SetValue(txCtx, key, value, &changedBy, actor.Permissions); err != nil {
+	return o.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		changedBy := accountID
+		if err := o.settings.SetValue(txCtx, key, value, &changedBy, permissions); err != nil {
 			return err
 		}
-		if err := o.dispatchHook(txCtx, actor.TenantID, key, value); err != nil {
+		if err := o.dispatchHook(txCtx, tenantID, key, value); err != nil {
 			return err
 		}
-		o.scheduleNotification(txCtx, actor.TenantID, key)
+		o.scheduleNotification(txCtx, tenantID, key)
 		return nil
 	})
 }
 
-func (o *TenantOperations) ResetValue(ctx context.Context, actor TenantActor, key string) error {
+func (o *TenantOperations) ResetValue(ctx context.Context, tenantID, accountID int64, permissions []string, key string) error {
 	if o == nil || o.settings == nil || o.runtime == nil {
 		return ErrRuntimeUnavailable
 	}
@@ -92,17 +86,17 @@ func (o *TenantOperations) ResetValue(ctx context.Context, actor TenantActor, ke
 	if err != nil {
 		return err
 	}
-	return o.runtime.WithinTenant(ctx, actor.TenantID, func(txCtx context.Context) error {
-		changedBy := actor.AccountID
-		if err := o.settings.ResetValue(txCtx, key, &changedBy, actor.Permissions); err != nil {
+	return o.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		changedBy := accountID
+		if err := o.settings.ResetValue(txCtx, key, &changedBy, permissions); err != nil {
 			return err
 		}
 		if resetReplaysHook(key) {
-			if err := o.dispatchHook(txCtx, actor.TenantID, key, def.Default); err != nil {
+			if err := o.dispatchHook(txCtx, tenantID, key, def.Default); err != nil {
 				return err
 			}
 		}
-		o.scheduleNotification(txCtx, actor.TenantID, key)
+		o.scheduleNotification(txCtx, tenantID, key)
 		return nil
 	})
 }
@@ -145,19 +139,19 @@ func (o *TenantOperations) ClearLoginImageURL(ctx context.Context, tenantID int6
 	return o.settings.ClearLoginImageURL(ctx, tenantID)
 }
 
-func (o *TenantOperations) SetLegalDocument(ctx context.Context, actor TenantActor, documentURL string, cleanup LegalDocumentCleanup) error {
-	return o.withLegalDocumentWrite(ctx, actor, documentURL, cleanup, false)
+func (o *TenantOperations) SetLegalDocument(ctx context.Context, tenantID, accountID int64, permissions []string, documentURL string, cleanup func(context.Context, int64, string, string) (func(), error)) error {
+	return o.withLegalDocumentWrite(ctx, tenantID, accountID, permissions, documentURL, cleanup, false)
 }
 
-func (o *TenantOperations) DeleteLegalDocument(ctx context.Context, actor TenantActor, cleanup LegalDocumentCleanup) error {
-	return o.withLegalDocumentWrite(ctx, actor, "", cleanup, true)
+func (o *TenantOperations) DeleteLegalDocument(ctx context.Context, tenantID, accountID int64, permissions []string, cleanup func(context.Context, int64, string, string) (func(), error)) error {
+	return o.withLegalDocumentWrite(ctx, tenantID, accountID, permissions, "", cleanup, true)
 }
 
-func (o *TenantOperations) withLegalDocumentWrite(ctx context.Context, actor TenantActor, documentURL string, cleanup LegalDocumentCleanup, deleting bool) error {
+func (o *TenantOperations) withLegalDocumentWrite(ctx context.Context, tenantID, accountID int64, permissions []string, documentURL string, cleanup LegalDocumentCleanup, deleting bool) error {
 	if o == nil || o.settings == nil || o.runtime == nil {
 		return ErrRuntimeUnavailable
 	}
-	return o.runtime.WithinTenant(ctx, actor.TenantID, func(txCtx context.Context) error {
+	return o.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		if deleting {
 			termsEnabled, err := o.settings.ResolveBool(txCtx, configModel.KeyEnrollmentLegalTermsEnabled)
 			if err != nil {
@@ -175,25 +169,38 @@ func (o *TenantOperations) withLegalDocumentWrite(ctx context.Context, actor Ten
 		if err != nil {
 			return err
 		}
-		changedBy := actor.AccountID
+		changedBy := accountID
 		if deleting {
-			err = o.settings.ResetValue(txCtx, configModel.KeyEnrollmentLegalAGBDocumentURL, &changedBy, actor.Permissions)
+			err = o.settings.ResetValue(txCtx, configModel.KeyEnrollmentLegalAGBDocumentURL, &changedBy, permissions)
 		} else {
-			err = o.settings.SetValue(txCtx, configModel.KeyEnrollmentLegalAGBDocumentURL, documentURL, &changedBy, actor.Permissions)
+			err = o.settings.SetValue(txCtx, configModel.KeyEnrollmentLegalAGBDocumentURL, documentURL, &changedBy, permissions)
 		}
 		if err != nil {
 			return err
 		}
 		if cleanup != nil {
-			postCommit, cleanupErr := cleanup(txCtx, actor.TenantID, oldURL, documentURL)
+			postCommit, cleanupErr := cleanup(txCtx, tenantID, oldURL, documentURL)
 			if cleanupErr != nil {
 				return cleanupErr
 			}
 			o.runtime.AfterCommit(txCtx, postCommit)
 		}
-		o.scheduleNotification(txCtx, actor.TenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		o.scheduleNotification(txCtx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
 		return nil
 	})
+}
+
+func (*TenantOperations) ClassifyError(err error) string {
+	if errors.Is(err, ErrTenantOperatorOnly) || errors.Is(err, ErrDirectManagedSetting) || errors.Is(err, ErrPermissionDenied) {
+		return "forbidden"
+	}
+	if errors.Is(err, ErrDefinitionNotFound) {
+		return "not_found"
+	}
+	if errors.Is(err, ErrInvalidValue) || errors.Is(err, ErrActiveLegalAGBPDF) {
+		return "invalid"
+	}
+	return "internal"
 }
 
 func tenantDefinition(key string) (*configModel.Definition, error) {
