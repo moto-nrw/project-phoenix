@@ -38,7 +38,6 @@ type calendarFunctionScan struct {
 	timePackages      map[string]bool
 	timezonePackages  map[string]bool
 	assertionPackages map[string]bool
-	receiverTypes     map[*ast.Object]string
 }
 
 type calendarPackageHelpers struct {
@@ -53,6 +52,7 @@ type calendarVariables map[*ast.Object]bool
 type calendarHelperCandidate struct {
 	name             string
 	receiver         string
+	resultType       string
 	fn               *ast.FuncDecl
 	fingerprint      string
 	timePackages     map[string]bool
@@ -187,7 +187,6 @@ func scanCalendarFixtureFunctions(rel string, fset *token.FileSet, file *ast.Fil
 			instantHelpers: helpers.instants[key], weeklyHelpers: helpers.weekly[key], dateHelpers: helpers.dates[key],
 			timePackages: timePackages, timezonePackages: timezonePackages,
 			assertionPackages: assertionPackages,
-			receiverTypes:     calendarReceiverTypes(fn),
 		}
 		functionFindings := scan.findings()
 		helperFingerprint := calendarHelperClosureFingerprint(fn, helpers.candidates[key])
@@ -342,7 +341,7 @@ func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*ast.Object]stri
 }
 
 func recordCalendarType(object *ast.Object, typeName string, types map[*ast.Object]string) bool {
-	if object == nil || typeName == "" || types[object] == typeName {
+	if object == nil || typeName == "" || types[object] != "" {
 		return false
 	}
 	types[object] = typeName
@@ -362,9 +361,33 @@ func calendarExpressionType(expr ast.Expr, types map[*ast.Object]string) string 
 			return types[value.Obj]
 		}
 		return calendarObjectType(value.Obj, types, map[*ast.Object]bool{})
+	case *ast.CallExpr:
+		if resultType := calendarFunctionResultType(value.Fun); resultType != "" {
+			return resultType
+		}
+		return expressionName(value.Fun) + "()"
 	default:
 		return ""
 	}
+}
+
+func calendarFunctionResultType(expr ast.Expr) string {
+	id, ok := expr.(*ast.Ident)
+	if !ok || id.Obj == nil {
+		return ""
+	}
+	fn, ok := id.Obj.Decl.(*ast.FuncDecl)
+	if !ok {
+		return ""
+	}
+	return calendarResultType(fn)
+}
+
+func calendarResultType(fn *ast.FuncDecl) string {
+	if fn.Type.Results == nil || len(fn.Type.Results.List) != 1 {
+		return ""
+	}
+	return expressionName(fn.Type.Results.List[0].Type)
 }
 
 func calendarObjectType(object *ast.Object, types map[*ast.Object]string, seen map[*ast.Object]bool) string {
@@ -474,6 +497,7 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 			identity := calendarHelperIdentity(candidate.receiver, candidate.name)
 			result.candidates[key][identity] = append(result.candidates[key][identity], candidate)
 		}
+		addCalendarMethodAliases(packageCandidates, result, key)
 	}
 	return result, nil
 }
@@ -496,7 +520,8 @@ func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates ma
 				return err
 			}
 			candidates[key] = append(candidates[key], calendarHelperCandidate{
-				name: fn.Name.Name, receiver: calendarReceiverName(fn), fn: fn, fingerprint: fingerprint,
+				name: fn.Name.Name, receiver: calendarReceiverName(fn), resultType: calendarResultType(fn),
+				fn: fn, fingerprint: fingerprint,
 				timePackages: timePackages, timezonePackages: timezonePackages,
 			})
 		}
@@ -505,6 +530,25 @@ func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates ma
 	helpers.instants[key] = map[string]bool{}
 	helpers.weekly[key] = map[string]bool{}
 	return nil
+}
+
+func addCalendarMethodAliases(candidates []calendarHelperCandidate, helpers calendarPackageHelpers, key string) {
+	for _, method := range candidates {
+		if method.receiver == "" {
+			continue
+		}
+		identity := calendarHelperIdentity(method.receiver, method.name)
+		for _, factory := range candidates {
+			if factory.receiver != "" || factory.resultType != method.receiver {
+				continue
+			}
+			alias := calendarHelperIdentity(factory.name+"()", method.name)
+			helpers.candidates[key][alias] = append(helpers.candidates[key][alias], method)
+			helpers.dates[key][alias] = helpers.dates[key][identity]
+			helpers.instants[key][alias] = helpers.instants[key][identity]
+			helpers.weekly[key][alias] = helpers.weekly[key][identity]
+		}
+	}
 }
 
 func calendarPackageKey(path, packageName string) string {
