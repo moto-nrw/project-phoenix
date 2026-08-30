@@ -12,6 +12,8 @@ import (
 )
 
 func TestFixedSeederSeedGroupHandover(t *testing.T) {
+	t.Parallel()
+
 	var method, path string
 	var decodeErr error
 	var request struct {
@@ -49,6 +51,8 @@ func TestFixedSeederSeedGroupHandover(t *testing.T) {
 }
 
 func TestFixedSeederSeedGroupHandoverRequiresSeedReferences(t *testing.T) {
+	t.Parallel()
+
 	seeder := NewFixedSeeder(nil, false, "")
 	require.ErrorContains(t, seeder.seedGroupHandover(context.Background()), "group not found")
 
