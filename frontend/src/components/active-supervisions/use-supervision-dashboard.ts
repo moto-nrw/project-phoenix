@@ -287,7 +287,8 @@ export function useSupervisionDashboard(
     },
     {
       keepPreviousData: true,
-      revalidateOnFocus: false,
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
     },
   );
 
