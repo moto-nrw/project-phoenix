@@ -22,14 +22,6 @@ func (rs *Resource) listActiveCaregivers(ctx context.Context) ([]*users.ActiveCa
 	return directory.ListActiveCaregivers(ctx)
 }
 
-func caregiverStaffIDSet(caregivers []*users.ActiveCaregiver) map[int64]struct{} {
-	result := make(map[int64]struct{}, len(caregivers))
-	for _, caregiver := range caregivers {
-		result[caregiver.StaffID] = struct{}{}
-	}
-	return result
-}
-
 func requestedCaregiverPool(roles []string) bool {
 	if len(roles) != 1 {
 		return false
