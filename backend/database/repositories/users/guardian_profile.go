@@ -22,12 +22,16 @@ const (
 
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
 type GuardianProfileRepository struct {
+	*repoBase.Repository[*users.GuardianProfile]
 	db *bun.DB
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
 func NewGuardianProfileRepository(db *bun.DB) users.GuardianProfileRepository {
-	return &GuardianProfileRepository{db: db}
+	return &GuardianProfileRepository{
+		Repository: repoBase.NewRepository[*users.GuardianProfile](db, "users.guardian_profiles", "GuardianProfile"),
+		db:         db,
+	}
 }
 
 // Create inserts a new guardian profile into the database
@@ -271,26 +275,26 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 
 // ListWithOptions retrieves guardian profiles with pagination and filters
 func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error) {
-	var profiles []*users.GuardianProfile
-
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(&profiles).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-
-	// Apply query options with table alias
+	listOptions := &base.QueryOptions{}
 	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("guardian_profile")
-		}
-		query = options.ApplyToQuery(query)
+		*listOptions = *options
 	}
+	fields := make([]base.SortField, 0, 2)
+	if options != nil && options.Sorting != nil {
+		fields = append(fields, options.Sorting.Fields...)
+	}
+	fields = append(fields,
+		base.SortField{Field: "last_name", Direction: base.SortAsc},
+		base.SortField{Field: "first_name", Direction: base.SortAsc},
+	)
+	listOptions.Sorting = &base.Sorting{Fields: fields}
 
-	// Default ordering
-	query = query.Order(`last_name ASC`, `first_name ASC`)
-
-	err := query.Scan(ctx)
+	profiles, err := r.Repository.ListWithOptions(ctx, listOptions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list guardian profiles: %w", err)
+		return nil, fmt.Errorf("failed to list guardian profiles: %w", repoBase.DatabaseErrorCause(err))
+	}
+	if len(profiles) == 0 {
+		return nil, nil
 	}
 
 	return profiles, nil

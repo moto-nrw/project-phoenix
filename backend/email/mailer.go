@@ -31,8 +31,14 @@ type Mailer interface {
 
 // Message struct holds all parts of a specific email Message.
 type Message struct {
-	From     Email
-	To       Email
+	From Email
+	To   Email
+	// ReplyTo is where answers go when that is not the sender. Tenant-bound
+	// mail (Eltern-Einladung, Anmeldung, Elternmitteilung) keeps the central
+	// authenticated From and points replies at the OGS instead, so a parent
+	// answering does not reach moto (#1936). The zero value emits no header,
+	// which is what every global system mail keeps.
+	ReplyTo  Email
 	Subject  string
 	Template string
 	Content  any

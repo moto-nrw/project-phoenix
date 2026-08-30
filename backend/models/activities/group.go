@@ -154,6 +154,14 @@ type Group struct {
 	Schedules      []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
 }
 
+// GroupListQuery is the bounded read shape for activity-group listings.
+type GroupListQuery struct {
+	Name       string
+	CategoryID *int64
+	IsSystem   *bool
+	IDs        []int64
+}
+
 // Validate ensures group data is valid
 func (g *Group) Validate() error {
 	if g.Name == "" {

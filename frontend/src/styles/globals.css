@@ -265,6 +265,18 @@
   background-color: transparent;
 }
 
+.planning-context-scrollbar {
+  scrollbar-color: rgb(209 213 219) rgb(243 244 246);
+}
+
+.planning-context-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+
+.planning-context-scrollbar::-webkit-scrollbar-track {
+  background-color: rgb(243 244 246);
+}
+
 /* Sophisticated Modal Animations - Following UI/UX Best Practices */
 
 /* Backdrop fade - simple opacity only to prevent layout shift */

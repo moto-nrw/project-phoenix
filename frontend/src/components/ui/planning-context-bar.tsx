@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -53,6 +53,7 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  */
 const PRIMARY_ROW_MIN_H = "min-h-9";
 const CONTEXT_ROW_MIN_H = "min-h-8";
+const DAY_CHIP_SCROLL_MARGIN_PX = 4;
 
 interface PlanningContextBarProps {
   /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Auf kleinen
@@ -199,9 +200,11 @@ export function PlanningContextBar({
       <div className="border-t border-gray-100 pt-2">
         {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
             umbrechende Wochenleiste warf die Trennlinie und die Zähler mitten
-            in die zweite Zeile und ließ die Bar um zwei Zeilen wachsen. */}
+            in die zweite Zeile und ließ die Bar um zwei Zeilen wachsen. Die
+            sichtbare Scrollbar zeigt auf kleinen Ansichten, dass rechts noch
+            weitere Tage und Zähler folgen. */}
         <div
-          className={`flex [scrollbar-width:none] items-center gap-x-3 gap-y-1 overflow-x-auto text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
+          className={`planning-context-scrollbar flex scrollbar-thin items-center gap-x-3 gap-y-1 overflow-x-auto pb-1 text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible sm:pb-0 [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
         >
           {children}
         </div>
@@ -247,13 +250,42 @@ export function PlanningDayChip({
   className,
   "aria-label": ariaLabel,
 }: PlanningDayChipProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const chip = buttonRef.current;
+    const contextRow = chip?.parentElement;
+    if (!selected || !chip || !contextRow) return;
+
+    const chipRect = chip.getBoundingClientRect();
+    const rowRect = contextRow.getBoundingClientRect();
+    if (chipRect.left < rowRect.left + DAY_CHIP_SCROLL_MARGIN_PX) {
+      contextRow.scrollTo({
+        left:
+          contextRow.scrollLeft +
+          chipRect.left -
+          rowRect.left -
+          DAY_CHIP_SCROLL_MARGIN_PX,
+      });
+    } else if (chipRect.right > rowRect.right - DAY_CHIP_SCROLL_MARGIN_PX) {
+      contextRow.scrollTo({
+        left:
+          contextRow.scrollLeft +
+          chipRect.right -
+          rowRect.right +
+          DAY_CHIP_SCROLL_MARGIN_PX,
+      });
+    }
+  }, [selected]);
+
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
       className={[
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
+        "inline-flex h-8 shrink-0 scroll-mx-1 items-center gap-1 rounded-md px-2 text-xs focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
         selected
           ? "bg-gray-900 text-white"
           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",

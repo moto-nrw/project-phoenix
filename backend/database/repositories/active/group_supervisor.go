@@ -239,52 +239,18 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 	return base.AssertRowsAffected(result, 1, "update group_supervisor")
 }
 
-// applyActiveOnlyFilter handles the special active_only filter for group supervisors.
-// Returns the modified query with the appropriate WHERE clause applied.
-func (r *GroupSupervisorRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
-	activeOnly, ok := filter.Get("active_only")
-	if !ok {
-		return query
-	}
-
-	// Remove from filter so ApplyToQuery doesn't try to use it as a column
-	filter.Remove("active_only")
-
-	isActive, isBool := activeOnly.(bool)
-	if !isBool {
-		return query
-	}
-
-	if isActive {
-		return query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > NOW()`)
-	}
-	// active=false returns only inactive (ended) supervisors
-	return query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date <= NOW()`)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
-	var supervisions []*active.GroupSupervisor
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&supervisions).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
-
-	query = base.WithTenantFilter(ctx, query, "group_supervisor")
-
-	if options != nil {
-		if options.Filter != nil {
-			query = r.applyActiveOnlyFilter(query, options.Filter)
-			options.Filter.WithTableAlias("group_supervisor")
-		}
-		query = options.ApplyToQuery(query)
+	if options != nil && options.Filter != nil {
+		rewriteActiveOnlyFilter(options.Filter, "end_date", r.today())
 	}
 
-	err := query.Scan(ctx)
+	supervisions, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: base.DatabaseErrorCause(err)}
+	}
+	if len(supervisions) == 0 {
+		return nil, nil
 	}
 
 	return supervisions, nil

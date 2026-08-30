@@ -90,6 +90,25 @@ describe("PlanningContextBar", () => {
     expect(screen.getByText("2 Lücken")).toBeInTheDocument();
   });
 
+  it("shows that the mobile context row can scroll horizontally", () => {
+    const { container } = render(
+      <PlanningContextBar title="Vertretung">
+        <span>Mo</span>
+        <span>Di</span>
+      </PlanningContextBar>,
+    );
+
+    const contextRow = container.querySelector(".overflow-x-auto");
+    expect(contextRow).toHaveClass(
+      "scrollbar-thin",
+      "planning-context-scrollbar",
+    );
+    expect(contextRow).not.toHaveClass(
+      "[scrollbar-width:none]",
+      "[&::-webkit-scrollbar]:hidden",
+    );
+  });
+
   it("supports embedding a real ui/Tabs view switcher (Radix activates on mousedown)", () => {
     const onValueChange = vi.fn();
     render(
@@ -152,6 +171,7 @@ describe("PlanningDayChip", () => {
     );
 
     expect(screen.getByRole("button")).toHaveClass("bg-gray-900", "text-white");
+    expect(screen.getByRole("button")).toHaveClass("scroll-mx-1");
   });
 
   it("fires onClick when clicked", () => {
@@ -167,5 +187,28 @@ describe("PlanningDayChip", () => {
 
     fireEvent.click(screen.getByRole("button"));
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("scrolls the context row horizontally when a selected day is clipped", () => {
+    const { rerender } = render(
+      <PlanningDayChip weekdayLabel="Do" dateLabel="16.07." />,
+    );
+    const chip = screen.getByRole("button");
+    const contextRow = chip.parentElement!;
+    const scrollTo = vi.fn();
+    Object.defineProperty(contextRow, "scrollTo", { value: scrollTo });
+    vi.spyOn(chip, "getBoundingClientRect").mockReturnValue({
+      left: 282,
+      right: 355,
+    } as DOMRect);
+    vi.spyOn(contextRow, "getBoundingClientRect").mockReturnValue({
+      left: 29,
+      right: 338,
+    } as DOMRect);
+
+    rerender(<PlanningDayChip weekdayLabel="Do" dateLabel="16.07." selected />);
+    expect(scrollTo).toHaveBeenCalledWith({
+      left: 21,
+    });
   });
 });
