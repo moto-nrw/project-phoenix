@@ -1096,6 +1096,31 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/team-chat.webp",
       },
       {
+        id: "tagesinformationen",
+        title: "Tagesinformationen",
+        icon: Megaphone,
+        summary:
+          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Kommunikation` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
+        steps: [
+          "In der Seitenleiste `Kommunikation` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
+          "`Titel` und `Hinweis` eintragen. Der Titel ist das, was im Alltag gelesen wird; der Hinweis trägt die Einzelheiten.",
+          "Unter `Wichtigkeit` zwischen `Information` und `Wichtig` wählen. `Wichtig` setzt auf der Startseite ein farbiges Kennzeichen — sparsam einsetzen, sonst verliert es seine Wirkung.",
+          "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",
+          "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
+          "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
+          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben.",
+          "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Kommunikation` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
+          "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
+        ],
+        callout: {
+          title: "Ein Hinweis, nicht ein Eintrag pro Tag",
+          body: "Eine Tagesinformation wird EINMAL angelegt und trägt ihre Wiederholungsregel in sich. Wer den wöchentlichen Turnhallen-Hinweis ändert, ändert ihn an einer Stelle für alle künftigen Dienstage. Es gibt keine Tageskopien, die einzeln gepflegt werden müssten.",
+          tone: "blue",
+        },
+        screenshot:
+          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen) und dem Formular zum Anlegen mit Wochentagsauswahl.",
+      },
+      {
         id: "mitarbeiter-admin-profil",
         title: "Mitarbeiterprofil für die Leitung",
         icon: Eye,

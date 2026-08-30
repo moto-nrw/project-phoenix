@@ -285,6 +285,9 @@ type Factory struct {
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
+
+	// Staff notices (Tagesinformationen: interne Hinweise der Leitung, #2180)
+	StaffNotice userModels.StaffNoticeRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -530,6 +533,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                parentAnnouncement,
+		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
 }
 

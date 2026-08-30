@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 593,
+          "line": 594,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 234,
+          "line": 235,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 237,
+          "line": 238,
           "declaration": "New"
         }
       ]
@@ -576,7 +576,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 310,
+          "line": 312,
           "declaration": "NewFactory"
         }
       ]
@@ -16639,7 +16639,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        234
+        235
       ],
       "tables": []
     },
@@ -16649,7 +16649,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        237
+        238
       ],
       "tables": []
     },
@@ -24111,6 +24111,26 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         75
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/staff_notice_repository_test.go",
+      "declaration": "TestStaffNoticeRepository_Acknowledge",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        78
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/staff_notice_repository_test.go",
+      "declaration": "TestStaffNoticeRepository_ListValidOn",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        21
       ],
       "tables": []
     },

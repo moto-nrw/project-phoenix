@@ -117,6 +117,31 @@ func TestRouteTableGolden(t *testing.T) {
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
 	compareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
 		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact")
+
+	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
+	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
+	// chi.Mount bedient beide Schreibweisen mit demselben Handler, die
+	// Walk-Tabelle oben zeigt aber nur eine davon. Der Probe-Lauf pinnt, dass
+	// ein Umbau der Mount-Stelle das nicht stumm zu einem 404 macht.
+	t.Run("mounted collections answer without a trailing slash", func(t *testing.T) {
+		cases := []struct {
+			method string
+			path   string
+		}{
+			{http.MethodGet, "/api/staff-notices"},
+			{http.MethodGet, "/api/staff-notices/"},
+			{http.MethodPost, "/api/staff-notices"},
+			{http.MethodPost, "/api/staff-notices/"},
+			{http.MethodGet, "/api/staff-notices/today"},
+		}
+		for _, tc := range cases {
+			rec := httptest.NewRecorder()
+			apiInstance.Router.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+			// Ohne Token endet die Anfrage in der Auth-Kette (401), nicht im
+			// Router-Fallback (404): der Pfad ist also gebunden.
+			require.Equalf(t, http.StatusUnauthorized, rec.Code, "%s %s must be routed to the staff-notice resource", tc.method, tc.path)
+		}
+	})
 }
 
 var compilerGeneratedNamePart = regexp.MustCompile(`func[0-9]+|\.[0-9]+`)
