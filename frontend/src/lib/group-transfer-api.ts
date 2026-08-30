@@ -32,7 +32,7 @@ export interface GroupTransfer {
 
 // Backend response for staff by role
 interface BackendHandoverTarget {
-  id: number;
+  id: string;
   full_name: string;
 }
 
@@ -45,7 +45,7 @@ interface BackendStaffGroupLeaderCandidate {
 // Map backend response to frontend type
 function mapStaffWithRole(data: BackendHandoverTarget): StaffWithRole {
   return {
-    id: data.id.toString(),
+    id: data.id,
     fullName: data.full_name,
   };
 }
