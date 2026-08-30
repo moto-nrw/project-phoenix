@@ -19181,6 +19181,16 @@
     {
       "scope": "test",
       "file": "database/repositories/active/work_session_break_test.go",
+      "declaration": "TestWorkSessionBreakRepository_EndBreakRejectsStaleState",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        386
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/work_session_break_test.go",
       "declaration": "TestWorkSessionBreakRepository_GetActiveBySessionID",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -19206,8 +19216,8 @@
       "declaration": "TestWorkSessionBreakRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        387,
-        388
+        419,
+        420
       ],
       "tables": []
     },
@@ -20642,6 +20652,18 @@
     {
       "scope": "test",
       "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        249
+      ],
+      "tables": [
+        "auth.accounts"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
       "declaration": "TestAccountParentRepository_FindByEmail",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -20665,7 +20687,7 @@
       "declaration": "TestAccountParentRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        254
+        279
       ],
       "tables": []
     },
@@ -21124,7 +21146,7 @@
       "declaration": "TestGuardianInvitationRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        29
       ],
       "tables": []
     },
@@ -21134,7 +21156,7 @@
       "declaration": "TestGuardianInvitationRepository_DeleteExpired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        358
       ],
       "tables": [
         "auth.guardian_invitations"
@@ -21146,7 +21168,7 @@
       "declaration": "TestGuardianInvitationRepository_FindByGuardianProfileID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        177
+        182
       ],
       "tables": []
     },
@@ -21156,7 +21178,7 @@
       "declaration": "TestGuardianInvitationRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        61
+        66
       ],
       "tables": []
     },
@@ -21166,7 +21188,7 @@
       "declaration": "TestGuardianInvitationRepository_FindByToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        94
+        99
       ],
       "tables": []
     },
@@ -21176,7 +21198,7 @@
       "declaration": "TestGuardianInvitationRepository_FindPending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        209
+        214
       ],
       "tables": []
     },
@@ -21186,7 +21208,7 @@
       "declaration": "TestGuardianInvitationRepository_MarkAsAccepted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        237
+        242
       ],
       "tables": []
     },
@@ -21196,7 +21218,7 @@
       "declaration": "TestGuardianInvitationRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        128
+        133
       ],
       "tables": []
     },
@@ -21206,7 +21228,17 @@
       "declaration": "TestGuardianInvitationRepository_UpdateEmailStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        273
+        278
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
+      "declaration": "TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedError",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        342
       ],
       "tables": []
     },
