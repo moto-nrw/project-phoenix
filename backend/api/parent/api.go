@@ -40,6 +40,7 @@ import (
 type Resource struct {
 	AuthService           authService.AuthService
 	ParentService         parentService.Service
+	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
@@ -86,9 +87,18 @@ func NewResource(
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 ) *Resource {
+	var sharing parentService.RequestSharingService
+	if parent != nil {
+		var ok bool
+		sharing, ok = parent.(parentService.RequestSharingService)
+		if !ok {
+			panic("parent resource requires a request sharing service")
+		}
+	}
 	return &Resource{
 		AuthService:           auth,
 		ParentService:         parent,
+		RequestSharing:        sharing,
 		RequestService:        requestSvc,
 		GuardianProfileLoader: guardianProfileLoader,
 		SchoolService:         schoolService,
@@ -203,9 +213,19 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 		// Excused-absence approval requests (#1845): pending/decided requests the
-		// parent can view, and withdraw their own still-pending one.
+		// parent can view, and edit their own still-pending one (#2267:
+		// withdrawal was replaced by editing).
 		r.Get("/me/children/{studentId}/excused-requests", rs.listExcusedRequests)
-		r.Delete("/me/children/{studentId}/excused-requests/{requestId}", rs.withdrawExcusedRequest)
+		// Guardian edit of an open request (#2267): the parent corrects their
+		// own pending request instead of withdrawing and refiling it, so the
+		// request keeps its id and the co-guardians it was shared with. Every
+		// body carries expected_version; a mismatch is 409
+		// change_request_stale.
+		r.Put("/me/children/{studentId}/excused-requests/{requestId}", rs.editExcusedRequest)
+		r.Get("/me/children/{studentId}/requests/{requestType}/{requestId}/events", rs.listRequestEvents)
+		r.Get("/me/children/{studentId}/request-sharing/{requestType}/{requestId}", rs.getRequestSharing)
+		r.Put("/me/children/{studentId}/request-sharing/{requestType}/{requestId}", rs.setRequestSharing)
+		r.Get("/me/children/{studentId}/request-sharing-options", rs.getRequestSharingOptions)
 
 		// Parent-OGS messaging — chat model. One continuous conversation per
 		// child with the OGS (no subject). The list aggregates the guardian's
@@ -233,15 +253,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
 		r.Get("/me/children/{studentId}/pickup-change-requests", rs.listPickupChangeRequests)
-		r.Delete("/me/children/{studentId}/pickup-change-requests/{requestId}", rs.withdrawPickupChangeRequest)
+		r.Put("/me/children/{studentId}/pickup-change-requests/{requestId}", rs.editPickupChangeRequest)
 
 		// Permanent weekly care plan (#1803) — read view on the Stammdaten
-		// page plus the change-request lifecycle (create / withdraw). Staff
+		// page plus the change-request lifecycle (create / edit). Staff
 		// decide the requests on the central Änderungsanfragen page; the chat
 		// only receives notification pills.
 		r.Get("/me/children/{studentId}/care-schedule", rs.getChildCareSchedule)
 		r.Post("/me/children/{studentId}/care-schedule/requests", rs.createCareScheduleRequest)
-		r.Post("/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw", rs.withdrawCareScheduleRequest)
+		r.Put("/me/children/{studentId}/care-schedule/requests/{requestId}", rs.editCareScheduleRequest)
 
 		// Booked care offerings (#1665): read view plus the
 		// post-enrollment change-request lifecycle. Approved requests are
@@ -249,7 +269,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-offerings", rs.getChildCareOfferings)
 		r.Get("/me/children/{studentId}/care-offerings/catalog", rs.getChildOfferingCatalog)
 		r.Post("/me/children/{studentId}/care-offerings/requests", rs.createOfferingChangeRequest)
-		r.Post("/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw", rs.withdrawOfferingChangeRequest)
+		r.Put("/me/children/{studentId}/care-offerings/requests/{requestId}", rs.editOfferingChangeRequest)
 
 		// Stammdaten — structured view of the child's master data plus the
 		// calling guardian's own contact data. Track A direct edits apply
@@ -259,6 +279,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Patch("/me/children/{studentId}/master-data/{target}/{field}", rs.updateMasterDataField)
 		r.Get("/me/children/{studentId}/master-data/requests", rs.listMasterDataRequests)
 		r.Post("/me/children/{studentId}/master-data/requests", rs.submitMasterDataRequest)
+		r.Put("/me/children/{studentId}/master-data/requests/{requestId}", rs.editMasterDataRequest)
 
 		// Related accounts — see who has access to the child, invite a
 		// further guardian by email (gated by guardians.parent_invite_mode),

@@ -70,12 +70,41 @@ function absenceLabel(row: StaffExcusedRequest): string {
  * verlangt eine Begründung; nach der Entscheidung meldet onDecided den
  * Hinweistext und der Aufrufer entfernt die Zeile aus der Liste (#2432).
  */
+const CURRENT_STATUS_LABELS: Record<string, string> = {
+  present: "Da",
+  sick: "Krank",
+  excused: "Entschuldigt",
+  class_trip: "Ausflug",
+};
+
+/**
+ * Was heute für einen Tag eingetragen ist, in Worten. Unbekannte Werte
+ * bleiben als Rohwert stehen, statt als „Da" zu erscheinen.
+ */
+function currentStatusLabel(status: string | undefined): string {
+  if (!status) return "Da";
+  return CURRENT_STATUS_LABELS[status] ?? status;
+}
+
 export function ExcusedRequestReviewItem({
   row,
   onDecided,
+  grouped = false,
+  expectedVersion,
+  currentStatusByDate,
+  decisionDisabledReason,
+  approveReasonRequired = false,
 }: Readonly<{
   row: StaffExcusedRequest;
   onDecided: (notice: string) => void;
+  grouped?: boolean;
+  /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
+  expectedVersion?: string;
+  /** Aktueller Stand je Tag, damit „Aktuell → Gewünscht" möglich ist (#2267). */
+  currentStatusByDate?: Readonly<Record<string, string>>;
+  /** Warum hier gerade nicht einzeln entschieden werden kann (#2267). */
+  decisionDisabledReason?: string;
+  approveReasonRequired?: boolean;
 }>) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -92,7 +121,13 @@ export function ExcusedRequestReviewItem({
     }
     setBusy(true);
     try {
-      await decideExcusedAbsenceRequest(row.id, approve, trimmed || undefined);
+      await decideExcusedAbsenceRequest(
+        row.id,
+        approve,
+        trimmed || undefined,
+        // Nur mitschicken, wenn die Liste eine Fassung kennt.
+        ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
+      );
       onDecided(
         approve
           ? `${absenceLabel(row)} bestätigt`
@@ -115,6 +150,7 @@ export function ExcusedRequestReviewItem({
     <RequestReviewCard
       type="excused"
       childName={`${row.first_name} ${row.last_name}`}
+      grouped={grouped}
       typeLabel={absenceLabel(row)}
       summary={datesSummary(row.dates)}
       submittedAt={row.created_at}
@@ -130,10 +166,33 @@ export function ExcusedRequestReviewItem({
           : undefined
       }
       busy={busy}
+      approveReasonRequired={approveReasonRequired}
+      decisionDisabledReason={decisionDisabledReason}
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}
     >
       <ReviewDiffPanel title="Änderungen">
+        {/* Ein Tag je Zeile mit dem aktuellen Stand daneben: sonst sieht man
+            nur den Wunsch und nicht, was er ersetzt (#2267). */}
+        {currentStatusByDate
+          ? [...row.dates].sort().map((date) => (
+              <div key={date} className="text-sm">
+                <span className="text-xs text-gray-500">
+                  {formatDate(date)}:{" "}
+                </span>
+                <span className="text-gray-500">
+                  Aktuell {currentStatusLabel(currentStatusByDate[date])}
+                </span>
+                <span className="text-gray-400" aria-hidden="true">
+                  {" → "}
+                </span>
+                <span className="font-medium text-gray-900">
+                  Gewünscht{" "}
+                  {row.absence_status === "sick" ? "Krank" : "Entschuldigt"}
+                </span>
+              </div>
+            ))
+          : null}
         <div className="text-sm">
           <span className="text-xs text-gray-500">Tage: </span>
           <span className="font-medium text-gray-900">

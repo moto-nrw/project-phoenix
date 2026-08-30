@@ -96,8 +96,6 @@ DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 DELETE /operator/schools/{id}/accounts/{accountId}/mfa/
 DELETE /operator/schools/{id}/settings/values/{key}
 DELETE /parent/me/children/{studentId}/care-exception
-DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
-DELETE /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
@@ -379,6 +377,7 @@ GET /api/students/{id}/delete-impact
 GET /api/students/{id}/documents
 GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
+GET /api/students/{id}/family-protection
 GET /api/students/{id}/in-group-room
 GET /api/students/{id}/partial-absences
 GET /api/students/{id}/photo/{filename}
@@ -516,6 +515,9 @@ GET /parent/me/children/{studentId}/master-data/requests
 GET /parent/me/children/{studentId}/meal-plan
 GET /parent/me/children/{studentId}/pickup-change-requests
 GET /parent/me/children/{studentId}/related-accounts
+GET /parent/me/children/{studentId}/request-sharing-options
+GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
+GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events
 GET /parent/me/children/{studentId}/sick-note
 GET /parent/me/children/{studentId}/today
 GET /parent/me/enrollable-schools
@@ -716,6 +718,10 @@ POST /api/students/care-end/preview
 POST /api/students/care-schedule-change-requests/{requestId}/decide
 POST /api/students/care-withdrawals/{completionId}/care-end
 POST /api/students/care-withdrawals/{completionId}/care-end/preview
+POST /api/students/change-requests/bulk-approve
+POST /api/students/change-requests/conflicts/resolve
+POST /api/students/change-requests/{kind}/{requestId}/correct
+POST /api/students/change-requests/{kind}/{requestId}/mark-done
 POST /api/students/excused-absence-requests/{requestId}/decide
 POST /api/students/export
 POST /api/students/master-data-change-requests/{requestId}/decide
@@ -854,9 +860,7 @@ POST /parent/me/calendar/feed/rotate
 POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception
 POST /parent/me/children/{studentId}/care-offerings/requests
-POST /parent/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/care-schedule/requests
-POST /parent/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/guardians
 POST /parent/me/children/{studentId}/master-data/requests
 POST /parent/me/children/{studentId}/related-accounts
@@ -942,6 +946,7 @@ PUT /api/students/{id}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
+PUT /api/students/{id}/family-protection
 PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
 PUT /api/students/{id}/pickup-notes/{noteId}
@@ -977,8 +982,14 @@ PUT /operator/profile/
 PUT /operator/schools/{id}
 PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 PUT /operator/schools/{id}/settings/values/{key}
+PUT /parent/me/children/{studentId}/care-offerings/requests/{requestId}
+PUT /parent/me/children/{studentId}/care-schedule/requests/{requestId}
+PUT /parent/me/children/{studentId}/excused-requests/{requestId}
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
+PUT /parent/me/children/{studentId}/master-data/requests/{requestId}
+PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
+PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/notifications/preferences/{type}

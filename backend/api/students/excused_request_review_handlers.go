@@ -7,10 +7,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // StaffExcusedRequestResponse is the legacy-named staff projection of one
@@ -55,7 +57,26 @@ func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem
 type DecideExcusedRequestBody struct {
 	Approve *bool  `json:"approve"`
 	Reason  string `json:"reason"`
+	// ExpectedVersion is the expected_version the list emitted for this row.
+	// Empty is accepted (old clients) and skips the check.
+	ExpectedVersion string `json:"expected_version"`
 }
+
+var excusedDecideErrorRenderer = common.RulesRenderer(parentRequestRules(
+	common.ErrorRule{Target: activeModels.ErrExcusedRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: activeModels.ErrExcusedRequestNotPending, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "change_request_not_pending")
+	}},
+	common.ErrorRule{Target: absenceService.ErrExcusedRequestGuardianAccessRevoked, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "guardian_access_revoked")
+	}},
+	common.ErrorRule{Target: absenceService.ErrExcusedRequestStatusConflict, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "excused_request_status_conflict")
+	}},
+	common.ErrorRule{Target: absenceService.ErrExcusedRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: absenceService.ErrExcusedRequestRejectReasonRequired, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: absenceService.ErrExcusedRequestRejectReasonTooLong, Render: common.ErrorInvalidRequest},
+), common.ErrorInternalServer)
 
 // decideExcusedAbsenceRequest approves (writes the requested status days) or
 // rejects (reason required) one pending request.
@@ -80,29 +101,16 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	item, err := rs.ExcusedRequestService.Decide(r.Context(), absenceService.ExcusedRequestDecideInput{
-		RequestID:  requestID,
-		Approve:    *body.Approve,
-		Reason:     body.Reason,
-		ReviewedBy: int64(claims.ID),
+		RequestID:       requestID,
+		Approve:         *body.Approve,
+		Reason:          body.Reason,
+		ExpectedVersion: body.ExpectedVersion,
+		ReviewedBy:      int64(claims.ID),
+		ReasonRequired:  rs.staffReasonRequired(r),
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, activeModels.ErrExcusedRequestNotFound):
-			renderError(w, r, common.ErrorNotFound(err))
-		case errors.Is(err, activeModels.ErrExcusedRequestNotPending):
-			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
-		case errors.Is(err, absenceService.ErrExcusedRequestGuardianAccessRevoked):
-			renderError(w, r, common.ErrorConflictWithCode(err, "guardian_access_revoked"))
-		case errors.Is(err, absenceService.ErrExcusedRequestStatusConflict):
-			renderError(w, r, common.ErrorConflictWithCode(err, "excused_request_status_conflict"))
-		case errors.Is(err, absenceService.ErrExcusedRequestForbidden):
-			renderError(w, r, common.ErrorForbidden(err))
-		case errors.Is(err, absenceService.ErrExcusedRequestRejectReasonRequired),
-			errors.Is(err, absenceService.ErrExcusedRequestRejectReasonTooLong):
-			renderError(w, r, common.ErrorInvalidRequest(err))
-		default:
-			renderError(w, r, common.ErrorInternalServer(err))
-		}
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, excusedDecideErrorRenderer(err))
 		return
 	}
 

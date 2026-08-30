@@ -170,3 +170,19 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 		})
 	}
 }
+
+// EditRequest is the guardian edit path (#2267); this staff-side double never
+// reaches it.
+func (f *companionErrCareRequestService) EditRequest(
+	context.Context, scheduleService.CareRequestEditInput,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
+// CreatePickupChange is the reason-policy-aware create path (#2267); this
+// staff-side double never reaches it.
+func (f *companionErrCareRequestService) CreatePickupChange(
+	context.Context, scheduleService.PickupChangeCreateInput,
+) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}

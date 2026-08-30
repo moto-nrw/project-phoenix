@@ -14,6 +14,10 @@ vi.mock("~/lib/route-wrapper.server", () => ({
       handler(request, "staff-token"),
 }));
 
+vi.mock("~/lib/route-proxy.server", () => ({
+  proxyPost: () => vi.fn(),
+}));
+
 describe("aggregated change request list route", () => {
   it("forwards only the allowlisted params", async () => {
     vi.mocked(apiGet).mockResolvedValue({

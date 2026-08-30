@@ -84,17 +84,41 @@ type Service interface {
 	// By default, both statuses become PENDING requests. The independent sick
 	// and excused approval settings can opt a school into direct status writes.
 	// A note is mandatory for both absence types.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error)
+	// recipientGuardianProfileIDs are the co-guardians the family picked for
+	// this request; they are stored in the SAME transaction as the request row
+	// (#2267). Empty shares with nobody.
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error)
 
 	// ListExcusedRequests returns the child's pending sick and excused absence
 	// requests plus any decided in the recent window, newest-first. The method
 	// retains its legacy excused-only name. Authorization only.
 	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
 
-	// WithdrawExcusedRequest withdraws the caller's own pending sick or excused
-	// absence request. The method retains its legacy excused-only name.
-	// Authorization: the account must be the submitting guardian.
-	WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error)
+	// EditExcusedRequest rewrites the caller's own pending sick or excused
+	// absence request instead of withdrawing and refiling it (#2267). The
+	// existing share is kept. Authorization: the account must be the
+	// submitting guardian.
+	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*activeModels.ExcusedAbsenceRequest, error)
+
+	// EditPickupChangeRequest rewrites the caller's own pending one-day
+	// pickup change (#2267).
+	EditPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64, date timezone.Date, pickupTime time.Time, reason, expectedVersion string) (*scheduleModels.CareScheduleChangeRequest, error)
+
+	// EditCareScheduleRequest rewrites the caller's own pending weekly-plan
+	// request (#2267).
+	EditCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string) (*ChildCareSchedule, error)
+
+	// EditMasterDataRequest rewrites the proposed value of the caller's own
+	// pending Stammdaten request (#2267). Target and field stay fixed.
+	EditMasterDataRequest(ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string) (*usersModels.StudentDataChangeRequest, error)
+
+	// EditOfferingChangeRequest rewrites the caller's own pending offering
+	// change (#2267).
+	EditOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, expectedVersion string) (*ChildCareOfferings, error)
+
+	// ListRequestEvents returns one request's history for the guardian who
+	// submitted it (#2267). Anyone else gets not-found.
+	ListRequestEvents(ctx context.Context, accountID, studentID int64, requestType string, requestID int64) ([]ParentRequestEventView, error)
 
 	// ListSickDays returns the child's currently-active parent-facing
 	// absences (sick and excused) in the given date range; class-trip days
@@ -119,9 +143,8 @@ type Service interface {
 	// concrete pickup time and stores the parent's explanation with it. Arrival
 	// exceptions remain under staff control.
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*CareException, error)
-	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
+	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string, recipientGuardianProfileIDs []int64) (*scheduleModels.CareScheduleChangeRequest, error)
 	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]*scheduleModels.CareScheduleChangeRequest, error)
-	WithdrawPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*scheduleModels.CareScheduleChangeRequest, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)
@@ -164,7 +187,7 @@ type Service interface {
 	// already-pending fields are skipped/rejected. Gated by
 	// operations.parent_master_data_request_enabled and
 	// GuardianPermissionMasterDataRequest.
-	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error)
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange, recipientGuardianProfileIDs []int64) ([]*usersModels.StudentDataChangeRequest, error)
 
 	// ListMyMasterDataRequests returns the child's change requests (any status),
 	// newest-first. Authorization only.
@@ -228,11 +251,6 @@ type Service interface {
 	// parent_portal.request.submit; gated by operations.parent_notes_enabled.
 	CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error)
 
-	// WithdrawCareScheduleRequest flips the caller's own pending request to
-	// withdrawn. Requires parent_portal.request.submit; stays available after
-	// messaging is disabled so outstanding requests can be wound down.
-	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
-
 	// GetChildOfferingCatalog returns the offerings the guardian may pick from
 	// for a change request, prefilled with the current booking. Requires
 	// parent_portal.request.submit.
@@ -241,11 +259,7 @@ type Service interface {
 
 	// CreateOfferingChangeRequest stores a pending post-enrollment offering
 	// change for staff review. Requires parent_portal.request.submit.
-	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool) (*ChildCareOfferings, error)
-
-	// WithdrawOfferingChangeRequest flips the caller's own pending offering
-	// change request to withdrawn.
-	WithdrawOfferingChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareOfferings, error)
+	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool, recipientGuardianProfileIDs []int64) (*ChildCareOfferings, error)
 
 	// GetChildCareOfferings returns the care offerings the child is booked into,
 	// plus whether the guardian may request a change
@@ -345,6 +359,11 @@ type ChildFeatureFlags struct {
 	// it off, the feed/unread endpoints return nothing and the nav/panel
 	// entries must stay hidden rather than dead-end on an empty page.
 	NewsEnabled bool
+	// ReasonRequired is true when this school makes the family state a reason
+	// for a request (operations.parent_request_reason_policy is "guardians" or
+	// "both", #2267). The portal marks the note field as required instead of
+	// letting the server reject the submission afterwards.
+	ReasonRequired bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -463,9 +482,17 @@ type ServiceConfig struct {
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).
-	PersonRepo        usersModels.PersonRepository
-	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
-	StudentAudit      usersSvc.StudentChangeRecorder
+	PersonRepo                usersModels.PersonRepository
+	ChangeRequestRepo         usersModels.StudentDataChangeRequestRepository
+	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
+	ExcusedRequestRepo        activeModels.ExcusedAbsenceRequestRepository
+	OfferingChangeRequestRepo enrollmentModels.OfferingChangeRequestRepository
+	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
+	ParentRequestShares       usersModels.ParentRequestShareEventRepository
+	StudentAudit              usersSvc.StudentChangeRecorder
+	// ParentRequestEvents appends to the append-only parent-request ledger
+	// inside the ambient transaction. Nil skips recording (tests).
+	ParentRequestEvents usersSvc.ParentRequestEventRecorder
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs both the
 	// caller's primary-phone master-data edit and the wholesale phone-list replace
