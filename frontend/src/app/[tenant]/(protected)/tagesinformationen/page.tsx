@@ -42,15 +42,22 @@ const logger = createLogger({ component: "TagesinformationenPage" });
 export default function TagesinformationenPage() {
   const { data: session } = useSession();
   const isAdmin = hasEffectiveAdminScope(session);
+  // Kontogebundene Cache-Keys: acknowledged_at ist kontospezifisch, ein
+  // Kontowechsel im selben Tenant darf keinen fremden Stand anzeigen.
+  const accountId = session?.user?.id ?? "";
 
   const {
     data: todayData,
     error: todayError,
     isLoading: todayLoading,
     mutate: mutateToday,
-  } = useSWRAuth<StaffNotice[]>("staff-notices-today", fetchTodaysNotices, {
-    revalidateOnFocus: false,
-  });
+  } = useSWRAuth<StaffNotice[]>(
+    `staff-notices-today:${accountId}`,
+    fetchTodaysNotices,
+    {
+      revalidateOnFocus: false,
+    },
+  );
 
   const {
     data,
@@ -58,7 +65,7 @@ export default function TagesinformationenPage() {
     isLoading,
     mutate,
   } = useSWRAuth<StaffNotice[]>(
-    isAdmin ? "staff-notices" : null,
+    isAdmin ? `staff-notices:${accountId}` : null,
     fetchStaffNotices,
     { revalidateOnFocus: false },
   );
