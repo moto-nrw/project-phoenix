@@ -179,16 +179,23 @@ func scanCalendarFixtureFile(root, path string, fset *token.FileSet, helpers cal
 			assertionPackages: assertionPackages,
 		}
 		functionFindings := scan.findings()
-		fingerprint, err := calendarFunctionFingerprint(fset, fn, source)
-		if err != nil {
+		if err := stampCalendarFunctionFingerprint(fset, fn, source, functionFindings); err != nil {
 			return nil, err
-		}
-		for i := range functionFindings {
-			functionFindings[i].fingerprint = fingerprint
 		}
 		findings = append(findings, functionFindings...)
 	}
 	return findings, nil
+}
+
+func stampCalendarFunctionFingerprint(fset *token.FileSet, fn *ast.FuncDecl, source []byte, findings []calendarClockFinding) error {
+	fingerprint, err := calendarFunctionFingerprint(fset, fn, source)
+	if err != nil {
+		return err
+	}
+	for i := range findings {
+		findings[i].fingerprint = fingerprint
+	}
+	return nil
 }
 
 func calendarFunctionFingerprint(fset *token.FileSet, fn *ast.FuncDecl, source []byte) (string, error) {
@@ -283,28 +290,32 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 		if !strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return fmt.Errorf("parse %s while finding calendar helpers: %w", path, err)
-		}
-		key := calendarPackageKey(path, file.Name.Name)
-		timePackages, timezonePackages := timeImportNames(file)
-		for name, fn := range declaredFunctions(file) {
-			if !isTestFunction(fn) {
-				candidates[key] = append(candidates[key], calendarHelperCandidate{
-					name: name, fn: fn, timePackages: timePackages, timezonePackages: timezonePackages,
-				})
-			}
-		}
-		result.dates[key] = map[string]bool{}
-		result.instants[key] = map[string]bool{}
-		return nil
+		return addCalendarHelperCandidates(path, fset, candidates, result)
 	})
 	if err != nil {
 		return calendarPackageHelpers{}, err
 	}
 	propagateCalendarHelpers(candidates, result)
 	return result, nil
+}
+
+func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates map[string][]calendarHelperCandidate, helpers calendarPackageHelpers) error {
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return fmt.Errorf("parse %s while finding calendar helpers: %w", path, err)
+	}
+	key := calendarPackageKey(path, file.Name.Name)
+	timePackages, timezonePackages := timeImportNames(file)
+	for name, fn := range declaredFunctions(file) {
+		if !isTestFunction(fn) {
+			candidates[key] = append(candidates[key], calendarHelperCandidate{
+				name: name, fn: fn, timePackages: timePackages, timezonePackages: timezonePackages,
+			})
+		}
+	}
+	helpers.dates[key] = map[string]bool{}
+	helpers.instants[key] = map[string]bool{}
+	return nil
 }
 
 func calendarPackageKey(path, packageName string) string {
