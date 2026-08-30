@@ -305,7 +305,11 @@ func (a *SubstitutionAdapter) broadcastStaffingChanged(ctx context.Context) {
 	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
 	tenant.RegisterAfterCommit(ctx, func() {
 		if err := a.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-			logger.Warn("SSE schedule substitution broadcast failed", slog.Int64("tenant_id", tenantID), slog.String("error", err.Error()))
+			logger.Warn(
+				"SSE schedule substitution broadcast failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
 		}
 	})
 }
