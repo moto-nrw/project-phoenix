@@ -374,6 +374,29 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_MaterializerError":                                                                                                                           "0c17996e78855cb9",
 	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_OnlyRacedCounter":                                                                                                                            "e23a47bd6a4560fc",
 	"services/scheduler/scheduler_test.go:TestIsoWeekdayMatchesNow_NonSundayMismatch":                                                                                                                                 "5355bfe0662b3f3a",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_List":                                                                                                             "7f1dc43991d00dc1",
+	"database/repositories/active/group_supervisor_repository_test.go:TestGroupSupervisorRepository_FindActiveByStaffID":                                                                                              "4db3aa662cd90a34",
+	"database/repositories/education/group_substitution_repository_test.go:TestGroupSubstitutionRepository_List_WithFilters":                                                                                          "5242eac453815f6f",
+	"services/active/supervisor_service_test.go:TestActiveService_CreateGroupSupervisor":                                                                                                                              "ac44cb878951b3a5",
+	"services/enrollment/offering_pickup_projection_test.go:TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate":                                                                                 "205b896b6ef368d2",
+	"services/enrollment/offering_pickup_projection_test.go:TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate":                                                                               "bf7d6901386408f4",
+	"services/feedback/errors_test.go:TestInvalidDateRangeError_Unwrap":                                                                                                                                               "22cbed94a3cc1dc0",
+	"services/feedback/feedback_service_test.go:TestFeedbackErrors":                                                                                                                                                   "38269b5bfaab0693",
+	"services/parent/parent_today_status_service_test.go:TestGetChildTodayStatusCareDayWithoutAttendance":                                                                                                             "625fd1953b5eed6b",
+	"services/parent/parent_today_status_service_test.go:TestGetChildTodayStatusCareDayWithoutArrivalTime":                                                                                                            "190056881768d993",
+	"services/parent/parent_today_status_service_test.go:TestGetChildTodayStatusPresentOnCareDay":                                                                                                                     "c4dc9057b6853130",
+	"services/parent/parent_today_status_service_test.go:TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare":                                                                                                         "1326fe190a94b83d",
+	"services/parent/parent_today_status_service_test.go:TestGetChildTodayStatusTracksAttendanceSchoolWide":                                                                                                           "575e40b29eb1d11f",
+	"services/parent/parent_today_status_service_test.go:TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan":                                                                                            "c40f644b7a617169",
+	"services/schedule/arrival_baseline_service_test.go:TestArrivalBaselineCareDayWithoutAnyClassTime":                                                                                                                "6d3dcc9e800bb42e",
+	"services/schedule/pickup_change_request_service_test.go:TestPickupChangeRequestAppliesOnlyAfterStaffApproval":                                                                                                    "837c78b44e53112b",
+	"services/schedule/pickup_change_request_service_test.go:TestPickupChangeApprovalExcusesBlocksAfterEarlierPickup":                                                                                                 "9c4bdf5d0381f49b",
+	"services/schedule/pickup_change_request_service_test.go:TestPendingPickupChangeNamesBlocksRemovedByApproval":                                                                                                     "c193f9b98dc66717",
+	"services/schedule/pickup_change_request_service_test.go:TestPendingPickupChangeMarksUnavailableImpact":                                                                                                           "ae44373a3f021eba",
+	"services/schedule/pickup_change_request_service_test.go:TestPickupApprovalRejectsStaleAffectedBlockList":                                                                                                         "07f236cf6f5d6dd8",
+	"services/schedule/pickup_change_request_service_test.go:TestPickupApprovalRequiresImpactTokenForHTTPDecision":                                                                                                    "c09e0b59f44a2aba",
+	"services/schedule/pickup_change_request_service_test.go:TestPickupChangeApprovalReleasesAutoExcusalAfterLaterPickup":                                                                                             "dd8cccdb35841837",
+	"services/scheduler/scheduler_test.go:TestCheckAndRunMaterialization_EnabledWrongWeekday":                                                                                                                         "535bf5a12cbe8f9c",
 }
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
@@ -775,6 +798,7 @@ type fakeClock struct{}
 func (liveClock) Now() time.Time { return time.Now() }
 func (fakeClock) Now() time.Time { return time.Time{} }
 func currentISOWeekday() int { return int(time.Now().Weekday()) }
+func delegatedISOWeekday() int { return currentISOWeekday() }
 func TestLiveMethod(t *testing.T) {
 	t.Parallel()
 	history := GetHistory(WorkSession{CheckInTime: liveClock{}.Now()})
@@ -797,6 +821,14 @@ func TestExplicitReceiverTypeConverges(t *testing.T) {
 	history := GetHistory(WorkSession{CheckInTime: clock.Now()})
 	_ = history.WeeklySummaries
 }
+func TestRepeatedInterfaceAssignmentsUseLastConcreteClock(t *testing.T) {
+	t.Parallel()
+	var clock Clock
+	clock = liveClock{}
+	clock = fakeClock{}
+	history := GetHistory(WorkSession{CheckInTime: clock.Now()})
+	_ = history.WeeklySummaries
+}
 func TestAnonymousRange(t *testing.T) {
 	t.Parallel()
 	_ = List(struct{ From, To Date }{From: TodayDate(), To: fixedDate})
@@ -804,6 +836,10 @@ func TestAnonymousRange(t *testing.T) {
 func TestLiveWeekdayFixture(t *testing.T) {
 	t.Parallel()
 	_ = map[string]int{"weekday": currentISOWeekday()}
+}
+func TestIndirectLiveWeekdayFixture(t *testing.T) {
+	t.Parallel()
+	_ = map[string]int{"weekday": delegatedISOWeekday()}
 }
 `)
 	writeCalendarFixtureSourceAt(t, root, "sample/factory_test.go", `package sample
@@ -815,6 +851,7 @@ func factoryTime() time.Time { return newLiveClock().Now() }
 	writeCalendarFixtureSourceAt(t, root, "sample/live_date_test.go", `package sample
 import (
 	. "time"
+	. "github.com/stretchr/testify/assert"
 	assertpkg "github.com/stretchr/testify/assert"
 	tz "github.com/moto-nrw/project-phoenix/internal/timezone"
 )
@@ -826,6 +863,12 @@ func List(value any) any { return value }
 func TestLiveDateConversionHelper(t *testing.T) {
 	t.Parallel()
 	assertpkg.Equal(t, liveDate(), fixedDate)
+}
+func normalize(date Date) Date { return date }
+func TestWrappedLiveDate(t *testing.T) {
+	t.Parallel()
+	date := normalize(TodayDate())
+	Equal(t, date, fixedDate)
 }
 func TestDotImportedNow(t *testing.T) {
 	t.Parallel()
@@ -841,7 +884,9 @@ func TestDotImportedNow(t *testing.T) {
 	if !strings.Contains(joined, "TestLiveMethod") || !strings.Contains(joined, "TestFactoryMethod") ||
 		!strings.Contains(joined, "TestExplicitReceiverTypeConverges") || !strings.Contains(joined, "TestDotImportedNow") ||
 		!strings.Contains(joined, "TestLiveDateConversionHelper") || !strings.Contains(joined, "TestAnonymousRange") ||
-		!strings.Contains(joined, "TestLiveWeekdayFixture") || strings.Contains(joined, "TestFakeMethod") {
+		!strings.Contains(joined, "TestLiveWeekdayFixture") || !strings.Contains(joined, "TestIndirectLiveWeekdayFixture") ||
+		!strings.Contains(joined, "TestWrappedLiveDate") || strings.Contains(joined, "TestFakeMethod") ||
+		strings.Contains(joined, "TestRepeatedInterfaceAssignmentsUseLastConcreteClock") {
 		t.Fatalf("receiver-qualified findings were %q", joined)
 	}
 }

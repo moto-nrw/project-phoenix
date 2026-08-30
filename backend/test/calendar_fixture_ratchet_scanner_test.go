@@ -348,12 +348,7 @@ func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*calendarObject]
 			for i, lhs := range declaration.Lhs {
 				id, ok := lhs.(*ast.Ident)
 				if ok && id.Obj != nil && i < len(declaration.Rhs) {
-					typeName := calendarExpressionType(declaration.Rhs[i], types)
-					if calendarObjectDeclaredAsInterface(id.Obj) && typeName != "" && types[id.Obj] != typeName {
-						types[id.Obj], changed = typeName, true
-					} else {
-						changed = recordCalendarType(id.Obj, typeName, types) || changed
-					}
+					changed = recordCalendarType(id.Obj, calendarExpressionType(declaration.Rhs[i], types), types) || changed
 				}
 			}
 		case *ast.ValueSpec:
@@ -368,23 +363,6 @@ func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*calendarObject]
 		return true
 	})
 	return changed
-}
-
-func calendarObjectDeclaredAsInterface(object *calendarObject) bool {
-	declaration, ok := object.Decl.(*ast.ValueSpec)
-	if !ok || declaration.Type == nil {
-		return false
-	}
-	identifier, ok := declaration.Type.(*ast.Ident)
-	if !ok || identifier.Obj == nil {
-		return false
-	}
-	typeSpec, ok := identifier.Obj.Decl.(*ast.TypeSpec)
-	if !ok {
-		return false
-	}
-	_, ok = typeSpec.Type.(*ast.InterfaceType)
-	return ok
 }
 
 func recordCalendarType(object *calendarObject, typeName string, types map[*calendarObject]string) bool {
@@ -855,6 +833,9 @@ func findLiveCalendarAssertions(fn *ast.FuncDecl, rel string, fset *token.FileSe
 }
 
 func isAssertionCall(expr ast.Expr, assertionPackages map[string]bool) bool {
+	if identifier, ok := expr.(*ast.Ident); ok {
+		return identifier.Obj == nil && calendarAssertionMethods[identifier.Name] && assertionPackages["."]
+	}
 	selector, ok := expr.(*ast.SelectorExpr)
 	if !ok || !calendarAssertionMethods[selector.Sel.Name] {
 		return false
@@ -907,8 +888,12 @@ func assertionImportNames(file *ast.File) map[string]bool {
 			continue
 		}
 		name := pathpkg.Base(importPath)
-		if spec.Name != nil && spec.Name.Name != "." && spec.Name.Name != "_" {
-			name = spec.Name.Name
+		if spec.Name != nil {
+			if spec.Name.Name == "." {
+				name = "."
+			} else if spec.Name.Name != "_" {
+				name = spec.Name.Name
+			}
 		}
 		packages[name] = true
 	}
@@ -1100,7 +1085,26 @@ func expressionUsesTodayDate(expr ast.Expr, dateVars calendarVariables, dateHelp
 				return true
 			}
 		}
+		if strings.Contains(calendarFunctionResultType(value.Fun), "Date") {
+			for _, argument := range value.Args {
+				if expressionUsesTodayDate(argument, dateVars, dateHelpers, timezonePackages) {
+					return true
+				}
+			}
+		}
 		return false
+	case *ast.CompositeLit:
+		for _, element := range value.Elts {
+			field, keyed := element.(*ast.KeyValueExpr)
+			if keyed && calendarRangeFieldName(expressionName(field.Key)) &&
+				expressionUsesTodayDate(field.Value, dateVars, dateHelpers, timezonePackages) {
+				return true
+			}
+		}
+		return false
+	case *ast.KeyValueExpr:
+		return expressionUsesTodayDate(value.Key, dateVars, dateHelpers, timezonePackages) ||
+			expressionUsesTodayDate(value.Value, dateVars, dateHelpers, timezonePackages)
 	case *ast.SelectorExpr:
 		return expressionUsesTodayDate(value.X, dateVars, dateHelpers, timezonePackages)
 	case *ast.BinaryExpr:
@@ -1200,13 +1204,17 @@ func findLiveWeekdayHelperCalls(fn *ast.FuncDecl, rel string, fset *token.FileSe
 }
 
 func expressionUsesLiveWeekday(expr ast.Expr, instantVars calendarVariables, instantHelpers, timePackages, timezonePackages map[string]bool) bool {
+	if call, ok := expr.(*ast.CallExpr); ok && instantHelpers[calendarCalledHelper(call, nil)] {
+		return true
+	}
 	call, ok := expr.(*ast.CallExpr)
 	if !ok {
 		return false
 	}
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	return ok && (selector.Sel.Name == "Weekday" || selector.Sel.Name == "ISOWeek") &&
-		expressionUsesCalendarInstant(selector.X, instantVars, instantHelpers, timePackages, timezonePackages)
+		(expressionUsesCalendarInstant(selector.X, instantVars, instantHelpers, timePackages, timezonePackages) ||
+			expressionUsesTodayDate(selector.X, calendarVariables{}, nil, timezonePackages))
 }
 
 func findLiveWeeklyFixtureInstants(fn *ast.FuncDecl, rel string, fset *token.FileSet, instantHelpers, timePackages, timezonePackages map[string]bool) []calendarClockFinding {
