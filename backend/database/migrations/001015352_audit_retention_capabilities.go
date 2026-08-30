@@ -77,14 +77,12 @@ const auditRetentionCapabilitiesSQL = `
 			END IF;
 			invoker_is_superuser := audit.authorize_retention_tenant(p_tenant_id);
 
-			SELECT COALESCE(
-				(SELECT (value #>> '{}')::INTEGER
-				 FROM config.setting_values
-				 WHERE tenant_id = p_tenant_id
-				   AND setting_key = 'gdpr.timetable_retention_days'),
-				365
-			) INTO retention_days;
-			IF retention_days < 30 OR retention_days > 1825 THEN
+			SELECT (value #>> '{}')::INTEGER
+			INTO retention_days
+			FROM config.setting_values
+			WHERE tenant_id = p_tenant_id
+			  AND setting_key = 'gdpr.timetable_retention_days';
+			IF retention_days IS NULL OR retention_days < 30 OR retention_days > 1825 THEN
 				RAISE EXCEPTION 'invalid timetable retention setting' USING ERRCODE = '22023';
 			END IF;
 
@@ -124,14 +122,12 @@ const auditRetentionCapabilitiesSQL = `
 			END IF;
 			invoker_is_superuser := audit.authorize_retention_tenant(p_tenant_id);
 
-			SELECT COALESCE(
-				(SELECT (value #>> '{}')::INTEGER
-				 FROM config.setting_values
-				 WHERE tenant_id = p_tenant_id
-				   AND setting_key = 'gdpr.student_change_log_retention_days'),
-				90
-			) INTO retention_days;
-			IF retention_days < 30 OR retention_days > 365 THEN
+			SELECT (value #>> '{}')::INTEGER
+			INTO retention_days
+			FROM config.setting_values
+			WHERE tenant_id = p_tenant_id
+			  AND setting_key = 'gdpr.student_change_log_retention_days';
+			IF retention_days IS NULL OR retention_days < 30 OR retention_days > 365 THEN
 				RAISE EXCEPTION 'invalid student change-log retention setting' USING ERRCODE = '22023';
 			END IF;
 
@@ -211,10 +207,6 @@ func auditRetentionCapabilitiesUp(ctx context.Context, db *bun.DB) error {
 
 func auditRetentionCapabilitiesDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, `
-		GRANT DELETE ON audit.deviation_events TO phoenix_tenant;
-		GRANT DELETE ON audit.student_field_edits TO phoenix_tenant;
-		GRANT DELETE ON audit.unregistered_tag_scans TO phoenix_tenant;
-
 		DROP FUNCTION IF EXISTS audit.delete_expired_deviation_events(BIGINT, DATE);
 		DROP FUNCTION IF EXISTS audit.delete_expired_student_field_edits(BIGINT, TIMESTAMPTZ);
 		DROP FUNCTION IF EXISTS audit.delete_expired_unregistered_tag_scans(BIGINT, TIMESTAMPTZ);
