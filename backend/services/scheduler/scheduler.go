@@ -1398,7 +1398,13 @@ func (s *Scheduler) runSessionCleanupTaskPolling(task *ScheduledTask) {
 	s.getLogger().Info("session cleanup using 5-minute polling for per-tenant scheduling")
 
 	// Brief delay on startup to let services initialize
-	time.Sleep(30 * time.Second)
+	startupDelay := time.NewTimer(30 * time.Second)
+	defer startupDelay.Stop()
+	select {
+	case <-startupDelay.C:
+	case <-s.done:
+		return
+	}
 	s.checkAndRunSessionCleanup(task)
 
 	ticker := time.NewTicker(5 * time.Minute)
