@@ -315,8 +315,14 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", runtime.server.Addr, err)
 	}
+	if err := ctx.Err(); err != nil {
+		if closeErr := listener.Close(); closeErr != nil {
+			return fmt.Errorf("close canceled listener: %w", closeErr)
+		}
+		return nil
+	}
 
-	capacityCtx, stopCapacityLogger := context.WithCancel(context.Background())
+	capacityCtx, stopCapacityLogger := context.WithCancel(ctx)
 	capacityStopped := runtime.startBackground(capacityCtx)
 	defer func() {
 		stopCapacityLogger()
@@ -359,6 +365,10 @@ func (runtime *Runtime) handleServeExit(err error) error {
 
 func (runtime *Runtime) startBackground(capacityCtx context.Context) <-chan struct{} {
 	capacityStopped := make(chan struct{})
+	if capacityCtx.Err() != nil {
+		close(capacityStopped)
+		return capacityStopped
+	}
 	if runtime.capacityLogger != nil {
 		runtime.capacityLogger.LogSnapshot()
 		go func() {
@@ -368,7 +378,7 @@ func (runtime *Runtime) startBackground(capacityCtx context.Context) <-chan stru
 	} else {
 		close(capacityStopped)
 	}
-	if runtime.scheduler != nil {
+	if runtime.scheduler != nil && capacityCtx.Err() == nil {
 		runtime.scheduler.Start()
 	}
 	return capacityStopped

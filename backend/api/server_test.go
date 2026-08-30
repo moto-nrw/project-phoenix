@@ -22,6 +22,12 @@ func (scheduler blockingScheduler) Stop() {
 	<-scheduler.release
 }
 
+type recordingScheduler struct{ started chan struct{} }
+
+func (scheduler recordingScheduler) Start() { close(scheduler.started) }
+
+func (recordingScheduler) Stop() {}
+
 func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -100,6 +106,26 @@ func TestRuntimeServeReturnsListenFailure(t *testing.T) {
 	err = runtime.Serve(context.Background())
 
 	require.ErrorContains(t, err, "listen on")
+}
+
+func TestRuntimeServeDoesNotStartBackgroundAfterCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	started := make(chan struct{})
+	runtime := &Runtime{
+		server:    &http.Server{Addr: "127.0.0.1:0"},
+		scheduler: recordingScheduler{started: started},
+		logger:    slog.Default(),
+	}
+
+	require.NoError(t, runtime.Serve(ctx))
+	select {
+	case <-started:
+		t.Fatal("scheduler started after Serve context cancellation")
+	default:
+	}
 }
 
 func TestRuntimeShutdownReturnsDeadlineForStuckScheduler(t *testing.T) {
