@@ -4,6 +4,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -58,7 +59,7 @@ func openPool(dsn, logMsg string) (*bun.DB, error) {
 	db := bun.NewDB(sqldb, pgdialect.New())
 
 	if err := checkConn(db); err != nil {
-		return nil, err
+		return nil, errors.Join(err, db.Close())
 	}
 
 	return db, nil
@@ -73,6 +74,11 @@ func checkConn(db *bun.DB) error {
 // Used by the HTTP server to enforce least-privilege at the connection level.
 func DBConnForServe() (*bun.DB, error) {
 	return openPool(GetServeDSN(), "database pool configured (phoenix_auth)")
+}
+
+// ClosePool releases a pool owned by a process composition root.
+func ClosePool(db *bun.DB) error {
+	return db.Close()
 }
 
 // InitDB initializes a database connection for CLI commands

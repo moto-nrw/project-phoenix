@@ -6,7 +6,7 @@
       "id": "serve",
       "kind": "http",
       "file": "api/server.go",
-      "declaration": "NewServer",
+      "declaration": "WithRuntime",
       "smoke_test": "api/route_table_golden_test.go#TestRouteTableGolden",
       "tables": []
     },
@@ -441,12 +441,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 119,
+          "line": 120,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 571,
+          "line": 595,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 214,
+          "line": 236,
           "declaration": "New"
         }
       ]
@@ -466,12 +466,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 116,
+          "line": 117,
           "declaration": "type API"
         },
         {
           "file": "api/server.go",
-          "line": 121,
+          "line": 173,
           "declaration": "configureSchedulerServices"
         }
       ]
@@ -481,7 +481,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 217,
+          "line": 239,
           "declaration": "New"
         }
       ]
@@ -16684,7 +16684,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        214
+        236
       ],
       "tables": []
     },
@@ -16694,17 +16694,17 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        217
+        239
       ],
       "tables": []
     },
     {
       "scope": "production",
       "file": "api/server.go",
-      "declaration": "NewServer",
+      "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        32
+        73
       ],
       "tables": []
     },
@@ -16714,7 +16714,7 @@
       "declaration": "newScheduler",
       "target": "services/scheduler.NewScheduler",
       "lines": [
-        87
+        139
       ],
       "tables": []
     },
@@ -16776,9 +16776,9 @@
       "scope": "production",
       "file": "cmd/serve.go",
       "declaration": "var serveCmd",
-      "target": "api.NewServer",
+      "target": "api.WithRuntime",
       "lines": [
-        58
+        59
       ],
       "tables": []
     },
@@ -17669,16 +17669,6 @@
     },
     {
       "scope": "test",
-      "file": "api/route_table_golden_test.go",
-      "declaration": "newGoldenAPI",
-      "target": "api.NewServer",
-      "lines": [
-        75
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/schedules/schedules_test.go",
       "declaration": "setupTestContext",
       "target": "api/testutil.SetupAPITest",
@@ -17704,6 +17694,17 @@
       "target": "api/testutil.SetupAPITest",
       "lines": [
         47
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/server_test.go",
+      "declaration": "TestWithRuntimeRejectsMissingDependencies",
+      "target": "api.WithRuntime",
+      "lines": [
+        55,
+        66
       ],
       "tables": []
     },
