@@ -774,6 +774,7 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 		return err
 	}
 
+	uniqueSupervisors = primarySupervisorIDs(uniqueSupervisors, currentSupervisors)
 	if err := s.endAllCurrentSupervisors(ctx, currentSupervisors); err != nil {
 		return err
 	}
@@ -781,10 +782,26 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 	return s.upsertSupervisors(ctx, activeGroupID, uniqueSupervisors, currentSupervisors)
 }
 
-// endAllCurrentSupervisors ends all current supervisors by setting end_date
+// primarySupervisorIDs excludes non-primary roles from a primary-supervisor
+// replacement. IoT check-ins pass every active supervisor ID, including
+// additional supervisors, which must remain assigned to the session.
+func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*active.GroupSupervisor) map[int64]bool {
+	primaryIDs := maps.Clone(supervisorIDs)
+	for _, supervisor := range currentSupervisors {
+		if supervisor.Role != "supervisor" {
+			delete(primaryIDs, supervisor.StaffID)
+		}
+	}
+	return primaryIDs
+}
+
+// endAllCurrentSupervisors ends the current primary supervisors by setting end_date.
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
 	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
+		if supervisor.Role != "supervisor" {
+			continue
+		}
 		supervisor.EndDate = &today
 		if err := s.SupervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
@@ -1370,8 +1387,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		if err != nil {
 			return err
 		}
-		s.endDailySessionsLocked(txCtx, lockedIDs, result)
-		return nil
+		return s.endDailySessionsLocked(txCtx, lockedIDs, result)
 	}); err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: err}
@@ -1415,9 +1431,9 @@ func (s *service) lockActiveSessionIDs(ctx context.Context, ids []int64) ([]int6
 	return lockedIDs, nil
 }
 
-func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64, result *DailySessionCleanupResult) {
+func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64, result *DailySessionCleanupResult) error {
 	if len(activeIDs) == 0 {
-		return
+		return nil
 	}
 
 	// 2. Bulk end visits — abort remaining steps on failure to prevent
@@ -1426,7 +1442,7 @@ func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64,
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
 		result.Success = false
-		return
+		return err
 	}
 	result.VisitsEnded = int(visitsEnded)
 
@@ -1435,20 +1451,21 @@ func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64,
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
 		result.Success = false
-	} else {
-		result.SessionsEnded = int(sessionsEnded)
-		result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
+		return err
 	}
+	result.SessionsEnded = int(sessionsEnded)
+	result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
 
 	// 4. Bulk end supervisors
 	supervisorsEnded, err := s.SupervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
 		result.Success = false
-	} else {
-		result.SupervisorsEnded = int(supervisorsEnded)
+		return err
 	}
+	result.SupervisorsEnded = int(supervisorsEnded)
 
+	return nil
 }
 
 // cleanupOrphanedSupervisors closes supervisor records from previous days

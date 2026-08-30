@@ -1441,6 +1441,46 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 	})
 }
 
+func TestSupervisorReplacement_PreservesAdditionalSupervisors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	additional := &activeModels.GroupSupervisor{
+		Model:     modelBase.Model{ID: 21},
+		StaffID:   11,
+		Role:      "additional_supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+	primary := &activeModels.GroupSupervisor{
+		Model:     modelBase.Model{ID: 20},
+		StaffID:   10,
+		Role:      "supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+
+	var updatedIDs, createdStaffIDs []int64
+	svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
+			return []*activeModels.GroupSupervisor{primary, additional}, nil
+		},
+		updateFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			updatedIDs = append(updatedIDs, supervisor.ID)
+			return nil
+		},
+		createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			createdStaffIDs = append(createdStaffIDs, supervisor.StaffID)
+			return nil
+		},
+	}}}
+
+	err := svc.replaceSupervisorsInTransaction(ctx, 100, map[int64]bool{10: true, 11: true, 12: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{20, 20}, updatedIDs)
+	assert.Equal(t, []int64{12}, createdStaffIDs)
+	assert.Nil(t, additional.EndDate)
+}
+
 func TestGetDeviceIDString(t *testing.T) {
 	t.Parallel()
 
@@ -1479,7 +1519,10 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	})
 
 	t.Run("visit bulk failure aborts later bulk steps", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		mock.ExpectRollback()
+		svc := &service{ServiceDependencies: ServiceDependencies{DB: db, GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
@@ -1492,13 +1535,14 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.NotNil(t, result)
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Errors[0], "bulk visit close failed")
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("session bulk failure records error and still tries supervisors", func(t *testing.T) {
+	t.Run("session bulk failure aborts supervisor cleanup", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
@@ -1519,10 +1563,10 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		assert.False(t, result.Success)
 		assert.Equal(t, 2, result.VisitsEnded)
-		assert.Equal(t, 3, result.SupervisorsEnded)
+		assert.Zero(t, result.SupervisorsEnded)
 		assert.Contains(t, result.Errors[0], "bulk session close failed")
 	})
 
@@ -1547,7 +1591,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		assert.False(t, result.Success)
 		assert.Equal(t, 1, result.SessionsEnded)
 		assert.Contains(t, result.Errors[0], "bulk supervisor close failed")
