@@ -16993,17 +16993,7 @@
       "declaration": "setupImportRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/import/import_test.go",
-      "declaration": "setupImportRoute",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        62
+        60
       ],
       "tables": []
     },
@@ -17883,19 +17873,11 @@
       "declaration": "setupUserContextRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        50
+        49
       ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/usercontext/usercontext_test.go",
-      "declaration": "setupUserContextRoute",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        51
-      ],
-      "tables": []
+      "tables": [
+        "auth.accounts"
+      ]
     },
     {
       "scope": "test",
@@ -32310,17 +32292,7 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        64
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "test/e2e/timetable/shared_setup_test.go",
-      "declaration": "setupTimetableScenarioModule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        72
+        62
       ],
       "tables": []
     },

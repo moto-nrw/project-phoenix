@@ -346,7 +346,7 @@ func inspectRouteBuilderSelector(source routeBuilderFile, selector *ast.Selector
 		hasFactory: importPath == rootServicesImport && selector.Sel.Name == "Factory",
 		hasRoute: (importPath == chiImport && selector.Sel.Name == "Router") ||
 			(importPath == httpImport && selector.Sel.Name == "Handler") ||
-			(strings.Contains(importPath, "/api/") && selector.Sel.Name == "Resource"),
+			(strings.Contains(importPath, "/api/") && strings.HasSuffix(selector.Sel.Name, "Resource")),
 	}
 	if result.hasFactory || result.hasRoute {
 		return result
@@ -420,9 +420,15 @@ func inspectImportedCompositeUntyped(source routeBuilderFile, expression ast.Exp
 		return importedFieldsHaveUntyped(source, typed.Fields, visited)
 	case *ast.InterfaceType:
 		return importedInterfaceIsUntyped(source, typed, visited)
+	case *ast.SelectorExpr:
+		return inspectImportedSelectorUntyped(source, typed, visited)
 	case *ast.IndexExpr:
-		return inspectImportedCarrierUntyped(source, typed.Index, visited)
+		return inspectImportedCarrierUntyped(source, typed.X, visited) ||
+			inspectImportedCarrierUntyped(source, typed.Index, visited)
 	case *ast.IndexListExpr:
+		if inspectImportedCarrierUntyped(source, typed.X, visited) {
+			return true
+		}
 		for _, index := range typed.Indices {
 			if inspectImportedCarrierUntyped(source, index, visited) {
 				return true
@@ -430,6 +436,32 @@ func inspectImportedCompositeUntyped(source routeBuilderFile, expression ast.Exp
 		}
 	}
 	return false
+}
+
+func inspectImportedSelectorUntyped(source routeBuilderFile, selector *ast.SelectorExpr, visited map[string]bool) bool {
+	identifier, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	importPath := source.imports[identifier.Name]
+	if strings.Contains(importPath, "/api/") && strings.HasSuffix(selector.Sel.Name, "Resource") {
+		return false
+	}
+	declaration, ok := source.typesByImportPath[importPath][selector.Sel.Name]
+	if !ok {
+		return false
+	}
+	key := importPath + "." + selector.Sel.Name
+	if visited[key] {
+		return false
+	}
+	visited[key] = true
+	nested := source
+	nested.imports = declaration.imports
+	nested.types = source.typesByPackage[declaration.pkgKey]
+	result := inspectImportedCarrierUntyped(nested, declaration.expression, visited)
+	delete(visited, key)
+	return result
 }
 
 func importedInterfaceIsUntyped(source routeBuilderFile, typed *ast.InterfaceType, visited map[string]bool) bool {

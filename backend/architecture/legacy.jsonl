@@ -113,7 +113,6 @@
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/guardians","target":"github.com/uptrace/bun","issue":"https://github.com/moto-nrw/project-phoenix/issues/2663"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/guardians","target":"net/http","issue":"https://github.com/moto-nrw/project-phoenix/issues/2663"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/import","target":"github.com/go-chi/chi/v5","issue":"https://github.com/moto-nrw/project-phoenix/issues/2744"}
-{"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/import","target":"github.com/moto-nrw/project-phoenix/database/repositories","issue":"https://github.com/moto-nrw/project-phoenix/issues/2744"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/import","target":"github.com/moto-nrw/project-phoenix/models/audit","issue":"https://github.com/moto-nrw/project-phoenix/issues/2744"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/import","target":"github.com/moto-nrw/project-phoenix/models/users","issue":"https://github.com/moto-nrw/project-phoenix/issues/2744"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/import","target":"github.com/uptrace/bun","issue":"https://github.com/moto-nrw/project-phoenix/issues/2744"}
@@ -271,7 +270,6 @@
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/timetable","target":"net/http","issue":"https://github.com/moto-nrw/project-phoenix/issues/2732"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/usercontext","target":"github.com/go-chi/chi/v5","issue":"https://github.com/moto-nrw/project-phoenix/issues/2725"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/usercontext","target":"github.com/moto-nrw/project-phoenix/api/common","issue":"https://github.com/moto-nrw/project-phoenix/issues/2725"}
-{"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/usercontext","target":"github.com/moto-nrw/project-phoenix/database/repositories","issue":"https://github.com/moto-nrw/project-phoenix/issues/2725"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/usercontext","target":"github.com/moto-nrw/project-phoenix/services/usercontext","issue":"https://github.com/moto-nrw/project-phoenix/issues/2725"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/usercontext","target":"github.com/uptrace/bun","issue":"https://github.com/moto-nrw/project-phoenix/issues/2725"}
 {"scope":"external_test","rule":"imports.forbidden","source":"github.com/moto-nrw/project-phoenix/api/usercontext","target":"net/http","issue":"https://github.com/moto-nrw/project-phoenix/issues/2725"}

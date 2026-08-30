@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,7 +36,7 @@ func init() {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	repos    *repositories.Factory
+	avatar   func(context.Context, int64) (string, error)
 	resource *usercontextAPI.Resource
 	router   chi.Router
 }
@@ -48,13 +47,19 @@ func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, serviceFactory := testutil.SetupAPITest(t)
-	repoFactory := repositories.NewFactory(db)
-
 	resource := usercontextAPI.NewResource(serviceFactory.UserContext, db)
 
 	return &testContext{
-		db:       db,
-		repos:    repoFactory,
+		db: db,
+		avatar: func(ctx context.Context, id int64) (string, error) {
+			var avatar string
+			err := db.NewSelect().
+				TableExpr(`auth.accounts AS "account"`).
+				ColumnExpr(`"account".avatar`).
+				Where(`"account".id = ?`, id).
+				Scan(ctx, &avatar)
+			return avatar, err
+		},
 		resource: resource,
 		router:   resource.Router(),
 	}
@@ -751,17 +756,17 @@ func TestUploadAvatar_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	found, err := tc.repos.Account.FindByID(context.Background(), account.ID)
+	avatar, err := tc.avatar(context.Background(), account.ID)
 	require.NoError(t, err)
-	require.NotEmpty(t, found.Avatar)
-	assert.Contains(t, found.Avatar, "/uploads/avatars/global/")
-	assert.Equal(t, ".png", filepath.Ext(found.Avatar))
+	require.NotEmpty(t, avatar)
+	assert.Contains(t, avatar, "/uploads/avatars/global/")
+	assert.Equal(t, ".png", filepath.Ext(avatar))
 
 	// The upload goes through the storage backend, which resolves a relative
 	// upload directory against the discovered public dir. Rebuilding the path
 	// from the working directory would look for the avatar in the test
 	// package's directory instead of where the handler just wrote it.
-	avatarFilePath, err := common.ResolveStoredPath("public", found.Avatar, "/uploads/avatars/global/")
+	avatarFilePath, err := common.ResolveStoredPath("public", avatar, "/uploads/avatars/global/")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = os.Remove(avatarFilePath)

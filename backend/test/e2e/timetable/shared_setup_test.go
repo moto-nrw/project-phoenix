@@ -25,7 +25,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -47,7 +46,6 @@ type scenario struct {
 	endVisit       func(context.Context, int64) error
 	previewCleanup func(context.Context) (*scheduleSvc.TimetableCleanupPreview, error)
 	cleanup        func(context.Context) (*scheduleSvc.TimetableCleanupResult, error)
-	repos          *repositories.Factory
 	router         timetableTestRouter
 	tokenAuth      *timetableTestTokenAuth
 	today          func() timezone.Date
@@ -69,8 +67,6 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 	ta, err := newTimetableTokenAuth()
 	require.NoError(t, err, "init JWT token auth")
 
-	repos := repositories.NewFactory(db)
-
 	resource := newTimetableTestResource(timetableTestDependencies{
 		CalendarPeriodService:  factory.CalendarPeriod,
 		MaterializationService: factory.Materialization,
@@ -90,7 +86,6 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 		endVisit:        factory.Active.EndVisit,
 		previewCleanup:  factory.TimetableCleanup.PreviewExpiredTimetableData,
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
-		repos:           repos,
 		tokenAuth:       ta,
 		today:           timezone.CalendarDateClock(clocks...),
 		primaryTenant:   primaryTenant,

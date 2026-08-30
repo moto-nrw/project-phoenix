@@ -168,6 +168,7 @@ func TestRouteSizedBuilderAnalyzerRejectsImportedUntypedCarrier(t *testing.T) {
 		{name: "empty interface", helper: "type Module interface{}"},
 		{name: "embedded any interface", helper: "type Module interface { any }"},
 		{name: "nested any", helper: "type Hidden struct { Capability any }; type Module struct { Hidden Hidden }"},
+		{name: "generic any", helper: "type Carrier[T any] struct { Capability any }; type Module Carrier[int]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -188,6 +189,34 @@ func setupSampleModule() helpers.Module { return helpers.Module{} }
 			}, "violations %q do not reject the imported untyped carrier", violations)
 		})
 	}
+}
+
+func TestRouteSizedBuilderAnalyzerRejectsTransitiveImportedUntypedCarrier(t *testing.T) {
+	t.Parallel()
+
+	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
+
+import "github.com/moto-nrw/project-phoenix/helpers"
+
+func setupSampleModule() helpers.Module { return helpers.Module{} }
+`)
+	writeRouteBuilderSource(t, root, "helpers/module.go", `package helpers
+
+import "github.com/moto-nrw/project-phoenix/hidden"
+
+type Module struct { Hidden hidden.Hidden }
+`)
+	writeRouteBuilderSource(t, root, "hidden/hidden.go", `package hidden
+
+type Hidden struct { Capability any }
+`)
+
+	violations, err := routeSizedBuilderViolations(root)
+
+	require.NoError(t, err)
+	require.Condition(t, func() bool {
+		return containsViolation(violations, "setupSampleModule returns an untyped capability")
+	}, "violations %q do not reject the transitive imported untyped carrier", violations)
 }
 
 func writeRouteBuilderFixture(t *testing.T, relativePath, source string) string {

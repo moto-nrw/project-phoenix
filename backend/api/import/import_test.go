@@ -22,7 +22,6 @@ import (
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -50,7 +49,7 @@ func adminBearer(t *testing.T, accountID int64) testutil.RequestOption {
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
-	repos    *repositories.Factory
+	student  func(context.Context, int64) (*users.Student, error)
 	resource *importAPI.Resource
 }
 
@@ -59,14 +58,12 @@ func setupImportRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	repos := repositories.NewFactory(db)
-
 	// Create import resource
 	resource := importAPI.NewResource(svc.Import, svc.StaffImport, svc.ClassListImport, svc.Users, db)
 
 	return &testContext{
 		db:       db,
-		repos:    repos,
+		student:  svc.Users.GetStudentByID,
 		resource: resource,
 	}
 }
@@ -439,7 +436,7 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 		Where(`"person".last_name = ?`, "Phase1Regression").
 		Scan(context.Background())
 	require.NoError(t, err, "imported student should exist in the database")
-	hydrated, err := tc.repos.Student.FindByID(testpkg.Ctx(t), student.ID)
+	hydrated, err := tc.student(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err, "imported student should be readable through the repository")
 	for _, day := range users.BusDayOrder {
 		assert.True(t, hydrated.BusDays[day], "Bus permission from CSV (Ja) must enable %s", day)
@@ -474,7 +471,7 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 		Where(`"person".first_name = ?`, "Departure").
 		Where(`"person".last_name = ?`, "GehweiseImport").
 		Scan(context.Background()))
-	hydrated, err := tc.repos.Student.FindByID(testpkg.Ctx(t), student.ID)
+	hydrated, err := tc.student(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	assert.Equal(t, users.DepartureBus, hydrated.DepartureDays.ModeFor(users.PickupDayMonday))
 	assert.Equal(t, users.DeparturePickup, hydrated.DepartureDays.ModeFor(users.PickupDayWednesday))
@@ -511,7 +508,7 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 		Where(`"person".first_name = ?`, "Legacy").
 		Where(`"person".last_name = ?`, "GehweiseFallback").
 		Scan(context.Background()))
-	hydrated, err := tc.repos.Student.FindByID(testpkg.Ctx(t), student.ID)
+	hydrated, err := tc.student(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	for _, day := range users.PickupDayOrder {
 		assert.Equal(t, users.DepartureBus, hydrated.DepartureDays.ModeFor(day),
