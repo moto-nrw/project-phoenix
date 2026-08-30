@@ -395,6 +395,18 @@ func (s *instanceService) validateStartTime(ctx context.Context, instance *sched
 	return nil
 }
 
+func validateSpontaneousStartWorkday(instance *scheduleModel.ActivityInstance, now time.Time) error {
+	if !instance.IsSpontaneous {
+		return nil
+	}
+	switch now.In(timezone.Berlin).Weekday() {
+	case time.Saturday, time.Sunday:
+		return ErrInstanceWeekend
+	default:
+		return nil
+	}
+}
+
 func (s *instanceService) validateCompleteTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
 	if !s.deps.EnforceTimePolicy || instance.IsSpontaneous {
 		return nil
@@ -531,6 +543,9 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 
 	now := s.now()
+	if err := validateSpontaneousStartWorkday(instance, now); err != nil {
+		return nil, err
+	}
 	newGroup := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,

@@ -3,11 +3,15 @@ package timetable
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -15,6 +19,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type dayTransitionRoomRepo struct {
@@ -135,12 +140,16 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayBeforeInstanceCreatio
 	})
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
-		"title":   "Freispiel",
-		"room_id": int64(70),
-	})
+	req := httptest.NewRequest(http.MethodPost, "/spontaneous/start", strings.NewReader(`{"title":"Freispiel","room_id":70}`))
+	req.Header.Set("Content-Type", "application/json")
+	testutil.WithClaims(t, testutil.AdminTestClaims(120))(req)
+	testutil.WithPermissions(permissions.UsersRead)(req)
+	*req = *req.WithContext(tenant.WithRollbackMarker(req.Context()))
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.True(t, activityResolved)
 	assert.Nil(t, service.lastSpontaneousInput, "a request crossing into Saturday during activity resolution must not create an instance")
+	assert.True(t, tenant.RollbackRequested(req.Context()), "a rejected request after activity resolution must roll back metadata writes")
 }

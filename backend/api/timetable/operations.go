@@ -266,6 +266,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	// boundary. Recheck immediately before creating the activity instance.
 	window, err = spontaneousStartWorkdayWindow(rs.Now())
 	if err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -680,6 +681,8 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		errors.Is(err, scheduleSvc.ErrInstanceStartTooEarly), errors.Is(err, scheduleSvc.ErrInstanceStartExpired),
 		errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
