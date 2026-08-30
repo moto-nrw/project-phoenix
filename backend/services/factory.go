@@ -64,7 +64,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
-	"github.com/moto-nrw/project-phoenix/services/staffnotice"
 	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -267,7 +266,7 @@ type Factory struct {
 	// StaffMessaging (OGS-internal colleague chat, #2598)
 	StaffMessaging *staffmessaging.Service
 	// StaffNotice (Tagesinformationen: interne Hinweise der Leitung, #2180)
-	StaffNotice staffnotice.Service
+	StaffNotice schedule.StaffNoticeService
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -2328,7 +2327,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		Logger:      logger.With("service", "announcement"),
 	})
 
-	staffNoticeService := staffnotice.NewService(staffnotice.ServiceConfig{
+	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
 		Repo:    repos.StaffNotice,
 		Periods: repos.CalendarPeriod,
 		Logger:  logger.With("service", "staffnotice"),

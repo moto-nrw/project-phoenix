@@ -1,4 +1,4 @@
-// Package staffnotice ist die HTTP-Fläche der Tagesinformationen (#2180):
+// Tagesinformationen (#2180) — HTTP-Fläche der Hinweise fürs Team:
 // interne Hinweise der Leitung an das Team. Eingehängt unter
 // /api/staff-notices.
 //
@@ -7,7 +7,7 @@
 // hier an der Route und nicht nur im Frontend — ein Baustein der Startseite,
 // den man ohne Recht trotzdem abrufen könnte, wäre kein Zuschnitt, sondern
 // eine Kulisse.
-package staffnotice
+package staff
 
 import (
 	"context"
@@ -25,22 +25,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	staffnoticeService "github.com/moto-nrw/project-phoenix/services/staffnotice"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
-// Resource ist die HTTP-Ressource der Tagesinformationen.
-type Resource struct {
-	Service staffnoticeService.Service
+// StaffNoticeResource ist die HTTP-Ressource der Tagesinformationen.
+type StaffNoticeResource struct {
+	Service scheduleSvc.StaffNoticeService
 	db      *bun.DB
 }
 
-// NewResource verdrahtet die Ressource.
-func NewResource(service staffnoticeService.Service, db *bun.DB) *Resource {
-	return &Resource{Service: service, db: db}
+// NewStaffNoticeResource verdrahtet die Ressource.
+func NewStaffNoticeResource(service scheduleSvc.StaffNoticeService, db *bun.DB) *StaffNoticeResource {
+	return &StaffNoticeResource{Service: service, db: db}
 }
 
 // Router liefert den Router unter /staff-notices.
-func (rs *Resource) Router() chi.Router {
+func (rs *StaffNoticeResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -92,7 +92,7 @@ type noticeResponse struct {
 	AcknowledgedCount       *int    `json:"acknowledged_count,omitempty"`
 }
 
-func toResponse(view *usersModels.StaffNoticeView, includeAcknowledgedCount bool) noticeResponse {
+func toNoticeResponse(view *usersModels.StaffNoticeView, includeAcknowledgedCount bool) noticeResponse {
 	out := noticeResponse{
 		ID:                      strconv.FormatInt(view.ID, 10),
 		Title:                   view.Title,
@@ -122,79 +122,79 @@ func toResponse(view *usersModels.StaffNoticeView, includeAcknowledgedCount bool
 	return out
 }
 
-func toResponses(views []*usersModels.StaffNoticeView, includeAcknowledgedCount bool) []noticeResponse {
+func toNoticeResponses(views []*usersModels.StaffNoticeView, includeAcknowledgedCount bool) []noticeResponse {
 	out := make([]noticeResponse, 0, len(views))
 	for _, view := range views {
-		out = append(out, toResponse(view, includeAcknowledgedCount))
+		out = append(out, toNoticeResponse(view, includeAcknowledgedCount))
 	}
 	return out
 }
 
 // --- Handler ---
 
-func (rs *Resource) today(w http.ResponseWriter, r *http.Request) {
+func (rs *StaffNoticeResource) today(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	views, err := rs.Service.Today(ctx, accountID(ctx), timezone.TodayDate())
+	views, err := rs.Service.Today(ctx, noticeAccountID(ctx), timezone.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	render.JSON(w, r, map[string]any{"data": toResponses(views, false)})
+	render.JSON(w, r, map[string]any{"data": toNoticeResponses(views, false)})
 }
 
-func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
+func (rs *StaffNoticeResource) list(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Die Leitung sieht auch abgeschaltete Hinweise: sonst wäre ein
 	// deaktivierter Hinweis unauffindbar und müsste neu getippt werden.
-	views, err := rs.Service.List(ctx, accountID(ctx), true)
+	views, err := rs.Service.List(ctx, noticeAccountID(ctx), true)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	render.JSON(w, r, map[string]any{"data": toResponses(views, true)})
+	render.JSON(w, r, map[string]any{"data": toNoticeResponses(views, true)})
 }
 
-func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
+func (rs *StaffNoticeResource) create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	in, err := decodeInput(r)
+	in, err := decodeNoticeInput(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	notice, err := rs.Service.Create(ctx, accountID(ctx), in)
+	notice, err := rs.Service.Create(ctx, noticeAccountID(ctx), in)
 	if err != nil {
-		renderServiceError(w, r, err)
+		renderNoticeServiceError(w, r, err)
 		return
 	}
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, map[string]any{
-		"data": toResponse(&usersModels.StaffNoticeView{StaffNotice: notice}, true),
+		"data": toNoticeResponse(&usersModels.StaffNoticeView{StaffNotice: notice}, true),
 	})
 }
 
-func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
+func (rs *StaffNoticeResource) update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := noticeIDFromURL(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	in, err := decodeInput(r)
+	in, err := decodeNoticeInput(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	notice, err := rs.Service.Update(ctx, id, in)
 	if err != nil {
-		renderServiceError(w, r, err)
+		renderNoticeServiceError(w, r, err)
 		return
 	}
 	render.JSON(w, r, map[string]any{
-		"data": toResponse(&usersModels.StaffNoticeView{StaffNotice: notice}, true),
+		"data": toNoticeResponse(&usersModels.StaffNoticeView{StaffNotice: notice}, true),
 	})
 }
 
-func (rs *Resource) remove(w http.ResponseWriter, r *http.Request) {
+func (rs *StaffNoticeResource) remove(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := noticeIDFromURL(r)
 	if err != nil {
@@ -202,21 +202,21 @@ func (rs *Resource) remove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.Service.Delete(ctx, id); err != nil {
-		renderServiceError(w, r, err)
+		renderNoticeServiceError(w, r, err)
 		return
 	}
 	render.JSON(w, r, map[string]any{"status": "ok"})
 }
 
-func (rs *Resource) acknowledge(w http.ResponseWriter, r *http.Request) {
+func (rs *StaffNoticeResource) acknowledge(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := noticeIDFromURL(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.Service.Acknowledge(ctx, id, accountID(ctx)); err != nil {
-		renderServiceError(w, r, err)
+	if err := rs.Service.Acknowledge(ctx, id, noticeAccountID(ctx)); err != nil {
+		renderNoticeServiceError(w, r, err)
 		return
 	}
 	render.JSON(w, r, map[string]any{"status": "ok"})
@@ -224,7 +224,7 @@ func (rs *Resource) acknowledge(w http.ResponseWriter, r *http.Request) {
 
 // --- Hilfen ---
 
-func accountID(ctx context.Context) int64 {
+func noticeAccountID(ctx context.Context) int64 {
 	return int64(jwt.ClaimsFromCtx(ctx).ID)
 }
 
@@ -237,18 +237,18 @@ func noticeIDFromURL(r *http.Request) (int64, error) {
 	return id, nil
 }
 
-func decodeInput(r *http.Request) (staffnoticeService.Input, error) {
+func decodeNoticeInput(r *http.Request) (scheduleSvc.StaffNoticeInput, error) {
 	var req noticeRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		return staffnoticeService.Input{}, errors.New("invalid request body")
+		return scheduleSvc.StaffNoticeInput{}, errors.New("invalid request body")
 	}
 
 	validFrom, err := timezone.ParseDate(req.ValidFrom)
 	if err != nil {
-		return staffnoticeService.Input{}, errors.New("valid_from must be a date (YYYY-MM-DD)")
+		return scheduleSvc.StaffNoticeInput{}, errors.New("valid_from must be a date (YYYY-MM-DD)")
 	}
 
-	in := staffnoticeService.Input{
+	in := scheduleSvc.StaffNoticeInput{
 		Title:                   req.Title,
 		Body:                    req.Body,
 		Priority:                req.Priority,
@@ -264,18 +264,18 @@ func decodeInput(r *http.Request) (staffnoticeService.Input, error) {
 	if req.ValidUntil != nil && *req.ValidUntil != "" {
 		until, err := timezone.ParseDate(*req.ValidUntil)
 		if err != nil {
-			return staffnoticeService.Input{}, errors.New("valid_until must be a date (YYYY-MM-DD)")
+			return scheduleSvc.StaffNoticeInput{}, errors.New("valid_until must be a date (YYYY-MM-DD)")
 		}
 		in.ValidUntil = &until
 	}
 	return in, nil
 }
 
-func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
+func renderNoticeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, staffnoticeService.ErrNotFound):
+	case errors.Is(err, scheduleSvc.ErrStaffNoticeNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, staffnoticeService.ErrInvalid):
+	case errors.Is(err, scheduleSvc.ErrStaffNoticeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

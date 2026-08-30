@@ -1,4 +1,4 @@
-package users
+package schedule
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func NewStaffNoticeRepository(db *bun.DB) users.StaffNoticeRepository {
 // nicht gibt. "Nicht da" ist hier kein Fehler, sondern die Antwort — der
 // Service macht daraus ErrNotFound.
 func (r *StaffNoticeRepository) FindByID(ctx context.Context, id int64) (*users.StaffNotice, error) {
-	return r.Repository.FindByIDOrNil(ctx, id)
+	return r.FindByIDOrNil(ctx, id)
 }
 
 // Delete entfernt den Hinweis; die Kenntnisnahmen fallen per CASCADE mit.
@@ -109,7 +109,7 @@ func (r *StaffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID
 		Model(&rows).
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
 		Where(`"sna".account_id = ?`, accountID).
-		Where(`"sna".notice_id IN (?)`, bun.In(noticeIDs))
+		Where(`"sna".notice_id IN (?)`, bun.List(noticeIDs))
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "load own staff notice acknowledgements", Err: err}
@@ -136,7 +136,7 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
 		ColumnExpr(`"sna".notice_id AS notice_id`).
 		ColumnExpr("COUNT(*) AS count").
-		Where(`"sna".notice_id IN (?)`, bun.In(noticeIDs)).
+		Where(`"sna".notice_id IN (?)`, bun.List(noticeIDs)).
 		GroupExpr(`"sna".notice_id`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx, &rows); err != nil {

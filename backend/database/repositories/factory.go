@@ -524,7 +524,7 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
-		StaffNotice:                       users.NewStaffNoticeRepository(db),
+		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
 }
 

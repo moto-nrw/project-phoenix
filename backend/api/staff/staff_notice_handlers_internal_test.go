@@ -1,4 +1,4 @@
-package staffnotice
+package staff
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
-func TestToResponseAcknowledgementCountIsAdminOnly(t *testing.T) {
+func TestStaffNoticeToResponseAcknowledgementCountIsAdminOnly(t *testing.T) {
 	t.Parallel()
 	view := &usersModels.StaffNoticeView{
 		StaffNotice: &usersModels.StaffNotice{
@@ -21,11 +21,11 @@ func TestToResponseAcknowledgementCountIsAdminOnly(t *testing.T) {
 		AcknowledgedCount: 3,
 	}
 
-	teamResponse, err := json.Marshal(toResponse(view, false))
+	teamResponse, err := json.Marshal(toNoticeResponse(view, false))
 	require.NoError(t, err)
 	assert.NotContains(t, string(teamResponse), "acknowledged_count")
 
-	adminResponse, err := json.Marshal(toResponse(view, true))
+	adminResponse, err := json.Marshal(toNoticeResponse(view, true))
 	require.NoError(t, err)
 	assert.Contains(t, string(adminResponse), `"acknowledged_count":3`)
 }

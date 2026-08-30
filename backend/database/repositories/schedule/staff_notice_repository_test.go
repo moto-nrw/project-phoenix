@@ -1,11 +1,10 @@
-package users_test
+package schedule_test
 
 import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,40 +29,17 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 		return d
 	}
 
-	create := func(t *testing.T, title, priority string, from string, until *string) *users.StaffNotice {
-		t.Helper()
-		notice := &users.StaffNotice{
-			Title:     title,
-			Body:      "",
-			Priority:  priority,
-			ValidFrom: day(from),
-			Weekdays:  []int16{},
-			Active:    true,
-			CreatedBy: account.ID,
-		}
-		if until != nil {
-			u := day(*until)
-			notice.ValidUntil = &u
-		}
-		require.NoError(t, repo.Create(ctx, notice))
-		return notice
-	}
-
-	ended := "2026-08-04"
-	inactive := &users.StaffNotice{
-		Title:     "Abgeschaltet",
-		Priority:  users.StaffNoticePriorityInfo,
-		ValidFrom: day("2026-08-01"),
-		Weekdays:  []int16{},
-		Active:    false,
-		CreatedBy: account.ID,
-	}
+	ended := day("2026-08-04")
+	inactive := testpkg.NewTestStaffNotice(t, "Abgeschaltet", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{Inactive: true})
+	info := testpkg.NewTestStaffNotice(t, "Laufender Hinweis", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{})
+	important := testpkg.NewTestStaffNotice(t, "Wichtiger Hinweis", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{Important: true})
+	expired := testpkg.NewTestStaffNotice(t, "Abgelaufen", day("2026-08-01"), account.ID, testpkg.StaffNoticeOpts{ValidUntil: &ended})
+	future := testpkg.NewTestStaffNotice(t, "Beginnt später", day("2026-09-01"), account.ID, testpkg.StaffNoticeOpts{})
 	require.NoError(t, repo.Create(ctx, inactive))
-
-	info := create(t, "Laufender Hinweis", users.StaffNoticePriorityInfo, "2026-08-01", nil)
-	important := create(t, "Wichtiger Hinweis", users.StaffNoticePriorityImportant, "2026-08-01", nil)
-	create(t, "Abgelaufen", users.StaffNoticePriorityInfo, "2026-08-01", &ended)
-	create(t, "Beginnt später", users.StaffNoticePriorityInfo, "2026-09-01", nil)
+	require.NoError(t, repo.Create(ctx, info))
+	require.NoError(t, repo.Create(ctx, important))
+	require.NoError(t, repo.Create(ctx, expired))
+	require.NoError(t, repo.Create(ctx, future))
 
 	rows, err := repo.ListValidOn(ctx, day("2026-08-06"))
 	require.NoError(t, err)
@@ -75,18 +51,18 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 
 	assert.Contains(t, titles, info.Title)
 	assert.Contains(t, titles, important.Title)
-	assert.NotContains(t, titles, "Abgelaufen", "ein beendeter Hinweis gilt nicht mehr")
-	assert.NotContains(t, titles, "Beginnt später", "ein künftiger Hinweis gilt noch nicht")
-	assert.NotContains(t, titles, "Abgeschaltet", "abgeschaltete Hinweise sieht das Team nicht")
+	assert.NotContains(t, titles, expired.Title, "ein beendeter Hinweis gilt nicht mehr")
+	assert.NotContains(t, titles, future.Title, "ein künftiger Hinweis gilt noch nicht")
+	assert.NotContains(t, titles, inactive.Title, "abgeschaltete Hinweise sieht das Team nicht")
 
 	// Wichtiges zuerst — die Spalte selbst sortiert alphabetisch falsch
 	// ('info' vor 'important'), deshalb steht die Reihenfolge hier fest.
-	var firstImportant, firstInfo int = -1, -1
+	firstImportant, firstInfo := -1, -1
 	for i, row := range rows {
-		if firstImportant < 0 && row.Priority == users.StaffNoticePriorityImportant {
+		if firstImportant < 0 && row.Priority == important.Priority {
 			firstImportant = i
 		}
-		if firstInfo < 0 && row.Priority == users.StaffNoticePriorityInfo {
+		if firstInfo < 0 && row.Priority == info.Priority {
 			firstInfo = i
 		}
 	}
@@ -106,15 +82,10 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
-	notice := &users.StaffNotice{
-		Title:                   "Bitte bestätigen",
-		Priority:                users.StaffNoticePriorityImportant,
-		ValidFrom:               from,
-		Weekdays:                []int16{},
+	notice := testpkg.NewTestStaffNotice(t, "Bitte bestätigen", from, account.ID, testpkg.StaffNoticeOpts{
+		Important:               true,
 		RequiresAcknowledgement: true,
-		Active:                  true,
-		CreatedBy:               account.ID,
-	}
+	})
 	require.NoError(t, repo.Create(ctx, notice))
 
 	require.NoError(t, repo.Acknowledge(ctx, notice.ID, account.ID))

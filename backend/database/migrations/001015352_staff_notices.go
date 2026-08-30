@@ -54,7 +54,10 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Warn("migration rollback failed", "migration", staffNoticesVersion, "error", err)
+			slog.Warn("migration rollback failed",
+				"migration", staffNoticesVersion,
+				"error", err,
+			)
 		}
 	}()
 
@@ -144,7 +147,10 @@ func staffNoticesDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Warn("migration rollback failed", "migration", staffNoticesVersion, "error", err)
+			slog.Warn("migration rollback failed",
+				"migration", staffNoticesVersion,
+				"error", err,
+			)
 		}
 	}()
 

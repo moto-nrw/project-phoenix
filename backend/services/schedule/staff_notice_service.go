@@ -1,4 +1,4 @@
-// Package staffnotice ist die Geschäftslogik der Tagesinformationen (#2180):
+// Tagesinformationen (#2180) — Geschäftslogik der Hinweise fürs Team:
 // interner Hinweise der Leitung an das Team, die an bestimmten Tagen gelten.
 //
 // Wichtig für die Einordnung: hier entsteht KEINE zweite Recurrence-Engine. Ein
@@ -7,7 +7,7 @@
 // und die Auswertung des Wochenmusters kommen aus dem Stundenplan
 // (schedule.ShouldMaterializeWeekPattern), damit "Woche A" hier dasselbe heißt
 // wie dort.
-package staffnotice
+package schedule
 
 import (
 	"context"
@@ -20,17 +20,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
-// ErrNotFound meldet einen unbekannten oder fremden Hinweis.
-var ErrNotFound = errors.New("staffnotice: notice not found")
+// ErrStaffNoticeNotFound meldet einen unbekannten oder fremden Hinweis.
+var ErrStaffNoticeNotFound = errors.New("staffnotice: notice not found")
 
-// ErrInvalid meldet fachlich unzulässige Eingaben.
-var ErrInvalid = errors.New("staffnotice: invalid notice")
+// ErrStaffNoticeInvalid meldet fachlich unzulässige Eingaben.
+var ErrStaffNoticeInvalid = errors.New("staffnotice: invalid notice")
 
-// Input ist die Schreibform eines Hinweises.
-type Input struct {
+// StaffNoticeInput ist die Schreibform eines Hinweises.
+type StaffNoticeInput struct {
 	Title                   string
 	Body                    string
 	Priority                string
@@ -42,8 +41,8 @@ type Input struct {
 	Active                  bool
 }
 
-// Service ist der Vertrag der Tagesinformationen.
-type Service interface {
+// StaffNoticeService ist der Vertrag der Tagesinformationen.
+type StaffNoticeService interface {
 	// List gibt alle Hinweise des Mandanten zurück (Leitungssicht), jeweils mit
 	// der Zahl der Kenntnisnahmen.
 	List(ctx context.Context, accountID int64, includeInactive bool) ([]*usersModels.StaffNoticeView, error)
@@ -51,39 +50,39 @@ type Service interface {
 	// Sicht des Teams auf der Startseite.
 	Today(ctx context.Context, accountID int64, date timezone.Date) ([]*usersModels.StaffNoticeView, error)
 	Get(ctx context.Context, id int64) (*usersModels.StaffNotice, error)
-	Create(ctx context.Context, createdBy int64, in Input) (*usersModels.StaffNotice, error)
-	Update(ctx context.Context, id int64, in Input) (*usersModels.StaffNotice, error)
+	Create(ctx context.Context, createdBy int64, in StaffNoticeInput) (*usersModels.StaffNotice, error)
+	Update(ctx context.Context, id int64, in StaffNoticeInput) (*usersModels.StaffNotice, error)
 	Delete(ctx context.Context, id int64) error
 	// Acknowledge nimmt die Kenntnisnahme einer Person entgegen.
 	Acknowledge(ctx context.Context, id, accountID int64) error
 }
 
-// PeriodLookup ist der Ausschnitt des Kalenderzeitraum-Repositories, den die
+// StaffNoticePeriodLookup ist der Ausschnitt des Kalenderzeitraum-Repositories, den die
 // Auflösung des Wochenmusters braucht. Bewusst hier deklariert und nicht das
 // volle Repository verlangt: der Dienst liest Zeiträume, er verwaltet keine.
-type PeriodLookup interface {
+type StaffNoticePeriodLookup interface {
 	FindActiveByTenantID(ctx context.Context) ([]*scheduleModels.CalendarPeriod, error)
 }
 
-// ServiceConfig ist das Abhängigkeitsbündel. Periods ist optional: ohne
+// StaffNoticeServiceConfig ist das Abhängigkeitsbündel. Periods ist optional: ohne
 // Kalenderzeitraum lässt sich kein Wochenmuster auflösen, dann gilt ein Hinweis
 // in jeder Woche (dieselbe Richtung wie ShouldMaterializeWeekPattern).
-type ServiceConfig struct {
+type StaffNoticeServiceConfig struct {
 	Repo        usersModels.StaffNoticeRepository
-	Periods     PeriodLookup
+	Periods     StaffNoticePeriodLookup
 	Logger      *slog.Logger
 	CurrentDate func() timezone.Date
 }
 
-type service struct {
+type staffNoticeService struct {
 	repo        usersModels.StaffNoticeRepository
-	periods     PeriodLookup
+	periods     StaffNoticePeriodLookup
 	logger      *slog.Logger
 	currentDate func() timezone.Date
 }
 
-// NewService verdrahtet den Dienst.
-func NewService(cfg ServiceConfig) Service {
+// NewStaffNoticeService verdrahtet den Dienst.
+func NewStaffNoticeService(cfg StaffNoticeServiceConfig) StaffNoticeService {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -92,21 +91,21 @@ func NewService(cfg ServiceConfig) Service {
 	if currentDate == nil {
 		currentDate = timezone.TodayDate
 	}
-	return &service{repo: cfg.Repo, periods: cfg.Periods, logger: logger, currentDate: currentDate}
+	return &staffNoticeService{repo: cfg.Repo, periods: cfg.Periods, logger: logger, currentDate: currentDate}
 }
 
-func (s *service) Get(ctx context.Context, id int64) (*usersModels.StaffNotice, error) {
+func (s *staffNoticeService) Get(ctx context.Context, id int64) (*usersModels.StaffNotice, error) {
 	notice, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: get: %w", err)
 	}
 	if notice == nil {
-		return nil, ErrNotFound
+		return nil, ErrStaffNoticeNotFound
 	}
 	return notice, nil
 }
 
-func (s *service) List(ctx context.Context, accountID int64, includeInactive bool) ([]*usersModels.StaffNoticeView, error) {
+func (s *staffNoticeService) List(ctx context.Context, accountID int64, includeInactive bool) ([]*usersModels.StaffNoticeView, error) {
 	rows, err := s.repo.List(ctx, includeInactive)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: list: %w", err)
@@ -114,7 +113,7 @@ func (s *service) List(ctx context.Context, accountID int64, includeInactive boo
 	return s.decorate(ctx, accountID, rows, true)
 }
 
-func (s *service) Today(ctx context.Context, accountID int64, date timezone.Date) ([]*usersModels.StaffNoticeView, error) {
+func (s *staffNoticeService) Today(ctx context.Context, accountID int64, date timezone.Date) ([]*usersModels.StaffNoticeView, error) {
 	rows, err := s.repo.ListValidOn(ctx, date)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: today: %w", err)
@@ -139,7 +138,7 @@ func (s *service) Today(ctx context.Context, accountID int64, date timezone.Date
 // ist. Die Kalenderzeiträume werden nur geladen, wenn überhaupt ein Hinweis ein
 // Muster trägt — der Normalfall "gilt jede Woche" soll die Startseite keine
 // zusätzliche Abfrage kosten.
-func (s *service) filterByWeekPattern(
+func (s *staffNoticeService) filterByWeekPattern(
 	ctx context.Context,
 	notices []*usersModels.StaffNotice,
 	date timezone.Date,
@@ -162,7 +161,7 @@ func (s *service) filterByWeekPattern(
 
 	kept := make([]*usersModels.StaffNotice, 0, len(notices))
 	for _, notice := range notices {
-		if scheduleService.ShouldMaterializeWeekPattern(notice.WeekPattern, date, period) {
+		if ShouldMaterializeWeekPattern(notice.WeekPattern, date, period) {
 			kept = append(kept, notice)
 		}
 	}
@@ -175,7 +174,7 @@ func (s *service) filterByWeekPattern(
 // damit überschneiden, ohne die Wiederholung zu verändern. Ohne Treffer nil —
 // ShouldMaterializeWeekPattern lässt den Hinweis dann durch, statt ihn stumm
 // verschwinden zu lassen.
-func (s *service) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
+func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
 	periods, err := s.periods.FindActiveByTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: load calendar periods: %w", err)
@@ -197,7 +196,7 @@ func (s *service) periodFor(ctx context.Context, date timezone.Date) (*scheduleM
 
 // decorate hängt an jede Zeile die eigene Kenntnisnahme und für die Leitung
 // optional die Gesamtzahl der Kenntnisnahmen — jeweils gebündelt, ohne N+1.
-func (s *service) decorate(
+func (s *staffNoticeService) decorate(
 	ctx context.Context,
 	accountID int64,
 	notices []*usersModels.StaffNotice,
@@ -239,7 +238,7 @@ func (s *service) decorate(
 	return views, nil
 }
 
-func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*usersModels.StaffNotice, error) {
+func (s *staffNoticeService) Create(ctx context.Context, createdBy int64, in StaffNoticeInput) (*usersModels.StaffNotice, error) {
 	notice, err := s.apply(&usersModels.StaffNotice{CreatedBy: createdBy}, in)
 	if err != nil {
 		return nil, err
@@ -255,7 +254,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 	return notice, nil
 }
 
-func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.StaffNotice, error) {
+func (s *staffNoticeService) Update(ctx context.Context, id int64, in StaffNoticeInput) (*usersModels.StaffNotice, error) {
 	existing, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
@@ -271,7 +270,7 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	return notice, nil
 }
 
-func (s *service) Delete(ctx context.Context, id int64) error {
+func (s *staffNoticeService) Delete(ctx context.Context, id int64) error {
 	if _, err := s.Get(ctx, id); err != nil {
 		return err
 	}
@@ -282,7 +281,7 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *service) Acknowledge(ctx context.Context, id, accountID int64) error {
+func (s *staffNoticeService) Acknowledge(ctx context.Context, id, accountID int64) error {
 	notice, err := s.Get(ctx, id)
 	if err != nil {
 		return err
@@ -290,18 +289,18 @@ func (s *service) Acknowledge(ctx context.Context, id, accountID int64) error {
 	if !notice.RequiresAcknowledgement {
 		// Ein Hinweis ohne angeforderte Kenntnisnahme hat keine zu speichern.
 		// Das ist kein Fehler der Person, sondern eine veraltete Ansicht.
-		return fmt.Errorf("%w: notice does not ask for acknowledgement", ErrInvalid)
+		return fmt.Errorf("%w: notice does not ask for acknowledgement", ErrStaffNoticeInvalid)
 	}
 	today := s.currentDate()
 	if !notice.AppliesOn(today) {
-		return fmt.Errorf("%w: notice does not apply today", ErrInvalid)
+		return fmt.Errorf("%w: notice does not apply today", ErrStaffNoticeInvalid)
 	}
 	matching, err := s.filterByWeekPattern(ctx, []*usersModels.StaffNotice{notice}, today)
 	if err != nil {
 		return err
 	}
 	if len(matching) == 0 {
-		return fmt.Errorf("%w: notice does not apply today", ErrInvalid)
+		return fmt.Errorf("%w: notice does not apply today", ErrStaffNoticeInvalid)
 	}
 	if err := s.repo.Acknowledge(ctx, id, accountID); err != nil {
 		return fmt.Errorf("staffnotice: acknowledge: %w", err)
@@ -312,7 +311,7 @@ func (s *service) Acknowledge(ctx context.Context, id, accountID int64) error {
 // apply überträgt die Eingabe auf die Zeile und prüft sie. Der Zuschnitt der
 // Wochentage passiert hier und nicht im Modell: doppelte Einträge sind eine
 // Eingabefrage, keine Eigenschaft des Hinweises.
-func (s *service) apply(notice *usersModels.StaffNotice, in Input) (*usersModels.StaffNotice, error) {
+func (s *staffNoticeService) apply(notice *usersModels.StaffNotice, in StaffNoticeInput) (*usersModels.StaffNotice, error) {
 	notice.Title = strings.TrimSpace(in.Title)
 	notice.Body = strings.TrimSpace(in.Body)
 	notice.Priority = in.Priority
@@ -321,26 +320,26 @@ func (s *service) apply(notice *usersModels.StaffNotice, in Input) (*usersModels
 	}
 	notice.ValidFrom = in.ValidFrom
 	notice.ValidUntil = in.ValidUntil
-	notice.Weekdays = normalizeWeekdays(in.Weekdays)
+	notice.Weekdays = normalizeNoticeWeekdays(in.Weekdays)
 	notice.WeekPattern = in.WeekPattern
 	notice.RequiresAcknowledgement = in.RequiresAcknowledgement
 	notice.Active = in.Active
 
 	if notice.ValidFrom.IsZero() {
-		return nil, fmt.Errorf("%w: valid from is required", ErrInvalid)
+		return nil, fmt.Errorf("%w: valid from is required", ErrStaffNoticeInvalid)
 	}
 	if err := notice.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrInvalid, err.Error())
+		return nil, fmt.Errorf("%w: %s", ErrStaffNoticeInvalid, err.Error())
 	}
 	return notice, nil
 }
 
-// normalizeWeekdays sortiert aufsteigend und entfernt Doppelte. Unzulässige
+// normalizeNoticeWeekdays sortiert aufsteigend und entfernt Doppelte. Unzulässige
 // Werte bleiben absichtlich stehen, damit Validate sie ablehnt, statt sie
 // stillschweigend zu schlucken. Alle sieben Tage bedeuten dasselbe wie "keine
 // Angabe", werden aber nicht zusammengefasst: die Leitung soll ihre Auswahl
 // wiederfinden.
-func normalizeWeekdays(in []int16) []int16 {
+func normalizeNoticeWeekdays(in []int16) []int16 {
 	seen := make(map[int16]bool, len(in))
 	out := make([]int16, 0, len(in))
 	for _, day := range in {

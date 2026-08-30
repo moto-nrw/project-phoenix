@@ -1,4 +1,4 @@
-package staffnotice
+package schedule
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 // Reine Logiktests mit Attrappen: geprüft wird, WAS an einem Tag gilt und was
 // nicht. Die Datenbank hat daran keinen Anteil — sie grenzt nur den
-// Gültigkeitszeitraum ein, den Rest entscheidet dieser Service.
+// Gültigkeitszeitraum ein, den Rest entscheidet dieser StaffNoticeService.
 
 type fakeNoticeRepo struct {
 	notices     []*usersModels.StaffNotice
@@ -77,21 +77,21 @@ func (f *fakePeriodRepo) FindActiveByTenantID(context.Context) ([]*scheduleModel
 	return f.periods, nil
 }
 
-func mustDate(t *testing.T, iso string) timezone.Date {
+func noticeMustDate(t *testing.T, iso string) timezone.Date {
 	t.Helper()
 	d, err := timezone.ParseDate(iso)
 	require.NoError(t, err)
 	return d
 }
 
-func datePtr(date timezone.Date) *timezone.Date { return &date }
+func noticeDatePtr(date timezone.Date) *timezone.Date { return &date }
 
 func newNotice(t *testing.T, id int64, weekdays []int16, weekPattern int) *usersModels.StaffNotice {
 	t.Helper()
 	n := &usersModels.StaffNotice{
 		Title:       "Hinweis",
 		Priority:    usersModels.StaffNoticePriorityInfo,
-		ValidFrom:   mustDate(t, "2026-08-01"),
+		ValidFrom:   noticeMustDate(t, "2026-08-01"),
 		Weekdays:    weekdays,
 		WeekPattern: weekPattern,
 		Active:      true,
@@ -100,17 +100,17 @@ func newNotice(t *testing.T, id int64, weekdays []int16, weekPattern int) *users
 	return n
 }
 
-func TestTodayFiltersByWeekday(t *testing.T) {
+func TestStaffNoticeTodayFiltersByWeekday(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	tuesday := mustDate(t, "2026-08-04")
+	tuesday := noticeMustDate(t, "2026-08-04")
 
 	monTue := newNotice(t, 11, []int16{1, 2}, 0)
 	fridayOnly := newNotice(t, 12, []int16{5}, 0)
 	everyDay := newNotice(t, 13, nil, 0)
 
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{monTue, fridayOnly, everyDay}}
-	svc := NewService(ServiceConfig{Repo: repo})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
 	views, err := svc.Today(ctx, 42, tuesday)
 	require.NoError(t, err)
@@ -122,38 +122,38 @@ func TestTodayFiltersByWeekday(t *testing.T) {
 	assert.Equal(t, []int64{11, 13}, got, "der Freitagshinweis darf am Dienstag nicht erscheinen")
 }
 
-func TestTodaySkipsPeriodLookupWithoutWeekPattern(t *testing.T) {
+func TestStaffNoticeTodaySkipsPeriodLookupWithoutWeekPattern(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	periods := &fakePeriodRepo{}
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{newNotice(t, 21, nil, 0)}}
-	svc := NewService(ServiceConfig{Repo: repo, Periods: periods})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Periods: periods})
 
-	_, err := svc.Today(ctx, 42, mustDate(t, "2026-08-04"))
+	_, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-04"))
 	require.NoError(t, err)
 	assert.Zero(t, periods.calls, "ohne Wochenmuster darf die Startseite keine Zeiträume laden")
 }
 
-func TestTodayHonoursWeekPattern(t *testing.T) {
+func TestStaffNoticeTodayHonoursWeekPattern(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	// Anker Montag 2026-08-03 = Woche A; 2026-08-10 ist damit Woche B.
-	anchor := mustDate(t, "2026-08-03")
+	anchor := noticeMustDate(t, "2026-08-03")
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "Schuljahr",
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       mustDate(t, "2026-08-01"),
-		EndDate:         mustDate(t, "2027-07-31"),
+		StartDate:       noticeMustDate(t, "2026-08-01"),
+		EndDate:         noticeMustDate(t, "2027-07-31"),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &anchor,
 		IsActive:        true,
 	}
-	holidayAnchor := mustDate(t, "2026-08-10")
+	holidayAnchor := noticeMustDate(t, "2026-08-10")
 	holiday := &scheduleModels.CalendarPeriod{
 		Name:            "Ferien",
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       mustDate(t, "2026-08-01"),
-		EndDate:         mustDate(t, "2026-08-31"),
+		StartDate:       noticeMustDate(t, "2026-08-01"),
+		EndDate:         noticeMustDate(t, "2026-08-31"),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &holidayAnchor,
 		IsActive:        true,
@@ -163,20 +163,20 @@ func TestTodayHonoursWeekPattern(t *testing.T) {
 	weekA := newNotice(t, 31, nil, scheduleModels.WeekPatternA)
 	weekB := newNotice(t, 32, nil, scheduleModels.WeekPatternB)
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{weekA, weekB}}
-	svc := NewService(ServiceConfig{Repo: repo, Periods: periods})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Periods: periods})
 
-	inWeekA, err := svc.Today(ctx, 42, mustDate(t, "2026-08-05"))
+	inWeekA, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-05"))
 	require.NoError(t, err)
 	require.Len(t, inWeekA, 1)
 	assert.Equal(t, int64(31), inWeekA[0].ID)
 
-	inWeekB, err := svc.Today(ctx, 42, mustDate(t, "2026-08-12"))
+	inWeekB, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-12"))
 	require.NoError(t, err)
 	require.Len(t, inWeekB, 1)
 	assert.Equal(t, int64(32), inWeekB[0].ID)
 }
 
-func TestTodayKeepsNoticeWithoutWeekCycle(t *testing.T) {
+func TestStaffNoticeTodayKeepsNoticeWithoutWeekCycle(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	// Schule ohne A/B-Rhythmus: ein Hinweis mit Muster verschwindet nicht
@@ -186,14 +186,14 @@ func TestTodayKeepsNoticeWithoutWeekCycle(t *testing.T) {
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{
 		newNotice(t, 41, nil, scheduleModels.WeekPatternB),
 	}}
-	svc := NewService(ServiceConfig{Repo: repo, Periods: periods})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo, Periods: periods})
 
-	views, err := svc.Today(ctx, 42, mustDate(t, "2026-08-05"))
+	views, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-05"))
 	require.NoError(t, err)
 	assert.Len(t, views, 1)
 }
 
-func TestTodayAttachesOwnAcknowledgement(t *testing.T) {
+func TestStaffNoticeTodayAttachesOwnAcknowledgement(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	stamp := time.Date(2026, 8, 4, 9, 0, 0, 0, time.UTC)
@@ -202,9 +202,9 @@ func TestTodayAttachesOwnAcknowledgement(t *testing.T) {
 		own:     map[int64]time.Time{51: stamp},
 		counts:  map[int64]int{51: 4},
 	}
-	svc := NewService(ServiceConfig{Repo: repo})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
-	views, err := svc.Today(ctx, 42, mustDate(t, "2026-08-04"))
+	views, err := svc.Today(ctx, 42, noticeMustDate(t, "2026-08-04"))
 	require.NoError(t, err)
 	require.Len(t, views, 1)
 	require.NotNil(t, views[0].AcknowledgedAt)
@@ -213,13 +213,13 @@ func TestTodayAttachesOwnAcknowledgement(t *testing.T) {
 	assert.Zero(t, repo.countsCalls, "die Teamansicht darf keine Kenntnisnahmen anderer laden")
 }
 
-func TestListAttachesAcknowledgementCounts(t *testing.T) {
+func TestStaffNoticeListAttachesAcknowledgementCounts(t *testing.T) {
 	t.Parallel()
 	repo := &fakeNoticeRepo{
 		notices: []*usersModels.StaffNotice{newNotice(t, 52, nil, 0)},
 		counts:  map[int64]int{52: 4},
 	}
-	svc := NewService(ServiceConfig{Repo: repo})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
 	views, err := svc.List(context.Background(), 42, true)
 	require.NoError(t, err)
@@ -228,15 +228,15 @@ func TestListAttachesAcknowledgementCounts(t *testing.T) {
 	assert.Equal(t, 1, repo.countsCalls)
 }
 
-func TestAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
+func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	notice := newNotice(t, 61, nil, 0)
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{notice}}
-	svc := NewService(ServiceConfig{Repo: repo})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
 	err := svc.Acknowledge(ctx, 61, 42)
-	assert.ErrorIs(t, err, ErrInvalid)
+	assert.ErrorIs(t, err, ErrStaffNoticeInvalid)
 	assert.Empty(t, repo.acked)
 
 	notice.RequiresAcknowledgement = true
@@ -244,16 +244,16 @@ func TestAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
 	assert.Equal(t, []int64{61}, repo.acked)
 }
 
-func TestAcknowledgeUnknownNotice(t *testing.T) {
+func TestStaffNoticeAcknowledgeUnknownNotice(t *testing.T) {
 	t.Parallel()
-	svc := NewService(ServiceConfig{Repo: &fakeNoticeRepo{}})
-	assert.ErrorIs(t, svc.Acknowledge(context.Background(), 999, 42), ErrNotFound)
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: &fakeNoticeRepo{}})
+	assert.ErrorIs(t, svc.Acknowledge(context.Background(), 999, 42), ErrStaffNoticeNotFound)
 }
 
-func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
+func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	today := mustDate(t, "2026-08-05")
+	today := noticeMustDate(t, "2026-08-05")
 	otherWeekday := int16((int(today.Weekday())+6)%7 + 1)
 	otherWeekday = otherWeekday%7 + 1
 
@@ -284,7 +284,7 @@ func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
 			notice: &usersModels.StaffNotice{
 				Title:                   "Abgelaufen",
 				ValidFrom:               today.AddDays(-2),
-				ValidUntil:              datePtr(today.AddDays(-1)),
+				ValidUntil:              noticeDatePtr(today.AddDays(-1)),
 				RequiresAcknowledgement: true,
 				Active:                  true,
 			},
@@ -323,45 +323,45 @@ func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.notice.ID = 71
 			repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{tt.notice}}
-			svc := NewService(ServiceConfig{
+			svc := NewStaffNoticeService(StaffNoticeServiceConfig{
 				Repo:        repo,
 				Periods:     tt.periods,
 				CurrentDate: func() timezone.Date { return today },
 			})
 
 			err := svc.Acknowledge(ctx, tt.notice.ID, 42)
-			assert.ErrorIs(t, err, ErrInvalid)
+			assert.ErrorIs(t, err, ErrStaffNoticeInvalid)
 			assert.Empty(t, repo.acked)
 		})
 	}
 }
 
-func TestCreateRejectsInvalidInput(t *testing.T) {
+func TestStaffNoticeCreateRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := &fakeNoticeRepo{}
-	svc := NewService(ServiceConfig{Repo: repo})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
-	_, err := svc.Create(ctx, 42, Input{
+	_, err := svc.Create(ctx, 42, StaffNoticeInput{
 		Title:     "   ",
-		ValidFrom: mustDate(t, "2026-08-01"),
+		ValidFrom: noticeMustDate(t, "2026-08-01"),
 		Active:    true,
 	})
-	assert.ErrorIs(t, err, ErrInvalid)
+	assert.ErrorIs(t, err, ErrStaffNoticeInvalid)
 
-	_, err = svc.Create(ctx, 42, Input{Title: "Ohne Beginn", Active: true})
-	assert.ErrorIs(t, err, ErrInvalid, "ohne Startdatum gäbe es keinen Zeitraum")
+	_, err = svc.Create(ctx, 42, StaffNoticeInput{Title: "Ohne Beginn", Active: true})
+	assert.ErrorIs(t, err, ErrStaffNoticeInvalid, "ohne Startdatum gäbe es keinen Zeitraum")
 }
 
-func TestCreateNormalizesWeekdays(t *testing.T) {
+func TestStaffNoticeCreateNormalizesWeekdays(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	repo := &fakeNoticeRepo{}
-	svc := NewService(ServiceConfig{Repo: repo})
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: repo})
 
-	_, err := svc.Create(ctx, 42, Input{
+	_, err := svc.Create(ctx, 42, StaffNoticeInput{
 		Title:     "Turnhalle",
-		ValidFrom: mustDate(t, "2026-08-01"),
+		ValidFrom: noticeMustDate(t, "2026-08-01"),
 		Weekdays:  []int16{3, 1, 3},
 		Active:    true,
 	})
@@ -372,14 +372,14 @@ func TestCreateNormalizesWeekdays(t *testing.T) {
 		"ohne Angabe ist ein Hinweis eine Information, keine Warnung")
 }
 
-func TestCreateRejectsUnknownWeekday(t *testing.T) {
+func TestStaffNoticeCreateRejectsUnknownWeekday(t *testing.T) {
 	t.Parallel()
-	svc := NewService(ServiceConfig{Repo: &fakeNoticeRepo{}})
-	_, err := svc.Create(context.Background(), 42, Input{
+	svc := NewStaffNoticeService(StaffNoticeServiceConfig{Repo: &fakeNoticeRepo{}})
+	_, err := svc.Create(context.Background(), 42, StaffNoticeInput{
 		Title:     "Kaputt",
-		ValidFrom: mustDate(t, "2026-08-01"),
+		ValidFrom: noticeMustDate(t, "2026-08-01"),
 		Weekdays:  []int16{9},
 		Active:    true,
 	})
-	assert.ErrorIs(t, err, ErrInvalid, "ein unbekannter Wochentag darf nicht stumm verschwinden")
+	assert.ErrorIs(t, err, ErrStaffNoticeInvalid, "ein unbekannter Wochentag darf nicht stumm verschwinden")
 }
