@@ -118,6 +118,7 @@ type timetableCleanupService struct {
 	deviationEventRepo  audit.DeviationEventRepository
 	settings            config.SettingsService
 	logger              *slog.Logger
+	today               func() timezone.Date
 }
 
 // NewTimetableCleanupService constructs the cleanup service. settings may be
@@ -132,6 +133,7 @@ func NewTimetableCleanupService(
 	deviationEventRepo audit.DeviationEventRepository,
 	settings config.SettingsService,
 	logger *slog.Logger,
+	clocks ...func() time.Time,
 ) TimetableCleanupService {
 	if logger == nil {
 		logger = slog.Default()
@@ -144,6 +146,7 @@ func NewTimetableCleanupService(
 		deviationEventRepo:  deviationEventRepo,
 		settings:            settings,
 		logger:              logger,
+		today:               timezone.CalendarDateClock(clocks...),
 	}
 }
 
@@ -158,7 +161,7 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 
 	start := time.Now()
 	retentionDays := s.resolveRetentionDays(ctx)
-	cutoff := cutoffFor(retentionDays)
+	cutoff := s.cutoffFor(retentionDays)
 
 	// 1. Collect per-student impact for the audit log.
 	studentCounts, sampleIDs, err := s.collectStudentImpact(ctx, cutoff)
@@ -230,7 +233,7 @@ func (s *timetableCleanupService) PreviewExpiredTimetableData(ctx context.Contex
 	}
 
 	retentionDays := s.resolveRetentionDays(ctx)
-	cutoff := cutoffFor(retentionDays)
+	cutoff := s.cutoffFor(retentionDays)
 
 	instancesToDelete, err := s.instanceRepo.CountWithOptions(ctx, expiredOptions(instanceDateColumn, cutoff))
 	if err != nil {
@@ -277,7 +280,7 @@ func (s *timetableCleanupService) GetStats(ctx context.Context) (*TimetableClean
 	}
 
 	retentionDays := s.resolveRetentionDays(ctx)
-	cutoff := cutoffFor(retentionDays)
+	cutoff := s.cutoffFor(retentionDays)
 
 	totalInstances, err := s.instanceRepo.CountWithOptions(ctx, nil)
 	if err != nil {
@@ -336,8 +339,8 @@ func (s *timetableCleanupService) resolveRetentionDays(ctx context.Context) int 
 }
 
 // cutoffFor returns the calendar-day cutoff for the retention window.
-func cutoffFor(retentionDays int) timezone.Date {
-	return timezone.TodayDate().AddDays(-retentionDays)
+func (s *timetableCleanupService) cutoffFor(retentionDays int) timezone.Date {
+	return s.today().AddDays(-retentionDays)
 }
 
 // expiredOptions builds query options selecting rows whose dateColumn is

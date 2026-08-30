@@ -25,7 +25,6 @@ import (
 // counted too.
 func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).
 	target := nextWeekday(timezone.TodayDate(), 2, 7)
@@ -34,8 +33,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-C-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowC-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff1 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S1-Primary")
 	staff2 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S2-Co")
@@ -43,8 +40,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	staff4 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S4-Other")
 	staff5 := testpkg.CreateTestStaff(t, s.db, "FlowC", "S5-GapOnly")
 	student := testpkg.CreateTestStudent(t, s.db, "Anna", "FlowC", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Two templates on the same weekday at different times.
 	tmpl1 := s.buildTemplate(templateSpec{
@@ -78,7 +73,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 
 	inst1 := fetchOneInstance(t, s, tmpl1.group.ID, target)
 	inst2 := fetchOneInstance(t, s, tmpl2.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", inst1.ID, inst2.ID)
 
 	// --- Step 2: start inst1 so we can assert active.group_supervisors rotate
 	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", inst1.ID), nil, s.primaryAdminClaims())
@@ -216,7 +210,6 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	_, err := s.db.NewInsert().Model(gapInstance).
 		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert gap instance")
-	s.registerCleanup("schedule.activity_instances", gapInstance.ID)
 
 	// Both staff on this instance are absent → qualifies as a gap.
 	for _, stid := range []int64{staff1.ID, staff5.ID} {

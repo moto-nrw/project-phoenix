@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,16 +16,12 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	t.Parallel()
 
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 1, 7) // Monday, at least 7 days out.
 	period := s.createActivePeriod(fmt.Sprintf("E2E-Flow-G-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowG-Room")
 	category := testpkg.CreateTestActivityCategory(t, s.db, "FlowG-Category")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
-	s.registerCleanup("activities.categories", category.ID)
 
 	fromS := target.String()
 	createReq := map[string]any{
@@ -55,10 +50,6 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	require.NotZero(t, created.TemplateID)
 	require.NotZero(t, created.TimeframeID)
 	require.Len(t, created.ScheduleIDs, 1)
-	s.registerCleanup("schedule.activity_instances", fetchInstancesByTemplate(t, s, created.TemplateID)...)
-	s.registerCleanup("activities.schedules", created.ScheduleIDs...)
-	s.registerCleanup("activities.groups", created.TemplateID)
-	s.registerCleanup("schedule.timeframes", created.TimeframeID)
 
 	assert.Equal(t, 1, created.InstancesCreated)
 
@@ -93,22 +84,4 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	assert.Equal(t, created.TemplateID, instancesResp.Instances[0].ActivityGroupID)
 	assert.Equal(t, "11:30", instancesResp.Instances[0].StartTime)
 	assert.Equal(t, "12:00", instancesResp.Instances[0].EndTime)
-}
-
-func fetchInstancesByTemplate(t *testing.T, s *scenario, templateID int64) []int64 {
-	t.Helper()
-	var rows []schedule.ActivityInstance
-	err := s.db.NewSelect().
-		Model(&rows).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Column("id").
-		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
-		Where(`"activity_instance".activity_group_id = ?`, templateID).
-		Scan(s.tenantCtx())
-	require.NoError(t, err)
-	ids := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.ID)
-	}
-	return ids
 }

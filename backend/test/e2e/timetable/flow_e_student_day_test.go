@@ -29,7 +29,6 @@ import (
 // counted too.
 func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).
 	target := nextWeekday(timezone.TodayDate(), 5, 7) // Friday
@@ -38,14 +37,10 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-E-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowE-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowE", "Staff")
 	studentA := testpkg.CreateTestStudent(t, s.db, "Alice", "FlowE", "3a")
 	studentB := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowE", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Two templates on the target weekday. studentA is enrolled in both,
 	// studentB is enrolled only in tmplX.
@@ -75,7 +70,6 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 
 	instX := fetchOneInstance(t, s, tmplX.group.ID, target)
 	instY := fetchOneInstance(t, s, tmplY.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", instX.ID, instY.ID)
 
 	startX := startInstance(t, s, instX.ID)
 	startY := startInstance(t, s, instY.ID)

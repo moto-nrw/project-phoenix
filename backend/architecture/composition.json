@@ -32310,29 +32310,9 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        67
+        64
       ],
-      "tables": [
-        "active.group_supervisors",
-        "active.groups",
-        "active.visits",
-        "activities.categories",
-        "activities.groups",
-        "activities.schedules",
-        "activities.student_enrollments",
-        "activities.supervisors",
-        "audit.data_deletions",
-        "schedule.activity_exceptions",
-        "schedule.activity_instances",
-        "schedule.calendar_periods",
-        "schedule.instance_staff",
-        "schedule.instance_students",
-        "schedule.student_arrival_exceptions",
-        "schedule.student_arrival_schedules",
-        "schedule.student_pickup_exceptions",
-        "schedule.student_pickup_schedules",
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -32340,29 +32320,9 @@
       "declaration": "setupTimetableScenarioModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        75
+        72
       ],
-      "tables": [
-        "active.group_supervisors",
-        "active.groups",
-        "active.visits",
-        "activities.categories",
-        "activities.groups",
-        "activities.schedules",
-        "activities.student_enrollments",
-        "activities.supervisors",
-        "audit.data_deletions",
-        "schedule.activity_exceptions",
-        "schedule.activity_instances",
-        "schedule.calendar_periods",
-        "schedule.instance_staff",
-        "schedule.instance_students",
-        "schedule.student_arrival_exceptions",
-        "schedule.student_arrival_schedules",
-        "schedule.student_pickup_exceptions",
-        "schedule.student_pickup_schedules",
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",

@@ -26,7 +26,6 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	t.Parallel()
 
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday, >=7 days out
 	fromS := target.String()
@@ -34,13 +33,9 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-D-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowD-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowD", "Staff")
 	student := testpkg.CreateTestStudent(t, s.db, "Dora", "FlowD", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Four templates at distinct times on Thursday.
 	tmpls := make([]*templateFixture, 4)
@@ -79,8 +74,6 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	instCompleted := fetchOneInstance(t, s, tmpls[1].group.ID, target)
 	instCancelled := fetchOneInstance(t, s, tmpls[2].group.ID, target)
 	instPlanned := fetchOneInstance(t, s, tmpls[3].group.ID, target)
-	s.registerCleanup("schedule.activity_instances",
-		instActive.ID, instCompleted.ID, instCancelled.ID, instPlanned.ID)
 
 	// --- Step 2: drive the three lifecycle transitions ---------------------
 	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instActive.ID), nil, s.primaryAdminClaims())
@@ -110,7 +103,6 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	_, err := s.db.NewInsert().Model(spont).
 		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert spontaneous instance")
-	s.registerCleanup("schedule.activity_instances", spont.ID)
 
 	// Capture snapshots of the 4 preserved instances for post-replan compare.
 	beforeActive := reload(t, s, instActive.ID)
@@ -156,7 +148,6 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	assert.NotEqual(t, instPlanned.ID, newPlanned.ID,
 		"deleted-and-recreated gets a fresh ID")
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, newPlanned.Status)
-	s.registerCleanup("schedule.activity_instances", newPlanned.ID)
 
 	// --- Step 6: tenant isolation -----------------------------------------
 	// Secondary tenant re-plans their (empty) week. No primary data sees it,

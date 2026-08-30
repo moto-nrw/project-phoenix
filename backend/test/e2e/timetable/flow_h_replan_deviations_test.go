@@ -28,19 +28,14 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	t.Parallel()
 
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 3, 7) // Wednesday, >=7 days out
 	dateS := target.String()
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-H-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowH-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 	staffA := testpkg.CreateTestStaff(t, s.db, "FlowH", "Alpha")
 	staffB := testpkg.CreateTestStaff(t, s.db, "FlowH", "Bravo")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	tmpl := s.buildTemplate(templateSpec{
 		name:      fmt.Sprintf("FlowH-%d", time.Now().UnixNano()),
@@ -56,7 +51,6 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Mark staffA absent and acknowledge the block as deliberately unstaffed —
 	// present(1) < planned(2), so the ack is valid.
@@ -94,7 +88,6 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	// Exactly one instance for (template, date) — fetchOneInstance's single-row
 	// scan fails if a stale duplicate survived beside the regenerated block.
 	newInst := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", newInst.ID)
 	assert.NotEqual(t, inst.ID, newInst.ID, "occurrence was regenerated (new id)")
 	assert.Equal(t, "FlowH-Renamed", newInst.Title, "regenerated with the edited template title")
 	assert.Equal(t, "09:30", newInst.StartTime.Format("15:04"), "regenerated at the edited start time")
@@ -120,20 +113,15 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 	t.Parallel()
 
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday
 	dateS := target.String()
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-H2-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowH2-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 	staffA := testpkg.CreateTestStaff(t, s.db, "FlowH2", "Alpha")
 	staffB := testpkg.CreateTestStaff(t, s.db, "FlowH2", "Bravo")
 	subC := testpkg.CreateTestStaff(t, s.db, "FlowH2", "Charlie") // not on the template
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	tmpl := s.buildTemplate(templateSpec{
 		name:      fmt.Sprintf("FlowH2-%d", time.Now().UnixNano()),
@@ -148,7 +136,6 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Konsolidierung (#1886): Vertretung über den atomaren Deviations-Save.
 	subReq := map[string]any{
@@ -163,7 +150,6 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "re-plan body=%s", rr.Body.String())
 
 	newInst := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", newInst.ID)
 	rows := fetchInstanceStaff(t, s, newInst.ID)
 	byStaff := map[int64]scheduleModel.InstanceStaff{}
 	for _, r := range rows {
@@ -184,19 +170,14 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 	t.Parallel()
 
 	s := setupTimetableScenarioModule(t)
-	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 2, 7) // Tuesday
 	dateS := target.String()
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-H3-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowH3-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 	staffA := testpkg.CreateTestStaff(t, s.db, "FlowH3", "Alpha")
 	staffB := testpkg.CreateTestStaff(t, s.db, "FlowH3", "Bravo")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	tmpl := s.buildTemplate(templateSpec{
 		name:      fmt.Sprintf("FlowH3-%d", time.Now().UnixNano()),
@@ -211,7 +192,6 @@ func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Mark staffA absent, then reopen and clear it.
 	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID),

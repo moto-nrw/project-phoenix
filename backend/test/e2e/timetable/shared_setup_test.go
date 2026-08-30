@@ -50,21 +50,18 @@ type scenario struct {
 	repos          *repositories.Factory
 	router         timetableTestRouter
 	tokenAuth      *timetableTestTokenAuth
+	today          func() timezone.Date
 
 	primaryTenant   int64
 	secondaryTenant int64
-
-	cleanupOrder []string
-	cleanupIDs   map[string][]int64
-	extraCleanup []func()
 }
 
 // setupTimetableScenarioModule returns a ready-to-use scenario with real DB + timetable services
 // + fully mounted timetable router + JWT signer.
-func setupTimetableScenarioModule(t *testing.T) *scenario {
+func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupAPITest(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
@@ -95,30 +92,9 @@ func setupTimetableScenarioModule(t *testing.T) *scenario {
 		cleanup:         factory.TimetableCleanup.CleanupExpiredTimetableData,
 		repos:           repos,
 		tokenAuth:       ta,
+		today:           timezone.CalendarDateClock(clocks...),
 		primaryTenant:   primaryTenant,
 		secondaryTenant: secondaryTenant,
-		cleanupOrder: []string{
-			"schedule.instance_students",
-			"schedule.instance_staff",
-			"schedule.activity_instances",
-			"schedule.activity_exceptions",
-			"schedule.student_arrival_exceptions",
-			"schedule.student_arrival_schedules",
-			"schedule.student_pickup_exceptions",
-			"schedule.student_pickup_schedules",
-			"activities.student_enrollments",
-			"activities.supervisors",
-			"activities.schedules",
-			"audit.data_deletions",
-			"active.visits",
-			"active.group_supervisors",
-			"active.groups",
-			"activities.groups",
-			"activities.categories",
-			"schedule.timeframes",
-			"schedule.calendar_periods",
-		},
-		cleanupIDs: make(map[string][]int64),
 	}
 	s.router = s.mountRouter()
 	return s
@@ -138,24 +114,6 @@ func (s *scenario) previewTimetableCleanup(ctx context.Context) (*scheduleSvc.Ti
 
 func (s *scenario) cleanupTimetable(ctx context.Context) (*scheduleSvc.TimetableCleanupResult, error) {
 	return s.cleanup(ctx)
-}
-
-// registerCleanup tracks IDs to delete at teardown.
-func (s *scenario) registerCleanup(table string, ids ...int64) {
-	s.cleanupIDs[table] = append(s.cleanupIDs[table], ids...)
-}
-
-// teardown deletes all registered fixtures in FK-safe order.
-func (s *scenario) teardown() {
-	s.t.Helper()
-	for _, tbl := range s.cleanupOrder {
-		if ids := s.cleanupIDs[tbl]; len(ids) > 0 {
-			testpkg.CleanupTableRecords(s.t, s.db, tbl, ids...)
-		}
-	}
-	for _, fn := range s.extraCleanup {
-		fn()
-	}
 }
 
 // tenantCtx returns a context bound to the primary tenant.
@@ -265,7 +223,6 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 		IsActive:        true,
 	}
 	require.NoError(s.t, s.resource.CalendarPeriodService.CreatePeriod(s.tenantCtx(), period))
-	s.registerCleanup("schedule.calendar_periods", period.ID)
 	return period
 }
 
@@ -291,7 +248,6 @@ func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM stri
 		ModelTableExpr(`schedule.timeframes`).
 		Exec(s.tenantCtx())
 	require.NoError(s.t, err, "insert timeframe")
-	s.registerCleanup("schedule.timeframes", tf.ID)
 	return tf
 }
 
@@ -333,12 +289,8 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 	ctx := s.tenantCtx()
 
 	category := testpkg.CreateTestActivityCategory(s.t, s.db, spec.name)
-	s.registerCleanup("activities.categories", category.ID)
 
 	creator := testpkg.CreateTestStaff(s.t, s.db, "Creator", spec.name)
-	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(s.t, s.db, creator.ID)
-	})
 
 	group := &activitiesModels.Group{
 		Name:            spec.name,
@@ -355,7 +307,6 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		ModelTableExpr(`activities.groups AS "group"`).
 		Exec(ctx)
 	require.NoError(s.t, err, "insert activity group")
-	s.registerCleanup("activities.groups", group.ID)
 
 	timeframe := s.createTimeframeWithTimes(spec.name+"-tf", spec.startHHMM, spec.endHHMM)
 
@@ -372,11 +323,10 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		ModelTableExpr(`activities.schedules`).
 		Exec(ctx)
 	require.NoError(s.t, err, "insert schedule")
-	s.registerCleanup("activities.schedules", sched.ID)
 
 	validFrom := spec.validFrom
 	if validFrom.IsZero() {
-		validFrom = timezone.TodayDate().AddDays(-30)
+		validFrom = s.today().AddDays(-30)
 	}
 
 	var enrollmentIDs []int64
@@ -395,8 +345,6 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		require.NoError(s.t, err, "insert enrollment")
 		enrollmentIDs = append(enrollmentIDs, enroll.ID)
 	}
-	s.registerCleanup("activities.student_enrollments", enrollmentIDs...)
-
 	var supervisorIDs []int64
 	for i, stid := range spec.staffIDs {
 		sup := &activitiesModels.SupervisorPlanned{
@@ -414,8 +362,6 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		require.NoError(s.t, err, "insert supervisor")
 		supervisorIDs = append(supervisorIDs, sup.ID)
 	}
-	s.registerCleanup("activities.supervisors", supervisorIDs...)
-
 	return &templateFixture{
 		group:        group,
 		schedule:     sched,
