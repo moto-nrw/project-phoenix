@@ -1,8 +1,8 @@
 // Package checkin_test holds the DB-backed and stub-based unit tests for the
 // extracted CheckinService (issue #575 B8). These live in the EXTERNAL
-// checkin_test package (not package checkin) because they import the services
-// factory via api/testutil.SetupAPITest — importing services from an internal
-// checkin test would recreate the services ↔ services/iot/checkin cycle.
+// checkin_test package (not package checkin) because the module builder uses
+// the shared API graph — importing that graph from an internal checkin test
+// would recreate the services ↔ services/iot/checkin cycle.
 package checkin_test
 
 import (
@@ -28,19 +28,18 @@ type svcTestContext struct {
 	db  *bun.DB
 }
 
-// setupCheckinServiceTest wires a real CheckinService (via the services factory)
-// against the test database. It replaces the former setupInternalTestResource
-// helper that built an api/iot/checkin Resource.
-func setupCheckinServiceTest(t *testing.T) *svcTestContext {
+// setupCheckinServiceModule is the module-sized builder for a real
+// CheckinService backed by the test database.
+func setupCheckinServiceModule(t *testing.T) *svcTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupAPITest(t)
 
 	// Belt-and-suspenders: ensure the FK target row for this test's tenant exists on
 	// the exact connection pool used by the services.
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
-	return &svcTestContext{svc: svc.Checkin, db: db}
+	return &svcTestContext{svc: factory.Checkin, db: db}
 }
 
 // createTestActiveGroupWithDevice creates an active group linked to a device.
@@ -74,7 +73,7 @@ func createTestActiveGroupWithDevice(t *testing.T, db *bun.DB, activityGroupID, 
 
 func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := testpkg.Ctx(t)
 
@@ -91,7 +90,7 @@ func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 
 func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := testpkg.Ctx(t)
 
@@ -108,7 +107,7 @@ func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 
 func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -123,7 +122,7 @@ func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 
 func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -143,7 +142,7 @@ func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 
 func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -161,7 +160,7 @@ func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 
 func TestUpdateSessionActivity_Success(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -175,7 +174,7 @@ func TestUpdateSessionActivity_Success(t *testing.T) {
 
 func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -189,7 +188,7 @@ func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
 
 func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -207,7 +206,7 @@ func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 
 func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -223,7 +222,7 @@ func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 
 func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -249,7 +248,7 @@ func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 
 func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -260,7 +259,7 @@ func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
 
 func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	ctx := context.Background()
 
@@ -285,7 +284,7 @@ func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 
 func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
 
@@ -296,7 +295,7 @@ func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 
 func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	// Use a non-existent room ID
 	name := tc.svc.RoomNameByIDForTest(context.Background(), nil, 999999)
@@ -305,7 +304,7 @@ func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
 
 func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
 
@@ -316,7 +315,7 @@ func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 
 func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
 
@@ -333,7 +332,7 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 // attendance row.
 func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 	ctx := testpkg.Ctx(t)
 
 	activeStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Active", "1a")
@@ -366,7 +365,7 @@ func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 // 500 "failed to create visit record" that tells PyrePortal to retry.
 func TestProcessStudentCheckin_RoomRejectsGraduatedRace(t *testing.T) {
 	t.Parallel()
-	tc := setupCheckinServiceTest(t)
+	tc := setupCheckinServiceModule(t)
 	ctx := testpkg.Ctx(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "grad-race-group")

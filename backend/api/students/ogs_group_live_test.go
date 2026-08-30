@@ -62,11 +62,11 @@ type ogsLiveEnvelope struct {
 func setOGSLiveOverviewScope(t *testing.T, tc *testContext, scope string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		ctx, configModel.KeyOperationalOverviewScope, scope, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyOperationalOverviewScope, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, configModel.KeyOperationalOverviewScope, nil, nil)
 	})
 }
 
@@ -90,7 +90,7 @@ func decodeOGSGroupNavigation(t *testing.T, body []byte) []ogsLiveGroup {
 func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	owner, ownerAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Scope", "Owner")
 	other, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Scope", "Other")
 	ownedGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Scope Owned")
@@ -160,7 +160,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 func TestOGSGroupLive_AdminSeesAllGroupsInPersonalScope(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeOwn)
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Scope", "Admin")
 	first := testpkg.CreateTestEducationGroup(t, tc.db, "Admin First")
@@ -180,7 +180,7 @@ func TestOGSGroupLive_AdminSeesAllGroupsInPersonalScope(t *testing.T) {
 func TestOGSGroupNavigation_ReturnsServerErrorWithoutService(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	tc.resource.OGSGroupLiveService = nil
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Navigation", "Service")
 	req := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
@@ -193,7 +193,7 @@ func TestOGSGroupNavigation_ReturnsServerErrorWithoutService(t *testing.T) {
 func TestOGSGroupLive_HandoverMovesGroupIntoPersonalSection(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
 	owner, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Owner")
 	substitute, substituteAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Substitute")
@@ -222,7 +222,7 @@ func TestOGSGroupLive_HandoverMovesGroupIntoPersonalSection(t *testing.T) {
 func TestOGSGroupLive_SchoolScopeCannotOpenTenantGroupView(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "School", "Portal")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "School Assigned")
@@ -257,7 +257,7 @@ func assignRoomToEducationGroup(t *testing.T, db *bun.DB, groupID, roomID int64)
 func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSLive", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSLiveGroupA")
@@ -288,11 +288,11 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	// Tracking indicators: enable the feature with one label so the aggregate
 	// exercises the settings-gated ActiveService path.
 	settingsCtx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
+	require.NoError(t, tc.resource.SettingsService.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
-		_ = tc.services.Settings.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(settingsCtx, configModel.KeyTrackingIndicator1, nil, nil)
 	})
 
 	req := testutil.NewRequest("GET", "/ogs-group-live", nil)
@@ -342,13 +342,13 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 
 func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	repos := repositories.NewFactory(tc.db)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
 	})
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSGrenze", "Leitung")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSGrenzgruppe")
@@ -383,13 +383,13 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 
 func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	repos := repositories.NewFactory(tc.db)
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
 	})
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSBesuch", "Leitung")
@@ -428,7 +428,7 @@ func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 func TestOGSGroupLive_MinimalProjection(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSSlim", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSSlimGroup")
@@ -497,7 +497,7 @@ func (h *queryCounter) count() int {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestOGSGroupLive_QueryBudget(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSBudget", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSBudgetGroup")
@@ -549,7 +549,7 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 func TestOGSGroupLive_PayloadBudget(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSPayload", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSPayloadGroup")
@@ -579,7 +579,7 @@ func TestOGSGroupLive_PayloadBudget(t *testing.T) {
 func TestOGSGroupLive_ErrorContract(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeOwn)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSErr", "Leader")
@@ -636,7 +636,7 @@ func TestOGSGroupLive_ErrorContract(t *testing.T) {
 func TestOGSGroupLive_TenantIsolation(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSIso", "Leader")
 	ownGroup := testpkg.CreateTestEducationGroup(t, tc.db, "OGSIsoOwn")

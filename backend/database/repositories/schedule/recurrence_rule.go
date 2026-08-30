@@ -147,25 +147,9 @@ func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDat
 
 // List retrieves recurrence rules matching the provided query options
 func (r *RecurrenceRuleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.RecurrenceRule, error) {
-	rules := make([]*schedule.RecurrenceRule, 0)
-	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: repoBase.DatabaseErrorCause(err)}
 	}
-
-	return rules, nil
+	return rows, nil
 }

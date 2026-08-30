@@ -7,12 +7,90 @@ import {
   formatDateForBackend,
   mapSubstitutionResponse,
   mapSubstitutionsResponse,
+  mapScheduleSubstitutionOverview,
+  type ScheduleSubstitutionOverview,
   prepareSubstitutionForBackend,
   type SubstitutionProxyEnvelope,
   unwrapSubstitutionProxyEnvelope,
 } from "./substitution-helpers";
+import {
+  mapApplyDeviations,
+  mapBulkSubstitution,
+  prepareApplyDeviationsBody,
+  prepareBulkSubstitutionBody,
+} from "./timetable-helpers";
+import type {
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
+  BackendApplyDeviationsResponse,
+  BackendBulkSubstitutionResponse,
+  BulkSubstitutionInput,
+  BulkSubstitutionResponse,
+} from "./timetable-types";
 
 class SubstitutionService {
+  async fetchScheduleOverview(
+    from: string,
+    to: string,
+  ): Promise<ScheduleSubstitutionOverview> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(`/api/substitutions?${params}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Vertretungen konnten nicht geladen werden.");
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    if (envelope.data === undefined) {
+      throw new Error("Ungültige Antwort für Vertretungen.");
+    }
+    return mapScheduleSubstitutionOverview(envelope.data);
+  }
+
+  async applyScheduleSubstitution(
+    instanceId: string,
+    input: ApplyDeviationsInput,
+  ): Promise<ApplyDeviationsResponse> {
+    if (input.cancel) {
+      throw new Error("Absagen laufen nicht über eine Vertretung.");
+    }
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "schedule_substitution",
+        schedule_substitution: {
+          instance_id: Number(instanceId),
+          ...prepareApplyDeviationsBody(input),
+        },
+      }),
+    });
+    if (!response.ok) throw await substitutionError(response);
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendApplyDeviationsResponse>;
+    return mapApplyDeviations(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
+  async applyBulkSubstitution(
+    input: BulkSubstitutionInput,
+  ): Promise<BulkSubstitutionResponse> {
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "schedule_substitution",
+        schedule_substitution: {
+          whole_days: prepareBulkSubstitutionBody(input),
+        },
+      }),
+    });
+    if (!response.ok) throw await substitutionError(response);
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendBulkSubstitutionResponse>;
+    return mapBulkSubstitution(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
   async fetchSubstitutions(date?: Date): Promise<Substitution[]> {
     const params = new URLSearchParams();
     if (date) params.set("date", formatDateForBackend(date));
@@ -97,6 +175,11 @@ class SubstitutionService {
       );
     }
   }
+}
+
+async function substitutionError(response: Response): Promise<Error> {
+  const body = (await response.json()) as { error?: string };
+  return new Error(body.error ?? "Vertretung konnte nicht gespeichert werden.");
 }
 
 export const substitutionService = new SubstitutionService();

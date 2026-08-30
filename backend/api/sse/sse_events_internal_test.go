@@ -21,16 +21,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // eventsTestContext holds shared test dependencies for direct-handler tests.
 type eventsTestContext struct {
 	db       *bun.DB
-	services *services.Factory
 	hub      *realtime.Hub
 	resource *Resource
 }
@@ -49,16 +46,11 @@ func withValidSSEToken(t *testing.T, ctx context.Context) context.Context {
 	return jwtauth.NewContext(ctx, token, nil)
 }
 
-// setupEventsTestContext initializes a DB-backed SSE resource.
-func setupEventsTestContext(t *testing.T) *eventsTestContext {
+// setupEventsModule initializes the DB-backed SSE capability under test.
+func setupEventsModule(t *testing.T) *eventsTestContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repos, db, slog.Default())
-	if err != nil {
-		t.Fatalf("Failed to create services factory: %v", err)
-	}
+	db, svc := testutil.SetupAPITest(t)
 
 	hub := realtime.NewHub(slog.Default())
 
@@ -71,7 +63,6 @@ func setupEventsTestContext(t *testing.T) *eventsTestContext {
 
 	return &eventsTestContext{
 		db:       db,
-		services: svc,
 		hub:      hub,
 		resource: resource,
 	}
@@ -86,7 +77,7 @@ func setupEventsTestContext(t *testing.T) *eventsTestContext {
 func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupEventsTestContext(t)
+	ctx := setupEventsModule(t)
 
 	// Create a person without staff record (just a basic account)
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonStaff", "User")
@@ -116,7 +107,7 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 func TestSSEEvents_StaffWithAccount(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupEventsTestContext(t)
+	ctx := setupEventsModule(t)
 
 	// Create a teacher with account (has staff record)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
@@ -141,7 +132,7 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 func TestSSEEvents_AdminClaims(t *testing.T) {
 	t.Parallel()
 
-	tctx := setupEventsTestContext(t)
+	tctx := setupEventsModule(t)
 
 	// Create admin without staff record
 	_, account := testpkg.CreateTestPersonWithAccount(t, tctx.db, "Admin", "NoStaff")
@@ -171,7 +162,7 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	t.Parallel()
 
-	tctx := setupEventsTestContext(t)
+	tctx := setupEventsModule(t)
 
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.eventsHandler)
@@ -202,7 +193,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	t.Parallel()
 
-	tctx := setupEventsTestContext(t)
+	tctx := setupEventsModule(t)
 
 	// Create a teacher with account (has staff record)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
@@ -236,7 +227,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	t.Parallel()
 
-	tctx := setupEventsTestContext(t)
+	tctx := setupEventsModule(t)
 
 	// Create a teacher with account
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")

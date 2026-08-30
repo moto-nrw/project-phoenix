@@ -34,7 +34,7 @@ func seedGuardianRelationship(t *testing.T, ctx *testContext, role string) (*use
 	t.Helper()
 	student := testpkg.CreateTestStudent(t, ctx.db, "Access", "Child", "1a")
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "guardian-access")
-	relationship, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
+	relationship, err := ctx.resource.GuardianService.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -47,7 +47,7 @@ func seedGuardianRelationship(t *testing.T, ctx *testContext, role string) (*use
 
 func requireRelationshipState(t *testing.T, ctx *testContext, relationshipID int64, role string, canPickup, emergency, portalAccess bool) {
 	t.Helper()
-	relationship, err := ctx.services.Guardian.GetStudentGuardianRelationship(testpkg.Ctx(t), relationshipID)
+	relationship, err := ctx.resource.GuardianService.GetStudentGuardianRelationship(testpkg.Ctx(t), relationshipID)
 	require.NoError(t, err)
 	assert.Equal(t, role, relationship.GuardianRole)
 	assert.Equal(t, canPickup, relationship.CanPickup)
@@ -57,7 +57,7 @@ func requireRelationshipState(t *testing.T, ctx *testContext, relationshipID int
 
 func requireNoGuardians(t *testing.T, ctx *testContext, studentID int64) {
 	t.Helper()
-	guardians, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), studentID)
+	guardians, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), studentID)
 	require.NoError(t, err)
 	assert.Empty(t, guardians)
 }
@@ -75,7 +75,7 @@ func requireGuardianEmailCount(t *testing.T, ctx *testContext, email string, wan
 
 func TestGuardianCreateRoutesRejectStaffWithoutPermissionsAndPreserveState(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ReadOnly", "Staff")
 	claims := guardianStaffClaims(account.ID)
 	unlinkedStudent := testpkg.CreateTestStudent(t, ctx.db, "Unlinked", "Child", "1b")
@@ -109,7 +109,7 @@ func TestGuardianCreateRoutesRejectStaffWithoutPermissionsAndPreserveState(t *te
 
 func TestGuardianRelationshipRoutesRejectStaffWithoutPermissionsAndPreserveState(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ReadOnly", "RelationshipStaff")
 	claims := guardianStaffClaims(account.ID)
 	student, guardian, relationship := seedGuardianRelationship(t, ctx, authorize.GuardianRolePickupOnly)
@@ -165,7 +165,7 @@ func batchBody(email string) map[string]any {
 
 func TestGuardianWriteRoutesAllowStaffWithRequiredPermissions(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Authorised", "Staff")
 	createClaims := guardianStaffClaims(account.ID, permissions.UsersCreate)
 	updateClaims := guardianStaffClaims(account.ID, permissions.UsersUpdate)
@@ -181,7 +181,7 @@ func TestGuardianWriteRoutesAllowStaffWithRequiredPermissions(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, executeGuardianWrite(t, ctx, updateClaims, http.MethodPost,
 		fmt.Sprintf("/students/%d/guardians", student.ID), relationshipBody(guardian.ID, authorize.GuardianRolePickupOnly)))
-	guardians, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	guardians, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.Len(t, guardians, 1)
 	relationshipID := guardians[0].Relationship.ID
@@ -203,14 +203,14 @@ func TestGuardianWriteRoutesAllowStaffWithRequiredPermissions(t *testing.T) {
 			"guardian_role":       authorize.GuardianRolePickupOnly,
 			"emergency_priority":  1,
 		}}}))
-	existingLinked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), existingBatchStudent.ID)
+	existingLinked, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), existingBatchStudent.ID)
 	require.NoError(t, err)
 	require.Len(t, existingLinked, 1)
 
 	batchStudent := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Allowed", "1b")
 	require.Equal(t, http.StatusCreated, executeGuardianWrite(t, ctx, createAndUpdateClaims, http.MethodPost,
 		fmt.Sprintf("/students/%d/guardians/batch", batchStudent.ID), batchBody(fmt.Sprintf("allowed-batch-%d@example.test", time.Now().UnixNano()))))
-	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), batchStudent.ID)
+	linked, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), batchStudent.ID)
 	require.NoError(t, err)
 	require.Len(t, linked, 1)
 	assert.True(t, authorize.StudentGuardianHasPermission(linked[0].Relationship, authorize.GuardianPermissionPortalAccess))
@@ -218,7 +218,7 @@ func TestGuardianWriteRoutesAllowStaffWithRequiredPermissions(t *testing.T) {
 
 func TestGuardianRelationshipWritesAllowAdmin(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 	student := testpkg.CreateTestStudent(t, ctx.db, "Admin", "Child", "1a")
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "admin-access")
 	adminAccount := testpkg.CreateTestAccount(t, ctx.db, "guardian-access-admin")
@@ -226,7 +226,7 @@ func TestGuardianRelationshipWritesAllowAdmin(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, executeGuardianWrite(t, ctx, claims, http.MethodPost,
 		fmt.Sprintf("/students/%d/guardians", student.ID), relationshipBody(guardian.ID, authorize.GuardianRolePickupOnly)))
-	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	linked, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.Len(t, linked, 1)
 
@@ -239,7 +239,7 @@ func TestGuardianRelationshipWritesAllowAdmin(t *testing.T) {
 
 func TestGuardianRelationshipWritesRejectForeignTenant(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, ctx.db)
 	student := testpkg.CreateTestStudentForTenant(t, ctx.db, foreignTenantID, "Foreign", "Child", "1a")
 	email := fmt.Sprintf("foreign-guardian-%d@example.test", time.Now().UnixNano())

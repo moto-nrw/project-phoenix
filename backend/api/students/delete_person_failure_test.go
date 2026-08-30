@@ -21,7 +21,7 @@ import (
 func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Delete", "PersonFailure", "4a")
 
@@ -32,7 +32,6 @@ func TestPurgeGraduatedStudent_PersonDeleteFailureRollsBack(t *testing.T) {
 		Exec(t.Context())
 	require.NoError(t, err)
 
-	tc.resource.GradeTransitionService = tc.services.GradeTransition
 	repos := repositories.NewFactory(tc.db)
 	tc.resource.StudentDeletionService = usersService.NewStudentDeletionService(
 		tc.resource.StudentService,

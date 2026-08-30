@@ -90,7 +90,7 @@ func (c *identityStageCounter) captured(stage string) []string {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "IdentityBudget", "Leader")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetGroup")

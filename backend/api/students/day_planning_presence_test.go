@@ -20,7 +20,7 @@ import (
 func TestListStudents_UnplannedPresenceEndsAtCheckout(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	fixedNow := time.Date(2026, time.August, 21, 10, 0, 0, 0, time.UTC)
 	tc.resource.Now = func() time.Time { return fixedNow }
 

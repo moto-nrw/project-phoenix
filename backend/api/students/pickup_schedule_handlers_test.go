@@ -23,7 +23,7 @@ import (
 func TestGetStudentPickupSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	// Create student for tests
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupGet", "Test", "PG1")
@@ -140,7 +140,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 func TestUpdateStudentPickupSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_schedules_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -325,7 +325,7 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 func TestCreateStudentPickupException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -632,7 +632,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 func TestUpdateStudentPickupException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -822,7 +822,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 func TestDeleteStudentPickupException(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -963,7 +963,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 func TestGetBulkPickupTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
 		body := map[string]any{
@@ -1178,7 +1178,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 func TestBulkUpsertPickupSchedules(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 	student1 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI1", "Student", "BPA1")
 	student2 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI2", "Student", "BPA2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupAPI", "Teacher")
@@ -1201,7 +1201,7 @@ func TestBulkUpsertPickupSchedules(t *testing.T) {
 func TestCreateStudentPickupNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_creates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteCreate", "Test", "NCT1")
@@ -1310,7 +1310,7 @@ func TestCreateStudentPickupNote(t *testing.T) {
 func TestUpdateStudentPickupNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_updates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdate", "Test", "NUT1")
@@ -1421,7 +1421,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 func TestDeleteStudentPickupNote(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	t.Run("success_deletes_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDelete", "Test", "NDT1")

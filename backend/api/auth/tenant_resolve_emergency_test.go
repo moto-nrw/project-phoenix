@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -51,12 +50,12 @@ type emergencyResolveResp struct {
 func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -77,17 +76,17 @@ func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	ctx := scope.Context()
 	require.NoError(t,
-		svc.Settings.SetValue(ctx, configModel.KeyEmergencyListHealthInfo, false, nil, nil),
+		authRoute.SettingsService.SetValue(ctx, configModel.KeyEmergencyListHealthInfo, false, nil, nil),
 		"disable emergency_list_health_info for the isolated tenant")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -109,12 +108,12 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = failingTenantShellSettings{SettingsService: svc.Settings}
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = failingTenantShellSettings{SettingsService: authRoute.SettingsService}
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -131,7 +130,7 @@ func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing
 func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	// Stored straight through the repository: SetValue would reject the
@@ -147,8 +146,8 @@ func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing
 		"store an unreadable emergency_list_health_info override")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
-	resource.SettingsService = svc.Settings
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

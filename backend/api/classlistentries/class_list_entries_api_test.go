@@ -22,14 +22,27 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+type classListEntriesRoutes struct {
+	entries  *classlistentries.Resource
+	classDay *classday.Resource
+}
+
+func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, *classListEntriesRoutes) {
+	t.Helper()
+	db, factory := testutil.SetupAPITest(t)
+	return db, &classListEntriesRoutes{
+		entries:  classlistentries.NewResource(factory.ClassListEntries, db, nil),
+		classDay: classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil),
+	}
+}
+
 func TestClassListEntriesAPI(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, routes := setupClassListEntriesRoute(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-api-%d@test.local", time.Now().UnixNano()))
 
-	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
-	router := resource.Router()
+	router := routes.entries.Router()
 
 	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
 	className := fmt.Sprintf("cle%d", time.Now().UnixNano()%100000)
@@ -96,7 +109,7 @@ func TestClassListEntriesAPI(t *testing.T) {
 
 func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, routes := setupClassListEntriesRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CleDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cled%d", time.Now().UnixNano()%100000)
@@ -112,7 +125,7 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	// through the school portal, so this drives SchoolRouter with school-scope
 	// claims. What is under test is unchanged: a list-only entry appears on the
 	// sheet, flagged and never staying.
-	classDayRouter := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil).SchoolRouter()
+	classDayRouter := routes.classDay.SchoolRouter()
 	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	req := httptest.NewRequest(http.MethodGet, "/?date=2026-08-05", nil)
@@ -132,12 +145,11 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 // trims and rejects them before the service runs (#2399 review).
 func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, routes := setupClassListEntriesRoute(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-ws-%d@test.local", time.Now().UnixNano()))
 
-	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
-	router := resource.Router()
+	router := routes.entries.Router()
 	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
 
 	body := `{"first_name":"  ","last_name":"Aalders","school_class":"1a"}`

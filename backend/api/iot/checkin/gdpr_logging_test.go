@@ -19,7 +19,7 @@ import (
 // its Info line, so every scan wrote a child's first name into journald and from
 // there into Loki for the full retention window.
 //
-// slog.SetDefault is installed before setupTestContext so the handler and every
+// slog.SetDefault is installed before setupCheckinRoute so the handler and every
 // service the request touches log into the buffer. LevelInfo mirrors the
 // production LOG_LEVEL — names at Debug are allowed and must not fail this test.
 // Deliberately NOT parallel: mutates process-global configuration.
@@ -34,7 +34,7 @@ func TestDeviceCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	t.Cleanup(func() { slog.SetDefault(previous) })
 
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "gdpr-log-checkin")
 

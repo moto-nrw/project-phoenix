@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -84,8 +83,8 @@ func TestListGroups(t *testing.T) {
 		testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
 
 		// ACT: List with pagination
-		options := base.NewQueryOptions().WithPagination(1, 100)
-		groups, err := service.ListGroups(ctx, options)
+		query := &educationModels.GroupListQuery{Limit: 100}
+		groups, err := service.ListGroups(ctx, query)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -598,11 +597,8 @@ func TestEducationService_ListGroups(t *testing.T) {
 		// ARRANGE
 		testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
 
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 10)
-
 		// ACT
-		groups, err := service.ListGroups(ctx, options)
+		groups, err := service.ListGroups(ctx, &educationModels.GroupListQuery{Limit: 10})
 
 		// ASSERT
 		require.NoError(t, err)

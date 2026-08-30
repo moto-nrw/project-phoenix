@@ -53,7 +53,7 @@ type schulhofConflictActivityService struct {
 	err    error
 }
 
-func (s *schulhofConflictActivityService) ListGroups(context.Context, *base.QueryOptions) ([]*activityModels.Group, error) {
+func (s *schulhofConflictActivityService) ListGroups(context.Context, *activityModels.GroupListQuery) ([]*activityModels.Group, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

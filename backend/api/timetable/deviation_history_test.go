@@ -34,7 +34,7 @@ func historyRouter(s *devSetup) chi.Router {
 func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
@@ -83,7 +83,7 @@ func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
 func TestDeviationHistory_RejectsInvalidRange(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	hr := historyRouter(s)
 
 	for _, path := range []string{

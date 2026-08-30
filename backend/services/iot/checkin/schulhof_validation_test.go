@@ -37,7 +37,7 @@ type existingSchulhofActivityService struct {
 	groups    []*activityModels.Group
 }
 
-func (s *existingSchulhofActivityService) ListGroups(context.Context, *base.QueryOptions) ([]*activityModels.Group, error) {
+func (s *existingSchulhofActivityService) ListGroups(context.Context, *activityModels.GroupListQuery) ([]*activityModels.Group, error) {
 	s.listCalls++
 	if s.groups != nil {
 		return s.groups, nil

@@ -112,7 +112,8 @@ func TestRouteTableGolden(t *testing.T) {
 	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
 	compareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
-		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact")
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact",
+		stableMiddlewareTable)
 
 	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
 	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
@@ -141,6 +142,34 @@ func TestRouteTableGolden(t *testing.T) {
 }
 
 var compilerGeneratedNamePart = regexp.MustCompile(`func[0-9]+|\.[0-9]+`)
+
+// stableMiddlewareTable removes compiler-dependent wrapper provenance while
+// retaining each route's middleware order and semantic function names. Go may
+// report the same closure as either Resource.Router.SetContentType or the
+// underlying render.SetContentType when an unrelated dependency changes its
+// inlining budget; that is not an HTTP middleware change.
+func stableMiddlewareTable(table string) string {
+	lines := strings.Split(strings.TrimSuffix(table, "\n"), "\n")
+	for i, line := range lines {
+		prefix, chain, ok := strings.Cut(line, " -> ")
+		if !ok {
+			continue
+		}
+		names := strings.Split(chain, " > ")
+		for j, name := range names {
+			if !strings.HasSuffix(name, "#") {
+				continue
+			}
+			name = strings.TrimSuffix(strings.TrimSuffix(name, "#"), ".")
+			if lastDot := strings.LastIndexByte(name, '.'); lastDot >= 0 {
+				name = name[lastDot+1:]
+			}
+			names[j] = name + "#"
+		}
+		lines[i] = prefix + " -> " + strings.Join(names, " > ")
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
 
 // chiParamPattern matches one {param} placeholder (incl. regex-constrained
 // ones like {id:[0-9]+}) for probe-URL substitution.
@@ -183,7 +212,7 @@ func TestIoTAuthMatrixGolden(t *testing.T) {
 		"an unauthenticated /api/iot request now gets a different rejection — a route may have slipped between the device-auth and JWT groups; kiosks would see raw 401s. If intentional, regenerate with -update-goldens")
 }
 
-func compareGolden(t *testing.T, path, got, hint string) {
+func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(string) string) {
 	t.Helper()
 	if *updateGoldens {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
@@ -191,10 +220,15 @@ func compareGolden(t *testing.T, path, got, hint string) {
 		t.Logf("golden rewritten: %s", path)
 		return
 	}
-	want, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
+	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
 	require.NoErrorf(t, err, "golden file %s missing — generate it with -update-goldens", path)
-	if string(want) != got {
-		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(string(want), got))
+	want := string(wantBytes)
+	for _, normalize := range normalizers {
+		want = normalize(want)
+		got = normalize(got)
+	}
+	if want != got {
+		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(want, got))
 	}
 }
 

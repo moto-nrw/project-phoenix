@@ -28,7 +28,7 @@ func activityStaffClaims(account *auth.Account, accountPermissions ...string) jw
 
 func TestActivityPersonalDataReadsRequirePermission(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	const (
 		studentFirstName = "RosterSecretFirst"
 		studentLastName  = "RosterSecretLast"
@@ -37,7 +37,7 @@ func TestActivityPersonalDataReadsRequirePermission(t *testing.T) {
 	)
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Private roster")
 	student := testpkg.CreateTestStudent(t, ctx.db, studentFirstName, studentLastName, "1a")
-	require.NoError(t, ctx.services.Activities.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
+	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
 
 	testpkg.CreateTestStaff(t, ctx.db, staffFirstName, staffLastName)
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unauthorised", "Reader")
@@ -67,7 +67,7 @@ func TestActivityPersonalDataReadsRequirePermission(t *testing.T) {
 
 func TestActivityRosterReadAllowsAuthorisedStaff(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	const (
 		studentFirstName = "VisibleFirst"
@@ -75,7 +75,7 @@ func TestActivityRosterReadAllowsAuthorisedStaff(t *testing.T) {
 	)
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Authorised roster")
 	student := testpkg.CreateTestStudent(t, ctx.db, studentFirstName, studentLastName, "1a")
-	require.NoError(t, ctx.services.Activities.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
+	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Authorised", "Reader")
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/activities/%d/students", activity.ID), nil)
@@ -88,7 +88,7 @@ func TestActivityRosterReadAllowsAuthorisedStaff(t *testing.T) {
 
 func TestActivityListAllowsListPermission(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	testpkg.CreateTestActivityGroup(t, ctx.db, "List permission")
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "List", "Reader")
 
@@ -100,11 +100,11 @@ func TestActivityListAllowsListPermission(t *testing.T) {
 
 func TestActivityRosterReadFiltersNonStaffPersonalData(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Filtered roster")
 	student := testpkg.CreateTestStudent(t, ctx.db, "FilteredSecretFirst", "FilteredSecretLast", "1a")
-	require.NoError(t, ctx.services.Activities.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
+	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activity.ID, student.ID))
 	account := testpkg.CreateTestAccount(t, ctx.db, "activity-roster-non-staff")
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/activities/%d/students", activity.ID), nil)
@@ -117,7 +117,7 @@ func TestActivityRosterReadFiltersNonStaffPersonalData(t *testing.T) {
 
 func TestActivitySupervisorDirectoryRequiresAssignPermission(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 
 	testpkg.CreateTestStaff(t, ctx.db, "DirectorySecretFirst", "DirectorySecretLast")
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ReadOnly", "Staff")
@@ -153,9 +153,9 @@ func supervisorWriteCases(t *testing.T, ctx *testContext, activityID int64) []ac
 	first := testpkg.CreateTestStaff(t, ctx.db, "Existing", "Supervisor")
 	second := testpkg.CreateTestStaff(t, ctx.db, "Second", "Supervisor")
 	target := testpkg.CreateTestStaff(t, ctx.db, "TargetSecret", "Supervisor")
-	firstSupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activityID, first.ID, true)
+	firstSupervisor, err := ctx.resource.ActivityService.AddSupervisor(testpkg.Ctx(t), activityID, first.ID, true)
 	require.NoError(t, err)
-	secondSupervisor, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activityID, second.ID, false)
+	secondSupervisor, err := ctx.resource.ActivityService.AddSupervisor(testpkg.Ctx(t), activityID, second.ID, false)
 	require.NoError(t, err)
 
 	return []activityWriteCase{
@@ -169,7 +169,7 @@ func enrollmentWriteCases(t *testing.T, ctx *testContext, activityID int64) []ac
 	t.Helper()
 	existing := testpkg.CreateTestStudent(t, ctx.db, "ExistingSecret", "Student", "1a")
 	target := testpkg.CreateTestStudent(t, ctx.db, "TargetSecret", "Student", "1b")
-	require.NoError(t, ctx.services.Activities.EnrollStudent(testpkg.Ctx(t), activityID, existing.ID))
+	require.NoError(t, ctx.resource.ActivityService.EnrollStudent(testpkg.Ctx(t), activityID, existing.ID))
 
 	return []activityWriteCase{
 		{name: "enroll student", method: http.MethodPost, path: fmt.Sprintf("/activities/%d/students/%d", activityID, target.ID)},
@@ -180,7 +180,7 @@ func enrollmentWriteCases(t *testing.T, ctx *testContext, activityID int64) []ac
 
 func TestActivityWriteRoutesRejectNonOwner(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	owner := testpkg.CreateTestStaff(t, ctx.db, "Activity", "Owner")
 	activityID := createOwnedActivity(t, ctx.db, owner.ID, "Non-owner target")
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unauthorised", "Writer")
@@ -225,7 +225,7 @@ func assertActivityWritesAllowed(t *testing.T, ctx *testContext, activityID int6
 
 func TestActivityWritesRequireDomainPermission(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	owner, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Permission", "Owner")
 	activityID := createOwnedActivity(t, ctx.db, owner.ID, "Permission target")
 	target := testpkg.CreateTestStaff(t, ctx.db, "PermissionSecret", "Supervisor")
@@ -241,7 +241,7 @@ func TestActivityWritesRequireDomainPermission(t *testing.T) {
 
 func TestActivityOwnerCanWriteSupervisorAndRoster(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	owner, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Allowed", "Owner")
 	activityID := createOwnedActivity(t, ctx.db, owner.ID, "Owner target")
 	assertActivityWritesAllowed(t, ctx, activityID, activityStaffClaims(account, permissions.ActivitiesAssign, permissions.ActivitiesEnroll))
@@ -249,10 +249,10 @@ func TestActivityOwnerCanWriteSupervisorAndRoster(t *testing.T) {
 
 func TestActivitySupervisorCanWriteSupervisorAndRoster(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Supervisor-owned target")
 	supervisor, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Allowed", "ExistingSupervisor")
-	_, err := ctx.services.Activities.AddSupervisor(testpkg.Ctx(t), activity.ID, supervisor.ID, true)
+	_, err := ctx.resource.ActivityService.AddSupervisor(testpkg.Ctx(t), activity.ID, supervisor.ID, true)
 	require.NoError(t, err)
 
 	claims := activityStaffClaims(account, permissions.ActivitiesAssign, permissions.ActivitiesEnroll)
@@ -261,7 +261,7 @@ func TestActivitySupervisorCanWriteSupervisorAndRoster(t *testing.T) {
 
 func TestActivityAdminCanWriteSupervisorAndRoster(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupActivitiesRoute(t)
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Admin target")
 	assertActivityWritesAllowed(t, ctx, activity.ID, testutil.DefaultTestClaims())
 }

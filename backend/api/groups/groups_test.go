@@ -22,13 +22,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
 // groupsAPI.Resource.Router) succeeds in CI environments without a populated
-// .env. Required because setupTestContext constructs the resource, and the
+// .env. Required because setupGroupsRoute constructs the resource, and the
 // tests mint real signed JWTs via testutil.MintTestJWT.
 func init() {
 	testutil.SeedTestJWTConfig()
@@ -51,12 +50,11 @@ func newReq(t *testing.T, method, target string, body interface{}, claims jwt.Ap
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *groupsAPI.Resource
 }
 
-// setupTestContext creates test resources for groups handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupGroupsRoute creates test resources for groups handler tests
+func setupGroupsRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -72,7 +70,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -84,7 +81,7 @@ func setupTestContext(t *testing.T) *testContext {
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupGroupsRoute(t)
 
 	router := chi.NewRouter()
 	router.Mount("/groups", tc.resource.Router())
@@ -549,7 +546,7 @@ func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupGroupsRoute(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }

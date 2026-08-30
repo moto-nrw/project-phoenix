@@ -32,6 +32,15 @@ func coverageClock(t *testing.T, value string) time.Time {
 	return timezone.NormalizeWallClock(parsed)
 }
 
+func setupShiftCoverageRoute(t *testing.T) chi.Router {
+	t.Helper()
+	db, services := testutil.SetupAPITest(t)
+	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
+	router := chi.NewRouter()
+	router.Mount("/timetable", resource.Router())
+	return router
+}
+
 func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
 	t.Helper()
 	shift := &scheduleModel.StaffShift{
@@ -236,10 +245,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 // test binary shares.
 func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
 	testutil.SeedTestJWTConfig()
-	db, services := testutil.SetupAPITest(t)
-	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
-	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router := setupShiftCoverageRoute(t)
 	claims := testutil.AdminTestClaims(999999)
 	requestBody := `{"dates":["2070-11-03"],"start_time":"09:00","end_time":"10:00","staff_ids":[999999]}`
 

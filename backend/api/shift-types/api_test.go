@@ -16,11 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ type shiftTypeTestSetup struct {
 	ctx    context.Context
 }
 
-func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
+func setupShiftTypeRoute(t *testing.T) *shiftTypeTestSetup {
 	t.Helper()
 	db, svcs := testutil.SetupAPITest(t)
 
@@ -84,7 +85,7 @@ func decodeShiftTypeID(t *testing.T, w *httptest.ResponseRecorder) int64 {
 
 func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 	t.Parallel()
-	s := buildShiftTypeSetup(t)
+	s := setupShiftTypeRoute(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-2")
@@ -106,7 +107,7 @@ func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 
 func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 	t.Parallel()
-	s := buildShiftTypeSetup(t)
+	s := setupShiftTypeRoute(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-2")
@@ -140,7 +141,7 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 
 func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
 	t.Parallel()
-	s := buildShiftTypeSetup(t)
+	s := setupShiftTypeRoute(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-unknown-1")
 

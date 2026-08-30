@@ -172,46 +172,28 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 
 // List retrieves grade transitions with pagination
 func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GradeTransition, int, error) {
-	var transitions []*education.GradeTransition
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(tableGradeTransitions + ` AS "grade_transition"`).
-		ColumnExpr(`"grade_transition".*`)
-
-	// Build count query with same filters (but without pagination)
-	countQuery := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(tableGradeTransitions + ` AS "grade_transition"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-		countQuery = countQuery.Where(where, val)
+	count, err := r.CountWithOptions(ctx, options)
+	if err != nil {
+		return nil, 0, &modelBase.DatabaseError{Op: "count grade transitions", Err: base.DatabaseErrorCause(err)}
 	}
 
-	// Apply query options (filters + pagination to data query, filters only to count query)
+	listOptions := &modelBase.QueryOptions{}
 	if options != nil {
-		query = options.ApplyToQuery(query)
-		// Apply only filters to count query (not pagination)
-		if options.Filter != nil {
-			countQuery = options.Filter.ApplyToQuery(countQuery)
-		}
+		*listOptions = *options
 	}
-
-	// Get total count with filters applied
-	count, err := countQuery.Count(ctx)
-	if err != nil {
-		return nil, 0, &modelBase.DatabaseError{
-			Op:  "count grade transitions",
-			Err: err,
-		}
+	fields := make([]modelBase.SortField, 0, 1)
+	if options != nil && options.Sorting != nil {
+		fields = append(fields, options.Sorting.Fields...)
 	}
+	fields = append(fields, modelBase.SortField{Field: "created_at", Direction: modelBase.SortDesc})
+	listOptions.Sorting = &modelBase.Sorting{Fields: fields}
 
-	// Execute query
-	err = query.Order(orderByCreatedAtDesc).Scan(ctx, &transitions)
+	transitions, err := r.ListWithOptions(ctx, listOptions)
 	if err != nil {
-		return nil, 0, &modelBase.DatabaseError{
-			Op:  "list grade transitions",
-			Err: err,
-		}
+		return nil, 0, &modelBase.DatabaseError{Op: "list grade transitions", Err: base.DatabaseErrorCause(err)}
+	}
+	if len(transitions) == 0 {
+		return nil, count, nil
 	}
 
 	return transitions, count, nil
