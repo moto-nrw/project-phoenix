@@ -350,6 +350,17 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
+type spontaneousStartWorkdayGuardKey struct{}
+
+func withSpontaneousStartWorkdayGuard(ctx context.Context) context.Context {
+	return context.WithValue(ctx, spontaneousStartWorkdayGuardKey{}, struct{}{})
+}
+
+func hasSpontaneousStartWorkdayGuard(ctx context.Context) bool {
+	_, ok := ctx.Value(spontaneousStartWorkdayGuardKey{}).(struct{})
+	return ok
+}
+
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
@@ -543,8 +554,10 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 
 	now := s.now()
-	if err := validateSpontaneousStartWorkday(instance, now); err != nil {
-		return nil, err
+	if hasSpontaneousStartWorkdayGuard(ctx) && instance.IsSpontaneous {
+		if err := validateSpontaneousStartWorkday(instance, now); err != nil {
+			return nil, err
+		}
 	}
 	newGroup := &activeModel.Group{
 		StartTime:      now,
