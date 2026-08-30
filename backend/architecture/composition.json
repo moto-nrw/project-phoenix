@@ -19106,6 +19106,36 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/active/list_behavior_test.go",
+      "declaration": "TestCombinedGroupRepositoryListPreservesActivePseudoFilterComposition",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        79
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/list_behavior_test.go",
+      "declaration": "TestCombinedGroupRepositoryListPreservesEmptyNilSlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        108
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/list_behavior_test.go",
+      "declaration": "TestGroupSupervisorRepositoryListPreservesActivePseudoFilterComposition",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        44
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/active/staff_absence_audit_test.go",
       "declaration": "TestStaffAbsenceAuditRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -19202,6 +19232,26 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         65
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/staff_vacation_quota_list_test.go",
+      "declaration": "TestStaffVacationQuotaRepositoryListPreservesEmptyNilSlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        44
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/active/staff_vacation_quota_list_test.go",
+      "declaration": "TestStaffVacationQuotaRepositoryListPreservesQueryOptionsBehavior",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        18
       ],
       "tables": []
     },
@@ -20186,6 +20236,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         170
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/activities/list_behavior_test.go",
+      "declaration": "TestActivityGroupRepositoryListWithCategoryPreservesJoinAndEmptySlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        17
       ],
       "tables": []
     },
@@ -23164,6 +23224,16 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/education/list_behavior_test.go",
+      "declaration": "TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        20
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/education/supervised_groups_test.go",
       "declaration": "TestGroupRepository_ListStaffIDsByEducationGroupIDs",
       "target": "database/repositories.NewFactory",
@@ -23809,6 +23879,36 @@
       "tables": [
         "schedule.activity_instances"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/list_behavior_test.go",
+      "declaration": "TestDateframeRepositoryListPreservesQueryOptionsBehavior",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        19
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/list_behavior_test.go",
+      "declaration": "TestRecurrenceRuleRepositoryListPreservesEmptySlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        78
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/list_behavior_test.go",
+      "declaration": "TestRecurrenceRuleRepositoryListPreservesQueryOptionsBehavior",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        56
+      ],
+      "tables": []
     },
     {
       "scope": "test",
@@ -24603,6 +24703,26 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         176
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/list_behavior_test.go",
+      "declaration": "TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        49
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/list_behavior_test.go",
+      "declaration": "TestStudentRepositoryListWithOptionsPreservesHydrationOrderAndEmptySlice",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        18
       ],
       "tables": []
     },
@@ -27312,7 +27432,7 @@
       "declaration": "setupEducationService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        22
       ],
       "tables": []
     },
