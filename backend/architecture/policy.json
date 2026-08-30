@@ -367,10 +367,6 @@
       "kind": "workflow"
     },
     {
-      "id": "staffing-substitution",
-      "kind": "domain"
-    },
-    {
       "id": "student-presence",
       "kind": "domain"
     },
@@ -1478,13 +1474,6 @@
       "path": "services/education",
       "owner": "school-structure",
       "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/substitution",
-      "owner": "staffing-substitution",
-      "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -4059,41 +4048,6 @@
       "source_role": "application",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "school-structure.to.staffing-substitution",
-      "description": "The school-structure implementation uses the shared substitution vocabulary.",
-      "scopes": ["production"],
-      "source_owner": "school-structure",
-      "source_role": "application",
-      "target_owner": "staffing-substitution",
-      "target_role": "domain"
-    },
-    {
-      "id": "timetable-activities.to.staffing-substitution",
-      "description": "The timetable adapter implements the shared substitution contract.",
-      "scopes": ["production"],
-      "source_owner": "timetable-activities",
-      "source_role": "application",
-      "target_owner": "staffing-substitution",
-      "target_role": "domain"
-    },
-    {
-      "id": "staffing-substitution.shared-date",
-      "description": "Substitution calendar fields use the established timezone.Date value object.",
-      "scopes": ["production"],
-      "source_owner": "staffing-substitution",
-      "source_role": "domain",
-      "target_owner": "legacy-shared",
-      "target_role": "domain"
-    },
-    {
-      "id": "e2e-test.staffing-substitution",
-      "description": "E2E module-contract tests construct typed substitution commands.",
-      "scopes": ["internal_test", "external_test"],
-      "source_role": "e2e-test",
-      "target_owner": "staffing-substitution",
-      "target_role": "domain"
     },
     {
       "id": "workflow-decision-test.domain",

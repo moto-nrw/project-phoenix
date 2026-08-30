@@ -1,4 +1,4 @@
-package e2e_timetable
+package schedule_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
-	substitution "github.com/moto-nrw/project-phoenix/services/substitution"
+	substitution "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
