@@ -649,8 +649,13 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 	return base.AssertRowsAffected(result, 1, "update group")
 }
 
-// List overrides the base List method to accept the new QueryOptions type
+// List implements the model repository's QueryOptions list contract.
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Group, error) {
+	return r.ListWithOptions(ctx, options)
+}
+
+// ListWithCategory lists groups and their category in one joined snapshot.
+func (r *GroupRepository) ListWithCategory(ctx context.Context, params *activities.GroupListQuery) ([]*activities.Group, error) {
 	groups := make([]*activities.Group, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
@@ -663,26 +668,24 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 		ColumnExpr(`"category"."description" AS "category__description"`).
 		ColumnExpr(`"category"."color" AS "category__color"`).
 		Join(`LEFT JOIN activities.categories AS "category" ON "category"."id" = "group"."category_id"`)
-
 	query = base.WithTenantFilter(ctx, query, "group")
-
-	// Apply query options with table alias to avoid ambiguous column references
-	// (both "group" and "category" have "id" columns)
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("group")
+	if params != nil {
+		if params.Name != "" {
+			query = query.Where(`"group".name = ?`, params.Name)
 		}
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
+		if params.CategoryID != nil {
+			query = query.Where(`"group".category_id = ?`, *params.CategoryID)
+		}
+		if params.IsSystem != nil {
+			query = query.Where(`"group".is_system = ?`, *params.IsSystem)
+		}
+		if len(params.IDs) > 0 {
+			query = query.Where(`"group".id IN (?)`, bun.List(params.IDs))
 		}
 	}
-
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
+	}
 	return groups, nil
 }
 

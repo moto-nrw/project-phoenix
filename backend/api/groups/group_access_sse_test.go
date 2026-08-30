@@ -22,7 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -188,11 +188,9 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	queryOptions := base.NewQueryOptions()
-	queryOptions.Filter.Equal("name", groupName)
 	groupCount, err := tc.resource.EducationService.CountGroups(
 		testpkg.Ctx(t),
-		queryOptions,
+		&educationModels.GroupListQuery{Name: groupName},
 	)
 	require.NoError(t, err)
 	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -56,7 +55,7 @@ type failingOverviewEducationService struct {
 	educationService.Service
 }
 
-func (failingOverviewEducationService) ListGroups(context.Context, *modelBase.QueryOptions) ([]*educationModels.Group, error) {
+func (failingOverviewEducationService) ListGroups(context.Context, *educationModels.GroupListQuery) ([]*educationModels.Group, error) {
 	return nil, errors.New("group database unavailable")
 }
 

@@ -1139,21 +1139,6 @@ func applyStudentStringLikeFilter(filter *modelBase.Filter, column string, value
 
 // ListWithOptions provides a type-safe way to list students with query options
 func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	// Apply query options with table alias
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("student")
-		}
-		query = options.ApplyToQuery(query)
-	}
-
 	// Without an ORDER BY, PostgreSQL is free to return the same rows in a
 	// different order for every execution, so two LIMIT/OFFSET requests over the
 	// same selection can hand back the same child twice and never mention
@@ -1162,16 +1147,23 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	// total order, so fall back to the primary key when the caller did not ask
 	// for a specific one. An explicit Sorting wins: it is then the caller's job
 	// to make it total.
+	listOptions := &modelBase.QueryOptions{}
+	if options != nil {
+		*listOptions = *options
+	}
 	if options == nil || options.Sorting == nil {
-		query = query.OrderExpr(`"student".id ASC`)
+		listOptions.Sorting = &modelBase.Sorting{Fields: []modelBase.SortField{{
+			Field:     "id",
+			Direction: modelBase.SortAsc,
+		}}}
 	}
 
-	err := query.Scan(ctx)
+	students, err := r.Repository.ListWithOptions(ctx, listOptions)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
+		return nil, err
+	}
+	if len(students) == 0 {
+		return nil, nil
 	}
 
 	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {

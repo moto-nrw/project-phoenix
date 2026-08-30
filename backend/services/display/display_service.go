@@ -322,7 +322,7 @@ func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
 		return nil, fmt.Errorf("active visits: %w", err)
 	}
 
-	templates, err := s.ActivityGroupRepo.List(ctx, nil)
+	templates, err := s.ActivityGroupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("activity templates: %w", err)
 	}

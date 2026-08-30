@@ -120,7 +120,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 	// classification and current activities).
 	// Non-critical: if this fails, dashboard still shows core metrics with
 	// fallback names and an OGS-group count of zero — log it, never swallow it.
-	allActivityGroups, err := s.ActivityGroupRepo.List(ctx, nil)
+	allActivityGroups, err := s.ActivityGroupRepo.ListWithCategory(ctx, nil)
 	if err != nil {
 		s.getLogger().Warn("activity groups load failed, dashboard degrades to fallback names",
 			"error", err.Error(),

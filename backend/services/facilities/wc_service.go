@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 )
@@ -112,12 +111,7 @@ func (s *wcService) EnsureInfrastructure(ctx context.Context) (*activityModels.G
 
 // findWCActivity finds the WC activity group by name.
 func (s *wcService) findWCActivity(ctx context.Context) (*activityModels.Group, error) {
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", constants.WCActivityName)
-	options.Filter = filter
-
-	groups, err := s.activityService.ListGroups(ctx, options)
+	groups, err := s.activityService.ListGroups(ctx, &activityModels.GroupListQuery{Name: constants.WCActivityName})
 	if err != nil {
 		return nil, fmt.Errorf("failed to query WC activity: %w", err)
 	}

@@ -367,6 +367,9 @@ func (m *mockGroupRepo) List(_ context.Context, _ map[string]interface{}) ([]*ed
 func (m *mockGroupRepo) ListWithOptions(_ context.Context, _ *base.QueryOptions) ([]*education.Group, error) {
 	return m.groups, m.err
 }
+func (m *mockGroupRepo) ListWithRooms(_ context.Context, _ *education.GroupListQuery) ([]*education.Group, error) {
+	return m.groups, m.err
+}
 func (m *mockGroupRepo) FindByName(_ context.Context, _ string) (*education.Group, error) {
 	return nil, nil
 }
