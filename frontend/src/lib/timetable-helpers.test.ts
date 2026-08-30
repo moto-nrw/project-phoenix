@@ -802,6 +802,34 @@ describe("backend mappers", () => {
     });
   });
 
+  it("preserves shared-substitution conflict details", () => {
+    expect(
+      mapApplyDeviations({
+        instance_id: 42,
+        cancelled: false,
+        understaffed_ack: false,
+        affected_instances: [],
+        warnings: [
+          {
+            kind: "staff_overlap",
+            instance_id: 42,
+            other_instance_id: 43,
+            message: "Die Ersatzperson hat gleichzeitig einen anderen Termin.",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      warnings: [
+        {
+          kind: "staff_overlap",
+          instanceId: "42",
+          otherInstanceId: "43",
+          message: "Die Ersatzperson hat gleichzeitig einen anderen Termin.",
+        },
+      ],
+    });
+  });
+
   it("maps a bulk-substitution result per day and aggregates warnings (#2284)", () => {
     expect(
       mapBulkSubstitution({

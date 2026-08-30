@@ -86,6 +86,8 @@ import {
   mapDeviationHistory,
   mapApplyDeviations,
   mapBulkSubstitution,
+  prepareApplyDeviationsBody,
+  prepareBulkSubstitutionBody,
   mapMoveStaff,
   mapStaffPool,
   mapInstance,
@@ -846,51 +848,7 @@ class TimetableService {
     instanceId: string,
     input: ApplyDeviationsInput,
   ): Promise<ApplyDeviationsResponse> {
-    const body: Record<string, unknown> = {};
-    if (input.cancel) {
-      body.cancel = true;
-      if (input.cancelReason) body.cancel_reason = input.cancelReason;
-      if (input.guardianNotice) {
-        body.guardian_notice = {
-          title: input.guardianNotice.title,
-          message: input.guardianNotice.message,
-        };
-      }
-    } else {
-      if (input.understaffedAck !== undefined) {
-        body.understaffed_ack = input.understaffedAck;
-        if (input.understaffedAck && input.understaffedNote) {
-          body.understaffed_note = input.understaffedNote;
-        }
-      }
-      if (input.absences && input.absences.length > 0) {
-        body.absences = input.absences.map((a) => ({
-          staff_id: Number(a.staffId),
-          reason: a.reason ?? undefined,
-          instance_ids: a.instanceIds?.map(Number),
-        }));
-      }
-      if (input.substitutions && input.substitutions.length > 0) {
-        body.substitutions = input.substitutions.map((s) => ({
-          absent_staff_id: Number(s.absentStaffId),
-          substitute_staff_id: Number(s.substituteStaffId),
-          reason: s.reason ?? undefined,
-          instance_ids: s.instanceIds?.map(Number),
-        }));
-      }
-      if (input.substitutionRemovals && input.substitutionRemovals.length > 0) {
-        body.substitution_removals = input.substitutionRemovals.map((r) => ({
-          staff_id: Number(r.staffId),
-          instance_ids: r.instanceIds?.map(Number),
-        }));
-      }
-      if (input.presences && input.presences.length > 0) {
-        body.presences = input.presences.map((presence) => ({
-          staff_id: Number(presence.staffId),
-          instance_ids: presence.instanceIds?.map(Number),
-        }));
-      }
-    }
+    const body = prepareApplyDeviationsBody(input);
 
     const response = await fetch(
       `/api/timetable/instances/${instanceId}/deviations`,
@@ -922,14 +880,7 @@ class TimetableService {
   async applyBulkSubstitution(
     input: BulkSubstitutionInput,
   ): Promise<BulkSubstitutionResponse> {
-    const body: Record<string, unknown> = {
-      absent_staff_id: Number(input.absentStaffId),
-      dates: input.dates,
-    };
-    if (input.substituteStaffId) {
-      body.substitute_staff_id = Number(input.substituteStaffId);
-    }
-    if (input.reason) body.reason = input.reason;
+    const body = prepareBulkSubstitutionBody(input);
 
     const response = await fetch("/api/timetable/substitutions/bulk", {
       method: "POST",
