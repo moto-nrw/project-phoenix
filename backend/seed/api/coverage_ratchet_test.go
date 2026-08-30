@@ -89,7 +89,6 @@ var seedCoverageAllowlist = map[string]string{
 	"education.grade_transition_history":            "GAP: prod has 472 rows",
 	"education.grade_transition_mappings":           "GAP: prod has 33 rows",
 	"education.grade_transitions":                   "GAP: prod has 2 rows",
-	"education.group_substitution":                  "GAP: prod has 4 rows",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
 	"enrollment.change_request_messages":     "GAP: prod has 2 rows",

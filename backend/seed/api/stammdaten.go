@@ -122,6 +122,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedGroups(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed groups: %w", err)
 	}
+	if err := s.seedGroupHandover(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed group handover: %w", err)
+	}
 
 	// 7. Create students
 	if err := s.seedStudents(ctx, result); err != nil {
