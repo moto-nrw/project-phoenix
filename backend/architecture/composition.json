@@ -1264,8 +1264,8 @@
       "declaration": "TestCareExitHandlers_PreviewThenConfirm",
       "target": "database/repositories.NewFactory",
       "lines": [
-        360,
-        372
+        367,
+        379
       ],
       "tables": []
     },
@@ -1275,7 +1275,7 @@
       "declaration": "TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        227
+        234
       ],
       "tables": []
     },
@@ -1285,7 +1285,7 @@
       "declaration": "TestCareWithdrawalHandlers_PreviewThenConfirmOneTask",
       "target": "database/repositories.NewFactory",
       "lines": [
-        253
+        260
       ],
       "tables": []
     },
@@ -1295,7 +1295,7 @@
       "declaration": "TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        141
+        148
       ],
       "tables": []
     },
