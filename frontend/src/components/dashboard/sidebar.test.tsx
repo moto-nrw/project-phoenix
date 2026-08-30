@@ -396,6 +396,14 @@ describe("Sidebar", () => {
       );
     });
 
+    it("hides Kommunikation when no child page is accessible", () => {
+      mockHasPermission.mockReturnValue(false);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Kommunikation")).not.toBeInTheDocument();
+    });
+
     it("hides admin-only items for staff", () => {
       render(<Sidebar />);
 

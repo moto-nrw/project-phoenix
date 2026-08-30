@@ -27,7 +27,7 @@ export interface StaffNotice {
   /** Zeitpunkt der EIGENEN Kenntnisnahme, sofern erfolgt */
   acknowledged_at?: string;
   /** Wie viele Personen den Hinweis bestätigt haben */
-  acknowledged_count: number;
+  acknowledged_count?: number;
 }
 
 export interface StaffNoticeInput {

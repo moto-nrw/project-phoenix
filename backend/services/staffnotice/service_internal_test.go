@@ -21,6 +21,7 @@ type fakeNoticeRepo struct {
 	notices     []*usersModels.StaffNotice
 	own         map[int64]time.Time
 	counts      map[int64]int
+	countsCalls int
 	acked       []int64
 	createdWith *usersModels.StaffNotice
 }
@@ -59,6 +60,7 @@ func (f *fakeNoticeRepo) AcknowledgedAtFor(context.Context, int64, []int64) (map
 	return f.own, nil
 }
 func (f *fakeNoticeRepo) AcknowledgedCounts(context.Context, []int64) (map[int64]int, error) {
+	f.countsCalls++
 	if f.counts == nil {
 		return map[int64]int{}, nil
 	}
@@ -139,13 +141,24 @@ func TestTodayHonoursWeekPattern(t *testing.T) {
 	anchor := mustDate(t, "2026-08-03")
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "Schuljahr",
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
 		StartDate:       mustDate(t, "2026-08-01"),
 		EndDate:         mustDate(t, "2027-07-31"),
 		WeekCycleLength: 2,
 		WeekCycleAnchor: &anchor,
 		IsActive:        true,
 	}
-	periods := &fakePeriodRepo{periods: []*scheduleModels.CalendarPeriod{period}}
+	holidayAnchor := mustDate(t, "2026-08-10")
+	holiday := &scheduleModels.CalendarPeriod{
+		Name:            "Ferien",
+		PeriodType:      scheduleModels.PeriodTypeHoliday,
+		StartDate:       mustDate(t, "2026-08-01"),
+		EndDate:         mustDate(t, "2026-08-31"),
+		WeekCycleLength: 2,
+		WeekCycleAnchor: &holidayAnchor,
+		IsActive:        true,
+	}
+	periods := &fakePeriodRepo{periods: []*scheduleModels.CalendarPeriod{holiday, period}}
 
 	weekA := newNotice(t, 31, nil, scheduleModels.WeekPatternA)
 	weekB := newNotice(t, 32, nil, scheduleModels.WeekPatternB)
@@ -196,7 +209,23 @@ func TestTodayAttachesOwnAcknowledgement(t *testing.T) {
 	require.Len(t, views, 1)
 	require.NotNil(t, views[0].AcknowledgedAt)
 	assert.Equal(t, stamp, *views[0].AcknowledgedAt)
+	assert.Zero(t, views[0].AcknowledgedCount)
+	assert.Zero(t, repo.countsCalls, "die Teamansicht darf keine Kenntnisnahmen anderer laden")
+}
+
+func TestListAttachesAcknowledgementCounts(t *testing.T) {
+	t.Parallel()
+	repo := &fakeNoticeRepo{
+		notices: []*usersModels.StaffNotice{newNotice(t, 52, nil, 0)},
+		counts:  map[int64]int{52: 4},
+	}
+	svc := NewService(ServiceConfig{Repo: repo})
+
+	views, err := svc.List(context.Background(), 42, true)
+	require.NoError(t, err)
+	require.Len(t, views, 1)
 	assert.Equal(t, 4, views[0].AcknowledgedCount)
+	assert.Equal(t, 1, repo.countsCalls)
 }
 
 func TestAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
@@ -280,6 +309,7 @@ func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
 				Active:                  true,
 			},
 			periods: &fakePeriodRepo{periods: []*scheduleModels.CalendarPeriod{{
+				PeriodType:      scheduleModels.PeriodTypeSchoolYear,
 				StartDate:       today.AddDays(-7),
 				EndDate:         today.AddDays(7),
 				WeekCycleLength: 2,

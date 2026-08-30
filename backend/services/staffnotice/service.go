@@ -111,7 +111,7 @@ func (s *service) List(ctx context.Context, accountID int64, includeInactive boo
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: list: %w", err)
 	}
-	return s.decorate(ctx, accountID, rows)
+	return s.decorate(ctx, accountID, rows, true)
 }
 
 func (s *service) Today(ctx context.Context, accountID int64, date timezone.Date) ([]*usersModels.StaffNoticeView, error) {
@@ -132,7 +132,7 @@ func (s *service) Today(ctx context.Context, accountID int64, date timezone.Date
 	if err != nil {
 		return nil, err
 	}
-	return s.decorate(ctx, accountID, matching)
+	return s.decorate(ctx, accountID, matching, false)
 }
 
 // filterByWeekPattern wirft die Hinweise raus, deren Woche heute nicht dran
@@ -169,15 +169,21 @@ func (s *service) filterByWeekPattern(
 	return kept, nil
 }
 
-// periodFor sucht den aktiven Kalenderzeitraum, der den Tag enthält und einen
-// Wochenzyklus führt. Ohne Treffer nil — ShouldMaterializeWeekPattern lässt
-// den Hinweis dann durch, statt ihn stumm verschwinden zu lassen.
+// periodFor sucht das aktive Schuljahr, das den Tag enthält und einen
+// Wochenzyklus führt. Für Tagesinformationen ist das Schuljahr der eindeutige
+// Träger von Woche A/B: Ferien, Halbjahre und eigene Zeiträume dürfen sich
+// damit überschneiden, ohne die Wiederholung zu verändern. Ohne Treffer nil —
+// ShouldMaterializeWeekPattern lässt den Hinweis dann durch, statt ihn stumm
+// verschwinden zu lassen.
 func (s *service) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
 	periods, err := s.periods.FindActiveByTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: load calendar periods: %w", err)
 	}
 	for _, period := range periods {
+		if period.PeriodType != scheduleModels.PeriodTypeSchoolYear {
+			continue
+		}
 		if period.WeekCycleLength <= 1 || period.WeekCycleAnchor == nil {
 			continue
 		}
@@ -189,12 +195,13 @@ func (s *service) periodFor(ctx context.Context, date timezone.Date) (*scheduleM
 	return nil, nil
 }
 
-// decorate hängt an jede Zeile die eigene Kenntnisnahme und die Gesamtzahl der
-// Kenntnisnahmen — zwei gebündelte Abfragen für die ganze Liste, kein N+1.
+// decorate hängt an jede Zeile die eigene Kenntnisnahme und für die Leitung
+// optional die Gesamtzahl der Kenntnisnahmen — jeweils gebündelt, ohne N+1.
 func (s *service) decorate(
 	ctx context.Context,
 	accountID int64,
 	notices []*usersModels.StaffNotice,
+	includeAcknowledgedCounts bool,
 ) ([]*usersModels.StaffNoticeView, error) {
 	views := make([]*usersModels.StaffNoticeView, 0, len(notices))
 	if len(notices) == 0 {
@@ -210,9 +217,12 @@ func (s *service) decorate(
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: own acknowledgements: %w", err)
 	}
-	counts, err := s.repo.AcknowledgedCounts(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("staffnotice: acknowledgement counts: %w", err)
+	counts := map[int64]int{}
+	if includeAcknowledgedCounts {
+		counts, err = s.repo.AcknowledgedCounts(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("staffnotice: acknowledgement counts: %w", err)
+		}
 	}
 
 	for _, notice := range notices {

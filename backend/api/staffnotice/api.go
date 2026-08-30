@@ -89,10 +89,10 @@ type noticeResponse struct {
 	RequiresAcknowledgement bool    `json:"requires_acknowledgement"`
 	Active                  bool    `json:"active"`
 	AcknowledgedAt          *string `json:"acknowledged_at,omitempty"`
-	AcknowledgedCount       int     `json:"acknowledged_count"`
+	AcknowledgedCount       *int    `json:"acknowledged_count,omitempty"`
 }
 
-func toResponse(view *usersModels.StaffNoticeView) noticeResponse {
+func toResponse(view *usersModels.StaffNoticeView, includeAcknowledgedCount bool) noticeResponse {
 	out := noticeResponse{
 		ID:                      strconv.FormatInt(view.ID, 10),
 		Title:                   view.Title,
@@ -103,7 +103,10 @@ func toResponse(view *usersModels.StaffNoticeView) noticeResponse {
 		WeekPattern:             view.WeekPattern,
 		RequiresAcknowledgement: view.RequiresAcknowledgement,
 		Active:                  view.Active,
-		AcknowledgedCount:       view.AcknowledgedCount,
+	}
+	if includeAcknowledgedCount {
+		count := view.AcknowledgedCount
+		out.AcknowledgedCount = &count
 	}
 	if view.ValidUntil != nil {
 		until := view.ValidUntil.String()
@@ -119,10 +122,10 @@ func toResponse(view *usersModels.StaffNoticeView) noticeResponse {
 	return out
 }
 
-func toResponses(views []*usersModels.StaffNoticeView) []noticeResponse {
+func toResponses(views []*usersModels.StaffNoticeView, includeAcknowledgedCount bool) []noticeResponse {
 	out := make([]noticeResponse, 0, len(views))
 	for _, view := range views {
-		out = append(out, toResponse(view))
+		out = append(out, toResponse(view, includeAcknowledgedCount))
 	}
 	return out
 }
@@ -136,7 +139,7 @@ func (rs *Resource) today(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	render.JSON(w, r, map[string]any{"data": toResponses(views)})
+	render.JSON(w, r, map[string]any{"data": toResponses(views, false)})
 }
 
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +151,7 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	render.JSON(w, r, map[string]any{"data": toResponses(views)})
+	render.JSON(w, r, map[string]any{"data": toResponses(views, true)})
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +168,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 	render.Status(r, http.StatusCreated)
 	render.JSON(w, r, map[string]any{
-		"data": toResponse(&usersModels.StaffNoticeView{StaffNotice: notice}),
+		"data": toResponse(&usersModels.StaffNoticeView{StaffNotice: notice}, true),
 	})
 }
 
@@ -187,7 +190,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(w, r, map[string]any{
-		"data": toResponse(&usersModels.StaffNoticeView{StaffNotice: notice}),
+		"data": toResponse(&usersModels.StaffNoticeView{StaffNotice: notice}, true),
 	})
 }
 

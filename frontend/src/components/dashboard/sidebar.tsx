@@ -1233,27 +1233,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Kommunikation accordion — was intern bleibt: Team-Chat und
               Tagesinformationen. Sichtbar für alle Mitarbeitenden, der Chat
               per Schalter (#2598). */}
-          <SidebarAccordionSection
-            icon={navigationIcons.chat}
-            label={COMMUNICATION_SECTION.label}
-            activeColor="text-moto-orange"
-            isExpanded={expanded === "kommunikation"}
-            onToggle={handleCommunicationToggle}
-            isActive={isOnCommunicationPage}
-            isIconActive={isOnCommunicationPage}
-            hasChildren={communicationSubPages.length > 0}
-            badgeCount={communicationSectionBadgeCount}
-          >
-            {communicationSubPages.map((page) => (
-              <SidebarSubItem
-                key={page.href}
-                href={tenantPath(page.href)}
-                label={page.label}
-                isActive={activeCommunicationSubPageHref === page.href}
-                badgeCount={communicationBadgeCounts[page.href] ?? 0}
-              />
-            ))}
-          </SidebarAccordionSection>
+          {communicationSubPages.length > 0 && (
+            <SidebarAccordionSection
+              icon={navigationIcons.chat}
+              label={COMMUNICATION_SECTION.label}
+              activeColor="text-moto-orange"
+              isExpanded={expanded === "kommunikation"}
+              onToggle={handleCommunicationToggle}
+              isActive={isOnCommunicationPage}
+              isIconActive={isOnCommunicationPage}
+              hasChildren={communicationSubPages.length > 0}
+              badgeCount={communicationSectionBadgeCount}
+            >
+              {communicationSubPages.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={tenantPath(page.href)}
+                  label={page.label}
+                  isActive={activeCommunicationSubPageHref === page.href}
+                  badgeCount={communicationBadgeCounts[page.href] ?? 0}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
 
           {/* Eltern accordion — bundles the parent-communication surfaces
               (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an
