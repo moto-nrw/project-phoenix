@@ -15,6 +15,8 @@ import (
 const schedulerUnitTenantID int64 = 1
 
 func TestStopCancelsRunningTaskContexts(t *testing.T) {
+	t.Parallel()
+
 	scheduler := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 	ctx, cancel := scheduler.taskContext(time.Hour)
 	defer cancel()
