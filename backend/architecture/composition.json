@@ -32896,6 +32896,26 @@
     },
     {
       "scope": "test",
+      "file": "test/e2e/timetable/substitution_module_interface_test.go",
+      "declaration": "newScheduleSubstitutionModule",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        508
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "test/e2e/timetable/substitution_module_interface_test.go",
+      "declaration": "newScheduleSubstitutionModule",
+      "target": "services.NewFactory",
+      "lines": [
+        509
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "test/tenant_runtime_test.go",
       "declaration": "TestUnitOfWorkCommitsSuccessfulCommand",
       "target": "database/repositories.NewFactory",

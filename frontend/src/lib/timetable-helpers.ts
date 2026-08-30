@@ -56,6 +56,8 @@ import type {
   DeviationHistoryEvent,
   DeviationHistoryResponse,
   ApplyDeviationsResponse,
+  ApplyDeviationsInput,
+  BulkSubstitutionInput,
   InstanceStaffSummary,
   InstanceStudentSummary,
   GuardianNoticeReach,
@@ -781,6 +783,75 @@ export function mapApplyDeviations(
       endTime: warning.end_time,
     })),
     guardianNotice: mapGuardianNoticeResult(raw.guardian_notice),
+  };
+}
+
+export function prepareApplyDeviationsBody(
+  input: ApplyDeviationsInput,
+): Record<string, unknown> {
+  if (input.cancel) {
+    return {
+      cancel: true,
+      ...(input.cancelReason ? { cancel_reason: input.cancelReason } : {}),
+      ...(input.guardianNotice
+        ? {
+            guardian_notice: {
+              title: input.guardianNotice.title,
+              message: input.guardianNotice.message,
+            },
+          }
+        : {}),
+    };
+  }
+  const body: Record<string, unknown> = {};
+  if (input.understaffedAck !== undefined) {
+    body.understaffed_ack = input.understaffedAck;
+    if (input.understaffedAck && input.understaffedNote) {
+      body.understaffed_note = input.understaffedNote;
+    }
+  }
+  if (input.absences?.length) {
+    body.absences = input.absences.map((item) => ({
+      staff_id: Number(item.staffId),
+      reason: item.reason,
+      instance_ids: item.instanceIds?.map(Number),
+    }));
+  }
+  if (input.substitutions?.length) {
+    body.substitutions = input.substitutions.map((item) => ({
+      absent_staff_id: Number(item.absentStaffId),
+      substitute_staff_id: Number(item.substituteStaffId),
+      reason: item.reason,
+      instance_ids: item.instanceIds?.map(Number),
+    }));
+  }
+  if (input.substitutionRemovals?.length) {
+    body.substitution_removals =
+      input.substitutionRemovals.map(scopedStaffBody);
+  }
+  if (input.presences?.length) {
+    body.presences = input.presences.map(scopedStaffBody);
+  }
+  return body;
+}
+
+function scopedStaffBody(item: { staffId: string; instanceIds?: string[] }) {
+  return {
+    staff_id: Number(item.staffId),
+    instance_ids: item.instanceIds?.map(Number),
+  };
+}
+
+export function prepareBulkSubstitutionBody(
+  input: BulkSubstitutionInput,
+): Record<string, unknown> {
+  return {
+    absent_staff_id: Number(input.absentStaffId),
+    dates: input.dates,
+    ...(input.substituteStaffId
+      ? { substitute_staff_id: Number(input.substituteStaffId) }
+      : {}),
+    ...(input.reason ? { reason: input.reason } : {}),
   };
 }
 
