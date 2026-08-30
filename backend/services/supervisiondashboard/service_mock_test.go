@@ -307,6 +307,8 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 	assert.Equal(t, "Adler", groups[0].Name)
 	assert.True(t, groups[0].IsCurrentUserSupervising)
 	assert.False(t, groups[1].IsCurrentUserSupervising)
+	assert.True(t, groups[0].CanAssign)
+	assert.True(t, groups[1].CanAssign)
 
 	active.listActiveGroupsFn = func() ([]*activeModels.Group, error) { return nil, errors.New("boom") }
 	_, err = svc.resolveGroups(ctx, &staffID)
@@ -357,6 +359,8 @@ func TestResolveGroupsMarksEveryPersonalGroupAsOwn(t *testing.T) {
 	require.Len(t, groups, 2)
 	assert.True(t, groups[0].IsCurrentUserSupervising)
 	assert.True(t, groups[1].IsCurrentUserSupervising)
+	assert.True(t, groups[0].CanAssign)
+	assert.True(t, groups[1].CanAssign)
 }
 
 func TestLoadStaticSectionsBranches(t *testing.T) {

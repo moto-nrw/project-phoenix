@@ -22,6 +22,7 @@ export interface ActiveSupervisionRoom {
   student_count?: number;
   supervisor_name?: string;
   isCurrentUserSupervising?: boolean;
+  canAssign?: boolean;
   students?: ActiveSupervisionStudent[];
 }
 
@@ -171,6 +172,7 @@ interface SupervisedGroupLike {
   room_id?: string;
   room?: { id: string; name: string; color?: string | null };
   isCurrentUserSupervising?: boolean;
+  canAssign?: boolean;
 }
 
 interface EducationalGroupLike {
@@ -204,6 +206,7 @@ export function mapSupervisedGroupsToRooms(
       student_count: undefined,
       supervisor_name: undefined,
       isCurrentUserSupervising: group.isCurrentUserSupervising === true,
+      canAssign: group.canAssign === true,
     }))
     .sort(
       (a, b) =>
@@ -262,7 +265,7 @@ export function additionalSupervisionTarget(options: {
       ? (options.schulhofStatus.activeGroupId ?? null)
       : null;
   }
-  return options.currentRoom?.id ?? null;
+  return options.currentRoom?.canAssign ? options.currentRoom.id : null;
 }
 
 function mapVisitToSupervisionStudent(

@@ -21,6 +21,7 @@ interface WireGroup {
   room_name?: string;
   room_color?: string | null;
   is_current_user_supervising: boolean;
+  can_assign: boolean;
 }
 
 interface WireUnclaimedGroup {
@@ -189,6 +190,7 @@ interface ActiveSupervisionDashboardResponse {
   supervisedGroups: Array<{
     id: string;
     name: string;
+    canAssign: boolean;
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;
@@ -324,6 +326,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
     supervisedGroups: (wire.groups ?? []).map((g) => ({
       id: g.id,
       name: g.name,
+      canAssign: g.can_assign,
       isCurrentUserSupervising: g.is_current_user_supervising,
       room_id: g.room_id,
       room: g.room_id

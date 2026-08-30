@@ -98,6 +98,7 @@ type Group struct {
 	RoomName                 string  `json:"room_name,omitempty"`
 	RoomColor                *string `json:"room_color,omitempty"`
 	IsCurrentUserSupervising bool    `json:"is_current_user_supervising"`
+	CanAssign                bool    `json:"can_assign"`
 }
 
 type UnclaimedGroup struct {
@@ -315,6 +316,8 @@ func (s *service) resolveGroups(ctx context.Context, staffID *int64) ([]Group, e
 	if err != nil {
 		return nil, err
 	}
+	principal, principalErr := permissions.PrincipalFromContext(ctx)
+	admin := principalErr == nil && principal.HasAdminScope()
 
 	var groups []*activeModels.Group
 	if broad {
@@ -354,6 +357,7 @@ func (s *service) resolveGroups(ctx context.Context, staffID *int64) ([]Group, e
 		if broad {
 			_, item.IsCurrentUserSupervising = ownedGroupIDs[group.ID]
 		}
+		item.CanAssign = admin || item.IsCurrentUserSupervising
 		if group.ActualGroup != nil {
 			item.Name = group.ActualGroup.Name
 		}

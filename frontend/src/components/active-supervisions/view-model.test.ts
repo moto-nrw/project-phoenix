@@ -397,6 +397,7 @@ describe("supervision tab identity (#2265)", () => {
         currentRoom: {
           id: "active-1",
           name: "Freispiel",
+          canAssign: true,
           isCurrentUserSupervising: true,
         },
         isSchulhofTabSelected: false,
@@ -405,11 +406,18 @@ describe("supervision tab identity (#2265)", () => {
     ).toBe("active-1");
     expect(
       additionalSupervisionTarget({
-        currentRoom: { id: "active-2", name: "Malen" },
+        currentRoom: { id: "active-2", name: "Malen", canAssign: true },
         isSchulhofTabSelected: false,
         schulhofStatus: null,
       }),
     ).toBe("active-2");
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: { id: "active-3", name: "Basteln", canAssign: false },
+        isSchulhofTabSelected: false,
+        schulhofStatus: null,
+      }),
+    ).toBeNull();
     expect(
       additionalSupervisionTarget({
         currentRoom: null,
