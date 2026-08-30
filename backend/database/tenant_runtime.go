@@ -170,6 +170,21 @@ func (r *PostgresUnitOfWork) ReleaseSavepoint(ctx context.Context) error {
 	return err
 }
 
+// AcquireLock takes a transaction-scoped advisory lock through the active
+// PostgreSQL transaction.
+func (r *PostgresUnitOfWork) AcquireLock(ctx context.Context, key string, shared bool) error {
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("tenant runtime: transaction is required")
+	}
+	if shared {
+		_, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", key)
+		return err
+	}
+	_, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}
+
 func savepointTx(ctx context.Context) (*bun.Tx, error) {
 	tx, ok := modelBase.TxFromContext(ctx)
 	if !ok {

@@ -428,10 +428,10 @@ func NewFactory(db *bun.DB) *Factory {
 		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
-		SettingValue:      config.NewSettingValueRepository(db),
-		SettingAudit:      config.NewSettingAuditRepository(db),
-		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
-		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
+		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
+		SettingAudit:      config.NewSettingAuditRepository(config.NewRuntime(db)),
+		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(config.NewRuntime(db)),
+		WorkTimeModel:     config.NewWorkTimeModelRepository(config.NewRuntime(db)),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
@@ -522,4 +522,13 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
+}
+
+// SetConfigRuntime replaces the bootstrap repositories with tenant-aware
+// instances before the service graph captures them.
+func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
+	f.SettingValue = config.NewSettingValueRepository(runtime)
+	f.SettingAudit = config.NewSettingAuditRepository(runtime)
+	f.StaffWorkSchedule = config.NewStaffWorkScheduleRepository(runtime)
+	f.WorkTimeModel = config.NewWorkTimeModelRepository(runtime)
 }

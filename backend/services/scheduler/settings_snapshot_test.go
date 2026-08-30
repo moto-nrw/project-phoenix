@@ -77,8 +77,8 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	valueRepository := configRepository.NewSettingValueRepository(db)
-	settings := configService.NewSettingsService(valueRepository, nil, nil, db, slog.Default())
+	valueRepository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
+	settings := configService.NewSettingsService(valueRepository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	scheduler := unitScheduler(&Scheduler{
 		db:         db,
 		schoolRepo: platformRepository.NewSchoolRepository(db),

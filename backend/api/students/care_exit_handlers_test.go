@@ -79,6 +79,10 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	}
 	setEnrolledUntil(t, tc, endedWithoutTask.ID, today.AddDays(-1))
 	firstGap := today.AddDays(1)
+	horizon := today.AddDays((7 - int(today.Weekday())) % 7)
+	if firstGap.After(horizon) {
+		t.Skip("today closes the planning horizon; no future planning day to ask for")
+	}
 	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, firstGap)
 	actor := testpkg.CreateTestAccount(t, tc.db, "participation-reader@example.test")
 	claims := testutil.AdminTestClaims(int(actor.ID))
@@ -88,7 +92,6 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	assert.True(t, listedIDs("")[student.ID], "the child remains visible before the gap")
 	assert.False(t, listedIDs("&include_pending_withdrawals=true")[endedWithoutTask.ID], "the administration exception must not restore every ended child")
 
-	horizon := today.AddDays((7 - int(today.Weekday())) % 7)
 	if !firstGap.After(horizon) {
 		assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
 		assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")

@@ -1,11 +1,9 @@
-package defaults_test
+package defaults
 
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -230,7 +228,7 @@ func TestFederalStateSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyFederalState)
 	require.NotNil(t, def, "operations.federal_state should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, holidays.DefaultRegion, def.Default, "default must stay DE-NW - existing schools are NRW")
+	assert.Equal(t, "DE-NW", def.Default, "default must stay DE-NW - existing schools are NRW")
 	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "federal_state is operator-only - changing it shifts the whole Arbeitszeitkonto")
 	assert.Equal(t, "operations", def.Tab)
 
@@ -238,12 +236,16 @@ func TestFederalStateSetting(t *testing.T) {
 	// regions, or a school could pick a state without a holiday calendar.
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 16)
+	values := make([]string, 0, len(def.Options.Static))
 	for _, opt := range def.Options.Static {
 		value, ok := opt.Value.(string)
 		require.True(t, ok, "federal_state option values must be strings")
-		assert.True(t, holidays.ValidRegion(value), "federal_state option must have a holiday calendar")
+		values = append(values, value)
 	}
-	assert.True(t, holidays.ValidRegion(holidays.DefaultRegion))
+	assert.ElementsMatch(t, []string{
+		"DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+		"DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH",
+	}, values)
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {

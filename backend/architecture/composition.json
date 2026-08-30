@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 567,
+          "line": 571,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -621,7 +621,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 292,
+          "line": 310,
           "declaration": "NewFactory"
         }
       ]
@@ -16935,7 +16935,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_DefaultTrue",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        53
+        54
       ],
       "tables": []
     },
@@ -16945,7 +16945,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_OverrideFalse",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        79
+        80
       ],
       "tables": []
     },
@@ -16955,7 +16955,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        111
+        112
       ],
       "tables": []
     },
@@ -16965,7 +16965,7 @@
       "declaration": "TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        133
+        134
       ],
       "tables": []
     },
@@ -17079,7 +17079,7 @@
       "declaration": "TestTenantResolveEmitsReasonPolicy",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        49
+        50
       ],
       "tables": []
     },
@@ -17089,7 +17089,7 @@
       "declaration": "TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        73
+        74
       ],
       "tables": []
     },
@@ -17303,7 +17303,7 @@
       "declaration": "setupSettingsTest",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        69
+        25
       ],
       "tables": []
     },
@@ -17863,7 +17863,7 @@
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1456
+        1457
       ],
       "tables": []
     },
@@ -17873,10 +17873,8 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1389,
-        1419,
-        1425,
-        1442
+        1388,
+        1427
       ],
       "tables": [
         "config.work_time_models",
@@ -17909,8 +17907,8 @@
       "declaration": "TestCareExitHandlers_PreviewThenConfirm",
       "target": "database/repositories.NewFactory",
       "lines": [
-        371,
-        383
+        374,
+        386
       ],
       "tables": []
     },
@@ -17920,7 +17918,7 @@
       "declaration": "TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        238
+        241
       ],
       "tables": []
     },
@@ -17930,7 +17928,7 @@
       "declaration": "TestCareWithdrawalHandlers_PreviewThenConfirmOneTask",
       "target": "database/repositories.NewFactory",
       "lines": [
-        264
+        267
       ],
       "tables": []
     },
@@ -17940,7 +17938,7 @@
       "declaration": "TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion",
       "target": "database/repositories.NewFactory",
       "lines": [
-        152
+        155
       ],
       "tables": []
     },
@@ -27375,16 +27373,6 @@
     },
     {
       "scope": "test",
-      "file": "services/config/payroll_status_service_test.go",
-      "declaration": "payrollStatusFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        25
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/database/database_service_test.go",
       "declaration": "setupDatabaseService",
       "target": "database/repositories.NewFactory",
@@ -27419,7 +27407,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        183
+        177
       ],
       "tables": []
     },
@@ -27443,10 +27431,7 @@
       "lines": [
         81
       ],
-      "tables": [
-        "education.groups",
-        "platform.schools"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -27454,7 +27439,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        261
+        255
       ],
       "tables": []
     },
@@ -27464,7 +27449,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        221
+        215
       ],
       "tables": []
     },
@@ -31198,8 +31183,8 @@
       "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        362,
-        452
+        367,
+        457
       ],
       "tables": []
     },
@@ -31220,7 +31205,7 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        306
+        311
       ],
       "tables": []
     },
@@ -31230,8 +31215,8 @@
       "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        193,
-        220
+        194,
+        224
       ],
       "tables": [
         "users.staff"
@@ -31243,7 +31228,7 @@
       "declaration": "createOverviewShift",
       "target": "database/repositories.NewFactory",
       "lines": [
-        163
+        164
       ],
       "tables": []
     },

@@ -411,6 +411,7 @@ type Profile struct {
 type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
 	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	EnrollmentSettings    enrollmentSettingsQueries
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
@@ -502,6 +503,10 @@ type ServiceConfig struct {
 
 	DB     *bun.DB
 	Logger *slog.Logger
+}
+
+type enrollmentSettingsQueries interface {
+	EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
 }
 
 type service struct {
@@ -675,6 +680,31 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable: %w", err)
+	}
+	if len(phases) > 0 {
+		if s.EnrollmentSettings == nil {
+			return nil, errors.New("parent: enrollment settings queries not wired")
+		}
+		tenantIDs := make([]int64, 0, len(phases))
+		seen := make(map[int64]struct{}, len(phases))
+		for _, phase := range phases {
+			if _, exists := seen[phase.SchoolID]; exists {
+				continue
+			}
+			seen[phase.SchoolID] = struct{}{}
+			tenantIDs = append(tenantIDs, phase.SchoolID)
+		}
+		enabled, settingsErr := s.EnrollmentSettings.EnrollmentEnabledForTenants(ctx, tenantIDs)
+		if settingsErr != nil {
+			return nil, fmt.Errorf("parent: resolve enrollment settings: %w", settingsErr)
+		}
+		filtered := phases[:0]
+		for _, phase := range phases {
+			if enabled[phase.SchoolID] {
+				filtered = append(filtered, phase)
+			}
+		}
+		phases = filtered
 	}
 
 	s.Logger.Debug("parent: listed enrollable phases",

@@ -24,6 +24,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type failingTenantShellSettings struct {
@@ -142,7 +143,7 @@ func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing
 	}
 	stored.SetTenantID(scope.TenantID)
 	require.NoError(t,
-		configRepo.NewSettingValueRepository(db).Upsert(scope.Context(), stored),
+		configRepo.NewSettingValueRepository(testpkg.ConfigRuntime(db)).Upsert(scope.Context(), stored),
 		"store an unreadable emergency_list_health_info override")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)

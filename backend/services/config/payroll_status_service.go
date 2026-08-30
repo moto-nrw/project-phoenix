@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Payroll configuration status (#1417 Tranche 2b). One source of truth for
@@ -57,12 +56,16 @@ type PayrollStatusGetter interface {
 }
 
 type payrollStatusService struct {
-	settings  SettingsService
-	staffRepo userModels.StaffRepository
+	settings       payrollSettings
+	countPersonnel func(context.Context) (int, int, error)
 }
 
-func NewPayrollStatusService(settings SettingsService, staffRepo userModels.StaffRepository) PayrollStatusGetter {
-	return &payrollStatusService{settings: settings, staffRepo: staffRepo}
+type payrollSettings interface {
+	ResolveString(context.Context, string) (string, error)
+}
+
+func NewPayrollStatusService(settings payrollSettings, countPersonnel func(context.Context) (int, int, error)) PayrollStatusGetter {
+	return &payrollStatusService{settings: settings, countPersonnel: countPersonnel}
 }
 
 type payrollCategory struct {
@@ -186,7 +189,7 @@ func (s *payrollStatusService) resolveLodasHeader(ctx context.Context, snapshot 
 	return berater, mandant, nil
 }
 
-func resolvedPayrollString(ctx context.Context, settings SettingsService, snapshot *SettingsSnapshot, key string) (string, error) {
+func resolvedPayrollString(ctx context.Context, settings payrollSettings, snapshot *SettingsSnapshot, key string) (string, error) {
 	if snapshot != nil {
 		return snapshot.String(key)
 	}
@@ -194,17 +197,12 @@ func resolvedPayrollString(ctx context.Context, settings SettingsService, snapsh
 }
 
 func (s *payrollStatusService) countStaffPersonnelNumbers(ctx context.Context) (int, int, error) {
-	// Tenant staff counts fit in memory (a school has tens of staff, not
-	// thousands); the soft-delete filter comes from the repository.
-	staff, err := s.staffRepo.List(ctx, nil)
+	if s.countPersonnel == nil {
+		return 0, 0, ErrRuntimeUnavailable
+	}
+	staffTotal, withoutPersonnelNumber, err := s.countPersonnel(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("list staff: %w", err)
 	}
-	withoutPersonnelNumber := 0
-	for _, st := range staff {
-		if st.PersonnelNumber == nil || *st.PersonnelNumber == "" {
-			withoutPersonnelNumber++
-		}
-	}
-	return len(staff), withoutPersonnelNumber, nil
+	return staffTotal, withoutPersonnelNumber, nil
 }
