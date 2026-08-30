@@ -1873,6 +1873,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 			return nil
 		},
 		Logger: logger.With("service", "enrollment-decision"),
+		Today:  today,
 	})
 	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
 	if !ok {

@@ -1148,7 +1148,7 @@ func (s *careOfferingService) resyncSourcedTemplates(ctx context.Context, offeri
 			slog.Int64("offering_id", offeringID))
 		return nil
 	}
-	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+	if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, s.todayDate()); err != nil {
 		if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
 			// TenantTxMiddleware commits ordinary 4xx responses. Mark the
 			// ambient transaction so the already-written offering update is
@@ -1193,7 +1193,7 @@ func (s *careOfferingService) detachSourcedTemplates(ctx context.Context, offeri
 			slog.Int64("offering_id", offeringID))
 		return nil
 	}
-	if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, timezone.TodayDate()); err != nil {
+	if err := s.sourcedTemplateResyncer.DetachTemplatesSourcedFromOffering(ctx, offeringID, s.todayDate()); err != nil {
 		return fmt.Errorf("care offering delete: detach sourced templates: %w", err)
 	}
 	return nil

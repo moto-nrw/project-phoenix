@@ -130,7 +130,7 @@ func NewStaffShiftSeriesService(
 		logger:        logger,
 		today:         timezone.TodayDate,
 	}
-	if len(today) > 0 {
+	if len(today) > 0 && today[0] != nil {
 		service.today = today[0]
 	}
 	return service

@@ -143,8 +143,8 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
 
-	now := time.Now()
-	today := s.todayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 
 	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
 	// from either should perform a checkout. Only "not_checked_in" and
@@ -225,8 +225,8 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	if err != nil {
 		return nil, err
 	}
-	now := time.Now()
-	today := s.todayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err

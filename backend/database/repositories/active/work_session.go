@@ -49,7 +49,7 @@ func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staf
 
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
-	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), false)
+	return r.getOpenByStaffAndDate(ctx, staffID, timezone.DateFromTime(r.now()), false)
 }
 
 // GetOpenByStaffAndDate returns the not-checked-out session of a staff member on
