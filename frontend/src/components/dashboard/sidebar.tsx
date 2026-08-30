@@ -135,10 +135,8 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: "calendar:own",
   },
   {
-    // Alt-Seite mit eigenem Datenmodell (education.group_substitution):
-    // vergibt temporären Gruppen-Datenzugriff, keine Personalplanung — daher
-    // "Gruppenzugriff" zur Abgrenzung vom Planungsbereich "Vertretung"
-    // (#1940). Nur relevant bei festen Gruppen (operations.group_mode);
+    // Gruppenübergaben ändern die Verantwortung, nicht die Sichtbarkeit von
+    // Kinderdaten. Nur relevant bei festen Gruppen (operations.group_mode);
     // Gating siehe substitutionsItem-Rendering unten.
     ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
@@ -502,7 +500,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   });
 
-  // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
+  // Gruppenübergaben (#1940) sind nur bei
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
@@ -835,7 +833,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       item.href !== "/substitutions",
   );
 
-  // Gruppenzugriff (admin only, flat) — nur bei festen Gruppen relevant
+  // Gruppenübergaben (admin only, flat) — nur bei festen Gruppen relevant
   const substitutionsItem = mainNavItems.find(
     (item) => item.href === "/substitutions",
   );
@@ -1201,7 +1199,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
           {middleItems.map(renderNavItem)}
 
-          {/* Gruppenzugriff (admin, flat) — nur bei festen Gruppen (#1940) */}
+          {/* Gruppenübergaben (admin, flat) — nur bei festen Gruppen (#1940) */}
           {substitutionsItem &&
             !openCareGroupMode &&
             renderNavItem(substitutionsItem)}

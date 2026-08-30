@@ -1781,6 +1781,7 @@
     {"name": "audit.guardian_changes", "write_owner": "audit-platform"},
     {"name": "audit.personnel_number_changes", "write_owner": "audit-platform"},
     {"name": "audit.staff_master_data_changes", "write_owner": "audit-platform"},
+    {"name": "audit.substitution_changes", "write_owner": "audit-platform"},
     {"name": "audit.student_deletions", "write_owner": "audit-platform"},
     {"name": "audit.student_field_edits", "write_owner": "audit-platform"},
     {"name": "audit.time_tracking_deletions", "write_owner": "audit-platform"},

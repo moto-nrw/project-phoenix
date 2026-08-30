@@ -350,6 +350,9 @@ func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { re
 func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
 	return nil, nil
 }
+func (m *mockGroupRepo) FindByIDForUpdate(_ context.Context, _ interface{}) (*education.Group, error) {
+	return nil, nil
+}
 func (m *mockGroupRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*education.Group, error) {
 	return nil, nil
 }

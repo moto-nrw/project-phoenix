@@ -69,6 +69,13 @@ func SetupTestDB(t testing.TB) *bun.DB {
 	return sharedTestDB
 }
 
+// WithAfterCommitHooks queues realtime side effects until the returned commit
+// function is called. It keeps service-package tests on the shared test seam
+// instead of importing tenant runtime internals directly.
+func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
+	return tenant.WithAfterCommitHooksForTest(ctx)
+}
+
 // SetupClosableTestDB returns a PRIVATE pool against the package clone for
 // tests that deliberately close their database to provoke errors. Closing
 // the shared SetupTestDB pool would kill every later test in the binary;

@@ -2077,12 +2077,14 @@ describe("useGlobalSSE", () => {
       expect(
         matchedKeys([
           "tenant:active-substitutions",
+          "tenant:group-handovers",
           "tenant:substitution-groups",
           "tenant:substitution-teachers",
           "tenant:user-context",
         ]),
       ).toEqual([
         "tenant:active-substitutions",
+        "tenant:group-handovers",
         "tenant:substitution-groups",
         "tenant:substitution-teachers",
         "tenant:user-context",

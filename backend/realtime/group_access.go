@@ -24,10 +24,11 @@ import (
 // is nobody to broadcast to, so the call is a no-op instead of a broadcast to
 // tenant 0.
 //
-// One cascade may queue several events (a group delete emits per removed
-// teacher link and per removed substitution). That is deliberate: the broadcast
-// is a non-blocking channel send and clients debounce a burst into a single
-// refetch, so deduplicating here would add bookkeeping for no measurable gain.
+// One command may queue several events (a group delete emits one teacher-link
+// invalidation and one group-list invalidation). That is deliberate: the
+// broadcast is a non-blocking channel send and clients debounce a burst into a
+// single refetch, so deduplicating here would add bookkeeping for no measurable
+// gain.
 func QueueGroupAccessChanged(ctx context.Context, broadcaster Broadcaster, logger *slog.Logger, source string) {
 	if broadcaster == nil {
 		return

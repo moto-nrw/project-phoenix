@@ -4,7 +4,6 @@ package education
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -38,21 +37,4 @@ type Service interface {
 	// is the authenticated account ID for the audit trail.
 	GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]string, error)
 	SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string, changedBy int64) error
-
-	// Substitution operations
-	CreateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
-
-	// CreateGroupTransfer persists a group-transfer substitution WITHOUT the
-	// overlap conflict check: group transfers deliberately allow staff to
-	// hold multiple groups at once (issue #584: moved verbatim from
-	// api/groups, including that documented bypass).
-	CreateGroupTransfer(ctx context.Context, substitution *education.GroupSubstitution) error
-	UpdateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
-	DeleteSubstitution(ctx context.Context, id int64) error
-	GetSubstitution(ctx context.Context, id int64) (*education.GroupSubstitution, error)
-	ListSubstitutions(ctx context.Context, options *base.QueryOptions) ([]*education.GroupSubstitution, error)
-	GetActiveSubstitutions(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error)
-	GetActiveGroupSubstitutions(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error)
-	GetStaffSubstitutions(ctx context.Context, staffID int64, asRegular bool) ([]*education.GroupSubstitution, error)
-	CheckSubstitutionConflicts(ctx context.Context, staffID int64, startDate, endDate timezone.Date) ([]*education.GroupSubstitution, error)
 }
