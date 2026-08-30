@@ -271,10 +271,15 @@ function MeinRaumPageContent() {
     isSchulhofTabSelected,
     schulhofStatus,
   });
+  const isCurrentSupervisionOwn = isSchulhofTabSelected
+    ? (schulhofStatus?.isUserSupervising ?? false)
+    : (currentRoom?.isCurrentUserSupervising ?? false);
 
   const addSupervisorButton = additionalSupervisionActiveGroupId ? (
     <>
-      <StatusBadge label="Eigene Aufsicht" tone="green" />
+      {isCurrentSupervisionOwn ? (
+        <StatusBadge label="Eigene Aufsicht" tone="green" />
+      ) : null}
       <Button
         type="button"
         variant="outline"

@@ -262,9 +262,7 @@ export function additionalSupervisionTarget(options: {
       ? (options.schulhofStatus.activeGroupId ?? null)
       : null;
   }
-  return options.currentRoom?.isCurrentUserSupervising
-    ? options.currentRoom.id
-    : null;
+  return options.currentRoom?.id ?? null;
 }
 
 function mapVisitToSupervisionStudent(

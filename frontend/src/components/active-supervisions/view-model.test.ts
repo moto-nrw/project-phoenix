@@ -391,7 +391,7 @@ describe("supervision tab identity (#2265)", () => {
     ).toBe("Freispiel · Eigene Aufsicht");
   });
 
-  it("offers additional supervision only on the user's current session", () => {
+  it("offers additional supervision on the selected session", () => {
     expect(
       additionalSupervisionTarget({
         currentRoom: {
@@ -409,7 +409,7 @@ describe("supervision tab identity (#2265)", () => {
         isSchulhofTabSelected: false,
         schulhofStatus: null,
       }),
-    ).toBeNull();
+    ).toBe("active-2");
     expect(
       additionalSupervisionTarget({
         currentRoom: null,

@@ -84,6 +84,14 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 		}
 		query.GroupID = id
 	}
+	if raw := r.URL.Query().Get("active_group_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Gruppe ist ungültig.", "invalid_target"))
+			return
+		}
+		query.ActiveGroupID = id
+	}
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		date, err := timezone.ParseDate(raw)
 		if err != nil {
@@ -292,6 +300,7 @@ var moduleErrorSpecs = []moduleErrorSpec{
 	{target: substitution.ErrNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Gruppenübergabe ist nicht mehr aktiv."},
 	{target: substitution.ErrAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Gruppenübergabe besteht bereits."},
 	{target: substitution.ErrConflict, status: http.StatusConflict, code: "conflict", message: "Die Änderung steht im Konflikt mit der aktuellen Planung."},
+	{target: substitution.ErrSelfAssignment, status: http.StatusBadRequest, code: "self_assignment", message: "Sie können sich nicht selbst hinzufügen."},
 }
 
 func operationErrorSpec(operation *substitution.OperationError) moduleErrorSpec {

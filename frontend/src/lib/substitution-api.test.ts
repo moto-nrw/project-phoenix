@@ -250,16 +250,17 @@ describe("substitutionService", () => {
   });
 
   it("adds a supervisor with only the two allowed ids", async () => {
+    const json = vi.fn(async () => ({
+      data: {
+        id: "91",
+        type: "additional_supervision",
+        active_group_id: "41",
+        target: { id: "73", full_name: "Toni Test" },
+      },
+    }));
     sessionFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({
-        data: {
-          id: "91",
-          type: "additional_supervision",
-          active_group_id: "41",
-          target: { id: "73", full_name: "Toni Test" },
-        },
-      }),
+      json,
     });
 
     const result = await substitutionService.addSupervisor(
@@ -279,6 +280,7 @@ describe("substitutionService", () => {
       }),
     });
     expect(result).toEqual({ id: "91", targetName: "Toni Test" });
+    expect(json).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a missing proxy envelope", async () => {
