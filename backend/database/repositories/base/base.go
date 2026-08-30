@@ -563,15 +563,3 @@ func AcquireXactLock(ctx context.Context, db *bun.DB, key string) error {
 	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
 	return err
 }
-
-// AcquireXactLockShared takes a SHARED transaction-scoped advisory lock on the
-// hashed key. Shared holders never block one another, so concurrent readers of
-// the same key proceed in parallel; a shared holder only conflicts with an
-// EXCLUSIVE holder (AcquireXactLock) on the same key. Use this for read paths
-// that must be mutually exclusive with a writer but not with each other — it
-// avoids serializing every reader behind the exclusive lock. Same tx/auto-release
-// semantics as AcquireXactLock.
-func AcquireXactLockShared(ctx context.Context, db *bun.DB, key string) error {
-	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", key)
-	return err
-}
