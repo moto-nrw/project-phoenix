@@ -11,7 +11,6 @@ export interface BlockerSupervision {
 export interface BlockerSubstitution {
   id: string;
   groupName: string;
-  role: "regular" | "substitute";
   startDate: string;
   endDate: string;
 }
@@ -76,12 +75,12 @@ function translateCapabilityBlocker(
       );
     case "active_group_substitutions":
       if (!state) {
-        return "Aktive Vertretungen oder Gruppenübergaben";
+        return "Aktive Gruppenübergaben";
       }
       return formatCount(
         state?.active_substitutions?.length ?? 0,
-        "aktive Vertretung oder Gruppenübergabe",
-        "aktive Vertretungen oder Gruppenübergaben",
+        "aktive Gruppenübergabe",
+        "aktive Gruppenübergaben",
       );
     case "activity_supervisions":
       if (!state) {
@@ -115,7 +114,6 @@ interface BackendBlockerSupervision {
 interface BackendBlockerSubstitution {
   id: number;
   group_name: string;
-  role: string;
   start_date: string;
   end_date: string;
 }
@@ -219,7 +217,6 @@ function mapCapabilityState(
     activeSubstitutions: (state.active_substitutions ?? []).map((s) => ({
       id: s.id.toString(),
       groupName: s.group_name,
-      role: s.role as "regular" | "substitute",
       startDate: s.start_date,
       endDate: s.end_date,
     })),

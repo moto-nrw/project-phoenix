@@ -90,7 +90,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 		},
 		logger: slog.Default()})
 
-	s.checkAndRunStudentChangeLogCleanup(&ScheduledTask{Name: "student-change-log-cleanup"})
+	s.checkAndRunStudentChangeLogCleanup(context.Background(), &ScheduledTask{Name: "student-change-log-cleanup"})
 
 	editCount, err := db.NewSelect().
 		ModelTableExpr(`audit.student_field_edits`).

@@ -72,6 +72,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+type substitutionIdentity interface {
+	GetCurrentStaff(context.Context) (*userModels.Staff, error)
+	GetCurrentTeacher(context.Context) (*userModels.Teacher, error)
+}
+
+type substitutionActorResolver struct{ identity substitutionIdentity }
+
+func (r substitutionActorResolver) ResolveActor(ctx context.Context) (*education.Actor, error) {
+	staff, err := r.identity.GetCurrentStaff(ctx)
+	if err != nil {
+		if expectedMissingSubstitutionIdentity(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	teacher, err := r.identity.GetCurrentTeacher(ctx)
+	if err != nil {
+		if expectedMissingSubstitutionIdentity(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &education.Actor{StaffID: staff.ID, TeacherID: teacher.ID}, nil
+}
+
+func expectedMissingSubstitutionIdentity(err error) bool {
+	return errors.Is(err, usercontext.ErrUserNotLinkedToPerson) ||
+		errors.Is(err, usercontext.ErrUserNotLinkedToStaff) ||
+		errors.Is(err, usercontext.ErrUserNotLinkedToTeacher)
+}
+
 // Factory provides access to all services
 type Factory struct {
 	settingsRuntimeDB        *bun.DB
@@ -94,6 +125,7 @@ type Factory struct {
 	StaffTimeExport          active.StaffTimeExportService
 	Activities               activities.ActivityService
 	Education                education.Service
+	Substitution             education.SubstitutionModule
 	GradeTransition          *education.GradeTransitionService
 	Facilities               facilities.Service
 	Schulhof                 facilities.SchulhofService
@@ -374,14 +406,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		repos.Group,
 		repos.GroupTeacher,
 		repos.ClassTeacher,
-		repos.GroupSubstitution,
 		repos.Room,
 		repos.Teacher,
 		repos.Staff,
 		repos.Student,
+		repos.GroupSubstitution,
+		db,
 	)
-	// Announces group_access_changed after a handover, Vertretung or group-leader
-	// change (#2084) — the union of both tables decides who may open which group.
+	// Announces group_access_changed after a group-leader change (#2084).
 	if broadcastAware, ok := educationService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {
@@ -1455,6 +1487,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		ActiveService:      activeService,
 		SSESettings:        settingsService,
 	}, usercontextLogger)
+	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution,
+		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
+		Audit: repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
+		Logger: logger.With("service", "substitution"),
+		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
+			if assignmentBound {
+				return false, nil
+			}
+			scope, err := settingsService.ResolveString(ctx, configModels.KeyOperationalOverviewScope)
+			if err != nil {
+				return false, fmt.Errorf("resolve operational overview scope: %w", err)
+			}
+			return admin || (scope == configModels.OverviewScopeAllStaff && hasStaff), nil
+		},
+	})
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos, databaseLogger)
@@ -2432,6 +2480,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:            usersService,
 		Education:         educationService,
+		Substitutions:     substitutionService,
 		UserContext:       userContextService,
 		Active:            activeService,
 		Settings:          settingsService,
@@ -2572,6 +2621,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, st
 		StaffTimeExport:          staffTimeExportService,
 		Activities:               activitiesService,
 		Education:                educationService,
+		Substitution:             substitutionService,
 		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Schulhof:                 schulhofService,

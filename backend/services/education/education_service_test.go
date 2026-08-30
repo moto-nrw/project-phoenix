@@ -26,11 +26,12 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 		repoFactory.Group,
 		repoFactory.GroupTeacher,
 		repoFactory.ClassTeacher,
-		repoFactory.GroupSubstitution,
 		repoFactory.Room,
 		repoFactory.Teacher,
 		repoFactory.Staff,
 		repoFactory.Student,
+		repoFactory.GroupSubstitution,
+		db,
 	)
 }
 
@@ -115,60 +116,6 @@ func TestListGroups(t *testing.T) {
 }
 
 // ============================================================================
-// TestListSubstitutions - Tests for listing substitutions with filters
-// ============================================================================
-
-func TestListSubstitutions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("successful list substitutions", func(t *testing.T) {
-		// ARRANGE: Create required entities
-		group := testpkg.CreateTestEducationGroup(t, db, "SubstitutionListGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "ListStaff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "ListStaff")
-
-		// Create a substitution for future dates (service validates no backdating)
-		tomorrow := timezone.TodayDate().AddDays(1)
-		nextWeek := tomorrow.AddDays(7)
-
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         tomorrow,
-			EndDate:           nextWeek,
-			Reason:            "Test substitution for list",
-		}
-		err := service.CreateSubstitution(ctx, sub)
-		require.NoError(t, err)
-
-		// ACT: List substitutions
-		substitutions, err := service.ListSubstitutions(ctx, nil)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, substitutions)
-
-		// Find our substitution
-		found := false
-		for _, s := range substitutions {
-			if s.GroupID == group.ID && s.SubstituteStaffID == substituteStaff.ID {
-				found = true
-				assert.Equal(t, "Test substitution for list", s.Reason)
-				break
-			}
-		}
-		assert.True(t, found, "Created substitution should be in list")
-	})
-}
-
-// ============================================================================
-// TestGetGroupTeachers - Tests for retrieving teachers assigned to a group
 // ============================================================================
 
 func TestGetGroupTeachers(t *testing.T) {
@@ -232,236 +179,6 @@ func TestGetGroupTeachers(t *testing.T) {
 }
 
 // ============================================================================
-// TestCreateSubstitution_DateValidation - Tests for substitution date validation
-// ============================================================================
-
-func TestCreateSubstitution_DateValidation(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("accepts future date", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "FutureSubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "FutureReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "FutureSub", "Staff")
-
-		tomorrow := timezone.TodayDate().AddDays(1)
-		nextWeek := tomorrow.AddDays(7)
-
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         tomorrow,
-			EndDate:           nextWeek,
-			Reason:            "Medical leave",
-		}
-
-		// ACT
-		err := service.CreateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotZero(t, sub.ID, "Substitution should have been assigned an ID")
-	})
-
-	t.Run("rejects past date", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "PastSubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "PastReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "PastSub", "Staff")
-
-		yesterday := timezone.TodayDate().AddDays(-1)
-		today := timezone.TodayDate()
-
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         yesterday,
-			EndDate:           today,
-			Reason:            "Trying to backdate",
-		}
-
-		// ACT
-		err := service.CreateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "past dates")
-	})
-
-	t.Run("accepts today's date", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "TodaySubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "TodayReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "TodaySub", "Staff")
-
-		today := timezone.TodayDate()
-		nextWeek := today.AddDays(7)
-
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         today,
-			EndDate:           nextWeek,
-			Reason:            "Emergency coverage",
-		}
-
-		// ACT
-		err := service.CreateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotZero(t, sub.ID, "Substitution should have been assigned an ID")
-	})
-
-	t.Run("allows substitution without regular staff", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "NoRegularStaffGroup")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "OnlySub", "Staff")
-
-		tomorrow := timezone.TodayDate().AddDays(1)
-		nextWeek := tomorrow.AddDays(7)
-
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    nil, // No regular staff
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         tomorrow,
-			EndDate:           nextWeek,
-			Reason:            "Additional coverage",
-		}
-
-		// ACT
-		err := service.CreateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotZero(t, sub.ID)
-	})
-}
-
-// ============================================================================
-// TestUpdateSubstitution_DateValidation - Tests for update validation
-// ============================================================================
-
-func TestUpdateSubstitution_DateValidation(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("accepts future date update", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "UpdateFutureGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureSub", "Staff")
-
-		tomorrow := timezone.TodayDate().AddDays(1)
-		nextWeek := tomorrow.AddDays(7)
-
-		// Create initial substitution
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         tomorrow,
-			EndDate:           nextWeek,
-			Reason:            "Original reason",
-		}
-		err := service.CreateSubstitution(ctx, sub)
-		require.NoError(t, err)
-
-		// ACT: Update to extend end date
-		sub.EndDate = nextWeek.AddDays(7)
-		sub.Reason = "Extended leave"
-		err = service.UpdateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify the update persisted
-		updated, err := service.GetSubstitution(ctx, sub.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "Extended leave", updated.Reason)
-	})
-
-	t.Run("rejects backdated update", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "BackdateUpdateGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "BackdateReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "BackdateSub", "Staff")
-
-		tomorrow := timezone.TodayDate().AddDays(1)
-		nextWeek := tomorrow.AddDays(7)
-
-		// Create initial substitution
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         tomorrow,
-			EndDate:           nextWeek,
-			Reason:            "Original reason",
-		}
-		err := service.CreateSubstitution(ctx, sub)
-		require.NoError(t, err)
-
-		// ACT: Try to backdate
-		yesterday := timezone.TodayDate().AddDays(-1)
-		sub.StartDate = yesterday
-		err = service.UpdateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "past dates")
-	})
-
-	t.Run("accepts today's date for update", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "TodayUpdateGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateSub", "Staff")
-
-		today := timezone.TodayDate()
-		nextWeek := today.AddDays(7)
-
-		// Create initial substitution starting today
-		sub := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         today,
-			EndDate:           nextWeek,
-			Reason:            "Emergency coverage",
-		}
-		err := service.CreateSubstitution(ctx, sub)
-		require.NoError(t, err)
-
-		// ACT: Update reason (keep dates the same)
-		sub.Reason = "Updated emergency coverage"
-		err = service.UpdateSubstitution(ctx, sub)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify the update persisted
-		updated, err := service.GetSubstitution(ctx, sub.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "Updated emergency coverage", updated.Reason)
-	})
-}
-
-// ============================================================================
-// TestGroupOperations - Additional group CRUD tests
 // ============================================================================
 
 func TestGroupOperations(t *testing.T) {
@@ -688,6 +405,19 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 		assert.Contains(t, err.Error(), "Gruppe kann nicht")
 	})
 
+	t.Run("returns error when group has an active handover", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithHandover")
+		target := testpkg.CreateTestStaff(t, db, "Group", "Target")
+		today := timezone.TodayDate()
+		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, target.ID, today, today)
+
+		err := service.DeleteGroup(ctx, group.ID)
+
+		require.ErrorIs(t, err, educationSvc.ErrGroupHasHandover)
+		_, findErr := service.GetGroup(ctx, group.ID)
+		require.NoError(t, findErr)
+	})
+
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ACT
 		err := service.DeleteGroup(ctx, 999999999)
@@ -781,192 +511,6 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ACT
 		err := service.UpdateGroupTeachers(ctx, 999999999, []int64{})
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_DeleteSubstitution(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deletes substitution successfully", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "SubDeleteGroup")
-		staff := testpkg.CreateTestStaff(t, db, "SubDelete", "Staff")
-
-		today := timezone.TodayDate()
-		substitution := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			SubstituteStaffID: staff.ID,
-			StartDate:         today,
-			EndDate:           today.AddDays(7),
-		}
-		err := service.CreateSubstitution(ctx, substitution)
-		require.NoError(t, err)
-
-		// ACT
-		err = service.DeleteSubstitution(ctx, substitution.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-	})
-
-	t.Run("returns error for non-existent substitution", func(t *testing.T) {
-		// ACT
-		err := service.DeleteSubstitution(ctx, 999999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_GetActiveSubstitutions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("retrieves active substitutions for date", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "ActiveSubGroup")
-		staff := testpkg.CreateTestStaff(t, db, "ActiveSub", "Staff")
-
-		today := timezone.TodayDate()
-		substitution := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			SubstituteStaffID: staff.ID,
-			StartDate:         today,
-			EndDate:           today.AddDays(7),
-		}
-		err := service.CreateSubstitution(ctx, substitution)
-		require.NoError(t, err)
-		defer func() { _ = service.DeleteSubstitution(ctx, substitution.ID) }()
-
-		// ACT
-		subs, err := service.GetActiveSubstitutions(ctx, today)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, subs)
-	})
-}
-
-func TestEducationService_GetStaffSubstitutions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("retrieves substitutions as substitute", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "StaffSubGroup")
-		staff := testpkg.CreateTestStaff(t, db, "StaffSub", "Staff")
-
-		today := timezone.TodayDate()
-		substitution := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			SubstituteStaffID: staff.ID,
-			StartDate:         today,
-			EndDate:           today.AddDays(7),
-		}
-		err := service.CreateSubstitution(ctx, substitution)
-		require.NoError(t, err)
-		defer func() { _ = service.DeleteSubstitution(ctx, substitution.ID) }()
-
-		// ACT
-		subs, err := service.GetStaffSubstitutions(ctx, staff.ID, false)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, subs)
-	})
-
-	t.Run("retrieves substitutions as regular staff", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RegularStaffSubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "Staff2")
-
-		today := timezone.TodayDate()
-		substitution := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			RegularStaffID:    &regularStaff.ID,
-			SubstituteStaffID: substituteStaff.ID,
-			StartDate:         today,
-			EndDate:           today.AddDays(7),
-		}
-		err := service.CreateSubstitution(ctx, substitution)
-		require.NoError(t, err)
-		defer func() { _ = service.DeleteSubstitution(ctx, substitution.ID) }()
-
-		// ACT
-		subs, err := service.GetStaffSubstitutions(ctx, regularStaff.ID, true)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, subs)
-	})
-
-	t.Run("returns error for non-existent staff", func(t *testing.T) {
-		// ACT
-		_, err := service.GetStaffSubstitutions(ctx, 999999999, false)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("detects no conflicts for available period", func(t *testing.T) {
-		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "ConflictCheck", "Staff")
-
-		future := timezone.TodayDate().AddDays(365)
-
-		// ACT
-		conflicts, err := service.CheckSubstitutionConflicts(ctx, staff.ID, future, future.AddDays(7))
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, conflicts)
-	})
-
-	t.Run("returns error for non-existent staff", func(t *testing.T) {
-		// ARRANGE
-		future := timezone.TodayDate().AddDays(365)
-
-		// ACT
-		_, err := service.CheckSubstitutionConflicts(ctx, 999999999, future, future.AddDays(7))
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for invalid date range", func(t *testing.T) {
-		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "InvalidRange", "Staff")
-
-		future := timezone.TodayDate().AddDays(365)
-
-		// ACT - end date before start date
-		_, err := service.CheckSubstitutionConflicts(ctx, staff.ID, future, future.AddDays(-7))
 
 		// ASSERT
 		require.Error(t, err)
@@ -1114,70 +658,6 @@ func TestEducationService_GetTeacherGroups(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-	})
-}
-
-func TestEducationService_GetSubstitution(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("retrieves substitution by ID", func(t *testing.T) {
-		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "GetSubGroup")
-		staff := testpkg.CreateTestStaff(t, db, "GetSub", "Staff")
-
-		today := timezone.TodayDate()
-		substitution := &educationModels.GroupSubstitution{
-			GroupID:           group.ID,
-			SubstituteStaffID: staff.ID,
-			StartDate:         today,
-			EndDate:           today.AddDays(7),
-		}
-		err := service.CreateSubstitution(ctx, substitution)
-		require.NoError(t, err)
-		defer func() { _ = service.DeleteSubstitution(ctx, substitution.ID) }()
-
-		// ACT
-		found, err := service.GetSubstitution(ctx, substitution.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, found)
-		assert.Equal(t, substitution.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent substitution", func(t *testing.T) {
-		// ACT
-		_, err := service.GetSubstitution(ctx, 999999999)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestEducationService_ListSubstitutions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupEducationService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("lists substitutions with options", func(t *testing.T) {
-		// ARRANGE
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 10)
-
-		// ACT
-		subs, err := service.ListSubstitutions(ctx, options)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, subs)
 	})
 }
 

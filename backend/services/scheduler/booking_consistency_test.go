@@ -45,7 +45,7 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 			Level: slog.LevelDebug,
 		}))})
 
-	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
+	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
 	require.Equal(t, 1, auditor.calls)
 	logOutput := output.String()
@@ -71,7 +71,7 @@ func TestBookingConsistencyAuditLogsRepositoryError(t *testing.T) {
 			Level: slog.LevelDebug,
 		}))})
 
-	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
+	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
 	require.Equal(t, 1, auditor.calls)
 	assert.Contains(t, output.String(), `"msg":"tenant operation failed, continuing to next tenant"`)
@@ -93,7 +93,7 @@ func TestBookingConsistencyAuditTreatsOptionalNoOfferingAsReview(t *testing.T) {
 			Level: slog.LevelDebug,
 		}))})
 
-	s.checkAndRunBookingConsistencyAudit(&ScheduledTask{Name: "booking-consistency-audit"})
+	s.checkAndRunBookingConsistencyAudit(context.Background(), &ScheduledTask{Name: "booking-consistency-audit"})
 
 	assert.Contains(t, output.String(), `"msg":"booking consistency audit passed"`)
 	assert.Contains(t, output.String(), `"approved_without_optional_offering":2`)

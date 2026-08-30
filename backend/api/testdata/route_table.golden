@@ -22,7 +22,6 @@ DELETE /api/feedback/{id}
 DELETE /api/files/folders/{folderId}
 DELETE /api/files/folders/{folderId}/files/{fileId}
 DELETE /api/groups/{id}
-DELETE /api/groups/{id}/transfer/{substitutionId}
 DELETE /api/guardians/students/{studentId}/guardians/{guardianId}
 DELETE /api/guardians/{id}
 DELETE /api/guardians/{id}/phone-numbers/{phoneId}
@@ -61,7 +60,6 @@ DELETE /api/students/{id}/pickup-notes/{noteId}
 DELETE /api/students/{id}/purge
 DELETE /api/students/{id}/rfid
 DELETE /api/students/{id}/status-days/{statusDayId}
-DELETE /api/substitutions/{id}
 DELETE /api/time-tracking/absences/{id}
 DELETE /api/timetable/closing-days/{id}
 DELETE /api/timetable/conflict-acks/{fingerprint}
@@ -213,7 +211,6 @@ GET /api/groups/
 GET /api/groups/{id}
 GET /api/groups/{id}/students
 GET /api/groups/{id}/students/room-status
-GET /api/groups/{id}/substitutions
 GET /api/groups/{id}/supervisors
 GET /api/guardians/
 GET /api/guardians/invitable
@@ -322,7 +319,6 @@ GET /api/staff/
 GET /api/staff/absences/pending
 GET /api/staff/absences/requests
 GET /api/staff/available
-GET /api/staff/available-for-substitution
 GET /api/staff/by-role
 GET /api/staff/dashboard-summary
 GET /api/staff/documents-directory
@@ -345,7 +341,6 @@ GET /api/staff/{id}/schedule
 GET /api/staff/{id}/school-classes
 GET /api/staff/{id}/stammdaten
 GET /api/staff/{id}/stammdaten/bank-steuer
-GET /api/staff/{id}/substitutions
 GET /api/staff/{id}/time-tracking/adjustments
 GET /api/staff/{id}/time-tracking/export
 GET /api/staff/{id}/time-tracking/history
@@ -389,8 +384,6 @@ GET /api/students/{id}/privacy-consent
 GET /api/students/{id}/status-days
 GET /api/students/{id}/visit-history
 GET /api/substitutions/
-GET /api/substitutions/active
-GET /api/substitutions/{id}
 GET /api/time-tracking/absences
 GET /api/time-tracking/assignments
 GET /api/time-tracking/breaks/{sessionId}
@@ -628,7 +621,6 @@ POST /api/feedback/batch
 POST /api/files/folders
 POST /api/files/folders/{folderId}/files
 POST /api/groups/
-POST /api/groups/{id}/transfer/
 POST /api/guardians/
 POST /api/guardians/invitations/{invitationId}/approve
 POST /api/guardians/invitations/{invitationId}/reject
@@ -751,6 +743,7 @@ POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
 POST /api/substitutions/
+POST /api/substitutions/end
 POST /api/time-tracking/absences
 POST /api/time-tracking/absences/{id}/cancel
 POST /api/time-tracking/absences/{id}/resubmit
@@ -958,7 +951,6 @@ PUT /api/students/{id}/pickup-exceptions/{exceptionId}
 PUT /api/students/{id}/pickup-notes/{noteId}
 PUT /api/students/{id}/pickup-schedules
 PUT /api/students/{id}/privacy-consent
-PUT /api/substitutions/{id}
 PUT /api/time-tracking/absences/{id}
 PUT /api/time-tracking/{id}
 PUT /api/timetable/closing-days/{id}

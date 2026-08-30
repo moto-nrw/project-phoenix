@@ -42,8 +42,15 @@ func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context
 // query.
 func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
+	return runAsAdminTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
+	})
+}
+
+func runAsAdminTx(t *testing.T, db *bun.DB, fn func(context.Context, bun.Tx) error) error {
+	t.Helper()
+	return tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, tx bun.Tx) error {
+		return fn(ctx, tx)
 	})
 }
 
@@ -163,6 +170,43 @@ func TestEmailOutboxRepository_FindByID_NotFound(t *testing.T) {
 }
 
 // --- ClaimDuePending --------------------------------------------------
+
+func TestEmailOutboxRepository_CountPending(t *testing.T) {
+	t.Parallel()
+
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("count-pending")
+	defer wipeOutbox(db, tenantID, kind)
+	require.NoError(t, runAsAdminTx(t, db, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, "LOCK TABLE platform.email_outbox IN SHARE ROW EXCLUSIVE MODE"); err != nil {
+			return err
+		}
+		baseline, err := repo.CountPending(ctx)
+		if err != nil {
+			return err
+		}
+		tenantCtx := tenant.WithTenantID(ctx, tenantID)
+		for _, status := range []string{
+			platformModels.EmailOutboxStatusPending,
+			platformModels.EmailOutboxStatusPending,
+			platformModels.EmailOutboxStatusSent,
+			platformModels.EmailOutboxStatusFailed,
+		} {
+			row := makeOutbox(kind)
+			row.Status = status
+			row.NextRetryAt = time.Now().Add(24 * time.Hour)
+			if err := repo.Create(tenantCtx, row); err != nil {
+				return err
+			}
+		}
+		backlog, err := repo.CountPending(ctx)
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, baseline+2, backlog)
+		return nil
+	}))
+}
 
 // Deliberately NOT parallel: ClaimDuePending scans every tenant, so concurrent
 // claim tests compete for the same global LIMIT and change each other's rows.

@@ -135,6 +135,16 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestRecordWorkerRunEvidence(t *testing.T) {
+	t.Parallel()
+	const jobID = "test-worker-job"
+	before := testutil.CollectAndCount(workerJobDuration)
+
+	RecordWorkerRunEvent(jobID, "success", 25*time.Millisecond)
+
+	assert.Equal(t, before+1, testutil.CollectAndCount(workerJobDuration))
+}
+
 func TestRecordSettingsEvidence(t *testing.T) {
 	t.Parallel()
 	const key = "test.settings_evidence"

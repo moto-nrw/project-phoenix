@@ -40,18 +40,19 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 
 	cleanup := func() {
 		bg := context.Background()
+		tenantID := testpkg.Tenant(t)
 		// Deleting requests cascades request_children + request_child_offerings.
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.requests").
-			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", 1, phaseNamePrefix+"%").
+			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", tenantID, phaseNamePrefix+"%").
 			Exec(bg)
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.care_offerings").
-			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", 1, phaseNamePrefix+"%").
+			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", tenantID, phaseNamePrefix+"%").
 			Exec(bg)
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.phases").
-			Where("tenant_id = ? AND name LIKE ?", 1, phaseNamePrefix+"%").
+			Where("tenant_id = ? AND name LIKE ?", tenantID, phaseNamePrefix+"%").
 			Exec(bg)
 	}
 	return svc, repoFactory, db, cleanup

@@ -285,8 +285,7 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Home")).toBeInTheDocument();
-      // "Übergaben" heißt jetzt "Gruppenzugriff" (#1940).
-      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
@@ -1903,18 +1902,18 @@ describe("Sidebar", () => {
       mockUseOpenCareGroupMode.mockReturnValue(false);
     });
 
-    it("hides Gruppenzugriff for open-care tenants", () => {
+    it("hides Gruppenübergaben for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Gruppenzugriff")).not.toBeInTheDocument();
+      expect(screen.queryByText("Gruppenübergaben")).not.toBeInTheDocument();
     });
 
-    it("shows Gruppenzugriff for fixed-groups tenants", () => {
+    it("shows Gruppenübergaben for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
     });
   });
 

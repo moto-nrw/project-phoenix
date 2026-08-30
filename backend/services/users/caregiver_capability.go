@@ -213,6 +213,15 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	// locks on the same tables in a different order, so a transient deadlock is
 	// possible — retry the whole transaction on 40P01/40001.
 	work := func(txCtx context.Context, tx bun.Tx) error {
+		initial, _, err := s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
+		if err != nil {
+			return err
+		}
+		if initial.StaffID != nil {
+			if _, err := s.StaffRepo.FindByIDForUpdate(txCtx, *initial.StaffID); err != nil {
+				return err
+			}
+		}
 		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
 			return err
 		}

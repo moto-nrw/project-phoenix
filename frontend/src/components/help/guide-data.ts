@@ -844,6 +844,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
+          "Spontane Aktivitäten sind nur montags bis freitags möglich.",
           "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
           "Ganz unten `Beendete und abgelaufene Blöcke` aufklappen.",
           "Bei beendeten Blöcken den letzten Stand der Kinder nachlesen.",
@@ -971,9 +972,9 @@ export const appChapters: readonly GuideChapter[] = [
   },
   {
     id: "raeume-team-vertretung",
-    title: "Räume, Team und Gruppenzugriff",
+    title: "Räume, Team und Gruppenübergaben",
     description:
-      "Den Überblick über Angebote, Räume und das Team behalten und kurzfristigen Gruppenzugriff organisieren.",
+      "Den Überblick über Angebote, Räume und das Team behalten und Gruppen vorübergehend übergeben.",
     icon: Building2,
     tone: "blue",
     steps: [
@@ -1240,26 +1241,25 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungen",
-        title: "Gruppenzugriff",
+        title: "Gruppenübergaben",
         icon: Repeat,
         summary:
-          "Gewährt verfügbaren Fachkräften vorübergehend Zugriff auf eine OGS-Gruppe, etwa wenn jemand kurzfristig einspringt (nur für Admins, nur bei Arbeit mit festen Gruppen).",
+          "Überträgt die Verantwortung für eine feste OGS-Gruppe vorübergehend an eine andere Betreuungskraft.",
         steps: [
-          "`Gruppenzugriff` öffnen.",
+          "`Gruppenübergaben` öffnen. Admins können alle Gruppen planen. Betreuungskräfte können nur ihre eigene Gruppe und nur den heutigen Tag übergeben.",
           "Filter `Verfügbar` wählen und eine Person suchen.",
           "In der Zeile der Person auf `Zuweisen` klicken.",
-          "`OGS-Gruppe` wählen und unter `Dauer` zwischen `Heute`, `3 Tage`, `1 Woche` oder `Individuell` entscheiden. Unter der Auswahl steht, bis wann der Zugriff gilt.",
+          "Admins wählen `Startdatum` und `OGS-Gruppe`. Unter `Dauer` stehen `1 Tag`, `3 Tage`, `1 Woche` und `Individuell` zur Auswahl. Unter der Auswahl steht, bis wann die Übergabe gilt.",
           "Mit `Zuweisen` speichern.",
-          "Nach Ende im aktiven Eintrag auf `Beenden` klicken.",
+          "Die ursprüngliche Gruppenleitung oder ein Admin kann die Übergabe mit `Beenden` löschen.",
         ],
         callout: {
-          title: "Zugriff ist keine Vertretungsplanung",
-          body: "Gruppenzugriff regelt nur, wer die Kinder einer fremden Gruppe sehen und betreuen darf. Wer Personalausfälle in geplanten Betreuungsblöcken organisiert, nutzt dafür den Bereich `Planung` -> `Vertretung`. Bei offener Betreuung ohne feste Gruppen wird dieser Bereich nicht angezeigt.",
+          title: "Verantwortung statt Datenzugriff",
+          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Die Berechtigung für Kinderdaten ändert sich nicht. Für Personalausfälle in geplanten Betreuungsblöcken nutzen Sie `Planung` -> `Vertretung`. Bei offener Betreuung wird dieser Bereich nicht angezeigt.",
           tone: "blue",
         },
         screenshot:
-          "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
-        image: "/help/screens/vertretungen.webp",
+          "Gruppenübergaben mit verfügbaren Fachkräften und dem Dialog `Gruppe übergeben`.",
       },
       {
         id: "abrechnung-vorbereiten",
@@ -2393,23 +2393,25 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "einstellungen-sicht-auf-alle-raeume",
-        title: "Sicht auf alle Räume freigeben",
+        title: "Sichtbereich für Mitarbeitende wählen",
         icon: Eye,
         summary:
-          "Im Auslieferungszustand sieht jede Person in der `Aktuellen Aufsicht` nur die Räume, die sie selbst übernommen hat. Arbeitet Ihr Team flexibel, geben Sie hier alle Räume frei.",
+          "Sie wählen, ob Mitarbeitende alles oder nur eigene Zuständigkeiten sehen. Admins sehen immer alles.",
         steps: [
           "`Einstellungen` -> `Betrieb` öffnen. Die Sektion `Aufsicht` steht ganz oben.",
-          "Bei `Sicht auf alle Räume` auswählen, wer alle Räume sehen soll: `Nur eigene Räume`, `Alle Räume für Administratoren` oder `Alle Räume für alle Mitarbeitenden`.",
+          "Bei `Sichtbereich für Mitarbeitende` zwischen `Ganzes Team` und `Eigene Zuständigkeiten` wählen.",
+          "`Ganzes Team` zeigt Mitarbeitenden alle Gruppen und laufenden Betreuungen.",
+          "`Eigene Zuständigkeiten` zeigt eigene und übergebene Gruppen. Dazu kommen eigene laufende Betreuungen.",
           "Die Auswahl wird sofort gespeichert. Wer die Seite schon offen hat, lädt sie einmal neu.",
-          "Mit `Zurücksetzen` gilt wieder `Nur eigene Räume`. Fremde Räume verschwinden dann sofort wieder.",
+          "Mit `Zurücksetzen` gilt wieder `Ganzes Team`.",
         ],
         callout: {
-          title: "Die Freigabe gibt keine neuen Rechte",
-          body: "Sie entscheidet nur, welche Räume jemand sieht. Wer ein Kind sonst nicht ummelden darf, darf es auch in einem fremden Raum nicht. Admin-, Planungs- und Löschrechte hängen weiterhin allein an der Rolle.",
+          title: "Der Sichtbereich gibt keine neuen Rechte",
+          body: "Er ändert nur, was Mitarbeitende sehen. Wer ein Kind bisher nicht ummelden durfte, darf es weiterhin nicht.",
           tone: "blue",
         },
         screenshot:
-          "Sektion Aufsicht im Reiter Betrieb mit der Auswahl Sicht auf alle Räume.",
+          "Sektion Aufsicht im Reiter Betrieb mit dem Sichtbereich für Mitarbeitende.",
       },
       {
         id: "einstellungen-zustaendigkeit",
@@ -2418,7 +2420,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
         steps: [
-          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Wer welche Räume in der `Aktuellen Aufsicht` sieht, steht getrennt davon unter `Sicht auf alle Räume`.",
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Welche Gruppen und laufenden Betreuungen Mitarbeitende sehen, steht getrennt davon unter `Sichtbereich für Mitarbeitende`.",
           "Was das moto-Team betreut: technische und grundlegende Einstellungen, darunter die Freischaltung der Web-Anwesenheit. Bei ausgeschalteter Web-Anwesenheit verschwinden An-/Abmeldeaktionen in der Web-App; NFC- und Systemvorgänge bleiben aktiv. Diese Einstellungen sind für Schul-Admins ausgeblendet.",
           "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
           "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",

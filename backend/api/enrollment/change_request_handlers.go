@@ -126,9 +126,12 @@ func (rs *Resource) replyToChangeRequest(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
-	id, err := strconv.ParseInt(chi.URLParam(r, "changeRequestId"), 10, 64)
-	if token == "" || err != nil || id <= 0 {
+	if token == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid change request")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "changeRequestId", "invalid change request")
+	if !ok {
 		return
 	}
 	body := &ChangeRequestMessageRequest{}

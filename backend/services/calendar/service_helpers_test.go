@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
@@ -557,9 +558,10 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 	// would leave clients frozen on the first horizon they saw, dropping later
 	// occurrences. DTSTART is still anchored to the first real occurrence.
 	oldMonday := timezone.NewDate(2020, 1, 6)
+	tenantID := ptrtest.NewTenantID()
 	appt := &calModels.Appointment{
 		Model:       base.Model{ID: 9},
-		TenantModel: base.TenantModel{TenantID: 1},
+		TenantModel: base.TenantModel{TenantID: tenantID},
 		Title:       "Wöchentlich",
 		StartDate:   oldMonday,
 		EndDate:     oldMonday,
@@ -595,17 +597,22 @@ func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
 	t.Parallel()
 
+	firstTenantID := ptrtest.NewTenantID()
+	secondTenantID := ptrtest.NewTenantID()
 	children := []*parentModels.ChildSummary{
-		{TenantID: 2, GuardianProfileID: 20},
-		{TenantID: 1, GuardianProfileID: 10},
-		{TenantID: 1, GuardianProfileID: 10},
+		{TenantID: secondTenantID, GuardianProfileID: 20},
+		{TenantID: firstTenantID, GuardianProfileID: 10},
+		{TenantID: firstTenantID, GuardianProfileID: 10},
 	}
 
 	grouped := groupChildrenByTenant(children)
-	require.Len(t, grouped[1], 2)
-	require.Len(t, grouped[2], 1)
+	require.Len(t, grouped[firstTenantID], 2)
+	require.Len(t, grouped[secondTenantID], 1)
 	assert.ElementsMatch(t, []int64{20, 10}, distinctGuardianProfileIDs(children))
-	assert.Equal(t, map[int64]struct{}{1: {}, 2: {}}, int64Set([]int64{1, 2, 1}))
+	assert.Equal(t,
+		map[int64]struct{}{firstTenantID: {}, secondTenantID: {}},
+		int64Set([]int64{firstTenantID, secondTenantID, firstTenantID}),
+	)
 
 	staff := &userModels.Staff{Person: &userModels.Person{FirstName: " Ada ", LastName: " Lovelace "}}
 	assert.Equal(t, "Ada   Lovelace", staffName(staff))

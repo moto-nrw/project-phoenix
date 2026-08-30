@@ -184,7 +184,7 @@ export const STAFF_FLAT_PAGES = {
   // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
   // Personal ist ein anderer Ort.
   dateien: { href: "/dateien", label: "Dateien" },
-  substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
+  substitutions: { href: "/substitutions", label: "Gruppenübergaben" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
