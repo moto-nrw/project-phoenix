@@ -477,8 +477,11 @@ export default function StatisticsPage() {
 
   // Statuszeile unter dem Titel: echter Zeitraum, gezählte Betreuungstage und
   // Kinder aus dem geladenen Bericht.
+  // Kein Zeitraum in der Statuszeile: den trägt die Zeitraumwahl direkt
+  // darunter. Zweimal dieselben Daten in der Kopfkarte kosteten auf dem
+  // Telefon eine Zeile, die nichts sagte.
   const statusLine = data
-    ? `${formatDate(data.from)} bis ${formatDate(data.to)} · ${data.care_days} Betreuungstage · ${data.totals.student_count} Kinder`
+    ? `${data.care_days} Betreuungstage · ${data.totals.student_count} Kinder`
     : formatStatusDate(todayISO);
 
   // Fehlendes Recht ist ein Zustand, kein Fehler: eigener ruhiger Leerzustand
@@ -515,6 +518,7 @@ export default function StatisticsPage() {
       // eigene Länge weiter.
       searchSlot={
         <PlanningContextBar
+          withoutContextRow
           navigationSlot={
             <DateRangePicker
               value={range}

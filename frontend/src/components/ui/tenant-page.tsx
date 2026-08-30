@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
@@ -297,7 +303,13 @@ export function TenantPage({
           geschoben; sie sind jetzt die letzte Zeile des Kopfes. */}
       <header className="moto-content-surface rounded-2xl border p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="flex min-w-0 items-center gap-3">
+          {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
+              lassen, statt mit seiner natürlichen Breite zu ringen. Vorher
+              schob eine zweizeilige Statuszeile auf dem Telefon selbst das
+              einzelne Kebab-Menü in eine eigene, linksbündige Zeile -- und
+              die Kopfkarte wuchs um genau den toten Streifen, den sie auf
+              dem Desktop nicht mehr hat. */}
+          <div className="flex min-w-0 flex-1 basis-0 items-center gap-3 max-sm:min-w-[11rem]">
             {leading}
             <div className="min-w-0">
               <h1
@@ -323,14 +335,14 @@ export function TenantPage({
             // eine Seite gerade greift.
             <div
               className={cn(
-                // Unter sm eine eigene Zeile über die volle Breite -- aber
-                // nur ab zwei Aktionen: sonst hängen sie untereinander am
-                // rechten Rand und die Kopfkarte wächst um eine halbleere
-                // Zeile. Eine einzelne Aktion (meist nur das Kebab-Menü)
-                // bleibt neben dem Titel stehen, statt sich eine eigene,
-                // fast leere Zeile darunter zu nehmen.
-                "flex shrink-0 flex-wrap items-center gap-2",
-                "max-sm:[&:has(>*:nth-child(2))]:w-full",
+                // Die Aktionen stehen neben dem Titel, solange sie neben
+                // seiner Mindestbreite (11rem unter sm) Platz haben; sonst
+                // brechen sie als Gruppe in eine eigene Zeile um und stehen
+                // dort rechts (`ml-auto`), wie auf dem Desktop. Linksbündig
+                // stand der tote Raum rechts neben den Knöpfen; ein Umbruch
+                // nach Anzahl der Aktionen traf es nicht -- zwei Symbole
+                // passen neben den Titel, ein Datumsfeld nicht.
+                "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2",
                 CONTROL_HEIGHT,
               )}
             >
@@ -465,6 +477,16 @@ function TenantPageTabs({
     return () => observer.disconnect();
   }, [measure, items]);
 
+  // Auf dem Telefon rueckt der aktive Reiter ins Sichtfenster des Bandes,
+  // sonst steht die Seite auf einem Bereich, den man nicht sieht.
+  useEffect(() => {
+    const active = rowRef.current?.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]',
+    );
+    if (typeof active?.scrollIntoView !== "function") return;
+    active.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [value]);
+
   const visible = items.slice(0, visibleCount);
   const hidden = items.slice(visibleCount);
 
@@ -488,9 +510,13 @@ function TenantPageTabs({
     </>
   );
 
-  const renderTab = (item: TenantPageTab, measuring = false) => {
+  const renderTab = (
+    item: TenantPageTab,
+    measuring = false,
+    extraClassName?: string,
+  ) => {
     const active = item.value === value;
-    const className = tabClass(active, item.disabled);
+    const className = cn(tabClass(active, item.disabled), extraClassName);
     if (item.href && !item.disabled) {
       return (
         <Link
@@ -547,7 +573,7 @@ function TenantPageTabs({
       ariaLabel={MORE_LABEL}
       triggerRole={measuring ? undefined : "tab"}
       triggerAriaSelected={measuring ? undefined : Boolean(hiddenActive)}
-      triggerClassName={tabClass(Boolean(hiddenActive))}
+      triggerClassName={cn(tabClass(Boolean(hiddenActive)), "max-sm:hidden")}
       // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die Zeilenhöhe
       // um ein Pixel und der Reiter steht einen Hauch tiefer als seine
       // Nachbarn.
@@ -566,53 +592,34 @@ function TenantPageTabs({
 
   return (
     // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
-    // die volle Kartenbreite. Die Auswahlliste auf dem Telefon ist kein Band,
-    // sondern ein Bedienelement -- sie steht im Innenrand der Karte wie das
-    // Suchfeld darunter.
-    <div className="mt-4 sm:-mx-5">
-      {/* Unter sm eine Auswahlliste: sieben Reiter nebeneinander wären auf
-          einem Telefon eine Scrollleiste, in der die Hälfte der Bereiche
-          unsichtbar bleibt. Dieselbe Bauart, andere Form -- kein Sonderweg
-          pro Seite. */}
-      <div className="sm:hidden">
-        <label className="sr-only" htmlFor="tenant-page-tabs">
-          {label}
-        </label>
-        <select
-          id="tenant-page-tabs"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-900 shadow-sm focus:ring-2 focus:outline-none"
-        >
-          {items.map((item) => (
-            <option
-              key={item.value}
-              value={item.value}
-              disabled={item.disabled}
-            >
-              {item.badge !== undefined && item.badge > 0
-                ? `${item.label} (${item.badge})`
-                : item.label}
-            </option>
-          ))}
-        </select>
-      </div>
+    // die volle Kartenbreite, auf jedem Geraet.
+    <div className="-mx-5 mt-4">
+      {/* EIN Band auf allen Breiten. Unter sm scrollt es waagerecht und zeigt
+          jeden Reiter; ab sm wird gemessen und der Ueberhang steht unter
+          „Mehr". Vorher stand unter sm eine Auswahlliste -- sie zeigte nur den
+          aktiven Wert („Status", „Betrieb") und las sich als Filter, nicht als
+          Seitenbereich. Ein sichtbares Band mit derselben Grundlinie wie auf
+          dem Desktop sagt auf den ersten Blick: hier wechselt man den
+          Bereich, und so viele gibt es.
 
-      {/* Die Grundlinie gehört dem BAND, nicht dem einzelnen Reiter: eine
+          Die Grundlinie gehört dem BAND, nicht dem einzelnen Reiter: eine
           Haarlinie über die volle Kartenbreite, der aktive Reiter färbt nur
           sein Stück davon ein. Dadurch sind alle Reiter gleich hohe Kästen
           und der Abstand hängt nicht mehr an einem Strich, den nur einer von
           ihnen trägt. Die Linie verbindet den Reiter zugleich sichtbar mit
           dem Inhalt darunter; eine einzeln getönte Pille sagt das nicht, sie
           liest sich als Filter. */}
-      <div className="hidden border-b border-gray-200 px-5 sm:block">
+      <div className="border-b border-gray-200 sm:px-5">
         <div
           ref={rowRef}
           role="tablist"
           aria-label={label}
-          className="flex items-end gap-6"
+          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:overflow-x-auto max-sm:px-5 max-sm:[&::-webkit-scrollbar]:hidden"
         >
           {visible.map((item) => renderTab(item))}
+          {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
+              Band stehen; der Sammelreiter verschwindet dort. */}
+          {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
           {hidden.length > 0 && moreTrigger()}
         </div>
 

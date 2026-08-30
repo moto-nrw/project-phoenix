@@ -1412,8 +1412,10 @@ function TimetablesContent() {
   // eigenes Skelett einblendete — jetzt einmal an das Gerüst gereicht.
   const contentLoading = statsLoading;
   const instanceCount = visibleInstances.length;
+  // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
+  // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
+  // auf dem Telefon eine Zeile, die nichts sagte.
   const statusLine = [
-    periodLabel.startsWith("KW ") ? periodLabel.split(" · ")[0]! : periodLabel,
     ...(view === "series"
       ? [
           `${templates.length} ${templates.length === 1 ? "Regeltermin" : "Regeltermine"}`,

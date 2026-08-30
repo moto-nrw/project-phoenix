@@ -788,7 +788,7 @@ function StaffCalendarPageInner() {
 
   return (
     <TenantPage
-      title="Kalender"
+      title="Mein Kalender"
       stats={onCalendarTab ? statusLine : undefined}
       statsLoading={calendarLoading}
       loading={calendarLoading}

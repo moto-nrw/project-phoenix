@@ -382,7 +382,7 @@ function MeinRaumPageContent() {
 
   return (
     <TenantPage
-      title="Aufsicht heute"
+      title="Aktuelle Aufsicht"
       stats={supervisionSummary}
       actions={releaseAction}
       search={{
@@ -547,7 +547,7 @@ function ActiveSupervisionGate({
   const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
-    return <TenantPage title="Aufsicht heute" statsLoading loading />;
+    return <TenantPage title="Aktuelle Aufsicht" statsLoading loading />;
   }
 
   // Caregivers (user/teacher role) always have access
@@ -565,7 +565,7 @@ function ActiveSupervisionGate({
 
   // Fehlendes Recht ist ein Zustand der Seite, kein Fehler: dieselbe
   // Kopfkarte mit demselben Titel, darunter der ruhige Leerzustand.
-  return <ForbiddenPage title="Aufsicht heute" />;
+  return <ForbiddenPage title="Aktuelle Aufsicht" />;
 }
 
 // Main component with Suspense wrapper. BinaryModeGuard runs first so
@@ -573,9 +573,9 @@ function ActiveSupervisionGate({
 // data that depends on detailed-mode room visits.
 export default function MeinRaumPage() {
   return (
-    <BinaryModeGuard title="Aufsicht heute">
+    <BinaryModeGuard title="Aktuelle Aufsicht">
       <Suspense
-        fallback={<TenantPage title="Aufsicht heute" statsLoading loading />}
+        fallback={<TenantPage title="Aktuelle Aufsicht" statsLoading loading />}
       >
         <ActiveSupervisionGate>
           <SSEErrorBoundary>

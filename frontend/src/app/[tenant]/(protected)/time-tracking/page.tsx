@@ -3831,6 +3831,7 @@ function TimeTrackingContent() {
       // dieselbe wie in Dienstplan, Vertretung und Betreuungsplan.
       searchSlot={
         <PlanningContextBar
+          withoutContextRow
           dateLabel={rangeLabel}
           onPrevious={goToPreviousRange}
           onNext={goToNextRange}

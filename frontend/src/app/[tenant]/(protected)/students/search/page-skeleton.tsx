@@ -8,7 +8,7 @@ export function StudentSearchPageSkeleton() {
     <StudentCardPageSkeleton
       label="Kinder werden geladen"
       testId="students-search-skeleton"
-      title="Kinder"
+      title="Alle Kinder"
     />
   );
 }

@@ -311,7 +311,7 @@ describe("MeinRaumPage (Active Supervisions) (1/5)", () => {
     render(<MeinRaumPage />);
 
     expect(
-      screen.getByLabelText("Aufsicht heute wird geladen…"),
+      screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
     ).toBeInTheDocument();
   });
 

@@ -57,8 +57,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Export gehört ins Menü, unter der Überschrift „Herunterladen" bzw.
    „Exportieren" — nie als Knopfreihe je Format. Kontextbedienelemente
    (Zeitraum, Datum) zählen nicht als Aktion und dürfen daneben stehen.
-   Unter sm nimmt die Gruppe erst ab zwei Aktionen die volle Breite; eine
-   einzelne bleibt neben dem Titel, statt eine halbleere Zeile zu öffnen.
+   Unter sm stehen die Aktionen neben dem Titel, solange sie neben seiner
+   Mindestbreite Platz haben; sonst brechen sie als Gruppe rechtsbündig in
+   eine eigene Zeile um. Kein Umbruch nach Anzahl, kein toter Raum rechts.
 5. **Suche und Filter gehören in `search`/`filters`.** Handgebaute Zeilen aus
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
@@ -79,8 +80,15 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    INNERHALB einer Karte (Slide-over: Bearbeiten/Verlauf), `SegmentedControl`
    für jede Wertauswahl — auch Monat/Woche/Tag, A/B-Woche, Exportzeitraum,
    Listenfilter. Kein drittes Bauteil, und kein `ui/Tabs` als Umschalter für
-   einen Wert.
-8. **Karten** im Inhalt kommen aus dem Kit, nie aus einer eigenen
+   einen Wert. Auf dem Telefon bleibt das Band ein Band: es scrollt
+   waagerecht und zeigt jeden Reiter. Keine Auswahlliste — die zeigte nur
+   den aktiven Wert („Status", „Betrieb") und las sich als Filter.
+8. **Kopfkarte mobil**: keine seiteneigenen Umbruch-Wrapper um `actions`
+   (kein `w-full flex-col sm:flex-row`). Ob die Aktionen neben dem Titel
+   stehen oder rechtsbündig in eine eigene Zeile brechen, entscheidet die
+   Kopfkarte für alle Seiten gleich. Die Statuszeile nennt keinen Zeitraum,
+   den ein Bedienband (`PlanningContextBar`) direkt darunter schon trägt.
+9. **Karten** im Inhalt kommen aus dem Kit, nie aus einer eigenen
    Klassenkette:
    - `SectionCard` — Inhaltsfläche mit Kopf; OHNE `title` die reine Fläche
      (das frühere `<section className="moto-content-surface …">`).
@@ -90,32 +98,32 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    - `TenantPageHeaderSkeleton` / `CardSkeleton` — Ladezustände.
      Kein `rounded-3xl`, kein `rounded-xl` als Karte, keine handgerollte
      Kartenfläche und keine zweite Kennzahl-Kachel.
-9. **Farben** nur über Kit-Komponenten oder `LOCATION_COLORS` /
-   `moto-*`-Klassen. Keine generischen Tailwind-Hues für Marken-Semantik.
-   Eine Bedeutung, eine Farbe, quer über alle Listen: grün ist anwesend,
-   grau ist nicht da, rot ist krank oder ein Fehler, lila ist genehmigt
-   abwesend, orange braucht Aufmerksamkeit ohne Fehler zu sein. Statuspillen
-   sind hell mit farbigem Punkt (`StatusDotBadge`/`StatusBadge`), nie
-   vollflächig in der Signalfarbe: zwanzig davon nebeneinander sind eine
-   Wand, kein Status.
+10. **Farben** nur über Kit-Komponenten oder `LOCATION_COLORS` /
+    `moto-*`-Klassen. Keine generischen Tailwind-Hues für Marken-Semantik.
+    Eine Bedeutung, eine Farbe, quer über alle Listen: grün ist anwesend,
+    grau ist nicht da, rot ist krank oder ein Fehler, lila ist genehmigt
+    abwesend, orange braucht Aufmerksamkeit ohne Fehler zu sein. Statuspillen
+    sind hell mit farbigem Punkt (`StatusDotBadge`/`StatusBadge`), nie
+    vollflächig in der Signalfarbe: zwanzig davon nebeneinander sind eine
+    Wand, kein Status.
 
-10. **Kacheln einer Liste sehen überall gleich aus.** Ein Name in einer
+11. **Kacheln einer Liste sehen überall gleich aus.** Ein Name in einer
     Zeile (Vor- und Nachname zusammen, gekürzt statt umgebrochen),
     Kit-Innenabstand (`p-4 sm:p-5`), keine Deko beim Überfahren (kein
     Vergrößern, keine Glanzkante) und keine Hinweiszeile „Tippen für mehr
     Infos" — wohin die Kachel führt, sagt ihr `aria-label`. In Tabellen
     steht „Nachname, Vorname" (alphabetisch sortierbar), auf Kacheln
     „Vorname Nachname".
-11. **Texte**: Sie-Form, echte Umlaute, keine Gender-Doppelpunkte, `…` statt
+12. **Texte**: Sie-Form, echte Umlaute, keine Gender-Doppelpunkte, `…` statt
     `...`, „…" als Anführungszeichen. Bindestrich nie als Gedankenstrich.
-12. **Verhalten bleibt gleich.** Diese Umstellung ist Layout, keine fachliche
+13. **Verhalten bleibt gleich.** Diese Umstellung ist Layout, keine fachliche
     Änderung. Keine Berechtigungsprüfung, kein Datenabruf, keine Sortierung
     und keine Fehlerbehandlung inhaltlich ändern.
-13. **Bestehende Tests nicht weichspülen.** Wenn ein Test bricht, weil Text
+14. **Bestehende Tests nicht weichspülen.** Wenn ein Test bricht, weil Text
     umgezogen ist oder eine Klasse sich geändert hat: Selektor anpassen. Wenn
     ein Test wegen einer FACHLICHEN Erwartung bricht: stehen lassen und im
     Bericht melden, nichts umschreiben.
-14. **Keine AI-Attribution** irgendwo (Code, Kommentare, Commits).
+15. **Keine AI-Attribution** irgendwo (Code, Kommentare, Commits).
 
 ## Planungsflächen
 

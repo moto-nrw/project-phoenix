@@ -73,6 +73,9 @@ interface PlanningContextBarProps {
   readonly actions?: ReactNode;
   /** Zeile 2, die Kontextzeile. */
   readonly children?: ReactNode;
+  /** Für Flächen, die nie eine Kontextzeile haben (Statistik, Zeiterfassung):
+   *  lässt die reservierte zweite Zeile ganz weg. */
+  readonly withoutContextRow?: boolean;
   readonly className?: string;
 }
 
@@ -88,6 +91,7 @@ export function PlanningContextBar({
   viewSwitcher,
   actions,
   children,
+  withoutContextRow = false,
   className,
 }: PlanningContextBarProps) {
   return (
@@ -102,7 +106,9 @@ export function PlanningContextBar({
         <div className="flex min-w-0 flex-1 flex-col md:contents">
           {navigationSlot ??
             (dateLabel && (
-              <p className="min-w-0 truncate text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:text-base">
+              // Unter md darf das Datum umbrechen: abgeschnitten („KW 36 ·
+              // 31.08.–04.09....") fehlte auf dem Telefon genau das Jahr.
+              <p className="min-w-0 text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:truncate md:text-base">
                 {dateLabel}
               </p>
             ))}
@@ -180,17 +186,23 @@ export function PlanningContextBar({
         )}
       </div>
 
-      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten). */}
-      <div className="border-t border-gray-100 pt-2">
-        {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
+      {/* Haarlinie trennt Bedienung (oben) von Kontext (unten). Die Zeile
+          bleibt auch leer stehen (#2031), damit der Inhalt beim Wechsel
+          zwischen Planungsflächen nicht springt -- außer die Fläche hat nie
+          Kontext (`withoutContextRow`): dann wäre sie nur ein leerer Streifen
+          unter dem Umschalter, auf dem Telefon 40 px hoch. */}
+      {!withoutContextRow && (
+        <div className="border-t border-gray-100 pt-2">
+          {/* Unter sm eine scrollende Zeile statt eines Zeilenumbruchs: eine
             umbrechende Wochenleiste warf die Trennlinie und die Zähler mitten
             in die zweite Zeile und ließ die Bar um zwei Zeilen wachsen. */}
-        <div
-          className={`flex [scrollbar-width:none] items-center gap-x-3 gap-y-1 overflow-x-auto text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
-        >
-          {children}
+          <div
+            className={`flex [scrollbar-width:none] items-center gap-x-3 gap-y-1 overflow-x-auto text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
+          >
+            {children}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

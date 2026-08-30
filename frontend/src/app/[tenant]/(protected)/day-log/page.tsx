@@ -467,7 +467,7 @@ export default function DayLogPage() {
 
   return (
     <TenantPage
-      title="Tagesbericht"
+      title="Tagesauswertung"
       stats={statusLine}
       statsLoading={loading}
       loading={loading}
@@ -497,7 +497,9 @@ export default function DayLogPage() {
             : null
       }
       actions={
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        // Kein eigener Umbruch-Wrapper: wie die Aktionen auf dem Telefon
+        // stehen, entscheidet die Kopfkarte für alle Seiten gleich.
+        <>
           {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
               w-44 trigger, field-aligned popover panel. Once the sweep
               lands, switch to ISODatePicker + controlSize="md". */}
@@ -510,10 +512,10 @@ export default function DayLogPage() {
             maxDate={maxDate}
             calendarLayout="popover"
             hideClearButton
-            className="w-full sm:w-44"
+            className="w-44"
           />
-          <div className="flex flex-wrap gap-2">{exportButtons()}</div>
-        </div>
+          {exportButtons()}
+        </>
       }
       overlays={
         <>

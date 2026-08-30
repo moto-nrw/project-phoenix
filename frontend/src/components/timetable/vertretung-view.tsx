@@ -70,7 +70,6 @@ import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   berlinTodayISO,
-  formatDate,
   isValidISODate,
   parseISODate,
   toISODate,
@@ -648,11 +647,9 @@ function VertretungContent() {
   // Ansicht.
   const scopeInstanceCount = visibleInstances.length;
   const statusLine = [
-    // Die Tagesansicht zählt einen Tag, also nennt sie auch den Tag; die
-    // Wochenansicht die Woche. Vom Wochenlabel steht hier nur der Kopf
-    // ("KW 29"), weil die Zeitleiste darunter dasselbe Label vollständig
-    // trägt.
-    isWeekView ? weekLabel.split(" · ")[0]! : formatDate(dayISO, true),
+    // Kein Datum in der Statuszeile: Woche und Tag trägt das Bedienband
+    // direkt darunter, mit Pfeilen. Zweimal dieselbe Angabe in der Kopfkarte
+    // kostete auf dem Telefon eine Zeile, die nichts sagte.
     `${scopeInstanceCount} ${scopeInstanceCount === 1 ? "Termin" : "Termine"}`,
     ...(countsUnavailable
       ? []

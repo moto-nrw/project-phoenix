@@ -387,8 +387,10 @@ function DienstplanContent() {
   // Statuszeile der Kopfkarte: der angezeigte Zeitraum und die Zahlen, die
   // die Fläche ohnehin geladen hat. In der Halbjahres-Sicht steht die
   // Wochenzahl nicht, weil dort keine einzelne Woche zu sehen ist.
+  // Kein Zeitraum in der Statuszeile: den trägt das Bedienband direkt
+  // darunter, mit Pfeilen. Zweimal dieselbe Woche in der Kopfkarte kostete
+  // auf dem Telefon eine Zeile, die nichts sagte.
   const statusLine = [
-    weekLabel,
     view === "woche"
       ? `${allShifts.length} ${allShifts.length === 1 ? "Dienst" : "Dienste"}`
       : null,

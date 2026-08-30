@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TenantPage, TenantPageStats } from "./tenant-page";
 
@@ -104,14 +104,13 @@ describe("TenantPage", () => {
     expect(screen.getByText("krank")).toBeInTheDocument();
     expect(screen.getByText("·")).toBeInTheDocument();
   });
-  it("bietet die Reiter auf schmalen Geraeten zusaetzlich als Auswahlliste an", () => {
-    const onChange = vi.fn();
+  it("zeigt die Reiter auf jeder Breite als ein Band, nie als Auswahlliste", () => {
     render(
       <TenantPage
         title="Einstellungen"
         tabs={{
           value: "operations",
-          onChange,
+          onChange: vi.fn(),
           items: [
             { value: "operations", label: "Betrieb" },
             { value: "gdpr", label: "Datenschutz" },
@@ -123,11 +122,12 @@ describe("TenantPage", () => {
       </TenantPage>,
     );
 
-    const auswahl = screen.getByRole("combobox", {
-      name: "Einstellungsbereiche",
-    });
-    fireEvent.change(auswahl, { target: { value: "gdpr" } });
-    expect(onChange).toHaveBeenCalledWith("gdpr");
+    // Eine Auswahlliste zeigte auf dem Telefon nur den aktiven Wert
+    // („Betrieb") und las sich als Filter. Das Band nennt alle Bereiche.
+    expect(screen.queryByRole("combobox")).toBeNull();
+    const band = screen.getByRole("tablist", { name: "Einstellungsbereiche" });
+    expect(band.className).toContain("max-sm:overflow-x-auto");
+    expect(within(band).getAllByRole("tab")).toHaveLength(2);
   });
 
   it("zeigt im Fehlerzustand die mitgegebene Aktion", () => {

@@ -2765,7 +2765,7 @@ function SearchPageContent() {
       {/* Kopfkarte wie auf jeder Tenant-Seite: Titel, Statuszeile, Aktionen,
           darunter Suche und Filter. */}
       <TenantPage
-        title="Kinder"
+        title="Alle Kinder"
         stats={studentSummary}
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
