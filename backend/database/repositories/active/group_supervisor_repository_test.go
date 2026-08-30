@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -481,6 +482,74 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 		found, err := repo.FindByID(ctx, supervisor.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, found.EndDate)
+	})
+}
+
+func TestGroupSupervisorRepository_UsesInjectedClockForActiveSupervisions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	today := timezone.NewDate(2020, 1, 2)
+	repo := activeRepo.NewGroupSupervisorRepository(db, func() time.Time {
+		return today.BerlinMidnight()
+	})
+
+	createActiveSupervisor := func(t *testing.T) (*supervisorTestData, *active.GroupSupervisor) {
+		t.Helper()
+		data := createSupervisorTestData(t, db)
+		endDate := today.AddDays(1)
+		supervisor := &active.GroupSupervisor{
+			GroupID: data.ActiveGroup.ID, StaffID: data.Staff1.ID,
+			StartDate: today.AddDays(-1), EndDate: &endDate, Role: "supervisor",
+		}
+		require.NoError(t, repo.Create(ctx, supervisor))
+		return data, supervisor
+	}
+
+	t.Run("finds supervision active on the injected date", func(t *testing.T) {
+		data, supervisor := createActiveSupervisor(t)
+
+		found, err := repo.FindByActiveGroupID(ctx, data.ActiveGroup.ID, true)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
+		assert.Equal(t, supervisor.ID, found[0].ID)
+
+		found, err = repo.FindByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID}, true)
+		require.NoError(t, err)
+		require.Len(t, found, 1)
+		assert.Equal(t, supervisor.ID, found[0].ID)
+	})
+
+	t.Run("ends one supervision on the injected date", func(t *testing.T) {
+		_, supervisor := createActiveSupervisor(t)
+		require.NoError(t, repo.EndSupervision(ctx, supervisor.ID))
+
+		found, err := repo.FindByID(ctx, supervisor.ID)
+		require.NoError(t, err)
+		require.Equal(t, today, *found.EndDate)
+	})
+
+	t.Run("ends a staff member's active supervisions on the injected date", func(t *testing.T) {
+		data, supervisor := createActiveSupervisor(t)
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+
+		found, err := repo.FindByID(ctx, supervisor.ID)
+		require.NoError(t, err)
+		require.Equal(t, today, *found.EndDate)
+	})
+
+	t.Run("ends groups' active supervisions on the injected date", func(t *testing.T) {
+		data, supervisor := createActiveSupervisor(t)
+		count, err := repo.EndSupervisionsByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), count)
+
+		found, err := repo.FindByID(ctx, supervisor.ID)
+		require.NoError(t, err)
+		require.Equal(t, today, *found.EndDate)
 	})
 }
 

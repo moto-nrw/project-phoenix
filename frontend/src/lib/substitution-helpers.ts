@@ -4,11 +4,11 @@
 import { toISODate } from "~/lib/date-helpers";
 
 export interface BackendGroupHandover {
-  id: number;
+  id: string;
   type: "group_handover";
-  group: { id: number; name: string };
+  group: { id: string; name: string };
   target: {
-    id: number;
+    id: string;
     full_name: string;
   };
   period: { start_date: string; end_date: string };
@@ -18,25 +18,25 @@ export interface BackendGroupHandover {
 export interface BackendSubstitutionOverview {
   group_handovers: BackendGroupHandover[];
   running_supervisions: BackendRunningSupervision[];
-  targets: Array<{ id: number; full_name: string }>;
+  targets: Array<{ id: string; full_name: string }>;
 }
 
 interface BackendRunningSupervision {
-  id: number;
+  id: string;
   type: "additional_supervision";
   name: string;
   room_name?: string;
-  supervisors: Array<{ id: number; full_name: string }>;
-  available_targets: Array<{ id: number; full_name: string }>;
+  supervisors: Array<{ id: string; full_name: string }>;
+  available_targets: Array<{ id: string; full_name: string }>;
   is_current_user_supervising: boolean;
   can_assign: boolean;
 }
 
 export interface BackendAdditionalSupervisionResult {
-  id: number;
+  id: string;
   type: "additional_supervision";
-  active_group_id: number;
-  target: { id: number; full_name: string };
+  active_group_id: string;
+  target: { id: string; full_name: string };
 }
 
 export interface SubstitutionProxyEnvelope<T> {

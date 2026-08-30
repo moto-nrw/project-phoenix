@@ -6,11 +6,11 @@ vi.mock("./session-cache", () => ({ sessionFetch }));
 import { substitutionService } from "./substitution-api";
 
 const handover = {
-  id: 5,
+  id: "5",
   type: "group_handover" as const,
-  group: { id: 12, name: "Robins Gruppe" },
+  group: { id: "12", name: "Robins Gruppe" },
   target: {
-    id: 34,
+    id: "34",
     full_name: "Toni Test",
   },
   period: { start_date: "2026-08-29", end_date: "2026-08-30" },
@@ -93,12 +93,12 @@ describe("substitutionService", () => {
           targets: [],
           running_supervisions: [
             {
-              id: 41,
+              id: "41",
               type: "additional_supervision",
               name: "Freispiel",
               room_name: "Atelier",
-              supervisors: [{ id: 11, full_name: "Alex Alt" }],
-              available_targets: [{ id: 73, full_name: "Toni Test" }],
+              supervisors: [{ id: "11", full_name: "Alex Alt" }],
+              available_targets: [{ id: "73", full_name: "Toni Test" }],
               is_current_user_supervising: true,
               can_assign: true,
             },
@@ -129,10 +129,10 @@ describe("substitutionService", () => {
       ok: true,
       json: async () => ({
         data: {
-          id: 91,
+          id: "91",
           type: "additional_supervision",
-          active_group_id: 41,
-          target: { id: 73, full_name: "Toni Test" },
+          active_group_id: "41",
+          target: { id: "73", full_name: "Toni Test" },
         },
       }),
     });

@@ -134,7 +134,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 		Where(`"group_supervisor".group_id = ?`, activeGroupID)
 
 	if activeOnly {
-		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
+		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -171,7 +171,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs))
 
 	if activeOnly {
-		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
+		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -192,9 +192,9 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = ?", timezone.TodayDate()).
+		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".id = ?`, id).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -297,9 +297,9 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = CURRENT_DATE").
+		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".staff_id = ?`, staffID).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -365,9 +365,9 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = now()").
+		Set("end_date = ?", r.today()).
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, r.today())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 

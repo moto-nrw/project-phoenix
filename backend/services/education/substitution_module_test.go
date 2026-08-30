@@ -20,6 +20,31 @@ import (
 
 var fixedNow = time.Date(2026, time.August, 29, 10, 0, 0, 0, timezone.Berlin)
 
+func TestSubstitutionResponseIDsSerializeAsStrings(t *testing.T) {
+	t.Parallel()
+
+	const id int64 = 9007199254740993
+
+	for name, response := range map[string]any{
+		"group handover": substitution.GroupHandover{
+			ID: id, Group: substitution.GroupRef{ID: id}, Target: substitution.StaffRef{ID: id},
+		},
+		"running supervision": substitution.RunningSupervision{
+			ID: id, Supervisors: []substitution.StaffRef{{ID: id}}, AvailableTargets: []substitution.StaffRef{{ID: id}},
+		},
+		"additional supervision": substitution.AssignmentResult{
+			ID: id, Group: &substitution.GroupRef{ID: id}, ActiveGroupID: id, Target: substitution.StaffRef{ID: id},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			payload, err := json.Marshal(response)
+			require.NoError(t, err)
+			require.NotContains(t, string(payload), `:9007199254740993`)
+			require.Contains(t, string(payload), `:"9007199254740993"`)
+		})
+	}
+}
+
 func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

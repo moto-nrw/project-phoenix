@@ -36,12 +36,12 @@ var (
 )
 
 type GroupRef struct {
-	ID   int64  `json:"id"`
+	ID   int64  `json:"id,string"`
 	Name string `json:"name"`
 }
 
 type StaffRef struct {
-	ID       int64  `json:"id"`
+	ID       int64  `json:"id,string"`
 	FullName string `json:"full_name"`
 }
 
@@ -51,7 +51,7 @@ type Period struct {
 }
 
 type GroupHandover struct {
-	ID     int64      `json:"id"`
+	ID     int64      `json:"id,string"`
 	Type   TargetType `json:"type"`
 	Group  GroupRef   `json:"group"`
 	Target StaffRef   `json:"target"`
@@ -60,7 +60,7 @@ type GroupHandover struct {
 }
 
 type RunningSupervision struct {
-	ID                       int64      `json:"id"`
+	ID                       int64      `json:"id,string"`
 	Type                     TargetType `json:"type"`
 	Name                     string     `json:"name"`
 	RoomName                 string     `json:"room_name,omitempty"`
@@ -71,10 +71,10 @@ type RunningSupervision struct {
 }
 
 type AssignmentResult struct {
-	ID            int64      `json:"id"`
+	ID            int64      `json:"id,string"`
 	Type          TargetType `json:"type"`
 	Group         *GroupRef  `json:"group,omitempty"`
-	ActiveGroupID int64      `json:"active_group_id,omitempty"`
+	ActiveGroupID int64      `json:"active_group_id,string,omitempty"`
 	Target        StaffRef   `json:"target"`
 	Period        *Period    `json:"period,omitempty"`
 	CanEnd        bool       `json:"can_end,omitempty"`
