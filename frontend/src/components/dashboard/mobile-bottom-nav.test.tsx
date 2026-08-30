@@ -19,9 +19,11 @@ vi.mock("~/lib/supervision-context", () => ({
 
 vi.mock("~/lib/auth-utils", () => {
   const isAdminFn = vi.fn();
+  const isCaregiverFn = vi.fn(() => !isAdminFn());
   return {
     isAdmin: isAdminFn,
-    isCaregiver: vi.fn(() => !isAdminFn()),
+    isCaregiver: isCaregiverFn,
+    hasEffectiveAdminScope: vi.fn(() => isAdminFn()),
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
       if (role === "user") return !isAdminFn();
@@ -90,7 +92,12 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  isAdmin,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
@@ -107,6 +114,8 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockIsCaregiver = vi.mocked(isCaregiver);
+const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
@@ -185,6 +194,10 @@ describe("MobileBottomNav", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+    mockHasEffectiveAdminScope.mockImplementation((session) =>
+      mockIsAdmin(session),
+    );
     mockHasPermission.mockReturnValue(false);
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
@@ -234,6 +247,29 @@ describe("MobileBottomNav", () => {
         .map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/dashboard");
       expect(hrefs).toContain("/students/search");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+        "href",
+        "/ogs-groups",
+      );
+    });
+
+    it("hides groups from users without staff or admin access", () => {
+      mockIsCaregiver.mockReturnValue(false);
+
+      render(<MobileBottomNav />);
+
+      expect(screen.queryByRole("link", { name: "Gruppe" })).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.queryByRole("link", { name: "Gruppe" })).toBeNull();
+    });
+
+    it("shows groups to effective admins", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasEffectiveAdminScope.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
       expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(

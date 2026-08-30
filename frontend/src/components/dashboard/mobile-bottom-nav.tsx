@@ -14,7 +14,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  hasRole,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -582,7 +587,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       ? resolvedOperatorMainItems
       : isCaregiver(session)
         ? STAFF_MAIN_ITEMS
-        : hasRole(session, "admin")
+        : hasEffectiveAdminScope(session)
           ? ADMIN_MAIN_ITEMS
           : STAFF_MAIN_ITEMS;
   // Callers covered by the school-wide overview (#2380): inject the
@@ -614,6 +619,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
+  const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
@@ -644,6 +650,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const filteredMainItemsByMode = filteredMainItems.filter(
     (item) =>
       (showActivityNav || !NFC_ONLY_HREFS.has(item.href)) &&
+      (item.href !== "/ogs-groups" ||
+        userIsCaregiver ||
+        userHasEffectiveAdminScope) &&
       // Bei offener Betreuung gibt es keine "meine Gruppe" — der
       // gruppenbasierte Einstieg entfällt (#1544).
       !(openCareGroupMode && item.href === "/ogs-groups"),
@@ -653,6 +662,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
     if (item.href === "/anfragen") return canOpenRequestsPage(session);
+    if (
+      item.href === "/ogs-groups" &&
+      !userIsCaregiver &&
+      !userHasEffectiveAdminScope
+    ) {
+      return false;
+    }
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
