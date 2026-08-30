@@ -51,6 +51,16 @@ func TestIsUniqueViolationOn_DegradedTextIgnoresDetail(t *testing.T) {
 	}
 }
 
+func TestIsUniqueViolationOn_DegradedTextUsesFinalPrimaryIdentifier(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New(`ERROR: "idx_guardian_profiles_tenant_email" duplicate key value violates unique constraint "other_constraint" (SQLSTATE=23505)`)
+
+	if IsUniqueViolationOn(err, testUniqueConstraint) {
+		t.Fatal("IsUniqueViolationOn() = true for an earlier primary-error identifier")
+	}
+}
+
 func TestIsUniqueViolationOn_DegradedTextWithEscapedIdentifierQuote(t *testing.T) {
 	t.Parallel()
 

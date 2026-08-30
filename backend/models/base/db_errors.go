@@ -41,11 +41,24 @@ func hasTextualSQLState(err error, code string) bool {
 
 func hasTextualConstraint(message, identifier string) bool {
 	primary, _, _ := strings.Cut(message, "\n")
-	return hasDoubleQuotedIdentifier(primary, identifier) ||
-		strings.Contains(primary, "»"+identifier+"«")
+	primary, _, found := strings.Cut(primary, " (SQLSTATE=")
+	if !found {
+		return false
+	}
+
+	opening := strings.LastIndex(primary, "»")
+	if opening >= 0 && strings.HasSuffix(primary, "«") {
+		return primary[opening+len("»"):len(primary)-len("«")] == identifier
+	}
+
+	quoted, found := lastDoubleQuotedIdentifier(primary)
+	return found && quoted == identifier
 }
 
-func hasDoubleQuotedIdentifier(message, identifier string) bool {
+func lastDoubleQuotedIdentifier(message string) (string, bool) {
+	var last string
+	var found bool
+
 	for offset := 0; offset < len(message); offset++ {
 		if message[offset] != '"' {
 			continue
@@ -62,13 +75,12 @@ func hasDoubleQuotedIdentifier(message, identifier string) bool {
 				offset++
 				continue
 			}
-			if quoted.String() == identifier {
-				return true
-			}
+			last = quoted.String()
+			found = true
 			break
 		}
 	}
-	return false
+	return last, found
 }
 
 // IsLockNotAvailable reports whether err carries PostgreSQL error code 55P03
