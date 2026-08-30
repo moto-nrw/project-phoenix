@@ -105,7 +105,7 @@ func TestIsDuplicateActiveVisitViolation(t *testing.T) {
 		// First insert: succeeds and stays open (exit_time IS NULL).
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-1*time.Minute), nil)
 
-		// Second insert: same (tenant_id=1, student_id, exit_time IS NULL)
+		// Second insert: same (tenant_id, student_id, exit_time IS NULL)
 		// — must be rejected by uniq_active_visits_open_per_student.
 		duplicate := &activeModels.Visit{
 			StudentID:     student.ID,
