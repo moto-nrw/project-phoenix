@@ -102,6 +102,11 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 			THEN COALESCE(EXCLUDED.note, student_status_days.note)
 			ELSE EXCLUDED.note
 		END`).
+		Set(`guardian_account_id = CASE
+			WHEN student_status_days.cleared_at IS NULL AND EXCLUDED.note IS NULL
+			THEN student_status_days.guardian_account_id
+			ELSE EXCLUDED.guardian_account_id
+		END`).
 		Returning("id").
 		Scan(ctx)
 	if err != nil {

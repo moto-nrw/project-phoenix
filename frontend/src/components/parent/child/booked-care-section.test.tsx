@@ -10,8 +10,6 @@ vi.mock("~/lib/parent-api", () => ({
   getChildCareSchedule: vi.fn(),
   submitCareScheduleRequest: vi.fn(),
   submitOfferingChangeRequest: vi.fn(),
-  withdrawCareScheduleRequest: vi.fn(),
-  withdrawOfferingChangeRequest: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
@@ -20,6 +18,10 @@ vi.mock("~/lib/hooks/use-messages-activity", () => ({
 
 vi.mock("~/components/parent/offering-change-request-modal", () => ({
   OfferingChangeRequestModal: () => <div data-testid="offering-modal" />,
+}));
+
+vi.mock("~/components/parent/request-sharing-control", () => ({
+  RequestSharingControl: () => <div data-testid="request-sharing" />,
 }));
 
 vi.mock("~/components/parent/care-schedule-request-modal", () => ({
@@ -411,6 +413,18 @@ describe("BookedCareSection", () => {
     expect(screen.getByTestId("care-schedule-modal")).toBeInTheDocument();
   });
 
+  it("zeigt alte offene Wochenplananfragen nur lesbar mit ihrem Status", async () => {
+    mockedSchedule.mockResolvedValue(pendingSchedule());
+    renderSection();
+
+    await screen.findByText("Montag");
+    expect(screen.getByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.getByTestId("request-sharing")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfrage zurückziehen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("bietet bei buchungsgeführter Betreuung keine Wochenplananfrage an", async () => {
     mockedSchedule.mockResolvedValue({
       ...pendingSchedule(),
@@ -457,7 +471,7 @@ describe("BookedCareSection", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("zeigt eine alte offene Wochenplananfrage mit Rücknahme weiter an", async () => {
+  it("zeigt eine alte offene Wochenplananfrage weiter an", async () => {
     mockedSchedule.mockResolvedValue({
       ...pendingSchedule(),
       can_request: false,
@@ -472,8 +486,8 @@ describe("BookedCareSection", () => {
     await screen.findByText("Montag");
     expect(screen.getByText("In Prüfung")).toBeInTheDocument();
     expect(screen.getByText("Montag · Abholzeit")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
-    ).toBeInTheDocument();
+    // Zurückziehen wurde durch das Bearbeiten der eigenen Anfrage ersetzt
+    // (#2267); sichtbar bleibt die Freigabe an andere Sorgeberechtigte.
+    expect(screen.getByTestId("request-sharing")).toBeInTheDocument();
   });
 });

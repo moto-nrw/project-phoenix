@@ -11,7 +11,7 @@ import {
   submitSickNote,
   listSickDays,
   listExcusedRequests,
-  withdrawExcusedRequest,
+  updateExcusedRequest,
   getChildFeatures,
   getChildMealPlan,
   getChildToday,
@@ -20,8 +20,7 @@ import {
   getChildOfferingCatalog,
   submitCareScheduleRequest,
   submitOfferingChangeRequest,
-  withdrawCareScheduleRequest,
-  withdrawOfferingChangeRequest,
+  updateOfferingChangeRequest,
   getChildMasterData,
   updateMasterDataField,
   submitMasterDataRequest,
@@ -136,7 +135,7 @@ describe("parent care offering requests", () => {
     });
   });
 
-  it("submits and withdraws a complete desired booking", async () => {
+  it("submits and edits a complete desired booking", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     mockFetch(async (input, init) => {
       requests.push({
@@ -157,7 +156,12 @@ describe("parent care offering requests", () => {
       effective_from: "2027-02-01",
       note: "Bitte",
     });
-    await withdrawOfferingChangeRequest("child/42", "request/77");
+    await updateOfferingChangeRequest("child/42", "request/77", {
+      offerings: [{ offering_id: "7", selected_days: ["tue"] }],
+      effective_from: "2027-02-01",
+      note: "Doch Dienstag",
+      expectedVersion: "v3",
+    });
 
     expect(requests).toEqual([
       {
@@ -166,18 +170,25 @@ describe("parent care offering requests", () => {
           offerings: [{ offering_id: "7", selected_days: ["mon"] }],
           effective_from: "2027-02-01",
           note: "Bitte",
+          recipient_guardian_profile_ids: [],
         },
       },
       {
-        url: "/api/parent/me/children/child%2F42/care-offerings/requests/request%2F77/withdraw",
-        body: {},
+        url: "/api/parent/me/children/child%2F42/care-offerings/requests/request%2F77",
+        body: {
+          // Gleiche Form wie beim Anlegen: offerings, nicht selections.
+          offerings: [{ offering_id: "7", selected_days: ["tue"] }],
+          effective_from: "2027-02-01",
+          note: "Doch Dienstag",
+          expected_version: "v3",
+        },
       },
     ]);
   });
 });
 
 describe("parent care schedule requests", () => {
-  it("submits and withdraws a weekly-plan request", async () => {
+  it("submits a weekly-plan request", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     mockFetch(async (input, init) => {
       requests.push({
@@ -201,16 +212,11 @@ describe("parent care schedule requests", () => {
     await submitCareScheduleRequest("child/42", {
       weekdays: [{ weekday: 1, pickup: "16:30" }],
     });
-    await withdrawCareScheduleRequest("child/42", "request/77");
 
     expect(requests).toEqual([
       {
         url: "/api/parent/me/children/child%2F42/care-schedule/requests",
         body: { payload: { weekdays: [{ weekday: 1, pickup: "16:30" }] } },
-      },
-      {
-        url: "/api/parent/me/children/child%2F42/care-schedule/requests/request%2F77/withdraw",
-        body: {},
       },
     ]);
   });
@@ -808,8 +814,8 @@ describe("listExcusedRequests", () => {
   });
 });
 
-describe("withdrawExcusedRequest", () => {
-  it("DELETEs the request and returns the withdrawn request", async () => {
+describe("updateExcusedRequest", () => {
+  it("PUTs the changed request with the expected version", async () => {
     let seenURL = "";
     let seenMethod = "";
     mockFetch(async (input, init) => {
@@ -820,7 +826,7 @@ describe("withdrawExcusedRequest", () => {
           id: "req-1",
           student_id: "84",
           absence_status: "excused",
-          status: "withdrawn",
+          status: "pending",
           dates: ["2026-06-02"],
           note: "Zahnarzt",
           created_at: "2026-06-01T09:00:00Z",
@@ -828,9 +834,13 @@ describe("withdrawExcusedRequest", () => {
         },
       });
     });
-    const out = await withdrawExcusedRequest("84", "req-1");
-    expect(seenMethod).toBe("DELETE");
-    expect(out.status).toBe("withdrawn");
+    const out = await updateExcusedRequest("84", "req-1", {
+      dates: ["2026-06-02"],
+      note: "Zahnarzt",
+      expectedVersion: "v2",
+    });
+    expect(seenMethod).toBe("PUT");
+    expect(out.status).toBe("pending");
     expect(seenURL).toContain(
       "/api/parent/me/children/84/excused-requests/req-1",
     );

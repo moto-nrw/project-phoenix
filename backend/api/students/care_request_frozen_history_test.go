@@ -60,9 +60,10 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	require.NoError(t, err)
 
 	// Approve through the production decide route.
+	// #2267: reason policy defaults to "both"
 	decideReq, err := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("/care-schedule-change-requests/%d/decide", pending.ID),
-		strings.NewReader(`{"approve":true}`))
+		strings.NewReader(`{"approve":true,"reason":"Passt so"}`))
 	require.NoError(t, err)
 	decideReq.Header.Set("Content-Type", "application/json")
 	rr := authExec(t, tc, decideReq, testutil.AdminTestClaims(int(staffAccount.ID)), []string{"admin:*"})

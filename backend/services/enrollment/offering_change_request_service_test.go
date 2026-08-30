@@ -795,43 +795,6 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
 }
 
-func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := offeringChangeAdminContext(t)
-	svc := newOfferingChangeServiceForTest(t, env)
-	fx := setupOfferingChangeFixture(t, env, "Withdraw")
-
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
-		StudentID:     fx.studentID,
-		AccountID:     env.creatorID,
-		EffectiveFrom: fx.switchDate,
-		Selections: []enrollmentService.OfferingChangeSelection{
-			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
-		},
-	})
-	require.NoError(t, err)
-
-	_, otherAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Andere", "Bezugsperson")
-	err = svc.Withdraw(ctx, row.ID, otherAccount.ID, fx.studentID)
-	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeForbidden)
-
-	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
-	withdrawn, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
-	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusWithdrawn, withdrawn.Status)
-
-	// A withdrawn request can no longer be decided.
-	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
-		RequestID:  row.ID,
-		Approve:    true,
-		ReviewedBy: env.creatorID,
-	})
-	require.ErrorIs(t, err, enrollmentModels.ErrOfferingChangeNotPending)
-}
-
 func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *testing.T) {
 	t.Parallel()
 
@@ -921,35 +884,6 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 	assert.Nil(t, view, "an old decision is no longer reported")
 }
 
-func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := offeringChangeAdminContext(t)
-	svc := newOfferingChangeServiceForTest(t, env)
-	fx := setupOfferingChangeFixture(t, env, "Silent")
-
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
-		StudentID:     fx.studentID,
-		AccountID:     env.creatorID,
-		EffectiveFrom: fx.switchDate,
-		Selections: []enrollmentService.OfferingChangeSelection{
-			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
-		},
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
-
-	view, err := svc.GetForStudent(ctx, fx.studentID)
-	require.NoError(t, err)
-	assert.Nil(t, view, "a guardian's own withdrawal needs no status message")
-}
-
-// The school confirms the date the switch takes effect on (#2484). Parents pick
-// a wish, the office decides — and what the office confirmed is what applies
-// and what every later view reports.
 func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.T) {
 	t.Parallel()
 

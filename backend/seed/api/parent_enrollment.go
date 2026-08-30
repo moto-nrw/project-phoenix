@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -92,7 +93,7 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 		return nil, nil, err
 	}
 
-	guardianIndexes := []int{0, 5, 19, 32, 54}
+	guardianIndexes := []int{0, 1, 5, 19, 32, 54}
 	parents := make([]ParentCredentials, 0, len(guardianIndexes))
 	parentAuths := make(map[string]phoenixapi.AuthRef, len(guardianIndexes))
 	for _, idx := range guardianIndexes {
@@ -741,8 +742,14 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 
 	out := make([]SeedParentPortalAction, 0, len(actions))
 	for _, action := range actions {
-		if _, err := rt.Client.PostWithAuth(parentAuth, action.path, action.body); err != nil {
+		body, err := rt.Client.PostWithAuth(parentAuth, action.path, action.body)
+		if err != nil {
 			return nil, fmt.Errorf("create parent portal action %s: %w", action.actionType, err)
+		}
+		if action.actionType == "care-exception" {
+			if err := s.shareSeedPickupRequest(rt, parentAuth, parent, body); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, SeedParentPortalAction{
 			ParentEmail: parent.Email,
@@ -751,6 +758,29 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 		})
 	}
 	return out, nil
+}
+
+func (s parentEnrollmentSeedStep) shareSeedPickupRequest(
+	rt *Runtime, parentAuth phoenixapi.AuthRef, parent ParentCredentials, responseBody []byte,
+) error {
+	requestID, err := parseEnvelopeStringID(responseBody)
+	if err != nil {
+		return fmt.Errorf("parse seeded pickup request: %w", err)
+	}
+	for _, candidate := range rt.Parents {
+		if candidate.Email == parent.Email || !slices.Contains(candidate.StudentIDs, parent.StudentIDs[0]) {
+			continue
+		}
+		path := fmt.Sprintf("/parent/me/children/%d/request-sharing/pickup_change/%d", parent.StudentIDs[0], requestID)
+		_, err = rt.Client.PutWithAuth(parentAuth, path, map[string]any{
+			"recipient_guardian_profile_ids": []string{strconv.FormatInt(candidate.GuardianID, 10)},
+		})
+		if err != nil {
+			return fmt.Errorf("share seeded pickup request: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("seeded pickup request has no second guardian recipient")
 }
 
 func parseEnvelopeStringID(respBody []byte) (int64, error) {

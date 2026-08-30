@@ -70,6 +70,13 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
 	today := timezone.TodayDate()
+	// The gap must be a future day inside the planning horizon, which closes
+	// on the Sunday of the current week (day_planning.go: maxPlanningDate). On a Sunday there
+	// is no such day, so the scenario cannot be exercised against the real
+	// clock; a fixed clock for day planning is tracked separately.
+	if today.Weekday() == time.Sunday {
+		t.Skip("planning horizon closes today; the future-gap scenario needs a weekday")
+	}
 	setEnrolledUntil(t, tc, endedWithoutTask.ID, today.AddDays(-1))
 	firstGap := today.AddDays(1)
 	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, firstGap)

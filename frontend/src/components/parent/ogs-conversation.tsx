@@ -404,9 +404,10 @@ export function OgsConversation({
           own local state, so no conversation refetch is needed. */}
       {activeModal === "sick" && (
         <SickNoteModal
+          studentId={studentId}
           onClose={() => setActiveModal(null)}
-          onSubmit={async (dates, reason, status) => {
-            return care.reportSick(dates, reason, status);
+          onSubmit={async (dates, reason, status, recipientIds) => {
+            return care.reportSick(dates, reason, status, recipientIds);
           }}
           sickRequiresApproval={care.features.sick_requires_approval}
           excusedRequiresApproval={care.features.excused_requires_approval}
@@ -414,6 +415,7 @@ export function OgsConversation({
       )}
       {activeModal === "pickup" && (
         <PickupTimeModal
+          studentId={studentId}
           careExceptions={care.careExceptions}
           pickupChangeRequests={care.pickupChangeRequests}
           careExceptionsLoaded={care.careExceptionsLoaded}

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	substitutionChangesVersion     = "1.15.344"
+	substitutionChangesVersion     = "1.15.350"
 	substitutionChangesDescription = "Type group substitutions and add their audit trail"
 )
 

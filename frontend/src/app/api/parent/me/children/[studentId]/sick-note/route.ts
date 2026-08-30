@@ -15,6 +15,7 @@ interface SickNoteBody {
   dates: string[];
   reason?: string;
   status?: string;
+  recipient_guardian_profile_ids?: string[];
 }
 
 /**
@@ -30,11 +31,13 @@ export const GET = proxyGet<BackendStatusDay[]>(
  * Proxy POST /api/parent/me/children/{studentId}/sick-note → backend
  * /parent/me/children/{studentId}/sick-note. The route-wrapper injects
  * the parent session token + 401 retry. The backend verifies the account
- * is a guardian of the child (account id from the JWT, never the URL). The
- * response remains a bare status-day array for compatibility; an empty array
- * can mean that the backend created an approval request instead.
+ * is a guardian of the child (account id from the JWT, never the URL). Without
+ * `?envelope=1` the response is a bare status-day array for compatibility (an
+ * empty array can mean the backend created an approval request instead); with
+ * it, `{status_days, pending_request}`. The flag is forwarded verbatim so old
+ * and new clients keep getting the shape they asked for.
  */
-export const POST = proxyPost<BackendStatusDay[], SickNoteBody>(
-  (params) =>
-    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/sick-note`,
-);
+export const POST = proxyPost<unknown, SickNoteBody>((params) => {
+  const base = `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/sick-note`;
+  return params.envelope === "1" ? `${base}?envelope=1` : base;
+});
