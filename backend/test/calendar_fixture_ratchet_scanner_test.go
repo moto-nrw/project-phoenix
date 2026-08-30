@@ -637,8 +637,16 @@ func currentCalendarInstantVariables(body *ast.BlockStmt, instantHelpers, timePa
 			switch declaration := node.(type) {
 			case *ast.AssignStmt:
 				for i, lhs := range declaration.Lhs {
+					if i >= len(declaration.Rhs) {
+						continue
+					}
 					id, isID := lhs.(*ast.Ident)
-					if isID && i < len(declaration.Rhs) && markCurrentInstant(id.Obj, declaration.Rhs[i], instantVars, instantHelpers, timePackages, timezonePackages) {
+					if isID && markCurrentInstant(id.Obj, declaration.Rhs[i], instantVars, instantHelpers, timePackages, timezonePackages) {
+						changed = true
+					}
+					selector, selected := lhs.(*ast.SelectorExpr)
+					root, rooted := selectorRootObject(selector, selected)
+					if rooted && markCurrentInstant(root, declaration.Rhs[i], instantVars, instantHelpers, timePackages, timezonePackages) {
 						changed = true
 					}
 				}
@@ -689,8 +697,16 @@ func currentCalendarDateVariables(body *ast.BlockStmt, dateHelpers, timezonePack
 			switch declaration := node.(type) {
 			case *ast.AssignStmt:
 				for i, lhs := range declaration.Lhs {
+					if i >= len(declaration.Rhs) {
+						continue
+					}
 					id, isID := lhs.(*ast.Ident)
-					if isID && i < len(declaration.Rhs) && markCurrentDate(id.Obj, declaration.Rhs[i], dateVars, dateHelpers, timezonePackages) {
+					if isID && markCurrentDate(id.Obj, declaration.Rhs[i], dateVars, dateHelpers, timezonePackages) {
+						changed = true
+					}
+					selector, selected := lhs.(*ast.SelectorExpr)
+					root, rooted := selectorRootObject(selector, selected)
+					if rooted && markCurrentDate(root, declaration.Rhs[i], dateVars, dateHelpers, timezonePackages) {
 						changed = true
 					}
 				}

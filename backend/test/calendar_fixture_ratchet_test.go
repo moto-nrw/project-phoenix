@@ -356,6 +356,9 @@ var calendarFixtureClockLegacyBaseline = map[string]string{
 	"services/users/staff_document_service_test.go:TestStaffDocumentService_CreateHydratesGeneratedTimestamps":                                                                                                        "b9979ac2591b8e3b",
 	"services/users/staff_document_service_test.go:TestStaffDocumentService_RetentionSchedule":                                                                                                                        "d4235227b88e1b04",
 	"simulate/feed_tombstone_test.go:TestRunFullDaySeedsStaffFeedTombstone":                                                                                                                                           "50018ffb9a00c84d",
+	"database/repositories/users/care_withdrawal_completion_test.go:TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild":                                                                                    "8876220d397e4fe1",
+	"services/schedule/shift_plan_sync_service_test.go:TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation":                                                                                                   "fcaac75824ad5122",
+	"services/schedule/shift_plan_sync_service_test.go:TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta":                                                                                                        "7c460cc232334c76",
 }
 
 // calendarFixtureClockExceptions contains only tests whose purpose requires
@@ -442,6 +445,8 @@ func TestHistorySummary(t *testing.T) {
 	_ = updatedHistory.WeeklySummaries
 	other := GetHistory(NewWorkSession(fixtureNow()), from, to)
 	_ = other.WeeklySummaries
+	structured := GetHistory(fixtureSession(), from, to)
+	_ = structured.WeeklySummaries
 }
 `)
 	writeLiveInstantHelper(t, root)
@@ -465,6 +470,11 @@ import "time"
 func fixtureNow() time.Time {
 	now := time.Now()
 	return now
+}
+func fixtureSession() WorkSession {
+	session := WorkSession{}
+	session.CheckInTime = time.Now()
+	return session
 }
 `)
 }
