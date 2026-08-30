@@ -771,8 +771,7 @@ func TestFakeMethod(t *testing.T) {
 }
 func TestFactoryMethod(t *testing.T) {
 	t.Parallel()
-	clock := newLiveClock()
-	history := GetHistory(WorkSession{CheckInTime: clock.Now()})
+	history := GetHistory(WorkSession{CheckInTime: factoryTime()})
 	_ = history.WeeklySummaries
 }
 func TestExplicitReceiverTypeConverges(t *testing.T) {
@@ -786,6 +785,7 @@ func TestExplicitReceiverTypeConverges(t *testing.T) {
 import "time"
 type Clock interface { Now() time.Time }
 func newLiveClock() liveClock { return liveClock{} }
+func factoryTime() time.Time { return newLiveClock().Now() }
 `)
 	findings, err := scanCalendarFixtureClockRisks(root)
 	if err != nil {

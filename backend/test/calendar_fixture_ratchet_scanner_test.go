@@ -490,7 +490,6 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 	if err != nil {
 		return calendarPackageHelpers{}, err
 	}
-	propagateCalendarHelpers(candidates, result)
 	for key, packageCandidates := range candidates {
 		result.candidates[key] = map[string][]calendarHelperCandidate{}
 		for _, candidate := range packageCandidates {
@@ -498,6 +497,10 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 			result.candidates[key][identity] = append(result.candidates[key][identity], candidate)
 		}
 		addCalendarMethodAliases(packageCandidates, result, key)
+	}
+	propagateCalendarHelpers(candidates, result)
+	for key, packageCandidates := range candidates {
+		syncCalendarMethodAliases(packageCandidates, result, key)
 	}
 	return result, nil
 }
@@ -537,13 +540,24 @@ func addCalendarMethodAliases(candidates []calendarHelperCandidate, helpers cale
 		if method.receiver == "" {
 			continue
 		}
-		identity := calendarHelperIdentity(method.receiver, method.name)
 		for _, factory := range candidates {
 			if factory.receiver != "" || factory.resultType != method.receiver {
 				continue
 			}
 			alias := calendarHelperIdentity(factory.name+"()", method.name)
 			helpers.candidates[key][alias] = append(helpers.candidates[key][alias], method)
+		}
+	}
+}
+
+func syncCalendarMethodAliases(candidates []calendarHelperCandidate, helpers calendarPackageHelpers, key string) {
+	for _, method := range candidates {
+		identity := calendarHelperIdentity(method.receiver, method.name)
+		for _, factory := range candidates {
+			if method.receiver == "" || factory.receiver != "" || factory.resultType != method.receiver {
+				continue
+			}
+			alias := calendarHelperIdentity(factory.name+"()", method.name)
 			helpers.dates[key][alias] = helpers.dates[key][identity]
 			helpers.instants[key][alias] = helpers.instants[key][identity]
 			helpers.weekly[key][alias] = helpers.weekly[key][identity]
@@ -559,6 +573,7 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 	for changed := true; changed; {
 		changed = false
 		for key, packageCandidates := range candidates {
+			syncCalendarMethodAliases(packageCandidates, helpers, key)
 			for _, candidate := range packageCandidates {
 				identity := calendarHelperIdentity(candidate.receiver, candidate.name)
 				dateVars := currentCalendarDateVariables(candidate.fn.Body, helpers.dates[key], candidate.timezonePackages)
