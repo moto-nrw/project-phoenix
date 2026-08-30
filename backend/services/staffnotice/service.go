@@ -69,15 +69,17 @@ type PeriodLookup interface {
 // Kalenderzeitraum lässt sich kein Wochenmuster auflösen, dann gilt ein Hinweis
 // in jeder Woche (dieselbe Richtung wie ShouldMaterializeWeekPattern).
 type ServiceConfig struct {
-	Repo    usersModels.StaffNoticeRepository
-	Periods PeriodLookup
-	Logger  *slog.Logger
+	Repo        usersModels.StaffNoticeRepository
+	Periods     PeriodLookup
+	Logger      *slog.Logger
+	CurrentDate func() timezone.Date
 }
 
 type service struct {
-	repo    usersModels.StaffNoticeRepository
-	periods PeriodLookup
-	logger  *slog.Logger
+	repo        usersModels.StaffNoticeRepository
+	periods     PeriodLookup
+	logger      *slog.Logger
+	currentDate func() timezone.Date
 }
 
 // NewService verdrahtet den Dienst.
@@ -86,7 +88,11 @@ func NewService(cfg ServiceConfig) Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &service{repo: cfg.Repo, periods: cfg.Periods, logger: logger}
+	currentDate := cfg.CurrentDate
+	if currentDate == nil {
+		currentDate = timezone.TodayDate
+	}
+	return &service{repo: cfg.Repo, periods: cfg.Periods, logger: logger, currentDate: currentDate}
 }
 
 func (s *service) Get(ctx context.Context, id int64) (*usersModels.StaffNotice, error) {
@@ -276,7 +282,7 @@ func (s *service) Acknowledge(ctx context.Context, id, accountID int64) error {
 		// Das ist kein Fehler der Person, sondern eine veraltete Ansicht.
 		return fmt.Errorf("%w: notice does not ask for acknowledgement", ErrInvalid)
 	}
-	today := timezone.TodayDate()
+	today := s.currentDate()
 	if !notice.AppliesOn(today) {
 		return fmt.Errorf("%w: notice does not apply today", ErrInvalid)
 	}

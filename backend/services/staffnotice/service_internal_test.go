@@ -224,7 +224,7 @@ func TestAcknowledgeUnknownNotice(t *testing.T) {
 func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	today := timezone.TodayDate()
+	today := mustDate(t, "2026-08-05")
 	otherWeekday := int16((int(today.Weekday())+6)%7 + 1)
 	otherWeekday = otherWeekday%7 + 1
 
@@ -293,7 +293,11 @@ func TestAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.notice.ID = 71
 			repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{tt.notice}}
-			svc := NewService(ServiceConfig{Repo: repo, Periods: tt.periods})
+			svc := NewService(ServiceConfig{
+				Repo:        repo,
+				Periods:     tt.periods,
+				CurrentDate: func() timezone.Date { return today },
+			})
 
 			err := svc.Acknowledge(ctx, tt.notice.ID, 42)
 			assert.ErrorIs(t, err, ErrInvalid)
