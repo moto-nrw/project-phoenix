@@ -1,18 +1,14 @@
 package api
 
-import (
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-)
-
 type Runtime struct {
-	Adapter          *phoenixapi.Adapter
+	Adapter          Adapter
 	Client           *Client
 	Verbose          bool
 	OperatorEmail    string
 	OperatorPassword string
 	StaffPIN         string
-	OperatorAuth     phoenixapi.AuthRef
-	TenantAuth       phoenixapi.AuthRef
+	OperatorAuth     AuthRef
+	TenantAuth       AuthRef
 	Bootstrap        *bootstrapSeedState
 	FixedSeeder      *FixedSeeder
 	Result           *SeedResult
@@ -36,12 +32,12 @@ func newRuntime(seeder *Seeder, operatorEmail, operatorPassword, staffPIN string
 	}
 }
 
-func (r *Runtime) SetOperatorAuth(auth phoenixapi.AuthRef) {
+func (r *Runtime) SetOperatorAuth(auth AuthRef) {
 	r.OperatorAuth = auth
 	r.Client.BindAuth(auth)
 }
 
-func (r *Runtime) SetTenantAuth(auth phoenixapi.AuthRef) {
+func (r *Runtime) SetTenantAuth(auth AuthRef) {
 	r.TenantAuth = auth
 	r.Client.BindAuth(auth)
 }

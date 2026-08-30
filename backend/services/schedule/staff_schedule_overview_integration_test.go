@@ -92,7 +92,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	db := testpkg.SetupTestDB(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
-	date := timezone.TodayDate().AddDays(12000 + int(time.Now().UnixNano()%1000))
+	date := timezone.NewDate(2060, 1, 5)
 	local := createOverviewTenantFixture(t, db, testpkg.Tenant(t), date, false)
 	foreign := createOverviewTenantFixture(t, db, foreignTenantID, date, true)
 	secondLocalStaff := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Overview", "Second-Assignment")
@@ -145,7 +145,8 @@ func insertWorkScheduleRow(t *testing.T, db *bun.DB, tenantID, staffID int64, da
 	t.Helper()
 	row := &configModel.StaffWorkSchedule{
 		StaffID: staffID, WeekIndex: 0, RotationLength: 1,
-		DayOfWeek: day, TargetMinutes: targetMinutes, ValidFrom: validFrom,
+		DayOfWeek: day, TargetMinutes: targetMinutes,
+		ValidFrom: configModel.NewCalendarDate(validFrom.Year, validFrom.Month, validFrom.Day),
 	}
 	row.SetTenantID(tenantID)
 	_, err := db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(testpkg.TenantContext(tenantID))
@@ -171,10 +172,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	tenantID := testpkg.UniqueTestTenantID(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 
-	monday := timezone.TodayDate().AddDays(14000 + int(time.Now().UnixNano()%1000))
-	for monday.Weekday() != time.Monday {
-		monday = monday.AddDays(1)
-	}
+	monday := timezone.NewDate(2060, 2, 2)
 	friday := monday.AddDays(4)
 	validFrom := monday.AddDays(-30)
 
@@ -190,11 +188,13 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 
 	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
 	createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
-	modelRepo := repositories.NewFactory(db).WorkTimeModel
+	modelRepos := repositories.NewFactory(db)
+	modelRepos.SetConfigRuntime(testpkg.ConfigRuntime(db))
+	modelRepo := modelRepos.WorkTimeModel
 	workModel := &configModel.WorkTimeModel{
 		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: monday,
+		RotationAnchorDate: configModel.NewCalendarDate(monday.Year, monday.Month, monday.Day),
 	}
 	require.NoError(t, modelRepo.Create(testpkg.TenantContext(tenantID), workModel, []*configModel.WorkTimeModelEntry{
 		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 120},
@@ -217,7 +217,9 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	})
 
 	queryCounter := &overviewQueryCounter{}
-	repos := repositories.NewFactory(db.WithQueryHook(queryCounter))
+	countedDB := db.WithQueryHook(queryCounter)
+	repos := repositories.NewFactory(countedDB)
+	repos.SetConfigRuntime(testpkg.ConfigRuntime(countedDB))
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
 		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 		Rooms: repos.Room, Staff: repos.Staff,
@@ -292,10 +294,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	monday := timezone.TodayDate().AddDays(15000 + int(time.Now().UnixNano()%1000))
-	for monday.Weekday() != time.Monday {
-		monday = monday.AddDays(1)
-	}
+	monday := timezone.NewDate(2060, 3, 1)
 	friday := monday.AddDays(4)
 	saturday := monday.AddDays(5)
 
@@ -341,12 +340,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	db := testpkg.SetupTestDB(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
-	monday := timezone.TodayDate().AddDays(13000 + int(time.Now().UnixNano()%1000))
-	// Keep the fixture anchored to Monday so containing-calendar-week activation is
-	// deterministic regardless of the randomized far-future offset.
-	for monday.Weekday() != time.Monday {
-		monday = monday.AddDays(1)
-	}
+	monday := timezone.NewDate(2060, 4, 5)
 	wednesday := monday.AddDays(2)
 	friday := monday.AddDays(4)
 	nextMonday := monday.AddDays(7)

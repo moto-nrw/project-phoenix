@@ -1270,7 +1270,7 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 
 	// The phase started a week ago; the period is built around it so the
 	// template pin stays valid regardless of the real date.
-	phaseStart := timezone.TodayDate().AddDays(-7)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(-7)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
 	period := createCareOfferingTestPeriod(t, env.db, "running-phase-fanout",
 		phaseStart.AddDays(-5),
@@ -1302,7 +1302,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	phaseStart := timezone.TodayDate().AddDays(-7)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(-7)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
 	period := createCareOfferingTestPeriod(t, env.db, "running-phase-correction",
 		phaseStart.AddDays(-5),
@@ -2229,7 +2229,7 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 
 	// Move the phase into the future so a period starting after today can
 	// still contain it, keeping the test independent of the real date.
-	phaseStart := timezone.TodayDate().AddDays(60)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(60)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
 	futurePeriod := createCareOfferingTestPeriod(t, env.db, "offering-source-future",
 		phaseStart.AddDays(-5),

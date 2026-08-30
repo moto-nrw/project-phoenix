@@ -44,4 +44,23 @@ describe("RequestReviewCard", () => {
       "hidden",
     );
   });
+
+  it("does not repeat the child name inside a grouped case", () => {
+    render(
+      <RequestReviewCard
+        childName="Lina Beispiel"
+        type="excused"
+        typeLabel="Krankmeldung"
+        summary="29.08.2026"
+        grouped
+      />,
+    );
+
+    expect(screen.queryByText("Lina Beispiel")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: /Anfrage für Lina Beispiel.*Krankmeldung.*Details anzeigen/,
+      }),
+    ).toBeVisible();
+  });
 });

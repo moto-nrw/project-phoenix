@@ -453,6 +453,23 @@ func (r *Repository[T]) DeleteBefore(ctx context.Context, column string, cutoff 
 // when the touch timestamp should move.
 // Column names must be compile-time constants, never user input.
 func (r *Repository[T]) UpdateColumns(ctx context.Context, entity T, columns ...string) (int64, error) {
+	return r.updateColumns(ctx, entity, "", columns...)
+}
+
+// UpdateColumnsIfNull updates only the named columns when guardColumn is
+// still NULL. It is the optimistic-update twin of UpdateColumns for one-way
+// state transitions such as ending an active break or using a non-revoked
+// passkey. The primary-key match, optional tenant filter, column projection,
+// and null guard execute in one statement.
+// Column names must be compile-time constants, never user input.
+func (r *Repository[T]) UpdateColumnsIfNull(ctx context.Context, entity T, guardColumn string, columns ...string) (int64, error) {
+	if guardColumn == "" {
+		return 0, fmt.Errorf("update columns %s: guard column required", r.EntityName)
+	}
+	return r.updateColumns(ctx, entity, guardColumn, columns...)
+}
+
+func (r *Repository[T]) updateColumns(ctx context.Context, entity T, nullGuard string, columns ...string) (int64, error) {
 	if reflect.ValueOf(entity).IsZero() {
 		return 0, fmt.Errorf("%s cannot be nil or zero value", r.EntityName)
 	}
@@ -468,6 +485,9 @@ func (r *Repository[T]) UpdateColumns(ctx context.Context, entity T, columns ...
 		ModelTableExpr(tableExpr).
 		Column(columns...).
 		WherePK()
+	if nullGuard != "" {
+		query = query.Where("? IS NULL", bun.Ident(nullGuard))
+	}
 
 	if r.TenantScoped {
 		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -487,12 +507,19 @@ func (r *Repository[T]) UpdateColumns(ctx context.Context, entity T, columns ...
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "update columns",
-			Err: err,
+			Err: &rowsAffectedError{err: err},
 		}
 	}
 
 	return updated, nil
 }
+
+type rowsAffectedError struct {
+	err error
+}
+
+func (e *rowsAffectedError) Error() string { return e.err.Error() }
+func (e *rowsAffectedError) Unwrap() error { return e.err }
 
 // newEntityValue creates a new zero-value instance of the entity type for use
 // as a bun model target (table metadata only, never scanned into).
@@ -510,13 +537,53 @@ func AssertRowsAffected(result sql.Result, expected int64, op string) error {
 	if err != nil {
 		return fmt.Errorf("%s: rows affected: %w", op, err)
 	}
-	if n != expected {
+	return AssertRowsAffectedCount(n, expected, op)
+}
+
+// AssertRowsAffectedCount checks an already-read DML row count. Repository
+// methods use it after UpdateColumns and its guarded variants.
+func AssertRowsAffectedCount(actual, expected int64, op string) error {
+	if actual != expected {
 		return &modelBase.DatabaseError{
 			Op:  op,
-			Err: fmt.Errorf("expected %d rows affected, got %d", expected, n),
+			Err: fmt.Errorf("expected %d rows affected, got %d", expected, actual),
 		}
 	}
 	return nil
+}
+
+// DatabaseErrorCause returns the driver error wrapped by DatabaseError. It
+// lets a typed repository method preserve its own operation name after
+// delegating query construction to a generic repository helper.
+func DatabaseErrorCause(err error) error {
+	var databaseErr *modelBase.DatabaseError
+	if errors.As(err, &databaseErr) && databaseErr.Err != nil {
+		err = databaseErr.Err
+	}
+	if cause, ok := RowsAffectedCause(err); ok {
+		return cause
+	}
+	return err
+}
+
+// RowsAffectedCause reports whether err came from reading a DML result's row
+// count and returns the underlying driver error.
+func RowsAffectedCause(err error) (error, bool) {
+	var rowsErr *rowsAffectedError
+	if errors.As(err, &rowsErr) {
+		return rowsErr.err, true
+	}
+	return nil, false
+}
+
+// UpdateOperationError restores the repository-specific error contract after
+// a typed repository method delegates to UpdateColumns. Execution failures
+// remain DatabaseErrors; row-count failures keep AssertRowsAffected's format.
+func UpdateOperationError(err error, op string) error {
+	if cause, ok := RowsAffectedCause(err); ok {
+		return fmt.Errorf("%s: rows affected: %w", op, cause)
+	}
+	return &modelBase.DatabaseError{Op: op, Err: DatabaseErrorCause(err)}
 }
 
 // TenantWhere returns a WHERE clause fragment and value for tenant filtering.
@@ -561,17 +628,5 @@ func toSnakeCase(s string) string {
 // so services never run ExecContext themselves (Rule 11).
 func AcquireXactLock(ctx context.Context, db *bun.DB, key string) error {
 	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
-	return err
-}
-
-// AcquireXactLockShared takes a SHARED transaction-scoped advisory lock on the
-// hashed key. Shared holders never block one another, so concurrent readers of
-// the same key proceed in parallel; a shared holder only conflicts with an
-// EXCLUSIVE holder (AcquireXactLock) on the same key. Use this for read paths
-// that must be mutually exclusive with a writer but not with each other — it
-// avoids serializing every reader behind the exclusive lock. Same tx/auto-release
-// semantics as AcquireXactLock.
-func AcquireXactLockShared(ctx context.Context, db *bun.DB, key string) error {
-	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock_shared(hashtextextended(?, 0))", key)
 	return err
 }

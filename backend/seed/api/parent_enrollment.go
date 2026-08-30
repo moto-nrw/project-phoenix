@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 type parentEnrollmentSeedStep struct {
@@ -67,16 +64,16 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
-func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth phoenixapi.AuthRef) (map[string]any, error) {
+func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[string]any, error) {
 	settings := map[string]any{
-		configModels.KeyEnrollmentEnabled:               true,
-		configModels.KeyParentSickNoteEnabled:           true,
-		configModels.KeyParentNotesEnabled:              true,
-		configModels.KeyParentPickupChangeEnabled:       true,
-		configModels.KeyParentGuardianManagementEnabled: true,
-		configModels.KeyGuardianParentInviteMode:        configModels.ParentInviteModeDirect,
-		configModels.KeyGuardianParentCanRemove:         true,
-		configModels.KeyEnrollmentRequireCaptcha:        false,
+		"enrollment.enabled":                            true,
+		"operations.parent_sick_note_enabled":           true,
+		"operations.parent_notes_enabled":               true,
+		"operations.parent_pickup_change_enabled":       true,
+		"operations.parent_guardian_management_enabled": true,
+		"guardians.parent_invite_mode":                  "direct",
+		"guardians.parent_can_remove":                   true,
+		"enrollment.require_captcha":                    false,
 	}
 	for key, value := range settings {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
@@ -86,15 +83,15 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth phoenixapi.Auth
 	return settings, nil
 }
 
-func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Runtime, adminAuth phoenixapi.AuthRef) ([]ParentCredentials, map[string]phoenixapi.AuthRef, error) {
+func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Runtime, adminAuth AuthRef) ([]ParentCredentials, map[string]AuthRef, error) {
 	password, err := s.parentPassword()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	guardianIndexes := []int{0, 5, 19, 32, 54}
+	guardianIndexes := []int{0, 1, 5, 19, 32, 54}
 	parents := make([]ParentCredentials, 0, len(guardianIndexes))
-	parentAuths := make(map[string]phoenixapi.AuthRef, len(guardianIndexes))
+	parentAuths := make(map[string]AuthRef, len(guardianIndexes))
 	for _, idx := range guardianIndexes {
 		if idx < 0 || idx >= len(DemoGuardians) {
 			return nil, nil, fmt.Errorf("demo guardian index %d out of range", idx)
@@ -145,7 +142,7 @@ func (s parentEnrollmentSeedStep) parentPassword() (string, error) {
 	return defaultSeedParentPassword, nil
 }
 
-func (s parentEnrollmentSeedStep) inviteGuardian(rt *Runtime, auth phoenixapi.AuthRef, guardianID int64) (string, error) {
+func (s parentEnrollmentSeedStep) inviteGuardian(rt *Runtime, auth AuthRef, guardianID int64) (string, error) {
 	respBody, err := rt.Client.PostWithAuthAndHeaders(
 		auth,
 		fmt.Sprintf("/api/guardians/%d/invite", guardianID),
@@ -191,7 +188,7 @@ func (s parentEnrollmentSeedStep) acceptGuardianInvitation(rt *Runtime, token, p
 	return resp.Data.AccountID, nil
 }
 
-func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixapi.AuthRef, parents []ParentCredentials, parentAuths map[string]phoenixapi.AuthRef) (SeedEnrollmentState, error) {
+func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef, parents []ParentCredentials, parentAuths map[string]AuthRef) (SeedEnrollmentState, error) {
 	state := SeedEnrollmentState{
 		Offerings: make(map[string]int64),
 		Settings:  make(map[string]any),
@@ -212,7 +209,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 	type enrollmentSubmission struct {
 		source string
 		body   map[string]any
-		auth   phoenixapi.AuthRef
+		auth   AuthRef
 		path   string
 		status string
 		reason string
@@ -243,119 +240,119 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Demo-Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Emma", "Klein", "2019-01-11", 1,
 			"Katharina", "Klein", "katharina.klein@example.test", "approved-1-day",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon"},
 				"mittagessen": {"mon"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: ein Betreuungstag"),
+			}, "approved", "Demo-Zusage: ein Betreuungstag"),
 		seedSubmission("public", "Oskar", "Wolf", "2018-09-29", 1,
 			"Martin", "Wolf", "martin.wolf@example.test", "approved-1-day",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"fri"},
 				"mittagessen": {"fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: ein Betreuungstag"),
+			}, "approved", "Demo-Zusage: ein Betreuungstag"),
 		seedSubmission("public", "Mia", "Berger", "2018-05-17", 2,
 			"Julia", "Berger", "julia.berger@example.test", "approved-1-day",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue"},
 				"mittagessen": {"tue"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: ein Betreuungstag"),
+			}, "approved", "Demo-Zusage: ein Betreuungstag"),
 		seedSubmission("public", "Ben", "Hartmann", "2018-12-02", 1,
 			"Nadine", "Hartmann", "nadine.hartmann@example.test", "approved-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
+			}, "approved", "Demo-Zusage: zwei Betreuungstage"),
 		seedSubmission("public", "Clara", "Neumann", "2017-10-09", 2,
 			"Sven", "Neumann", "sven.neumann@example.test", "approved-2-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed"},
 				"mittagessen": {"mon", "wed"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
+			}, "approved", "Demo-Zusage: zwei Betreuungstage"),
 		seedSubmission("public", "Paul", "Seidel", "2017-03-27", 3,
 			"Anja", "Seidel", "anja.seidel@example.test", "approved-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "fri"},
 				"mittagessen": {"mon", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
+			}, "approved", "Demo-Zusage: zwei Betreuungstage"),
 		seedSubmission("public", "Jonas", "Krüger", "2017-08-15", 2,
 			"Petra", "Krüger", "petra.krueger@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Demo-Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Amelie", "Vogt", "2016-11-20", 3,
 			"Jan", "Vogt", "jan.vogt@example.test", "approved-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"tue", "thu", "fri"},
 				"mittagessen": {"tue", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Demo-Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Felix", "Braun", "2016-02-06", 4,
 			"Birgit", "Braun", "birgit.braun.eltern@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "tue", "wed"},
 				"mittagessen": {"mon", "tue", "wed"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+			}, "approved", "Demo-Zusage: drei Betreuungstage"),
 		seedSubmission("public", "Hannah", "Schmitz", "2017-06-30", 2,
 			"Carsten", "Schmitz", "carsten.schmitz@example.test", "approved-4-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: vier Betreuungstage"),
+			}, "approved", "Demo-Zusage: vier Betreuungstage"),
 		seedSubmission("public", "David", "Keller", "2016-04-03", 4,
 			"Verena", "Keller", "verena.keller@example.test", "approved-4-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "wed", "thu", "fri"},
 				"mittagessen": {"tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: vier Betreuungstage"),
+			}, "approved", "Demo-Zusage: vier Betreuungstage"),
 		seedSubmission("public", "Elias", "Sommerfeld", "2019-07-08", 1,
 			"Marco", "Sommerfeld", "marco.sommerfeld@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fünf Betreuungstage"),
+			}, "approved", "Demo-Zusage: fünf Betreuungstage"),
 		seedSubmission("public", "Sophie", "Adler", "2016-12-19", 3,
 			"Florian", "Adler", "florian.adler@example.test", "approved-5-days-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: Ferienbetreuung"),
+			}, "approved", "Demo-Zusage: Ferienbetreuung"),
 		seedSubmission("public", "Marie", "Busch", "2017-05-24", 3,
 			"Silke", "Busch", "silke.busch@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fünf Betreuungstage"),
+			}, "approved", "Demo-Zusage: fünf Betreuungstage"),
 		seedSubmission("public", "Mika", "Winter", "2018-11-03", 2,
 			"Robert", "Winter", "robert.winter@example.test", "waitlisted-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste wegen begrenzter Plätze"),
+			}, "waitlisted", "Demo-Warteliste wegen begrenzter Plätze"),
 		seedSubmission("public", "Tom", "Ahrens", "2017-09-13", 2,
 			"Melanie", "Ahrens", "melanie.ahrens@example.test", "waitlisted-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste: drei Betreuungstage"),
+			}, "waitlisted", "Demo-Warteliste: drei Betreuungstage"),
 		seedSubmission("public", "Ella", "Franke", "2019-03-01", 1,
 			"Steffen", "Franke", "steffen.franke@example.test", "waitlisted-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste: zwei Betreuungstage"),
+			}, "waitlisted", "Demo-Warteliste: zwei Betreuungstage"),
 		seedSubmission("public", "Nora", "Brandt", "2017-07-22", 3,
 			"Elena", "Brandt", "elena.brandt@example.test", "public-reject",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
-			}, enrollmentModels.ChildStatusRejected, "Demo-Absage für Testdaten"),
+			}, "rejected", "Demo-Absage für Testdaten"),
 		seedSubmission("public", "Mats", "Hoffmann", "2018-01-26", 1,
 			"Kerstin", "Hoffmann", "kerstin.hoffmann@example.test", "rejected-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
-			}, enrollmentModels.ChildStatusRejected, "Demo-Absage: drei Betreuungstage"),
+			}, "rejected", "Demo-Absage: drei Betreuungstage"),
 		{
 			source: "public",
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
@@ -393,7 +390,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 					offerings["mittagessen"]: {"mon", "tue", "wed", "thu"},
 				},
 			),
-			status: enrollmentModels.ChildStatusApproved,
+			status: "approved",
 			reason: "Demo-Zusage: vier Betreuungstage",
 		})
 	}
@@ -450,7 +447,7 @@ func publicEnrollmentSeedHeaders(index int) map[string]string {
 	}
 }
 
-func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth phoenixapi.AuthRef) (int64, error) {
+func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRef) (int64, error) {
 	now := time.Now().UTC()
 	openAt := now.Add(-24 * time.Hour).Format(time.RFC3339)
 	closeAt := now.AddDate(0, 2, 0).Format(time.RFC3339)
@@ -458,14 +455,14 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth phoeni
 	serviceEnd := now.AddDate(0, 0, 20).Format("2006-01-02")
 	body := map[string]any{
 		"name":                         fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1),
-		"kind":                         enrollmentModels.PhaseKindSchoolYear,
+		"kind":                         "school_year",
 		"service_start_date":           serviceStart,
 		"service_end_date":             serviceEnd,
 		"enrollment_open_at":           openAt,
 		"enrollment_close_at":          closeAt,
 		"show_status_reason_to_parent": true,
-		"care_overflow_mode":           enrollmentModels.PhaseCareOverflowWaitlist,
-		"care_offering_selection_mode": enrollmentModels.PhaseCareOfferingSelectionAtLeastOne,
+		"care_overflow_mode":           "waitlist",
+		"care_offering_selection_mode": "at_least_one",
 		"is_active":                    true,
 	}
 	respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/phases", body)
@@ -496,14 +493,14 @@ type seedCareOffering struct {
 
 func demoCareOfferings() []seedCareOffering {
 	return []seedCareOffering{
-		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00"},
-		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00"},
-		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
-		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40, countsAsCare: true, pickupTime: "16:00"},
+		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00"},
+		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00"},
+		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
+		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40, countsAsCare: true, pickupTime: "16:00"},
 	}
 }
 
-func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixapi.AuthRef, phaseID int64) (map[string]int64, error) {
+func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth AuthRef, phaseID int64) (map[string]int64, error) {
 	offerings := demoCareOfferings()
 	created := make(map[string]int64, len(offerings))
 	for _, offering := range offerings {
@@ -535,7 +532,7 @@ func careOfferingSeedBody(offering seedCareOffering, phaseID int64) map[string]a
 		"is_required":           offering.required,
 		"counts_as_care":        offering.countsAsCare,
 		"sort_order":            offering.sort,
-		"selection_rule":        enrollmentModels.SelectionRuleOptional,
+		"selection_rule":        "optional",
 	}
 	if offering.countsAsCare {
 		pickupTimes := make(map[string]string, len(offering.days))
@@ -653,7 +650,7 @@ type enrollmentRequestDetail struct {
 	ChildIDs    []int64
 }
 
-func (s parentEnrollmentSeedStep) loadEnrollmentRequestDetail(rt *Runtime, auth phoenixapi.AuthRef, requestID int64) (enrollmentRequestDetail, error) {
+func (s parentEnrollmentSeedStep) loadEnrollmentRequestDetail(rt *Runtime, auth AuthRef, requestID int64) (enrollmentRequestDetail, error) {
 	respBody, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/api/enrollment/admin/requests/%d", requestID))
 	if err != nil {
 		return enrollmentRequestDetail{}, fmt.Errorf("load enrollment request %d: %w", requestID, err)
@@ -680,7 +677,7 @@ func (s parentEnrollmentSeedStep) loadEnrollmentRequestDetail(rt *Runtime, auth 
 	return detail, nil
 }
 
-func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth phoenixapi.AuthRef, requestID, childID int64, status, reason string) error {
+func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth AuthRef, requestID, childID int64, status, reason string) error {
 	_, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/api/enrollment/admin/requests/%d/children/%d/decide", requestID, childID), map[string]any{
 		"status": status,
 		"reason": reason,
@@ -691,7 +688,7 @@ func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth phoeni
 	return nil
 }
 
-func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuth phoenixapi.AuthRef, parent ParentCredentials) ([]SeedParentPortalAction, error) {
+func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuth AuthRef, parent ParentCredentials) ([]SeedParentPortalAction, error) {
 	if len(parent.StudentIDs) == 0 {
 		return nil, nil
 	}
@@ -741,8 +738,14 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 
 	out := make([]SeedParentPortalAction, 0, len(actions))
 	for _, action := range actions {
-		if _, err := rt.Client.PostWithAuth(parentAuth, action.path, action.body); err != nil {
+		body, err := rt.Client.PostWithAuth(parentAuth, action.path, action.body)
+		if err != nil {
 			return nil, fmt.Errorf("create parent portal action %s: %w", action.actionType, err)
+		}
+		if action.actionType == "care-exception" {
+			if err := s.shareSeedPickupRequest(rt, parentAuth, parent, body); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, SeedParentPortalAction{
 			ParentEmail: parent.Email,
@@ -751,6 +754,29 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 		})
 	}
 	return out, nil
+}
+
+func (s parentEnrollmentSeedStep) shareSeedPickupRequest(
+	rt *Runtime, parentAuth AuthRef, parent ParentCredentials, responseBody []byte,
+) error {
+	requestID, err := parseEnvelopeStringID(responseBody)
+	if err != nil {
+		return fmt.Errorf("parse seeded pickup request: %w", err)
+	}
+	for _, candidate := range rt.Parents {
+		if candidate.Email == parent.Email || !slices.Contains(candidate.StudentIDs, parent.StudentIDs[0]) {
+			continue
+		}
+		path := fmt.Sprintf("/parent/me/children/%d/request-sharing/pickup_change/%d", parent.StudentIDs[0], requestID)
+		_, err = rt.Client.PutWithAuth(parentAuth, path, map[string]any{
+			"recipient_guardian_profile_ids": []string{strconv.FormatInt(candidate.GuardianID, 10)},
+		})
+		if err != nil {
+			return fmt.Errorf("share seeded pickup request: %w", err)
+		}
+		return nil
+	}
+	return fmt.Errorf("seeded pickup request has no second guardian recipient")
 }
 
 func parseEnvelopeStringID(respBody []byte) (int64, error) {

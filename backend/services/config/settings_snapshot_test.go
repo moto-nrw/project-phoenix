@@ -1,11 +1,10 @@
-package config_test
+package config
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +30,7 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	repo.values[repo.key(41, boolValue.SettingKey)] = boolValue
 
 	service := createService(repo, &mockAuditRepo{})
-	batch, ok := service.(configService.BatchSettingsService)
+	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 
 	snapshot, err := batch.ResolveMany(tenantCtx(41), []string{
@@ -59,7 +58,7 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, hasOverride)
 
-	snapshotCtx := configService.WithSettingsSnapshot(tenantCtx(41), snapshot)
+	snapshotCtx := WithSettingsSnapshot(tenantCtx(41), snapshot)
 	_, err = service.ResolveString(snapshotCtx, "test.batch_text")
 	require.NoError(t, err)
 	_, err = service.ResolveBool(snapshotCtx, "test.batch_bool")
@@ -70,7 +69,7 @@ func TestResolveManyUsesOneQueryAndContextSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, repo.findManyCalls, "typed accessors must reuse the attached snapshot")
 
-	_, err = service.ResolveString(configService.WithSettingsSnapshot(tenantCtx(42), snapshot), "test.batch_text")
+	_, err = service.ResolveString(WithSettingsSnapshot(tenantCtx(42), snapshot), "test.batch_text")
 	require.NoError(t, err)
 	assert.Equal(t, 2, repo.findManyCalls, "a snapshot from another tenant must never be reused")
 }
@@ -89,7 +88,7 @@ func TestResolveManyKeepsMalformedOverrideIsolated(t *testing.T) {
 	repo.values[repo.key(8, malformed.SettingKey)] = malformed
 
 	service := createService(repo, &mockAuditRepo{})
-	batch := service.(configService.BatchSettingsService)
+	batch := service.(BatchSettingsService)
 	snapshot, err := batch.ResolveMany(tenantCtx(8), []string{"test.valid", "test.malformed"})
 	require.NoError(t, err)
 

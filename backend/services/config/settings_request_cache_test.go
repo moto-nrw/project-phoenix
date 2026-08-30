@@ -1,13 +1,12 @@
-package config_test
+package config
 
 import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +20,13 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	var cachePaths []string
+	svc.(interface{ SetLookupObserver(SettingsLookupObserver) }).SetLookupObserver(
+		func(_ string, cache, outcome string, _ time.Duration) {
+			cachePaths = append(cachePaths, cache+":"+outcome)
+		},
+	)
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	first, err := svc.ResolveBool(ctx, "test.cached_flag")
 	require.NoError(t, err)
@@ -29,6 +34,7 @@ func TestRequestCacheSecondResolveIssuesNoRepoCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, first, second)
 	assert.Equal(t, 1, repo.findManyCalls, "second resolve must be served from the request cache")
+	assert.Equal(t, []string{"miss:ok", "hit:ok"}, cachePaths)
 
 	// HasTenantOverride shares the cached entry too.
 	hasOverride, err := svc.HasTenantOverride(ctx, "test.cached_flag")
@@ -44,9 +50,9 @@ func TestRequestCachePartialHitQueriesOnlyMissingKeys(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
-	batch, ok := svc.(configService.BatchSettingsService)
+	batch, ok := svc.(BatchSettingsService)
 	require.True(t, ok)
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, err := svc.ResolveBool(ctx, "test.first")
 	require.NoError(t, err)
@@ -76,13 +82,13 @@ func TestRequestCacheIsolatesTenants(t *testing.T) {
 
 	// One shared cache observed under two tenant contexts: the second tenant
 	// must get its own repository read and its own value.
-	base := configService.WithSettingsRequestCache(tenantCtx(41))
+	base := WithSettingsRequestCache(tenantCtx(41))
 	valueA, err := svc.ResolveString(base, "test.isolated")
 	require.NoError(t, err)
 	assert.Equal(t, "tenant-a", valueA)
 	require.Equal(t, 1, repo.findManyCalls)
 
-	ctxB := tenant.WithTenantID(base, 42)
+	ctxB := withTestTenantID(base, 42)
 	valueB, err := svc.ResolveString(ctxB, "test.isolated")
 	require.NoError(t, err)
 	assert.Equal(t, "default", valueB)
@@ -95,7 +101,7 @@ func TestRequestCacheCachesAbsentOverride(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	value, err := svc.ResolveInt(ctx, "test.absent")
 	require.NoError(t, err)
@@ -117,7 +123,7 @@ func TestRequestCacheCachesUnmarshalError(t *testing.T) {
 	repo.values[repo.key(41, corrupt.SettingKey)] = corrupt
 
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, firstErr := svc.ResolveBool(ctx, "test.corrupt")
 	require.Error(t, firstErr)
@@ -132,8 +138,8 @@ func TestWithSettingsRequestCacheIsIdempotent(t *testing.T) {
 	registerTestSetting("test.idempotent", config.FieldBoolean, true)
 
 	base := tenantCtx(41)
-	once := configService.WithSettingsRequestCache(base)
-	twice := configService.WithSettingsRequestCache(once)
+	once := WithSettingsRequestCache(base)
+	twice := WithSettingsRequestCache(once)
 	assert.Equal(t, once, twice, "re-attaching must return the same context (shared cache)")
 
 	// Behavioral proof: a resolve through the doubly-wrapped context is served
@@ -153,17 +159,17 @@ func TestResolveManyDoesNotCacheContextSnapshotValues(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
-	batch, ok := svc.(configService.BatchSettingsService)
+	batch, ok := svc.(BatchSettingsService)
 	require.True(t, ok)
 
-	cached := configService.WithSettingsRequestCache(tenantCtx(41))
+	cached := WithSettingsRequestCache(tenantCtx(41))
 	snapshot, err := batch.ResolveMany(tenantCtx(41), []string{"test.snapshot_key"})
 	require.NoError(t, err)
 	require.Equal(t, 1, repo.findManyCalls)
 
 	// Resolving through an explicit snapshot must not promote its (possibly
 	// stale) values into the request cache.
-	snapCtx := configService.WithSettingsSnapshot(cached, snapshot)
+	snapCtx := WithSettingsSnapshot(cached, snapshot)
 	_, err = svc.ResolveBool(snapCtx, "test.snapshot_key")
 	require.NoError(t, err)
 	assert.Equal(t, 1, repo.findManyCalls, "snapshot serves the read")
@@ -193,7 +199,7 @@ func TestRequestCacheUnknownKeyFailsWithoutQuery(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, err := svc.Resolve(ctx, "nonexistent.key")
 	require.Error(t, err)
@@ -207,7 +213,7 @@ func TestSetValueEvictsRequestCacheEntry(t *testing.T) {
 
 	repo := newMockValueRepo()
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	before, err := svc.ResolveInt(ctx, "test.rewritten")
 	require.NoError(t, err)
@@ -230,7 +236,7 @@ func TestResetValueEvictsRequestCacheEntry(t *testing.T) {
 	repo.values[repo.key(41, override.SettingKey)] = override
 
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	before, err := svc.ResolveInt(ctx, "test.reset")
 	require.NoError(t, err)
@@ -250,15 +256,15 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 
 	cases := []struct {
 		name string
-		lock func(svc configService.SettingsService, ctx context.Context) error
+		lock func(svc SettingsService, ctx context.Context) error
 	}{
-		{"slot_list_cutoff", func(svc configService.SettingsService, ctx context.Context) error {
+		{"slot_list_cutoff", func(svc SettingsService, ctx context.Context) error {
 			return svc.LockSlotListCutoffPair(ctx)
 		}},
-		{"slot_list_cutoff_shared", func(svc configService.SettingsService, ctx context.Context) error {
+		{"slot_list_cutoff_shared", func(svc SettingsService, ctx context.Context) error {
 			return svc.LockSlotListCutoffPairShared(ctx)
 		}},
-		{"class_collection", func(svc configService.SettingsService, ctx context.Context) error {
+		{"class_collection", func(svc SettingsService, ctx context.Context) error {
 			return svc.LockClassCollectionPair(ctx)
 		}},
 	}
@@ -266,7 +272,7 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newMockValueRepo()
 			svc := createService(repo, &mockAuditRepo{})
-			ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+			ctx := WithSettingsRequestCache(tenantCtx(41))
 
 			// Prime the tenant bucket with two unrelated keys.
 			_, err := svc.ResolveBool(ctx, "test.locked_a")
@@ -297,7 +303,7 @@ func TestResolveBoolForTenantSkipsTxOnFullCacheHit(t *testing.T) {
 	// WithTenantTx, the nil DB would blow up. Returning successfully from the
 	// second call therefore proves the transaction was skipped.
 	svc := createService(repo, &mockAuditRepo{})
-	ctx := configService.WithSettingsRequestCache(tenantCtx(41))
+	ctx := WithSettingsRequestCache(tenantCtx(41))
 
 	_, err := svc.ResolveBool(ctx, "test.for_tenant")
 	require.NoError(t, err)

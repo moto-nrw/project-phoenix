@@ -285,7 +285,7 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "7a")
 
 	t.Run("finds entries in date range", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 		weekAgo := today.AddDays(-7)
 
@@ -374,7 +374,7 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StudentRange", "Test", "9a")
 
 	t.Run("finds student entries in date range", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 		weekAgo := today.AddDays(-7)
 
@@ -493,7 +493,7 @@ func TestEntryRepository_List(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "13a")
 
 	t.Run("lists all entries", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -510,7 +510,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with is_mensa_feedback filter", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		entry := &feedback.Entry{
 			Value:           feedback.ValueNeutral,
 			Day:             today,
@@ -534,7 +534,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with day_from filter", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		yesterday := today.AddDays(-1)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
@@ -558,7 +558,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with day_to filter", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -578,7 +578,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with value_like filter", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -601,7 +601,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with student_id filter (default case)", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -624,7 +624,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with nil value in filters", func(t *testing.T) {
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,

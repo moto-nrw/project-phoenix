@@ -12,17 +12,32 @@ import {
   type AggregatedRequestFilters,
 } from "./aggregated-request-list";
 import {
+  bulkApproveParentRequests,
+  getFamilyProtection,
   listAggregatedOpenRequests,
   listAggregatedRequestHistory,
   listEnrollmentChangeRequests,
+  setFamilyProtection,
 } from "~/lib/change-request-list-api";
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
-vi.mock("~/lib/change-request-list-api", () => ({
-  listAggregatedOpenRequests: vi.fn(),
-  listAggregatedRequestHistory: vi.fn(),
-  listEnrollmentChangeRequests: vi.fn(),
-}));
+// Nur die Netzaufrufe ersetzen, den Rest des Moduls stehen lassen: die Liste
+// braucht von dort auch Fehlerklassen und reine Hilfsfunktionen, und ein
+// vollständig ersetztes Modul lässt sie beim nächsten Zusatz still abstürzen.
+vi.mock("~/lib/change-request-list-api", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/lib/change-request-list-api")
+  >("~/lib/change-request-list-api");
+  return {
+    ...actual,
+    bulkApproveParentRequests: vi.fn(),
+    getFamilyProtection: vi.fn(),
+    listAggregatedOpenRequests: vi.fn(),
+    listAggregatedRequestHistory: vi.fn(),
+    listEnrollmentChangeRequests: vi.fn(),
+    setFamilyProtection: vi.fn(),
+  };
+});
 
 vi.mock("~/lib/care-exit-api", () => ({
   fetchCareWithdrawals: vi.fn(),
@@ -96,9 +111,12 @@ vi.mock("~/components/students/request-history-item", () => ({
 }));
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
+const mockBulkApprove = vi.mocked(bulkApproveParentRequests);
+const mockGetFamilyProtection = vi.mocked(getFamilyProtection);
 const mockListHistory = vi.mocked(listAggregatedRequestHistory);
 const mockListEnrollment = vi.mocked(listEnrollmentChangeRequests);
 const mockListWithdrawals = vi.mocked(fetchCareWithdrawals);
+const mockSetFamilyProtection = vi.mocked(setFamilyProtection);
 
 const NO_FILTERS: AggregatedRequestFilters = {
   search: "",
@@ -106,13 +124,35 @@ const NO_FILTERS: AggregatedRequestFilters = {
   statuses: [],
 };
 
+/**
+ * Eine offene Anfrage desselben Kindes. Seit #2267 zeigt der Detailbereich
+ * die Anfragen EINES Kindes; für Reihenfolge-Prüfungen müssen die Zeilen
+ * deshalb zu einem Fall gehören.
+ */
 function openItem(type: string, id: string) {
-  return { request_type: type, data: { id } } as never;
+  return {
+    request_type: type,
+    student_id: "10",
+    student_name: "Mia Muster",
+    expected_version: `v${id}`,
+    urgent_today: false,
+    bulk_eligible: true,
+    data: { id },
+  } as never;
 }
 
 /** Wie openItem, aber mit dem Zeitpunkt, nach dem Quellen verschränkt werden. */
 function stampedItem(type: string, id: string, occurredAt: string) {
-  return { request_type: type, occurred_at: occurredAt, data: { id } } as never;
+  return {
+    request_type: type,
+    occurred_at: occurredAt,
+    student_id: "10",
+    student_name: "Mia Muster",
+    expected_version: `v${id}`,
+    urgent_today: false,
+    bulk_eligible: true,
+    data: { id },
+  } as never;
 }
 
 describe("AggregatedRequestList", () => {
@@ -127,6 +167,286 @@ describe("AggregatedRequestList", () => {
       page: 1,
       pageSize: 25,
     });
+    mockBulkApprove.mockResolvedValue(2);
+    mockGetFamilyProtection.mockImplementation(async (studentId) => ({
+      student_id: studentId,
+      enabled: false,
+    }));
+    mockSetFamilyProtection.mockResolvedValue();
+  });
+
+  it("bündelt offene Anfragen pro Kind und zeigt heute betroffene Fälle zuerst", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "20",
+          student_name: "Später Kind",
+          expected_version: "v1",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "1" },
+        },
+        {
+          request_type: "excused",
+          occurred_at: "2026-08-29T09:00:00Z",
+          student_id: "10",
+          student_name: "Heute Kind",
+          group_name: "Füchse",
+          expected_version: "v2",
+          urgent_today: true,
+          bulk_eligible: true,
+          data: { id: "2", dates: ["2026-08-29"] },
+        },
+        {
+          request_type: "care_schedule",
+          occurred_at: "2026-08-29T08:00:00Z",
+          student_id: "10",
+          student_name: "Heute Kind",
+          expected_version: "v3",
+          urgent_today: false,
+          bulk_eligible: false,
+          bulk_ineligible_reason: "single_only",
+          bulk_ineligible_text:
+            "Betreuungszeiten müssen einzeln geprüft werden.",
+          data: { id: "3" },
+        },
+      ] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    const urgentHeading = await screen.findByRole("heading", {
+      name: "Heute wichtig",
+    });
+    const laterHeading = screen.getByRole("heading", {
+      name: "Weitere Anfragen",
+    });
+    expect(
+      urgentHeading.compareDocumentPosition(laterHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // Ein Fall je Kind: eine Listenzeile, egal wie viele Anfragen darin
+    // stecken. Der Name steht zusätzlich über dem Detailbereich (#2267).
+    expect(screen.getAllByRole("button", { name: /^Heute Kind/ })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByText("2 offene Anfragen").length).toBeGreaterThan(0);
+    expect(screen.getByText("Füchse")).toBeVisible();
+    expect(screen.getByText("Betrifft: 29.08.2026")).toBeVisible();
+    expect(screen.queryByText(/Keine Widersprüche/)).not.toBeInTheDocument();
+    expect(screen.getByText("Anfrage 1 von 2")).toBeVisible();
+    expect(screen.getByText("Anfrage 2 von 2")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Nur einzeln entscheiden: Diese Art wird immer einzeln geprüft.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("Später Kind")).toBeVisible();
+  });
+
+  it("kennzeichnet widersprüchliche Wünsche im Fall", async () => {
+    mockListOpen.mockResolvedValue({
+      items: ["alleine", "bus"].map((mode, index) => ({
+        request_type: "master_data",
+        occurred_at: `2026-08-29T0${9 - index}:00:00Z`,
+        student_id: "10",
+        student_name: "Mia Muster",
+        expected_version: `v${index}`,
+        urgent_today: false,
+        bulk_eligible: true,
+        // Widerspruch und Gruppengröße kommen seit #2267 vom Backend.
+        conflict_key: "md:student:departure_mode_mon",
+        conflict_group_size: 2,
+        data: {
+          id: `${index + 1}`,
+          target: "student",
+          field_key: "departure_mode_mon",
+          new_value: mode,
+        },
+      })) as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(
+      await screen.findByText("Diese Anfragen widersprechen sich"),
+    ).toBeVisible();
+  });
+
+  it("ordnet eine Mehrkind-Anmeldung jedem betroffenen Kind zu", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Mia Muster",
+          expected_version: "v1",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "1" },
+        },
+      ] as never,
+    });
+    mockListEnrollment.mockResolvedValue({
+      items: [
+        {
+          request_type: "enrollment",
+          occurred_at: "2026-08-29T09:00:00Z",
+          data: {
+            id: "9",
+            child_ids: ["10", "20"],
+            child_names: ["Mia Muster", "Noah Muster"],
+          },
+        },
+      ] as never,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, includeEnrollment: true }}
+      />,
+    );
+
+    // Die Anmeldung erzeugt für jedes betroffene Kind einen eigenen Fall:
+    // Mia mit zwei Anfragen, Noah mit einer.
+    expect(
+      (await screen.findAllByText("2 offene Anfragen")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Noah Muster")).toBeVisible();
+    expect(
+      screen.getAllByRole("button", { name: /^Noah Muster/ }),
+    ).toHaveLength(1);
+    expect(screen.getAllByText("enrollment-item-9").length).toBeGreaterThan(0);
+  });
+
+  it("bestätigt eine Sammelfreigabe mit gemeinsamer Begründung", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Mia Muster",
+          expected_version: "v1",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "1" },
+        },
+        {
+          request_type: "excused",
+          occurred_at: "2026-08-29T09:00:00Z",
+          // Seit #2267 werden Anfragen im Detailbereich EINES Kindes
+          // ausgewählt; die Sammelfreigabe wirkt also innerhalb eines Falls.
+          student_id: "10",
+          student_name: "Mia Muster",
+          expected_version: "v2",
+          urgent_today: false,
+          bulk_eligible: true,
+          data: { id: "2" },
+        },
+      ] as never,
+    });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(
+      screen.queryByRole("heading", { name: "Gemeinsam freigeben" }),
+    ).not.toBeInTheDocument();
+
+    const selections = await screen.findAllByRole("checkbox", {
+      name: /^Gemeinsam freigeben:/,
+    });
+    fireEvent.click(selections[0]!);
+    expect(
+      screen.getByRole("heading", { name: "Gemeinsam freigeben" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Wählen Sie noch eine passende Anfrage aus."),
+    ).toBeVisible();
+    fireEvent.click(selections[1]!);
+    fireEvent.change(screen.getByLabelText("Gemeinsame Begründung"), {
+      target: { value: "Alles geprüft" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "2 Anfragen freigeben" }),
+    );
+
+    expect(
+      screen.getByText(/Alle 2 Anfragen werden gemeinsam freigegeben/),
+    ).toBeVisible();
+    const approvalButtons = screen.getAllByRole("button", {
+      name: "2 Anfragen freigeben",
+    });
+    fireEvent.click(approvalButtons.at(-1)!);
+
+    await waitFor(() =>
+      expect(mockBulkApprove).toHaveBeenCalledWith(
+        [
+          { kind: "master_data", id: "1", expected_version: "v1" },
+          { kind: "excused", id: "2", expected_version: "v2" },
+        ],
+        "Alles geprüft",
+      ),
+    );
+    expect(
+      await screen.findByText("2 Anfragen wurden freigegeben."),
+    ).toBeVisible();
+  });
+
+  it("erklärt private Angaben und schaltet Familienschutz mit Begründung ein", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "10",
+          student_name: "Mia Muster",
+          expected_version: "v1",
+          urgent_today: false,
+          bulk_eligible: true,
+          family_protected: false,
+          data: { id: "1" },
+        },
+      ] as never,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, canManageFamilyProtection: true }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Angaben schützen" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Angaben schützen" }));
+    expect(
+      screen.getByText(
+        "Andere Sorgeberechtigte sehen dann keine geteilten Anfragen und Begründungen mehr.",
+      ),
+    ).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Grund für die Änderung"), {
+      target: { value: "Schutz nötig" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Schutz einschalten" }));
+
+    await waitFor(() =>
+      expect(mockSetFamilyProtection).toHaveBeenCalledWith(
+        "10",
+        true,
+        "Schutz nötig",
+      ),
+    );
+    // Zweimal: als Zustand in der Listenzeile und am Schalter im Detail.
+    expect((await screen.findAllByText("Familienschutz")).length).toBe(2);
+    expect(
+      screen.getByRole("button", { name: "Schutz aufheben" }),
+    ).toBeVisible();
   });
 
   it("loads complete withdrawals into the shared open task list", async () => {
@@ -160,8 +480,9 @@ describe("AggregatedRequestList", () => {
     });
     expect(mockListWithdrawals).toHaveBeenCalledWith({
       search: "",
+      studentId: undefined,
       page: 1,
-      pageSize: 100,
+      pageSize: 25,
     });
     fireEvent.click(task);
     fireEvent.click(
@@ -172,8 +493,8 @@ describe("AggregatedRequestList", () => {
     expect(screen.getByText("Die Betreuung wurde beendet.")).toBeVisible();
   });
 
-  it("loads every withdrawal page so no task is hidden", async () => {
-    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+  it("loads every open withdrawal progressively for complete child cases", async () => {
+    const firstPage = Array.from({ length: 25 }, (_, index) => ({
       id: `withdrawal-${index + 1}`,
       studentId: `${index + 1}`,
       firstName: "Mia",
@@ -186,15 +507,17 @@ describe("AggregatedRequestList", () => {
     mockListWithdrawals
       .mockResolvedValueOnce({
         items: firstPage,
-        total: 101,
+        total: 26,
         page: 1,
-        pageSize: 100,
+        pageSize: 25,
       })
       .mockResolvedValueOnce({
-        items: [{ ...firstPage[0]!, id: "withdrawal-101" }],
-        total: 101,
+        // Eigenes Kind: sonst fiele die 26. Abmeldung in den Fall von Kind 1
+        // und die Liste zeigte weiterhin 25 Zeilen.
+        items: [{ ...firstPage[0]!, id: "withdrawal-26", studentId: "26" }],
+        total: 26,
         page: 2,
-        pageSize: 100,
+        pageSize: 25,
       });
 
     render(
@@ -204,14 +527,110 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
+    // 26 Kinder, 26 Fälle: seit #2267 zeigt die Liste einen Eintrag je Kind
+    // und die Abmeldekarte selbst erst im Detailbereich.
     await waitFor(() =>
-      expect(screen.getAllByText("Mia Muster")).toHaveLength(101),
+      expect(
+        screen.getAllByRole("button", { name: /^Mia Muster/ }),
+      ).toHaveLength(26),
     );
     expect(mockListWithdrawals).toHaveBeenNthCalledWith(2, {
       search: "",
+      studentId: undefined,
       page: 2,
-      pageSize: 100,
+      pageSize: 25,
     });
+  });
+
+  it("ignores a late withdrawal page after the child filter changes", async () => {
+    const oldItems = Array.from({ length: 25 }, (_, index) => ({
+      id: `old-${index + 1}`,
+      studentId: "10",
+      firstName: "Altes",
+      lastName: "Kind",
+      schoolClass: "2a",
+      firstBookinglessDay: "2026-09-01",
+      urgency: "planned" as const,
+      state: "pending" as const,
+    }));
+    let resolveOldPage!: (value: {
+      items: typeof oldItems;
+      total: number;
+      page: number;
+      pageSize: number;
+    }) => void;
+    const oldPage = new Promise<{
+      items: typeof oldItems;
+      total: number;
+      page: number;
+      pageSize: number;
+    }>((resolve) => {
+      resolveOldPage = resolve;
+    });
+    mockListWithdrawals
+      .mockResolvedValueOnce({
+        items: oldItems,
+        total: 26,
+        page: 1,
+        pageSize: 25,
+      })
+      .mockReturnValueOnce(oldPage)
+      .mockResolvedValueOnce({
+        items: [
+          {
+            ...oldItems[0]!,
+            id: "new-1",
+            studentId: "20",
+            firstName: "Neues",
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+      });
+
+    const { rerender } = render(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          studentId: "10",
+          includeCareWithdrawals: true,
+        }}
+      />,
+    );
+    await waitFor(() => expect(mockListWithdrawals).toHaveBeenCalledTimes(2));
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          studentId: "20",
+          includeCareWithdrawals: true,
+        }}
+      />,
+    );
+    expect(
+      await screen.findByRole("button", { name: /Anfrage für Neues Kind/ }),
+    ).toBeVisible();
+
+    await act(async () => {
+      resolveOldPage({
+        items: [{ ...oldItems[0]!, id: "late-old" }],
+        total: 26,
+        page: 2,
+        pageSize: 25,
+      });
+      await oldPage;
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /Anfrage für Altes Kind/ }),
+    ).toBeNull();
+    expect(mockListWithdrawals).toHaveBeenLastCalledWith(
+      expect.objectContaining({ studentId: "20", page: 1 }),
+    );
   });
 
   it("warns before opening the detailed deletion preview", async () => {
@@ -291,8 +710,9 @@ describe("AggregatedRequestList", () => {
     expect(screen.getByText("Kind sofort gelöscht")).toBeVisible();
     expect(mockListWithdrawals).toHaveBeenCalledWith({
       search: "",
+      studentId: undefined,
       page: 1,
-      pageSize: 100,
+      pageSize: 25,
       state: "resolved",
     });
   });
@@ -551,76 +971,133 @@ describe("AggregatedRequestList", () => {
     expect(await screen.findByText("excused-item-neu")).toBeInTheDocument();
   });
 
-  it("ignoriert den Fehler eines veralteten Nachladens", async () => {
-    let rejectMore!: (reason?: unknown) => void;
-    const morePage = new Promise<never>((_resolve, reject) => {
-      rejectMore = reject;
-    });
+  it("ergänzt offene Seiten im Hintergrund zu vollständigen Fällen", async () => {
     mockListOpen
       .mockResolvedValueOnce({
-        items: Array.from({ length: 25 }, (_, index) =>
-          openItem("excused", String(index + 1)),
+        items: Array.from(
+          { length: 25 },
+          (_, index) =>
+            ({
+              request_type: "excused",
+              occurred_at: `2026-08-29T09:${String(index).padStart(2, "0")}:00Z`,
+              student_id: "10",
+              student_name: "Mia Muster",
+              expected_version: `v${index + 1}`,
+              urgent_today: true,
+              bulk_eligible: true,
+              family_protected: false,
+              data: { id: String(index + 1), dates: ["2026-09-01"] },
+            }) as never,
         ),
         next_cursor: "cursor-1",
       })
-      .mockReturnValueOnce(morePage as never)
       .mockResolvedValueOnce({
-        items: Array.from({ length: 25 }, (_, index) =>
-          openItem("excused", `neu-${index + 1}`),
-        ),
-        next_cursor: "cursor-2",
+        items: [
+          {
+            request_type: "excused",
+            occurred_at: "2026-08-28T09:00:00Z",
+            student_id: "10",
+            student_name: "Mia Muster",
+            expected_version: "v26",
+            urgent_today: true,
+            bulk_eligible: true,
+            family_protected: false,
+            data: { id: "26", dates: ["2026-09-01"] },
+          } as never,
+        ],
       });
 
     render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
     await screen.findByText("excused-item-1");
+    expect(await screen.findByText("excused-item-26")).toBeInTheDocument();
+    expect(screen.getByText("26 offene Anfragen")).toBeVisible();
+    expect(mockListOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: "cursor-1" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Weitere Einträge laden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stops automatic paging after an error and retries on request", async () => {
+    const firstPage = Array.from(
+      { length: 25 },
+      (_, index) =>
+        ({
+          request_type: "excused",
+          occurred_at: `2026-08-29T09:${String(index).padStart(2, "0")}:00Z`,
+          student_id: "10",
+          student_name: "Mia Muster",
+          expected_version: `v${index + 1}`,
+          urgent_today: true,
+          bulk_eligible: true,
+          data: { id: String(index + 1), dates: ["2026-09-01"] },
+        }) as never,
+    );
+    mockListOpen
+      .mockResolvedValueOnce({ items: firstPage, next_cursor: "cursor-1" })
+      .mockRejectedValueOnce(new Error("page unavailable"))
+      .mockResolvedValueOnce({
+        items: [
+          {
+            request_type: "excused",
+            occurred_at: "2026-08-28T09:00:00Z",
+            student_id: "10",
+            student_name: "Mia Muster",
+            expected_version: "v26",
+            urgent_today: true,
+            bulk_eligible: true,
+            data: { id: "26", dates: ["2026-09-01"] },
+          } as never,
+        ],
+      });
+
+    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+
+    expect(
+      await screen.findByText("Weitere Anfragen konnten nicht geladen werden."),
+    ).toBeVisible();
+    await act(async () => {});
+    expect(mockListOpen).toHaveBeenCalledTimes(2);
+
     fireEvent.click(
       screen.getByRole("button", { name: "Weitere Einträge laden" }),
     );
 
-    act(() => {
-      window.dispatchEvent(new Event("change-requests-refresh"));
-    });
-    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(3));
-
-    await act(async () => {
-      rejectMore(new Error("veraltet"));
-      try {
-        await morePage;
-      } catch {
-        // Der Fehler gehört zum verworfenen Feed.
-      }
-    });
-
+    expect(await screen.findByText("excused-item-26")).toBeVisible();
+    expect(mockListOpen).toHaveBeenCalledTimes(3);
     expect(
       screen.queryByText("Weitere Anfragen konnten nicht geladen werden."),
     ).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Weitere Einträge laden" }),
-    ).toBeEnabled();
   });
 
-  it("lädt weitere Einträge über den Cursor nach", async () => {
+  it("lädt weitere Historien-Einträge über den Cursor nach", async () => {
     // Eine volle Seite plus Cursor: erst dann bleibt etwas zum Nachladen übrig.
     // (Eine kurze Seite mit Cursor zieht die Liste selbst nach, damit niemand
     // blind auf den Knopf drücken muss.)
-    mockListOpen.mockResolvedValueOnce({
+    mockListHistory.mockResolvedValueOnce({
       items: Array.from({ length: 25 }, (_, index) =>
         openItem("excused", String(index + 1)),
       ),
       next_cursor: "cursor-1",
     });
-    mockListOpen.mockResolvedValueOnce({ items: [openItem("excused", "26")] });
+    mockListHistory.mockResolvedValueOnce({
+      items: [openItem("excused", "26")],
+    });
 
-    render(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
-    await screen.findByText("excused-item-1");
+    render(<AggregatedRequestList view="history" filters={NO_FILTERS} />);
+    await screen.findByText("history-item-excused-1");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Weitere Einträge laden" }),
     );
 
-    expect(await screen.findByText("excused-item-26")).toBeInTheDocument();
-    expect(screen.getByText("excused-item-1")).toBeInTheDocument();
-    expect(mockListOpen).toHaveBeenLastCalledWith(
+    expect(
+      await screen.findByText("history-item-excused-26"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("history-item-excused-1")).toBeInTheDocument();
+    expect(mockListHistory).toHaveBeenLastCalledWith(
       expect.objectContaining({ cursor: "cursor-1" }),
     );
     expect(

@@ -398,16 +398,21 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 // for today's date using local timezone. This ensures tests work correctly
 // regardless of when they run (e.g., 00:40 CET is still the same calendar day locally).
 func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
+	return CreateTestAttendanceForDate(tb, db, studentID, staffID, deviceID, timezone.TodayDate(), checkInTime, checkOutTime)
+}
+
+// CreateTestAttendanceForDate creates an attendance row on an explicit
+// calendar date. Fixed-date tests use this variant so the fixture date cannot
+// drift away from their injected service clock.
+func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, date timezone.Date, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	today := timezone.TodayDate()
-
 	attendance := &active.Attendance{
 		StudentID:    studentID,
-		Date:         today,
+		Date:         date,
 		CheckInTime:  checkInTime,
 		CheckOutTime: checkOutTime,
 		CheckedInBy:  staffID,
@@ -471,6 +476,11 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// ========================================
 		// Education domain cleanup (FK-dependent order)
 		// ========================================
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("audit.substitution_changes").
+			Where("group_id = ? OR target_staff_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"audit.substitution_changes")
 
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
@@ -1831,12 +1841,16 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	defer cancel()
 
 	substitution := &education.GroupSubstitution{
+		TargetType:        education.GroupSubstitutionTypeGroupHandover,
 		GroupID:           groupID,
 		RegularStaffID:    regularStaffID,
 		SubstituteStaffID: substituteStaffID,
 		StartDate:         startDate,
 		EndDate:           endDate,
 		Reason:            "Test substitution",
+	}
+	if regularStaffID != nil {
+		substitution.TargetType = education.GroupSubstitutionTypeLegacy
 	}
 	substitution.SetTenantID(fixtureTenantID(tb))
 
@@ -3042,6 +3056,17 @@ type ActivityInstanceOpts struct {
 	CalendarPeriodID *int64
 }
 
+// Date returns a calendar date for callers that should not depend on the
+// application's date implementation directly.
+func Date(year int, month time.Month, day int) timezone.Date {
+	return timezone.NewDate(year, month, day)
+}
+
+// TodayDate returns today's Berlin calendar date for fixture setup.
+func TodayDate() timezone.Date {
+	return timezone.TodayDate()
+}
+
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
@@ -3133,6 +3158,37 @@ func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.Calenda
 	period.IsActive = active
 	_, err := db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
 	require.NoError(tb, err, "Failed to set test calendar period active state")
+}
+
+// StaffNoticeOpts controls optional fields for NewTestStaffNotice.
+type StaffNoticeOpts struct {
+	Important               bool // default priority is "info"
+	ValidUntil              *timezone.Date
+	Inactive                bool
+	RequiresAcknowledgement bool
+}
+
+// NewTestStaffNotice builds an unsaved Tagesinformation (#2180) with the
+// fields a repository test needs: every day of the week, no week pattern,
+// active unless opts.Inactive. It does not touch the database — the
+// repository under test persists it, so the fixture stays out of that path.
+func NewTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts StaffNoticeOpts) *users.StaffNotice {
+	tb.Helper()
+
+	priority := users.StaffNoticePriorityInfo
+	if opts.Important {
+		priority = users.StaffNoticePriorityImportant
+	}
+	return &users.StaffNotice{
+		Title:                   title,
+		Priority:                priority,
+		ValidFrom:               validFrom,
+		ValidUntil:              opts.ValidUntil,
+		Weekdays:                []int16{},
+		RequiresAcknowledgement: opts.RequiresAcknowledgement,
+		Active:                  !opts.Inactive,
+		CreatedBy:               createdBy,
+	}
 }
 
 // StaffShiftOpts controls optional fields for CreateTestStaffShift.
@@ -3487,4 +3543,76 @@ func CleanupClassListEntryFixtures(tb testing.TB, db *bun.DB, entryIDs ...int64)
 	ctx := context.Background()
 	_, _ = db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.List(entryIDs)).Exec(ctx)
 	_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.List(entryIDs)).Exec(ctx)
+}
+
+// CreateTestCoGuardianForStudent adds a SECOND portal guardian to a child that
+// already has one — the shape every "what does the other parent see" test
+// needs (request sharing, Familienschutz, the co-guardian notice #2267).
+//
+// The returned chain names the new guardian; StudentID and TenantID are the
+// child's, so a caller can compare the two guardians' views of one child.
+func CreateTestCoGuardianForStudent(
+	tb testing.TB, db *bun.DB, studentID int64, firstName, lastName string,
+) ParentChain {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	account := CreateTestAccount(tb, db, "co-guardian")
+	profile := &users.GuardianProfile{
+		FirstName:              firstName,
+		LastName:               lastName,
+		Email:                  &account.Email,
+		AccountID:              &account.ID,
+		HasAccount:             true,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(fixtureTenantID(tb))
+	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create co-guardian profile")
+
+	link := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianProfileID:  profile.ID,
+		RelationshipType:   "parent",
+		IsEmergencyContact: false,
+		CanPickup:          true,
+		EmergencyPriority:  2,
+	}
+	// A co-guardian, not the primary one: same portal access, no primacy.
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleCoGuardian)
+	link.SetTenantID(fixtureTenantID(tb))
+	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
+	require.NoError(tb, err, "Failed to link co-guardian to student")
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    fixtureTenantID(tb),
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create co-guardian account_tenants mapping")
+
+	var guardianRoleID int64
+	err = db.NewSelect().ColumnExpr("id").TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleGuardian).Scan(ctx, &guardianRoleID)
+	require.NoError(tb, err, "Failed to find seeded guardian role")
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
+	roleAssignment.SetTenantID(fixtureTenantID(tb))
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign guardian role to co-guardian")
+
+	return ParentChain{
+		AccountID:         account.ID,
+		TenantID:          fixtureTenantID(tb),
+		GuardianProfileID: profile.ID,
+		StudentID:         studentID,
+		Email:             account.Email,
+	}
 }

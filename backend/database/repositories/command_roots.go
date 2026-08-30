@@ -1,0 +1,119 @@
+package repositories
+
+import (
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
+)
+
+type AuthCleanupRepositories struct {
+	Account                authModels.AccountRepository
+	Token                  authModels.TokenRepository
+	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
+	AuthEvent              auditModels.AuthEventRepository
+	PushSubscription       iotModels.PushSubscriptionRepository
+}
+
+func NewAuthCleanupRepositories(db *bun.DB) AuthCleanupRepositories {
+	return AuthCleanupRepositories{
+		Account: authRepo.NewAccountRepository(db), Token: authRepo.NewTokenRepository(db),
+		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
+		AuthEvent:              auditRepo.NewAuthEventRepository(db), PushSubscription: iotRepo.NewPushSubscriptionRepository(db),
+	}
+}
+
+func NewInvitationCleanupRepository(db *bun.DB) authModels.InvitationTokenRepository {
+	return authRepo.NewInvitationTokenRepository(db)
+}
+
+type SessionCleanupRepositories struct {
+	Group           activeModels.GroupRepository
+	Visit           activeModels.VisitRepository
+	Supervisor      activeModels.GroupSupervisorRepository
+	Device          iotModels.DeviceRepository
+	TimetableBridge *scheduleRepo.ActivityInstanceRepository
+}
+
+func NewSessionCleanupRepositories(db *bun.DB) SessionCleanupRepositories {
+	return SessionCleanupRepositories{
+		Group: activeRepo.NewGroupRepository(db), Visit: activeRepo.NewVisitRepository(db),
+		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: iotRepo.NewDeviceRepository(db),
+		TimetableBridge: scheduleRepo.NewActivityInstanceRepository(db),
+	}
+}
+
+type RetentionCleanupRepositories struct {
+	Visit      activeModels.VisitRepository
+	Attendance activeModels.AttendanceRepository
+	Supervisor activeModels.GroupSupervisorRepository
+	Consent    usersModels.PrivacyConsentRepository
+	Deletion   auditModels.DataDeletionRepository
+}
+
+func NewRetentionCleanupRepositories(db *bun.DB) RetentionCleanupRepositories {
+	return RetentionCleanupRepositories{
+		Visit: activeRepo.NewVisitRepository(db), Attendance: activeRepo.NewAttendanceRepository(db),
+		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: usersRepo.NewPrivacyConsentRepository(db),
+		Deletion: auditRepo.NewDataDeletionRepository(db),
+	}
+}
+
+type TimetableCleanupRepositories struct {
+	Instance  scheduleModels.ActivityInstanceRepository
+	Exception scheduleModels.ActivityExceptionRepository
+	Student   scheduleModels.InstanceStudentRepository
+	Deletion  auditModels.DataDeletionRepository
+	Deviation auditModels.DeviationEventRepository
+}
+
+func NewTimetableCleanupRepositories(db *bun.DB) TimetableCleanupRepositories {
+	return TimetableCleanupRepositories{
+		Instance: scheduleRepo.NewActivityInstanceRepository(db), Exception: scheduleRepo.NewActivityExceptionRepository(db),
+		Student: scheduleRepo.NewInstanceStudentRepository(db), Deletion: auditRepo.NewDataDeletionRepository(db),
+		Deviation: auditRepo.NewDeviationEventRepository(db),
+	}
+}
+
+type TimeTrackingCleanupRepositories struct {
+	Session  activeModels.WorkSessionRepository
+	Absence  activeModels.StaffAbsenceRepository
+	Deletion auditModels.DataDeletionRepository
+}
+
+func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositories {
+	return TimeTrackingCleanupRepositories{
+		Session: activeRepo.NewWorkSessionRepository(db), Absence: activeRepo.NewStaffAbsenceRepository(db),
+		Deletion: auditRepo.NewDataDeletionRepository(db),
+	}
+}
+
+type CleanupSettingsRepositories struct {
+	Value  configModels.SettingValueRepository
+	Audit  configModels.SettingAuditRepository
+	School platformModels.SchoolRepository
+}
+
+func NewCleanupSettingsRepositories(db *bun.DB, runtime configRepo.Runtime) CleanupSettingsRepositories {
+	return CleanupSettingsRepositories{
+		Value: configRepo.NewSettingValueRepository(runtime), Audit: configRepo.NewSettingAuditRepository(runtime),
+		School: platformRepo.NewSchoolRepository(db),
+	}
+}
+
+func NewSettingsCommandRepositories(db *bun.DB) (platformModels.SchoolRepository, configModels.SettingValueRepository) {
+	return platformRepo.NewSchoolRepository(db), configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
+}

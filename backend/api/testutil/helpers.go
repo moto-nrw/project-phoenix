@@ -66,13 +66,13 @@ const (
 // Returns the shared package database pool and a service factory. Tests must
 // not close the pool — it is shared by every test in the binary. The optional
 // statistics clock pins calendar-day semantics in time-dependent API tests.
-func SetupAPITest(t *testing.T, statisticsClocks ...func() time.Time) (*bun.DB, *services.Factory) {
+func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), statisticsClocks...)
+	repoFactory := repositories.NewFactory(db, clocks...)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
 
@@ -103,6 +103,45 @@ func WithClaims(tb testing.TB, claims jwt.AppClaims) RequestOption {
 		}
 		*req = *req.WithContext(ctx)
 	}
+}
+
+// WithTestTenant supplies the package test's tenant without exposing tenant
+// runtime details to adapter tests.
+func WithTestTenant(tb testing.TB) RequestOption {
+	tenantID := testpkg.Tenant(tb)
+	return func(req *http.Request) {
+		*req = *req.WithContext(tenant.WithTenantID(req.Context(), tenantID))
+	}
+}
+
+// ProtectedTestTenantGroup is the authorization-free test boundary for HTTP
+// adapters whose permission middleware is tested separately. It retains the
+// real tenant transaction and request caches.
+func ProtectedTestTenantGroup(db *bun.DB, r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+	r.Group(func(gr chi.Router) {
+		gr.Use(testpkg.TenantTxMiddleware(db))
+		fn(gr, func(next http.Handler) http.Handler { return next })
+	})
+}
+
+func ProtectedTestTenantGroupFunc(db *bun.DB) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		ProtectedTestTenantGroup(db, r, fn)
+	}
+}
+
+func IdentityMiddleware(next http.Handler) http.Handler { return next }
+
+func RespondSuccess(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
+	render.Status(r, status)
+	render.JSON(w, r, Response{Status: "success", Data: data, Message: message})
+}
+
+func RespondNoContent(w http.ResponseWriter, r *http.Request) { render.NoContent(w, r) }
+
+func RespondError(w http.ResponseWriter, r *http.Request, status int, err error) {
+	render.Status(r, status)
+	render.JSON(w, r, Response{Status: "error", Error: err.Error()})
 }
 
 // WithJWTBearer sets an Authorization: Bearer <token> header on the request.

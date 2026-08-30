@@ -152,8 +152,10 @@ migration. It is pinned to evidence commit
   discoverable `TestMain` roots and one smoke test per root;
 - every Cobra command path and scheduler job ID;
 - every typed legacy-composition reference reported by this evaluator;
-- every call to `api.New`, `api.NewServer`, `repositories.NewFactory`,
-  `services.NewFactory`, `scheduler.NewScheduler`, and `SetupAPITest` under the
+- every call to `api.New`, the evidence-only `api.NewServer`, the current
+  `api.WithRuntime`, `repositories.NewFactory`,
+  `services.NewFactory`, the evidence-only `scheduler.NewScheduler`, the current
+  `scheduler.NewWorker`, and `SetupAPITest` under the
   affected production and test trees (`api`, `cmd`, `services`,
   `database/repositories`, and `test`); this is deliberately not a scan of
   unrelated unit-test packages or migration tests;

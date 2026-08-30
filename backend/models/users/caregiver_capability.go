@@ -48,11 +48,10 @@ type BlockerSupervision struct {
 	StartDate string `json:"start_date"`
 }
 
-// BlockerSubstitution represents an active substitution that blocks disable.
+// BlockerSubstitution represents an active group handover that blocks disable.
 type BlockerSubstitution struct {
 	ID        int64  `json:"id"`
 	GroupName string `json:"group_name"`
-	Role      string `json:"role"`
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
 }

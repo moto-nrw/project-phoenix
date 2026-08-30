@@ -3342,6 +3342,7 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeAgainstLaterLedgerCapacity(t *testin
 	t.Parallel()
 
 	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	monthService := &absMonthServiceMock{capacity: 300, deduction: 480}
 	svc.monthService = monthService
@@ -3351,7 +3352,7 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeAgainstLaterLedgerCapacity(t *testin
 		return nil
 	}
 
-	start := timezone.TodayDate().AddDays(1)
+	start := timezone.NewDate(2026, 8, 24).AddDays(1)
 	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
 		AbsenceType: activeModels.AbsenceTypeCompTime,
 		DateStart:   start.String(),

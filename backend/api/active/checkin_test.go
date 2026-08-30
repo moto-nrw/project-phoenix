@@ -173,7 +173,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		attendance := &activeModels.Attendance{
 			StudentID:   123,
 			Date:        today,
@@ -198,7 +198,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 		attendance := &activeModels.Attendance{
 			StudentID:    123,
-			Date:         timezone.TodayDate(),
+			Date:         timezone.NewDate(2026, 8, 24),
 			CheckInTime:  now,
 			CheckedInBy:  456,
 			DeviceID:     111,

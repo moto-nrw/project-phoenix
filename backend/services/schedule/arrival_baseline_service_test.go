@@ -164,7 +164,7 @@ func TestArrivalBaselineCareDayWithoutAnyClassTime(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Ohne")
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
 
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(timezone.NewDate(2026, 8, 24))
 	projection, err := baseline.Project(ctx, []int64{student.ID}, monday, monday)
 	require.NoError(t, err)
 

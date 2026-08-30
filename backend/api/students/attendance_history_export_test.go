@@ -17,7 +17,7 @@ import (
 func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	future := today.AddDays(1)
 	tests := []struct {
 		name  string
@@ -29,7 +29,7 @@ func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/attendance-history/export"+tt.query, nil)
-			_, err := parseAttendanceExportOptions(req, 30)
+			_, err := parseAttendanceExportOptions(req, 30, today)
 			require.EqualError(t, err, "attendance exports cannot include future dates")
 		})
 	}
@@ -38,9 +38,9 @@ func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	req := httptest.NewRequest("GET", "/attendance-history/export?from="+today.String()+"&to="+today.String(), nil)
-	options, err := parseAttendanceExportOptions(req, 30)
+	options, err := parseAttendanceExportOptions(req, 30, today)
 	require.NoError(t, err)
 	assert.Equal(t, today, options.From)
 	assert.Equal(t, today, options.To)

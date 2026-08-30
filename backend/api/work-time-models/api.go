@@ -184,9 +184,9 @@ func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err 
 // zero-minute entries; the business rules are enforced by the service via
 // WorkTimeModelService.ValidateModelWithEntries.
 func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.WorkTimeModelEntry, error) {
-	anchor := timezone.Date{}
+	anchor := config.CalendarDate("")
 	if req.RotationAnchorDate != "" {
-		parsed, err := timezone.ParseDate(req.RotationAnchorDate)
+		parsed, err := config.ParseCalendarDate(req.RotationAnchorDate)
 		if err != nil {
 			return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
 		}

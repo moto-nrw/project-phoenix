@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -74,7 +73,7 @@ func (rs *Resource) schoolMySupervisions(w http.ResponseWriter, r *http.Request)
 	}
 	accountID, isAdmin := operationActor(r.Context())
 	result, err := rs.OperationsService.PlannedNow(
-		r.Context(), accountID, isAdmin, timezone.TodayDate(), rs.Now(),
+		r.Context(), accountID, isAdmin, rs.todayDate(), rs.Now(),
 		scheduleSvc.PlannedNowOptions{Scope: scheduleSvc.PlannedNowScopeDay},
 	)
 	if err != nil {
@@ -126,7 +125,7 @@ func (rs *Resource) schoolStudentSheet(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	sheet, err := rs.ReportService.SupervisionStudentSheet(r.Context(), enrollmentSvc.SupervisionSheetInput{
 		StudentID:         studentID,
-		Date:              timezone.TodayDate(),
+		Date:              rs.todayDate(),
 		CompanionBoundary: boundary,
 		ActorAccountID:    accountID,
 		ActorRole:         strings.Join(claims.Roles, ","),

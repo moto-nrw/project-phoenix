@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -76,9 +78,20 @@ type ResourceConfig struct {
 	CareRequestService      scheduleService.CareScheduleRequestService
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
-	OfferingChangeService   enrollmentService.OfferingChangeRequestService
-	PickupAdjustmentService enrollmentService.PickupAdjustmentService
-	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
+	OfferingChangeService    enrollmentService.OfferingChangeRequestService
+	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
+	ExcusedRequestService    absenceService.ExcusedAbsenceRequestService
+	ParentRequestBulkService userService.ParentRequestBulkService
+	// ParentRequestConflictService resolves a whole conflict group at once
+	// (#2267). Optional: a bare test Resource answers 500 rather than
+	// silently deciding requests one by one, which is the bug the group
+	// exists to prevent.
+	ParentRequestConflictService userService.ParentRequestConflictService
+	FamilyProtectionService      userService.FamilyProtectionManager
+	// RequestReviewAccess reports the caller's coarse reach over the parent
+	// request queues so the empty list can explain itself. Optional: a nil
+	// policy omits the field (bare test Resources).
+	RequestReviewAccess     ParentRequestReviewAccess
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService
@@ -121,6 +134,10 @@ func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{ResourceConfig: cfg}
 }
 
+func (rs *Resource) todayDate() timezone.Date {
+	return timezone.DateFromTime(rs.Now())
+}
+
 // Router returns a configured router for student endpoints
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
@@ -138,6 +155,18 @@ func (rs *Resource) Router() chi.Router {
 		// missing — mirroring the permission split of the replaced single
 		// endpoints instead of failing the whole roster.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+		// Navigation only exposes groups scoped by the service. It remains
+		// authenticated-only so legacy caregiver sessions and staff with
+		// users:read retain their personal-group navigation; groups:read only
+		// controls whether the service includes further tenant groups.
+		r.With(withTx).Get("/ogs-group-navigation",
+			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+				if rs.OGSGroupLiveService == nil {
+					return nil, errors.New("OGS group live service is not configured")
+				}
+				return rs.OGSGroupLiveService.ListGroups(ctx)
+			}, common.ErrorInternalServer, "OGS group navigation retrieved successfully"),
+		)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
@@ -209,6 +238,24 @@ func (rs *Resource) Router() chi.Router {
 		// to the excused queue — the only one whose per-type routes accept
 		// users:absence.
 		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests", rs.listAggregatedChangeRequests)
+		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/change-requests/bulk-approve", rs.bulkApproveParentRequests)
+		// Gemeinsames Ergebnis festlegen (#2267): decide a whole conflict
+		// group in one transaction. Same route gate as the list; the per-kind
+		// permission and the per-child scope are re-checked inside the
+		// coordinator and the domain services.
+		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).
+			Post("/change-requests/conflicts/resolve", rs.resolveRequestConflict)
+		// Als erledigt markieren (#2267): the third verdict for a request whose
+		// days have all passed. Same route gate as the list; the per-child
+		// scope and the per-kind gate are re-checked inside the service.
+		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).
+			Post("/change-requests/{kind}/{requestId}/mark-done", rs.markParentRequestDone)
+		// Entscheidung korrigieren (#2267): rewrite a decision staff already
+		// took. The old decision stays in the ledger.
+		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).
+			Post("/change-requests/{kind}/{requestId}/correct", rs.correctParentRequestDecision)
+		r.With(common.RequiresPermission(permissions.ConfigManage), withTx).Get("/{id}/family-protection", rs.getFamilyProtection)
+		r.With(common.RequiresPermission(permissions.ConfigManage), withTx).Put("/{id}/family-protection", rs.setFamilyProtection)
 
 		// Routes requiring users:create permission
 		r.With(common.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)

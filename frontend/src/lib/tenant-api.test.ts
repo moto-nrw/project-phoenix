@@ -22,6 +22,7 @@ import {
   performTenantSwitch,
   loginImageSrc,
   normalizePresenceMode,
+  staffReasonRequired,
 } from "./tenant-api";
 
 // ============================================================================
@@ -152,6 +153,10 @@ describe("tenant-api", () => {
         // Absent operational_overview_scope collapses to the restrictive
         // "own": an older backend must never widen the UI (#2380).
         operationalOverviewScope: "own",
+        // Fehlende parent_request_reason_policy gilt als "both", die
+        // strengste Fassung: ein älteres Backend darf die Begründungs-Pflicht
+        // nicht stillschweigend abschalten (#2267).
+        parentRequestReasonPolicy: "both",
         showTimetableCounts: true,
         waitlistEnabled: true,
         // Older backends omit the health-column flag (#2609). Absent means
@@ -829,5 +834,20 @@ describe("tenant-api", () => {
       expect(mockSwrMutate).not.toHaveBeenCalled();
       expect(mockClearSessionCache).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("staffReasonRequired", () => {
+  it("verlangt eine Begründung nur bei den Fassungen, die Mitarbeitende meinen", () => {
+    expect(staffReasonRequired("nobody")).toBe(false);
+    expect(staffReasonRequired("guardians")).toBe(false);
+    expect(staffReasonRequired("staff")).toBe(true);
+    expect(staffReasonRequired("both")).toBe(true);
+  });
+
+  it("fällt ohne Angabe auf die strengste Fassung zurück", () => {
+    // Ein älteres Backend ohne dieses Feld darf die Pflicht nicht
+    // stillschweigend abschalten (#2267).
+    expect(staffReasonRequired(undefined)).toBe(true);
   });
 });

@@ -294,7 +294,7 @@ func (s *staffOverviewService) buildPrefetch(
 	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
 		return nil, fmt.Errorf("failed to prefetch staff shifts: %w", err)
 	}
-	scheduleEntries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, staffIDs, from, to)
+	scheduleEntries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(from), workforceDate(to))
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch work schedules: %w", err)
 	}
@@ -626,7 +626,7 @@ func (s *staffOverviewService) GetDashboardSummary(ctx context.Context, period s
 	// period=week can reach into the previous month, so the prefetch window
 	// has to start no later than that Monday.
 	var lower *timezone.Date
-	weekStart := configModels.MondayOf(today)
+	weekStart := calendarDate(configModels.MondayOf(workforceDate(today)))
 	if period == OverviewPeriodWeek {
 		lower = &weekStart
 	}

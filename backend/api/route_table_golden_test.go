@@ -5,9 +5,9 @@
 // pin that:
 //
 //  1. TestRouteTableGolden walks the fully-assembled production Serve root
-//     (api.NewServer, including the embedded worker wiring) and compares
-//     the sorted METHOD+pattern list against testdata/route_table.golden.
-//     Any added, removed, or moved route fails the diff.
+//     (api.WithRuntime, including the embedded worker wiring) and pins both the
+//     sorted METHOD+pattern list and each route's ordered middleware chain.
+//     Any added, removed, moved, or re-wrapped route fails the diff.
 //
 //  2. TestIoTAuthMatrixGolden fires an UNAUTHENTICATED request at every
 //     /api/iot/* route and pins status + body. The IoT router mounts the
@@ -33,7 +33,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -54,7 +56,8 @@ var (
 )
 
 // newGoldenAPI builds the production Serve root exactly once per test binary.
-// NewServer calls api.New, which registers Prometheus collectors and DB stats
+// newRuntime is the builder owned by WithRuntime. It calls api.New, which
+// registers Prometheus collectors and DB stats
 // providers on global registries — a second construction in the same process
 // would panic on duplicate registration.
 func newGoldenAPI(t *testing.T) *API {
@@ -63,29 +66,26 @@ func newGoldenAPI(t *testing.T) *API {
 	// SetupTestDB loads the root .env (TEST_DB_DSN, PHOENIX_AUTH_PASSWORD),
 	// forces APP_ENV=test, and points viper's test_db_dsn at the
 	// package-isolated clone — api.New's DBConnForServe resolves through the
-	// same viper key, so the whole router builds against the clone.
-	db := testpkg.SetupTestDB(t)
-	// The pool belongs to the package, not to this test — never close it
-	// (#2419, gate no_shared_pool_close).
-	password := strings.ReplaceAll(os.Getenv("PHOENIX_AUTH_PASSWORD"), "'", "''")
-	_, err := db.ExecContext(t.Context(), "ALTER ROLE phoenix_auth PASSWORD '"+password+"'")
-	require.NoError(t, err, "sync phoenix_auth password for the API test database")
-
-	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
+	// same viper key, so the whole router builds against the clone. Its
+	// bootstrap also serializes the cluster-global phoenix_auth role setup.
+	testpkg.SetupTestDB(t)
 
 	goldenAPIOnce.Do(func() {
-		server, err := NewServer(slog.Default())
+		runtime, err := newRuntime(ServeConfig{
+			Port:   "0",
+			Logger: slog.Default(),
+		})
 		if err != nil {
 			goldenAPIErr = err
 			return
 		}
 		var ok bool
-		goldenAPI, ok = server.Handler.(*API)
+		goldenAPI, ok = runtime.Handler().(*API)
 		if !ok {
-			goldenAPIErr = fmt.Errorf("Serve root handler has type %T, want *api.API", server.Handler)
+			goldenAPIErr = fmt.Errorf("Serve root handler has type %T, want *api.API", runtime.Handler())
 		}
 	})
-	require.NoError(t, goldenAPIErr, "api.NewServer failed — route goldens need the assembled production Serve root")
+	require.NoError(t, goldenAPIErr, "api.WithRuntime builder failed — route goldens need the assembled production Serve root")
 	return goldenAPI
 }
 
@@ -93,17 +93,82 @@ func newGoldenAPI(t *testing.T) *API {
 func TestRouteTableGolden(t *testing.T) {
 	apiInstance := newGoldenAPI(t)
 
-	var routes []string
-	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+	var routes, middlewareRoutes []string
+	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		routes = append(routes, method+" "+route)
+		names := make([]string, 0, len(middlewares))
+		for _, middleware := range middlewares {
+			name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
+			name = strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/")
+			names = append(names, compilerGeneratedNamePart.ReplaceAllString(name, "#"))
+		}
+		middlewareRoutes = append(middlewareRoutes, fmt.Sprintf("%s %s -> %s", method, route, strings.Join(names, " > ")))
 		return nil
 	})
 	require.NoError(t, walkErr)
 	sort.Strings(routes)
-	got := strings.Join(routes, "\n") + "\n"
+	sort.Strings(middlewareRoutes)
 
-	compareGolden(t, filepath.Join("testdata", "route_table.golden"), got,
+	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
 		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
+	compareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact",
+		stableMiddlewareTable)
+
+	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
+	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
+	// chi.Mount bedient beide Schreibweisen mit demselben Handler, die
+	// Walk-Tabelle oben zeigt aber nur eine davon. Der Probe-Lauf pinnt, dass
+	// ein Umbau der Mount-Stelle das nicht stumm zu einem 404 macht.
+	t.Run("mounted collections answer without a trailing slash", func(t *testing.T) {
+		cases := []struct {
+			method string
+			path   string
+		}{
+			{http.MethodGet, "/api/staff-notices"},
+			{http.MethodGet, "/api/staff-notices/"},
+			{http.MethodPost, "/api/staff-notices"},
+			{http.MethodPost, "/api/staff-notices/"},
+			{http.MethodGet, "/api/staff-notices/today"},
+		}
+		for _, tc := range cases {
+			rec := httptest.NewRecorder()
+			apiInstance.Router.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+			// Ohne Token endet die Anfrage in der Auth-Kette (401), nicht im
+			// Router-Fallback (404): der Pfad ist also gebunden.
+			require.Equalf(t, http.StatusUnauthorized, rec.Code, "%s %s must be routed to the staff-notice resource", tc.method, tc.path)
+		}
+	})
+}
+
+var compilerGeneratedNamePart = regexp.MustCompile(`func[0-9]+|\.[0-9]+`)
+
+// stableMiddlewareTable removes compiler-dependent wrapper provenance while
+// retaining each route's middleware order and semantic function names. Go may
+// report the same closure as either Resource.Router.SetContentType or the
+// underlying render.SetContentType when an unrelated dependency changes its
+// inlining budget; that is not an HTTP middleware change.
+func stableMiddlewareTable(table string) string {
+	lines := strings.Split(strings.TrimSuffix(table, "\n"), "\n")
+	for i, line := range lines {
+		prefix, chain, ok := strings.Cut(line, " -> ")
+		if !ok {
+			continue
+		}
+		names := strings.Split(chain, " > ")
+		for j, name := range names {
+			if !strings.HasSuffix(name, "#") {
+				continue
+			}
+			name = strings.TrimSuffix(strings.TrimSuffix(name, "#"), ".")
+			if lastDot := strings.LastIndexByte(name, '.'); lastDot >= 0 {
+				name = name[lastDot+1:]
+			}
+			names[j] = name + "#"
+		}
+		lines[i] = prefix + " -> " + strings.Join(names, " > ")
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // chiParamPattern matches one {param} placeholder (incl. regex-constrained
@@ -147,7 +212,7 @@ func TestIoTAuthMatrixGolden(t *testing.T) {
 		"an unauthenticated /api/iot request now gets a different rejection — a route may have slipped between the device-auth and JWT groups; kiosks would see raw 401s. If intentional, regenerate with -update-goldens")
 }
 
-func compareGolden(t *testing.T, path, got, hint string) {
+func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(string) string) {
 	t.Helper()
 	if *updateGoldens {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
@@ -155,10 +220,15 @@ func compareGolden(t *testing.T, path, got, hint string) {
 		t.Logf("golden rewritten: %s", path)
 		return
 	}
-	want, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
+	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
 	require.NoErrorf(t, err, "golden file %s missing — generate it with -update-goldens", path)
-	if string(want) != got {
-		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(string(want), got))
+	want := string(wantBytes)
+	for _, normalize := range normalizers {
+		want = normalize(want)
+		got = normalize(got)
+	}
+	if want != got {
+		t.Errorf("%s\n\ngolden diff for %s:\n%s", hint, path, unifiedDiff(want, got))
 	}
 }
 

@@ -50,6 +50,7 @@ import {
   AggregatedRequestList,
   type AggregatedRequestFilters,
 } from "~/components/students/aggregated-request-list";
+import { FamilyProtectionControl } from "~/components/students/family-protection-control";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   StudentCheckoutSection,
@@ -1193,6 +1194,7 @@ function StudentDetailPageContent() {
             tabs={visibleTabs}
             canViewEnrollments={canViewEnrollments}
             canViewCarePlan={canViewCarePlan}
+            canManageFamilyProtection={canViewEnrollments}
             onTabChange={handleTabChange}
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
@@ -1598,6 +1600,7 @@ interface FullAccessViewProps {
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
   canViewCarePlan: boolean;
+  canManageFamilyProtection: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
@@ -1631,6 +1634,7 @@ function FullAccessView({
   tabs,
   canViewEnrollments,
   canViewCarePlan,
+  canManageFamilyProtection,
   onTabChange,
   statusDays,
   onDeleteStatusDay,
@@ -1740,12 +1744,23 @@ function FullAccessView({
           forceMount
           className={TAB_CONTENT_CLASS}
         >
-          <PersonalInfoReadOnly
-            student={student}
-            enrollmentExtraGroups={enrollmentExtraGroups}
-            showEditButton={hasWriteAccess}
-            onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
-          />
+          <div className="space-y-4">
+            <PersonalInfoReadOnly
+              student={student}
+              enrollmentExtraGroups={enrollmentExtraGroups}
+              showEditButton={hasWriteAccess}
+              onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
+            />
+            {canManageFamilyProtection ? (
+              <SectionCard
+                kicker="Private Angaben"
+                title="Familienschutz"
+                description="Verhindert, dass Eltern Anfragen zu diesem Kind miteinander teilen."
+              >
+                <FamilyProtectionControl studentId={studentId} canManage />
+              </SectionCard>
+            ) : null}
+          </div>
         </TabsContent>
 
         <TabsContent

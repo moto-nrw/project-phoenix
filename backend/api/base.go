@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
@@ -31,7 +32,6 @@ import (
 	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
-	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
@@ -152,7 +152,6 @@ type API struct {
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
-	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
@@ -161,6 +160,7 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
+	StaffNotices     *staffAPI.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -171,8 +171,25 @@ type API struct {
 	Platform *platformAPI.Resource
 }
 
+type apiBuildResources struct {
+	pool     *bun.DB
+	tracker  analytics.Tracker
+	released bool
+}
+
+func (resources *apiBuildResources) close() error {
+	if resources.released {
+		return nil
+	}
+	var err error
+	if resources.tracker != nil {
+		err = resources.tracker.Close()
+	}
+	return errors.Join(err, database.ClosePool(resources.pool))
+}
+
 // New creates a new API instance
-func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -183,6 +200,10 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	buildResources := apiBuildResources{pool: db}
+	defer func() {
+		resultErr = errors.Join(resultErr, buildResources.close())
+	}()
 	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
 	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
@@ -218,9 +239,14 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
+	serviceFactory.SetSettingsObservers(
+		observability.ObserveSettingsLookup,
+		observability.RecordSettingsSideEffectFailure,
+	)
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
 		stats := database.SnapshotCapacity(db)
 		return observability.DBStats{
@@ -300,6 +326,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
 
+	buildResources.released = true
 	return api, nil
 }
 
@@ -594,39 +621,43 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// implementing the resync, so the assertion cannot silently miss here.
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:           api.Services.Users,
-		GuardianService:         api.Services.Guardian,
-		StudentService:          api.Services.Students,
-		ClassListEntryService:   api.Services.ClassListEntries,
-		StudentDeletionService:  api.Services.StudentDeletion,
-		CareLifecycleService:    api.Services.CareLifecycle,
-		StudentAuditService:     api.Services.StudentAudit,
-		EducationService:        api.Services.Education,
-		GradeTransitionService:  api.Services.GradeTransition,
-		UserContextService:      api.Services.UserContext,
-		ActiveService:           api.Services.Active,
-		IoTService:              api.Services.IoT,
-		StaffPINAuthenticator:   api.Services.StaffPINAuth,
-		PickupScheduleService:   api.Services.PickupSchedule,
-		PartialAbsenceService:   api.Services.PartialAbsence,
-		ArrivalScheduleService:  api.Services.ArrivalSchedule,
-		InstanceService:         api.Services.Instance,
-		CareDayService:          api.Services.CareDay,
-		SchoolService:           api.Services.Schools,
-		SettingsService:         api.Services.Settings,
-		MasterDataReviewService: api.Services.MasterDataReview,
-		CareRequestService:      api.Services.CareRequests,
-		OfferingChangeService:   api.Services.OfferingChanges,
-		PickupAdjustmentService: api.Services.PickupAdjustments,
-		ExcusedRequestService:   api.Services.ExcusedRequests,
-		StudentStatusDayService: api.Services.StudentStatusDays,
-		AbsenceOverview:         api.Services.AbsenceOverview,
-		StudentHistoryService:   api.Services.StudentHistory,
-		OGSGroupLiveService:     api.Services.OGSGroupLive,
-		ActivityService:         api.Services.Activities,
-		EnrollmentDecision:      api.Services.EnrollmentDecision,
-		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
-		OfferingSourceResyncer:  studentClassResyncer,
+		PersonService:                api.Services.Users,
+		GuardianService:              api.Services.Guardian,
+		StudentService:               api.Services.Students,
+		ClassListEntryService:        api.Services.ClassListEntries,
+		StudentDeletionService:       api.Services.StudentDeletion,
+		CareLifecycleService:         api.Services.CareLifecycle,
+		StudentAuditService:          api.Services.StudentAudit,
+		EducationService:             api.Services.Education,
+		GradeTransitionService:       api.Services.GradeTransition,
+		UserContextService:           api.Services.UserContext,
+		ActiveService:                api.Services.Active,
+		IoTService:                   api.Services.IoT,
+		StaffPINAuthenticator:        api.Services.StaffPINAuth,
+		PickupScheduleService:        api.Services.PickupSchedule,
+		PartialAbsenceService:        api.Services.PartialAbsence,
+		ArrivalScheduleService:       api.Services.ArrivalSchedule,
+		InstanceService:              api.Services.Instance,
+		CareDayService:               api.Services.CareDay,
+		SchoolService:                api.Services.Schools,
+		SettingsService:              api.Services.Settings,
+		MasterDataReviewService:      api.Services.MasterDataReview,
+		CareRequestService:           api.Services.CareRequests,
+		OfferingChangeService:        api.Services.OfferingChanges,
+		PickupAdjustmentService:      api.Services.PickupAdjustments,
+		ExcusedRequestService:        api.Services.ExcusedRequests,
+		ParentRequestBulkService:     api.Services.ParentRequests,
+		ParentRequestConflictService: api.Services.ParentRequests,
+		FamilyProtectionService:      api.Services.FamilyProtection,
+		RequestReviewAccess:          api.Services.RequestReviewPolicy,
+		StudentStatusDayService:      api.Services.StudentStatusDays,
+		AbsenceOverview:              api.Services.AbsenceOverview,
+		StudentHistoryService:        api.Services.StudentHistory,
+		OGSGroupLiveService:          api.Services.OGSGroupLive,
+		ActivityService:              api.Services.Activities,
+		EnrollmentDecision:           api.Services.EnrollmentDecision,
+		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
+		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -644,6 +675,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
+	api.StaffNotices = staffAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
@@ -679,9 +711,73 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
-	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
-	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
+	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
+		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(r, db, fn)
+		},
+		Permission: func(access configAPI.Access) configAPI.Middleware {
+			switch access {
+			case configAPI.AccessRead:
+				return apiCommon.RequireConfigRead()
+			case configAPI.AccessManage:
+				return apiCommon.RequireConfigManage()
+			case configAPI.AccessReadOrWrite:
+				return apiCommon.RequireConfigReadOrWrite()
+			default:
+				return apiCommon.RequireConfigWrite()
+			}
+		},
+		TenantGuard: apiCommon.TenantOperationMiddleware,
+		RequestActor: func(ctx context.Context) (int64, int64, []string) {
+			principal, err := apiCommon.CurrentPrincipal(ctx)
+			if err != nil {
+				return 0, 0, nil
+			}
+			return principal.TenantID(), principal.AccountID(), principal.Permissions()
+		},
+		Editable:  apiCommon.CanEditConfig,
+		Success:   apiCommon.Respond,
+		NoContent: apiCommon.RespondNoContent,
+		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
+			switch status {
+			case http.StatusBadRequest:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+			case http.StatusForbidden:
+				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
+			case http.StatusNotFound:
+				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
+			default:
+				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
+			}
+		},
+		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*configAPI.UploadedFile, error) {
+			file, err := apiCommon.ParseImage(w, r, field, maxBody)
+			if err != nil {
+				return nil, err
+			}
+			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+		},
+		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*configAPI.UploadedFile, error) {
+			file, err := apiCommon.ParsePDFWithLimits(w, r, field, maxFile, maxBody)
+			if err != nil {
+				return nil, err
+			}
+			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+		},
+		ImageSave:  apiCommon.SaveImage,
+		PDFSave:    apiCommon.SavePDF,
+		FileRemove: apiCommon.RemoveImage,
+		StoredPath: apiCommon.ResolveStoredPath,
+		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
+			publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
+			referenced, err := repoFactory.FormSchema.HasLegalDocumentReference(ctx, storedURL, publicURL)
+			if err != nil {
+				return false, fmt.Errorf("check AGB document references: %w", err)
+			}
+			return referenced, nil
+		},
+	})
+	api.Settings = configAPI.NewSettingsResource(api.Services.TenantSettings, settingsRuntime)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
@@ -712,8 +808,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
-	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
-	api.Database = databaseAPI.NewResource(api.Services.Database, db)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Substitution, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
 	api.TimeTracking.HolidayService = api.Services.Holidays
@@ -954,6 +1049,8 @@ func (a *API) registerTenantRoutes() {
 		// separate surface from /messages (which is parent-facing).
 		r.Mount("/staff-messages", a.StaffMessaging.Router())
 		r.Mount("/parent-announcements", a.Announcements.Router())
+		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
+		r.Mount("/staff-notices", a.StaffNotices.Router())
 		r.Mount("/files", a.FileStore.Router())
 
 		// Mount guardian resources
@@ -1015,7 +1112,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/substitutions", a.Substitutions.Router())
 
 		// Mount database resources
-		r.Mount("/database", a.Database.Router())
+		r.Mount("/database", a.databaseStatsRouter())
 
 		// Mount import resources (CSV/Excel import endpoints)
 		r.Mount("/import", a.Import.Router())
@@ -1049,6 +1146,24 @@ func (a *API) registerTenantRoutes() {
 
 		// Add other resource routes here as they are implemented
 	})
+}
+
+func (a *API) databaseStatsRouter() chi.Router {
+	router := chi.NewRouter()
+	apiCommon.ProtectedTenantGroup(router, a.db, func(router chi.Router, withTx apiCommon.Middleware) {
+		router.With(apiCommon.RequiresPermission("system:manage"), withTx).Get("/stats", a.getDatabaseStats)
+	})
+	return router
+}
+
+func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := a.Services.Database.GetStats(r.Context())
+	if err != nil {
+		slog.Default().Error("failed to get database stats", slog.String("error", err.Error()))
+		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
+		return
+	}
+	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
 }
 
 // servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.

@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,9 +46,17 @@ var (
 // MasterDataReviewItem is one pending request enriched with the child's name for
 // the staff queue.
 type MasterDataReviewItem struct {
-	Request   *userModels.StudentDataChangeRequest
-	FirstName string
-	LastName  string
+	Request      *userModels.StudentDataChangeRequest
+	FirstName    string
+	LastName     string
+	BulkEligible bool
+	// BulkIneligibleReason is the stable code; BulkIneligibleText the German
+	// sentence the client falls back to for codes it does not know.
+	BulkIneligibleReason string
+	BulkIneligibleText   string
+	// CurrentValueChanged is true when the live value moved away from the
+	// baseline the family submitted against. Nil where it cannot be read.
+	CurrentValueChanged *bool
 }
 
 // HistoryCursor points at the last DB row of a change-request page (shared by
@@ -86,10 +95,14 @@ type MasterDataHistoryItem struct {
 
 // MasterDataReviewDecideInput carries a staff decision on one change request.
 type MasterDataReviewDecideInput struct {
-	RequestID  int64
-	Approve    bool
-	Reason     string
-	ReviewedBy int64
+	RequestID int64
+	Approve   bool
+	Reason    string
+	// ReasonRequired says the school's reason policy asks the deciding staff
+	// member for a reason on an APPROVAL; a rejection always needs one (#2267).
+	ReasonRequired  bool
+	ReviewedBy      int64
+	ExpectedVersion string
 }
 
 // MasterDataReviewService is the staff-facing review queue for parent Track B
@@ -119,21 +132,36 @@ type masterDataReviewService struct {
 	emitter           *parentmessaging.Emitter
 	studentAudit      StudentChangeRecorder
 	logger            *slog.Logger
+	reviewPolicy      RequestReviewPolicy
+	// shareVisibility answers who the parent explicitly shared a request
+	// with; nil means nobody was, so every co-guardian gets the neutral line.
+	shareVisibility parentmessaging.ShareVisibilityResolver
+	events          ParentRequestEventRecorder
 }
 
-// NewMasterDataReviewServiceWithAudit wires the staff review service and the
-// per-child change recorder used for approved departure-plan requests.
-func NewMasterDataReviewServiceWithAudit(
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*userModels.Student) bool, error)
+	Allows(context.Context, []string, *userModels.Student) (bool, error)
+}
+
+// NewMasterDataReviewServiceWithAuditAndPolicy requires the production review
+// policy at construction, so missing wiring cannot widen reviewer access.
+func NewMasterDataReviewServiceWithAuditAndPolicy(
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
 	userCtx authorize.StudentAccessUserContext,
 	emitter *parentmessaging.Emitter,
 	studentAudit StudentChangeRecorder,
+	reviewPolicy RequestReviewPolicy,
+	events ParentRequestEventRecorder,
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
-	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, logger, broadcasters...)
+	if reviewPolicy == nil {
+		panic("master data review policy is required")
+	}
+	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, studentAudit, reviewPolicy, events, logger, broadcasters...)
 }
 
 func newMasterDataReviewService(
@@ -143,6 +171,8 @@ func newMasterDataReviewService(
 	userCtx authorize.StudentAccessUserContext,
 	emitter *parentmessaging.Emitter,
 	studentAudit StudentChangeRecorder,
+	reviewPolicy RequestReviewPolicy,
+	events ParentRequestEventRecorder,
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
@@ -161,6 +191,8 @@ func newMasterDataReviewService(
 		broadcaster:       broadcaster,
 		emitter:           emitter,
 		studentAudit:      studentAudit,
+		reviewPolicy:      reviewPolicy,
+		events:            events,
 		logger:            logger,
 	}
 }
@@ -221,12 +253,27 @@ func (s *masterDataReviewService) loadStudentScope(ctx context.Context, studentI
 	if err != nil {
 		return nil, fmt.Errorf("review: load persons: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
+	writable, err := s.reviewableFilter(ctx)
+	if err != nil {
+		return nil, err
+	}
 	return &reviewStudentScope{
 		students: students,
 		persons:  persons,
-		writable: func(student *userModels.Student) bool { return writable(student) },
+		writable: writable,
 	}, nil
+}
+
+func (s *masterDataReviewService) reviewableFilter(ctx context.Context) (func(*userModels.Student) bool, error) {
+	if s.reviewPolicy == nil {
+		writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
+		return func(student *userModels.Student) bool { return writable(student) }, nil
+	}
+	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("review: resolve reviewer scope: %w", err)
+	}
+	return filter, nil
 }
 
 func uniqueStudentIDs(rows []*userModels.StudentDataChangeRequest) []int64 {
@@ -269,9 +316,124 @@ func (s *masterDataReviewService) ListPending(ctx context.Context, filters model
 		}
 		item := &MasterDataReviewItem{Request: r}
 		item.FirstName, item.LastName = scope.name(r.StudentID)
+		item.BulkEligible, item.BulkIneligibleReason, item.BulkIneligibleText = masterDataBulkEligibility(r, scope)
+		item.CurrentValueChanged = masterDataCurrentValueChanged(r, scope)
 		items = append(items, item)
 	}
 	return items, next, nil
+}
+
+func (s *masterDataReviewService) GetBulkCandidate(ctx context.Context, requestID int64) (*MasterDataReviewItem, error) {
+	req, err := s.changeRequestRepo.FindByID(ctx, requestID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrReviewNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("review: load bulk candidate: %w", err)
+	}
+	if req == nil || req.Status != userModels.DataChangeStatusPending {
+		return nil, ErrReviewNotFound
+	}
+	scope, err := s.loadStudentScope(ctx, []int64{req.StudentID})
+	if err != nil {
+		return nil, err
+	}
+	if !scope.includesPending(req.StudentID) {
+		return nil, ErrReviewNotFound
+	}
+	item := &MasterDataReviewItem{Request: req}
+	item.FirstName, item.LastName = scope.name(req.StudentID)
+	item.BulkEligible, item.BulkIneligibleReason, item.BulkIneligibleText = masterDataBulkEligibility(req, scope)
+	item.CurrentValueChanged = masterDataCurrentValueChanged(req, scope)
+	return item, nil
+}
+
+func (s *masterDataReviewService) LockBulkRequest(ctx context.Context, requestID int64) error {
+	_, err := s.changeRequestRepo.FindPendingByIDForUpdate(ctx, requestID)
+	return err
+}
+
+// LockBulkStudents establishes one canonical student-lock frontier after all
+// request rows have been locked in request-kind/id order. Single decisions use
+// the same request-before-student order.
+func (s *masterDataReviewService) LockBulkStudents(ctx context.Context, studentIDs []int64) error {
+	for _, studentID := range studentIDs {
+		if _, err := s.studentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func masterDataBulkEligibility(req *userModels.StudentDataChangeRequest, scope *reviewStudentScope) (bool, string, string) {
+	student := scope.students[req.StudentID]
+	if student == nil {
+		return false, BulkIneligibleChildUnavailable, "Das Kind ist nicht mehr verfügbar."
+	}
+	switch req.Target {
+	case userModels.DataChangeTargetPerson:
+		return personRequestBulkEligibility(req, scope.persons[student.PersonID])
+	case userModels.DataChangeTargetStudent:
+		return studentRequestBulkEligibility(req, student)
+	case userModels.DataChangeTargetDeparture:
+		return departureRequestBulkEligibility(req, student)
+	default:
+		return false, BulkIneligibleSingleOnly, "Diese Anfrage kann nur einzeln freigegeben werden."
+	}
+}
+
+func personRequestBulkEligibility(req *userModels.StudentDataChangeRequest, person *userModels.Person) (bool, string, string) {
+	if person == nil {
+		return false, BulkIneligibleChildUnavailable, "Die Stammdaten sind nicht mehr verfügbar."
+	}
+	current, err := personFieldRaw(person, req.FieldKey)
+	if err != nil || !validPersonRequestValue(req) {
+		return false, BulkIneligibleSingleOnly, "Diese Anfrage kann nur einzeln freigegeben werden."
+	}
+	if !jsonRawEqual(current, req.OldValue) {
+		return false, BulkIneligibleStale, "Der aktuelle Wert wurde nach der Anfrage geändert."
+	}
+	return true, "", ""
+}
+
+func studentRequestBulkEligibility(req *userModels.StudentDataChangeRequest, student *userModels.Student) (bool, string, string) {
+	if req.FieldKey != "school_class" || !validRequiredString(req.NewValue) {
+		return false, BulkIneligibleSingleOnly, "Diese Anfrage kann nur einzeln freigegeben werden."
+	}
+	if !jsonRawEqual(jsonString(student.SchoolClass), req.OldValue) {
+		return false, BulkIneligibleStale, "Der aktuelle Wert wurde nach der Anfrage geändert."
+	}
+	return true, "", ""
+}
+
+func departureRequestBulkEligibility(req *userModels.StudentDataChangeRequest, student *userModels.Student) (bool, string, string) {
+	requested, err := decodeDepartureModes(req.NewValue)
+	previous, oldErr := decodeDepartureModes(req.OldValue)
+	if req.FieldKey != "allowed_departure_modes" || err != nil || oldErr != nil || requested.HasMode(userModels.DepartureAccompanied) {
+		return false, BulkIneligibleSingleOnly, "Diese Anfrage kann nur einzeln freigegeben werden."
+	}
+	if !departureModesEqual(student.AllowedDepartureModes.Normalize(), previous.Normalize()) {
+		return false, BulkIneligibleStale, "Der aktuelle Wert wurde nach der Anfrage geändert."
+	}
+	return true, "", ""
+}
+
+func validRequiredString(raw json.RawMessage) bool {
+	var value string
+	return json.Unmarshal(raw, &value) == nil && strings.TrimSpace(value) != ""
+}
+
+func validPersonRequestValue(req *userModels.StudentDataChangeRequest) bool {
+	if !validRequiredString(req.NewValue) {
+		return false
+	}
+	if req.FieldKey != "birthday" {
+		return req.FieldKey == "first_name" || req.FieldKey == "last_name"
+	}
+	var value string
+	_ = json.Unmarshal(req.NewValue, &value)
+	_, err := timezone.ParseDate(value)
+	return err == nil
 }
 
 // probeLimit asks the repository for one row more than the caller wants, so a
@@ -346,6 +508,48 @@ func ReviewerDisplayName(reviewers map[int64]*userModels.Person, reviewedBy *int
 }
 
 func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataReviewDecideInput) (*MasterDataReviewItem, error) {
+	req, err := s.loadPendingDecisionRequest(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizeMasterDataDecision(ctx, req.StudentID); err != nil {
+		return nil, err
+	}
+	// An approval needs a reason only while the school's policy asks staff for
+	// one; a rejection's reason is required by the handler either way (#2267).
+	if input.Approve && input.ReasonRequired && strings.TrimSpace(input.Reason) == "" {
+		return nil, ErrParentRequestReasonRequired
+	}
+	var reason *string
+	if input.Reason != "" {
+		reason = &input.Reason
+	}
+	var item *MasterDataReviewItem
+	if input.Approve {
+		item, err = s.approveMasterDataRequest(ctx, req, input, reason)
+	} else {
+		item, err = s.rejectMasterDataRequest(ctx, req, input, reason)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The ledger entry is written inside the decision's own transaction, so a
+	// rolled-back decision can never leave a "decided" event behind.
+	if err := RecordParentRequestEvent(ctx, s.events, ParentRequestEventInput{
+		StudentID:      item.Request.StudentID,
+		RequestType:    userModels.ParentRequestTypeMasterData,
+		RequestID:      item.Request.ID,
+		EventType:      userModels.ParentRequestEventDecided,
+		ActorAccountID: input.ReviewedBy,
+		UpdatedAt:      item.Request.UpdatedAt,
+		Payload:        map[string]any{"approve": input.Approve, "reason": strings.TrimSpace(input.Reason)},
+	}); err != nil {
+		return nil, fmt.Errorf("review: record decision event: %w", err)
+	}
+	return item, nil
+}
+
+func (s *masterDataReviewService) loadPendingDecisionRequest(ctx context.Context, input MasterDataReviewDecideInput) (*userModels.StudentDataChangeRequest, error) {
 	if input.RequestID <= 0 {
 		return nil, ErrReviewNotFound
 	}
@@ -359,7 +563,13 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		}
 		return nil, fmt.Errorf("review: find pending request: %w", err)
 	}
+	if input.ExpectedVersion != "" && ParentRequestVersion(req.UpdatedAt) != input.ExpectedVersion {
+		return nil, ErrParentRequestStale
+	}
+	return req, nil
+}
 
+func (s *masterDataReviewService) authorizeMasterDataDecision(ctx context.Context, studentID int64) error {
 	// Per-child write authorization: the caller may decide this request only if
 	// they could edit the child directly — admin, or the child's group supervisor
 	// (auth/authorize.CanUpdateStudent, the same gate the direct student edit
@@ -376,51 +586,54 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	// re-acquires this same student row or takes the child's person row after
 	// it, so no student lock order is inverted and the person lock keeps its
 	// single acquisition site (#405 review).
-	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
-		return nil, fmt.Errorf("review: load student for decision: %w", err)
+		return fmt.Errorf("review: load student for decision: %w", err)
 	}
 	// The child graduated after filing this request. The lookup is unfiltered, so
 	// without this gate an approve would still rewrite an alumnus' master data
 	// (name, departure modes, companion links). Same 404 the rest of the child
 	// surface returns for graduates (#405 review).
 	if student.IsAlumnus() {
-		return nil, ErrReviewNotFound
+		return ErrReviewNotFound
 	}
 	// The child left the OGS after filing this request; approving it would
 	// rewrite the master data of a child the school no longer cares for (#2487).
 	if student.CareEndedOn(timezone.TodayDate()) {
-		return nil, ErrReviewNotFound
+		return ErrReviewNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx); !ok {
-		return nil, ErrReviewForbidden
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
 	}
+	if !allowed {
+		return ErrReviewForbidden
+	}
+	return nil
+}
 
-	var reason *string
-	if trimmed := input.Reason; trimmed != "" {
-		reason = &trimmed
-	}
-
-	if !input.Approve {
-		if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusRejected, reason, input.ReviewedBy, false); err != nil {
-			if errors.Is(err, userModels.ErrChangeRequestNotPending) {
-				return nil, ErrReviewNotPending
-			}
-			return nil, fmt.Errorf("review: reject: %w", err)
+func (s *masterDataReviewService) rejectMasterDataRequest(
+	ctx context.Context, req *userModels.StudentDataChangeRequest, input MasterDataReviewDecideInput, reason *string,
+) (*MasterDataReviewItem, error) {
+	if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusRejected, reason, input.ReviewedBy, false); err != nil {
+		if errors.Is(err, userModels.ErrChangeRequestNotPending) {
+			return nil, ErrReviewNotPending
 		}
-		s.logger.Info("staff rejected master data change",
-			slog.Int64("request_id", req.ID),
-			slog.Int64("student_id", req.StudentID),
-			slog.Int64("reviewed_by", input.ReviewedBy),
-		)
-		s.deferDecisionPill(ctx, req, input, false)
-		row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
-		if findErr != nil {
-			return nil, fmt.Errorf("review: reload rejected request: %w", findErr)
-		}
-		return s.enrichReviewItem(ctx, row)
+		return nil, fmt.Errorf("review: reject: %w", err)
 	}
+	s.logger.Info(
+		"staff rejected master data change",
+		slog.Int64("request_id", req.ID),
+		slog.Int64("student_id", req.StudentID),
+		slog.Int64("reviewed_by", input.ReviewedBy),
+	)
+	s.deferDecisionPill(ctx, req, input, false)
+	return s.reloadMasterDataReviewItem(ctx, req.ID, "rejected")
+}
 
+func (s *masterDataReviewService) approveMasterDataRequest(
+	ctx context.Context, req *userModels.StudentDataChangeRequest, input MasterDataReviewDecideInput, reason *string,
+) (*MasterDataReviewItem, error) {
 	// Run the apply in a recording scope so the companion announcement below can
 	// be keyed off the WRITE instead of the request's target: a departure
 	// approval that changes no weekday the links depend on leaves every link in
@@ -451,11 +664,27 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	if companionChanges.Changed() {
 		s.deferStudentCompanionsChanged(ctx, req.StudentID)
 	}
-	row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
+	return s.reloadMasterDataReviewItem(ctx, req.ID, "approved")
+}
+
+func (s *masterDataReviewService) reloadMasterDataReviewItem(ctx context.Context, requestID int64, status string) (*MasterDataReviewItem, error) {
+	row, findErr := s.changeRequestRepo.FindByID(ctx, requestID)
 	if findErr != nil {
-		return nil, fmt.Errorf("review: reload approved request: %w", findErr)
+		return nil, fmt.Errorf("review: reload %s request: %w", status, findErr)
 	}
 	return s.enrichReviewItem(ctx, row)
+}
+
+func (s *masterDataReviewService) canReviewStudent(ctx context.Context, student *userModels.Student) (bool, error) {
+	if s.reviewPolicy == nil {
+		ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx)
+		return ok, nil
+	}
+	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("review: resolve reviewer scope: %w", err)
+	}
+	return ok, nil
 }
 
 func (s *masterDataReviewService) enrichReviewItem(ctx context.Context, row *userModels.StudentDataChangeRequest) (*MasterDataReviewItem, error) {
@@ -499,19 +728,23 @@ func (s *masterDataReviewService) deferDecisionPill(ctx context.Context, req *us
 	studentID := req.StudentID
 	guardianAccountID := req.SubmittedBy
 	actorAccountID := input.ReviewedBy
+	ev := parentmessaging.ChildEvent{
+		EventType:      "request_status",
+		ActorKind:      userModels.ParentMessageSenderStaff,
+		ActorAccountID: actorAccountID,
+		Body:           body,
+		RequestType:    userModels.ParentMessageRequestMasterData,
+		RequestStatus:  status,
+		DecisionReason: reason,
+		RefTable:       "users.student_data_change_requests",
+		RefID:          &refID,
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, parentmessaging.ChildEvent{
-			EventType:      "request_status",
-			ActorKind:      userModels.ParentMessageSenderStaff,
-			ActorAccountID: actorAccountID,
-			Body:           body,
-			RequestType:    userModels.ParentMessageRequestMasterData,
-			RequestStatus:  status,
-			DecisionReason: reason,
-			RefTable:       "users.student_data_change_requests",
-			RefID:          &refID,
-		})
+		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
+	// Every other guardian of this child hears about the decision: the full
+	// pill for explicit share recipients, a neutral line for the rest.
+	s.notifyOtherGuardiansAfterCommit(ctx, req, ev)
 }
 
 func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, studentID int64) {
@@ -753,4 +986,50 @@ func jsonRawEqual(a, b json.RawMessage) bool {
 		return false
 	}
 	return reflect.DeepEqual(left, right)
+}
+
+// masterDataCurrentValueChanged reports whether the child's live value has
+// moved away from the baseline the family saw when they filed the request.
+// Staff need it in the queue, not only when the approve is refused: a request
+// approved blind would overwrite a newer office edit with an older wish.
+//
+// It answers only for the fields the review service can read; anything else
+// returns nil, which the wire omits rather than guessing "unchanged".
+func masterDataCurrentValueChanged(
+	req *userModels.StudentDataChangeRequest,
+	scope *reviewStudentScope,
+) *bool {
+	student := scope.students[req.StudentID]
+	if student == nil {
+		return nil
+	}
+	var current json.RawMessage
+	switch req.Target {
+	case userModels.DataChangeTargetPerson:
+		person := scope.persons[student.PersonID]
+		if person == nil {
+			return nil
+		}
+		raw, err := personFieldRaw(person, req.FieldKey)
+		if err != nil {
+			return nil
+		}
+		current = raw
+	case userModels.DataChangeTargetStudent:
+		if req.FieldKey != "school_class" {
+			return nil
+		}
+		current = jsonString(student.SchoolClass)
+	case userModels.DataChangeTargetDeparture:
+		requested, err := decodeDepartureModes(req.OldValue)
+		if err != nil {
+			return nil
+		}
+		changed := !departureModesEqual(student.AllowedDepartureModes.Normalize(), requested.Normalize())
+		return &changed
+	default:
+		return nil
+	}
+	changed := !jsonRawEqual(current, req.OldValue)
+	return &changed
 }

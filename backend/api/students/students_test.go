@@ -64,7 +64,7 @@ func requireStudentsBusDaysColumn(t *testing.T, tc *testContext) {
 func TestListStudents_WithPickupTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 
 	// Create two students: one with a pickup schedule, one without
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Pickup", "WithSchedule", "PT1")
@@ -74,7 +74,7 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	// converts to Europe/Berlin before extracting the date. The test must use
 	// the same conversion so the inserted schedule matches the handler's query,
 	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7 // Sunday
@@ -170,14 +170,14 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 func TestListStudents_WithArrivalTimes(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 
 	schoolClass := fmt.Sprintf("AT-%d", time.Now().UnixNano())
 	studentWithSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "WithSchedule", schoolClass)
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "NoSchedule", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", "Creator")
 
-	berlinToday := timezone.DateOf(time.Now())
+	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7

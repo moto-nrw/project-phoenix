@@ -134,6 +134,36 @@ var (
 		},
 		[]string{"entry_point"},
 	)
+	workerJobDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_job_duration_seconds",
+			Help:    "Embedded Worker job run duration by stable job ID and outcome.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300},
+		},
+		[]string{"job_id", "outcome"},
+	)
+	settingsLookups = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_settings_lookups_total",
+			Help: "Settings lookups by registry key, cache path, and outcome.",
+		},
+		[]string{"key", "cache", "outcome"},
+	)
+	settingsLookupDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_settings_lookup_duration_seconds",
+			Help:    "Settings resolution duration by registry key.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25},
+		},
+		[]string{"key"},
+	)
+	settingsSideEffectFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_settings_side_effect_failures_total",
+			Help: "Transactional settings side-effect failures by registry key.",
+		},
+		[]string{"key"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -249,6 +279,10 @@ func init() {
 		unitOfWorkRetries,
 		unitOfWorkPoolWait,
 		unitOfWorkLockWait,
+		workerJobDuration,
+		settingsLookups,
+		settingsLookupDuration,
+		settingsSideEffectFailures,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -352,6 +386,20 @@ func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Durati
 	case "lock_wait":
 		unitOfWorkLockWait.WithLabelValues(entryPoint).Observe(duration.Seconds())
 	}
+}
+
+// RecordWorkerRunEvent records one bounded embedded-job outcome.
+func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
+	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
+}
+
+func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {
+	settingsLookups.WithLabelValues(sanitizeLabel(key), sanitizeLabel(cache), sanitizeLabel(outcome)).Inc()
+	settingsLookupDuration.WithLabelValues(sanitizeLabel(key)).Observe(duration.Seconds())
+}
+
+func RecordSettingsSideEffectFailure(key string) {
+	settingsSideEffectFailures.WithLabelValues(sanitizeLabel(key)).Inc()
 }
 
 func RecordRateLimitRejection(bucket string) {

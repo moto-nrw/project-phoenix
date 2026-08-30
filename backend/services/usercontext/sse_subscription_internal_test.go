@@ -412,19 +412,19 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	assert.Equal(t, int64(11), result[1].GroupID)
 }
 
-func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
+func TestResolveSupervisions_AdminWithOwnScope(t *testing.T) {
 	t.Parallel()
 
-	staffSupervisions := []*activeModel.GroupSupervisor{
-		{Model: base.Model{ID: 200}, GroupID: 20, StaffID: 42},
+	now := time.Now()
+	activeGroups := []*activeModel.Group{
+		{Model: base.Model{ID: 20}, StartTime: now.Add(-time.Hour)},
 	}
 
 	rs := &userContextService{
 		sseSettings: scopeSettings(configModel.OverviewScopeOwn),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			getStaffFunc: func(_ context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
-				assert.Equal(t, int64(42), staffID)
-				return staffSupervisions, nil
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				return activeGroups, nil
 			},
 		},
 		logger: slog.Default(),
@@ -572,7 +572,7 @@ func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 		logger: slog.Default(),
 	}
 
-	ctx := ctxWithClaims(true) // admin but setting disabled → falls back to staff
+	ctx := ctxWithClaims(false)
 	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	assert.Error(t, err)

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
@@ -18,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -53,6 +55,8 @@ var aggregatedRequestTypeOrder = []string{
 	requestTypeDirectCorrection,
 }
 
+const aggregatedNormalPhaseCursorKey = "_normal"
+
 const (
 	// aggregatedFetchLimit is the per-service page size of one internal fetch;
 	// larger than the response limit so a page still fills when the per-child
@@ -76,8 +80,44 @@ type AggregatedChangeRequestItem struct {
 	// OccurredAt is the instant the row is ordered by: the submission on the
 	// open view, the decision in the history. The client merges this list with
 	// the separately gated Anmeldungsänderungen (#2435) on it.
-	OccurredAt time.Time `json:"occurred_at"`
-	Data       any       `json:"data"`
+	OccurredAt      time.Time `json:"occurred_at"`
+	StudentID       string    `json:"student_id"`
+	StudentName     string    `json:"student_name"`
+	GroupName       string    `json:"group_name,omitempty"`
+	ExpectedVersion string    `json:"expected_version"`
+	UrgentToday     bool      `json:"urgent_today"`
+	// Past marks a request whose whole scope lies before today: approving it
+	// would change nothing, so the client offers reject or "als erledigt".
+	Past         bool `json:"past"`
+	BulkEligible bool `json:"bulk_eligible"`
+	// BulkIneligibleReason is a STABLE CODE (past, conflict, stale,
+	// single_only, child_unavailable, access_revoked). The German sentence
+	// travels separately so a client can render an unknown code.
+	BulkIneligibleReason string `json:"bulk_ineligible_reason,omitempty"`
+	BulkIneligibleText   string `json:"bulk_ineligible_text,omitempty"`
+	// ConflictKeys name what this request would write. Two open requests of
+	// one child sharing a key contradict each other and must be resolved
+	// together, never one after the other.
+	ConflictKeys []string `json:"conflict_keys,omitempty"`
+	// ConflictKey is the key this request is most contended on, and
+	// ConflictGroupSize how many open requests of this child share it
+	// (1 = nothing to resolve). The client groups on ConflictKey.
+	ConflictKey       string `json:"conflict_key,omitempty"`
+	ConflictGroupSize int    `json:"conflict_group_size,omitempty"`
+	// CurrentValueChanged warns that the OGS changed this value after the
+	// request was filed. Emitted for Stammdaten and Abwesenheiten, where a
+	// submission baseline exists; omitted for the other types.
+	CurrentValueChanged *bool `json:"current_value_changed,omitempty"`
+	// CurrentStatusByDate is what each requested day looks like today
+	// (present, sick, excused, class_trip). Absence requests only.
+	CurrentStatusByDate map[string]string `json:"current_status_by_date,omitempty"`
+	// CanCorrect marks a decided request whose decision staff can still
+	// rewrite. History rows only; false where the type keeps no pre-decision
+	// state to revert to, and for rows that were never really decided
+	// (withdrawn, marked done, closed by a care end).
+	CanCorrect      bool `json:"can_correct,omitempty"`
+	FamilyProtected bool `json:"family_protected"`
+	Data            any  `json:"data"`
 }
 
 // AggregatedChangeRequestPage is the cursor envelope of the aggregated list.
@@ -86,6 +126,10 @@ type AggregatedChangeRequestPage struct {
 	// NextCursor is absent on the last page. It is only valid for the exact
 	// filter set it was produced with.
 	NextCursor string `json:"next_cursor,omitempty"`
+	// ReviewAccess tells the client WHY an open list may be empty:
+	// "admin" (school-wide), "group_leader" (own groups only), or "none"
+	// (the school has not enabled group-leader decisions). History omits it.
+	ReviewAccess string `json:"review_access,omitempty"`
 }
 
 // aggregatedCursor maps request types to their keyset position — the last DB
@@ -119,6 +163,9 @@ func decodeAggregatedCursor(raw string) (aggregatedCursor, error) {
 		return nil, errInvalidAggregatedQuery
 	}
 	for typ, pos := range cursor {
+		if typ == aggregatedNormalPhaseCursorKey && pos == nil {
+			continue
+		}
 		if !isAggregatedRequestType(typ) || (pos != nil && (pos.UpdatedAt.IsZero() || pos.ID <= 0)) {
 			return nil, errInvalidAggregatedQuery
 		}
@@ -136,12 +183,13 @@ type aggregatedListQuery struct {
 	search  string
 	// studentID limits the list to one child — the Kinderkartei's
 	// Änderungsprotokoll (#2437). Zero = every child the caller may see.
-	studentID int64
-	types     []string
-	statuses  map[string]struct{} // canonical: approved / rejected / withdrawn; empty = all
-	from, to  time.Time           // decided-at bounds; zero = unbounded
-	limit     int
-	cursor    aggregatedCursor
+	studentID  int64
+	types      []string
+	statuses   map[string]struct{} // canonical: approved / rejected / withdrawn; empty = all
+	from, to   time.Time           // decided-at bounds; zero = unbounded
+	limit      int
+	cursor     aggregatedCursor
+	urgentOnly *bool
 }
 
 func parseAggregatedListQuery(r *http.Request) (aggregatedListQuery, error) {
@@ -279,20 +327,33 @@ func parseAggregatedDateRange(q *aggregatedListQuery, rawFrom, rawTo string) err
 // filter and serialize. sortTime is the keyset instant of the underlying DB
 // row: created_at on the open view, updated_at on the history view.
 type aggregatedRow struct {
-	typ         string
-	sortTime    time.Time
-	id          int64
-	studentID   int64
-	studentName string
-	status      string
-	decidedAt   time.Time // history only
-	data        any
+	typ                  string
+	sortTime             time.Time
+	id                   int64
+	studentID            int64
+	studentName          string
+	status               string
+	version              time.Time
+	urgentToday          bool
+	past                 bool
+	bulkEligible         bool
+	bulkIneligibleReason string
+	bulkIneligibleText   string
+	conflictKeys         []string
+	currentValueChanged  *bool
+	currentStatusByDate  map[string]string
+	canCorrect           bool
+	decidedAt            time.Time // history only
+	data                 any
 }
 
 // queueFilters is the part of the query the repositories evaluate themselves:
 // which children, plus the page size and keyset the source fills in.
 func (q *aggregatedListQuery) queueFilters() modelBase.RequestQueueFilters {
-	return modelBase.RequestQueueFilters{StudentID: q.studentID, Search: q.search}
+	return modelBase.RequestQueueFilters{
+		StudentID: q.studentID, Search: q.search,
+		UrgentOnly: q.urgentOnly, UrgentDate: timezone.TodayDate().String(),
+	}
 }
 
 // matches applies the row filters that stay in Go because they are per-type
@@ -367,19 +428,91 @@ func (rs *Resource) listAggregatedChangeRequests(w http.ResponseWriter, r *http.
 
 	page, err := rs.aggregatedPage(ctx, &q)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, parentRequestQueueErrorRenderer(err))
 		return
 	}
+	if !q.history {
+		if err := rs.decorateOpenPage(ctx, &page, q.types); err != nil {
+			renderError(w, r, parentRequestQueueErrorRenderer(err))
+			return
+		}
+	}
 	common.Respond(w, r, http.StatusOK, page, "Change requests retrieved")
+}
+
+func (rs *Resource) decorateStudentGroups(ctx context.Context, page *AggregatedChangeRequestPage) error {
+	studentIDs := aggregatedStudentIDs(page.Items)
+	students, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("load students for request queue groups: %w", err)
+	}
+	groupIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student != nil && student.GroupID != nil {
+			groupIDs = append(groupIDs, *student.GroupID)
+		}
+	}
+	groups, err := rs.EducationService.GetGroupsByIDs(ctx, groupIDs)
+	if err != nil {
+		return fmt.Errorf("load groups for request queue: %w", err)
+	}
+	for i := range page.Items {
+		id, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
+		student := students[id]
+		if student != nil && student.GroupID != nil && groups[*student.GroupID] != nil {
+			page.Items[i].GroupName = groups[*student.GroupID].Name
+		}
+	}
+	return nil
+}
+
+func aggregatedStudentIDs(items []AggregatedChangeRequestItem) []int64 {
+	studentIDs := make([]int64, 0, len(items))
+	seen := make(map[int64]struct{}, len(items))
+	for _, item := range items {
+		id, err := strconv.ParseInt(item.StudentID, 10, 64)
+		if err == nil && id > 0 {
+			if _, ok := seen[id]; !ok {
+				seen[id] = struct{}{}
+				studentIDs = append(studentIDs, id)
+			}
+		}
+	}
+	return studentIDs
+}
+
+func (rs *Resource) decorateFamilyProtection(ctx context.Context, page *AggregatedChangeRequestPage) error {
+	studentIDs := aggregatedStudentIDs(page.Items)
+	current, err := rs.FamilyProtectionService.Current(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("load family protection for request queue: %w", err)
+	}
+	for i := range page.Items {
+		id, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
+		page.Items[i].FamilyProtected = current[id] != nil && current[id].Enabled
+	}
+	return nil
 }
 
 // newAggregatedItem is the single place a row becomes a wire item, so both
 // views agree on what occurred_at means.
 func newAggregatedItem(row *aggregatedRow) AggregatedChangeRequestItem {
 	return AggregatedChangeRequestItem{
-		RequestType: row.typ,
-		OccurredAt:  row.sortTime,
-		Data:        row.data,
+		RequestType:          row.typ,
+		OccurredAt:           row.sortTime,
+		StudentID:            strconv.FormatInt(row.studentID, 10),
+		StudentName:          row.studentName,
+		ExpectedVersion:      userService.ParentRequestVersion(row.version),
+		UrgentToday:          row.urgentToday,
+		Past:                 row.past,
+		BulkEligible:         row.bulkEligible,
+		BulkIneligibleReason: row.bulkIneligibleReason,
+		BulkIneligibleText:   row.bulkIneligibleText,
+		ConflictKeys:         row.conflictKeys,
+		CurrentValueChanged:  row.currentValueChanged,
+		CurrentStatusByDate:  row.currentStatusByDate,
+		CanCorrect:           row.canCorrect,
+		Data:                 row.data,
 	}
 }
 
@@ -414,50 +547,103 @@ func mapAggregatedRows[T any](items []T, build func(T) aggregatedRow) []aggregat
 
 func masterDataPendingRow(item *userService.MasterDataReviewItem) aggregatedRow {
 	return aggregatedRow{
-		typ:         requestTypeMasterData,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.FirstName + " " + item.LastName,
-		status:      item.Request.Status,
-		data:        toMasterDataChangeRequestResponse(item),
+		typ:                  requestTypeMasterData,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.FirstName + " " + item.LastName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		bulkEligible:         item.BulkEligible,
+		bulkIneligibleReason: item.BulkIneligibleReason,
+		bulkIneligibleText:   item.BulkIneligibleText,
+		conflictKeys:         masterDataConflictKeys(item),
+		currentValueChanged:  item.CurrentValueChanged,
+		data:                 toMasterDataChangeRequestResponse(item),
 	}
 }
 
 func carePendingRow(item *scheduleService.CareRequestReviewItem) aggregatedRow {
-	return aggregatedRow{
-		typ:         requestTypeCareSchedule,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.FirstName + " " + item.LastName,
-		status:      item.Request.Status,
-		data:        toCareRequestResponse(item),
+	row := aggregatedRow{
+		typ:                  requestTypeCareSchedule,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.FirstName + " " + item.LastName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		urgentToday:          careRequestUrgentToday(item),
+		bulkIneligibleReason: userService.BulkIneligibleSingleOnly,
+		bulkIneligibleText:   "Betreuungszeiten müssen einzeln geprüft werden.",
+		conflictKeys:         careConflictKeys(item),
+		data:                 toCareRequestResponse(item),
 	}
+	markPast(&row, careScopeEnd(item))
+	return row
 }
 
 func offeringPendingRow(item *enrollmentService.OfferingChangeView) aggregatedRow {
-	return aggregatedRow{
-		typ:         requestTypeOffering,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.StudentName,
-		status:      item.Request.Status,
-		data:        toOfferingRequestResponse(item),
+	row := aggregatedRow{
+		typ:                  requestTypeOffering,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.StudentName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		urgentToday:          !item.Request.EffectiveFrom.After(timezone.TodayDate()),
+		bulkIneligibleReason: userService.BulkIneligibleSingleOnly,
+		bulkIneligibleText:   "Angebote müssen einzeln geprüft werden.",
+		conflictKeys:         offeringConflictKeys(item),
+		data:                 toOfferingRequestResponse(item),
 	}
+	markPast(&row, item.Request.EffectiveFrom)
+	return row
 }
 
 func excusedPendingRow(item *absenceService.ExcusedRequestReviewItem) aggregatedRow {
-	return aggregatedRow{
-		typ:         requestTypeExcused,
-		sortTime:    item.Request.CreatedAt,
-		id:          item.Request.ID,
-		studentID:   item.Request.StudentID,
-		studentName: item.FirstName + " " + item.LastName,
-		status:      item.Request.Status,
-		data:        toStaffExcusedRequestResponse(item),
+	today := timezone.TodayDate()
+	urgent := false
+	for _, date := range item.Request.Dates {
+		urgent = urgent || date == today
 	}
+	row := aggregatedRow{
+		typ:                  requestTypeExcused,
+		sortTime:             item.Request.CreatedAt,
+		id:                   item.Request.ID,
+		studentID:            item.Request.StudentID,
+		studentName:          item.FirstName + " " + item.LastName,
+		status:               item.Request.Status,
+		version:              item.Request.UpdatedAt,
+		urgentToday:          urgent,
+		bulkEligible:         item.BulkEligible,
+		bulkIneligibleReason: item.BulkIneligibleReason,
+		bulkIneligibleText:   item.BulkIneligibleText,
+		conflictKeys:         excusedConflictKeys(item.Request.Dates),
+		currentValueChanged:  item.CurrentValueChanged,
+		currentStatusByDate:  item.CurrentStatusByDate,
+		data:                 toStaffExcusedRequestResponse(item),
+	}
+	markPast(&row, excusedScopeEnd(item.Request.Dates))
+	return row
+}
+
+func careRequestUrgentToday(item *scheduleService.CareRequestReviewItem) bool {
+	today := timezone.TodayDate()
+	if item.Request.RequestKind == "pickup_change" {
+		date, _ := item.Request.Payload["date"].(string)
+		return date == today.String()
+	}
+	weekday := int(today.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	for _, diff := range item.Diff {
+		if diff.Weekday == weekday {
+			return true
+		}
+	}
+	return false
 }
 
 // aggregatedSource pulls one type's pages on demand. It keeps the scan
@@ -545,6 +731,41 @@ func (s *aggregatedSource) cursorPosition() (*historyCursorPayload, bool) {
 // and history walk the identical path — they differ only in which service
 // method each source pulls from and which instant the rows sort on.
 func (rs *Resource) aggregatedPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
+	if q.history {
+		return rs.aggregatedPriorityPage(ctx, q)
+	}
+	if _, normalPhase := q.cursor[aggregatedNormalPhaseCursorKey]; normalPhase {
+		normal := false
+		q.urgentOnly = &normal
+		page, err := rs.aggregatedPriorityPage(ctx, q)
+		page.NextCursor = withNormalPhaseCursor(page.NextCursor)
+		return page, err
+	}
+	urgent := true
+	q.urgentOnly = &urgent
+	page, err := rs.aggregatedPriorityPage(ctx, q)
+	if err != nil || page.NextCursor != "" {
+		return page, err
+	}
+	if len(page.Items) == q.limit {
+		page.NextCursor = encodeAggregatedCursor(aggregatedCursor{aggregatedNormalPhaseCursorKey: nil})
+		return page, nil
+	}
+	normal := *q
+	normal.cursor = nil
+	normal.limit = q.limit - len(page.Items)
+	normalUrgent := false
+	normal.urgentOnly = &normalUrgent
+	normalPage, err := rs.aggregatedPriorityPage(ctx, &normal)
+	if err != nil {
+		return AggregatedChangeRequestPage{}, err
+	}
+	page.Items = append(page.Items, normalPage.Items...)
+	page.NextCursor = withNormalPhaseCursor(normalPage.NextCursor)
+	return page, nil
+}
+
+func (rs *Resource) aggregatedPriorityPage(ctx context.Context, q *aggregatedListQuery) (AggregatedChangeRequestPage, error) {
 	sources := make([]*aggregatedSource, 0, len(q.types))
 	for _, typ := range q.types {
 		source := rs.sourceFor(typ, q.history)
@@ -570,6 +791,18 @@ func (rs *Resource) aggregatedPage(ctx context.Context, q *aggregatedListQuery) 
 	}
 	page.NextCursor = aggregatedNextCursor(sources)
 	return page, nil
+}
+
+func withNormalPhaseCursor(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	cursor, err := decodeAggregatedCursor(raw)
+	if err != nil {
+		return ""
+	}
+	cursor[aggregatedNormalPhaseCursorKey] = nil
+	return encodeAggregatedCursor(cursor)
 }
 
 // newestAggregatedSource returns the source whose buffered head row sorts
@@ -661,11 +894,13 @@ func masterDataHistoryRow(item *userService.MasterDataHistoryItem) aggregatedRow
 	return aggregatedRow{
 		typ:         requestTypeMasterData,
 		sortTime:    item.Request.UpdatedAt,
+		version:     item.Request.UpdatedAt,
 		id:          item.Request.ID,
 		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		canCorrect:  decisionIsCorrectable(item.Request.Status),
 		data:        toMasterDataHistoryResponse(item),
 	}
 }
@@ -674,12 +909,16 @@ func careHistoryRow(item *scheduleService.CareRequestHistoryItem) aggregatedRow 
 	return aggregatedRow{
 		typ:         requestTypeCareSchedule,
 		sortTime:    item.Request.UpdatedAt,
+		version:     item.Request.UpdatedAt,
 		id:          item.Request.ID,
 		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
-		data:        toCareRequestHistoryResponse(item),
+		// A weekly plan keeps no pre-decision copy; a pickup change does.
+		canCorrect: item.Request.RequestKind == "pickup_change" &&
+			decisionIsCorrectable(item.Request.Status),
+		data: toCareRequestHistoryResponse(item),
 	}
 }
 
@@ -687,6 +926,7 @@ func offeringHistoryRow(item *enrollmentService.OfferingChangeHistoryItem) aggre
 	return aggregatedRow{
 		typ:         requestTypeOffering,
 		sortTime:    item.Request.UpdatedAt,
+		version:     item.Request.UpdatedAt,
 		id:          item.Request.ID,
 		studentID:   item.Request.StudentID,
 		studentName: item.StudentName,
@@ -700,11 +940,289 @@ func excusedHistoryRow(item *absenceService.ExcusedRequestHistoryItem) aggregate
 	return aggregatedRow{
 		typ:         requestTypeExcused,
 		sortTime:    item.Request.UpdatedAt,
+		version:     item.Request.UpdatedAt,
 		id:          item.Request.ID,
 		studentID:   item.Request.StudentID,
 		studentName: item.FirstName + " " + item.LastName,
 		status:      item.Request.Status,
 		decidedAt:   historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
+		canCorrect:  decisionIsCorrectable(item.Request.Status),
 		data:        toStaffExcusedHistoryResponse(item),
 	}
+}
+
+// reviewAccessLevel resolves the caller's coarse reach over the queues. An
+// unwired policy (bare test Resource) reports nothing rather than guessing.
+func (rs *Resource) reviewAccessLevel(ctx context.Context) (string, error) {
+	if rs.RequestReviewAccess == nil {
+		return "", nil
+	}
+	return rs.RequestReviewAccess.AccessLevel(ctx, jwt.PermissionsFromCtx(ctx))
+}
+
+// Past requests (#2267, stories 14/15): a request whose whole effective scope
+// lies before today changes nothing if approved. Staff still see it — an
+// invisible request is one nobody ever closes — but they can only reject it or
+// mark it done, and it never joins a bulk approval.
+//
+// Only the types with an effective scope can be past: the weekly care plan and
+// a Stammdaten change apply from the decision onwards and have no end.
+
+func excusedScopeEnd(dates []timezone.Date) timezone.Date {
+	var last timezone.Date
+	for _, date := range dates {
+		if last.IsZero() || date.After(last) {
+			last = date
+		}
+	}
+	return last
+}
+
+func careScopeEnd(item *scheduleService.CareRequestReviewItem) timezone.Date {
+	if item.Request.RequestKind != "pickup_change" {
+		return timezone.Date{}
+	}
+	raw, _ := item.Request.Payload["date"].(string)
+	date, err := timezone.ParseDate(raw)
+	if err != nil {
+		return timezone.Date{}
+	}
+	return date
+}
+
+// markPast stamps the past flag and the consequences that follow from it: no
+// bulk approval, and a reason the client can render.
+func markPast(row *aggregatedRow, scopeEnd timezone.Date) {
+	if !userService.ParentRequestIsPast(scopeEnd, timezone.TodayDate()) {
+		return
+	}
+	row.past = true
+	row.bulkEligible = false
+	row.bulkIneligibleReason = userService.BulkIneligiblePast
+	row.bulkIneligibleText = "Diese Anfrage betrifft nur vergangene Tage."
+}
+
+// decorateOpenPage adds everything only the working list needs: the caller's
+// review reach (so an empty list can explain itself), the child's group, and
+// the Familienschutz flag. Optional dependencies stay optional — a bare test
+// Resource simply omits the field.
+func (rs *Resource) decorateOpenPage(ctx context.Context, page *AggregatedChangeRequestPage, types []string) error {
+	access, err := rs.reviewAccessLevel(ctx)
+	if err != nil {
+		return err
+	}
+	page.ReviewAccess = access
+	if err := rs.decorateConflicts(ctx, page, types); err != nil {
+		return err
+	}
+	if rs.PersonService != nil && rs.EducationService != nil {
+		if err := rs.decorateStudentGroups(ctx, page); err != nil {
+			return err
+		}
+	}
+	if rs.FamilyProtectionService != nil {
+		return rs.decorateFamilyProtection(ctx, page)
+	}
+	return nil
+}
+
+// Conflict grouping (#2267, stories 6-10). The keys say WHAT a request would
+// write, so two requests wanting opposite things for the same weekday, day,
+// field or offering land in one group and the client can force a single
+// result instead of letting the second decision silently overwrite the first.
+//
+// Derivation lives in services/users so the list and the resolve path cannot
+// disagree; here we only translate each type's projection into that input.
+
+func masterDataConflictKeys(item *userService.MasterDataReviewItem) []string {
+	return userService.ParentRequestConflictKeys(userService.ParentRequestConflictInput{
+		RequestType: userModels.ParentRequestTypeMasterData,
+		Target:      item.Request.Target,
+		Field:       item.Request.FieldKey,
+	})
+}
+
+func careConflictKeys(item *scheduleService.CareRequestReviewItem) []string {
+	if item.Request.RequestKind == "pickup_change" {
+		date, _ := item.Request.Payload["date"].(string)
+		return userService.ParentRequestConflictKeys(userService.ParentRequestConflictInput{
+			RequestType: userModels.ParentRequestTypePickupChange,
+			Dates:       []string{date},
+		})
+	}
+	keys := make([]string, 0, len(item.Diff))
+	for _, diff := range item.Diff {
+		keys = append(keys, userService.ParentRequestConflictKeys(userService.ParentRequestConflictInput{
+			RequestType: userModels.ParentRequestTypeCareSchedule,
+			Weekdays:    []int{diff.Weekday},
+			CareKind:    diff.CareKind,
+		})...)
+	}
+	return keys
+}
+
+func offeringConflictKeys(item *enrollmentService.OfferingChangeView) []string {
+	keys := make([]string, 0, len(item.Diff))
+	for _, diff := range item.Diff {
+		keys = append(keys, userService.ParentRequestConflictKeys(userService.ParentRequestConflictInput{
+			RequestType: userModels.ParentRequestTypeOffering,
+			OfferingID:  diff.OfferingID,
+		})...)
+	}
+	return keys
+}
+
+func excusedConflictKeys(dates []timezone.Date) []string {
+	days := make([]string, 0, len(dates))
+	for _, date := range dates {
+		days = append(days, date.String())
+	}
+	return userService.ParentRequestConflictKeys(userService.ParentRequestConflictInput{
+		RequestType: userModels.ParentRequestTypeExcusedAbsence,
+		Dates:       days,
+	})
+}
+
+// conflictScopeLimit bounds the conflict scan. A child with more open
+// requests than this is far outside anything a school produces; the group
+// size is then a lower bound rather than a wrong number, and the grouping
+// itself still works.
+const conflictScopeLimit = 200
+
+// decorateConflicts fills conflict_key and conflict_group_size.
+//
+// The scan asks the four queues for EVERY open request of the children on
+// this page — deliberately not the page itself. A page is a window: two
+// contradicting requests can easily land on different pages, and a group size
+// counted from the window would tell staff "1" for a request that has a
+// contradiction waiting one scroll away. That is the failure this whole
+// feature exists to prevent, so it is worth four extra queries per page.
+func (rs *Resource) decorateConflicts(ctx context.Context, page *AggregatedChangeRequestPage, types []string) error {
+	studentIDs := aggregatedStudentIDs(page.Items)
+	if len(studentIDs) == 0 {
+		return nil
+	}
+	// keyed counts every open request per (student, conflict key).
+	keyed := make(map[int64]map[string]int)
+	count := func(studentID int64, keys []string) {
+		if studentID <= 0 || len(keys) == 0 {
+			return
+		}
+		if keyed[studentID] == nil {
+			keyed[studentID] = make(map[string]int, len(keys))
+		}
+		for _, key := range keys {
+			keyed[studentID][key]++
+		}
+	}
+	if err := rs.scanOpenConflicts(ctx, studentIDs, types, count); err != nil {
+		return err
+	}
+	for i := range page.Items {
+		studentID, _ := strconv.ParseInt(page.Items[i].StudentID, 10, 64)
+		page.Items[i].ConflictKey, page.Items[i].ConflictGroupSize =
+			largestConflictGroup(keyed[studentID], page.Items[i].ConflictKeys)
+	}
+	return nil
+}
+
+// largestConflictGroup picks the key this item is most contended on. An item
+// that shares no key with another request reports no key and a group of one,
+// which is what "nothing to resolve" looks like on the wire.
+func largestConflictGroup(counts map[string]int, keys []string) (string, int) {
+	// Zero, not one: "no group" is absent from the wire, so a client cannot
+	// mistake a lone request for a group of one and render a radio list with a
+	// single option in it.
+	best, bestSize := "", 0
+	for _, key := range keys {
+		if size := counts[key]; size > 1 && size > bestSize {
+			best, bestSize = key, size
+		}
+	}
+	return best, bestSize
+}
+
+// scanOpenConflicts walks the four open queues once each for the given
+// children and reports every request's conflict keys.
+// scanOpenConflicts walks the open queues the caller is actually served — a
+// queue the type filter or the permission scope excluded is NOT queried, so
+// the scan can never reach data the list itself refused to show. Nothing is
+// lost by that: a conflict key is type-specific, so two requests can only
+// share one when they come from the same queue.
+func (rs *Resource) scanOpenConflicts(
+	ctx context.Context,
+	studentIDs []int64,
+	types []string,
+	report func(studentID int64, keys []string),
+) error {
+	filters := modelBase.RequestQueueFilters{StudentIDs: studentIDs, Limit: conflictScopeLimit}
+	scans := []func() error{
+		func() error {
+			return scanQueueConflicts(ctx, types, requestTypeMasterData, filters, report,
+				rs.MasterDataReviewService.ListPending,
+				func(item *userService.MasterDataReviewItem) (int64, []string) {
+					return item.Request.StudentID, masterDataConflictKeys(item)
+				})
+		},
+		func() error {
+			return scanQueueConflicts(ctx, types, requestTypeCareSchedule, filters, report,
+				rs.CareRequestService.ListPending,
+				func(item *scheduleService.CareRequestReviewItem) (int64, []string) {
+					return item.Request.StudentID, careConflictKeys(item)
+				})
+		},
+		func() error {
+			return scanQueueConflicts(ctx, types, requestTypeOffering, filters, report,
+				rs.OfferingChangeService.ListPending,
+				func(item *enrollmentService.OfferingChangeView) (int64, []string) {
+					return item.Request.StudentID, offeringConflictKeys(item)
+				})
+		},
+		func() error {
+			return scanQueueConflicts(ctx, types, requestTypeExcused, filters, report,
+				rs.ExcusedRequestService.ListPending,
+				func(item *absenceService.ExcusedRequestReviewItem) (int64, []string) {
+					return item.Request.StudentID, excusedConflictKeys(item.Request.Dates)
+				})
+		},
+	}
+	for _, scan := range scans {
+		if err := scan(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// scanQueueConflicts is one queue's share of the scan: skip it unless the list
+// is actually serving that type, then report each open request's keys.
+func scanQueueConflicts[T any](
+	ctx context.Context,
+	types []string,
+	typ string,
+	filters modelBase.RequestQueueFilters,
+	report func(studentID int64, keys []string),
+	list func(context.Context, modelBase.RequestQueueFilters) ([]T, *userService.HistoryCursor, error),
+	keys func(T) (int64, []string),
+) error {
+	if !slices.Contains(types, typ) {
+		return nil
+	}
+	items, _, err := list(ctx, filters)
+	if err != nil {
+		return fmt.Errorf("scan %s conflicts: %w", typ, err)
+	}
+	for _, item := range items {
+		report(keys(item))
+	}
+	return nil
+}
+
+// decisionIsCorrectable reports whether a history row carries a decision that
+// can still be rewritten. Only a real verdict qualifies: a withdrawn request
+// was never decided, a request marked done was closed BECAUSE nothing could be
+// applied, and a care-end close is the school's own bookkeeping. Auto-applied
+// Stammdaten rows never went through a reviewer either.
+func decisionIsCorrectable(status string) bool {
+	return status == "approved" || status == "rejected"
 }

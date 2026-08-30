@@ -199,9 +199,9 @@ func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id
 
 type wsMockStaffWorkScheduleRepository struct {
 	getCurrentByStaffIDFunc        func(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
-	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error)
-	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
-	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error)
+	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error)
+	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error
+	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error)
 	hasScheduleHistoryFunc         func(ctx context.Context, staffID int64) (bool, error)
 }
 
@@ -212,21 +212,21 @@ func (m *wsMockStaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Cont
 	return nil, nil
 }
 
-func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 	if m.getByStaffIDAndDateFunc != nil {
 		return m.getByStaffIDAndDateFunc(ctx, staffID, date)
 	}
 	return nil, nil
 }
 
-func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
 	if m.replaceScheduleFunc != nil {
 		return m.replaceScheduleFunc(ctx, staffID, entries, anchor)
 	}
 	return nil
 }
 
-func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 	if m.findByStaffIDsValidInRangeFunc != nil {
 		return m.findByStaffIDsValidInRangeFunc(ctx, staffIDs, from, to)
 	}
@@ -797,7 +797,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 				DayOfWeek:      configModels.DayMonday,
 				TargetMinutes:  480,
 				StartTime:      startAt(t, "09:00"),
-				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+				ValidFrom:      workforceDate(timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin))),
 			}},
 			wantErr:       true,
 			wantPlannedAt: "09:00",
@@ -811,7 +811,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 				DayOfWeek:      configModels.DayMonday,
 				TargetMinutes:  480,
 				StartTime:      startAt(t, "09:00"),
-				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+				ValidFrom:      workforceDate(timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin))),
 			}},
 			wantCreate: true,
 		},
@@ -824,7 +824,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 				DayOfWeek:      configModels.DayMonday,
 				TargetMinutes:  480,
 				StartTime:      startAt(t, "09:00"),
-				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+				ValidFrom:      workforceDate(timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin))),
 			}},
 			wantCreate: true,
 		},
@@ -842,7 +842,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 				RotationLength: 1,
 				DayOfWeek:      configModels.DayMonday,
 				TargetMinutes:  480,
-				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+				ValidFrom:      workforceDate(timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin))),
 			}},
 			wantCreate: true,
 		},
@@ -857,7 +857,7 @@ func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
 				return true, nil
 			}}
 			svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-				getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+				getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 					return tt.rows, nil
 				},
 			}
@@ -1868,19 +1868,20 @@ func TestWSGetHistory_Success(t *testing.T) {
 func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 	t.Parallel()
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 	staffID := int64(100)
 	// Open session, checked in 4h ago: 30 min of ended breaks (in the cache)
 	// plus a break that started 20 min ago and is still running.
-	checkIn := time.Now().Add(-4 * time.Hour)
-	breakStart := time.Now().Add(-20 * time.Minute)
-	endedBreakEnd := time.Now().Add(-2 * time.Hour)
+	checkIn := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-4 * time.Hour)
+	breakStart := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-20 * time.Minute)
+	endedBreakEnd := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{
 				Model:        base.Model{ID: 1},
 				StaffID:      staffID,
-				Date:         timezone.TodayDate(),
+				Date:         timezone.NewDate(2026, 8, 24),
 				CheckInTime:  checkIn,
 				BreakMinutes: 30,
 			},
@@ -1894,13 +1895,13 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 	}
 	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
 		return []*activeModels.WorkSessionBreak{
-			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-150 * time.Minute), EndedAt: &endedBreakEnd, DurationMinutes: 30},
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-150 * time.Minute), EndedAt: &endedBreakEnd, DurationMinutes: 30},
 			{Model: base.Model{ID: 2}, SessionID: 1, StartedAt: breakStart},
 		}, nil
 	}
 
 	from := timezone.DateFromTime(checkIn)
-	historyResp, err := svc.GetHistory(context.Background(), staffID, from, timezone.TodayDate())
+	historyResp, err := svc.GetHistory(context.Background(), staffID, from, timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
 
@@ -1959,7 +1960,7 @@ func TestWSGetHistory_SerializesRunningBreakInBreakMinutes(t *testing.T) {
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
-			{Model: base.Model{ID: 1}, StaffID: staffID, Date: timezone.TodayDate(), CheckInTime: checkIn},
+			{Model: base.Model{ID: 1}, StaffID: staffID, Date: timezone.NewDate(2026, 8, 24), CheckInTime: checkIn},
 		}, nil
 	}
 	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
@@ -1974,7 +1975,7 @@ func TestWSGetHistory_SerializesRunningBreakInBreakMinutes(t *testing.T) {
 		}, nil
 	}
 
-	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
 
@@ -2004,7 +2005,7 @@ func TestWSGetHistory_ClosedSessionKeepsCachedBreaks(t *testing.T) {
 			{
 				Model:        base.Model{ID: 1},
 				StaffID:      staffID,
-				Date:         timezone.TodayDate(),
+				Date:         timezone.NewDate(2026, 8, 24),
 				CheckInTime:  checkIn,
 				CheckOutTime: &checkOut,
 				BreakMinutes: 30,
@@ -2023,7 +2024,7 @@ func TestWSGetHistory_ClosedSessionKeepsCachedBreaks(t *testing.T) {
 		}, nil
 	}
 
-	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
 	// 360 gross − 30 cached = 330, unchanged.
@@ -2040,7 +2041,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	checkOutWeekOne := mondayWeekOne.Add(7 * time.Hour)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 			// The shared resolver applies validity per day (the old per-day
 			// mock ignored its date argument), so the window must cover the
 			// full first week; the Monday anchor stays in the same ISO week.
@@ -2052,7 +2053,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
 					TargetMinutes:  6 * 60,
-					ValidFrom:      validFrom,
+					ValidFrom:      workforceDate(validFrom),
 				},
 				{
 					StaffID:        staffID,
@@ -2060,7 +2061,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
 					TargetMinutes:  7 * 60,
-					ValidFrom:      validFrom,
+					ValidFrom:      workforceDate(validFrom),
 				},
 			}, nil
 		},
@@ -2126,7 +2127,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 			t.Fatal("history targets must use date-valid schedule rows")
 			return nil, nil
 		},
-		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 			// The old per-day mock branched on its date argument; the batched
 			// read returns both generations and the shared resolver applies
 			// the validity windows per day (valid_until exclusive).
@@ -2137,8 +2138,8 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 					RotationLength: 1,
 					DayOfWeek:      configModels.DayWednesday,
 					TargetMinutes:  6 * 60,
-					ValidFrom:      timezone.NewDate(2026, 1, 1),
-					ValidUntil:     &changeDate,
+					ValidFrom:      configModels.NewCalendarDate(2026, 1, 1),
+					ValidUntil:     workforceDatePointer(&changeDate),
 				},
 				{
 					StaffID:        staffID,
@@ -2146,7 +2147,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 					RotationLength: 1,
 					DayOfWeek:      configModels.DayWednesday,
 					TargetMinutes:  7 * 60,
-					ValidFrom:      changeDate,
+					ValidFrom:      workforceDate(changeDate),
 				},
 			}, nil
 		},
@@ -2221,21 +2222,21 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 		},
 	}
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+		findByStaffIDsValidInRangeFunc: func(_ context.Context, _ []int64, _, _ configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error) {
 			return []*configModels.StaffWorkSchedule{
 				{
 					WeekIndex:      0,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
 					TargetMinutes:  6 * 60,
-					ValidFrom:      anchor,
+					ValidFrom:      workforceDate(anchor),
 				},
 				{
 					WeekIndex:      1,
 					RotationLength: 2,
 					DayOfWeek:      configModels.DayMonday,
 					TargetMinutes:  7 * 60,
-					ValidFrom:      anchor,
+					ValidFrom:      workforceDate(anchor),
 				},
 			}, nil
 		},
@@ -2290,7 +2291,7 @@ func TestWSGetHistory_RepoError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	historyResp, err := svc.GetHistory(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate())
+	historyResp, err := svc.GetHistory(context.Background(), 100, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
 	require.Error(t, err)
 	assert.Nil(t, historyResp)
 }
@@ -3507,11 +3508,12 @@ func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
 func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 	t.Parallel()
 	svc, _, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 	staff := &userModels.Staff{Model: base.Model{ID: 100}}
 
-	var written timezone.Date
+	var written configModels.CalendarDate
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
 			written = anchor
 			return nil
 		},
@@ -3526,9 +3528,9 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 	}
 	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
 
-	assert.Equal(t, timezone.TodayDate(), written, "rotational rows must carry the version's own anchor")
+	assert.Equal(t, workforceDate(timezone.NewDate(2026, 8, 24)), written, "rotational rows must carry the version's own anchor")
 	require.NotNil(t, staff.RotationAnchorDate)
-	assert.Equal(t, timezone.TodayDate(), *staff.RotationAnchorDate)
+	assert.Equal(t, timezone.NewDate(2026, 8, 24), *staff.RotationAnchorDate)
 }
 
 // A single-week schedule has no A/B parity, so it keeps a NULL anchor.
@@ -3537,9 +3539,9 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	svc, _, _, _, _ := wsCreateTestService()
 	staff := &userModels.Staff{Model: base.Model{ID: 100}}
 
-	var written timezone.Date
+	var written configModels.CalendarDate
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
 			written = anchor
 			return nil
 		},
@@ -3565,9 +3567,9 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	existing := timezone.NewDate(2026, 6, 1)
 	staff := &userModels.Staff{Model: base.Model{ID: 100}, RotationAnchorDate: &existing}
 
-	var written timezone.Date
+	var written configModels.CalendarDate
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor configModels.CalendarDate) error {
 			written = anchor
 			return nil
 		},
@@ -3581,7 +3583,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	}
 	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
 
-	assert.Equal(t, existing, written)
+	assert.Equal(t, workforceDate(existing), written)
 	require.NotNil(t, staff.RotationAnchorDate)
 	assert.Equal(t, existing, *staff.RotationAnchorDate)
 }
@@ -4065,7 +4067,7 @@ func TestWSGetHistory_RunningBreakIsCappedAtTheLiveLimit(t *testing.T) {
 
 	// Two days back: BalanceSessionEnd cuts the block at the end of its own
 	// Berlin day, whatever the clock says while the test runs.
-	staleDay := timezone.TodayDate().AddDays(-2)
+	staleDay := timezone.NewDate(2026, 8, 24).AddDays(-2)
 	checkIn := staleDay.BerlinMidnight().Add(8 * time.Hour)
 	breakStart := staleDay.BerlinMidnight().Add(12 * time.Hour)
 	staleEnd := staleDay.EndOfDay()

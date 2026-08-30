@@ -170,14 +170,14 @@ func (w *OutboxWorker) RunOnce(ctx context.Context, batchSize int) (int, error) 
 	if w.repo == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing repo)")
 	}
+	if w.db == nil {
+		return 0, fmt.Errorf("outbox worker not wired (missing db)")
+	}
 	if w.registry == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing registry)")
 	}
 	if w.mailer == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing mailer)")
-	}
-	if w.db == nil {
-		return 0, fmt.Errorf("outbox worker not wired (missing db)")
 	}
 
 	now := time.Now()
@@ -203,6 +203,27 @@ func (w *OutboxWorker) RunOnce(ctx context.Context, batchSize int) (int, error) 
 		processed++
 	}
 	return processed, nil
+}
+
+// Backlog returns the durable platform-wide pending queue depth.
+func (w *OutboxWorker) Backlog(ctx context.Context) (int, error) {
+	ctx = w.withTenantRuntime(ctx)
+	if w.repo == nil {
+		return 0, fmt.Errorf("outbox worker not wired (missing repo)")
+	}
+	if w.db == nil {
+		return 0, fmt.Errorf("outbox worker not wired (missing db)")
+	}
+	var backlog int
+	err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		var countErr error
+		backlog, countErr = w.repo.CountPending(adminCtx)
+		return countErr
+	})
+	if err != nil {
+		return 0, fmt.Errorf("count pending outbox: %w", err)
+	}
+	return backlog, nil
 }
 
 // processRow handles one claimed row. Per-row failures are logged

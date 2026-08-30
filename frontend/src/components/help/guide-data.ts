@@ -373,7 +373,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Gruppen und Rechte",
-          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit Gruppen arbeitet. Gruppenleitungen haben Rechte für ihre Kinder, zum Beispiel für Anmeldungen, Krankmeldungen und Stammdatenänderungen. Arbeitet Ihre OGS ohne feste Gruppen (`Einstellungen` -> `Betrieb` -> `Arbeit mit festen Gruppen` auf `Offene Betreuung`), gibt es keine Gruppenleitung, an der diese Rechte hängen: Krank- und Gesundmeldungen sowie geplante Abwesenheiten kann dann jede Person mit der Rolle `Betreuer` für jedes Kind eintragen. Stammdaten wie Adresse, Gesundheitsangaben oder Datenschutz bleiben auch dann den Admins vorbehalten. Falls unklar ist, wer diese Rechte bekommen soll, kann das später mit dem moto-Team geklärt oder in den Einstellungen angepasst werden.",
+          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit festen Gruppen arbeitet. Eine Gruppenzuordnung ändert nicht automatisch die Rechte einer Person. Rollen und Berechtigungen legen getrennt fest, wer Daten ansehen oder ändern darf. Bei offener Betreuung gibt es keine festen Gruppen.",
           tone: "blue",
         },
         screenshot: "Gruppen-Liste in der Datenverwaltung.",
@@ -756,18 +756,25 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern prüfen",
         icon: ClipboardCheck,
         summary:
-          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), freigegebene Änderungen am Wochenplan und Änderungen an der gebuchten Betreuung reichen sie als Anfrage ein – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
           "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
-          "Die dauerhaften Bring- und Abholzeiten ändern Eltern seit dem Umbau der Eltern-App nicht mehr selbst: Die Rubrik `Betreuungszeiten` gibt es dort nicht mehr, der Wochenplan steht nur noch als Anzeige. Der Hinweis dort nennt die OGS als Stelle, die die Zeiten pflegt; Änderungswünsche kommen jetzt als Nachricht. Ältere, noch offene Anfragen bleiben in der Warteschlange und lassen sich normal entscheiden.",
+          "Manche Schulen legen die Betreuungstage durch gebuchte Angebote fest. Dort können Eltern den Wochenplan nicht ändern. Sie ändern stattdessen die gebuchten Angebote. In anderen Schulen können Eltern am Wochenplan `Änderungen anfragen`. Die Schule bestimmt, ob das für Abholzeit oder Abholart möglich ist. Offene ältere Anfragen bleiben sichtbar und lassen sich normal entscheiden.",
           "Krankmeldungen und entschuldigte Abmeldungen sind zuerst Anfragen.",
           "Bis zur Bestätigung gilt das Kind als erwartet.",
           "Offene Anfragen finden Sie unter `Anfragen` im Reiter `Eltern`.",
           "Der Reiter bündelt Stammdaten, Betreuungszeiten, Angebote und Abwesenheiten.",
           "Die Bestätigung für Krankmeldungen ändern Sie unter `Einstellungen` > `Elternportal`.",
           "Dort ändern Sie auch die Bestätigung für entschuldigte Abmeldungen.",
-          "Jede Anfrage zeigt das Kind und die gewünschte Änderung.",
+          "Links steht die Liste der Kinder mit offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf dem Telefon ersetzt die Detailansicht die Liste; mit `Zur Liste` kommen Sie zurück.",
+          "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen; schließen Sie sie mit `Als erledigt markieren` ab.",
+          "Widersprechen sich zwei Wünsche zum selben Tag, legen Sie oben EIN Ergebnis fest: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden abgelehnt.",
+          "Markieren Sie bei passenden Anfragen `Gemeinsam freigeben`. Tragen Sie einen gemeinsamen Grund ein. moto gibt entweder alle ausgewählten Anfragen frei oder keine.",
+          "Anfragen mit weiteren Folgen entscheiden Sie einzeln. An der Anfrage steht dann `Nur einzeln entscheiden` und der Grund dafür.",
+          "Andere Sorgeberechtigte sehen eine Anfrage nur, wenn die Eltern sie mit ihnen teilen.",
+          "Admins können am Fall `Angaben schützen` wählen. Dann können Eltern keine Anfragen für dieses Kind teilen. Die Funktion steht auch in der Kinderkartei unter `Stammdaten`.",
+          "Standardmäßig entscheiden nur OGS-Admins. Unter `Einstellungen` > `Elternportal` können Sie zusätzlich erlauben, dass aktuelle Gruppenleitungen und Vertretungen Anfragen für Kinder ihrer Gruppen entscheiden.",
           "Bei Betreuungszeiten sehen Sie den Vergleich für jeden Wochentag.",
           "Gilt eine Anfrage nur für einen Tag, steht `Einzelner Tag` in der Zeile. Daneben steht das Datum.",
           "Ohne diese Kennzeichnung ändert die Anfrage den Wochenplan dauerhaft. Dann steht dort ein Wochentag statt eines Datums.",
@@ -791,6 +798,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Anfragen zu Betreuungsangeboten gelten ab dem Datum, das Sie unter `Gültig ab` bestätigt haben: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot zu diesem Datum voll, meldet die App das und die Anfrage bleibt offen.",
           "Die Eltern sehen die Entscheidung in ihrem Nachrichten-Verlauf, bei Betreuungsangeboten mit dem Datum, das Sie bestätigt haben. Das Ergebnis steht zusätzlich zwei Wochen lang unter `Gebuchte Betreuung` im Kinderbereich der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
           "Über den Schalter `Historie` oben auf der Seite sehen Sie alle bereits entschiedenen Anfragen: wer wann freigegeben oder abgelehnt hat, mit welcher Begründung – und auch automatisch übernommene Stammdaten-Änderungen. Änderungen, die Sie selbst an den gebuchten Angeboten eines Kindes vorgenommen haben, stehen dort als `Direkt-Korrektur`. Über `Weitere Einträge laden` blättern Sie weiter zurück.",
+          "Haben Sie sich vertan, öffnen Sie die Zeile in der `Historie` und tippen auf `Entscheidung korrigieren`. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
+          "Ob eine Begründung Pflicht ist, legen Sie unter `Einstellungen` > `Elternportal` fest. Ablehnen verlangt immer eine Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
@@ -806,17 +815,28 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Meine Gruppen",
         icon: Users,
         summary:
-          "Schneller Zugriff auf die Gruppen, für die du als Aufsicht eingeteilt bist, mit aktueller Anwesenheitszahl.",
+          "Eigene Gruppen stehen direkt bereit. Je nach Sichtbereich können Sie weitere Gruppen öffnen.",
         steps: [
-          "In der Seitenleiste `Meine Gruppen` aufklappen.",
-          "Die gewünschte Gruppe wählen.",
-          "Anwesenheit der Gruppe ansehen und Kinder bearbeiten.",
+          "`Meine Gruppen` ist in der Seitenleiste geöffnet.",
+          "Dort stehen Ihre festen und übergebenen Gruppen.",
+          "Bei `Ganzes Team` stehen alle anderen Gruppen unter `Weitere Gruppen`.",
+          "`Weitere Gruppen` ist zuerst geschlossen.",
+          "Bei `Eigene Zuständigkeiten` wird `Weitere Gruppen` nicht angezeigt.",
+          "Wählen Sie die gewünschte Gruppe.",
+          "Beim nächsten Öffnen gelten wieder die ursprünglichen Bereiche.",
+          "Sehen Sie die Anwesenheit der Gruppe an.",
+          "Ihre Rolle und Berechtigungen bestimmen, was Sie bearbeiten dürfen.",
+          "Das Ansehen einer zusätzlichen Gruppe erlaubt keine Gruppenübergabe.",
+          "Sie bekommen dadurch keine weiteren Rechte.",
+          "Nach einer Gruppenübergabe steht die Gruppe unter `Meine Gruppen`.",
+          "Für andere Mitarbeitende mit `Ganzes Team` bleibt sie unter `Weitere Gruppen` sichtbar.",
           "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen; Klassenfahrt zählt als bekannte Entschuldigung und wird am Kind als eigener Status angezeigt.",
           "In der Schülerdatenbank bei Gruppierung nach Klasse oder Gruppe über das Drei-Punkte-Menü `Klassenfahrt planen` für mehrere Kinder gleichzeitig setzen.",
           "Arbeitet Ihre Einrichtung in offener Betreuung ohne feste Gruppen, erscheint dieser Bereich nicht: Mitarbeitende arbeiten dann mit allen Kindern statt mit einer eigenen Gruppe.",
+          "Diese Gruppenansicht gehört zum OGS-Portal. Im Schulportal wird die schulweite Gruppensicht nicht angeboten.",
         ],
         screenshot:
-          "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
+          "Seitenleiste mit geöffneten eigenen Gruppen und geschlossenem Bereich Weitere Gruppen.",
         image: "/help/screens/meine-gruppen.webp",
       },
       {
@@ -836,6 +856,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
+          "Spontane Aktivitäten sind nur montags bis freitags möglich.",
           "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
           "Ganz unten `Beendete und abgelaufene Blöcke` aufklappen.",
           "Bei beendeten Blöcken den letzten Stand der Kinder nachlesen.",
@@ -963,9 +984,9 @@ export const appChapters: readonly GuideChapter[] = [
   },
   {
     id: "raeume-team-vertretung",
-    title: "Räume, Team und Gruppenzugriff",
+    title: "Räume, Team und Gruppenübergaben",
     description:
-      "Den Überblick über Angebote, Räume und das Team behalten und kurzfristigen Gruppenzugriff organisieren.",
+      "Den Überblick über Angebote, Räume und das Team behalten und Gruppen vorübergehend übergeben.",
     icon: Building2,
     tone: "blue",
     steps: [
@@ -1074,6 +1095,31 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Team-Chat mit der Liste der Unterhaltungen und der Schaltfläche für eine neue Nachricht.",
         image: "/help/screens/team-chat.webp",
+      },
+      {
+        id: "tagesinformationen",
+        title: "Tagesinformationen",
+        icon: Megaphone,
+        summary:
+          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Kommunikation` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
+        steps: [
+          "In der Seitenleiste `Kommunikation` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
+          "`Titel` und `Hinweis` eintragen. Der Titel ist das, was im Alltag gelesen wird; der Hinweis trägt die Einzelheiten.",
+          "Unter `Wichtigkeit` zwischen `Information` und `Wichtig` wählen. `Wichtig` setzt auf der Startseite ein farbiges Kennzeichen — sparsam einsetzen, sonst verliert es seine Wirkung.",
+          "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",
+          "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
+          "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
+          "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben.",
+          "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Kommunikation` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
+          "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
+        ],
+        callout: {
+          title: "Ein Hinweis, nicht ein Eintrag pro Tag",
+          body: "Eine Tagesinformation wird EINMAL angelegt und trägt ihre Wiederholungsregel in sich. Wer den wöchentlichen Turnhallen-Hinweis ändert, ändert ihn an einer Stelle für alle künftigen Dienstage. Es gibt keine Tageskopien, die einzeln gepflegt werden müssten.",
+          tone: "blue",
+        },
+        screenshot:
+          "Verwaltung der Tagesinformationen mit der Liste bestehender Hinweise (Titel, Wiederholung, Zeitraum, Zahl der Kenntnisnahmen) und dem Formular zum Anlegen mit Wochentagsauswahl.",
       },
       {
         id: "mitarbeiter-admin-profil",
@@ -1207,26 +1253,25 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungen",
-        title: "Gruppenzugriff",
+        title: "Gruppenübergaben",
         icon: Repeat,
         summary:
-          "Gewährt verfügbaren Fachkräften vorübergehend Zugriff auf eine OGS-Gruppe, etwa wenn jemand kurzfristig einspringt (nur für Admins, nur bei Arbeit mit festen Gruppen).",
+          "Überträgt die Verantwortung für eine feste OGS-Gruppe vorübergehend an eine andere Betreuungskraft.",
         steps: [
-          "`Gruppenzugriff` öffnen.",
+          "`Gruppenübergaben` öffnen. Admins können alle Gruppen planen. Betreuungskräfte können nur ihre eigene Gruppe und nur den heutigen Tag übergeben.",
           "Filter `Verfügbar` wählen und eine Person suchen.",
           "In der Zeile der Person auf `Zuweisen` klicken.",
-          "`OGS-Gruppe` wählen und unter `Dauer` zwischen `Heute`, `3 Tage`, `1 Woche` oder `Individuell` entscheiden. Unter der Auswahl steht, bis wann der Zugriff gilt.",
+          "Admins wählen `Startdatum` und `OGS-Gruppe`. Unter `Dauer` stehen `1 Tag`, `3 Tage`, `1 Woche` und `Individuell` zur Auswahl. Unter der Auswahl steht, bis wann die Übergabe gilt.",
           "Mit `Zuweisen` speichern.",
-          "Nach Ende im aktiven Eintrag auf `Beenden` klicken.",
+          "Die ursprüngliche Gruppenleitung oder ein Admin kann die Übergabe mit `Beenden` löschen.",
         ],
         callout: {
-          title: "Zugriff ist keine Vertretungsplanung",
-          body: "Gruppenzugriff regelt nur, wer die Kinder einer fremden Gruppe sehen und betreuen darf. Wer Personalausfälle in geplanten Betreuungsblöcken organisiert, nutzt dafür den Bereich `Planung` -> `Vertretung`. Bei offener Betreuung ohne feste Gruppen wird dieser Bereich nicht angezeigt.",
+          title: "Verantwortung statt Datenzugriff",
+          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Die Berechtigung für Kinderdaten ändert sich nicht. Für Personalausfälle in geplanten Betreuungsblöcken nutzen Sie `Planung` -> `Vertretung`. Bei offener Betreuung wird dieser Bereich nicht angezeigt.",
           tone: "blue",
         },
         screenshot:
-          "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
-        image: "/help/screens/vertretungen.webp",
+          "Gruppenübergaben mit verfügbaren Fachkräften und dem Dialog `Gruppe übergeben`.",
       },
       {
         id: "abrechnung-vorbereiten",
@@ -1919,7 +1964,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Was es nicht mehr gibt",
-          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` sind aus der Eltern-App entfernt; Eltern konnten dort ohnehin nichts anmelden. Der Wochenplan steht nur noch als Anzeige unter `Gebuchte Betreuung`, weil eine frei änderbare Bringzeit zu falschen Elternangaben geführt hat. Produktfeedback gibt es in der Eltern-App nicht mehr.",
+          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` gibt es nicht mehr. Der Wochenplan steht jetzt unter `Gebuchte Betreuung`. Legen gebuchte Angebote die Betreuungstage fest, ist der Plan nur zur Ansicht. Sonst können Eltern dort eine neue Abholzeit oder Abholart anfragen. Die Schule bestimmt, welche Angaben Eltern ändern dürfen. Produktfeedback gibt es in der Eltern-App nicht mehr.",
           tone: "orange",
         },
         screenshot:
@@ -1956,23 +2001,31 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Abwesenheiten sowie Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral in der Seitenleiste unter `Anfragen` entschieden.",
         steps: [
-          "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Zeiten pflegt die OGS, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
+          "Unter `Gebuchte Betreuung` sehen Eltern die Buchungen und den Wochenplan. Legen gebuchte Angebote die Betreuungstage fest, ist der Plan nur zur Ansicht. Änderungen reichen Eltern dann bei den gebuchten Angeboten ein. Sonst können sie eine neue Abholzeit oder Abholart anfragen. Die Schule bestimmt, welche Angaben Eltern ändern dürfen.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
-          "In der Seitenleiste `Anfragen` öffnen; der Reiter `Eltern` ist voreingestellt. Alle offenen Anfragen stehen in einer gemeinsamen Liste, jeweils mit dem Vergleich `aktuell -> gewünscht`. Über das Suchfeld nach dem Namen eines Kindes suchen, über den Filter `Anfrageart` gezielt eine Sorte anzeigen (`Stammdaten`, `Betreuungszeiten`, `Angebote und AGs`, `Abwesenheiten`, `Anmeldung`). Für Betreuungszeiten kommen keine neuen Anfragen mehr; noch offene Altfälle lassen sich weiterhin entscheiden.",
+          "Öffnen Sie in der Seitenleiste `Anfragen`. Der Reiter `Eltern` ist schon gewählt. Links steht die Liste der Kinder mit offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf dem Telefon ersetzt die Detailansicht die Liste; mit `Zur Liste` kommen Sie zurück.",
+          "Neue Anfragen zu Betreuungszeiten gibt es nicht an jeder Schule. Die Schule bestimmt, ob Eltern Abholzeit oder Abholart anfragen dürfen. Offene ältere Anfragen können Sie weiterhin entscheiden.",
+          "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen.",
+          "Eine abgelaufene Anfrage ändert nichts mehr. Schließen Sie sie mit `Als erledigt markieren` ab. Ablehnen bleibt möglich, freigeben nicht.",
+          "Widersprechen sich zwei Wünsche zum selben Tag, stehen sie oben zusammen. Wählen Sie dort aus, was gelten soll: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden dann abgelehnt.",
+          "Hat die OGS einen Wert nach der Anfrage selbst geändert, steht das als Hinweis an der Anfrage. Prüfen Sie dann, welcher Wert jetzt gelten soll.",
+          "Markieren Sie bei passenden Anfragen `Gemeinsam freigeben`. Tragen Sie einen gemeinsamen Grund ein. moto gibt entweder alle ausgewählten Anfragen frei oder keine. Bei anderen Anfragen steht `Nur einzeln entscheiden` und der Grund dafür.",
+          "Andere Sorgeberechtigte sehen eine Anfrage nur nach einer Freigabe durch die Eltern. Admins können am Fall `Angaben schützen` wählen. Dann können Eltern keine Anfragen für dieses Kind teilen. Jede Änderung wird mit Grund, Person und Zeitpunkt gespeichert.",
           "Mit `Freigeben` wird die Änderung übernommen. Bei einer Tages-Abholzeit zeigt moto vorher die betroffenen Termine im Betreuungsplan. Das Kind wird nach dem Freigeben von diesen Terminen abgemeldet. Bei Betreuungszeiten wird der Wochenplan aktualisiert. Gehört ein Betreuungstag zu einem gebuchten Angebot, ändern Sie zuerst die Buchung. Lehnen Sie diese Anfrage danach ab. Bei Abwesenheiten trägt moto das Kind als krank oder entschuldigt ein.",
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
           "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
           "Anfragen der Art `Anmeldung` betreffen eine noch nicht übernommene Anmeldung. Sie werden nicht in der Liste entschieden: `Prüfen` öffnet die Änderungsübersicht der Anmeldung mit Rückfrage, Freigabe und Ablehnung. Diese Art sieht nur, wer die Anmeldungen verwalten darf.",
           "Über den Schalter `Historie` stehen alle bereits entschiedenen Anfragen in derselben Liste, jeweils mit Datum, entscheidender Person und Begründung - auch entschiedene Anmeldungsänderungen, die vorher nirgends nachschlagbar waren. Dort lässt sich zusätzlich nach `Status` (Angenommen, Abgelehnt, Zurückgezogen) und nach `Zeitraum` filtern.",
           "In der Historie stehen auch Änderungen, die die OGS selbst an den gebuchten Angeboten eines Kindes vorgenommen hat, etwa nach einem Anruf. Sie sind mit `Direkt-Korrektur` gekennzeichnet und zeigen, wer wann was geändert hat und warum. Über den Filter `Anfrageart` lassen sie sich einzeln anzeigen.",
+          "Haben Sie sich vertan, öffnen Sie die Zeile in der Historie und tippen auf `Entscheidung korrigieren`. Wählen Sie das neue Ergebnis und tragen Sie ein, warum Sie korrigieren. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
         ],
         callout: {
           title: "Wer darf entscheiden",
-          body: "Der Bereich `Anfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie im Kinderbereich zurückziehen.",
+          body: "Standardmäßig entscheiden nur OGS-Admins. Unter `Einstellungen` > `Elternportal` können Admins zusätzlich erlauben, dass Gruppenleitungen Anfragen für Kinder ihrer eigenen Gruppen entscheiden. Eltern können eine offene Anfrage bearbeiten, solange die OGS nicht entschieden hat.",
           tone: "orange",
         },
         screenshot:
-          "Seite Anfragen, Reiter Eltern: gemeinsame Liste der offenen Anfragen aller Arten mit Suchfeld, Filter und den Schaltflächen Freigeben und Ablehnen.",
+          "Seite Anfragen, Reiter Eltern: Fälle unter Heute wichtig und Weitere Anfragen, gemeinsame Freigabe und Schutz privater Angaben.",
         image: "/help/screens/offene-anfragen.webp",
       },
       {
@@ -2352,23 +2405,26 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "einstellungen-sicht-auf-alle-raeume",
-        title: "Sicht auf alle Räume freigeben",
+        title: "Sichtbereich für Mitarbeitende wählen",
         icon: Eye,
         summary:
-          "Im Auslieferungszustand sieht jede Person in der `Aktuellen Aufsicht` nur die Räume, die sie selbst übernommen hat. Arbeitet Ihr Team flexibel, geben Sie hier alle Räume frei.",
+          "Sie wählen, ob Mitarbeitende alles oder nur eigene Zuständigkeiten sehen. Admins sehen immer alles.",
         steps: [
           "`Einstellungen` -> `Betrieb` öffnen. Die Sektion `Aufsicht` steht ganz oben.",
-          "Bei `Sicht auf alle Räume` auswählen, wer alle Räume sehen soll: `Nur eigene Räume`, `Alle Räume für Administratoren` oder `Alle Räume für alle Mitarbeitenden`.",
+          "Bei `Sichtbereich für Mitarbeitende` zwischen `Ganzes Team` und `Eigene Zuständigkeiten` wählen.",
+          "`Ganzes Team` zeigt Mitarbeitenden alle Gruppen und laufenden Betreuungen.",
+          "`Ganzes Team` sortiert feste und übergebene Gruppen unter `Meine Gruppen`. Alle anderen stehen unter `Weitere Gruppen`.",
+          "`Eigene Zuständigkeiten` zeigt nur feste und übergebene Gruppen. Dazu kommen eigene laufende Betreuungen.",
           "Die Auswahl wird sofort gespeichert. Wer die Seite schon offen hat, lädt sie einmal neu.",
-          "Mit `Zurücksetzen` gilt wieder `Nur eigene Räume`. Fremde Räume verschwinden dann sofort wieder.",
+          "Mit `Zurücksetzen` gilt wieder `Ganzes Team`.",
         ],
         callout: {
-          title: "Die Freigabe gibt keine neuen Rechte",
-          body: "Sie entscheidet nur, welche Räume jemand sieht. Wer ein Kind sonst nicht ummelden darf, darf es auch in einem fremden Raum nicht. Admin-, Planungs- und Löschrechte hängen weiterhin allein an der Rolle.",
+          title: "Der Sichtbereich gibt keine neuen Rechte",
+          body: "Er ändert nur, was Mitarbeitende sehen. Wer ein Kind bisher nicht ummelden durfte, darf es weiterhin nicht.",
           tone: "blue",
         },
         screenshot:
-          "Sektion Aufsicht im Reiter Betrieb mit der Auswahl Sicht auf alle Räume.",
+          "Sektion Aufsicht im Reiter Betrieb mit dem Sichtbereich für Mitarbeitende.",
       },
       {
         id: "einstellungen-zustaendigkeit",
@@ -2377,7 +2433,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
         steps: [
-          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Wer welche Räume in der `Aktuellen Aufsicht` sieht, steht getrennt davon unter `Sicht auf alle Räume`.",
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Welche Gruppen und laufenden Betreuungen Mitarbeitende sehen, steht getrennt davon unter `Sichtbereich für Mitarbeitende`.",
           "Was das moto-Team betreut: technische und grundlegende Einstellungen, darunter die Freischaltung der Web-Anwesenheit. Bei ausgeschalteter Web-Anwesenheit verschwinden An-/Abmeldeaktionen in der Web-App; NFC- und Systemvorgänge bleiben aktiv. Diese Einstellungen sind für Schul-Admins ausgeblendet.",
           "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
           "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",

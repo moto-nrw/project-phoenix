@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // WorkTimeModelValidationError marks a caller-input validation failure so the
@@ -24,8 +23,8 @@ func (e *WorkTimeModelValidationError) Unwrap() error { return e.Err }
 // returned verbatim; the handlers keep their existing error-to-status
 // mapping (e.g. delete's blanket "not found or in use" 404).
 type WorkTimeModelService struct {
-	repo        configModels.WorkTimeModelRepository
-	broadcaster realtime.Broadcaster
+	repo   configModels.WorkTimeModelRepository
+	notify func(context.Context)
 }
 
 // NewWorkTimeModelService creates a WorkTimeModelService backed by the
@@ -34,14 +33,16 @@ func NewWorkTimeModelService(repo configModels.WorkTimeModelRepository) *WorkTim
 	return &WorkTimeModelService{repo: repo}
 }
 
-// SetBroadcaster injects the tenant-wide SSE broadcaster used to invalidate
-// time-account views after assigned schedule snapshots change.
-func (s *WorkTimeModelService) SetBroadcaster(broadcaster realtime.Broadcaster) {
-	s.broadcaster = broadcaster
+// SetChangeNotifier injects the post-commit notification adapter used to
+// invalidate time-account views after assigned schedule snapshots change.
+func (s *WorkTimeModelService) SetChangeNotifier(notify func(context.Context)) {
+	s.notify = notify
 }
 
 func (s *WorkTimeModelService) broadcastTimeTrackingChanged(ctx context.Context) {
-	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
+	if s.notify != nil {
+		s.notify(ctx)
+	}
 }
 
 // ListModels retrieves all work time models with entries.

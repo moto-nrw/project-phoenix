@@ -67,6 +67,12 @@ func (s *stubOutboxRepo) ClaimDuePending(_ context.Context, _ int, _ time.Time) 
 	return out, nil
 }
 
+func (s *stubOutboxRepo) CountPending(context.Context) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.due), nil
+}
+
 func (s *stubOutboxRepo) LockSending(_ context.Context, id int64) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -234,6 +240,21 @@ func TestOutboxWorker_RunOnce_NoRows(t *testing.T) {
 	assert.Equal(t, 0, n)
 	assert.Empty(t, mailer.sent)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxWorker_Backlog(t *testing.T) {
+	t.Parallel()
+
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+	expectAdminTx(mock)
+	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{{}, {}}}
+	worker := newMockOutboxWorker(t, OutboxWorkerConfig{Repo: repo, DB: db})
+
+	backlog, err := worker.Backlog(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, backlog)
 }
 
 // TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent — single

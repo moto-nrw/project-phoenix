@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"time"
-
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
 // LiveOptions configures the continuous live simulation.
@@ -15,6 +13,7 @@ type LiveOptions struct {
 	StatePath string
 	Interval  time.Duration
 	Verbose   bool
+	Client    ClientFactory
 }
 
 // visitCooldown is the minimum pause between rotation events for the same
@@ -66,12 +65,18 @@ type liveState struct {
 
 // RunLive runs the continuous live simulation loop.
 func RunLive(ctx context.Context, opts LiveOptions) error {
-	state, err := seedapi.LoadSeedState(opts.StatePath)
+	if opts.Client == nil {
+		return fmt.Errorf("simulation client factory is required")
+	}
+	state, err := LoadSeedState(opts.StatePath)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := newClient(state.BaseURL, opts.Verbose)
+	client, err := buildClient(opts.Client, state.BaseURL, opts.Verbose)
+	if err != nil {
+		return err
+	}
 
 	// Login as admin
 	if len(state.Accounts.Admin) == 0 {
@@ -161,7 +166,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 	}
 }
 
-func runLiveTick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
+func runLiveTick(client Client, ls *liveState, state *SeedState, device SeedDevice, counts *liveCounts) {
 	now := time.Now().Format("15:04:05")
 
 	// Keep session alive (mirrors PyrePortal's periodic ping)
@@ -228,7 +233,7 @@ func runLiveTick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState
 	}
 }
 
-func liveRoomMove(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveRoomMove(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -266,7 +271,7 @@ func liveRoomMove(client *seedapi.Client, ls *liveState, state *seedapi.SeedStat
 	return nil
 }
 
-func liveGoUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveGoUnterwegs(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -289,7 +294,7 @@ func liveGoUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedS
 	return nil
 }
 
-func liveReturnFromUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveReturnFromUnterwegs(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
 	studentID := randomFromSet(ls.unterwegs)
 	if studentID == 0 {
 		// Nobody unterwegs — check in a random checked-in student to a new room instead
@@ -316,7 +321,7 @@ func liveReturnFromUnterwegs(client *seedapi.Client, ls *liveState, state *seeda
 	return nil
 }
 
-func liveToggleSick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, now string) error {
+func liveToggleSick(client Client, ls *liveState, state *SeedState, now string) error {
 	if len(state.Students) == 0 {
 		return fmt.Errorf("no students")
 	}
@@ -342,7 +347,7 @@ func liveToggleSick(client *seedapi.Client, ls *liveState, state *seedapi.SeedSt
 
 // liveSchulhofRotate advances a random student through the
 // Heimatraum → AG (1-2 hops) → Schulhof → Heimatraum cycle.
-func liveSchulhofRotate(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveSchulhofRotate(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
 	studentID := ls.pickRotationCandidate()
 	if studentID == 0 {
 		return fmt.Errorf("no rotation-eligible students")
@@ -446,7 +451,7 @@ func randAGHopTarget() int {
 
 // liveAttendanceToggle confirms attendance for a random student, rate-limited
 // per student to one toggle per tick interval.
-func liveAttendanceToggle(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveAttendanceToggle(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
 	cutoff := time.Now().Add(-ls.interval)
 	eligible := make(map[int64]bool, len(ls.rfidTags))
 	for id := range ls.rfidTags {
@@ -479,7 +484,7 @@ func liveAttendanceToggle(client *seedapi.Client, ls *liveState, state *seedapi.
 }
 
 // liveSupervisorSwap reassigns a random supervisor to the primary device's session.
-func liveSupervisorSwap(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveSupervisorSwap(client Client, ls *liveState, state *SeedState, device SeedDevice, now string) error {
 	if len(ls.staffIDs) == 0 {
 		return fmt.Errorf("no staff IDs in seed state")
 	}
@@ -512,7 +517,7 @@ func liveSupervisorSwap(client *seedapi.Client, ls *liveState, state *seedapi.Se
 }
 
 // fetchCurrentSessionID queries the device's current session (0 = none active).
-func fetchCurrentSessionID(client *seedapi.Client, state *seedapi.SeedState, device seedapi.SeedDevice) (int64, error) {
+func fetchCurrentSessionID(client Client, state *SeedState, device SeedDevice) (int64, error) {
 	resp, err := client.DeviceGet("/api/iot/session/current", device.APIKey, state.DevicePIN)
 	if err != nil {
 		return 0, err
@@ -533,7 +538,7 @@ func fetchCurrentSessionID(client *seedapi.Client, state *seedapi.SeedState, dev
 }
 
 // lookupSchulhofRoom finds the auto-provisioned Schulhof system room (0 = not found).
-func lookupSchulhofRoom(client *seedapi.Client) int64 {
+func lookupSchulhofRoom(client Client) int64 {
 	resp, err := client.Get("/api/rooms?include_system=true&page_size=100")
 	if err != nil {
 		return 0
@@ -556,7 +561,7 @@ func lookupSchulhofRoom(client *seedapi.Client) int64 {
 }
 
 // collectStaffIDs gathers the supervisor pool from seed-state accounts.
-func collectStaffIDs(state *seedapi.SeedState) []int64 {
+func collectStaffIDs(state *SeedState) []int64 {
 	ids := make([]int64, 0, len(state.Accounts.Betreuer)+len(state.Accounts.Admin))
 	for _, acc := range state.Accounts.Betreuer {
 		if acc.StaffID > 0 {
@@ -571,7 +576,7 @@ func collectStaffIDs(state *seedapi.SeedState) []int64 {
 	return ids
 }
 
-func bootstrapLiveState(client *seedapi.Client, ls *liveState, students []seedapi.SeedStudent) error {
+func bootstrapLiveState(client Client, ls *liveState, students []SeedStudent) error {
 	resp, err := client.Get("/api/active/visits?active=true")
 	if err != nil {
 		return err
@@ -618,13 +623,13 @@ func randomFromSet(set map[int64]bool) int64 {
 	return 0
 }
 
-func findStudent(students []seedapi.SeedStudent, id int64) seedapi.SeedStudent {
+func findStudent(students []SeedStudent, id int64) SeedStudent {
 	for _, s := range students {
 		if s.ID == id {
 			return s
 		}
 	}
-	return seedapi.SeedStudent{ID: id, FirstName: "Unknown", LastName: "Student"}
+	return SeedStudent{ID: id, FirstName: "Unknown", LastName: "Student"}
 }
 
 func roomNameByID(rooms map[string]int64, targetID int64) string {

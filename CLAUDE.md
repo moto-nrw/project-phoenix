@@ -209,8 +209,8 @@ template each), and clones one run-stamped database per package.
 end); naked `go test` runs leave their clones to the next run's generation GC.
 Manual container control, if ever needed:
 ```bash
-docker compose --profile test up -d postgres-test        # Start (isolated network)
-docker compose --profile test down                        # Stop (plain `down` won't work)
+docker compose -p project-phoenix --profile test up -d postgres-test  # Start (one container for all worktrees)
+docker compose -p project-phoenix --profile test down                 # Stop (plain `down` won't work)
 cd backend && go run ./internal/testdb/cmd/sweep          # Drop leftover clones now
 ```
 

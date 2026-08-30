@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CalendarCheckIcon, CalendarXIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
+import { RequestSharingControl } from "~/components/parent/request-sharing-control";
+import { WeeklyScheduleSection } from "~/components/parent/child/weekly-schedule-section";
 import {
   ParentSection,
   ParentSubsection,
@@ -21,22 +22,12 @@ import {
   getChildCareOfferings,
   getChildCareSchedule,
   submitOfferingChangeRequest,
-  withdrawOfferingChangeRequest,
   type ChildCareOfferings,
   type ChildCareSchedule,
   type OfferingChangesDisabledReason,
 } from "~/lib/parent-api";
 
 const logger = createLogger({ component: "BookedCareSection" });
-
-const WEEKDAYS = [1, 2, 3, 4, 5] as const;
-const WEEKDAY_DAY_KEYS: Record<number, string> = {
-  1: "mon",
-  2: "tue",
-  3: "wed",
-  4: "thu",
-  5: "fri",
-};
 
 const DAY_KEY_TO_WEEKDAY: Record<string, number> = {
   mon: 1,
@@ -66,11 +57,14 @@ export function BookedCareSection({
   childFirstName,
   careEnded,
   enrolledUntil,
+  reasonRequired = true,
 }: Readonly<{
   studentId: string;
   childFirstName: string;
   careEnded: boolean;
   enrolledUntil?: string;
+  /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
+  reasonRequired?: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
   const tc = useTranslations("parentChild");
@@ -81,9 +75,7 @@ export function BookedCareSection({
   const [offeringsError, setOfferingsError] = useState(false);
   const [scheduleError, setScheduleError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [editRequest, setEditRequest] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -190,30 +182,15 @@ export function BookedCareSection({
     offerings.changes_disabled_reason !== "no_permission" &&
     offerings.changes_disabled_reason !== "no_enrollment";
 
-  const handleWithdraw = async () => {
-    if (!pending) return;
-    setWithdrawing(true);
-    setWithdrawError(null);
-    try {
-      setOfferings(await withdrawOfferingChangeRequest(studentId, pending.id));
-      setConfirmWithdraw(false);
-    } catch (err) {
-      logger.warn("booked_care_withdraw_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        student_id: studentId,
-      });
-      setWithdrawError(t("careOfferings.withdrawError"));
-    } finally {
-      setWithdrawing(false);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-5">
       {schedule ? (
         <WeeklyScheduleSection
+          studentId={studentId}
           schedule={schedule}
           childFirstName={childFirstName}
+          careEnded={careEnded}
+          onScheduleChange={setSchedule}
         />
       ) : scheduleError ? (
         <ParentSection
@@ -363,25 +340,22 @@ export function BookedCareSection({
               <p className="text-sm text-gray-500">
                 {t("careOfferings.pendingNotice")}
               </p>
+              <RequestSharingControl
+                studentId={studentId}
+                requestType="offering"
+                requestId={pending.id}
+                isSelf={pending.submitted_by_self}
+              />
               {!careEnded && pending.submitted_by_self && (
-                <div>
-                  <Button
-                    type="button"
-                    variant="outline_danger"
-                    size="md"
-                    onClick={() => {
-                      setWithdrawError(null);
-                      setConfirmWithdraw(true);
-                    }}
-                  >
-                    {t("careOfferings.withdraw")}
-                  </Button>
-                  {withdrawError && (
-                    <p className="text-parent-red-strong mt-1 text-sm">
-                      {withdrawError}
-                    </p>
-                  )}
-                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="max-sm:min-h-11"
+                  onClick={() => setEditRequest(pending.id)}
+                >
+                  {t("careOfferings.edit")}
+                </Button>
               )}
             </ParentSubsection>
           )}
@@ -458,6 +432,12 @@ export function BookedCareSection({
                   </ul>
                 </div>
               )}
+              <RequestSharingControl
+                studentId={studentId}
+                requestType="offering"
+                requestId={decision.id}
+                isSelf={decision.submitted_by_self === true}
+              />
             </ParentSubsection>
           )}
 
@@ -481,117 +461,30 @@ export function BookedCareSection({
         <OfferingChangeRequestModal
           studentId={studentId}
           childName={childFirstName}
+          reasonRequired={reasonRequired}
           onClose={() => setModalOpen(false)}
-          onSubmit={async (input) => {
-            setOfferings(await submitOfferingChangeRequest(studentId, input));
+          onSubmit={async (input, recipientIds) => {
+            const next = await submitOfferingChangeRequest(
+              studentId,
+              input,
+              recipientIds,
+            );
+            setOfferings(next);
+            return next.pending_request?.id;
           }}
         />
       )}
 
-      <ConfirmationModal
-        mobileSheet
-        isOpen={confirmWithdraw}
-        onClose={() => setConfirmWithdraw(false)}
-        onConfirm={() => void handleWithdraw()}
-        title={t("careOfferings.withdrawConfirmTitle")}
-        confirmText={t("careOfferings.withdraw")}
-        cancelText={t("back")}
-        isConfirmLoading={withdrawing}
-        confirmButtonClass="bg-parent-red hover:bg-parent-red-strong"
-      >
-        <p className="text-sm text-gray-600">
-          {t("careOfferings.withdrawConfirmBody")}
-        </p>
-      </ConfirmationModal>
-    </div>
-  );
-}
-
-function WeeklyScheduleSection({
-  schedule,
-  childFirstName,
-}: Readonly<{
-  schedule: ChildCareSchedule;
-  childFirstName: string;
-}>) {
-  const t = useTranslations("parentMasterData");
-  const tc = useTranslations("parentChild");
-  const byWeekday = useMemo(() => {
-    const map = new Map<number, ChildCareSchedule["weekdays"][number]>();
-    for (const entry of schedule.weekdays) map.set(entry.weekday, entry);
-    return map;
-  }, [schedule.weekdays]);
-
-  return (
-    <ParentSection title={tc("care.weekTitle")} concept="calendar" prominent>
-      <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {WEEKDAYS.map((num) => {
-          const day = byWeekday.get(num);
-          const modes =
-            day?.status === "scheduled" && day.modes.length > 0
-              ? day.modes.map((mode) => t(`departureModes.${mode}`)).join(", ")
-              : t("careSchedule.notSet");
-          const statusLabel =
-            day?.status === "scheduled"
-              ? t("careSchedule.inCare", { firstName: childFirstName })
-              : day?.status === "not_scheduled"
-                ? t("careSchedule.notInCare")
-                : t("careSchedule.unknownCareDay");
-          return (
-            <div
-              key={num}
-              className="rounded-xl border border-gray-200 bg-white p-4"
-            >
-              <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
-                <span>
-                  {t(`careSchedule.weekdays.${WEEKDAY_DAY_KEYS[num]}`)}
-                </span>
-                <StatusBadge
-                  label={statusLabel}
-                  tone={day?.status === "scheduled" ? "green" : "gray"}
-                  showDot={false}
-                />
-              </dt>
-              <dd className="mt-4 space-y-4">
-                {day?.status === "scheduled" && (
-                  <>
-                    <CareFact
-                      label={t("careSchedule.pickup")}
-                      value={
-                        day.pickup
-                          ? t("careSchedule.timeValue", { time: day.pickup })
-                          : undefined
-                      }
-                      emptyLabel={t("careSchedule.notSet")}
-                    />
-                    <CareFact
-                      label={t("careSchedule.modes")}
-                      value={modes}
-                      emptyLabel={t("careSchedule.notSet")}
-                    />
-                  </>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-    </ParentSection>
-  );
-}
-
-/** Eine Angabe des Wochenplans. Anzeige, nie ein Feld. */
-function CareFact({
-  label,
-  value,
-  emptyLabel,
-}: Readonly<{ label: string; value?: string; emptyLabel: string }>) {
-  return (
-    <div>
-      <span className="block text-sm text-gray-500">{label}</span>
-      <span className="block text-sm font-medium text-gray-900">
-        {value || emptyLabel}
-      </span>
+      {editRequest && (
+        <OfferingChangeRequestModal
+          studentId={studentId}
+          childName={childFirstName}
+          reasonRequired={reasonRequired}
+          editRequestId={editRequest}
+          onClose={() => setEditRequest(null)}
+          onEdited={refresh}
+        />
+      )}
     </div>
   );
 }

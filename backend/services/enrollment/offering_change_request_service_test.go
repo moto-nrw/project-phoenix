@@ -107,7 +107,7 @@ func setupOfferingChangeFixture(
 		oldGroupID:   oldGroup.ID,
 		newGroupID:   newGroup.ID,
 		switchDate:   env.sourcePhase.ServiceStartDate.AddDays(150),
-		pastSwitchAt: timezone.TodayDate().AddDays(-1),
+		pastSwitchAt: timezone.NewDate(2026, 8, 24).AddDays(-1),
 	}
 }
 
@@ -518,7 +518,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 	require.NoError(t, err)
 
 	// The period start moves behind the requested date while the request waits.
-	phaseStart := timezone.TodayDate().AddDays(30)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = phaseStart
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 	require.NoError(t, env.repos.OfferingChangeRequest.UpdateEffectiveFrom(ctx, row.ID, fx.pastSwitchAt))
@@ -795,43 +795,6 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusApproved, decided.Status)
 }
 
-func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := offeringChangeAdminContext(t)
-	svc := newOfferingChangeServiceForTest(t, env)
-	fx := setupOfferingChangeFixture(t, env, "Withdraw")
-
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
-		StudentID:     fx.studentID,
-		AccountID:     env.creatorID,
-		EffectiveFrom: fx.switchDate,
-		Selections: []enrollmentService.OfferingChangeSelection{
-			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
-		},
-	})
-	require.NoError(t, err)
-
-	_, otherAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Andere", "Bezugsperson")
-	err = svc.Withdraw(ctx, row.ID, otherAccount.ID, fx.studentID)
-	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeForbidden)
-
-	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
-	withdrawn, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
-	require.NoError(t, err)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusWithdrawn, withdrawn.Status)
-
-	// A withdrawn request can no longer be decided.
-	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
-		RequestID:  row.ID,
-		Approve:    true,
-		ReviewedBy: env.creatorID,
-	})
-	require.ErrorIs(t, err, enrollmentModels.ErrOfferingChangeNotPending)
-}
-
 func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *testing.T) {
 	t.Parallel()
 
@@ -848,7 +811,7 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 	catalog, err := svc.Catalog(ctx, fx.studentID)
 	require.NoError(t, err)
 	assert.Equal(t, env.sourcePhase.ServiceEndDate, catalog.LatestEffectiveFrom)
-	assert.False(t, catalog.EarliestEffectiveFrom.Before(timezone.TodayDate()),
+	assert.False(t, catalog.EarliestEffectiveFrom.Before(timezone.NewDate(2026, 8, 24)),
 		"a switch must not be offered for a date already gone")
 
 	byID := map[int64]enrollmentService.OfferingChangeCatalogItem{}
@@ -921,35 +884,6 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 	assert.Nil(t, view, "an old decision is no longer reported")
 }
 
-func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *testing.T) {
-	t.Parallel()
-
-	env, cleanup := setupDecisionTest(t)
-	defer cleanup()
-	ctx := offeringChangeAdminContext(t)
-	svc := newOfferingChangeServiceForTest(t, env)
-	fx := setupOfferingChangeFixture(t, env, "Silent")
-
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
-		StudentID:     fx.studentID,
-		AccountID:     env.creatorID,
-		EffectiveFrom: fx.switchDate,
-		Selections: []enrollmentService.OfferingChangeSelection{
-			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
-		},
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
-
-	view, err := svc.GetForStudent(ctx, fx.studentID)
-	require.NoError(t, err)
-	assert.Nil(t, view, "a guardian's own withdrawal needs no status message")
-}
-
-// The school confirms the date the switch takes effect on (#2484). Parents pick
-// a wish, the office decides — and what the office confirmed is what applies
-// and what every later view reports.
 func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.T) {
 	t.Parallel()
 
@@ -1019,7 +953,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeToday(t 
 	})
 	require.NoError(t, err)
 
-	confirmed := timezone.TodayDate().AddDays(-1)
+	confirmed := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:     row.ID,
 		Approve:       true,
@@ -1130,7 +1064,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange(
 	}
 	require.NotNil(t, queued)
 	earliest := env.sourcePhase.ServiceStartDate
-	if today := timezone.TodayDate(); earliest.Before(today) {
+	if today := timezone.NewDate(2026, 8, 24); earliest.Before(today) {
 		earliest = today
 	}
 	assert.Equal(t, earliest, queued.EarliestEffectiveFrom,
@@ -1159,7 +1093,7 @@ func TestOfferingChangeRequestService_PreviewDecision_RefusesADateOutOfRange(t *
 	})
 	require.NoError(t, err)
 
-	confirmed := timezone.TodayDate().AddDays(-1)
+	confirmed := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	_, err = svc.PreviewDecision(ctx, row.ID, nil, &confirmed)
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
 }
@@ -1457,12 +1391,12 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 	require.NoError(t, err)
 
 	// The period start moves into the future while the request waits.
-	phaseStart := timezone.TodayDate().AddDays(30)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = phaseStart
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 
 	// Tomorrow is after today but still before the period begins.
-	confirmed := timezone.TodayDate().AddDays(1)
+	confirmed := timezone.NewDate(2026, 8, 24).AddDays(1)
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:     row.ID,
 		Approve:       true,

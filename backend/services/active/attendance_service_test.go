@@ -90,7 +90,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	service := setupActiveService(t, db, func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) })
 	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create a student (but NO attendance record)
@@ -104,7 +104,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
 	// Service uses timezone.TodayDate() — today's Berlin calendar day
-	expectedDate := timezone.TodayDate()
+	expectedDate := timezone.NewDate(2026, 8, 24)
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)

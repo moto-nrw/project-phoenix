@@ -1338,16 +1338,56 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("all_staff scope allows staff without instance assignment or supervision", func(t *testing.T) {
+	t.Run("all_staff scope grants visibility but no action rights", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.settings.scope = configModel.OverviewScopeAllStaff
 		wireAssignedStaff(deps, 693, 515, 274, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 
-		_, err := deps.service.Complete(context.Background(), 693, false, instanceID)
-
+		_, err := deps.service.Roster(context.Background(), 693, false, instanceID)
 		require.NoError(t, err)
-		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+
+		_, err = deps.service.Complete(context.Background(), 693, false, instanceID)
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("all_staff scope rejects non-running rosters", func(t *testing.T) {
+		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			name     string
+			instance *scheduleModel.ActivityInstance
+		}{
+			{
+				name:     "planned",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "completed",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted, now.Add(-time.Hour), now),
+			},
+			{
+				name:     "cancelled",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusCancelled, now, now.Add(time.Hour)),
+			},
+			{
+				name:     "active without active group",
+				instance: instanceWithTimes(instanceID, scheduleModel.InstanceStatusActive, now, now.Add(time.Hour)),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				deps := newTimetableOpsDeps()
+				deps.settings.scope = configModel.OverviewScopeAllStaff
+				wireAssignedStaff(deps, 694, 516, 275, instanceID)
+				deps.staffRepo.byInstance[instanceID] = nil
+				deps.instanceRepo.byID[instanceID] = tc.instance
+
+				_, err := deps.service.Roster(context.Background(), 694, false, instanceID)
+
+				require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+			})
+		}
 	})
 
 	// The organisational group mode no longer opens running modules (#2380):
@@ -1399,9 +1439,9 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("admins scope allows an admin without a staff identity", func(t *testing.T) {
+	t.Run("admin can operate regardless of overview scope", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.scope = configModel.OverviewScopeAdmins
+		deps.settings.scope = configModel.OverviewScopeOwn
 
 		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
 
@@ -1729,7 +1769,7 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	deps := newTimetableOpsDeps()
 	// A settings fault must fail closed for every caller shape (#2380).
-	deps.settings.err = errors.New("settings down")
+	deps.settings.stringErr = errors.New("settings down")
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), true, true))
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, true))
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, false))

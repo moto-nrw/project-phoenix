@@ -56,6 +56,7 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 			BookingsAuthoritative: func(context.Context) (bool, error) {
 				return authoritative, nil
 			},
+			Today:  func() timezone.Date { return timezone.DateFromTime(tc.resource.Now()) },
 			DB:     tc.db,
 			Logger: slog.Default(),
 		})
@@ -63,15 +64,26 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 
 func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresence(t *testing.T) {
 	t.Parallel()
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 	wireCareLifecycleWithBookingMode(t, tc, true)
 	repos := repositories.NewFactory(tc.db)
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
+	// The gap must be a future day inside the planning horizon, which closes
+	// on the Sunday of the current week (day_planning.go: maxPlanningDate). On a Sunday there
+	// is no such day, so the scenario cannot be exercised against the real
+	// clock; a fixed clock for day planning is tracked separately.
+	if today.Weekday() == time.Sunday {
+		t.Skip("planning horizon closes today; the future-gap scenario needs a weekday")
+	}
 	setEnrolledUntil(t, tc, endedWithoutTask.ID, today.AddDays(-1))
 	firstGap := today.AddDays(1)
+	horizon := today.AddDays((7 - int(today.Weekday())) % 7)
+	if firstGap.After(horizon) {
+		t.Skip("today closes the planning horizon; no future planning day to ask for")
+	}
 	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, firstGap)
 	actor := testpkg.CreateTestAccount(t, tc.db, "participation-reader@example.test")
 	claims := testutil.AdminTestClaims(int(actor.ID))
@@ -79,15 +91,18 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	listedIDs := func(query string) map[int64]bool { return listedCareStudentIDs(t, tc, claims, query) }
 
 	assert.True(t, listedIDs("")[student.ID], "the child remains visible before the gap")
-	assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
-	assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
 	assert.False(t, listedIDs("&include_pending_withdrawals=true")[endedWithoutTask.ID], "the administration exception must not restore every ended child")
 
-	readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
-		"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
-	readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
-	assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
-		"the administrative exception must require users:delete")
+	if !firstGap.After(horizon) {
+		assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
+		assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
+
+		readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
+			"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
+		readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
+		assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
+			"the administrative exception must require users:delete")
+	}
 
 	// Move the same pending task onto today to exercise the live-presence
 	// exception without treating today's attendance as future planning data.
@@ -298,13 +313,13 @@ func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 	wireCareLifecycle(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Exit", "2a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-happy@example.com")
 	claims := testutil.AdminTestClaims(int(actor.ID))
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	body := map[string]any{
 		"student_ids":   []string{fmt.Sprintf("%d", student.ID)},
@@ -403,7 +418,7 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 	wireCareLifecycle(t, tc)
 
 	running := testpkg.CreateTestStudent(t, tc.db, "Listed", "Running", "3a")
@@ -411,7 +426,7 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	ended := testpkg.CreateTestStudent(t, tc.db, "Listed", "Ended", "3a")
 	endsToday := testpkg.CreateTestStudent(t, tc.db, "Listed", "EndsToday", "3a")
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	setEnrolledUntil(t, tc, planned.ID, today.AddDays(14))
 	setEnrolledUntil(t, tc, ended.ID, today.AddDays(-1))
 	setEnrolledUntil(t, tc, endsToday.ID, today)
@@ -553,7 +568,7 @@ func TestStudentList_MarksRecordedExitsOnly(t *testing.T) {
 	phaseEnd := testpkg.CreateTestStudent(t, tc.db, "Flagged", "PhaseEnd", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-flag@example.com")
 	claims := testutil.AdminTestClaims(int(actor.ID))
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 
 	// Both carry the same end date, far ahead. Only one of them was entered
 	// through "Betreuung beenden".

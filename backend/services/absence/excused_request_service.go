@@ -40,11 +40,12 @@ const (
 	excusedRequestCreatedBody   = "Anfrage: Entschuldigte Abmeldung"
 	excusedRequestConfirmedBody = "Abmeldung bestätigt"
 	excusedRequestRejectedBody  = "Abmeldung abgelehnt"
-	excusedRequestWithdrawnBody = "Abmeldung zurückgezogen"
 	sickRequestCreatedBody      = "Anfrage: Krankmeldung"
 	sickRequestConfirmedBody    = "Krankmeldung bestätigt"
 	sickRequestRejectedBody     = "Krankmeldung abgelehnt"
-	sickRequestWithdrawnBody    = "Krankmeldung zurückgezogen"
+	// parentRequestDoneBody is the neutral close for a request whose days have
+	// passed: nothing was applied and nothing was refused.
+	parentRequestDoneBody = "Anfrage abgeschlossen"
 )
 
 var (
@@ -90,9 +91,21 @@ var (
 // ExcusedRequestReviewItem is one request enriched with the child's name for
 // the staff review queue.
 type ExcusedRequestReviewItem struct {
-	Request   *activeModels.ExcusedAbsenceRequest
-	FirstName string
-	LastName  string
+	Request      *activeModels.ExcusedAbsenceRequest
+	FirstName    string
+	LastName     string
+	BulkEligible bool
+	// BulkIneligibleReason is the stable code; BulkIneligibleText the German
+	// sentence the client falls back to for codes it does not know.
+	BulkIneligibleReason string
+	BulkIneligibleText   string
+	// CurrentStatusByDate says what each REQUESTED day looks like today
+	// (present, sick, excused, class_trip), so the review card can put
+	// „Aktuell“ next to „Gewünscht“ instead of showing the wish alone.
+	CurrentStatusByDate map[string]string
+	// CurrentValueChanged is true when one of those days was reported or
+	// changed after the request was filed. Nil where it was not resolved.
+	CurrentValueChanged *bool
 }
 
 // ExcusedRequestHistoryItem is one decided request enriched with the child's
@@ -109,6 +122,11 @@ type ExcusedRequestDecideInput struct {
 	RequestID int64
 	Approve   bool
 	Reason    string
+	// ReasonRequired says the school's reason policy
+	// (operations.parent_request_reason_policy) asks the deciding staff member
+	// for a reason on an APPROVAL. A rejection always needs one (#2267).
+	ReasonRequired  bool
+	ExpectedVersion string
 	// ReviewedBy is the acting staff ACCOUNT id (auth.accounts).
 	ReviewedBy int64
 }
@@ -126,9 +144,6 @@ type ExcusedAbsenceRequestService interface {
 	// the same approval queue. CreateRequest remains the excused compatibility
 	// entry point for existing callers.
 	CreateRequestForStatus(ctx context.Context, studentID, guardianAccountID int64, dates []timezone.Date, note, absenceStatus string) (*activeModels.ExcusedAbsenceRequest, error)
-	// WithdrawRequest moves the submitter's own pending request to withdrawn and
-	// (after commit) posts the withdrawal pill.
-	WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*activeModels.ExcusedAbsenceRequest, error)
 	// ListForStudent returns the child's pending requests plus any decided since
 	// `recentSince`, newest-first — the parent read view.
 	ListForStudent(ctx context.Context, studentID int64, recentSince time.Time) ([]*activeModels.ExcusedAbsenceRequest, error)
@@ -148,6 +163,17 @@ type ExcusedAbsenceRequestService interface {
 	// Decide approves (writes the requested status days, then stamps) or rejects
 	// (reason required) one pending request and returns the refreshed row.
 	Decide(ctx context.Context, input ExcusedRequestDecideInput) (*ExcusedRequestReviewItem, error)
+	// EditRequest lets the submitting guardian correct their own still-pending
+	// request instead of withdrawing and refiling it (#2267).
+	EditRequest(ctx context.Context, input ExcusedRequestEditInput) (*activeModels.ExcusedAbsenceRequest, error)
+	// Create is the create path that carries the school's reason policy.
+	// CreateRequest / CreateRequestForStatus stay the mandatory-note entry
+	// points for callers that have not resolved it.
+	Create(ctx context.Context, input ExcusedRequestCreateInput) (*activeModels.ExcusedAbsenceRequest, error)
+	ListExcusedBulkCandidates(ctx context.Context) ([]usersService.ExcusedBulkCandidate, error)
+	GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*usersService.ExcusedBulkCandidate, error)
+	LockExcusedBulkRequest(ctx context.Context, requestID int64) error
+	ApproveExcusedBulk(ctx context.Context, requestID int64, reason string, reviewerID int64, expectedVersion string) error
 }
 
 // AbsenceNotifierSetter injects the notification producer after construction.
@@ -168,11 +194,29 @@ type excusedAbsenceRequestService struct {
 	absenceNotify notificationsService.AbsenceNotifier
 	logger        *slog.Logger
 	db            *bun.DB
+	reviewPolicy  RequestReviewPolicy
+	// shareVisibility answers who the parent explicitly shared a request
+	// with; nil means nobody was, so every co-guardian gets the neutral line.
+	shareVisibility RequestShareVisibilityResolver
+	events          usersService.ParentRequestEventRecorder
+	today           func() timezone.Date
 }
 
-// NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
-// variant that also serializes approvals with time-specific excusals.
-func NewExcusedAbsenceRequestServiceWithPartialAbsences(
+func (s *excusedAbsenceRequestService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
+}
+
+type RequestReviewPolicy interface {
+	StudentFilter(context.Context, []string) (func(*usersModels.Student) bool, error)
+	Allows(context.Context, []string, *usersModels.Student) (bool, error)
+}
+
+// NewExcusedAbsenceRequestServiceWithPolicy requires the production review
+// policy at construction, so missing wiring cannot widen reviewer access.
+func NewExcusedAbsenceRequestServiceWithPolicy(
 	requestRepo activeModels.ExcusedAbsenceRequestRepository,
 	statusDayRepo activeModels.StudentStatusDayRepository,
 	pickupRepo scheduleModels.StudentPickupExceptionRepository,
@@ -181,12 +225,18 @@ func NewExcusedAbsenceRequestServiceWithPartialAbsences(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	events usersService.ParentRequestEventRecorder,
 	logger *slog.Logger,
 	db *bun.DB,
+	today ...func() timezone.Date,
 ) ExcusedAbsenceRequestService {
+	if reviewPolicy == nil {
+		panic("excused absence request review policy is required")
+	}
 	return newExcusedAbsenceRequestService(
 		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
-		userContext, emitter, broadcaster, logger, db,
+		userContext, emitter, broadcaster, reviewPolicy, events, logger, db, today...,
 	)
 }
 
@@ -199,13 +249,16 @@ func newExcusedAbsenceRequestService(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	events usersService.ParentRequestEventRecorder,
 	logger *slog.Logger,
 	db *bun.DB,
+	today ...func() timezone.Date,
 ) ExcusedAbsenceRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &excusedAbsenceRequestService{
+	service := &excusedAbsenceRequestService{
 		requestRepo:   requestRepo,
 		statusDayRepo: statusDayRepo,
 		pickupRepo:    pickupRepo,
@@ -214,17 +267,100 @@ func newExcusedAbsenceRequestService(
 		userContext:   userContext,
 		emitter:       emitter,
 		broadcaster:   broadcaster,
+		reviewPolicy:  reviewPolicy,
+		events:        events,
 		logger:        logger,
 		db:            db,
 	}
+	if len(today) > 0 {
+		service.today = today[0]
+	}
+	return service
 }
 
 // absenceWritable is the per-child visibility predicate shared by the review
-// queue and the pending badge: the caller may see a request exactly when they
-// could decide it (admin or verified staff, #2329).
-func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) func(*usersModels.Student) bool {
-	writable := authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
-	return func(student *usersModels.Student) bool { return writable(student) }
+// queue and the pending badge.
+func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) (func(*usersModels.Student) bool, error) {
+	if s.reviewPolicy == nil {
+		writable := authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+		return func(student *usersModels.Student) bool { return writable(student) }, nil
+	}
+	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("active: resolve request reviewer scope: %w", err)
+	}
+	return filter, nil
+}
+
+func (s *excusedAbsenceRequestService) ListExcusedBulkCandidates(ctx context.Context) ([]usersService.ExcusedBulkCandidate, error) {
+	rows, _, err := s.ListPending(ctx, modelBase.RequestQueueFilters{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]usersService.ExcusedBulkCandidate, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, usersService.ExcusedBulkCandidate{
+			ID: row.Request.ID, StudentID: row.Request.StudentID, UpdatedAt: row.Request.UpdatedAt,
+			Eligible: row.BulkEligible,
+		})
+	}
+	return result, nil
+}
+
+func (s *excusedAbsenceRequestService) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*usersService.ExcusedBulkCandidate, error) {
+	req, err := s.requestRepo.FindByID(ctx, requestID)
+	if errors.Is(err, activeModels.ErrExcusedRequestNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != activeModels.ExcusedRequestStatusPending {
+		return nil, nil
+	}
+	students, err := s.studentRepo.FindByIDs(ctx, []int64{req.StudentID})
+	if err != nil {
+		return nil, err
+	}
+	student := students[req.StudentID]
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if student == nil || !writable(student) || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
+		return nil, nil
+	}
+	view, err := s.currentStatusView(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	eligible, _, _, err := s.excusedBulkEligibility(ctx, req, student, view)
+	if err != nil {
+		return nil, err
+	}
+	return &usersService.ExcusedBulkCandidate{ID: req.ID, StudentID: req.StudentID, UpdatedAt: req.UpdatedAt, Eligible: eligible}, nil
+}
+
+func (s *excusedAbsenceRequestService) ApproveExcusedBulk(
+	ctx context.Context,
+	requestID int64,
+	reason string,
+	reviewerID int64,
+	expectedVersion string,
+) error {
+	_, err := s.Decide(ctx, ExcusedRequestDecideInput{
+		RequestID: requestID, Approve: true, Reason: reason, ReviewedBy: reviewerID,
+		ExpectedVersion: expectedVersion,
+	})
+	if errors.Is(err, activeModels.ErrExcusedRequestNotPending) {
+		return usersService.ErrParentRequestDecisionRace
+	}
+	return err
+}
+
+func (s *excusedAbsenceRequestService) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {
+	_, err := s.requestRepo.FindPendingByIDForUpdate(ctx, requestID)
+	return err
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.
@@ -236,8 +372,37 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 	return s.CreateRequestForStatus(ctx, studentID, guardianAccountID, dates, note, activeModels.StudentStatusDayExcused)
 }
 
+// CreateRequestForStatus keeps the mandatory-note behaviour every existing
+// caller relies on. A caller that has resolved
+// operations.parent_request_reason_policy uses Create instead and says whether
+// the note is required (#2267, story 28).
 func (s *excusedAbsenceRequestService) CreateRequestForStatus(ctx context.Context, studentID, guardianAccountID int64, dates []timezone.Date, note, absenceStatus string) (*activeModels.ExcusedAbsenceRequest, error) {
-	sorted, trimmed, err := validateAbsenceRequestInput(dates, note, absenceStatus)
+	return s.Create(ctx, ExcusedRequestCreateInput{
+		StudentID:         studentID,
+		GuardianAccountID: guardianAccountID,
+		Dates:             dates,
+		Note:              note,
+		AbsenceStatus:     absenceStatus,
+		NoteRequired:      true,
+	})
+}
+
+// ExcusedRequestCreateInput is one guardian absence submission. NoteRequired
+// carries the school's reason policy, resolved by the caller that knows the
+// tenant.
+type ExcusedRequestCreateInput struct {
+	StudentID         int64
+	GuardianAccountID int64
+	Dates             []timezone.Date
+	Note              string
+	AbsenceStatus     string
+	NoteRequired      bool
+}
+
+func (s *excusedAbsenceRequestService) Create(ctx context.Context, input ExcusedRequestCreateInput) (*activeModels.ExcusedAbsenceRequest, error) {
+	studentID, guardianAccountID := input.StudentID, input.GuardianAccountID
+	dates, note, absenceStatus := input.Dates, input.Note, input.AbsenceStatus
+	sorted, trimmed, err := validateAbsenceRequestInput(dates, note, absenceStatus, input.NoteRequired)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +430,17 @@ func (s *excusedAbsenceRequestService) CreateRequestForStatus(ctx context.Contex
 	if err := s.requestRepo.Create(ctx, req); err != nil {
 		return nil, fmt.Errorf("active: create absence request: %w", err)
 	}
+	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+		StudentID:      req.StudentID,
+		RequestType:    usersModels.ParentRequestTypeExcusedAbsence,
+		RequestID:      req.ID,
+		EventType:      usersModels.ParentRequestEventSubmitted,
+		ActorAccountID: guardianAccountID,
+		UpdatedAt:      req.UpdatedAt,
+		Payload:        map[string]any{"status": absenceStatus, "days": len(sorted)},
+	}); err != nil {
+		return nil, fmt.Errorf("active: record absence request event: %w", err)
+	}
 	// A new pending request adds the "Freigabe ausstehend" badge on the child;
 	// wake staff tabs so planning/search views pick it up without a manual
 	// refetch.
@@ -273,7 +449,12 @@ func (s *excusedAbsenceRequestService) CreateRequestForStatus(ctx context.Contex
 	return req, nil
 }
 
-func validateAbsenceRequestInput(dates []timezone.Date, note, absenceStatus string) ([]timezone.Date, string, error) {
+// validateAbsenceRequestInput is the shared gate of the create and the
+// guardian edit path. noteRequired carries the school's reason policy
+// (operations.parent_request_reason_policy): a school that asks nobody for a
+// reason accepts a blank note, everything else about the request is validated
+// the same either way.
+func validateAbsenceRequestInput(dates []timezone.Date, note, absenceStatus string, noteRequired bool) ([]timezone.Date, string, error) {
 	if len(dates) == 0 {
 		return nil, "", ErrExcusedRequestNoDates
 	}
@@ -281,7 +462,7 @@ func validateAbsenceRequestInput(dates []timezone.Date, note, absenceStatus stri
 		return nil, "", ErrAbsenceRequestInvalidStatus
 	}
 	trimmed := strings.TrimSpace(note)
-	if trimmed == "" {
+	if trimmed == "" && noteRequired {
 		return nil, "", ErrExcusedRequestEmptyNote
 	}
 	if utf8.RuneCountInString(trimmed) > excusedRequestMaxReasonLen {
@@ -313,7 +494,7 @@ func (s *excusedAbsenceRequestService) findMatchingPendingRequest(ctx context.Co
 }
 
 func (s *excusedAbsenceRequestService) emitCreatedRequestPill(ctx context.Context, req *activeModels.ExcusedAbsenceRequest, guardianAccountID int64) {
-	createdBody, _, _, requestType := absenceRequestCopy(req.AbsenceStatus)
+	createdBody, _, requestType := absenceRequestCopy(req.AbsenceStatus)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
@@ -324,38 +505,80 @@ func (s *excusedAbsenceRequestService) emitCreatedRequestPill(ctx context.Contex
 	})
 }
 
-func (s *excusedAbsenceRequestService) WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*activeModels.ExcusedAbsenceRequest, error) {
-	// Lock the row regardless of status so ownership is checked BEFORE the
-	// pending-status distinction — a foreign child's decided request id must
-	// surface as not-found, not not-pending.
-	req, err := s.requestRepo.FindByIDForUpdate(ctx, requestID)
+// ExcusedRequestEditInput is one guardian edit of their own still-open
+// absence request (#2267, story 37). The absence kind is NOT editable: a
+// Krankmeldung that turns into a Terminabwesenheit is a different request and
+// may be gated differently by the school.
+type ExcusedRequestEditInput struct {
+	RequestID         int64
+	StudentID         int64
+	GuardianAccountID int64
+	ExpectedVersion   string
+	// NoteRequired carries the school's reason policy, resolved by the caller
+	// that knows the tenant (#2267, story 28).
+	NoteRequired bool
+	Dates        []timezone.Date
+	Note         string
+}
+
+// EditRequest rewrites the submitter's own pending request. It replaces the
+// withdraw flow: a guardian who mistyped a date corrects it instead of
+// cancelling and refiling, so the request keeps its id, its share and its
+// history. A request that is not the caller's own is reported as not found,
+// never as forbidden — a stranger must not learn that the id exists.
+func (s *excusedAbsenceRequestService) EditRequest(
+	ctx context.Context, input ExcusedRequestEditInput,
+) (*activeModels.ExcusedAbsenceRequest, error) {
+	// Lock regardless of status so ownership is checked BEFORE the
+	// pending-status distinction, like the decide path.
+	req, err := s.requestRepo.FindByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return nil, err
 	}
-	if req.SubmittedBy != guardianAccountID || req.StudentID != studentID {
+	if req.SubmittedBy != input.GuardianAccountID || req.StudentID != input.StudentID {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
 	if req.Status != activeModels.ExcusedRequestStatusPending {
 		return nil, activeModels.ErrExcusedRequestNotPending
 	}
-	req.AbsenceStatus = normalizedAbsenceRequestStatus(req.AbsenceStatus)
-	if err := s.requestRepo.Decide(ctx, req.ID, activeModels.ExcusedRequestStatusWithdrawn, nil, nil, false); err != nil {
+	if input.ExpectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != input.ExpectedVersion {
+		return nil, usersService.ErrParentRequestStale
+	}
+	absenceStatus := normalizedAbsenceRequestStatus(req.AbsenceStatus)
+	// Same validators the create path runs — an edit may not produce a request
+	// the create path would have refused.
+	sorted, trimmed, err := validateAbsenceRequestInput(input.Dates, input.Note, absenceStatus, input.NoteRequired)
+	if err != nil {
 		return nil, err
 	}
-	req.Status = activeModels.ExcusedRequestStatusWithdrawn
-	// Withdrawal clears the child's pending badge; wake staff tabs so the
-	// planning/search views drop it without a manual refetch.
-	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
-	_, _, withdrawnBody, requestType := absenceRequestCopy(req.AbsenceStatus)
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
-		ActorAccountID: guardianAccountID,
-		Body:           withdrawnBody,
-		RequestType:    requestType,
-		RequestStatus:  usersModels.ParentMessageRequestStatusWithdrawn,
-	})
-	return req, nil
+	if err := s.ensureNoPartialAbsence(ctx, &activeModels.ExcusedAbsenceRequest{
+		StudentID: req.StudentID,
+		Dates:     sorted,
+	}); err != nil {
+		return nil, err
+	}
+	if err := s.requestRepo.UpdatePending(ctx, req.ID, sorted, trimmed, absenceStatus); err != nil {
+		return nil, err
+	}
+	row, err := s.requestRepo.FindByID(ctx, req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("active: reload edited absence request: %w", err)
+	}
+	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+		StudentID:      row.StudentID,
+		RequestType:    usersModels.ParentRequestTypeExcusedAbsence,
+		RequestID:      row.ID,
+		EventType:      usersModels.ParentRequestEventGuardianEdit,
+		ActorAccountID: input.GuardianAccountID,
+		UpdatedAt:      row.UpdatedAt,
+		Payload:        map[string]any{"days": len(sorted)},
+	}); err != nil {
+		return nil, fmt.Errorf("active: record absence edit event: %w", err)
+	}
+	// The pending badge does not change, but the dates staff see do — wake the
+	// staff tabs the same way a create does.
+	s.broadcastRequestTransition(ctx, row.TenantID, row.StudentID)
+	return row, nil
 }
 
 func (s *excusedAbsenceRequestService) ListForStudent(ctx context.Context, studentID int64, recentSince time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
@@ -451,7 +674,10 @@ func (s *excusedAbsenceRequestService) ListHistory(ctx context.Context, filters 
 	}
 
 	// Same per-child scope as ListPending: absence write gate + alumnus skip.
-	writable := s.absenceWritable(ctx)
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*ExcusedRequestHistoryItem, 0, len(rows))
 	for _, r := range rows {
@@ -519,7 +745,10 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 	// Scope the queue to children whose absences the caller may WRITE — the
 	// same gate as Decide, so a staffer only ever sees requests they can act
 	// on. This also scopes the sidebar badge.
-	writable := s.absenceWritable(ctx)
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	items := make([]*ExcusedRequestReviewItem, 0, len(rows))
 	for _, r := range rows {
@@ -533,10 +762,24 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 		// A child whose care has ended leaves the queue the same way: the
 		// effect-day pass closes their open requests, and until it runs the
 		// queue must not offer a decision on a departed child (#2487).
-		if students[r.StudentID].IsAlumnus() || students[r.StudentID].CareEndedOn(timezone.TodayDate()) {
+		if students[r.StudentID].IsAlumnus() || students[r.StudentID].CareEndedOn(s.todayDate()) {
 			continue
 		}
-		item := &ExcusedRequestReviewItem{Request: r}
+		view, viewErr := s.currentStatusView(ctx, r)
+		if viewErr != nil {
+			return nil, nil, fmt.Errorf("active: resolve current absence statuses: %w", viewErr)
+		}
+		eligible, reasonCode, reasonText, eligibilityErr := s.excusedBulkEligibility(ctx, r, students[r.StudentID], view)
+		if eligibilityErr != nil {
+			return nil, nil, fmt.Errorf("active: resolve absence bulk eligibility: %w", eligibilityErr)
+		}
+		currentValueChanged := view.changedSinceRequest
+		item := &ExcusedRequestReviewItem{
+			Request: r, BulkEligible: eligible,
+			BulkIneligibleReason: reasonCode, BulkIneligibleText: reasonText,
+			CurrentStatusByDate: view.byDate,
+			CurrentValueChanged: &currentValueChanged,
+		}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
 				item.FirstName = p.FirstName
@@ -546,6 +789,68 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 		items = append(items, item)
 	}
 	return items, next, nil
+}
+
+// excusedBulkEligibility answers whether this request can ride a bulk
+// approval. It takes the already-resolved status view so the queue reads the
+// child.s current days exactly once per request, whichever branch decides.
+func (s *excusedAbsenceRequestService) excusedBulkEligibility(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+	student *usersModels.Student,
+	view currentStatusView,
+) (bool, string, string, error) {
+	if !usersService.AbsenceBulkEligible(req.Dates, s.todayDate()) {
+		return false, usersService.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
+	}
+	if requestExtendsBeyondCare(req, student) {
+		return false, usersService.BulkIneligibleChildUnavailable, "Mindestens ein Tag liegt nach dem Betreuungsende.", nil
+	}
+	partial, err := s.hasManualPartialAbsence(ctx, req)
+	if err != nil {
+		return false, "", "", err
+	}
+	if partial {
+		return false, usersService.BulkIneligibleConflict, "Für mindestens einen Tag ist bereits eine Teilabwesenheit eingetragen.", nil
+	}
+	if s.emitter != nil {
+		hasAccess, accessErr := s.emitter.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
+		if accessErr != nil {
+			return false, "", "", accessErr
+		}
+		if !hasAccess {
+			return false, usersService.BulkIneligibleAccessRevoked, "Der Zugang der einreichenden Person ist nicht mehr aktiv.", nil
+		}
+	}
+	if view.changedSinceRequest {
+		return false, usersService.BulkIneligibleStale, "Für mindestens einen Tag gibt es einen neueren Abwesenheitsstatus.", nil
+	}
+	return true, "", "", nil
+}
+
+func (s *excusedAbsenceRequestService) hasManualPartialAbsence(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+) (bool, error) {
+	if len(req.Dates) == 0 || s.pickupRepo == nil {
+		return false, nil
+	}
+	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
+		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+	)
+	if err != nil {
+		return false, err
+	}
+	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	for _, date := range req.Dates {
+		requested[date] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := requested[row.ExceptionDate]; ok && row.HasManualPartialAbsence() {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
@@ -577,14 +882,17 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("active: load students for pending excused badges: %w", err)
 	}
-	writable := s.absenceWritable(ctx)
+	writable, err := s.absenceWritable(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
 	for studentID, req := range candidates {
 		// Alumni are excluded for the same reason as in the review queue: a
 		// graduated child must not raise a pending-approval marker anywhere on the
 		// staff surface (#405 review).
 		if writable(students[studentID]) && !students[studentID].IsAlumnus() &&
-			!students[studentID].CareEndedOn(timezone.TodayDate()) {
+			!students[studentID].CareEndedOn(s.todayDate()) {
 			out[studentID] = req
 		}
 	}
@@ -596,13 +904,18 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
 	reason := strings.TrimSpace(input.Reason)
-	if !input.Approve {
-		if reason == "" {
-			return nil, ErrExcusedRequestRejectReasonRequired
-		}
-		if utf8.RuneCountInString(reason) > excusedRequestMaxReasonLen {
-			return nil, ErrExcusedRequestRejectReasonTooLong
-		}
+	if !input.Approve && reason == "" {
+		return nil, ErrExcusedRequestRejectReasonRequired
+	}
+	// An approval needs a reason only while the school's policy asks staff for
+	// one; a rejection always does (#2267, story 28).
+	if input.Approve && input.ReasonRequired && reason == "" {
+		return nil, usersService.ErrParentRequestReasonRequired
+	}
+	// The length bound applies to both verdicts: an approval reason is stored
+	// and shown in the history exactly like a rejection reason (#2267).
+	if utf8.RuneCountInString(reason) > excusedRequestMaxReasonLen {
+		return nil, ErrExcusedRequestRejectReasonTooLong
 	}
 
 	// Lock the row and re-verify it is still pending so two staff deciding the
@@ -611,11 +924,15 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	if err != nil {
 		return nil, err
 	}
+	if input.ExpectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != input.ExpectedVersion {
+		return nil, usersService.ErrParentRequestStale
+	}
 	req.AbsenceStatus = normalizedAbsenceRequestStatus(req.AbsenceStatus)
 
-	// Per-child write authorization: the caller may decide only if they could
-	// report the same absence directly — admin, the child's group supervisor,
-	// or a users:absence holder in a school without fixed groups (#2232).
+	// Per-child write authorization: decided by the parent-request review
+	// policy — administrators school-wide, group leaders only for their own
+	// groups and only while the school enables it (#2267). The absence write
+	// permissions gate the ROUTE; this decides the child.
 	//
 	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
 	// grade transition cannot change underneath it: the transition apply locks
@@ -638,14 +955,24 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 	// The child left the OGS after filing this request; approving it would
 	// write absence status days for a day they are no longer in care (#2487).
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
-	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !allowed {
 		return nil, ErrExcusedRequestForbidden
 	}
 
 	if input.Approve {
+		// Approving a request whose days have all passed would write absence
+		// records into a settled past. Staff either reject it or mark it done
+		// (#2267, story 14). Rejecting stays allowed.
+		if usersService.ParentRequestIsPast(excusedScopeEnd(req), s.todayDate()) {
+			return nil, usersService.ErrParentRequestPast
+		}
 		if requestExtendsBeyondCare(req, student) {
 			return nil, activeModels.ErrExcusedRequestNotFound
 		}
@@ -687,13 +1014,17 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 
 	newStatus := activeModels.ExcusedRequestStatusApproved
 	pillStatus := usersModels.ParentMessageRequestStatusDone
-	_, pillBody, _, requestType := absenceRequestCopy(req.AbsenceStatus)
+	_, pillBody, requestType := absenceRequestCopy(req.AbsenceStatus)
 	var reasonPtr *string
+	// A staff reason is kept for BOTH verdicts: without it the history shows an
+	// approval with no explanation ("Historie ohne Grund", #2267).
+	if reason != "" {
+		reasonPtr = &reason
+	}
 	if !input.Approve {
 		newStatus = activeModels.ExcusedRequestStatusRejected
 		pillStatus = usersModels.ParentMessageRequestStatusRejected
 		pillBody = absenceRequestRejectedBody(req.AbsenceStatus) + ": " + reason
-		reasonPtr = &reason
 	}
 	reviewedBy := input.ReviewedBy
 	if err := s.requestRepo.Decide(ctx, req.ID, newStatus, reasonPtr, &reviewedBy, input.Approve); err != nil {
@@ -753,9 +1084,36 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		DecisionReason: reason,
 	})
 
+	// Every other guardian of this child gets a neutral line: the care
+	// changed, on these days. No reason, no author (#2267, story 47).
+	// Explicit share recipients get the submitter's pill verbatim (body and
+	// reason included); the helper derives the neutral line for everyone else.
+	s.notifyOtherGuardiansAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestStatus,
+		ActorKind:      usersModels.ParentMessageSenderStaff,
+		ActorAccountID: input.ReviewedBy,
+		Body:           pillBody,
+		RequestType:    requestType,
+		RequestStatus:  pillStatus,
+		DecisionReason: reason,
+	})
+
 	row, err := s.requestRepo.FindByID(ctx, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("active: reload decided absence request: %w", err)
+	}
+	// Inside the decision's own transaction: a rolled-back decision must not
+	// leave a "decided" event behind.
+	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+		StudentID:      row.StudentID,
+		RequestType:    usersModels.ParentRequestTypeExcusedAbsence,
+		RequestID:      row.ID,
+		EventType:      usersModels.ParentRequestEventDecided,
+		ActorAccountID: input.ReviewedBy,
+		UpdatedAt:      row.UpdatedAt,
+		Payload:        map[string]any{"approve": input.Approve, "reason": reason},
+	}); err != nil {
+		return nil, fmt.Errorf("active: record absence decision event: %w", err)
 	}
 	item := &ExcusedRequestReviewItem{Request: row}
 	if student != nil {
@@ -765,6 +1123,18 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+func (s *excusedAbsenceRequestService) canReviewStudent(ctx context.Context, student *usersModels.Student) (bool, error) {
+	if s.reviewPolicy == nil {
+		ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext)
+		return ok, nil
+	}
+	ok, err := s.reviewPolicy.Allows(ctx, jwt.PermissionsFromCtx(ctx), student)
+	if err != nil {
+		return false, fmt.Errorf("active: resolve request reviewer scope: %w", err)
+	}
+	return ok, nil
 }
 
 func requestExtendsBeyondCare(req *activeModels.ExcusedAbsenceRequest, student *usersModels.Student) bool {
@@ -838,30 +1208,66 @@ func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
 // decision that must win. Runs inside the ambient tenant transaction, right
 // before applyAbsenceRequest, so the window between check and write is minimal.
 func (s *excusedAbsenceRequestService) ensureNoNewerStatus(ctx context.Context, req *activeModels.ExcusedAbsenceRequest) error {
-	if len(req.Dates) == 0 {
-		return nil
-	}
-	// req.Dates is stored sorted ascending (dedupeSortedDates), so first/last bound
-	// the range; the query spans min..max and we filter back to the exact dates.
-	minDate := req.Dates[0]
-	maxDate := req.Dates[len(req.Dates)-1]
-	rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(ctx, req.StudentID, minDate, maxDate)
+	view, err := s.currentStatusView(ctx, req)
 	if err != nil {
 		return err
 	}
-	dateSet := make(map[timezone.Date]struct{}, len(req.Dates))
-	for _, d := range req.Dates {
-		dateSet[d] = struct{}{}
-	}
-	for _, row := range rows {
-		if _, ok := dateSet[row.Date]; !ok {
-			continue
-		}
-		if row.ReportedAt.After(req.CreatedAt) {
-			return ErrExcusedRequestStatusConflict
-		}
+	if view.changedSinceRequest {
+		return ErrExcusedRequestStatusConflict
 	}
 	return nil
+}
+
+// currentStatusView is what the child's days look like RIGHT NOW, for exactly
+// the days this request asks about. Two readers share it, so they can never
+// disagree: the approve gate (which refuses when a day changed after the
+// request was filed) and the review queue (which shows staff „Aktuell →
+// Gewünscht“ per day, and warns when the value moved).
+//
+// It is one query — the same one the approve gate always ran — so adding the
+// staff-facing view to the queue costs nothing extra.
+type currentStatusView struct {
+	// byDate maps every REQUESTED day to what the child's record says today:
+	// sick, excused, class_trip, or present when no status day is active.
+	byDate map[string]string
+	// changedSinceRequest is true when at least one of those days was
+	// reported or changed after the request was filed. Approving would
+	// overwrite that newer decision.
+	changedSinceRequest bool
+}
+
+func (s *excusedAbsenceRequestService) currentStatusView(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+) (currentStatusView, error) {
+	view := currentStatusView{byDate: make(map[string]string, len(req.Dates))}
+	if len(req.Dates) == 0 {
+		return view, nil
+	}
+	// Every requested day starts as "present"; the rows below overwrite the
+	// days that carry a status, so a day with no record is still answered for.
+	for _, date := range req.Dates {
+		view.byDate[date.String()] = activeModels.StudentStatusDayPresent
+	}
+	// req.Dates is stored sorted ascending (dedupeSortedDates), so first/last bound
+	// the range; the query spans min..max and we filter back to the exact dates.
+	rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(
+		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+	)
+	if err != nil {
+		return currentStatusView{}, err
+	}
+	for _, row := range rows {
+		key := row.Date.String()
+		if _, requested := view.byDate[key]; !requested {
+			continue
+		}
+		view.byDate[key] = row.Status
+		if row.ReportedAt.After(req.CreatedAt) {
+			view.changedSinceRequest = true
+		}
+	}
+	return view, nil
 }
 
 // sameDateSet reports whether two date slices contain exactly the same days.
@@ -908,19 +1314,21 @@ func (s *excusedAbsenceRequestService) applyAbsenceRequest(ctx context.Context, 
 		}
 	}
 	for _, d := range req.Dates {
+		guardianAccountID := req.SubmittedBy
 		if err := s.statusDayRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
-			StudentID:  req.StudentID,
-			Date:       d,
-			Status:     req.AbsenceStatus,
-			ReportedAt: now,
-			Source:     activeModels.StudentStatusSourceParent,
-			Note:       notePtr,
+			StudentID:         req.StudentID,
+			Date:              d,
+			Status:            req.AbsenceStatus,
+			ReportedAt:        now,
+			Source:            activeModels.StudentStatusSourceParent,
+			GuardianAccountID: &guardianAccountID,
+			Note:              notePtr,
 		}); err != nil {
 			return err
 		}
 	}
 
-	if containsDate(req.Dates, timezone.TodayDate()) {
+	if containsDate(req.Dates, s.todayDate()) {
 		fresh, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 		if err != nil {
 			return err
@@ -944,11 +1352,11 @@ func (s *excusedAbsenceRequestService) applyAbsenceRequest(ctx context.Context, 
 	return nil
 }
 
-func absenceRequestCopy(absenceStatus string) (created, confirmed, withdrawn, requestType string) {
+func absenceRequestCopy(absenceStatus string) (created, confirmed, requestType string) {
 	if absenceStatus == activeModels.StudentStatusDaySick {
-		return sickRequestCreatedBody, sickRequestConfirmedBody, sickRequestWithdrawnBody, usersModels.ParentMessageRequestSickAbsence
+		return sickRequestCreatedBody, sickRequestConfirmedBody, usersModels.ParentMessageRequestSickAbsence
 	}
-	return excusedRequestCreatedBody, excusedRequestConfirmedBody, excusedRequestWithdrawnBody, usersModels.ParentMessageRequestExcusedAbsence
+	return excusedRequestCreatedBody, excusedRequestConfirmedBody, usersModels.ParentMessageRequestExcusedAbsence
 }
 
 func absenceRequestRejectedBody(absenceStatus string) string {
@@ -1067,3 +1475,385 @@ func containsDate(dates []timezone.Date, needle timezone.Date) bool {
 	}
 	return false
 }
+
+// excusedScopeEnd is the last day this request covers. Empty dates mean no
+// scope, which ParentRequestIsPast reads as "never past".
+func excusedScopeEnd(req *activeModels.ExcusedAbsenceRequest) timezone.Date {
+	var last timezone.Date
+	for _, date := range req.Dates {
+		if last.IsZero() || date.After(last) {
+			last = date
+		}
+	}
+	return last
+}
+
+// MarkDone closes a request whose days have all passed. Approving it would
+// write absence days into the past and rejecting it would tell the family
+// their wish was refused — neither is what happened, so this is its own
+// terminal state (#2267, story 15).
+//
+// It applies nothing. The only writes are the status, the reviewer stamp and
+// the neutral pill.
+func (s *excusedAbsenceRequestService) MarkDone(
+	ctx context.Context,
+	requestID int64,
+	expectedVersion, reason string,
+	reviewedBy int64,
+) error {
+	if requestID <= 0 {
+		return activeModels.ErrExcusedRequestNotFound
+	}
+	req, err := s.requestRepo.FindPendingByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	if expectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return usersService.ErrParentRequestStale
+	}
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
+	if err != nil {
+		return fmt.Errorf("active: load student for absence request completion: %w", err)
+	}
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
+		return ErrExcusedRequestForbidden
+	}
+	if !usersService.ParentRequestIsPast(excusedScopeEnd(req), s.todayDate()) {
+		return usersService.ErrParentRequestNotPast
+	}
+	trimmed := strings.TrimSpace(reason)
+	if utf8.RuneCountInString(trimmed) > excusedRequestMaxReasonLen {
+		return ErrExcusedRequestRejectReasonTooLong
+	}
+	var reasonPtr *string
+	if trimmed != "" {
+		reasonPtr = &trimmed
+	}
+	reviewer := reviewedBy
+	if err := s.requestRepo.Decide(
+		ctx, req.ID, activeModels.ExcusedRequestStatusDone, reasonPtr, &reviewer, false,
+	); err != nil {
+		return err
+	}
+	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+		StudentID:      req.StudentID,
+		RequestType:    usersModels.ParentRequestTypeExcusedAbsence,
+		RequestID:      req.ID,
+		EventType:      usersModels.ParentRequestEventMarkedDone,
+		ActorAccountID: reviewedBy,
+		UpdatedAt:      req.UpdatedAt,
+		Payload:        map[string]any{"reason": trimmed},
+	}); err != nil {
+		return fmt.Errorf("active: record absence marked-done event: %w", err)
+	}
+	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
+	_, _, requestType := absenceRequestCopy(req.AbsenceStatus)
+	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestStatus,
+		ActorKind:      usersModels.ParentMessageSenderStaff,
+		ActorAccountID: reviewedBy,
+		Body:           parentRequestDoneBody,
+		RequestType:    requestType,
+		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		DecisionReason: trimmed,
+	})
+	return nil
+}
+
+// Correct rewrites a decision staff already took (#2267, stories 21-23). The
+// old decision is not erased — the ledger keeps it — but the child's record is
+// brought in line with the new verdict.
+//
+// approved → rejected has to UNDO the absence days this request wrote, and it
+// only does so when it can prove the days on record are still the ones this
+// request wrote: same status, parent source, same submitting guardian, and
+// untouched since the approval. If anything moved, the correction refuses
+// rather than clearing somebody else's newer entry.
+//
+// rejected → approved re-runs the ordinary approve path, so every guard that
+// applies to a fresh approval applies again.
+func (s *excusedAbsenceRequestService) Correct(
+	ctx context.Context,
+	requestID int64,
+	approve bool,
+	expectedVersion, reason string,
+	reviewedBy int64,
+) error {
+	if requestID <= 0 {
+		return activeModels.ErrExcusedRequestNotFound
+	}
+	trimmed := strings.TrimSpace(reason)
+	if utf8.RuneCountInString(trimmed) > excusedRequestMaxReasonLen {
+		return ErrExcusedRequestRejectReasonTooLong
+	}
+	req, err := s.requestRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	if !isCorrectableExcusedStatus(req.Status) {
+		return usersService.ErrParentRequestNotDecided
+	}
+	if expectedVersion != "" && usersService.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+		return usersService.ErrParentRequestStale
+	}
+	req.AbsenceStatus = normalizedAbsenceRequestStatus(req.AbsenceStatus)
+	// Re-authorize against the CURRENT policy: a group leader who has since
+	// lost the group must not be able to correct its decisions.
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
+	if err != nil {
+		return fmt.Errorf("active: load student for absence request correction: %w", err)
+	}
+	allowed, authErr := s.canReviewStudent(ctx, student)
+	if authErr != nil {
+		return authErr
+	}
+	if !allowed {
+		return ErrExcusedRequestForbidden
+	}
+	if usersService.ParentRequestIsPast(excusedScopeEnd(req), s.todayDate()) {
+		// Correcting into an approval would write absence days into a settled
+		// past, exactly as a fresh approval would.
+		if approve {
+			return usersService.ErrParentRequestPast
+		}
+	}
+	if approve {
+		if err := s.applyAbsenceRequest(ctx, req); err != nil {
+			return err
+		}
+	} else if err := s.revertApprovedAbsence(ctx, req); err != nil {
+		return err
+	}
+
+	var reasonPtr *string
+	if trimmed != "" {
+		reasonPtr = &trimmed
+	}
+	newStatus := activeModels.ExcusedRequestStatusRejected
+	if approve {
+		newStatus = activeModels.ExcusedRequestStatusApproved
+	}
+	if err := s.requestRepo.Redecide(ctx, req.ID, newStatus, reasonPtr, reviewedBy, approve); err != nil {
+		return err
+	}
+	// The ledger keeps BOTH decisions: the correction is a new entry naming
+	// what it replaced, never an edit of the old one. Written inside the
+	// correction's own transaction, so a rollback leaves no trace of it.
+	if err := usersService.RecordParentRequestEvent(ctx, s.events, usersService.ParentRequestEventInput{
+		StudentID:      req.StudentID,
+		RequestType:    usersModels.ParentRequestTypeExcusedAbsence,
+		RequestID:      req.ID,
+		EventType:      usersModels.ParentRequestEventCorrected,
+		ActorAccountID: reviewedBy,
+		UpdatedAt:      req.UpdatedAt,
+		Payload:        correctionEventPayload(approve, trimmed, req.Status, newStatus, req.ReviewedBy, req.DecisionReason),
+	}); err != nil {
+		return fmt.Errorf("active: record absence correction event: %w", err)
+	}
+	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
+	pillBody, pillStatus := correctedAbsencePill(req.AbsenceStatus, approve)
+	_, _, requestType := absenceRequestCopy(req.AbsenceStatus)
+	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestStatus,
+		ActorKind:      usersModels.ParentMessageSenderStaff,
+		ActorAccountID: reviewedBy,
+		Body:           pillBody,
+		RequestType:    requestType,
+		RequestStatus:  pillStatus,
+		DecisionReason: trimmed,
+	})
+	return nil
+}
+
+func isCorrectableExcusedStatus(status string) bool {
+	return status == activeModels.ExcusedRequestStatusApproved ||
+		status == activeModels.ExcusedRequestStatusRejected
+}
+
+// correctedAbsencePill names the new outcome for the family. The wording says
+// the decision changed, because "bestätigt" alone after a rejection reads like
+// a duplicate message rather than a correction.
+func correctedAbsencePill(absenceStatus string, approve bool) (string, string) {
+	if approve {
+		_, confirmed, _ := absenceRequestCopy(absenceStatus)
+		return "Entscheidung geändert: " + confirmed, usersModels.ParentMessageRequestStatusDone
+	}
+	return "Entscheidung geändert: " + absenceRequestRejectedBody(absenceStatus),
+		usersModels.ParentMessageRequestStatusRejected
+}
+
+// revertApprovedAbsence clears exactly the days this request wrote, and only
+// while they are provably still its own. A day that was re-reported after the
+// approval belongs to whoever wrote it last; clearing it would silently drop
+// their entry, so the correction refuses instead and names why.
+func (s *excusedAbsenceRequestService) revertApprovedAbsence(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+) error {
+	if req.Status != activeModels.ExcusedRequestStatusApproved || len(req.Dates) == 0 {
+		return nil
+	}
+	rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(
+		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+	)
+	if err != nil {
+		return err
+	}
+	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	for _, date := range req.Dates {
+		requested[date] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := requested[row.Date]; !ok || row.Status != req.AbsenceStatus {
+			continue
+		}
+		if !absenceRowWrittenByRequest(row, req) {
+			return fmt.Errorf("%w: der Eintrag für den %s wurde nach der Entscheidung geändert",
+				usersService.ErrParentRequestCorrectionUnsupported, row.Date.Format("02.01.2006"))
+		}
+	}
+	return s.statusDayRepo.MarkClearedForDates(
+		ctx, req.StudentID, req.AbsenceStatus, req.Dates, time.Now(),
+		activeModels.StudentStatusSourceParent,
+	)
+}
+
+// absenceRowWrittenByRequest reports whether this status day is still the one
+// the request's approval produced: parent-sourced, from the same guardian, and
+// not re-reported since the decision.
+func absenceRowWrittenByRequest(
+	row *activeModels.StudentStatusDay,
+	req *activeModels.ExcusedAbsenceRequest,
+) bool {
+	if row.Source != activeModels.StudentStatusSourceParent {
+		return false
+	}
+	if row.GuardianAccountID == nil || *row.GuardianAccountID != req.SubmittedBy {
+		return false
+	}
+	// reviewed_at is when the approval happened; anything reported after it is
+	// a later entry, whoever made it.
+	return req.ReviewedAt == nil || !row.ReportedAt.After(*req.ReviewedAt)
+}
+
+// notifyOtherGuardiansAfterCommit posts the neutral „Betreuungsstand
+// geändert“ line to every OTHER portal guardian of the child (#2267, story
+// 47). The submitting guardian already has the full pill; the others learn
+// that the care changed and on which days, without the reason or the author.
+//
+// The guardians are resolved INSIDE the transaction (the caller's tenant scope
+// applies); only the pills are posted after commit.
+func (s *excusedAbsenceRequestService) notifyOtherGuardiansAfterCommit(
+	ctx context.Context,
+	req *activeModels.ExcusedAbsenceRequest,
+	ev parentmessaging.ChildEvent,
+) {
+	if s.emitter == nil {
+		return
+	}
+	// WHO hears what is a tenant-scoped read and has to happen here, inside
+	// the transaction; the pills go out after it commits.
+	audience, err := s.emitter.ResolveDecisionAudience(
+		ctx, req.StudentID, req.SubmittedBy, s.sharedRecipients(ctx, req),
+	)
+	if err != nil {
+		s.logger.Warn("co-guardian notice: resolving guardians failed",
+			slog.Int64("request_id", req.ID),
+			slog.Int64("student_id", req.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if len(audience.Full) == 0 && len(audience.Neutral) == 0 {
+		return
+	}
+	tenantID := req.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+	neutral := ev
+	neutral.Body = coGuardianNoticeBody(req)
+	studentID := req.StudentID
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitter.EmitDecisionAudience(tenantID, studentID, audience, ev, neutral)
+	})
+}
+
+// coGuardianNoticeBody names WHAT changed and WHEN, and nothing else. The date
+// range is what makes the line actionable — a co-guardian can check whether it
+// affects a day they were going to collect the child.
+func coGuardianNoticeBody(req *activeModels.ExcusedAbsenceRequest) string {
+	kind := "Abmeldung"
+	if req.AbsenceStatus == activeModels.StudentStatusDaySick {
+		kind = "Krankmeldung"
+	}
+	return "Betreuungsstand geändert: " + kind + " " + absenceDateRangeLabel(req.Dates)
+}
+
+// absenceDateRangeLabel renders one day as a date and several as a range —
+// the shortest form that still says which days are affected.
+func absenceDateRangeLabel(dates []timezone.Date) string {
+	if len(dates) == 0 {
+		return ""
+	}
+	first := dates[0].Format("02.01.2006")
+	if len(dates) == 1 {
+		return first
+	}
+	return first + " bis " + dates[len(dates)-1].Format("02.01.2006")
+}
+
+// correctionEventPayload is the local spelling of the shared ledger payload,
+// kept so the call site above stays one line.
+func correctionEventPayload(
+	approve bool, reason, fromStatus, toStatus string, priorReviewer *int64, priorReason *string,
+) map[string]any {
+	return usersService.CorrectionEventPayload(approve, reason, fromStatus, toStatus, priorReviewer, priorReason)
+}
+
+// RequestShareVisibilityResolver is the shared port, aliased so this package
+// reads naturally and the factory can name either spelling.
+type RequestShareVisibilityResolver = parentmessaging.ShareVisibilityResolver
+
+// SetRequestShareVisibility wires the resolver after construction.
+func (s *excusedAbsenceRequestService) SetRequestShareVisibility(resolver RequestShareVisibilityResolver) {
+	if s != nil {
+		s.shareVisibility = resolver
+	}
+}
+
+// sharedRecipients resolves the explicit recipients of one request, tolerating
+// an unwired resolver. An error is not fatal: the fallback is that everyone
+// gets the neutral line, which is the safe direction — a co-guardian seeing
+// less than they were entitled to is a nuisance, seeing more is a leak.
+func (s *excusedAbsenceRequestService) sharedRecipients(
+	ctx context.Context, req *activeModels.ExcusedAbsenceRequest,
+) []int64 {
+	if s.shareVisibility == nil {
+		return nil
+	}
+	accountIDs, err := s.shareVisibility.SharedRecipientAccountIDs(
+		ctx, req.StudentID, usersModels.ParentRequestTypeExcusedAbsence, req.ID,
+	)
+	if err != nil {
+		s.logger.Warn("resolving explicit request recipients failed, falling back to neutral notices",
+			slog.Int64("request_id", req.ID),
+			slog.Int64("student_id", req.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return accountIDs
+}
+
+// The factory wires the co-guardian resolver by type assertion, so a service
+// that silently stopped satisfying this setter would leave its domain's
+// co-guardians hearing nothing, with nothing failing. This makes that a
+// compile error instead (#2267, story 47).
+var _ interface {
+	SetRequestShareVisibility(parentmessaging.ShareVisibilityResolver)
+} = (*excusedAbsenceRequestService)(nil)

@@ -197,7 +197,7 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 	// A child whose care has ended leaves the operational timetable the same
 	// way (#2487). Their past days stay in the history exports; the live
 	// day/week view is for children who still attend.
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(rs.todayDate()) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return nil, false
 	}

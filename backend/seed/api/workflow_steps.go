@@ -84,6 +84,29 @@ func (markStudentsSickStep) Run(ctx context.Context, rt *Runtime) error {
 	return rt.FixedSeeder.MarkStudentsSick(ctx, rt.Result.Fixed)
 }
 
+type seedFamilyProtectionStep struct{}
+
+func (seedFamilyProtectionStep) Name() string { return "Seeding family protection" }
+
+func (seedFamilyProtectionStep) Run(_ context.Context, rt *Runtime) error {
+	if rt.FixedSeeder == nil {
+		return fmt.Errorf("fixed seeder not available")
+	}
+	studentID, ok := rt.FixedSeeder.studentIDByIndex[1]
+	if !ok {
+		return fmt.Errorf("family protection demo student not available")
+	}
+	_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d/family-protection", studentID), map[string]any{
+		"enabled": true,
+		"reason":  "Demo: private Familienangaben schützen",
+	})
+	if err != nil {
+		return fmt.Errorf("seed family protection: %w", err)
+	}
+	fmt.Println("  1 family protection rule created")
+	return nil
+}
+
 type buildStateStep struct {
 	seeder *Seeder
 }
@@ -149,10 +172,12 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			bootstrapTenantStep{seeder: seeder},
 			seedMasterDataStep{seeder: seeder},
 			seedPrivacyConsentsStep{},
+			seedFamilyProtectionStep{},
 			markStudentsSickStep{},
 			seedCareExitsStep{},
 			seedAnnouncementsStep{},
 			seedStaffMessagingStep{},
+			seedStaffNoticesStep{},
 			seedFileStorageStep{},
 			seedTimeTrackingHistoryStep{},
 			// Nach der Zeiterfassungs-Historie: der Sitzungsstart stempelt die

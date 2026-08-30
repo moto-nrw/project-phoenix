@@ -91,7 +91,7 @@ func sourcedStudentIDsOn(
 // sourcedStudentIDs is the "as planned today" shorthand.
 func sourcedStudentIDs(t *testing.T, s *scenarioSetup, templateID int64) []int64 {
 	t.Helper()
-	return sourcedStudentIDsOn(t, s, templateID, timezone.TodayDate())
+	return sourcedStudentIDsOn(t, s, templateID, timezone.NewDate(2026, 8, 24))
 }
 
 // selectedWeekdaysOn returns the weekday set the child's roster row carries on
@@ -197,7 +197,7 @@ func TestTemplateSourceClassFilter_LaterApprovalJoinsTheTermin(t *testing.T) {
 
 	// Freigabe nachträglich: a second 1b child joins the Angebot.
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.NewDate(2026, 8, 24)))
 
 	got := sourcedStudentIDs(t, s, result.TemplateID)
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]}, got,
@@ -227,7 +227,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 		`UPDATE users.students SET school_class = ? WHERE id = ?`, "1b", s.students[0],
 	).Exec(s.ctx)
 	require.NoError(t, err)
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.NewDate(2026, 8, 24)))
 
 	assert.Empty(t, sourcedStudentIDs(t, s, terminA.TemplateID),
 		"the child must leave the Termin of its former Klasse")
@@ -245,7 +245,7 @@ func TestTemplateSourceClassFilter_ClassChangeMovesTheChild(t *testing.T) {
 		Scan(s.ctx))
 	require.Len(t, capped, 1)
 	require.NotNil(t, capped[0].ValidUntil)
-	assert.False(t, capped[0].ValidUntil.After(timezone.TodayDate()),
+	assert.False(t, capped[0].ValidUntil.After(timezone.NewDate(2026, 8, 24)),
 		"the retired row must end at the resync boundary, keeping past days planned")
 }
 
@@ -273,7 +273,7 @@ func TestTemplateSourceClassFilter_ReconcilesMaterializedFutureOccurrences(t *te
 
 	// Nachträgliche Freigabe eines zweiten 1b-Kindes.
 	linkApprovedChildToOffering(t, s, offering, s.students[1], "1b")
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.NewDate(2026, 8, 24)))
 
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]}, instanceStudentIDs(t, s, instanceID),
 		"the already-materialized future occurrence must be reconciled, not left stale")
@@ -522,7 +522,7 @@ func TestTemplateSourceClassFilter_DeregistrationLimitsTheAssignment(t *testing.
 	// Abmeldung zum Montag in zwei Wochen: bis dahin bleibt das Kind geplant.
 	leavingOn := monday
 	endLinkAt(t, s, s.students[1], leavingOn)
-	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.TodayDate()))
+	require.NoError(t, offeringSourceResyncer(t, s).ResyncOfferingSourcedTemplates(s.ctx, timezone.NewDate(2026, 8, 24)))
 
 	assert.ElementsMatch(t, []int64{s.students[0], s.students[1]},
 		sourcedStudentIDsOn(t, s, result.TemplateID, leavingOn.AddDays(-1)),
@@ -562,7 +562,7 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 	})
 	require.NoError(t, err)
 
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	require.ElementsMatch(t,
 		[]int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayFriday},
 		selectedWeekdaysOn(t, s, result.TemplateID, s.students[0], today))
@@ -575,7 +575,7 @@ func TestTemplateSourceClassFilter_OfferingDayChangeReshapesTheRoster(t *testing
 	require.NoError(t, err)
 
 	require.NoError(t, offeringScopedResyncer(t, s).ResyncTemplatesSourcedFromOffering(
-		s.ctx, offering.ID, timezone.TodayDate(),
+		s.ctx, offering.ID, timezone.NewDate(2026, 8, 24),
 	))
 
 	// Der Freitag verschwindet ab heute; die bereits verplanten Tage davor

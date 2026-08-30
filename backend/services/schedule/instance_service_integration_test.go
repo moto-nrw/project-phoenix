@@ -1163,7 +1163,7 @@ func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
 
 	// Our staff member already supervises a live group in the SAME room the
 	// instance starts in — sanctioned parallel supervision (#2139).
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1223,7 +1223,7 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 	// Comparing against the group's primary room alone would warn here.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomA-%d", time.Now().UnixNano()))
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1255,7 +1255,7 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 	// would have suppressed.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomB-%d", time.Now().UnixNano()))
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1289,7 +1289,7 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 	// The supervision points at a group bridged to an instance whose roster
 	// does not contain the staff member — the effective room is undetermined,
 	// so the warning must stay ("not certainly the same room").
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1323,7 +1323,7 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 	// Pre-seed an active.group + a live supervision by our staff member on it.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-OtherRoom-%d", time.Now().UnixNano()))
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
 	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
@@ -1429,7 +1429,7 @@ func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
 
 	s := buildLifecycle(t)
 
-	from := timezone.TodayDate()
+	from := timezone.NewDate(2026, 8, 24)
 	for from.Weekday() != time.Monday {
 		from = from.AddDays(1)
 	}
