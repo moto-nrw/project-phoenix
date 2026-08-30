@@ -16,6 +16,7 @@ import (
 // liegen im Service und sind dort getestet.
 
 func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffNotice
@@ -95,6 +96,7 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 }
 
 func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffNotice

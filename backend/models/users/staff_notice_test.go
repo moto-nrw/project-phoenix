@@ -20,6 +20,7 @@ func date(t *testing.T, iso string) timezone.Date {
 }
 
 func TestStaffNoticeAppliesOn(t *testing.T) {
+	t.Parallel()
 	// 2026-08-03 ist ein Montag, 2026-08-04 ein Dienstag.
 	monday := date(t, "2026-08-03")
 	tuesday := date(t, "2026-08-04")
@@ -85,6 +86,7 @@ func TestStaffNoticeAppliesOn(t *testing.T) {
 }
 
 func TestStaffNoticeValidate(t *testing.T) {
+	t.Parallel()
 	valid := func() *StaffNotice {
 		return &StaffNotice{
 			Title:     "Hinweis",

@@ -16684,7 +16684,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        214
+        216
       ],
       "tables": []
     },
@@ -16694,7 +16694,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        217
+        219
       ],
       "tables": []
     },
@@ -25193,6 +25193,26 @@
         "auth.accounts",
         "users.staff"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/staff_notice_repository_test.go",
+      "declaration": "TestStaffNoticeRepository_Acknowledge",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        102
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/staff_notice_repository_test.go",
+      "declaration": "TestStaffNoticeRepository_ListValidOn",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        22
+      ],
+      "tables": []
     },
     {
       "scope": "test",

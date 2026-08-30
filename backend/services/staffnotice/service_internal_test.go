@@ -97,6 +97,7 @@ func newNotice(t *testing.T, id int64, weekdays []int16, weekPattern int) *users
 }
 
 func TestTodayFiltersByWeekday(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tuesday := mustDate(t, "2026-08-04")
 
@@ -118,6 +119,7 @@ func TestTodayFiltersByWeekday(t *testing.T) {
 }
 
 func TestTodaySkipsPeriodLookupWithoutWeekPattern(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	periods := &fakePeriodRepo{}
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{newNotice(t, 21, nil, 0)}}
@@ -129,6 +131,7 @@ func TestTodaySkipsPeriodLookupWithoutWeekPattern(t *testing.T) {
 }
 
 func TestTodayHonoursWeekPattern(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	// Anker Montag 2026-08-03 = Woche A; 2026-08-10 ist damit Woche B.
 	anchor := mustDate(t, "2026-08-03")
@@ -159,6 +162,7 @@ func TestTodayHonoursWeekPattern(t *testing.T) {
 }
 
 func TestTodayKeepsNoticeWithoutWeekCycle(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	// Schule ohne A/B-Rhythmus: ein Hinweis mit Muster verschwindet nicht
 	// stillschweigend, er gilt jede Woche (Richtung von
@@ -175,6 +179,7 @@ func TestTodayKeepsNoticeWithoutWeekCycle(t *testing.T) {
 }
 
 func TestTodayAttachesOwnAcknowledgement(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	stamp := time.Date(2026, 8, 4, 9, 0, 0, 0, time.UTC)
 	repo := &fakeNoticeRepo{
@@ -193,6 +198,7 @@ func TestTodayAttachesOwnAcknowledgement(t *testing.T) {
 }
 
 func TestAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	notice := newNotice(t, 61, nil, 0)
 	repo := &fakeNoticeRepo{notices: []*usersModels.StaffNotice{notice}}
@@ -208,11 +214,13 @@ func TestAcknowledgeRejectsNoticeThatDoesNotAskForIt(t *testing.T) {
 }
 
 func TestAcknowledgeUnknownNotice(t *testing.T) {
+	t.Parallel()
 	svc := NewService(ServiceConfig{Repo: &fakeNoticeRepo{}})
 	assert.ErrorIs(t, svc.Acknowledge(context.Background(), 999, 42), ErrNotFound)
 }
 
 func TestCreateRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	repo := &fakeNoticeRepo{}
 	svc := NewService(ServiceConfig{Repo: repo})
@@ -229,6 +237,7 @@ func TestCreateRejectsInvalidInput(t *testing.T) {
 }
 
 func TestCreateNormalizesWeekdays(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	repo := &fakeNoticeRepo{}
 	svc := NewService(ServiceConfig{Repo: repo})
@@ -247,6 +256,7 @@ func TestCreateNormalizesWeekdays(t *testing.T) {
 }
 
 func TestCreateRejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
 	svc := NewService(ServiceConfig{Repo: &fakeNoticeRepo{}})
 	_, err := svc.Create(context.Background(), 42, Input{
 		Title:     "Kaputt",
