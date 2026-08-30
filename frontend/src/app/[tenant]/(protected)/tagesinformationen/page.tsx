@@ -45,6 +45,7 @@ export default function TagesinformationenPage() {
 
   const {
     data: todayData,
+    error: todayError,
     isLoading: todayLoading,
     mutate: mutateToday,
   } = useSWRAuth<StaffNotice[]>("staff-notices-today", fetchTodaysNotices, {
@@ -139,6 +140,20 @@ export default function TagesinformationenPage() {
         <h2 className="text-base font-semibold text-gray-900">Heute</h2>
         {todayLoading && todayNotices.length === 0 ? (
           <Loading fullPage={false} />
+        ) : todayError ? (
+          // Ein Ladefehler darf nicht wie "keine Hinweise" aussehen: dann
+          // verlässt sich jemand auf eine leere Tafel, die nur nicht geladen war.
+          <div className="mt-3">
+            <Alert
+              type="error"
+              message={getApiErrorMessage(
+                todayError,
+                "laden",
+                "die Tagesinformationen",
+                "Die Tagesinformationen konnten nicht geladen werden.",
+              )}
+            />
+          </div>
         ) : todayNotices.length === 0 ? (
           <p className="mt-1 text-sm text-gray-600">
             Für heute liegen keine Hinweise vor.
