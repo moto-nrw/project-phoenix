@@ -25,6 +25,9 @@ func TestIsUniqueViolationOn_DegradedTextError(t *testing.T) {
 	if IsUniqueViolationOn(err, "another_constraint") {
 		t.Fatal("IsUniqueViolationOn() = true for a different textual constraint")
 	}
+	if IsUniqueViolationOn(err, "idx_guardian_profiles_tenant") {
+		t.Fatal("IsUniqueViolationOn() = true for a constraint-name prefix")
+	}
 }
 
 func TestIsUniqueViolation_NonUniqueErrorsRemainDistinct(t *testing.T) {

@@ -23,16 +23,33 @@ func IsUniqueViolation(err error) bool {
 // IsUniqueViolationOn is IsUniqueViolation restricted to one constraint or
 // index name (pgdriver message field 'n', or the degraded error text).
 func IsUniqueViolationOn(err error, constraint string) bool {
+	if constraint == "" {
+		return false
+	}
+
 	var pgErr pgdriver.Error
 	if errors.As(err, &pgErr) {
 		return pgErr.Field('C') == "23505" &&
-			(pgErr.Field('n') == constraint || strings.Contains(pgErr.Error(), constraint))
+			(pgErr.Field('n') == constraint || constraintName(pgErr.Error()) == constraint)
 	}
-	return hasTextualSQLState(err, "23505") && strings.Contains(err.Error(), constraint)
+	return hasTextualSQLState(err, "23505") && constraintName(err.Error()) == constraint
 }
 
 func hasTextualSQLState(err error, code string) bool {
 	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+code)
+}
+
+func constraintName(message string) string {
+	_, message, found := strings.Cut(message, `constraint "`)
+	if !found {
+		return ""
+	}
+
+	constraint, _, found := strings.Cut(message, `"`)
+	if !found {
+		return ""
+	}
+	return constraint
 }
 
 // IsLockNotAvailable reports whether err carries PostgreSQL error code 55P03
