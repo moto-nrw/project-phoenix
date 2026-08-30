@@ -211,6 +211,10 @@ func auditRetentionCapabilitiesUp(ctx context.Context, db *bun.DB) error {
 
 func auditRetentionCapabilitiesDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, `
+		GRANT DELETE ON audit.deviation_events TO phoenix_tenant;
+		GRANT DELETE ON audit.student_field_edits TO phoenix_tenant;
+		GRANT DELETE ON audit.unregistered_tag_scans TO phoenix_tenant;
+
 		DROP FUNCTION IF EXISTS audit.delete_expired_deviation_events(BIGINT, DATE);
 		DROP FUNCTION IF EXISTS audit.delete_expired_student_field_edits(BIGINT, TIMESTAMPTZ);
 		DROP FUNCTION IF EXISTS audit.delete_expired_unregistered_tag_scans(BIGINT, TIMESTAMPTZ);
