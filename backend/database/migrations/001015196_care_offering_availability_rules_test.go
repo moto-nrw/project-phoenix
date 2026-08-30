@@ -6,10 +6,9 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func careOfferingAvailabilityRuleColumnExists(t *testing.T, db *bun.DB) bool {
+func careOfferingAvailabilityRuleColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`

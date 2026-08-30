@@ -1,4 +1,4 @@
-package phoenixapi
+package api
 
 import (
 	"bytes"
@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 )
 
 type AuthKind string
@@ -56,12 +54,13 @@ func (e *APIError) Error() string {
 }
 
 type Adapter struct {
-	baseURL    string
-	httpClient *http.Client
-	verbose    bool
+	baseURL            string
+	httpClient         *http.Client
+	verbose            bool
+	fetchLatestMFACode func(context.Context, string, time.Time) (string, error)
 }
 
-func New(baseURL string, verbose bool) *Adapter {
+func NewCommandAdapter(baseURL string, verbose bool) *Adapter {
 	return NewWithHTTPClient(baseURL, verbose, nil)
 }
 
@@ -72,9 +71,10 @@ func NewWithHTTPClient(baseURL string, verbose bool, httpClient *http.Client) *A
 		}
 	}
 	return &Adapter{
-		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		httpClient: httpClient,
-		verbose:    verbose,
+		baseURL:            strings.TrimSuffix(baseURL, "/"),
+		httpClient:         httpClient,
+		verbose:            verbose,
+		fetchLatestMFACode: FetchLatestMFACode,
 	}
 }
 
@@ -176,7 +176,7 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 // alongside the challenge_token.
 func (a *Adapter) completeOperatorMFAVerify(ctx context.Context, challengeToken, recipient string) (string, error) {
 	watermark := time.Now().Add(-5 * time.Second)
-	code, err := FetchLatestMFACode(ctx, recipient, watermark)
+	code, err := a.fetchLatestMFACode(ctx, recipient, watermark)
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +208,7 @@ func (a *Adapter) completeOperatorMFAEnrollment(ctx context.Context, enrollmentT
 		return "", fmt.Errorf("enroll start: %w", err)
 	}
 
-	code, err := FetchLatestMFACode(ctx, recipient, watermark)
+	code, err := a.fetchLatestMFACode(ctx, recipient, watermark)
 	if err != nil {
 		return "", err
 	}
@@ -304,15 +304,6 @@ func parseLoginToken(respBody []byte) (string, error) {
 		token = loginResp.AccessToken
 	}
 	return token, nil
-}
-
-func DeviceAuth(apiKey, pin, label string) AuthRef {
-	return AuthRef{
-		Kind:   AuthDevice,
-		Label:  label,
-		APIKey: apiKey,
-		PIN:    pin,
-	}
 }
 
 func (a *Adapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
@@ -490,7 +481,11 @@ func parseHTTPError(method, path string, statusCode int, body []byte) error {
 }
 
 func truncateBody(body string) string {
-	return strutil.TruncateBytes(strings.TrimSpace(body), 200, "...")
+	body = strings.TrimSpace(body)
+	if len(body) <= 200 {
+		return body
+	}
+	return body[:200] + "..."
 }
 
 func authModeLabel(auth AuthRef) string {

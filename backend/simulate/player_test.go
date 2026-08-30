@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -126,9 +125,9 @@ func TestScenario_Run_Empty(t *testing.T) {
 func TestNewRuntime(t *testing.T) {
 	t.Parallel()
 
-	state := &seedapi.SeedState{BaseURL: "http://localhost:8080"}
+	state := &SeedState{BaseURL: "http://localhost:8080"}
 	client := newClient("http://localhost:8080", false)
-	opts := FullDayOptions{StatePath: "state.json", Close: true, Verbose: true}
+	opts := FullDayOptions{Client: newTestClientFactory, StatePath: "state.json", Close: true, Verbose: true}
 
 	rt := newRuntime(state, client, opts)
 	assert.Same(t, state, rt.State)
@@ -148,8 +147,8 @@ func TestNewRuntime(t *testing.T) {
 func TestRuntime_PrimaryDevice_Success(t *testing.T) {
 	t.Parallel()
 
-	state := &seedapi.SeedState{
-		Devices: map[string]seedapi.SeedDevice{
+	state := &SeedState{
+		Devices: map[string]SeedDevice{
 			"d1": {APIKey: "k1", Name: "Scanner 1"},
 			"d2": {APIKey: "k2", Name: "Scanner 2"},
 		},
@@ -169,7 +168,7 @@ func TestRuntime_PrimaryDevice_NoDevices(t *testing.T) {
 	t.Parallel()
 
 	rt := &Runtime{
-		State:      &seedapi.SeedState{},
+		State:      &SeedState{},
 		DeviceKeys: []string{},
 	}
 
@@ -182,7 +181,7 @@ func TestRuntime_PrimaryDevice_NilDeviceKeys(t *testing.T) {
 	t.Parallel()
 
 	rt := &Runtime{
-		State:      &seedapi.SeedState{},
+		State:      &SeedState{},
 		DeviceKeys: nil,
 	}
 

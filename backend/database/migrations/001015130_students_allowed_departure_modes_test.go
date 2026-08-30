@@ -2,17 +2,16 @@ package migrations
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func allowedDepartureModesColumnExists(t *testing.T, db *bun.DB) bool {
+func allowedDepartureModesColumnExists(t *testing.T, db *testpkg.DB) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`
@@ -56,19 +55,8 @@ func TestStudentsAllowedDepartureModesMigration_BackfillsFromLegacyMaps(t *testi
 	require.NoError(t, studentsAllowedDepartureModesUp(ctx, db))
 
 	var row struct {
-		AllowedDepartureModes usersModel.AllowedDepartureModes `bun:"allowed_departure_modes"`
+		AllowedDepartureModes json.RawMessage `bun:"allowed_departure_modes"`
 	}
 	require.NoError(t, db.NewRaw(`SELECT allowed_departure_modes FROM users.students WHERE id = ?`, student.ID).Scan(ctx, &row))
-	assert.Equal(t, usersModel.AllowedDepartureModes{
-		usersModel.PickupDayMonday: []usersModel.DepartureMode{
-			usersModel.DepartureBus,
-			usersModel.DeparturePickup,
-		},
-		usersModel.PickupDayTuesday: []usersModel.DepartureMode{
-			usersModel.DepartureBus,
-		},
-		usersModel.PickupDayWednesday: []usersModel.DepartureMode{
-			usersModel.DepartureAlone,
-		},
-	}, row.AllowedDepartureModes.Normalize())
+	assert.JSONEq(t, `{"mon":["bus","pickup"],"tue":["bus"],"wed":["alone"]}`, string(row.AllowedDepartureModes))
 }

@@ -417,7 +417,7 @@ func getStatusString(success bool) string {
 }
 
 func runCleanupTokens(_ *cobra.Command, _ []string) error {
-	ctx, err := newCleanupContextWithServices()
+	ctx, err := newCleanupContextWithAuthCleanup()
 	if err != nil {
 		return err
 	}
@@ -435,7 +435,7 @@ func runCleanupTokens(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	deletedCount, err := ctx.ServiceFactory.Auth.CleanupExpiredTokens(context.Background())
+	deletedCount, err := ctx.AuthCleanupService.CleanupExpiredTokens(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to delete expired tokens: %w", err)
 	}
@@ -452,18 +452,18 @@ func countExpiredTokens(ctx *cleanupContext) (int, error) {
 }
 
 func runCleanupInvitations(_ *cobra.Command, _ []string) error {
-	ctx, err := newCleanupContextWithServices()
+	ctx, err := newCleanupContextWithInvitationCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
 
-	if ctx.ServiceFactory.Invitation == nil {
+	if ctx.InvitationCleanupService == nil {
 		fmt.Println("Invitation service is not available; nothing to clean.")
 		return nil
 	}
 
-	count, err := ctx.ServiceFactory.Invitation.CleanupExpiredInvitations(context.Background())
+	count, err := ctx.InvitationCleanupService.CleanupExpiredInvitations(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
@@ -473,13 +473,13 @@ func runCleanupInvitations(_ *cobra.Command, _ []string) error {
 }
 
 func runCleanupRateLimits(_ *cobra.Command, _ []string) error {
-	ctx, err := newCleanupContextWithServices()
+	ctx, err := newCleanupContextWithAuthCleanup()
 	if err != nil {
 		return err
 	}
 	defer ctx.Close()
 
-	count, err := ctx.ServiceFactory.Auth.CleanupExpiredRateLimits(context.Background())
+	count, err := ctx.AuthCleanupService.CleanupExpiredRateLimits(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
 	}
@@ -581,7 +581,7 @@ func runCleanupSessions(cmd *cobra.Command, _ []string) error {
 
 	log.Printf("Starting session cleanup process (mode: %s)...", mode)
 
-	ctx, err := newCleanupContextWithServices()
+	ctx, err := newCleanupContextWithSessionCleanup()
 	if err != nil {
 		return err
 	}
@@ -603,7 +603,7 @@ func runAbandonedSessionCleanup(ctx *cleanupContext, threshold time.Duration) er
 		return nil
 	}
 
-	count, err := ctx.ServiceFactory.Active.CleanupAbandonedSessions(context.Background(), threshold)
+	count, err := ctx.SessionCleanupService.CleanupAbandonedSessions(context.Background(), threshold)
 	if err != nil {
 		return fmt.Errorf("abandoned session cleanup failed: %w", err)
 	}
@@ -625,7 +625,7 @@ func runDailySessionCleanup(ctx *cleanupContext) error {
 		return nil
 	}
 
-	result, err := ctx.ServiceFactory.Active.EndDailySessions(context.Background())
+	result, err := ctx.SessionCleanupService.EndDailySessions(context.Background())
 	if err != nil {
 		return fmt.Errorf("daily session cleanup failed: %w", err)
 	}

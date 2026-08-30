@@ -8,8 +8,6 @@ import (
 	"math/rand"
 	"slices"
 	"time"
-
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
 var feedbackValues = []string{"positive", "neutral", "negative"}
@@ -19,16 +17,23 @@ type FullDayOptions struct {
 	StatePath string
 	Close     bool // if true, do daily checkout + end sessions at the end
 	Verbose   bool
+	Client    ClientFactory
 }
 
 // RunFullDay runs a one-shot full-day simulation using seed state.
 func RunFullDay(ctx context.Context, opts FullDayOptions) error {
-	state, err := seedapi.LoadSeedState(opts.StatePath)
+	if opts.Client == nil {
+		return fmt.Errorf("simulation client factory is required")
+	}
+	state, err := LoadSeedState(opts.StatePath)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := newClient(state.BaseURL, opts.Verbose)
+	client, err := buildClient(opts.Client, state.BaseURL, opts.Verbose)
+	if err != nil {
+		return err
+	}
 	runtime := newRuntime(state, client, opts)
 	scenario := fullDayScenario(opts.Close)
 	if err := scenario.Run(ctx, runtime); err != nil {
@@ -484,7 +489,7 @@ func findRoomForActivity(activityName string, rooms map[string]int64) int64 {
 	return rooms[roomName]
 }
 
-func sortedDeviceKeys(devices map[string]seedapi.SeedDevice) []string {
+func sortedDeviceKeys(devices map[string]SeedDevice) []string {
 	return slices.Sorted(maps.Keys(devices))
 }
 

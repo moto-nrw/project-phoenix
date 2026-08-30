@@ -1,26 +1,20 @@
-package main
+package architecture
 
 import (
 	"context"
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/architecture"
 )
 
-func main() {
-	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+type CLIDependencies struct {
+	IssueClient IssueClient
+	Getenv      func(string) string
 }
 
-func run(args []string) error {
+func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
 		return fmt.Errorf("command is required: check, explain, diagram, dependencies, or audit-issues")
 	}
@@ -31,7 +25,7 @@ func run(args []string) error {
 	case "explain":
 		return runExplain(args[1:])
 	case "audit-issues":
-		return runAuditIssues(args[1:])
+		return runAuditIssues(args[1:], dependencies)
 	case "diagram":
 		return runDiagram(args[1:])
 	case "dependencies":
@@ -53,11 +47,11 @@ func runExplain(args []string) error {
 	if flags.NArg() != 0 || *scope == "" || *source == "" || *target == "" {
 		return fmt.Errorf("explain requires --scope, --source, and --target")
 	}
-	policy, err := architecture.LoadPolicy(*policyPath)
+	policy, err := LoadPolicy(*policyPath)
 	if err != nil {
 		return err
 	}
-	explanation, err := policy.Explain(architecture.Scope(*scope), *source, *target)
+	explanation, err := policy.Explain(Scope(*scope), *source, *target)
 	if err != nil {
 		return err
 	}
@@ -70,17 +64,17 @@ func runCheck(args []string) error {
 	if err != nil {
 		return err
 	}
-	policy, err := architecture.LoadPolicy(options.policy)
+	policy, err := LoadPolicy(options.policy)
 	if err != nil {
 		return err
 	}
-	graph, err := architecture.LoadGraph(options.project, policy)
+	graph, err := LoadGraph(options.project, policy)
 	if err != nil {
 		return err
 	}
-	violations := architecture.Check(policy, graph)
+	violations := Check(policy, graph)
 	if options.baseline == "" {
-		return architecture.FormatViolations(violations)
+		return FormatViolations(violations)
 	}
 	return runRatchet(options, policy, violations)
 }
@@ -116,12 +110,12 @@ func parseCheckOptions(args []string) (checkOptions, error) {
 	}, nil
 }
 
-func runRatchet(options checkOptions, policy *architecture.Policy, violations []architecture.Violation) error {
-	manifest, err := architecture.LoadLegacyManifest(options.baseline)
+func runRatchet(options checkOptions, policy *Policy, violations []Violation) error {
+	manifest, err := LoadLegacyManifest(options.baseline)
 	if err != nil {
 		return err
 	}
-	remaining, localErr := architecture.EnforceLegacyBaseline(violations, manifest)
+	remaining, localErr := EnforceLegacyBaseline(violations, manifest)
 	var baseErr error
 	if options.baseRef != "" {
 		baseErr = compareWithBase(options, policy, manifest)
@@ -133,18 +127,18 @@ func runRatchet(options checkOptions, policy *architecture.Policy, violations []
 	return nil
 }
 
-func compareWithBase(options checkOptions, policy *architecture.Policy, manifest *architecture.LegacyManifest) error {
-	basePolicy, baseManifest, err := architecture.LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
+func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest) error {
+	basePolicy, baseManifest, err := LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
 	if err != nil {
 		return err
 	}
 	return errors.Join(
-		architecture.CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy),
-		architecture.CompareLegacyBaselines(manifest, baseManifest),
+		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy),
+		CompareLegacyBaselines(manifest, baseManifest),
 	)
 }
 
-func runAuditIssues(args []string) error {
+func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	flags := flag.NewFlagSet("audit-issues", flag.ContinueOnError)
 	baselinePath := flags.String("baseline", "", "exact legacy JSONL baseline")
 	apiURL := flags.String("api-url", "", "GitHub API base URL")
@@ -154,12 +148,18 @@ func runAuditIssues(args []string) error {
 	if flags.NArg() != 0 || *baselinePath == "" || *apiURL == "" {
 		return fmt.Errorf("audit-issues requires --baseline, --api-url, and no positional arguments")
 	}
-	manifest, err := architecture.LoadLegacyManifest(*baselinePath)
+	manifest, err := LoadLegacyManifest(*baselinePath)
 	if err != nil {
 		return err
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
-	result, err := architecture.AuditLegacyIssues(context.Background(), client, *apiURL, os.Getenv("GITHUB_TOKEN"), manifest)
+	if dependencies.IssueClient == nil {
+		return fmt.Errorf("audit-issues requires an issue client dependency")
+	}
+	getenv := dependencies.Getenv
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest)
 	if err != nil {
 		return err
 	}

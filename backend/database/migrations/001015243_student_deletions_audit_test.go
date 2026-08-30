@@ -9,10 +9,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func studentDeletionAuditColumnExists(t *testing.T, db *bun.DB, column string) bool {
+func studentDeletionAuditColumnExists(t *testing.T, db *testpkg.DB, column string) bool {
 	t.Helper()
 	var exists bool
 	require.NoError(t, db.NewRaw(`

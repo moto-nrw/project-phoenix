@@ -441,12 +441,12 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 120,
+          "line": 119,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 595,
+          "line": 593,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 236,
+          "line": 234,
           "declaration": "New"
         }
       ]
@@ -466,7 +466,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 117,
+          "line": 116,
           "declaration": "type API"
         }
       ]
@@ -476,34 +476,14 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 239,
+          "line": 237,
           "declaration": "New"
-        }
-      ]
-    },
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/api.New",
-      "locations": [
-        {
-          "file": "cmd/gendoc.go",
-          "line": 61,
-          "declaration": "genRoutesDoc"
-        },
-        {
-          "file": "cmd/gendoc.go",
-          "line": 83,
-          "declaration": "genOpenAPIDoc"
         }
       ]
     },
     {
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
       "locations": [
-        {
-          "file": "cmd/cleanup_helpers.go",
-          "line": 42,
-          "declaration": "type cleanupContext"
-        },
         {
           "file": "cmd/seed_parents.go",
           "line": 177,
@@ -515,34 +495,9 @@
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/database/repositories.NewFactory",
       "locations": [
         {
-          "file": "cmd/cleanup_helpers.go",
-          "line": 58,
-          "declaration": "newCleanupContext"
-        },
-        {
           "file": "cmd/seed_parents.go",
           "line": 116,
           "declaration": "seedParentAccounts"
-        }
-      ]
-    },
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/services.Factory",
-      "locations": [
-        {
-          "file": "cmd/cleanup_helpers.go",
-          "line": 43,
-          "declaration": "type cleanupContext"
-        }
-      ]
-    },
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/services.NewFactory",
-      "locations": [
-        {
-          "file": "cmd/cleanup_helpers.go",
-          "line": 91,
-          "declaration": "newCleanupContextWithServices"
         }
       ]
     },
@@ -558,6 +513,11 @@
           "file": "services/auth/auth_service.go",
           "line": 120,
           "declaration": "NewService"
+        },
+        {
+          "file": "services/auth/cleanup_composition.go",
+          "line": 30,
+          "declaration": "NewCleanupService"
         },
         {
           "file": "services/auth/mfa_service.go",
@@ -16679,7 +16639,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        236
+        234
       ],
       "tables": []
     },
@@ -16689,7 +16649,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        239
+        237
       ],
       "tables": []
     },
@@ -16710,46 +16670,6 @@
       "target": "services/scheduler.NewWorker",
       "lines": [
         162
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "cmd/cleanup_helpers.go",
-      "declaration": "newCleanupContext",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        58
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "cmd/cleanup_helpers.go",
-      "declaration": "newCleanupContextWithServices",
-      "target": "services.NewFactory",
-      "lines": [
-        91
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "cmd/gendoc.go",
-      "declaration": "genOpenAPIDoc",
-      "target": "api.New",
-      "lines": [
-        83
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
-      "file": "cmd/gendoc.go",
-      "declaration": "genRoutesDoc",
-      "target": "api.New",
-      "lines": [
-        61
       ],
       "tables": []
     },
@@ -17299,16 +17219,6 @@
       "target": "api/testutil.SetupAPITest",
       "lines": [
         25
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/database/database_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        31
       ],
       "tables": []
     },
@@ -18442,7 +18352,7 @@
       "declaration": "setupTestCleanupContext",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        28
       ],
       "tables": []
     },
@@ -18452,17 +18362,7 @@
       "declaration": "setupTestCleanupContextWithServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "cmd/cleanup_test.go",
-      "declaration": "setupTestCleanupContextWithServices",
-      "target": "services.NewFactory",
-      "lines": [
-        50
+        47
       ],
       "tables": []
     },

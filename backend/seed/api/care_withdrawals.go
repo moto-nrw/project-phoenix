@@ -6,11 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 type seedCareWithdrawalsStep struct{ seeder *Seeder }
@@ -41,23 +36,23 @@ func (s seedCareWithdrawalsStep) Run(ctx context.Context, rt *Runtime) error {
 
 func (s seedCareWithdrawalsStep) provisionDemoSchool(
 	ctx context.Context, rt *Runtime,
-) (*SeedCareWithdrawalDemo, phoenixapi.AuthRef, error) {
+) (*SeedCareWithdrawalDemo, AuthRef, error) {
 	if rt.Bootstrap == nil {
-		return nil, phoenixapi.AuthRef{}, fmt.Errorf("bootstrap state not available")
+		return nil, AuthRef{}, fmt.Errorf("bootstrap state not available")
 	}
 	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 	name, slug := "Demo Betreuung abschließen", truncateSeedSubdomain("abschluss-demo-"+suffix)
 	schoolID, err := createWithdrawalDemoSchool(rt, name, slug)
 	if err != nil {
-		return nil, phoenixapi.AuthRef{}, err
+		return nil, AuthRef{}, err
 	}
 	admin, err := s.inviteWithdrawalDemoAdmin(rt, schoolID, suffix)
 	if err != nil {
-		return nil, phoenixapi.AuthRef{}, err
+		return nil, AuthRef{}, err
 	}
 	auth, err := rt.Adapter.LoginTenant(ctx, admin.Email, admin.Password, slug)
 	if err != nil {
-		return nil, phoenixapi.AuthRef{}, fmt.Errorf("login withdrawal demo admin: %w", err)
+		return nil, AuthRef{}, fmt.Errorf("login withdrawal demo admin: %w", err)
 	}
 	demo := &SeedCareWithdrawalDemo{SchoolID: schoolID, SchoolName: name, TenantSlug: slug, SchoolAdmin: admin}
 	return demo, auth, nil
@@ -108,15 +103,15 @@ func (s seedCareWithdrawalsStep) withdrawalDemoPassword() (string, error) {
 	if s.seeder.options.StaffPassword != "" {
 		return s.seeder.options.StaffPassword, nil
 	}
-	return generateSeedPassword()
+	return generateSeedPassword(s.seeder.random)
 }
 
 func (s seedCareWithdrawalsStep) seedDemoBookings(
-	rt *Runtime, auth phoenixapi.AuthRef, tenantSlug string,
+	rt *Runtime, auth AuthRef, tenantSlug string,
 ) ([]SeedEnrollmentRequest, error) {
 	for key, value := range map[string]any{
-		configModels.KeyEnrollmentEnabled:        true,
-		configModels.KeyEnrollmentRequireCaptcha: false,
+		"enrollment.enabled":         true,
+		"enrollment.require_captcha": false,
 	} {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
 			return nil, fmt.Errorf("configure withdrawal demo: %w", err)
@@ -135,7 +130,7 @@ func (s seedCareWithdrawalsStep) seedDemoBookings(
 }
 
 func (s seedCareWithdrawalsStep) submitWithdrawalDemoChildren(
-	rt *Runtime, auth phoenixapi.AuthRef, tenantSlug string, phaseID int64, offerings map[string]int64,
+	rt *Runtime, auth AuthRef, tenantSlug string, phaseID int64, offerings map[string]int64,
 ) ([]SeedEnrollmentRequest, error) {
 	parentStep := parentEnrollmentSeedStep(s)
 	requests := make([]SeedEnrollmentRequest, 0, 3)
@@ -164,7 +159,7 @@ func withdrawalDemoSubmission(
 }
 
 func approveWithdrawalDemoRequest(
-	step parentEnrollmentSeedStep, rt *Runtime, auth phoenixapi.AuthRef, raw []byte,
+	step parentEnrollmentSeedStep, rt *Runtime, auth AuthRef, raw []byte,
 ) (SeedEnrollmentRequest, error) {
 	request, err := parseEnrollmentSubmitResponse(raw, "public")
 	if err != nil {
@@ -177,13 +172,13 @@ func approveWithdrawalDemoRequest(
 	if len(detail.ChildIDs) != 1 {
 		return request, fmt.Errorf("withdrawal demo request %d has %d children", request.RequestID, len(detail.ChildIDs))
 	}
-	request.ChildIDs, request.Status = detail.ChildIDs, enrollment.ChildStatusApproved
+	request.ChildIDs, request.Status = detail.ChildIDs, "approved"
 	err = step.decideEnrollmentChild(rt, auth, request.RequestID, detail.ChildIDs[0], request.Status, "Demo-Zusage für den Betreuungsabschluss")
 	return request, err
 }
 
 func enableSeedBookingAuthority(rt *Runtime, schoolID int64) error {
-	path := fmt.Sprintf("/operator/schools/%d/settings/values/%s", schoolID, configModels.KeyEnrollmentBookingsAuthoritative)
+	path := fmt.Sprintf("/operator/schools/%d/settings/values/%s", schoolID, "enrollment.bookings_authoritative")
 	_, err := rt.Client.PutWithAuth(rt.OperatorAuth, path, map[string]any{"value": true})
 	if err != nil {
 		return fmt.Errorf("enable booking authority for withdrawal demo: %w", err)
@@ -195,8 +190,8 @@ func seedCareWithdrawalStates(rt *Runtime, approved []SeedEnrollmentRequest) err
 	if len(approved) != 3 {
 		return fmt.Errorf("care withdrawal seed requires three approved enrollment requests")
 	}
-	today := timezone.TodayDate()
-	dates := []timezone.Date{today.AddDays(7), today, today.AddDays(1)}
+	today := todaySeedDate()
+	dates := []seedDate{today.AddDays(7), today, today.AddDays(1)}
 	studentIDs := make([]int64, len(dates))
 	for index, effectiveFrom := range dates {
 		studentID, err := removeSeedCareBooking(rt, approved[index], effectiveFrom)
@@ -209,7 +204,7 @@ func seedCareWithdrawalStates(rt *Runtime, approved []SeedEnrollmentRequest) err
 }
 
 func removeSeedCareBooking(
-	rt *Runtime, request SeedEnrollmentRequest, effectiveFrom timezone.Date,
+	rt *Runtime, request SeedEnrollmentRequest, effectiveFrom seedDate,
 ) (int64, error) {
 	path := fmt.Sprintf("/api/enrollment/admin/requests/%d/children/%d/offerings", request.RequestID, request.ChildIDs[0])
 	raw, err := rt.Client.PutWithAuth(rt.TenantAuth, path, map[string]any{
@@ -234,7 +229,7 @@ func removeSeedCareBooking(
 	return studentID, nil
 }
 
-func resolveSeedCareWithdrawal(rt *Runtime, studentID int64, lastCareDay timezone.Date) error {
+func resolveSeedCareWithdrawal(rt *Runtime, studentID int64, lastCareDay seedDate) error {
 	completionID, err := findSeedCareWithdrawal(rt, studentID)
 	if err != nil {
 		return err

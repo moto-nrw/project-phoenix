@@ -3,10 +3,9 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 const (
@@ -104,10 +103,14 @@ func templateSourceSchoolClassesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
-	return templateSourceSchoolClassesDownAt(ctx, db, timezone.TodayDate())
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return fmt.Errorf("load Berlin timezone: %w", err)
+	}
+	return templateSourceSchoolClassesDownAt(ctx, db, time.Now().In(berlin).Format(time.DateOnly))
 }
 
-func templateSourceSchoolClassesDownAt(ctx context.Context, db *bun.DB, today timezone.Date) error {
+func templateSourceSchoolClassesDownAt(ctx context.Context, db *bun.DB, today string) error {
 	fmt.Println("Rolling back migration 1.15.314: Dropping activities.groups.source_school_classes...")
 
 	// Class-filtered templates lose their filter on rollback: the pre-1.15.314

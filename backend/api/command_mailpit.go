@@ -1,4 +1,4 @@
-package phoenixapi
+package api
 
 import (
 	"context"
@@ -12,14 +12,16 @@ import (
 	"time"
 )
 
-// MailpitURL returns the base URL used to reach mailpit's REST API.
-// Defaults to the docker-compose service hostname; override with
-// MAILPIT_URL when running the seeder from outside Docker.
-func MailpitURL() string {
-	if v := strings.TrimSpace(os.Getenv("MAILPIT_URL")); v != "" {
-		return strings.TrimSuffix(v, "/")
+// MailpitURL returns the configured base URL used to reach mailpit's REST API.
+func MailpitURL() (string, error) {
+	return mailpitURLFrom(os.Getenv)
+}
+
+func mailpitURLFrom(getenv func(string) string) (string, error) {
+	if v := strings.TrimSpace(getenv("MAILPIT_URL")); v != "" {
+		return strings.TrimSuffix(v, "/"), nil
 	}
-	return "http://mailpit:8025"
+	return "", fmt.Errorf("MAILPIT_URL is not set")
 }
 
 type mailpitAddress struct {
@@ -53,6 +55,14 @@ var sixDigitCode = regexp.MustCompile(`\b(\d{6})\b`)
 // the seeder uses this to drive the operator MFA enrollment introduced
 // by branch feat/1308-2fa-email.
 func FetchLatestMFACode(ctx context.Context, recipient string, notBefore time.Time) (string, error) {
+	baseURL, err := MailpitURL()
+	if err != nil {
+		return "", err
+	}
+	return fetchLatestMFACodeAt(ctx, baseURL, recipient, notBefore)
+}
+
+func fetchLatestMFACodeAt(ctx context.Context, baseURL, recipient string, notBefore time.Time) (string, error) {
 	recipient = strings.ToLower(strings.TrimSpace(recipient))
 	if recipient == "" {
 		return "", fmt.Errorf("recipient is required")
@@ -61,12 +71,12 @@ func FetchLatestMFACode(ctx context.Context, recipient string, notBefore time.Ti
 	client := &http.Client{Timeout: 5 * time.Second}
 	for {
 		if time.Now().After(deadline) {
-			return "", fmt.Errorf("timed out waiting for MFA email to %s at %s", recipient, MailpitURL())
+			return "", fmt.Errorf("timed out waiting for MFA email to %s at %s", recipient, baseURL)
 		}
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		code, err := tryFetchCode(ctx, client, recipient, notBefore)
+		code, err := tryFetchCode(ctx, client, baseURL, recipient, notBefore)
 		if err == nil && code != "" {
 			return code, nil
 		}
@@ -74,8 +84,8 @@ func FetchLatestMFACode(ctx context.Context, recipient string, notBefore time.Ti
 	}
 }
 
-func tryFetchCode(ctx context.Context, client *http.Client, recipient string, notBefore time.Time) (string, error) {
-	listURL := MailpitURL() + "/api/v1/messages?limit=20"
+func tryFetchCode(ctx context.Context, client *http.Client, baseURL, recipient string, notBefore time.Time) (string, error) {
+	listURL := baseURL + "/api/v1/messages?limit=20"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
 		return "", err
@@ -104,7 +114,7 @@ func tryFetchCode(ctx context.Context, client *http.Client, recipient string, no
 		if !addressedTo(m.To, recipient) {
 			continue
 		}
-		code, err := fetchCodeFromMessage(ctx, client, m.ID)
+		code, err := fetchCodeFromMessage(ctx, client, baseURL, m.ID)
 		if err != nil {
 			continue
 		}
@@ -124,8 +134,8 @@ func addressedTo(addrs []mailpitAddress, recipient string) bool {
 	return false
 }
 
-func fetchCodeFromMessage(ctx context.Context, client *http.Client, id string) (string, error) {
-	detailURL := MailpitURL() + "/api/v1/message/" + id
+func fetchCodeFromMessage(ctx context.Context, client *http.Client, baseURL, id string) (string, error) {
+	detailURL := baseURL + "/api/v1/message/" + id
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, detailURL, nil)
 	if err != nil {
 		return "", err
