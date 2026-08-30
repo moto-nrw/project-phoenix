@@ -393,3 +393,15 @@ func RequireDependency(w http.ResponseWriter, r *http.Request, ok bool, unavaila
 	}
 	return ok
 }
+
+// ErrorInvalidRequestMessageWithCode returns a 400 with a user-facing message
+// AND a stable code, for validation failures the frontend has to branch on
+// (which field to highlight) rather than merely display.
+func ErrorInvalidRequestMessageWithCode(message, code string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusBadRequest,
+		Status:         "error",
+		ErrorText:      message,
+		Code:           code,
+	}
+}

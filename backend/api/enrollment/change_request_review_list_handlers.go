@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,14 +62,16 @@ var historyReviewStatuses = []string{
 // ChangeRequestReviewEntry is one Anmeldungsänderung in the shared display
 // format: who filed what for which child, and who decided it when.
 type ChangeRequestReviewEntry struct {
-	ID           string   `json:"id"`
-	RequestID    string   `json:"request_id"`
-	Origin       string   `json:"origin"`
-	Status       string   `json:"status"`
-	ChildNames   []string `json:"child_names"`
-	GuardianName string   `json:"guardian_name,omitempty"`
-	ParentNote   *string  `json:"parent_note,omitempty"`
-	DecisionNote *string  `json:"decision_note,omitempty"`
+	ID           string                          `json:"id"`
+	RequestID    string                          `json:"request_id"`
+	Origin       string                          `json:"origin"`
+	Status       string                          `json:"status"`
+	ChildNames   []string                        `json:"child_names"`
+	ChildIDs     []string                        `json:"child_ids,omitempty"`
+	Children     []ChangeRequestReviewChildEntry `json:"children"`
+	GuardianName string                          `json:"guardian_name,omitempty"`
+	ParentNote   *string                         `json:"parent_note,omitempty"`
+	DecisionNote *string                         `json:"decision_note,omitempty"`
 	// BaseSnapshot, ProposedSnapshot and Diff are the same three fields the
 	// detail view compares, so the list can show the real before → after
 	// instead of only naming the changed areas: the enrollment as filed and as
@@ -80,6 +83,12 @@ type ChangeRequestReviewEntry struct {
 	// DecidedAt and DecidedByName are set once the request is decided.
 	DecidedAt     *time.Time `json:"decided_at,omitempty"`
 	DecidedByName string     `json:"decided_by_name,omitempty"`
+}
+
+type ChangeRequestReviewChildEntry struct {
+	CaseID    string  `json:"case_id"`
+	StudentID *string `json:"student_id,omitempty"`
+	Name      string  `json:"name"`
 }
 
 // ChangeRequestReviewItem wraps one entry in the merged list's envelope.
@@ -297,6 +306,8 @@ func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, 
 		Origin:           row.Origin,
 		Status:           row.Status,
 		ChildNames:       item.ChildNames,
+		ChildIDs:         formatReviewChildIDs(item.ChildIDs),
+		Children:         formatReviewChildren(row.RequestID, item.Children),
 		GuardianName:     item.GuardianName,
 		ParentNote:       row.ParentNote,
 		DecisionNote:     row.AdminDecisionNote,
@@ -321,4 +332,29 @@ func toChangeRequestReviewItem(item *enrollmentService.ChangeRequestReviewItem, 
 		OccurredAt:  occurredAt,
 		Data:        entry,
 	}
+}
+
+func formatReviewChildren(requestID int64, children []enrollmentService.ChangeRequestReviewChild) []ChangeRequestReviewChildEntry {
+	formatted := make([]ChangeRequestReviewChildEntry, 0, len(children))
+	for _, child := range children {
+		var studentID *string
+		if child.StudentID != nil {
+			value := strconv.FormatInt(*child.StudentID, 10)
+			studentID = &value
+		}
+		formatted = append(formatted, ChangeRequestReviewChildEntry{
+			CaseID:    fmt.Sprintf("%d:%d", requestID, child.RequestChildID),
+			StudentID: studentID,
+			Name:      child.Name,
+		})
+	}
+	return formatted
+}
+
+func formatReviewChildIDs(ids []int64) []string {
+	formatted := make([]string, 0, len(ids))
+	for _, id := range ids {
+		formatted = append(formatted, strconv.FormatInt(id, 10))
+	}
+	return formatted
 }

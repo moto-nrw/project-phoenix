@@ -135,25 +135,6 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 	assertNoPendingWithdrawal(t, env, fx.studentID)
 }
 
-func TestOfferingChangeRequestService_Withdraw_DoesNotCreateWithdrawalCompletion(t *testing.T) {
-	t.Parallel()
-
-	authoritative := true
-	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
-	defer cleanup()
-	ctx := offeringChangeAdminContext(t)
-	svc := newOfferingChangeServiceForTest(t, env)
-	fx := setupOfferingChangeFixture(t, env, "WithdrawCompleteWithdrawal")
-	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
-		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
-		CompleteWithdrawalConfirmed: true,
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, svc.Withdraw(ctx, row.ID, env.creatorID, fx.studentID))
-	assertNoPendingWithdrawal(t, env, fx.studentID)
-}
-
 func assertNoPendingWithdrawal(t *testing.T, env *decisionTestEnv, studentID int64) {
 	t.Helper()
 	pending, _, err := env.repos.CareWithdrawal.ListPending(

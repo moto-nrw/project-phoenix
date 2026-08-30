@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -190,6 +191,9 @@ type DecideOfferingRequestBody struct {
 	// one approval (#2370); the Mitbuchungs-Regel itself stays active.
 	ExcludedOfferingIDs         []string `json:"excluded_offering_ids,omitempty"`
 	CompleteWithdrawalConfirmed bool     `json:"complete_withdrawal_confirmed,omitempty"`
+	// ExpectedVersion is the expected_version the list emitted for this row.
+	// Empty is accepted (old clients) and skips the check.
+	ExpectedVersion string `json:"expected_version,omitempty"`
 }
 
 type PreviewOfferingRequestBody struct {
@@ -357,6 +361,8 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		ExcludedAutoOfferingIDs:     excluded,
 		EffectiveFrom:               effectiveFrom,
 		CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
+		ExpectedVersion:             body.ExpectedVersion,
+		ReasonRequired:              rs.staffReasonRequired(r),
 	}); err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return
@@ -371,27 +377,25 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 // the office can talk to the family instead of finding a "done" request that
 // never applied.
 func renderOfferingDecisionError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotFound):
-		renderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, enrollmentModels.ErrOfferingChangeNotPending):
-		renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeForbidden):
-		renderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
-		renderError(w, r, common.ErrorForbiddenWithCode(err, "care_offerings_disabled"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
-		renderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):
-		renderError(w, r, common.ErrorConflictWithCode(err, "offering_changes_no_enrollment"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeDateOutOfRange):
-		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_date_out_of_range"))
-	case errors.Is(err, enrollmentService.ErrCompleteWithdrawalConfirmationRequired):
-		renderError(w, r, common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required"))
-	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid),
-		errors.Is(err, enrollmentService.ErrOfferingAdjustmentInvalid):
-		renderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		renderError(w, r, common.ErrorInternalServer(err))
-	}
+	renderError(w, r, offeringDecisionErrorRenderer(err))
 }
+
+var offeringDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
+	common.ErrorRule{Target: enrollmentModels.ErrOfferingChangeNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: enrollmentModels.ErrOfferingChangeNotPending, Render: conflictWithCode("change_request_not_pending")},
+	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: enrollmentService.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "care_offerings_disabled")
+	}},
+	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeCapacityFull, Render: conflictWithCode("offering_change_capacity_full")},
+	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeNoEnrollment, Render: conflictWithCode("offering_changes_no_enrollment")},
+	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeDateOutOfRange, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, "offering_change_date_out_of_range")
+	}},
+	common.ErrorRule{
+		Target: enrollmentService.ErrCompleteWithdrawalConfirmationRequired,
+		Render: conflictWithCode("enrollment.complete_withdrawal_confirmation_required"),
+	},
+	common.ErrorRule{Target: enrollmentService.ErrOfferingChangeInvalid, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: enrollmentService.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
+), common.ErrorInternalServer)

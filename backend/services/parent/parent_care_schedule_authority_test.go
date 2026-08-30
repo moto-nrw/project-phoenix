@@ -57,9 +57,15 @@ func TestExistingCareScheduleRequestSurvivesBookingAuthorityChange(t *testing.T)
 	assert.True(t, view.PendingRequest.SubmittedBySelf)
 	assert.False(t, view.CanRequest)
 
-	withdrawn, err := bookingLed.WithdrawCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, view.PendingRequest.ID)
+	// Withdrawal was retired (#2267); editing the own pending request is the
+	// path that replaced it, and it must stay open after the switch.
+	edited, err := bookingLed.EditCareScheduleRequest(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID, chain.StudentID, view.PendingRequest.ID, carePayload(), "",
+	)
 	require.NoError(t, err)
-	assert.Nil(t, withdrawn.PendingRequest)
+	require.NotNil(t, edited.PendingRequest)
+	assert.Equal(t, view.PendingRequest.ID, edited.PendingRequest.ID)
 }
 
 func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.T) {

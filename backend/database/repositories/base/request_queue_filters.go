@@ -25,6 +25,9 @@ func ApplyRequestQueueFilters(q *bun.SelectQuery, alias, keysetColumn string, f 
 	if f.StudentID > 0 {
 		q = q.Where(studentCol+" = ?", f.StudentID)
 	}
+	if len(f.StudentIDs) > 0 {
+		q = q.Where(studentCol+" IN (?)", bun.List(f.StudentIDs))
+	}
 	if search := strings.TrimSpace(f.Search); search != "" {
 		// The child's name lives two tables away. A subquery leaves the outer
 		// row count untouched (a join would need a DISTINCT), and correlating
@@ -46,6 +49,21 @@ func ApplyRequestQueueFilters(q *bun.SelectQuery, alias, keysetColumn string, f 
 		q = q.Limit(f.Limit)
 	}
 	return q
+}
+
+// ApplyRequestUrgency narrows an open queue to one urgency phase. expression
+// is repository-owned SQL and args are bound values; false selects its exact
+// complement so no pending row can appear in both phases or in neither.
+func ApplyRequestUrgency(
+	q *bun.SelectQuery, filters modelBase.RequestQueueFilters, expression string, args ...any,
+) *bun.SelectQuery {
+	if filters.UrgentOnly == nil {
+		return q
+	}
+	if *filters.UrgentOnly {
+		return q.Where(expression, args...)
+	}
+	return q.Where("NOT ("+expression+")", args...)
 }
 
 // EscapeILike neutralizes LIKE wildcards in free-text search input, so a "%"

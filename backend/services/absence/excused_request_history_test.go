@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -37,8 +38,12 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 		}); e != nil {
 			return e
 		}
-		_, e := svc.WithdrawRequest(txCtx, withdrawn.ID, chain.StudentID, chain.AccountID)
-		return e
+		// Guardian withdrawal was retired in #2267 (guardians edit instead), but
+		// historic withdrawn rows must keep showing up here — so the status is
+		// written straight through the repository.
+		return repositories.NewFactory(db).ExcusedAbsenceRequest.Decide(
+			txCtx, withdrawn.ID, activeModels.ExcusedRequestStatusWithdrawn, nil, nil, false,
+		)
 	})
 	require.NoError(t, err)
 

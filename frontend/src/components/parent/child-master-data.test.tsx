@@ -13,6 +13,8 @@ import { ChildMasterDataView } from "./child-master-data";
 import {
   getChildFeatures,
   getChildMasterData,
+  getRequestSharingOptions,
+  setRequestSharing,
   submitMasterDataRequest,
   updateMasterDataField,
   type ChildFeatures,
@@ -63,6 +65,8 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     }),
     submitMasterDataRequest: vi.fn(),
     updateMasterDataField: vi.fn(),
+    getRequestSharingOptions: vi.fn(),
+    setRequestSharing: vi.fn(),
   };
 });
 
@@ -70,6 +74,8 @@ const mockGetFeatures = vi.mocked(getChildFeatures);
 const mockGetMasterData = vi.mocked(getChildMasterData);
 const mockSubmit = vi.mocked(submitMasterDataRequest);
 const mockUpdateField = vi.mocked(updateMasterDataField);
+const mockSharingOptions = vi.mocked(getRequestSharingOptions);
+const mockSetRequestSharing = vi.mocked(setRequestSharing);
 
 function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
   return {
@@ -119,6 +125,14 @@ function masterData(overrides: Partial<ChildMasterData> = {}): ChildMasterData {
   };
 }
 
+async function submitIdentityRequest() {
+  const button = screen.getByRole("button", {
+    name: "Anfrage an OGS senden",
+  });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
+
 describe("ChildMasterDataView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,6 +140,14 @@ describe("ChildMasterDataView", () => {
     mockGetMasterData.mockResolvedValue(masterData());
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
     mockSubmit.mockResolvedValue([]);
+    mockSharingOptions.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
+    mockSetRequestSharing.mockResolvedValue({
+      family_protected: false,
+      recipients: [],
+    });
   });
 
   it("loads and renders the editable child details", async () => {
@@ -472,14 +494,14 @@ describe("ChildMasterDataView", () => {
     );
     const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        { target: "person", field_key: "first_name", value: "Lea" },
-      ]),
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [{ target: "person", field_key: "first_name", value: "Lea" }],
+        [],
+      ),
     );
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
 
@@ -513,9 +535,7 @@ describe("ChildMasterDataView", () => {
     );
     const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(
@@ -567,17 +587,21 @@ describe("ChildMasterDataView", () => {
     );
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        {
-          target: "departure",
-          field_key: "allowed_departure_modes",
-          value: {
-            mon: ["pickup"],
-            tue: ["alone", "bus"],
-            wed: ["pickup"],
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: {
+              mon: ["pickup"],
+              tue: ["alone", "bus"],
+              wed: ["pickup"],
+            },
           },
-        },
-      ]),
+        ],
+        [],
+      ),
     );
   });
 
@@ -662,14 +686,14 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Klasse"), {
       target: { value: "3b" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     await waitFor(() =>
-      expect(mockSubmit).toHaveBeenCalledWith("42", [
-        { target: "student", field_key: "school_class", value: "3b" },
-      ]),
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [{ target: "student", field_key: "school_class", value: "3b" }],
+        [],
+      ),
     );
   });
 
@@ -683,9 +707,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
       target: { value: "" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(
       await screen.findByText("Eine geänderte Angabe darf nicht leer sein."),
@@ -830,9 +852,7 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Lea" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
-    );
+    await submitIdentityRequest();
 
     expect(
       await screen.findByText("Die Anfrage konnte nicht gesendet werden."),

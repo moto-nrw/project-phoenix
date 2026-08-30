@@ -3,23 +3,20 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { CareScheduleRequestModal } from "~/components/parent/care-schedule-request-modal";
+import { RequestSharingControl } from "~/components/parent/request-sharing-control";
 import {
   ParentSection,
   ParentSubsection,
 } from "~/components/parent/shell/parent-section";
 import { Button } from "~/components/ui/button";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
-import { createLogger } from "~/lib/logger";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
 import {
   submitCareScheduleRequest,
-  withdrawCareScheduleRequest,
   type ChildCareSchedule,
 } from "~/lib/parent-api";
 
-const logger = createLogger({ component: "WeeklyScheduleSection" });
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
   1: "mon",
@@ -38,55 +35,11 @@ interface ScheduleProps {
   onScheduleChange: (schedule: ChildCareSchedule) => void;
 }
 
-function useRequestState({
-  studentId,
-  schedule,
-  onScheduleChange,
-}: ScheduleProps) {
-  const t = useTranslations("parentMasterData.careSchedule");
-  const [requestOpen, setRequestOpen] = useState(false);
-  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawError, setWithdrawError] = useState<string | null>(null);
-  const withdraw = async () => {
-    if (!schedule.pending_request) return;
-    setWithdrawing(true);
-    setWithdrawError(null);
-    try {
-      onScheduleChange(
-        await withdrawCareScheduleRequest(
-          studentId,
-          schedule.pending_request.id,
-        ),
-      );
-      setConfirmWithdraw(false);
-    } catch (error) {
-      logger.warn("care_schedule_request_withdraw_failed", {
-        error: error instanceof Error ? error.message : String(error),
-        student_id: studentId,
-      });
-      setWithdrawError(t("withdrawError"));
-    } finally {
-      setWithdrawing(false);
-    }
-  };
-  return {
-    requestOpen,
-    setRequestOpen,
-    confirmWithdraw,
-    setConfirmWithdraw,
-    withdrawing,
-    withdrawError,
-    setWithdrawError,
-    withdraw,
-  };
-}
-
 export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
   const t = useTranslations("parentMasterData.careSchedule");
   const tc = useTranslations("parentChild");
-  const state = useRequestState(props);
-  const { schedule, childFirstName, careEnded } = props;
+  const [requestOpen, setRequestOpen] = useState(false);
+  const { schedule, studentId, childFirstName, careEnded } = props;
   const showAction =
     !careEnded && schedule.can_request && !schedule.pending_request;
   // No action and no pending request: say why. Booking-led schools point to
@@ -113,7 +66,7 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
               type="button"
               variant="surface"
               size="md"
-              onClick={() => state.setRequestOpen(true)}
+              onClick={() => setRequestOpen(true)}
             >
               {t("requestButton")}
             </Button>
@@ -124,17 +77,23 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
         {noticeKey && <p className="text-sm text-gray-600">{t(noticeKey)}</p>}
         {schedule.pending_request && (
           <PendingRequestPanel
+            studentId={studentId}
             pending={schedule.pending_request}
-            careEnded={careEnded}
-            withdrawError={state.withdrawError}
-            onWithdraw={() => {
-              state.setWithdrawError(null);
-              state.setConfirmWithdraw(true);
-            }}
           />
         )}
       </ParentSection>
-      <RequestOverlays props={props} state={state} />
+      {requestOpen && (
+        <CareScheduleRequestModal
+          weekdays={schedule.weekdays}
+          capabilities={schedule.request_capabilities}
+          onClose={() => setRequestOpen(false)}
+          onSubmit={async (payload) =>
+            props.onScheduleChange(
+              await submitCareScheduleRequest(studentId, payload),
+            )
+          }
+        />
+      )}
     </>
   );
 }
@@ -216,15 +175,11 @@ function ScheduleDay({
 }
 
 function PendingRequestPanel({
+  studentId,
   pending,
-  careEnded,
-  withdrawError,
-  onWithdraw,
 }: Readonly<{
+  studentId: string;
   pending: PendingRequest;
-  careEnded: boolean;
-  withdrawError: string | null;
-  onWithdraw: () => void;
 }>) {
   const t = useTranslations("parentMasterData.careSchedule");
   const locale = useLocale();
@@ -246,66 +201,13 @@ function PendingRequestPanel({
         </dl>
       )}
       <p className="text-sm text-gray-500">{t("pendingNotice")}</p>
-      {!careEnded && pending.submitted_by_self && (
-        <div>
-          <Button
-            type="button"
-            variant="outline_danger"
-            size="md"
-            onClick={onWithdraw}
-          >
-            {t("withdraw")}
-          </Button>
-          {withdrawError && (
-            <p className="text-parent-red-strong mt-1 text-sm">
-              {withdrawError}
-            </p>
-          )}
-        </div>
-      )}
+      <RequestSharingControl
+        studentId={studentId}
+        requestType="care_schedule"
+        requestId={pending.id}
+        isSelf={pending.submitted_by_self}
+      />
     </ParentSubsection>
-  );
-}
-
-function RequestOverlays({
-  props,
-  state,
-}: Readonly<{
-  props: ScheduleProps;
-  state: ReturnType<typeof useRequestState>;
-}>) {
-  const t = useTranslations("parentMasterData");
-  const { schedule, studentId, onScheduleChange } = props;
-  return (
-    <>
-      {state.requestOpen && (
-        <CareScheduleRequestModal
-          weekdays={schedule.weekdays}
-          capabilities={schedule.request_capabilities}
-          onClose={() => state.setRequestOpen(false)}
-          onSubmit={async (payload) =>
-            onScheduleChange(
-              await submitCareScheduleRequest(studentId, payload),
-            )
-          }
-        />
-      )}
-      <ConfirmationModal
-        mobileSheet
-        isOpen={state.confirmWithdraw}
-        onClose={() => state.setConfirmWithdraw(false)}
-        onConfirm={() => void state.withdraw()}
-        title={t("careSchedule.withdrawConfirmTitle")}
-        confirmText={t("careSchedule.withdraw")}
-        cancelText={t("back")}
-        isConfirmLoading={state.withdrawing}
-        confirmButtonClass="bg-parent-red hover:bg-parent-red-strong"
-      >
-        <p className="text-sm text-gray-600">
-          {t("careSchedule.withdrawConfirmBody")}
-        </p>
-      </ConfirmationModal>
-    </>
   );
 }
 
