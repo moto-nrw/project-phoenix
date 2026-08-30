@@ -110,7 +110,7 @@ export function buildDraft(
 }
 
 /** Deutsches Dezimalkomma („29,5") zählt wie der Punkt. */
-export function parseWeeklyHours(value: string): number | null {
+function parseWeeklyHours(value: string): number | null {
   return value.trim() === "" ? null : Number(value.trim().replace(",", "."));
 }
 
