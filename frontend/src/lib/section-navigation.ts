@@ -159,6 +159,7 @@ export const STAFF_FLAT_PAGES = {
   dateien: { href: "/dateien", label: "Dateien" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
+  staffNotices: { href: "/tagesinformationen", label: "Tagesinformationen" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
   // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.

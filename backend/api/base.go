@@ -50,6 +50,7 @@ import (
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
+	staffnoticeAPI "github.com/moto-nrw/project-phoenix/api/staffnotice"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
@@ -161,6 +162,7 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
+	StaffNotices     *staffnoticeAPI.Resource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -652,6 +654,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
+	api.StaffNotices = staffnoticeAPI.NewResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
@@ -1026,6 +1029,8 @@ func (a *API) registerTenantRoutes() {
 		// separate surface from /messages (which is parent-facing).
 		r.Mount("/staff-messages", a.StaffMessaging.Router())
 		r.Mount("/parent-announcements", a.Announcements.Router())
+		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
+		r.Mount("/staff-notices", a.StaffNotices.Router())
 		r.Mount("/files", a.FileStore.Router())
 
 		// Mount guardian resources

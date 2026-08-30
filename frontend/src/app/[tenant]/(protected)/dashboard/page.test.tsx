@@ -66,6 +66,13 @@ vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
   PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
 }));
 
+// Tagesinformationen (#2180) hat eigene Tests; hier zählt nur, dass das
+// Dashboard die Karte einhängt. Der globale useSWRAuth-Mock liefert sonst
+// Dashboard-Zahlen an die Karte.
+vi.mock("~/components/staff-notices/tagesinfo-card", () => ({
+  TagesinfoCard: () => <div data-testid="tagesinfo-card" />,
+}));
+
 const mockDashboardData = {
   studentsPresent: 150,
   studentsInRooms: 120,
