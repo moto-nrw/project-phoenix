@@ -23,11 +23,7 @@ import (
 // Allowlists are shrink-only: never add an entry, never raise a count.
 var (
 	// Non-comment "23505" references outside models/base and migrations.
-	uniqueViolationLiteralAllowlist = map[string]int{
-		// Deliberately kept: guardian-email unique check has an extra
-		// SQLSTATE-substring fallback for errors that lose the pgdriver type.
-		"services/parent/parent_guardian_service.go": 2,
-	}
+	uniqueViolationLiteralAllowlist = map[string]int{}
 
 	// strconv.ParseInt(chi.URLParam(...)) sites in api/ outside
 	// api/common/request.go (which implements the shared helper).
