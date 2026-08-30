@@ -427,7 +427,7 @@ func (s *timetableOperationsService) CreateAndStartSpontaneous(ctx context.Conte
 		tenant.MarkRollback(ctx)
 		return nil, &SpontaneousCreateError{Err: err}
 	}
-	result, err := s.Start(ctx, accountID, isAdmin, inst.ID)
+	result, err := s.Start(withSpontaneousStartWorkdayGuard(ctx), accountID, isAdmin, inst.ID)
 	if err != nil {
 		tenant.MarkRollback(ctx)
 		return nil, err

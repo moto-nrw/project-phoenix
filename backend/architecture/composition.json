@@ -18161,7 +18161,7 @@
       "declaration": "TestSetupAPITest",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        29
+        30
       ],
       "tables": []
     },
@@ -18329,7 +18329,7 @@
       "declaration": "TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures",
       "target": "database/repositories.NewFactory",
       "lines": [
-        378
+        381
       ],
       "tables": []
     },
@@ -28398,7 +28398,7 @@
       "declaration": "TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305
+        304
       ],
       "tables": []
     },
@@ -28408,7 +28408,7 @@
       "declaration": "TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338
+        337
       ],
       "tables": [
         "enrollment.phases",
@@ -28693,7 +28693,7 @@
       "declaration": "withLateInviteRenewalFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        391
+        390
       ],
       "tables": [
         "enrollment.late_invites",

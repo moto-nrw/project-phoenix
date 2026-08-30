@@ -67,6 +67,22 @@ func TestValidateStartTime(t *testing.T) {
 	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, inWindow), ErrLifecycleSettings)
 }
 
+func TestValidateSpontaneousStartWorkday(t *testing.T) {
+	t.Parallel()
+
+	spontaneous := plannedLifecycleInstance()
+	spontaneous.IsSpontaneous = true
+	saturday := time.Date(2026, 8, 15, 0, 0, 0, 0, timezone.Berlin)
+	assert.ErrorIs(t, validateSpontaneousStartWorkday(spontaneous, saturday), ErrInstanceWeekend)
+
+	monday := time.Date(2026, 8, 17, 0, 0, 0, 0, timezone.Berlin)
+	assert.NoError(t, validateSpontaneousStartWorkday(spontaneous, monday))
+
+	planned := *spontaneous
+	planned.IsSpontaneous = false
+	assert.NoError(t, validateSpontaneousStartWorkday(&planned, saturday))
+}
+
 func TestValidateCompleteTime(t *testing.T) {
 	t.Parallel()
 
