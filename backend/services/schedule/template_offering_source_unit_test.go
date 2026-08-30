@@ -359,6 +359,7 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Run("removing a source still reconciles, using the previous offering", func(t *testing.T) {
 		var got OfferingRosterResyncInput
 		svc := NewTimetableDataService(TimetableDataDependencies{
+			Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 			ResyncOfferingRoster: func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
