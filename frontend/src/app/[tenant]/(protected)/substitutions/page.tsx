@@ -27,7 +27,12 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
-import { formatDate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
@@ -35,10 +40,7 @@ import type {
   Substitution,
   TeacherAvailability,
 } from "~/lib/substitution-helpers";
-import {
-  formatTeacherName,
-  getTeacherStatus,
-} from "~/lib/substitution-helpers";
+import { formatTeacherName } from "~/lib/substitution-helpers";
 import { useImmutableSWR, useSWRAuth } from "~/lib/swr";
 import { useOpenCareGroupMode } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -53,7 +55,7 @@ const CUSTOM_DURATION = "custom";
  * erste Tag mitzählt: "Heute" ist ein Tag, nicht null.
  */
 const DURATION_PRESETS = [
-  { value: "1", label: "Heute" },
+  { value: "1", label: "1 Tag" },
   { value: "3", label: "3 Tage" },
   { value: "7", label: "1 Woche" },
   { value: CUSTOM_DURATION, label: "Individuell" },
@@ -62,14 +64,12 @@ const DURATION_PRESETS = [
 const MAX_DURATION_DAYS = 365;
 
 /**
- * Enddatum eines heute beginnenden Zugriffs. Der Starttag zählt mit, ein
- * Zugriff über einen Tag endet also heute — dieselbe Rechnung, die auch an das
- * Backend geht.
+ * Enddatum einer Übergabe. Der Starttag zählt mit.
  */
-function accessEndDate(days: number): Date {
-  const end = new Date();
+function accessEndDate(startDate: string, days: number): string {
+  const end = parseISODate(startDate);
   end.setDate(end.getDate() + days - 1);
-  return end;
+  return toISODate(end);
 }
 
 function getSubstituteName(
@@ -146,11 +146,7 @@ function SectionHeading({
   );
 }
 
-/**
- * Eine Zeile in den beiden Zugriffs-Abschnitten. Die Art des Zugriffs steht
- * schon in der Abschnittsüberschrift, deshalb trägt die Zeile sie nicht noch
- * einmal als Kennzeichnung; nur das Enddatum kommt hinzu, wo es eines gibt.
- */
+/** Eine Zeile in der Liste der Gruppenübergaben. */
 function AccessRow({
   groupName,
   personName,
@@ -170,7 +166,7 @@ function AccessRow({
         <p className="truncate text-sm font-medium text-gray-900">
           {groupName}
         </p>
-        <MetaLine parts={[`Zugriff für ${personName}`, until]} />
+        <MetaLine parts={[`Übergeben an ${personName}`, until]} />
       </div>
       <Button
         type="button"
@@ -178,7 +174,7 @@ function AccessRow({
         size="md"
         onClick={onEnd}
         disabled={disabled}
-        aria-label={`Zugriff von ${personName} auf ${groupName} beenden`}
+        aria-label={`Übergabe von ${groupName} an ${personName} beenden`}
         className="w-full sm:w-auto"
       >
         Beenden
@@ -196,7 +192,7 @@ function SubstitutionPageContent() {
     },
   });
 
-  // Gruppenzugriff ist nur bei festen Gruppen sinnvoll (#1940); bei offener
+  // Gruppenübergaben sind nur bei festen Gruppen sinnvoll (#1940); bei offener
   // Betreuung arbeiten ohnehin alle Berechtigten mit allen Kindern. Die
   // Navigation blendet den Eintrag aus, das hier fängt Direktaufrufe ab.
   const openCareGroupMode = useOpenCareGroupMode();
@@ -214,21 +210,28 @@ function SubstitutionPageContent() {
     mutate: mutateTeachers,
   } = useSWRAuth<TeacherAvailability[]>(
     "substitution-teachers",
-    () => substitutionService.fetchAvailableTeachers(new Date()),
+    () => substitutionService.fetchAvailableTeachers(),
     { keepPreviousData: true },
   );
 
-  const { data: groups = [] } = useImmutableSWR<Group[]>(
-    "substitution-groups",
-    () => groupService.getGroups(),
+  const {
+    data: groups = [],
+    isLoading: groupsLoading,
+    error: groupsError,
+  } = useImmutableSWR<Group[]>("substitution-groups", () =>
+    groupService.getGroups(),
   );
 
-  const { data: activeSubstitutions = [], mutate: mutateActiveSubstitutions } =
-    useSWRAuth<Substitution[]>(
-      "active-substitutions",
-      () => substitutionService.fetchActiveSubstitutions(new Date()),
-      { keepPreviousData: true },
-    );
+  const {
+    data: activeSubstitutions = [],
+    isLoading: handoversLoading,
+    error: handoversError,
+    mutate: mutateActiveSubstitutions,
+  } = useSWRAuth<Substitution[]>(
+    "group-handovers",
+    () => substitutionService.fetchSubstitutions(),
+    { keepPreviousData: true },
+  );
 
   // UI-Zustand
   const [searchTerm, setSearchTerm] = useState("");
@@ -245,6 +248,7 @@ function SubstitutionPageContent() {
   const [selectedTeacher, setSelectedTeacher] =
     useState<TeacherAvailability | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [startDate, setStartDate] = useState(() => berlinTodayISO());
   const [durationPreset, setDurationPreset] = useState("1");
   const [customDays, setCustomDays] = useState(2);
 
@@ -256,14 +260,31 @@ function SubstitutionPageContent() {
     teacherName: string;
   } | null>(null);
 
-  const isLoading = teachersLoading;
-  const loadError = teachersError ? "Fehler beim Laden der Daten." : null;
+  const isLoading = teachersLoading || groupsLoading || handoversLoading;
+  const loadError =
+    teachersError || groupsError || handoversError
+      ? "Die Daten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
+      : null;
 
   const substitutionDays =
     durationPreset === CUSTOM_DURATION ? customDays : Number(durationPreset);
 
   const filteredTeachers = useMemo(() => {
-    let filtered = [...teachers];
+    const assignmentCounts = new Map<string, number>();
+    for (const handover of activeSubstitutions) {
+      assignmentCounts.set(
+        handover.substituteStaffId,
+        (assignmentCounts.get(handover.substituteStaffId) ?? 0) + 1,
+      );
+    }
+    let filtered = teachers.map((teacher) => {
+      const count = assignmentCounts.get(teacher.id) ?? 0;
+      return {
+        ...teacher,
+        inSubstitution: count > 0,
+        substitutionCount: count,
+      };
+    });
 
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
@@ -285,11 +306,12 @@ function SubstitutionPageContent() {
     }
 
     return filtered;
-  }, [teachers, searchTerm, statusFilter]);
+  }, [activeSubstitutions, teachers, searchTerm, statusFilter]);
 
   const openSubstitutionPopup = (teacher: TeacherAvailability) => {
     setSelectedTeacher(teacher);
     setSelectedGroupId("");
+    setStartDate(berlinTodayISO());
     setDurationPreset("1");
     setCustomDays(2);
     setMutationError(null);
@@ -303,8 +325,8 @@ function SubstitutionPageContent() {
   };
 
   const handleAssignSubstitution = async () => {
-    if (!selectedTeacher || !selectedGroupId) {
-      setMutationError("Bitte wähle eine Gruppe aus.");
+    if (!selectedTeacher || !selectedGroupId || !startDate) {
+      setMutationError("Bitte wählen Sie eine Gruppe und ein Startdatum aus.");
       return;
     }
 
@@ -318,18 +340,11 @@ function SubstitutionPageContent() {
       setIsMutating(true);
       setMutationError(null);
 
-      // Kein regular_staff_id: der Zugriff ersetzt niemanden, er kommt zusätzlich
-      // zu den bestehenden Berechtigungen der Gruppe.
-      const regularStaffId = null;
-
       await substitutionService.createSubstitution(
         group.id,
-        regularStaffId,
         selectedTeacher.id,
-        new Date(),
-        accessEndDate(substitutionDays),
-        "Gruppenzugriff",
-        `Gruppenzugriff für ${substitutionDays} Tag(e)`,
+        startDate,
+        accessEndDate(startDate, substitutionDays),
       );
 
       await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
@@ -337,7 +352,7 @@ function SubstitutionPageContent() {
       const teacherName = formatTeacherName(selectedTeacher);
       const days = substitutionDays > 1 ? `${substitutionDays} Tage` : "1 Tag";
       showSuccessToast(
-        `Zugriff auf "${group.name}" für ${teacherName} gewährt (${days})`,
+        `Gruppe „${group.name}“ an ${teacherName} übergeben (${days})`,
       );
 
       closePopup();
@@ -345,7 +360,7 @@ function SubstitutionPageContent() {
       logger.error("failed to create substitution", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setMutationError("Fehler beim Gewähren des Zugriffs.");
+      setMutationError("Die Gruppe konnte nicht übergeben werden.");
     } finally {
       setIsMutating(false);
     }
@@ -371,7 +386,7 @@ function SubstitutionPageContent() {
 
       await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
 
-      showSuccessToast(`Zugriff auf "${substitutionToEnd.groupName}" beendet`);
+      showSuccessToast(`Übergabe von „${substitutionToEnd.groupName}“ beendet`);
 
       setShowEndConfirmation(false);
       setSubstitutionToEnd(null);
@@ -379,7 +394,7 @@ function SubstitutionPageContent() {
       logger.error("failed to end substitution", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setMutationError("Fehler beim Beenden des Zugriffs.");
+      setMutationError("Die Übergabe konnte nicht beendet werden.");
     } finally {
       setIsMutating(false);
     }
@@ -396,7 +411,7 @@ function SubstitutionPageContent() {
         options: [
           { value: "all", label: "Alle" },
           { value: "available", label: "Verfügbar" },
-          { value: "substitution", label: "Hat Zugriff" },
+          { value: "substitution", label: "Hat eine Übergabe" },
         ],
       },
     ],
@@ -417,7 +432,7 @@ function SubstitutionPageContent() {
     if (statusFilter !== "all") {
       const statusLabels = {
         available: "Verfügbar",
-        substitution: "Hat Zugriff",
+        substitution: "Hat eine Übergabe",
       };
       filters.push({
         id: "status",
@@ -439,20 +454,17 @@ function SubstitutionPageContent() {
     return (
       <div className="moto-content-surface mx-auto mt-8 max-w-lg rounded-2xl border p-6 text-center shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">
-          Gruppenzugriff nicht verfügbar
+          Gruppenübergaben nicht verfügbar
         </h2>
         <p className="mt-2 text-sm text-gray-600">
           Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle
-          berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein
-          temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen
+          berechtigten Mitarbeitenden arbeiten mit allen Kindern. Deshalb sind
+          Gruppenübergaben nicht nötig. Die Einstellung „Arbeit mit festen
           Gruppen“ kann in den Einstellungen geändert werden.
         </p>
       </div>
     );
   }
-
-  const transfers = activeSubstitutions.filter((s) => s.isTransfer);
-  const longTermAccess = activeSubstitutions.filter((s) => !s.isTransfer);
 
   const renderTeacherList = () => {
     if (isLoading) {
@@ -468,7 +480,7 @@ function SubstitutionPageContent() {
         <EmptyState
           icon={<MotoConceptIcon concept="staff" size={48} />}
           title="Keine Fachkräfte gefunden"
-          description="Versuche deine Suchkriterien anzupassen."
+          description="Passen Sie die Suche oder die Filter an."
         />
       );
     }
@@ -494,7 +506,7 @@ function SubstitutionPageContent() {
                     parts={[
                       teacher.regularGroup ?? null,
                       teacher.substitutionCount > 0
-                        ? getTeacherStatus(teacher)
+                        ? `${teacher.substitutionCount} ${teacher.substitutionCount === 1 ? "Gruppenübergabe" : "Gruppenübergaben"}`
                         : null,
                     ]}
                   />
@@ -505,7 +517,7 @@ function SubstitutionPageContent() {
                 variant="outline"
                 size="md"
                 onClick={() => openSubstitutionPopup(teacher)}
-                aria-label={`${name} Zugriff auf eine Gruppe geben`}
+                aria-label={`Eine Gruppe an ${name} übergeben`}
                 className="w-full sm:w-auto"
               >
                 Zuweisen
@@ -592,7 +604,7 @@ function SubstitutionPageContent() {
     <>
       <div className="-mt-1.5 w-full">
         <PageHeaderWithSearch
-          title={isMobile ? "Gruppenzugriff" : ""}
+          title={isMobile ? "Gruppenübergaben" : ""}
           badge={{
             icon: <MotoConceptIcon concept="staff" size={20} />,
             count: filteredTeachers.length,
@@ -630,35 +642,13 @@ function SubstitutionPageContent() {
           <section>
             <SectionHeading
               icon={<Clock className="h-5 w-5" />}
-              title="Tagesübergaben"
-              count={transfers.length}
-              hint="(enden heute 23:59)"
-            />
-            {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
-                steht bereits in der Überschrift. */}
-            {renderAccessSection(
-              transfers,
-              "Keine aktiven Tagesübergaben",
-              () => null,
-            )}
-          </section>
-
-          <section>
-            <SectionHeading
-              icon={<MotoConceptIcon concept="calendar" size={20} />}
-              title="Längerfristige Zugriffe"
-              count={longTermAccess.length}
-              hint="(mehrtägig)"
+              title="Gruppenübergaben"
+              count={activeSubstitutions.length}
             />
             {renderAccessSection(
-              longTermAccess,
-              "Keine aktiven längerfristigen Zugriffe",
-              (substitution) =>
-                `bis ${substitution.endDate.toLocaleDateString("de-DE", {
-                  timeZone: "Europe/Berlin",
-                  day: "2-digit",
-                  month: "2-digit",
-                })}`,
+              activeSubstitutions,
+              "Keine Gruppenübergaben vorhanden",
+              (substitution) => `bis ${formatDate(substitution.endDate, true)}`,
             )}
           </section>
         </div>
@@ -667,7 +657,7 @@ function SubstitutionPageContent() {
       <Modal
         isOpen={showPopup}
         onClose={closePopup}
-        title="Zugriff gewähren"
+        title="Gruppe übergeben"
         footer={assignFooter}
         isDismissDisabled={isMutating}
       >
@@ -680,9 +670,28 @@ function SubstitutionPageContent() {
             <span className="font-medium text-gray-900">
               {selectedTeacher ? formatTeacherName(selectedTeacher) : ""}
             </span>{" "}
-            erhält zusätzlichen Zugriff auf die Kinder der gewählten Gruppe. Die
-            bestehenden Berechtigungen der Gruppe bleiben unverändert.
+            übernimmt die Verantwortung für die gewählte Gruppe. Die Gruppe
+            erscheint für diese Person unter „Meine Gruppen“. Die Berechtigung
+            für Kinderdaten ändert sich nicht.
           </p>
+
+          <div>
+            <label
+              htmlFor="substitution-start-date"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
+              Startdatum
+            </label>
+            <Input
+              id="substitution-start-date"
+              name="substitution-start-date"
+              type="date"
+              min={berlinTodayISO()}
+              required
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+            />
+          </div>
 
           <div>
             <label
@@ -754,8 +763,8 @@ function SubstitutionPageContent() {
 
             <p className="mt-2 text-sm text-gray-500">
               {substitutionDays === 1
-                ? "Zugriff nur für heute, endet um 23:59 Uhr."
-                : `Zugriff bis ${formatDate(toISODate(accessEndDate(substitutionDays)), true)}, 23:59 Uhr.`}
+                ? `Die Übergabe gilt am ${formatDate(startDate, true)}.`
+                : `Die Übergabe gilt bis ${formatDate(accessEndDate(startDate, substitutionDays), true)}.`}
             </p>
           </div>
         </div>
@@ -769,7 +778,7 @@ function SubstitutionPageContent() {
           setMutationError(null);
         }}
         onConfirm={() => void confirmEndSubstitution()}
-        title="Zugriff beenden?"
+        title="Übergabe beenden?"
         confirmText="Beenden"
         cancelText="Abbrechen"
         isConfirmLoading={isMutating}
@@ -781,8 +790,8 @@ function SubstitutionPageContent() {
               <Alert type="error" message={mutationError} />
             ) : null}
             <p className="text-sm text-gray-600">
-              Möchtest du den Zugriff wirklich beenden? Die Person sieht die
-              Kinder der Gruppe danach nicht mehr.
+              Möchten Sie diese Übergabe wirklich beenden? Die Verantwortung für
+              die Gruppe liegt danach nicht mehr bei dieser Person.
             </p>
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
               <p className="text-sm text-gray-600">
@@ -790,7 +799,7 @@ function SubstitutionPageContent() {
                 {substitutionToEnd.groupName}
               </p>
               <p className="mt-1 text-sm text-gray-600">
-                <span className="font-medium text-gray-900">Zugriff für:</span>{" "}
+                <span className="font-medium text-gray-900">Übergeben an:</span>{" "}
                 {substitutionToEnd.teacherName}
               </p>
             </div>
@@ -803,7 +812,7 @@ function SubstitutionPageContent() {
 
 function SubstitutionPageSkeleton() {
   return (
-    <SkeletonRegion label="Gruppenzugriff wird geladen">
+    <SkeletonRegion label="Gruppenübergaben werden geladen">
       <PageHeaderSkeleton />
       <ListSkeleton rows={6} />
     </SkeletonRegion>

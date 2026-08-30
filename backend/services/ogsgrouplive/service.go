@@ -47,6 +47,7 @@ type Getter interface {
 type Dependencies struct {
 	People            userService.PersonService
 	Education         educationService.Service
+	Substitutions     educationService.SubstitutionModule
 	UserContext       userContextService.UserContextService
 	Active            activeService.Service
 	Settings          configService.SettingsService
@@ -215,7 +216,7 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 }
 
 func (s *service) validateDependencies() error {
-	if s.deps.People == nil || s.deps.Education == nil || s.deps.UserContext == nil ||
+	if s.deps.People == nil || s.deps.Education == nil || s.deps.Substitutions == nil || s.deps.UserContext == nil ||
 		s.deps.Active == nil || s.deps.Settings == nil || s.deps.Pickups == nil ||
 		s.deps.Arrivals == nil || s.deps.Instances == nil || s.deps.CareDays == nil ||
 		s.deps.CareParticipation == nil || s.deps.StatusDays == nil {
@@ -761,23 +762,26 @@ func (s *service) loadTracking(ctx context.Context, studentIDs []int64) (Trackin
 }
 
 func (s *service) loadTransfers(ctx context.Context, groupID int64, date timezone.Date) ([]Transfer, error) {
-	substitutions, err := s.deps.Education.GetActiveGroupSubstitutions(ctx, groupID, date)
+	principal, err := permissions.PrincipalFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]Transfer, 0, len(substitutions))
-	for _, sub := range substitutions {
-		if sub.RegularStaffID != nil {
-			continue
-		}
+	caller := educationService.SubstitutionCaller{
+		AccountID: principal.AccountID(), TenantID: principal.TenantID(), Scope: string(principal.Scope()),
+		Roles: principal.Roles(), Admin: principal.HasAdminScope(),
+	}
+	overview, err := s.deps.Substitutions.Overview(ctx, caller, educationService.OverviewQuery{GroupID: groupID, On: &date})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Transfer, 0, len(overview.GroupHandovers))
+	for _, handover := range overview.GroupHandovers {
 		item := Transfer{
-			ID:                sub.ID,
-			GroupID:           sub.GroupID,
-			SubstituteStaffID: sub.SubstituteStaffID,
-			EndDate:           sub.EndDate.String(),
-		}
-		if sub.SubstituteStaff != nil && sub.SubstituteStaff.Person != nil {
-			item.SubstituteName = strings.TrimSpace(sub.SubstituteStaff.Person.FirstName + " " + sub.SubstituteStaff.Person.LastName)
+			ID:                handover.ID,
+			GroupID:           handover.Group.ID,
+			SubstituteStaffID: handover.Target.ID,
+			EndDate:           handover.Period.EndDate,
+			SubstituteName:    handover.Target.FullName,
 		}
 		result = append(result, item)
 	}

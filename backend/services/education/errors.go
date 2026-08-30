@@ -19,7 +19,8 @@ var (
 	ErrSubstitutionConflict    = errors.New("substitution conflicts with an existing one")
 	ErrInvalidDateRange        = errors.New("invalid date range")
 	ErrSubstitutionBackdated   = errors.New("substitutions cannot be created or updated for past dates")
-	ErrGroupHasStudents        = errors.New("Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder") //nolint:staticcheck // ST1005: user-facing German message
+	ErrGroupHasStudents        = errors.New("Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder")                              //nolint:staticcheck // ST1005: user-facing German message
+	ErrGroupHasHandover        = errors.New("Gruppe kann nicht gelöscht werden: Eine laufende oder geplante Übergabe muss zuerst beendet werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // EducationError represents an error that occurred in the education service

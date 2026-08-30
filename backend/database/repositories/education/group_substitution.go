@@ -60,48 +60,6 @@ func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 	return substitutions, nil
 }
 
-// FindByRegularStaff retrieves all substitutions for a regular staff member
-func (r *GroupSubstitutionRepository) FindByRegularStaff(ctx context.Context, staffID int64) ([]*education.GroupSubstitution, error) {
-	var substitutions []*education.GroupSubstitution
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&substitutions).
-		ModelTableExpr(tableExprGroupSubstitutionAsGS).
-		Where(`"group_substitution".regular_staff_id = ?`, staffID)
-
-	query = base.WithTenantFilter(ctx, query, "group_substitution")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by regular staff",
-			Err: err,
-		}
-	}
-
-	return substitutions, nil
-}
-
-// FindBySubstituteStaff retrieves all substitutions where a staff member is substituting
-func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context, staffID int64) ([]*education.GroupSubstitution, error) {
-	var substitutions []*education.GroupSubstitution
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&substitutions).
-		ModelTableExpr(tableExprGroupSubstitutionAsGS).
-		Where(`"group_substitution".substitute_staff_id = ?`, staffID)
-
-	query = base.WithTenantFilter(ctx, query, "group_substitution")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by substitute staff",
-			Err: err,
-		}
-	}
-
-	return substitutions, nil
-}
-
 // DeleteActiveOrFutureByStaffID removes substitutions involving the staff
 // member (as regular or substitute) that have not ended before the given date.
 // Past substitutions stay as history. Used by staff offboarding, where the
@@ -254,42 +212,6 @@ func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, optio
 	return rows, nil
 }
 
-// FindByIDWithRelations retrieves a substitution by ID with all related data loaded
-func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
-	var substitution education.GroupSubstitution
-
-	mainQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(&substitution).
-		ModelTableExpr(tableExprGroupSubstitutionAsGS).
-		Where(`"group_substitution".id = ?`, id)
-
-	mainQuery = base.WithTenantFilter(ctx, mainQuery, "group_substitution")
-
-	err := mainQuery.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by id with relations",
-			Err: err,
-		}
-	}
-
-	// Load group
-	if substitution.GroupID > 0 {
-		var group education.Group
-		err = base.GetDB(ctx, r.db).NewSelect().
-			Model(&group).
-			ModelTableExpr(`education.groups AS "group"`).
-			Where(`"group".id = ?`, substitution.GroupID).
-			Scan(ctx)
-		if err == nil {
-			substitution.Group = &group
-		}
-	}
-
-	return &substitution, nil
-}
-
 // ListWithRelations retrieves substitutions with all related data loaded
 func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
 	substitutions, err := r.ListWithOptions(ctx, options)
@@ -301,8 +223,14 @@ func (r *GroupSubstitutionRepository) ListWithRelations(ctx context.Context, opt
 	groupIDs, staffIDs := collectSubstitutionRelatedIDs(substitutions)
 
 	// Load all related data
-	groupMap := r.loadGroupsByIDs(ctx, groupIDs)
-	staffMap := r.loadStaffWithPersonsByIDs(ctx, staffIDs)
+	groupMap, err := r.loadGroupsByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	staffMap, err := r.loadStaffWithPersonsByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Assign loaded data to substitutions
 	assignRelationsToSubstitutions(substitutions, groupMap, staffMap)
@@ -331,10 +259,10 @@ func collectSubstitutionRelatedIDs(substitutions []*education.GroupSubstitution)
 }
 
 // loadGroupsByIDs loads groups by their IDs and returns a map
-func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, groupIDs map[int64]bool) map[int64]*education.Group {
+func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, groupIDs map[int64]bool) (map[int64]*education.Group, error) {
 	groupMap := make(map[int64]*education.Group)
 	if len(groupIDs) == 0 {
-		return groupMap
+		return groupMap, nil
 	}
 
 	groupIDSlice := slices.Collect(maps.Keys(groupIDs))
@@ -347,21 +275,21 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 
 	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
-	err := groupQuery.Scan(ctx)
-	if err == nil {
-		for _, group := range groups {
-			groupMap[group.ID] = group
-		}
+	if err := groupQuery.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "load substitution groups", Err: err}
+	}
+	for _, group := range groups {
+		groupMap[group.ID] = group
 	}
 
-	return groupMap
+	return groupMap, nil
 }
 
 // loadStaffWithPersonsByIDs loads staff with their persons by IDs
-func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Context, staffIDs map[int64]bool) map[int64]*users.Staff {
+func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Context, staffIDs map[int64]bool) (map[int64]*users.Staff, error) {
 	staffMap := make(map[int64]*users.Staff)
 	if len(staffIDs) == 0 {
-		return staffMap
+		return staffMap, nil
 	}
 
 	staffIDSlice := slices.Collect(maps.Keys(staffIDs))
@@ -377,10 +305,11 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 
 	staffQuery = base.WithTenantFilter(ctx, staffQuery, "staff")
 
-	err := staffQuery.Scan(ctx)
-
-	if err != nil || len(staffList) == 0 {
-		return staffMap
+	if err := staffQuery.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "load substitution staff", Err: err}
+	}
+	if len(staffList) == 0 {
+		return staffMap, nil
 	}
 
 	// Build staff map and collect person IDs
@@ -393,15 +322,17 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 	}
 
 	// Load and link persons
-	r.linkPersonsToStaff(ctx, staffList, personIDs)
+	if err := r.linkPersonsToStaff(ctx, staffList, personIDs); err != nil {
+		return nil, err
+	}
 
-	return staffMap
+	return staffMap, nil
 }
 
 // linkPersonsToStaff loads persons and links them to staff records
-func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, staffList []*users.Staff, personIDs []int64) {
+func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, staffList []*users.Staff, personIDs []int64) error {
 	if len(personIDs) == 0 {
-		return
+		return nil
 	}
 
 	var persons []*users.Person
@@ -412,10 +343,8 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 
 	personQuery = base.WithTenantFilter(ctx, personQuery, "person")
 
-	err := personQuery.Scan(ctx)
-
-	if err != nil {
-		return
+	if err := personQuery.Scan(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "load substitution staff persons", Err: err}
 	}
 
 	personMap := make(map[int64]*users.Person)
@@ -428,6 +357,7 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 			staff.Person = person
 		}
 	}
+	return nil
 }
 
 // assignRelationsToSubstitutions assigns loaded relations to substitution records
@@ -447,16 +377,6 @@ func assignRelationsToSubstitutions(substitutions []*education.GroupSubstitution
 	}
 }
 
-// FindActiveWithRelations retrieves all active substitutions for a specific date with related data
-func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error) {
-	options := modelBase.NewQueryOptions()
-	filter := modelBase.NewFilter()
-	filter.DateBetween("start_date", "end_date", date)
-	options.Filter = filter
-
-	return r.ListWithRelations(ctx, options)
-}
-
 // FindActiveBySubstituteWithRelations retrieves active substitutions for a staff member and date with related data
 func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	options := modelBase.NewQueryOptions()
@@ -468,35 +388,23 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx co
 	return r.ListWithRelations(ctx, options)
 }
 
-// FindActiveByGroupWithRelations retrieves active substitutions for a specific group and date with related data
-func (r *GroupSubstitutionRepository) FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
-	options := modelBase.NewQueryOptions()
-	filter := modelBase.NewFilter()
-	filter.Equal("group_id", groupID)
-	filter.DateBetween("start_date", "end_date", date)
-	options.Filter = filter
-
-	return r.ListWithRelations(ctx, options)
-}
-
 // ListActiveSubstitutionBlockers returns the staff member's current or
-// upcoming substitutions (as substitute or regular) as caregiver-capability
-// blocker rows. Custom raw-SQL method (backend-conventions Rule 2):
-// role CASE projection into the users blocker read model.
+// upcoming typed group handovers as caregiver-capability blocker rows.
+// Custom raw-SQL method (backend-conventions Rule 2).
 func (r *GroupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSubstitution, error) {
 	var results []users.BlockerSubstitution
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
-		       CASE WHEN gs.substitute_staff_id = ? THEN 'substitute' ELSE 'regular' END AS role,
 		       gs.start_date::text AS start_date,
 		       gs.end_date::text AS end_date
 		FROM education.group_substitution AS gs
 		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
 		WHERE gs.tenant_id = ?
-		  AND (gs.substitute_staff_id = ? OR gs.regular_staff_id = ?)
+		  AND gs.target_type = 'group_handover'
+		  AND gs.substitute_staff_id = ?
 		  AND gs.end_date >= CURRENT_DATE
 		ORDER BY gs.start_date DESC
-	`, staffID, tenantID, staffID, staffID).Scan(ctx, &results)
+	`, tenantID, staffID).Scan(ctx, &results)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active substitution blockers",
