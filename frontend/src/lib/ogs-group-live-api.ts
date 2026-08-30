@@ -14,7 +14,7 @@ interface OgsLiveWireGroup {
   room_id?: string;
   room_name?: string;
   via_substitution: boolean;
-  is_personal: boolean;
+  is_personal?: boolean;
 }
 
 export interface OgsLiveWireStudent {
@@ -141,7 +141,7 @@ export function mapOgsGroupLiveResponse(
       roomId: group.room_id,
       roomName: group.room_name,
       viaSubstitution: group.via_substitution,
-      isPersonal: group.is_personal,
+      isPersonal: group.is_personal ?? true,
     })),
     groupId: wire.group_id ?? null,
     students: wire.students ?? [],

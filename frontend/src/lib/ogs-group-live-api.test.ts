@@ -84,6 +84,16 @@ describe("mapOgsGroupLiveResponse", () => {
     ).toBeNull();
   });
 
+  it("treats groups without is_personal as personal during a rolling deployment", () => {
+    const view = mapOgsGroupLiveResponse(
+      wireResponse({
+        groups: [{ id: "1", name: "Gruppe A", via_substitution: false }],
+      }),
+    );
+
+    expect(view.groups[0]?.isPersonal).toBe(true);
+  });
+
   it("passes students through unchanged", () => {
     const students = [
       {

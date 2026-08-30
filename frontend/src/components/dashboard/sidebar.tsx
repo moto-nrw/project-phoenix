@@ -876,6 +876,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     "sidebar-last-group",
     childFromParam?.startsWith("/ogs-groups") ?? false,
   );
+  const hasSelectedOtherGroup = otherGroups.some(
+    (group) =>
+      group.id.toString() === currentGroupParam ||
+      group.id.toString() === childGroupId,
+  );
+  const areOtherGroupsExpanded =
+    expanded === "groups" && (otherGroupsExpanded || hasSelectedOtherGroup);
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
     childFromParam?.startsWith("/active-supervisions") ?? false,
@@ -884,6 +891,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
+
+  useEffect(() => {
+    if (expanded !== "groups") {
+      setOtherGroupsExpanded(false);
+    }
+  }, [expanded]);
 
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
@@ -923,6 +936,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
   const handleGroupsToggle = useCallback(() => {
+    if (expanded === "groups" && otherGroupsExpanded) {
+      setOtherGroupsExpanded(false);
+      return;
+    }
     toggle("groups");
     if (!pathname.startsWith("/ogs-groups")) {
       const savedGroupId = localStorage.getItem("sidebar-last-group");
@@ -932,11 +949,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
       const groupId = targetGroup?.id ?? personalGroups[0]?.id;
       if (groupId) {
         router.push(`/ogs-groups?group=${groupId}`);
-      } else {
-        router.push("/ogs-groups");
       }
     }
-  }, [pathname, personalGroups, router, toggle]);
+  }, [expanded, otherGroupsExpanded, pathname, personalGroups, router, toggle]);
 
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
@@ -1118,7 +1133,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 concept="groups"
                 label="Meine Gruppen"
                 activeColor="text-moto-green"
-                isExpanded={expanded === "groups"}
+                isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
                 onToggle={handleGroupsToggle}
                 isActive={isAccordionSectionActive(
                   "/ogs-groups",
@@ -1155,15 +1170,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   concept="groups"
                   label="Weitere Gruppen"
                   activeColor="text-moto-green"
-                  isExpanded={
-                    expanded === "groups" &&
-                    (otherGroupsExpanded ||
-                      otherGroups.some(
-                        (group) =>
-                          group.id.toString() === currentGroupParam ||
-                          group.id.toString() === childGroupId,
-                      ))
-                  }
+                  isExpanded={areOtherGroupsExpanded}
                   onToggle={() => {
                     if (expanded !== "groups") {
                       toggle("groups");

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const mockRouterPush = vi.fn();
 
@@ -835,6 +835,64 @@ describe("Sidebar", () => {
       ).toHaveAttribute("aria-expanded", "false");
     });
 
+    it("keeps personal and additional groups mutually exclusive", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByText("Weitere Gruppen"));
+
+      expect(
+        screen.getByText("Meine Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "false");
+      expect(
+        screen.getByText("Weitere Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("closes additional groups after leaving the groups section", async () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      const { rerender } = render(<Sidebar />);
+      fireEvent.click(screen.getByText("Weitere Gruppen"));
+      mockUsePathname.mockReturnValue("/activities");
+      rerender(<Sidebar />);
+      await waitFor(() =>
+        expect(
+          screen.getByText("Weitere Gruppen").closest("button"),
+        ).toHaveAttribute("aria-expanded", "false"),
+      );
+
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      rerender(<Sidebar />);
+      expect(
+        screen.getByText("Meine Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "true");
+    });
+
     it("opens additional groups when the current group is selected", () => {
       mockUsePathname.mockReturnValue("/ogs-groups");
       mockUseSearchParams.mockReturnValue(
@@ -973,7 +1031,7 @@ describe("Sidebar", () => {
       );
     });
 
-    it("navigates to ogs-groups without group param when no groups", () => {
+    it("does not navigate from an empty personal groups section", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: false,
@@ -991,7 +1049,7 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups");
+      expect(mockRouterPush).not.toHaveBeenCalled();
     });
 
     it("navigates to active-supervisions when supervisions toggle clicked from another page", () => {
