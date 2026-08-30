@@ -30762,6 +30762,26 @@
     },
     {
       "scope": "test",
+      "file": "services/schedule/substitution_module_interface_test.go",
+      "declaration": "newScheduleSubstitutionModule",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        508
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/schedule/substitution_module_interface_test.go",
+      "declaration": "newScheduleSubstitutionModule",
+      "target": "services.NewFactory",
+      "lines": [
+        509
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/schedule/template_offering_source_integration_test.go",
       "declaration": "TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering",
       "target": "database/repositories.NewFactory",

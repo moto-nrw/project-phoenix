@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,40 @@ func TestRenderModuleErrorUsesStableContract(t *testing.T) {
 			require.Equal(t, spec.message, response.body.Error)
 		})
 	}
+}
+
+func TestScheduleAssignmentRequestPreservesAppointmentScope(t *testing.T) {
+	t.Parallel()
+
+	var request assignmentRequest
+	err := json.NewDecoder(strings.NewReader(`{
+		"type":"schedule_substitution",
+		"schedule_substitution":{
+			"instance_id":42,
+			"substitutions":[{"absent_staff_id":7,"substitute_staff_id":8,"instance_ids":[42,43]}]
+		}
+	}`)).Decode(&request)
+	require.NoError(t, err)
+	assignment, err := request.toAssignment()
+	require.NoError(t, err)
+	require.Equal(t, int64(42), assignment.ScheduleSubstitution.InstanceID)
+	require.Equal(t, []int64{42, 43}, *assignment.ScheduleSubstitution.Substitutions[0].InstanceIDs)
+}
+
+func TestGroupAssignmentRequestPreservesDateErrors(t *testing.T) {
+	t.Parallel()
+
+	var request assignmentRequest
+	require.NoError(t, json.NewDecoder(strings.NewReader(`{
+		"type":"group_handover",
+		"group_handover":{"start_date":"kein-datum"}
+	}`)).Decode(&request))
+
+	_, err := request.toAssignment()
+	response := renderErrorResponse(t, err)
+	require.Equal(t, 400, response.status)
+	require.Equal(t, "invalid_period", response.body.Code)
+	require.Equal(t, "Das Startdatum ist ungültig.", response.body.Error)
 }
 
 func TestRenderModuleErrorHidesInternalCause(t *testing.T) {

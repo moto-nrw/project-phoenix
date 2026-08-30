@@ -18,6 +18,45 @@ export interface BackendGroupHandover {
 export interface BackendSubstitutionOverview {
   group_handovers: BackendGroupHandover[];
   targets: Array<{ id: number; full_name: string }>;
+  schedule_appointments?: BackendScheduleAppointment[];
+  schedule_targets?: Array<{ id: number; full_name: string }>;
+}
+
+interface BackendScheduleAppointment {
+  id: number;
+  type: "schedule_substitution";
+  date: string;
+  start_time: string;
+  end_time: string;
+  title: string;
+  status: string;
+  staff: Array<{
+    assignment_id: number;
+    staff: { id: number; full_name: string };
+    is_absent: boolean;
+    is_substitute: boolean;
+    can_end: boolean;
+  }>;
+}
+
+export interface ScheduleSubstitutionOverview {
+  appointments: Array<{
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    title: string;
+    status: string;
+    staff: Array<{
+      assignmentId: string;
+      id: string;
+      name: string;
+      isAbsent: boolean;
+      isSubstitute: boolean;
+      canEnd: boolean;
+    }>;
+  }>;
+  staff: Array<{ id: string; name: string }>;
 }
 
 export interface SubstitutionProxyEnvelope<T> {
@@ -82,6 +121,33 @@ export function mapSubstitutionsResponse(
     throw new Error("Ungültige Antwort für Gruppenübergaben.");
   }
   return backendSubstitutions.map(mapSubstitutionResponse);
+}
+
+export function mapScheduleSubstitutionOverview(
+  backend: BackendSubstitutionOverview,
+): ScheduleSubstitutionOverview {
+  return {
+    appointments: (backend.schedule_appointments ?? []).map((appointment) => ({
+      id: String(appointment.id),
+      date: appointment.date,
+      startTime: appointment.start_time,
+      endTime: appointment.end_time,
+      title: appointment.title,
+      status: appointment.status,
+      staff: appointment.staff.map((row) => ({
+        assignmentId: String(row.assignment_id),
+        id: String(row.staff.id),
+        name: row.staff.full_name,
+        isAbsent: row.is_absent,
+        isSubstitute: row.is_substitute,
+        canEnd: row.can_end,
+      })),
+    })),
+    staff: (backend.schedule_targets ?? []).map((member) => ({
+      id: String(member.id),
+      name: member.full_name,
+    })),
+  };
 }
 
 // Prepare frontend types for backend

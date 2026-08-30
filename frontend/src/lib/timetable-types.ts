@@ -803,10 +803,13 @@ export interface BackendAttendanceResponse {
 
 interface SubstituteTimeConflict {
   instanceId: string;
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
+  kind?: string;
+  otherInstanceId?: string;
+  message?: string;
+  title?: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 type SubstituteAction =
@@ -828,10 +831,13 @@ interface SubstituteAffectedInstance {
 
 interface BackendSubstituteTimeConflict {
   instance_id: number;
-  title: string;
-  date: string;
-  start_time: string;
-  end_time: string;
+  kind?: string;
+  other_instance_id?: number;
+  message?: string;
+  title?: string;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
 }
 
 interface BackendSubstituteAffectedInstance {
