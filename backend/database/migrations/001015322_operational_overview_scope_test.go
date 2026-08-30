@@ -16,6 +16,8 @@ import (
 // no row at all.
 func TestOperationalOverviewScopeDerivesFromExistingRules(t *testing.T) {
 	t.Parallel()
+	operationalOverviewMigrationTests.Lock()
+	defer operationalOverviewMigrationTests.Unlock()
 
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()

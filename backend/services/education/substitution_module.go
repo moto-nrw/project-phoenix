@@ -125,6 +125,7 @@ type SubstitutionDependencies struct {
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger
 	Now           func() time.Time
+	CanSeeAll     func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
 }
 
 type substitutionModule struct {
@@ -150,9 +151,16 @@ func (s *substitutionModule) Overview(ctx context.Context, caller SubstitutionCa
 	if err != nil {
 		return nil, err
 	}
+	broad := false
+	if s.deps.CanSeeAll != nil {
+		broad, err = s.deps.CanSeeAll(ctx, caller.Scope == "school", access.admin, access.actor != nil)
+		if err != nil {
+			return nil, err
+		}
+	}
 	today := timezone.DateFromTime(s.deps.Now())
 	visibleGroupIDs := access.ownedGroupIDs
-	if !access.admin && query.GroupID == 0 {
+	if !broad && query.GroupID == 0 {
 		visibleGroupIDs, err = s.visibleGroupIDs(ctx, access, caller.TenantID, today)
 		if err != nil {
 			return nil, err
@@ -161,11 +169,11 @@ func (s *substitutionModule) Overview(ctx context.Context, caller SubstitutionCa
 	if err := validateOverviewQuery(query, access.admin, today); err != nil {
 		return nil, err
 	}
-	rows, err := s.listOverviewRows(ctx, caller.TenantID, query, access.admin, visibleGroupIDs, today)
+	rows, err := s.listOverviewRows(ctx, caller.TenantID, query, access.admin, broad, visibleGroupIDs, today)
 	if err != nil {
 		return nil, err
 	}
-	if !access.admin && query.GroupID > 0 && !canViewGroup(access, rows, query.GroupID) {
+	if !broad && query.GroupID > 0 && !canViewGroup(access, rows, query.GroupID) {
 		return nil, ErrNotFound
 	}
 	return s.projectOverview(ctx, caller.TenantID, access, rows, query.IncludeTargets)
@@ -181,13 +189,13 @@ func validateOverviewQuery(query OverviewQuery, admin bool, today timezone.Date)
 	return nil
 }
 
-func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int64, query OverviewQuery, admin bool, visibleGroupIDs []int64, today timezone.Date) ([]*educationModels.GroupSubstitution, error) {
+func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int64, query OverviewQuery, admin, broad bool, visibleGroupIDs []int64, today timezone.Date) ([]*educationModels.GroupSubstitution, error) {
 	options := base.NewQueryOptions()
 	filter := base.NewFilter().Equal("tenant_id", tenantID).
 		Equal("target_type", educationModels.GroupSubstitutionTypeGroupHandover)
 	if query.GroupID > 0 {
 		filter.Equal("group_id", query.GroupID)
-	} else if !admin {
+	} else if !broad {
 		values := make([]any, len(visibleGroupIDs))
 		for i, id := range visibleGroupIDs {
 			values[i] = id

@@ -364,29 +364,24 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 }
 
-// TestOperationalOverviewScopeSetting pins the one setting that decides who
-// may see and operate every running module (#2380). The three option values
-// are a wire contract with the backend gate, so a rename must fail here.
+// TestOperationalOverviewScopeSetting pins the two modes that decide which
+// groups and running modules staff can see (#2801).
 func TestOperationalOverviewScopeSetting(t *testing.T) {
 	t.Parallel()
 
 	def := config.GetDefinition(config.KeyOperationalOverviewScope)
 	require.NotNil(t, def, "operations.operational_overview_scope should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.OverviewScopeOwn, def.Default, "the restrictive scope is the default")
+	assert.Equal(t, config.OverviewScopeAllStaff, def.Default, "new schools start with the whole-team scope")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "aufsicht", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
 	require.NotNil(t, def.Options)
-	require.Len(t, def.Options.Static, 3)
-	values := make([]any, 0, 3)
-	for _, opt := range def.Options.Static {
-		values = append(values, opt.Value)
-	}
-	assert.Contains(t, values, config.OverviewScopeOwn)
-	assert.Contains(t, values, config.OverviewScopeAdmins)
-	assert.Contains(t, values, config.OverviewScopeAllStaff)
+	require.Equal(t, []config.SelectOption{
+		{Label: "Ganzes Team", Value: config.OverviewScopeAllStaff},
+		{Label: "Eigene Zuständigkeiten", Value: config.OverviewScopeOwn},
+	}, def.Options.Static)
 
 	// The retired flag must not come back: two settings answering the same
 	// question is exactly what #2380 removed.
@@ -1535,7 +1530,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
-		{"operations.operational_overview_scope", config.OverviewScopeOwn},
+		{"operations.operational_overview_scope", config.OverviewScopeAllStaff},
 		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},

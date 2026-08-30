@@ -1338,16 +1338,19 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("all_staff scope allows staff without instance assignment or supervision", func(t *testing.T) {
+	t.Run("all_staff scope grants visibility but no action rights", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.settings.scope = configModel.OverviewScopeAllStaff
 		wireAssignedStaff(deps, 693, 515, 274, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 
-		_, err := deps.service.Complete(context.Background(), 693, false, instanceID)
-
+		_, err := deps.service.Roster(context.Background(), 693, false, instanceID)
 		require.NoError(t, err)
-		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+
+		_, err = deps.service.Complete(context.Background(), 693, false, instanceID)
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
 	})
 
 	// The organisational group mode no longer opens running modules (#2380):
@@ -1399,9 +1402,9 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("admins scope allows an admin without a staff identity", func(t *testing.T) {
+	t.Run("admin can operate regardless of overview scope", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.scope = configModel.OverviewScopeAdmins
+		deps.settings.scope = configModel.OverviewScopeOwn
 
 		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
 
@@ -1729,7 +1732,7 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	deps := newTimetableOpsDeps()
 	// A settings fault must fail closed for every caller shape (#2380).
-	deps.settings.err = errors.New("settings down")
+	deps.settings.stringErr = errors.New("settings down")
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), true, true))
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, true))
 	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, false))

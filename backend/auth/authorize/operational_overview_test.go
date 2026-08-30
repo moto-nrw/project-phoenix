@@ -27,6 +27,7 @@ func TestOperationalOverview(t *testing.T) {
 		want                     bool
 	}{
 		{"own denies", OverviewScopeOwn, true, false, false, false},
+		{"own allows admin", OverviewScopeOwn, false, false, true, true},
 		{"admins allows admin", OverviewScopeAdmins, false, false, true, true},
 		{"admins denies staff", OverviewScopeAdmins, true, false, false, false},
 		{"all staff allows staff", OverviewScopeAllStaff, true, false, false, true},
@@ -39,6 +40,10 @@ func TestOperationalOverview(t *testing.T) {
 			if err != nil || got != tt.want {
 				t.Fatalf("HasOperationalOverview() = %v, %v; want %v, nil", got, err, tt.want)
 			}
+			resolved, err := HasOperationalOverviewForResolvedStaff(context.Background(), overviewSettings{scope: tt.scope}, tt.assignment, tt.admin, tt.staff)
+			if err != nil || resolved != tt.want {
+				t.Fatalf("HasOperationalOverviewForResolvedStaff() = %v, %v; want %v, nil", resolved, err, tt.want)
+			}
 		})
 	}
 }
@@ -48,5 +53,13 @@ func TestOperationalOverviewSettingsErrorFailsClosed(t *testing.T) {
 	_, err := HasOperationalOverview(context.Background(), overviewSettings{err: errors.New("db")}, overviewStaff{true}, false, true)
 	if err == nil {
 		t.Fatal("settings error must propagate")
+	}
+}
+
+func TestOperationalOverviewMissingSettingsFailsClosed(t *testing.T) {
+	t.Parallel()
+	got, err := HasOperationalOverview(context.Background(), nil, overviewStaff{true}, false, true)
+	if err != nil || got {
+		t.Fatalf("HasOperationalOverview() = %v, %v; want false, nil", got, err)
 	}
 }

@@ -66,8 +66,8 @@ interface SupervisionState {
 
   // True when the caller fetched supervision rooms via the school-wide
   // overview endpoint (/api/active/supervisors/all), i.e. the server confirmed
-  // this person may see and operate every running module (#2380). False when
-  // the school keeps everyone on their own supervisions. Pages gate on this
+  // this person may see every running module (#2380). False when this caller
+  // stays on their own supervisions. Pages gate on this
   // rather than on room count, so a synthetic Schulhof entry never counts as
   // an enabled overview.
   overviewEnabled: boolean;
@@ -129,8 +129,7 @@ export function SupervisionProvider({
   // a 403 still falls back to the caller's own supervisions below.
   const overviewScope = useOperationalOverviewScope();
   const mayHaveOverview =
-    overviewScope === "all_staff" ||
-    (overviewScope === "admins" && sessionHasEffectiveAdminScope);
+    sessionHasEffectiveAdminScope || overviewScope === "all_staff";
   const mayHaveOverviewRef = useLatest(mayHaveOverview);
 
   // Whether the user may read group/supervision data. The Schulhof status
