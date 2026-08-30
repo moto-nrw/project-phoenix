@@ -777,6 +777,12 @@ export function mapApplyDeviations(
     })),
     warnings: (raw.warnings ?? []).map((warning) => ({
       instanceId: String(warning.instance_id),
+      kind: warning.kind,
+      otherInstanceId:
+        warning.other_instance_id === undefined
+          ? undefined
+          : String(warning.other_instance_id),
+      message: warning.message,
       title: warning.title,
       date: warning.date,
       startTime: warning.start_time,

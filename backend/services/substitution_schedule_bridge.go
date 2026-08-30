@@ -243,25 +243,29 @@ func mapScheduleSubstitutionError(err error) error {
 			Target: education.ErrInvalidPeriod, Code: "invalid_period", Message: "Der Zeitraum ist ungültig.",
 		}
 	case errors.Is(err, schedule.ErrSubstitutionNotFound):
-		return education.ErrNotFound
+		return &education.OperationError{
+			Target: education.ErrNotFound, Code: "not_found", Message: "Die Terminvertretung wurde nicht gefunden.",
+		}
 	case errors.Is(err, schedule.ErrSubstitutionNotRunning):
-		return education.ErrNotRunning
+		return &education.OperationError{
+			Target: education.ErrNotRunning, Code: "not_running", Message: "Die Terminvertretung ist nicht mehr aktiv.",
+		}
 	}
 	var deviation *schedule.DeviationError
 	if !errors.As(err, &deviation) || deviation.Status == 500 {
 		return err
 	}
-	target, code := education.ErrInvalidTarget, "invalid_target"
+	target, code, message := education.ErrInvalidTarget, "invalid_target", "Die Angaben für die Vertretung sind ungültig."
 	switch deviation.Status {
 	case 404:
-		target, code = education.ErrNotFound, "not_found"
+		target, code, message = education.ErrNotFound, "not_found", "Der Termin oder die Person wurde nicht gefunden."
 	case 409:
-		target, code = education.ErrConflict, deviation.Code
+		target, code, message = education.ErrConflict, deviation.Code, deviation.ClientMsg
 		if code == "" {
 			code = "conflict"
 		}
 	}
 	return &education.OperationError{
-		Target: target, Code: code, Message: deviation.ClientMsg, Cause: deviation.Cause,
+		Target: target, Code: code, Message: message, Cause: deviation.Cause,
 	}
 }
