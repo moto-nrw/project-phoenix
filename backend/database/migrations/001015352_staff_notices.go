@@ -61,7 +61,7 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, `
+	_, err = tx.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.staff_notices (
 			id                       BIGSERIAL PRIMARY KEY,
 			tenant_id                BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
@@ -99,7 +99,7 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.staff_notices TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.staff_notices_id_seq TO phoenix_tenant;
-	`)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error creating users.staff_notices: %w", err)
 	}
@@ -107,7 +107,7 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 	// Kenntnisnahme: eine Zeile je Person und Hinweis. Die Bestätigung gilt für
 	// den Hinweis, nicht für den einzelnen Tag — ein wiederkehrender Hinweis
 	// wird einmal zur Kenntnis genommen, nicht jeden Dienstag erneut.
-	_, err = tx.ExecContext(ctx, `
+	_, err = tx.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.staff_notice_acks (
 			notice_id       BIGINT NOT NULL REFERENCES users.staff_notices(id) ON DELETE CASCADE,
 			account_id      BIGINT NOT NULL REFERENCES auth.accounts(id) ON DELETE CASCADE,
@@ -120,7 +120,7 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 			ON users.staff_notice_acks (tenant_id, account_id);
 
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.staff_notice_acks TO phoenix_tenant;
-	`)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error creating users.staff_notice_acks: %w", err)
 	}
@@ -154,10 +154,10 @@ func staffNoticesDown(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, `
+	_, err = tx.NewRaw(`
 		DROP TABLE IF EXISTS users.staff_notice_acks;
 		DROP TABLE IF EXISTS users.staff_notices;
-	`)
+	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error dropping staff notice tables: %w", err)
 	}
