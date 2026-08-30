@@ -30,7 +30,7 @@ export function FeedbackHistorySkeleton() {
         ))}
       </div>
 
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="p-4 sm:p-6 md:p-8">
           <Skeleton className="mb-4 h-5 w-40 rounded" />
 
