@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -39,6 +40,7 @@ type RosterReconciler struct {
 	instanceStudentRepo schedule.InstanceStudentRepository
 	enrollmentRepo      activities.StudentEnrollmentRepository
 	logger              *slog.Logger
+	now                 func() time.Time
 }
 
 // NewRosterReconciler constructs a RosterReconciler. logger may be nil (a
@@ -48,12 +50,18 @@ func NewRosterReconciler(
 	instanceStudentRepo schedule.InstanceStudentRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	logger *slog.Logger,
+	now ...func() time.Time,
 ) *RosterReconciler {
+	clock := timezone.Now
+	if len(now) > 0 && now[0] != nil {
+		clock = now[0]
+	}
 	return &RosterReconciler{
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
 		enrollmentRepo:      enrollmentRepo,
 		logger:              logger,
+		now:                 clock,
 	}
 }
 
@@ -85,7 +93,7 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 	// slot-list reads would otherwise keep showing. `now` additionally separates
 	// today's blocks that have already started (hand-set statuses there are
 	// observations and stay) from the ones still ahead.
-	now := timezone.Now()
+	now := s.now()
 	from := timezone.DateFromTime(now)
 	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, from, now)
 	if err != nil {
@@ -164,7 +172,7 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 	// Same "today" bounds both halves: the archive replay must not reach back
 	// into instances that turned into history during the alumnus window, and the
 	// enrollment fill starts at the same boundary date.
-	from := timezone.TodayDate()
+	from := timezone.DateFromTime(s.now())
 
 	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs, from)
 	if err != nil {

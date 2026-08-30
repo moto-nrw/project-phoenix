@@ -350,6 +350,17 @@ type instanceService struct {
 	deps InstanceServiceDependencies
 }
 
+type spontaneousStartWorkdayGuardKey struct{}
+
+func withSpontaneousStartWorkdayGuard(ctx context.Context) context.Context {
+	return context.WithValue(ctx, spontaneousStartWorkdayGuardKey{}, struct{}{})
+}
+
+func hasSpontaneousStartWorkdayGuard(ctx context.Context) bool {
+	_, ok := ctx.Value(spontaneousStartWorkdayGuardKey{}).(struct{})
+	return ok
+}
+
 // NewInstanceService constructs an InstanceService. Panics if a required
 // dependency is nil — the service has no sensible degraded mode for lifecycle
 // transitions, so the factory must wire it completely at startup.
@@ -393,6 +404,18 @@ func (s *instanceService) validateStartTime(ctx context.Context, instance *sched
 		return ErrInstanceStartExpired
 	}
 	return nil
+}
+
+func validateSpontaneousStartWorkday(instance *scheduleModel.ActivityInstance, now time.Time) error {
+	if !instance.IsSpontaneous {
+		return nil
+	}
+	switch now.In(timezone.Berlin).Weekday() {
+	case time.Saturday, time.Sunday:
+		return ErrInstanceWeekend
+	default:
+		return nil
+	}
 }
 
 func (s *instanceService) validateCompleteTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -531,6 +554,11 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 
 	now := s.now()
+	if hasSpontaneousStartWorkdayGuard(ctx) && instance.IsSpontaneous {
+		if err := validateSpontaneousStartWorkday(instance, now); err != nil {
+			return nil, err
+		}
+	}
 	newGroup := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,

@@ -175,11 +175,11 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupTestContext(t, fixedCalendarClock)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
 
-	today := timezone.Today()
+	today := timezone.NewDate(2026, 8, 24).BerlinMidnight()
 	start := today.AddDate(0, 0, -1)
 	end := today.AddDate(0, 0, 2)
 	req := testutil.NewRequest("GET", fmt.Sprintf(
@@ -202,9 +202,9 @@ func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.True(t, body.Data.Clamped)
-	assert.False(t, body.Data.Range.End.After(timezone.TodayDate().EndOfDay()))
+	assert.False(t, body.Data.Range.End.After(timezone.NewDate(2026, 8, 24).EndOfDay()))
 	for _, day := range body.Data.Days {
-		assert.LessOrEqual(t, day.Date, timezone.TodayDate().String())
+		assert.LessOrEqual(t, day.Date, timezone.NewDate(2026, 8, 24).String())
 	}
 }
 

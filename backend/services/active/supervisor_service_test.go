@@ -35,7 +35,7 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Get", "Supervisor")
 
 		// Create supervisor
-		now := timezone.TodayDate()
+		now := timezone.NewDate(2026, 8, 24)
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -93,7 +93,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor")
 
-		now := timezone.TodayDate()
+		now := timezone.NewDate(2026, 8, 24)
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -121,7 +121,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group")
 
-		now := timezone.TodayDate()
+		now := timezone.NewDate(2026, 8, 24)
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   99999999, // invalid
 			StaffID:   staff.ID,
@@ -154,7 +154,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
-			StartDate: timezone.TodayDate(),
+			StartDate: timezone.NewDate(2026, 8, 24),
 		}
 
 		// ACT
@@ -187,7 +187,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
 
-		now := timezone.TodayDate()
+		now := timezone.NewDate(2026, 8, 24)
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -252,7 +252,7 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
 
-		now := timezone.TodayDate()
+		now := timezone.NewDate(2026, 8, 24)
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -518,7 +518,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision")
 
-		now := timezone.TodayDate()
+		now := timezone.NewDate(2026, 8, 24)
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,

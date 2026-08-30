@@ -583,8 +583,8 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 
 	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Sommerfest",
-		StartDate:    timezone.TodayDate().AddDays(7),
-		EndDate:      timezone.TodayDate().AddDays(7),
+		StartDate:    timezone.NewDate(2026, 8, 24).AddDays(7),
+		EndDate:      timezone.NewDate(2026, 8, 24).AddDays(7),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(18, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -630,7 +630,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 
 	// A recurring appointment with a cancelled single occurrence emits an EXDATE
 	// in the feed, so subscribers drop that date.
-	recurStart := timezone.TodayDate().AddDays(7)
+	recurStart := timezone.NewDate(2026, 8, 24).AddDays(7)
 	recurEnd := recurStart.AddDays(28)
 	recurring, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Wöchentliches Treffen",
@@ -962,7 +962,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	service := calendarSvc.NewService(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Absage")
-	start := timezone.TodayDate().AddDays(7)
+	start := timezone.NewDate(2026, 8, 24).AddDays(7)
 	endsOn := start.AddDays(28)
 	detail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Wöchentliche Runde",
@@ -1008,7 +1008,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	service := calendarSvc.NewService(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Cleanup", "Feed")
-	day := timezone.TodayDate().AddDays(7)
+	day := timezone.NewDate(2026, 8, 24).AddDays(7)
 	endsOn := day.AddDays(14)
 	detail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Alter Feed-Termin",
@@ -1105,8 +1105,8 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
-		StartDate:    timezone.TodayDate().AddDays(7),
-		EndDate:      timezone.TodayDate().AddDays(7),
+		StartDate:    timezone.NewDate(2026, 8, 24).AddDays(7),
+		EndDate:      timezone.NewDate(2026, 8, 24).AddDays(7),
 		StartTime:    wallClock(18, 0),
 		EndTime:      wallClock(19, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -1123,8 +1123,8 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 
 	// The interactive calendar window is capped (maxCalendarWindowDays); use a
 	// small one that still spans the appointment (today + 7).
-	viewFrom := timezone.TodayDate()
-	viewTo := timezone.TodayDate().AddDays(30)
+	viewFrom := timezone.NewDate(2026, 8, 24)
+	viewTo := timezone.NewDate(2026, 8, 24).AddDays(30)
 
 	// Before deletion the appointment is a normal (non-cancelled) feed event and
 	// shows up in the parent's interactive calendar.

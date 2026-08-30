@@ -45,10 +45,10 @@ type testContext struct {
 // router serves the resource through the production middleware chain
 // (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
 // TenantTxMiddleware) exactly as the real server does, mounted at /staff.
-func setupTestContext(t *testing.T) *testContext {
+func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAPITest(t, clocks...)
 
 	resource := staffAPI.NewResource(svc.Users, svc.StaffDocuments, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 

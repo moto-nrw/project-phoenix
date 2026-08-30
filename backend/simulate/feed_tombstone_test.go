@@ -19,7 +19,7 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	require.NoError(t, err)
-	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
+	today, err := time.ParseInLocation("2006-01-02", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).In(berlin).Format("2006-01-02"), berlin)
 	require.NoError(t, err)
 	periodStart := today.AddDate(0, 0, 14)
 	for periodStart.Weekday() == time.Saturday || periodStart.Weekday() == time.Sunday {

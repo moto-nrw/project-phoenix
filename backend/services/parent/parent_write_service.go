@@ -124,7 +124,7 @@ func (s *service) requireCareRunningForUpdate(ctx context.Context, studentID int
 	if err != nil {
 		return err
 	}
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return ErrChildCareEnded
 	}
 	return nil
@@ -156,7 +156,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
-			careEnded:           child.CareEnded(timezone.TodayDate()),
+			careEnded:           child.CareEnded(s.todayDate()),
 		}
 		return nil
 	})
@@ -279,7 +279,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	}
 
 	now := time.Now()
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	var notePtr *string
 	if trimmedNote != "" {
@@ -298,7 +298,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		// resolvePermittedChild ran before this transaction. Re-check the
 		// interval after acquiring the same row lock as care exits so a care exit
 		// cannot commit between authorization and this write.
-		if fresh.CareEndedOn(timezone.TodayDate()) {
+		if fresh.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		if err := s.ensureNoPartialAbsenceForStatusWrite(txCtx, studentID, dates); err != nil {
@@ -468,7 +468,7 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 		if err != nil {
 			return err
 		}
-		if fresh.CareEndedOn(timezone.TodayDate()) {
+		if fresh.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		// The note is mandatory only while the school's reason policy asks the
@@ -633,7 +633,7 @@ func (s *service) EditExcusedRequest(
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		req, editErr := s.ExcusedRequests.EditRequest(txCtx, absenceSvc.ExcusedRequestEditInput{
@@ -679,7 +679,7 @@ func (s *service) EditPickupChangeRequest(
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		req, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{
@@ -968,7 +968,7 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 	// must not be reachable through the parent proxy by supplying a crafted
 	// week_start. Compare on the normalized Monday so any day within an allowed
 	// week resolves the same.
-	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	currentMonday, _ := mealplanService.WeekRange(s.todayDate())
 	if monday != currentMonday && monday != currentMonday.AddDays(7) {
 		return nil, ErrMealPlanWeekOutOfRange
 	}
@@ -1048,7 +1048,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if !enabled {
 		return nil, ErrPickupChangeDisabled
 	}
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	if date.Before(today) {
 		return nil, ErrPastCareDate
 	}
@@ -1065,7 +1065,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
@@ -1213,7 +1213,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		return nil, ErrPickupChangeDisabled
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	if date.Before(today) {
 		return nil, ErrPastCareDate
 	}
@@ -1232,7 +1232,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
@@ -1514,7 +1514,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		return err
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 	if date.Before(today) {
 		return ErrPastCareDate
 	}
@@ -1525,7 +1525,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {

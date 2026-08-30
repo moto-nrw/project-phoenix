@@ -17,18 +17,9 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
+import type { NavigationEducationalGroup } from "~/lib/usercontext-helpers";
 
 const logger = createLogger({ component: "SupervisionContext" });
-
-interface BackendEducationalGroup {
-  id: number;
-  name: string;
-  room_id?: number;
-  room?: {
-    id: number;
-    name: string;
-  };
-}
 
 interface SupervisedRoom {
   id: string;
@@ -55,7 +46,7 @@ interface SupervisionState {
   // Group supervision
   hasGroups: boolean;
   isLoadingGroups: boolean;
-  groups: BackendEducationalGroup[];
+  groups: NavigationEducationalGroup[];
 
   // Room supervision (for active sessions)
   isSupervising: boolean;
@@ -181,8 +172,8 @@ export function SupervisionProvider({
 
       if (response.ok) {
         const json = (await response.json()) as {
-          data?: { groups?: BackendEducationalGroup[] };
-          groups?: BackendEducationalGroup[];
+          data?: { groups?: NavigationEducationalGroup[] };
+          groups?: NavigationEducationalGroup[];
         };
         // Route wrapper wraps response as { success, data: { groups } }
         const groupList = (json.data?.groups ?? json.groups ?? []).sort(
@@ -194,9 +185,16 @@ export function SupervisionProvider({
           if (
             prev.hasGroups === newHasGroups &&
             prev.groups.length === groupList.length &&
-            prev.groups.every(
-              (group, index) => group.id === groupList[index]?.id,
-            ) &&
+            prev.groups.every((group, index) => {
+              const next = groupList[index];
+              return (
+                group.id === next?.id &&
+                group.name === next.name &&
+                group.room_id === next.room_id &&
+                group.via_substitution === next.via_substitution &&
+                group.is_personal === next.is_personal
+              );
+            }) &&
             !prev.isLoadingGroups
           ) {
             return prev;

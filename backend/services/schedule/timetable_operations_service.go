@@ -269,6 +269,17 @@ func NewTimetableOperationsService(deps TimetableOperationsDependencies) Timetab
 	return &timetableOperationsService{deps: deps}
 }
 
+func (s *timetableOperationsService) now() time.Time {
+	if s.deps.Now != nil {
+		return s.deps.Now()
+	}
+	return time.Now()
+}
+
+func (s *timetableOperationsService) today() timezone.Date {
+	return timezone.DateFromTime(s.now())
+}
+
 func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error) {
 	startLead := 15
 	if s.deps.Settings != nil {
@@ -427,7 +438,7 @@ func (s *timetableOperationsService) CreateAndStartSpontaneous(ctx context.Conte
 		tenant.MarkRollback(ctx)
 		return nil, &SpontaneousCreateError{Err: err}
 	}
-	result, err := s.Start(ctx, accountID, isAdmin, inst.ID)
+	result, err := s.Start(withSpontaneousStartWorkdayGuard(ctx), accountID, isAdmin, inst.ID)
 	if err != nil {
 		tenant.MarkRollback(ctx)
 		return nil, err
@@ -510,7 +521,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	if current != nil {
 		return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
 	}
-	now := time.Now()
+	now := s.now()
 	visit := &activeModel.Visit{
 		StudentID:     studentID,
 		ActiveGroupID: *inst.ActiveGroupID,
@@ -784,7 +795,7 @@ func (s *timetableOperationsService) rosterStudentExcluded(ctx context.Context, 
 	if err != nil {
 		return false, err
 	}
-	return rosterExcludedAlumni(inst, students)[studentID], nil
+	return rosterExcludedAlumni(inst, students, s.today())[studentID], nil
 }
 
 func (s *timetableOperationsService) requireCanOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
@@ -842,7 +853,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// she is planned into next week or was planned into in March. Her access
 	// follows the day she stands in front of the children, so the day is part
 	// of the boundary, not just the assignment.
-	if isAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
+	if isAssignmentBoundPortal(ctx) && inst.Date != s.today() {
 		return 0, ErrTimetableOperationForbidden
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
@@ -887,7 +898,7 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 // therefore soft-deleted from all staff-facing operations. Frozen history —
 // a past-dated, completed, or cancelled instance — excludes nobody so its
 // recorded attendance stays intact (#405).
-func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int64]*usersModel.Student) map[int64]bool {
+func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int64]*usersModel.Student, today timezone.Date) map[int64]bool {
 	excluded := map[int64]bool{}
 	if inst == nil {
 		return excluded
@@ -895,7 +906,7 @@ func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int
 	if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
 		return excluded
 	}
-	if inst.Date.Before(timezone.TodayDate()) {
+	if inst.Date.Before(today) {
 		return excluded
 	}
 	for id, st := range students {
@@ -955,7 +966,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	// roster a supervisor can still act on, so a departed child never appears on
 	// an upcoming staff list nor has their attendance patched. Frozen history
 	// (past-dated or completed/cancelled instances) keeps every row (#405).
-	excludedAlumni := rosterExcludedAlumni(inst, students)
+	excludedAlumni := rosterExcludedAlumni(inst, students, s.today())
 	templateGroup, err := s.loadRosterTemplateGroup(ctx, inst.ActivityGroupID)
 	if err != nil {
 		return nil, err
@@ -1041,10 +1052,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	if err != nil {
 		return nil, fmt.Errorf("%w: resolve planned end policy: %v", ErrLifecycleSettings, err)
 	}
-	now := time.Now()
-	if s.deps.Now != nil {
-		now = s.deps.Now()
-	}
+	now := s.now()
 	availability := EvaluateLifecycleAvailability(inst, now, 15, enforcePlannedEnd)
 	return &OperationRoster{
 		Instance: OperationRosterInstance{

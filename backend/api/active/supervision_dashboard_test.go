@@ -28,6 +28,11 @@ var dashboardPerms = []string{"groups:read", "schedules:read", "users:read"}
 
 type dashboardEnvelope struct {
 	Data struct {
+		BusinessDay                  string `json:"business_day"`
+		SpontaneousStartAvailability struct {
+			Available     bool   `json:"available"`
+			BlockedReason string `json:"blocked_reason"`
+		} `json:"spontaneous_start_availability"`
 		Groups []struct {
 			ID        string  `json:"id"`
 			RoomID    *string `json:"room_id"`
@@ -138,6 +143,15 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 
 	envelope := dashboardExec(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	data := envelope.Data
+	day, err := timezone.ParseDate(data.BusinessDay)
+	require.NoError(t, err)
+	if weekday := day.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
+		assert.False(t, data.SpontaneousStartAvailability.Available)
+		assert.Equal(t, "weekend", data.SpontaneousStartAvailability.BlockedReason)
+	} else {
+		assert.True(t, data.SpontaneousStartAvailability.Available)
+		assert.Empty(t, data.SpontaneousStartAvailability.BlockedReason)
+	}
 
 	// Supervised session with bulk-loaded room info.
 	require.Len(t, data.Groups, 1)

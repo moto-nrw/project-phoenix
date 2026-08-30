@@ -81,16 +81,16 @@ describe("GET /api/groups/context", () => {
   it("returns groups for current user", async () => {
     const mockGroups = [
       {
-        id: 1,
+        id: "1",
         name: "Group A",
-        created_at: "2024-01-01",
-        updated_at: "2024-01-01",
+        via_substitution: false,
+        is_personal: true,
       },
       {
-        id: 2,
+        id: "2",
         name: "Group B",
-        created_at: "2024-01-02",
-        updated_at: "2024-01-02",
+        via_substitution: false,
+        is_personal: false,
       },
     ];
     mockApiGet.mockResolvedValueOnce({ data: mockGroups });
@@ -98,7 +98,10 @@ describe("GET /api/groups/context", () => {
     const request = createMockRequest("/api/groups/context");
     const response = await GET(request, createMockContext());
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/me/groups", "test-token");
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/students/ogs-group-navigation",
+      "test-token",
+    );
     expect(response.status).toBe(200);
 
     const json =
@@ -109,7 +112,7 @@ describe("GET /api/groups/context", () => {
   });
 
   it("returns empty array when user has no groups", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: null });
+    mockApiGet.mockResolvedValueOnce({ data: [] });
 
     const request = createMockRequest("/api/groups/context");
     const response = await GET(request, createMockContext());
@@ -119,14 +122,12 @@ describe("GET /api/groups/context", () => {
     expect(json.data.groups).toEqual([]);
   });
 
-  it("returns empty array when API call fails", async () => {
+  it("returns an error when the API call fails", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("Network error"));
 
     const request = createMockRequest("/api/groups/context");
     const response = await GET(request, createMockContext());
 
-    const json =
-      await parseJsonResponse<ApiResponse<{ groups: unknown[] }>>(response);
-    expect(json.data.groups).toEqual([]);
+    expect(response.status).toBe(500);
   });
 });

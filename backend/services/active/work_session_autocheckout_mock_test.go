@@ -814,6 +814,7 @@ func TestAutoCheckout_QueriesOpenSessionsIncludingToday(t *testing.T) {
 	t.Parallel()
 
 	service, sessionRepo, _, _, _ := autoCheckoutFixture(nil, nil)
+	service.nowFunc = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	var beforeDate timezone.Date
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, d timezone.Date) ([]*activeModels.WorkSession, error) {
@@ -823,7 +824,7 @@ func TestAutoCheckout_QueriesOpenSessionsIncludingToday(t *testing.T) {
 
 	_, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
 	require.NoError(t, err)
-	assert.Equal(t, timezone.TodayDate().AddDays(1), beforeDate,
+	assert.Equal(t, timezone.NewDate(2026, 8, 24).AddDays(1), beforeDate,
 		"must pass tomorrow so today's open sessions are included (GetOpenSessions filters date < beforeDate)")
 }
 

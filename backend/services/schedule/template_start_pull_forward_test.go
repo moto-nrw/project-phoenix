@@ -24,7 +24,7 @@ import (
 // every weekday the suite runs.
 func futureMondayForStartPull(t *testing.T) timezone.Date {
 	t.Helper()
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	daysAhead := (int(time.Monday) - int(today.Weekday()) + 7) % 7
 	if daysAhead == 0 {
 		daysAhead = 7
@@ -54,7 +54,7 @@ func startPullUpdateInput(
 		},
 		Weekdays:        weekdays,
 		TimeframeID:     timeframeID,
-		RosterValidFrom: timezone.TodayDate(),
+		RosterValidFrom: timezone.NewDate(2026, 8, 24),
 		GradeLevelMax:   4,
 		StaffIDs:        []int64{s.staffA},
 		PrimaryStaffID:  &s.staffA,
@@ -302,7 +302,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	require.ErrorIs(t, err, scheduleSvc.ErrTemplateStartNotEarlier,
 		"moving the start later is out of scope and must be rejected")
 
-	past := timezone.TodayDate().AddDays(-1)
+	past := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	err = s.factory.TimetableData.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &past),
@@ -329,7 +329,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 		RoomID:          s.roomID,
 		CategoryID:      s.categoryID,
 		MaxParticipants: 20,
-		RosterValidFrom: timezone.TodayDate(),
+		RosterValidFrom: timezone.NewDate(2026, 8, 24),
 		GradeLevelMax:   4,
 		StaffIDs:        []int64{s.staffA},
 		PrimaryStaffID:  &s.staffA,
@@ -365,7 +365,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 		RoomID:          s.roomID,
 		CategoryID:      s.categoryID,
 		MaxParticipants: 20,
-		RosterValidFrom: timezone.TodayDate(),
+		RosterValidFrom: timezone.NewDate(2026, 8, 24),
 		GradeLevelMax:   4,
 		StaffIDs:        []int64{s.staffA},
 		PrimaryStaffID:  &s.staffA,

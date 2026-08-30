@@ -111,7 +111,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	t.Parallel()
 
 	ctx := tenant.WithTenantID(context.Background(), 7401)
-	future := timezone.TodayDate().AddDays(1)
+	future := timezone.NewDate(2030, 8, 26).AddDays(1)
 	group := templateEndUnitGroup(202)
 	scheduleRepo := &templateEndUnitScheduleRepo{capped: 2}
 	enrollmentRepo := &templateEndUnitEnrollmentRepo{capped: 3}

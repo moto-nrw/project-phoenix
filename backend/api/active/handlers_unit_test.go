@@ -77,7 +77,7 @@ func TestNewActiveGroupResponse_WithVisits(t *testing.T) {
 func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
@@ -86,9 +86,9 @@ func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 		StartTime: now,
 		EndTime:   nil,
 		Supervisors: []*active.GroupSupervisor{
-			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: timezone.DateFromTime(now), EndDate: nil},                          // Active
-			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: timezone.DateFromTime(now), EndDate: ptrDate(timezone.TodayDate())}, // Inactive (has end date)
-			{Model: base.Model{ID: 3}, StaffID: 30, Role: "Supervisor", StartDate: timezone.DateFromTime(now), EndDate: nil},                       // Active
+			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: timezone.DateFromTime(now), EndDate: nil},                                   // Active
+			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: timezone.DateFromTime(now), EndDate: ptrDate(timezone.NewDate(2026, 8, 24))}, // Inactive (has end date)
+			{Model: base.Model{ID: 3}, StaffID: 30, Role: "Supervisor", StartDate: timezone.DateFromTime(now), EndDate: nil},                                // Active
 		},
 	}
 
@@ -241,7 +241,7 @@ func TestNewSupervisorResponse_BasicFields(t *testing.T) {
 func TestNewSupervisorResponse_ActiveSupervisor(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	supervisor := &active.GroupSupervisor{
 		Model:     base.Model{ID: 1},
@@ -259,7 +259,7 @@ func TestNewSupervisorResponse_ActiveSupervisor(t *testing.T) {
 func TestNewSupervisorResponse_WithStaff(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	supervisor := &active.GroupSupervisor{
 		Model:     base.Model{ID: 1},
@@ -284,7 +284,7 @@ func TestNewSupervisorResponse_WithStaff(t *testing.T) {
 func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	supervisor := &active.GroupSupervisor{
 		Model:     base.Model{ID: 1},

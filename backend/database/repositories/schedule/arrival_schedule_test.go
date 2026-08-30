@@ -839,7 +839,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := -10; i < -5; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i),
+				ExceptionDate: timezone.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Past exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -853,7 +853,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: timezone.TodayDate().AddDays(i),
+				ExceptionDate: timezone.NewDate(2026, 8, 24).AddDays(i),
 				Reason:        testpkg.StrPtr("Future exception"),
 				CreatedBy:     createRepositoryTestStaffID(t, db),
 			}
@@ -862,7 +862,7 @@ func TestStudentArrivalExceptionRepository_DeletePastExceptions(t *testing.T) {
 			futureExceptionCount++
 		}
 
-		cutoffDate := timezone.TodayDate()
+		cutoffDate := timezone.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastExceptions(ctx, cutoffDate)
 
 		require.NoError(t, err)
@@ -1251,7 +1251,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := -10; i < -5; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i),
+				NoteDate:  timezone.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Past note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1265,7 +1265,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 		for i := 1; i <= 5; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  timezone.TodayDate().AddDays(i),
+				NoteDate:  timezone.NewDate(2026, 8, 24).AddDays(i),
 				Content:   "Future note",
 				CreatedBy: createRepositoryTestStaffID(t, db),
 			}
@@ -1274,7 +1274,7 @@ func TestStudentArrivalNoteRepository_DeletePastNotes(t *testing.T) {
 			futureNoteCount++
 		}
 
-		cutoffDate := timezone.TodayDate()
+		cutoffDate := timezone.NewDate(2026, 8, 24)
 		rowsAffected, err := repo.DeletePastNotes(ctx, cutoffDate)
 
 		require.NoError(t, err)

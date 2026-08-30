@@ -20,7 +20,6 @@ import {
   runRosterActionRequest,
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
-import { spontaneousActivityWindow } from "~/components/active-supervisions/spontaneous-window";
 import type { SpontaneousActivityStartPayload } from "~/components/active-supervisions/spontaneous-activity-start";
 import type { ActiveSupervisionRoom } from "~/components/active-supervisions/view-model";
 
@@ -226,7 +225,6 @@ export function useTimetableActions(
 
       try {
         setIsStartingSpontaneous(true);
-        const window = spontaneousActivityWindow(new Date());
         const staffIds = Array.from(
           new Set([currentStaffId, ...payload.additionalStaffIds]),
         )
@@ -236,16 +234,12 @@ export function useTimetableActions(
           throw new Error("current staff id is not numeric");
         }
         const result = await timetableOperationsApi.createAndStartSpontaneous({
-          date: window.date,
-          start_time: window.startTime,
-          end_time: window.endTime,
           title: payload.title,
           room_id: Number(payload.roomId),
           activity_group_id: payload.activityGroupId
             ? Number(payload.activityGroupId)
             : undefined,
           staff_ids: staffIds,
-          student_ids: [],
         });
         adoptSession(result.activeGroupId, result.instanceId);
         router.push(`/active-supervisions?session=${result.activeGroupId}`);

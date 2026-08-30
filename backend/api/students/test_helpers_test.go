@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -30,10 +32,10 @@ type testContext struct {
 }
 
 // setupTestContext initializes the test environment.
-func setupTestContext(t *testing.T) *testContext {
+func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAPITest(t, clocks...)
 	repoFactory := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
@@ -95,6 +97,7 @@ func setupTestContext(t *testing.T) *testContext {
 		StudentPhotos:            studentPhotos,
 		ListExportService:        listexport.NewService(),
 		Logger:                   slog.Default(),
+		Now:                      firstClock(clocks),
 		DB:                       db,
 	})
 
@@ -104,6 +107,17 @@ func setupTestContext(t *testing.T) *testContext {
 		resource:    resource,
 		broadcaster: broadcaster,
 	}
+}
+
+func firstClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
+}
+
+func fixedCalendarClock() time.Time {
+	return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 }
 
 // authExec signs a JWT carrying claims (narrowed to perms) and runs the request

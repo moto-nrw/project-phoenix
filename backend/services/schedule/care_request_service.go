@@ -252,6 +252,18 @@ type careScheduleRequestService struct {
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
 	shareVisibility parentmessaging.ShareVisibilityResolver
 	events          usersService.ParentRequestEventRecorder
+	today           func() timezone.Date
+}
+
+func (s *careScheduleRequestService) SetTodayDate(today func() timezone.Date) {
+	s.today = today
+}
+
+func (s *careScheduleRequestService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
 }
 
 type RequestReviewPolicy interface {
@@ -371,13 +383,13 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 // the same either way.
 func validatePickupChangeInput(
 	studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string, reasonRequired bool,
+	today timezone.Date,
 ) (string, error) {
 	reason = strings.TrimSpace(reason)
 	if studentID <= 0 || guardianAccountID <= 0 || date.IsZero() || pickupTime.IsZero() ||
 		(reason == "" && reasonRequired) || utf8.RuneCountInString(reason) > 255 {
 		return "", ErrInvalidCareRequestPayload
 	}
-	today := timezone.TodayDate()
 	if date.Before(today) || date.After(timezone.NewDate(today.Year, today.Month+2, today.Day)) {
 		return "", ErrInvalidCareRequestPayload
 	}
@@ -412,6 +424,7 @@ func (s *careScheduleRequestService) CreatePickupChange(
 	studentID, guardianAccountID, date, pickupTime := input.StudentID, input.GuardianAccountID, input.Date, input.PickupTime
 	reason, err := validatePickupChangeInput(
 		studentID, guardianAccountID, date, pickupTime, input.Reason, input.ReasonRequired,
+		s.todayDate(),
 	)
 	if err != nil {
 		return nil, err
@@ -532,6 +545,7 @@ func (s *careScheduleRequestService) editedCarePayload(
 	}
 	reason, err := validatePickupChangeInput(
 		input.StudentID, input.GuardianAccountID, input.Date, input.PickupTime, input.Reason, input.ReasonRequired,
+		s.todayDate(),
 	)
 	if err != nil {
 		return nil, err
@@ -862,7 +876,7 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 		// A child whose care has ended leaves the pending queue: the
 		// effect-day pass closes their open requests, and until it runs the
 		// queue must not offer a decision on a departed child (#2487).
-		if !writable(student) || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
+		if !writable(student) || student.IsAlumnus() || student.CareEndedOn(s.todayDate()) {
 			continue
 		}
 		items = append(items, s.buildPendingItem(ctx, r, student, persons, sources))
@@ -1080,7 +1094,7 @@ func (s *careScheduleRequestService) loadAuthorizedCareDecision(
 	}
 	// The child left the OGS after filing this request; approving it would
 	// write a weekly plan nobody will follow (#2487).
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return nil, scheduleModels.ErrCareRequestNotFound
 	}
 	allowed, authErr := s.canReviewStudent(ctx, student)
@@ -1268,7 +1282,7 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(
 	if err != nil {
 		return 0, err
 	}
-	if date.Before(timezone.TodayDate()) {
+	if date.Before(s.todayDate()) {
 		return 0, ErrPickupChangeExpired
 	}
 	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
@@ -1378,7 +1392,7 @@ func (s *careScheduleRequestService) saveApprovedPickupException(ctx context.Con
 func (s *careScheduleRequestService) ensurePickupChangeNotCompleted(
 	ctx context.Context, studentID int64, date timezone.Date,
 ) error {
-	if date != timezone.TodayDate() {
+	if date != s.todayDate() {
 		return nil
 	}
 	if err := s.attendance.LockStudentAttendance(ctx, studentID); err != nil {
@@ -2229,7 +2243,7 @@ func (s *careScheduleRequestService) MarkDone(
 	if err != nil {
 		return err
 	}
-	if !usersService.ParentRequestIsPast(careRequestScopeEnd(req), timezone.TodayDate()) {
+	if !usersService.ParentRequestIsPast(careRequestScopeEnd(req), s.todayDate()) {
 		return usersService.ErrParentRequestNotPast
 	}
 	trimmed := strings.TrimSpace(reason)
