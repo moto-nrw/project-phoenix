@@ -69,6 +69,17 @@ vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
   })),
 }));
 
+// Tagesinformationen-Badge (#2180): der echte Hook würde /api/staff-notices/today
+// laden; hier zählt nur, dass die Seitenleiste ihn einbindet.
+vi.mock("~/lib/hooks/use-staff-notices-pending", () => ({
+  useStaffNoticesPending: () => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  }),
+  STAFF_NOTICES_REFRESH_EVENT: "staff-notices-refresh",
+}));
+
 vi.mock("~/lib/hooks/use-messages-unread", () => ({
   useMessagesUnread: vi.fn(() => ({
     unreadCount: 0,
@@ -421,6 +432,14 @@ describe("Sidebar", () => {
         "href",
         "/test-tenant/team-chat",
       );
+    });
+
+    it("hides Kommunikation when no child page is accessible", () => {
+      mockHasPermission.mockReturnValue(false);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Kommunikation")).not.toBeInTheDocument();
     });
 
     it("hides admin-only items for staff", () => {
