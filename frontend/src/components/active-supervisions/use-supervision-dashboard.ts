@@ -36,6 +36,7 @@ interface BFFDashboardResponse {
   supervisedGroups: Array<{
     id: string;
     name: string;
+    isCurrentUserSupervising?: boolean;
     room_id?: string;
     room?: { id: string; name: string; color?: string | null };
   }>;

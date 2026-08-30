@@ -794,32 +794,39 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 		// EndDailySessions concurrently against the shared test DB, which
 		// bulk-ends supervisors of every group with end_time IS NULL — racing
 		// the count assertions below. EndAllActiveByStaffID filters only on
-		// staff_id + end_date IS NULL, so an ended session changes nothing
+		// staff_id + the supervision date range, so an ended session changes nothing
 		// about what this test exercises.
 		require.NoError(t, factory.ActiveGroup.EndSession(ctx, data.ActiveGroup.ID))
-		today := timezone.TodayDate()
+		startDate := timezone.NewDate(2020, 1, 1)
 		// Create multiple active supervisions for same staff
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
-			StartDate: today,
+			StartDate: startDate,
 			Role:      "supervisor",
 		}
 		supervisor2 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
-			StartDate: today,
+			StartDate: startDate,
 			Role:      "assistant",
+		}
+		futureEnd := timezone.NewDate(2099, 1, 1)
+		supervisor3 := &active.GroupSupervisor{
+			GroupID: data.ActiveGroup.ID, StaffID: data.Staff1.ID,
+			StartDate: startDate, EndDate: &futureEnd, Role: "future-assistant",
 		}
 		err := repo.Create(ctx, supervisor1)
 		require.NoError(t, err)
 		err = repo.Create(ctx, supervisor2)
 		require.NoError(t, err)
+		err = repo.Create(ctx, supervisor3)
+		require.NoError(t, err)
 
 		// End all active supervisions
 		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
 		require.NoError(t, err)
-		assert.Equal(t, 2, count)
+		assert.Equal(t, 3, count)
 
 		// Verify both are ended
 		found1, err := repo.FindByID(ctx, supervisor1.ID)
@@ -829,6 +836,10 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 		found2, err := repo.FindByID(ctx, supervisor2.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, found2.EndDate)
+
+		found3, err := repo.FindByID(ctx, supervisor3.ID)
+		require.NoError(t, err)
+		assert.NotEqual(t, futureEnd, *found3.EndDate)
 	})
 
 	t.Run("returns zero for staff with no active supervisions", func(t *testing.T) {
@@ -840,12 +851,12 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 	t.Run("does not affect already ended supervisions", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
-		endDate := today.AddDays(-1)
+		startDate := timezone.NewDate(2019, 1, 1)
+		endDate := timezone.NewDate(2020, 1, 1)
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
-			StartDate: today.AddDays(-7),
+			StartDate: startDate,
 			EndDate:   &endDate,
 			Role:      "supervisor",
 		}
@@ -865,18 +876,18 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 	t.Run("ends only active supervisions for specific staff", func(t *testing.T) {
 		data := createSupervisorTestData(t, db)
-		today := timezone.TodayDate()
+		startDate := timezone.NewDate(2020, 1, 1)
 		// Create active supervisions for two different staff members
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
-			StartDate: today,
+			StartDate: startDate,
 			Role:      "supervisor",
 		}
 		supervisor2 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff2.ID,
-			StartDate: today,
+			StartDate: startDate,
 			Role:      "supervisor",
 		}
 		err := repo.Create(ctx, supervisor1)

@@ -20,6 +20,7 @@ interface WireGroup {
   room_id?: string;
   room_name?: string;
   room_color?: string | null;
+  is_current_user_supervising: boolean;
 }
 
 interface WireUnclaimedGroup {
@@ -323,6 +324,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
     supervisedGroups: (wire.groups ?? []).map((g) => ({
       id: g.id,
       name: g.name,
+      isCurrentUserSupervising: g.is_current_user_supervising,
       room_id: g.room_id,
       room: g.room_id
         ? {

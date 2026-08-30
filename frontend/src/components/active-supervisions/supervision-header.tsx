@@ -131,7 +131,9 @@ export function SupervisionHeader({
                   ? [
                       {
                         id: SCHULHOF_TAB_ID,
-                        label: SCHULHOF_ROOM_NAME,
+                        label: schulhofStatus?.isUserSupervising
+                          ? `${SCHULHOF_ROOM_NAME} · Eigene Aufsicht`
+                          : SCHULHOF_ROOM_NAME,
                       },
                     ]
                   : []),

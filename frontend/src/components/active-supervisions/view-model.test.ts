@@ -8,6 +8,7 @@ import {
   resolveSupervisionSelection,
   roomsOutsideSchulhofStatus,
   supervisionTabLabel,
+  additionalSupervisionTarget,
   withActiveSupervisionPresence,
 } from "./view-model";
 
@@ -83,12 +84,14 @@ describe("active-supervisions view model", () => {
         name: "Gruppe Z",
         room_id: "room-z",
         room: { id: "room-z", name: "Zeichenraum", color: "#5080D8" },
+        isCurrentUserSupervising: false,
       },
       {
         id: "active-a",
         name: "Gruppe A",
         room_id: "room-a",
         room: { id: "room-a", name: "Atelier", color: "#83CD2D" },
+        isCurrentUserSupervising: true,
       },
     ]);
 
@@ -97,6 +100,7 @@ describe("active-supervisions view model", () => {
       "Zeichenraum",
     ]);
     expect(result[0]?.room_color).toBe("#83CD2D");
+    expect(result[0]?.isCurrentUserSupervising).toBe(true);
   });
 
   it("maps only active visits to student card rows", () => {
@@ -375,5 +379,46 @@ describe("supervision tab identity (#2265)", () => {
     expect(supervisionTabLabel({ id: "active-2", name: "Schulhof" })).toBe(
       "Schulhof",
     );
+  });
+
+  it("marks sessions supervised by the current user", () => {
+    expect(
+      supervisionTabLabel({
+        id: "active-1",
+        name: "Freispiel",
+        isCurrentUserSupervising: true,
+      }),
+    ).toBe("Freispiel · Eigene Aufsicht");
+  });
+
+  it("offers additional supervision only on the user's current session", () => {
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: {
+          id: "active-1",
+          name: "Freispiel",
+          isCurrentUserSupervising: true,
+        },
+        isSchulhofTabSelected: false,
+        schulhofStatus: null,
+      }),
+    ).toBe("active-1");
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: { id: "active-2", name: "Malen" },
+        isSchulhofTabSelected: false,
+        schulhofStatus: null,
+      }),
+    ).toBeNull();
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: null,
+        isSchulhofTabSelected: true,
+        schulhofStatus: {
+          activeGroupId: "active-yard",
+          isUserSupervising: true,
+        },
+      }),
+    ).toBe("active-yard");
   });
 });

@@ -84,6 +84,75 @@ describe("substitutionService", () => {
     expect(result.id).toBe("5");
   });
 
+  it("loads one running supervision with its available targets", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          group_handovers: [],
+          targets: [],
+          running_supervisions: [
+            {
+              id: 41,
+              type: "additional_supervision",
+              name: "Freispiel",
+              room_name: "Atelier",
+              supervisors: [{ id: 11, full_name: "Alex Alt" }],
+              available_targets: [{ id: 73, full_name: "Toni Test" }],
+              is_current_user_supervising: true,
+              can_assign: true,
+            },
+          ],
+        },
+      }),
+    });
+
+    const result = await substitutionService.fetchRunningSupervision("41");
+
+    expect(sessionFetch).toHaveBeenCalledWith(
+      "/api/substitutions?active_group_id=41",
+      { credentials: "include" },
+    );
+    expect(result).toEqual({
+      id: "41",
+      name: "Freispiel",
+      roomName: "Atelier",
+      supervisors: [{ id: "11", fullName: "Alex Alt" }],
+      availableTargets: [{ id: "73", fullName: "Toni Test" }],
+      isCurrentUserSupervising: true,
+      canAssign: true,
+    });
+  });
+
+  it("adds a supervisor with only the two allowed ids", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: 91,
+          type: "additional_supervision",
+          active_group_id: 41,
+          target: { id: 73, full_name: "Toni Test" },
+        },
+      }),
+    });
+
+    const result = await substitutionService.addSupervisor("41", "73");
+
+    expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "additional_supervision",
+        additional_supervision: {
+          active_group_id: 41,
+          target_staff_id: 73,
+        },
+      }),
+    });
+    expect(result).toEqual({ id: "91", targetName: "Toni Test" });
+  });
+
   it("rejects a missing proxy envelope", async () => {
     sessionFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
 

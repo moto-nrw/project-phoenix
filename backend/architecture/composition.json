@@ -19062,7 +19062,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        917
+        928
       ],
       "tables": []
     },
@@ -19143,7 +19143,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1015
+        1026
       ],
       "tables": []
     },
@@ -27410,10 +27410,78 @@
     {
       "scope": "test",
       "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        196
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        112
+      ],
+      "tables": [
+        "active.groups"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionExternalInterface",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
+      ],
+      "tables": [
+        "audit.substitution_changes"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        282
+      ],
+      "tables": [
+        "active.groups"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        253
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        222
+      ],
+      "tables": [
+        "active.group_supervisors"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        177
+        491
       ],
       "tables": []
     },
@@ -27423,7 +27491,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        539
       ],
       "tables": []
     },
@@ -27433,7 +27501,7 @@
       "declaration": "TestGroupHandoverExternalInterface",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        341
       ],
       "tables": [
         "audit.substitution_changes"
@@ -27445,7 +27513,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        395
       ],
       "tables": []
     },
@@ -27455,7 +27523,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        303
+        617
       ],
       "tables": []
     },
@@ -27465,7 +27533,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        263
+        577
       ],
       "tables": []
     },

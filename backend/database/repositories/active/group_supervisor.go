@@ -115,7 +115,7 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 }
 
 // FindByActiveGroupID finds supervisors for a specific active group
-// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+// If activeOnly is true, returns supervisors whose end date has not been reached.
 // Includes Staff.Person relation for staff name display
 func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
@@ -131,7 +131,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 		Where(`"group_supervisor".group_id = ?`, activeGroupID)
 
 	if activeOnly {
-		query = query.Where(`"group_supervisor".end_date IS NULL`)
+		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -148,7 +148,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 }
 
 // FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
-// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+// If activeOnly is true, returns supervisors whose end date has not been reached.
 // Includes Staff.Person relation for staff name display
 func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 	if len(activeGroupIDs) == 0 {
@@ -168,7 +168,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs))
 
 	if activeOnly {
-		query = query.Where(`"group_supervisor".end_date IS NULL`)
+		query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
 	}
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
@@ -190,7 +190,8 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = ?", timezone.TodayDate()).
-		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
+		Where(`"group_supervisor".id = ?`, id).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -287,14 +288,15 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 }
 
 // EndAllActiveByStaffID ends all active supervisions for a staff member.
-// Sets end_date = CURRENT_DATE for all supervisions where end_date IS NULL.
+// Sets end_date = CURRENT_DATE for every supervision active today.
 // Returns the number of supervisions that were ended.
 func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = CURRENT_DATE").
-		Where(`"group_supervisor".staff_id = ? AND "group_supervisor".end_date IS NULL`, staffID)
+		Where(`"group_supervisor".staff_id = ?`, staffID).
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
@@ -362,7 +364,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Set("end_date = now()").
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
-		Where(`"group_supervisor".end_date IS NULL`)
+		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > ?`, timezone.TodayDate())
 
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 

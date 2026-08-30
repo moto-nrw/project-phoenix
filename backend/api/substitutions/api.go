@@ -3,6 +3,8 @@ package substitutions
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -44,6 +46,10 @@ type assignmentRequest struct {
 		StartDate     string `json:"start_date,omitempty"`
 		EndDate       string `json:"end_date,omitempty"`
 	} `json:"group_handover"`
+	AdditionalSupervision *struct {
+		ActiveGroupID int64 `json:"active_group_id"`
+		TargetStaffID int64 `json:"target_staff_id"`
+	} `json:"additional_supervision"`
 }
 
 type endRequest struct {
@@ -60,6 +66,14 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		query.GroupID = id
+	}
+	if raw := r.URL.Query().Get("active_group_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Betreuung ist ungültig.", "invalid_target"))
+			return
+		}
+		query.ActiveGroupID = id
 	}
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		date, err := timezone.ParseDate(raw)
@@ -83,19 +97,14 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
-	var request assignmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.GroupHandover == nil {
+	request, err := decodeAssignment(r.Body)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Anfrage ist ungültig.", "invalid_target"))
 		return
 	}
-	start, err := optionalDate(request.GroupHandover.StartDate)
+	assignment, err := request.assignment()
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Das Startdatum ist ungültig.", "invalid_period"))
-		return
-	}
-	end, err := optionalDate(request.GroupHandover.EndDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Das Enddatum ist ungültig.", "invalid_period"))
+		renderModuleError(w, r, err)
 		return
 	}
 	caller, err := callerFromContext(r.Context())
@@ -103,18 +112,60 @@ func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
 		renderModuleError(w, r, err)
 		return
 	}
-	created, err := rs.Service.Assign(r.Context(), caller, substitution.Assignment{
-		Type: request.Type,
-		GroupHandover: &substitution.GroupHandoverAssignment{
-			GroupID: request.GroupHandover.GroupID, TargetStaffID: request.GroupHandover.TargetStaffID,
-			StartDate: start, EndDate: end,
-		},
-	})
+	created, err := rs.Service.Assign(r.Context(), caller, assignment)
 	if err != nil {
 		renderModuleError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, created, "Gruppe übergeben")
+	message := "Gruppe übergeben"
+	if request.Type == substitution.TargetAdditionalSupervision {
+		message = "Betreuer hinzugefügt"
+	}
+	common.Respond(w, r, http.StatusCreated, created, message)
+}
+
+func decodeAssignment(body io.Reader) (assignmentRequest, error) {
+	var request assignmentRequest
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return assignmentRequest{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return assignmentRequest{}, errors.New("request body must contain one JSON object")
+	}
+	return request, nil
+}
+
+func (request assignmentRequest) assignment() (substitution.Assignment, error) {
+	switch request.Type {
+	case substitution.TargetGroupHandover:
+		if request.GroupHandover == nil || request.AdditionalSupervision != nil {
+			return substitution.Assignment{}, substitution.ErrInvalidTarget
+		}
+		start, err := optionalDate(request.GroupHandover.StartDate)
+		if err != nil {
+			return substitution.Assignment{}, substitution.ErrInvalidPeriod
+		}
+		end, err := optionalDate(request.GroupHandover.EndDate)
+		if err != nil {
+			return substitution.Assignment{}, substitution.ErrInvalidPeriod
+		}
+		return substitution.Assignment{Type: request.Type, GroupHandover: &substitution.GroupHandoverAssignment{
+			GroupID: request.GroupHandover.GroupID, TargetStaffID: request.GroupHandover.TargetStaffID,
+			StartDate: start, EndDate: end,
+		}}, nil
+	case substitution.TargetAdditionalSupervision:
+		if request.AdditionalSupervision == nil || request.GroupHandover != nil {
+			return substitution.Assignment{}, substitution.ErrInvalidTarget
+		}
+		return substitution.Assignment{Type: request.Type, AdditionalSupervision: &substitution.AdditionalSupervisionAssignment{
+			ActiveGroupID: request.AdditionalSupervision.ActiveGroupID,
+			TargetStaffID: request.AdditionalSupervision.TargetStaffID,
+		}}, nil
+	default:
+		return substitution.Assignment{}, substitution.ErrInvalidTarget
+	}
 }
 
 func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
@@ -169,12 +220,13 @@ type moduleErrorSpec struct {
 }
 
 var moduleErrorSpecs = []moduleErrorSpec{
-	{target: substitution.ErrNotFound, status: http.StatusNotFound, code: "not_found", message: "Gruppenübergabe nicht gefunden."},
+	{target: substitution.ErrNotFound, status: http.StatusNotFound, code: "not_found", message: "Die Auswahl ist nicht mehr verfügbar."},
 	{target: substitution.ErrForbidden, status: http.StatusForbidden, code: "forbidden", message: "Diese Aktion ist nicht erlaubt."},
-	{target: substitution.ErrInvalidTarget, status: http.StatusBadRequest, code: "invalid_target", message: "Die ausgewählte Gruppe oder Fachkraft ist ungültig."},
+	{target: substitution.ErrInvalidTarget, status: http.StatusBadRequest, code: "invalid_target", message: "Die ausgewählte Gruppe, Betreuung oder Person ist ungültig."},
 	{target: substitution.ErrInvalidPeriod, status: http.StatusBadRequest, code: "invalid_period", message: "Der Zeitraum ist ungültig."},
-	{target: substitution.ErrNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Gruppenübergabe ist nicht mehr aktiv."},
-	{target: substitution.ErrAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Gruppenübergabe besteht bereits."},
+	{target: substitution.ErrNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Auswahl ist nicht mehr gültig."},
+	{target: substitution.ErrAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Person ist bereits eingetragen."},
+	{target: substitution.ErrSelfAssignment, status: http.StatusBadRequest, code: "self_assignment", message: "Sie können sich nicht selbst hinzufügen."},
 }
 
 var internalModuleError = moduleErrorSpec{

@@ -20,6 +20,320 @@ import (
 
 var fixedNow = time.Date(2026, time.August, 29, 10, 0, 0, 0, timezone.Berlin)
 
+func TestAdditionalSupervisionExternalInterface(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	now := fixedNow
+	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveSupervisorCreator: activeService,
+		Audit:                   repos.SubstitutionChange, DB: db, Now: func() time.Time { return now },
+	})
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "Lesen")
+	room := testpkg.CreateTestRoom(t, db, "Bibliothek")
+	running := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	owner, ownerAccountID := activeTeacher(t, db, "Robin", "Owner")
+	target, _ := activeTeacher(t, db, "Toni", "Target")
+	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
+	ctx := testpkg.Ctx(t)
+	caller := substitutionCaller(t, ownerAccountID, false)
+
+	overview, err := module.Overview(ctx, caller, substitution.OverviewQuery{
+		ActiveGroupID: running.ID, IncludeTargets: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []substitution.RunningSupervision{{
+		ID: running.ID, Type: substitution.TargetAdditionalSupervision,
+		Name: "Lesen", RoomName: room.Name,
+		Supervisors:              []substitution.StaffRef{{ID: owner.StaffID, FullName: "Robin Owner"}},
+		AvailableTargets:         []substitution.StaffRef{{ID: target.StaffID, FullName: "Toni Target"}},
+		IsCurrentUserSupervising: true, CanAssign: true,
+	}}, overview.RunningSupervisions)
+
+	created, err := module.Assign(ctx, caller, substitution.Assignment{
+		Type: substitution.TargetAdditionalSupervision,
+		AdditionalSupervision: &substitution.AdditionalSupervisionAssignment{
+			ActiveGroupID: running.ID, TargetStaffID: target.StaffID,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, substitution.TargetAdditionalSupervision, created.Type)
+	require.Equal(t, running.ID, created.ActiveGroupID)
+	require.Equal(t, target.StaffID, created.Target.ID)
+
+	row, err := repos.GroupSupervisor.FindByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, "additional_supervisor", row.Role)
+	require.Equal(t, timezone.DateFromTime(now), row.StartDate)
+	require.Nil(t, row.EndDate)
+
+	overview, err = module.Overview(ctx, caller, substitution.OverviewQuery{
+		ActiveGroupID: running.ID, IncludeTargets: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.RunningSupervisions, 1)
+	require.ElementsMatch(t, []substitution.StaffRef{
+		{ID: owner.StaffID, FullName: "Robin Owner"},
+		{ID: target.StaffID, FullName: "Toni Target"},
+	}, overview.RunningSupervisions[0].Supervisors)
+	require.Empty(t, overview.RunningSupervisions[0].AvailableTargets)
+
+	_, err = module.Assign(ctx, caller, substitution.Assignment{
+		Type: substitution.TargetAdditionalSupervision,
+		AdditionalSupervision: &substitution.AdditionalSupervisionAssignment{
+			ActiveGroupID: running.ID, TargetStaffID: target.StaffID,
+		},
+	})
+	require.ErrorIs(t, err, substitution.ErrAlreadyAssigned)
+	_, err = module.Assign(ctx, caller, substitution.Assignment{
+		Type: substitution.TargetAdditionalSupervision,
+		AdditionalSupervision: &substitution.AdditionalSupervisionAssignment{
+			ActiveGroupID: running.ID, TargetStaffID: owner.StaffID,
+		},
+	})
+	require.ErrorIs(t, err, substitution.ErrSelfAssignment)
+
+	var auditCount int
+	require.NoError(t, db.NewSelect().TableExpr(`audit.substitution_changes AS "change"`).
+		ColumnExpr("COUNT(*)").
+		Where(`"change".substitution_id = ?`, created.ID).
+		Where(`"change".target_type = ?`, substitution.TargetAdditionalSupervision).
+		Scan(ctx, &auditCount))
+	require.Equal(t, 1, auditCount)
+}
+
+func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "Werken")
+	room := testpkg.CreateTestRoom(t, db, "Werkraum")
+	owned := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	other := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	owner, ownerAccountID := activeTeacher(t, db, "Olivia", "Owner")
+	otherOwner, _ := activeTeacher(t, db, "Oscar", "Other")
+	_, viewerAccountID := activeTeacher(t, db, "Vera", "Viewer")
+	target, _ := activeTeacher(t, db, "Toni", "Target")
+	unverified := testpkg.CreateTestStaff(t, db, "Unverified", "Staff")
+	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, owned.ID, "supervisor")
+	testpkg.CreateTestGroupSupervisor(t, db, otherOwner.StaffID, other.ID, "supervisor")
+	ctx := testpkg.Ctx(t)
+
+	newModule := func(broad bool) substitution.SubstitutionModule {
+		return substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+			Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+			ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+			ActiveSupervisorCreator: activeService,
+			Audit:                   repos.SubstitutionChange, DB: db,
+			CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return broad, nil },
+		})
+	}
+
+	personal := newModule(false)
+	ownerCaller := substitutionCaller(t, ownerAccountID, false)
+	overview, err := personal.Overview(ctx, ownerCaller, substitution.OverviewQuery{})
+	require.NoError(t, err)
+	require.Equal(t, []int64{owned.ID}, runningSupervisionIDs(overview))
+	_, err = personal.Assign(ctx, ownerCaller, additionalSupervisionAssignment(other.ID, target.StaffID))
+	require.ErrorIs(t, err, substitution.ErrNotFound)
+
+	broad := newModule(true)
+	overview, err = broad.Overview(ctx, ownerCaller, substitution.OverviewQuery{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{owned.ID, other.ID}, runningSupervisionIDs(overview))
+	require.True(t, findRunningSupervision(t, overview, owned.ID).CanAssign)
+	require.False(t, findRunningSupervision(t, overview, other.ID).CanAssign)
+	_, err = broad.Assign(ctx, ownerCaller, additionalSupervisionAssignment(other.ID, target.StaffID))
+	require.ErrorIs(t, err, substitution.ErrForbidden)
+
+	viewerCaller := substitutionCaller(t, viewerAccountID, false)
+	overview, err = broad.Overview(ctx, viewerCaller, substitution.OverviewQuery{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{owned.ID, other.ID}, runningSupervisionIDs(overview))
+	for _, supervision := range overview.RunningSupervisions {
+		require.False(t, supervision.IsCurrentUserSupervising)
+		require.False(t, supervision.CanAssign)
+	}
+	_, err = broad.Assign(ctx, viewerCaller, additionalSupervisionAssignment(owned.ID, target.StaffID))
+	require.ErrorIs(t, err, substitution.ErrForbidden)
+
+	admin := testpkg.CreateTestAccount(t, db, "additional-supervision-admin")
+	adminCaller := substitutionCaller(t, admin.ID, true)
+	overview, err = personal.Overview(ctx, adminCaller, substitution.OverviewQuery{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{owned.ID, other.ID}, runningSupervisionIDs(overview))
+	created, err := personal.Assign(ctx, adminCaller, additionalSupervisionAssignment(other.ID, target.StaffID))
+	require.NoError(t, err)
+	require.Equal(t, other.ID, created.ActiveGroupID)
+
+	_, err = personal.Assign(ctx, adminCaller, additionalSupervisionAssignment(owned.ID, unverified.ID))
+	require.ErrorIs(t, err, substitution.ErrNotFound)
+
+	endedAt := time.Now()
+	_, err = db.NewUpdate().TableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", endedAt).
+		Where(`"group".id = ?`, owned.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = personal.Assign(ctx, adminCaller, additionalSupervisionAssignment(owned.ID, target.StaffID))
+	require.ErrorIs(t, err, substitution.ErrNotRunning)
+
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	otherTenantGroup := testpkg.CreateTestActiveGroupForTenant(t, db, otherTenant)
+	_, err = personal.Assign(ctx, adminCaller, additionalSupervisionAssignment(otherTenantGroup.ID, target.StaffID))
+	require.ErrorIs(t, err, substitution.ErrNotFound)
+}
+
+func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveSupervisorCreator: activeService,
+		Audit:                   failingAudit{}, DB: db,
+	})
+	activity := testpkg.CreateTestActivityGroup(t, db, "Rollback activity")
+	room := testpkg.CreateTestRoom(t, db, "Rollback room")
+	running := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	owner, ownerAccountID := activeTeacher(t, db, "Rita", "Owner")
+	target, _ := activeTeacher(t, db, "Tara", "Target")
+	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
+
+	_, err := module.Assign(testpkg.Ctx(t), substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
+	require.Error(t, err)
+	rows, listErr := repos.GroupSupervisor.FindByActiveGroupID(testpkg.Ctx(t), running.ID, true)
+	require.NoError(t, listErr)
+	require.Len(t, rows, 1)
+	require.Equal(t, owner.StaffID, rows[0].StaffID)
+}
+
+func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor},
+		Audit:                   repos.SubstitutionChange, DB: db,
+	})
+	activity := testpkg.CreateTestActivityGroup(t, db, "Future end activity")
+	room := testpkg.CreateTestRoom(t, db, "Future end room")
+	running := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	owner, accountID := activeTeacher(t, db, "Future", "Owner")
+	target, _ := activeTeacher(t, db, "Future", "Target")
+	ownerRow := testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
+	targetRow := testpkg.CreateTestGroupSupervisor(t, db, target.StaffID, running.ID, "additional_supervisor")
+	futureEnd := timezone.NewDate(2099, time.January, 1)
+	for _, id := range []int64{ownerRow.ID, targetRow.ID} {
+		_, err := db.NewUpdate().TableExpr(`active.group_supervisors`).Set("end_date = ?", futureEnd).Where("id = ?", id).Exec(testpkg.Ctx(t))
+		require.NoError(t, err)
+	}
+	overview, err := module.Overview(testpkg.Ctx(t), substitutionCaller(t, accountID, false), substitution.OverviewQuery{ActiveGroupID: running.ID, IncludeTargets: true})
+	require.NoError(t, err)
+	require.Len(t, overview.RunningSupervisions, 1)
+	require.Len(t, overview.RunningSupervisions[0].Supervisors, 2)
+	require.Empty(t, overview.RunningSupervisions[0].AvailableTargets)
+	_, err = module.Assign(testpkg.Ctx(t), substitutionCaller(t, accountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
+	require.ErrorIs(t, err, substitution.ErrAlreadyAssigned)
+}
+
+func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveSupervisorCreator: activeService,
+		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: broadcaster,
+	})
+	activity := testpkg.CreateTestActivityGroup(t, db, "Signals activity")
+	room := testpkg.CreateTestRoom(t, db, "Signals room")
+	running := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	owner, ownerAccountID := activeTeacher(t, db, "Sina", "Owner")
+	target, _ := activeTeacher(t, db, "Tina", "Target")
+	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
+
+	ctx, commit := testpkg.WithAfterCommitHooks(testpkg.Ctx(t))
+	_, err := module.Assign(ctx, substitutionCaller(t, ownerAccountID, false), additionalSupervisionAssignment(running.ID, target.StaffID))
+	require.NoError(t, err)
+	require.Empty(t, broadcaster.Events())
+	commit()
+	require.ElementsMatch(t, []string{"active_supervision_changed", "group_access_changed"}, []string{
+		string(broadcaster.Events()[0].Type), string(broadcaster.Events()[1].Type),
+	})
+}
+
+func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	activeService := testpkg.GroupSupervisorCreator{Repository: repos.GroupSupervisor}
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "Race activity")
+	room := testpkg.CreateTestRoom(t, db, "Race room")
+	running := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	owner, ownerAccountID := activeTeacher(t, db, "Raya", "Owner")
+	target, _ := activeTeacher(t, db, "Theo", "Target")
+	testpkg.CreateTestGroupSupervisor(t, db, owner.StaffID, running.ID, "supervisor")
+	entered := make(chan struct{})
+	groups := &testpkg.SignalingGroupRepository{GroupRepository: repos.ActiveGroup, Entered: entered}
+
+	module := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+		ActiveGroups: groups, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveSupervisorCreator: activeService,
+		Audit:                   repos.SubstitutionChange, DB: db,
+	})
+
+	holder, err := db.BeginTx(testpkg.Ctx(t), nil)
+	require.NoError(t, err)
+	var lockedID int64
+	err = holder.NewSelect().TableExpr(`active.groups AS "group"`).
+		ColumnExpr(`"group".id`).Where(`"group".id = ?`, running.ID).
+		For("UPDATE").Scan(testpkg.Ctx(t), &lockedID)
+	require.NoError(t, err)
+	require.Equal(t, running.ID, lockedID)
+	_, err = holder.NewUpdate().TableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".id = ?`, running.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	result := make(chan error, 1)
+	assignCtx := testpkg.Ctx(t)
+	caller := substitutionCaller(t, ownerAccountID, false)
+	go func() {
+		_, assignErr := module.Assign(assignCtx, caller, additionalSupervisionAssignment(running.ID, target.StaffID))
+		result <- assignErr
+	}()
+	<-entered
+	select {
+	case assignErr := <-result:
+		t.Fatalf("assignment returned before the concurrent end committed: %v", assignErr)
+	case <-time.After(100 * time.Millisecond):
+	}
+	require.NoError(t, holder.Commit())
+	select {
+	case assignErr := <-result:
+		require.ErrorIs(t, assignErr, substitution.ErrNotRunning)
+	case <-time.After(time.Second):
+		t.Fatal("assignment did not resume after the concurrent end committed")
+	}
+}
+
 func TestGroupHandoverExternalInterface(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -375,4 +689,33 @@ func substitutionCaller(t *testing.T, accountID int64, admin bool) substitution.
 	return substitution.SubstitutionCaller{
 		AccountID: accountID, TenantID: testpkg.Tenant(t), Roles: []string{"user"}, Admin: admin,
 	}
+}
+
+func additionalSupervisionAssignment(activeGroupID, targetStaffID int64) substitution.Assignment {
+	return substitution.Assignment{
+		Type: substitution.TargetAdditionalSupervision,
+		AdditionalSupervision: &substitution.AdditionalSupervisionAssignment{
+			ActiveGroupID: activeGroupID,
+			TargetStaffID: targetStaffID,
+		},
+	}
+}
+
+func runningSupervisionIDs(overview *substitution.OverviewResult) []int64 {
+	ids := make([]int64, 0, len(overview.RunningSupervisions))
+	for _, supervision := range overview.RunningSupervisions {
+		ids = append(ids, supervision.ID)
+	}
+	return ids
+}
+
+func findRunningSupervision(t *testing.T, overview *substitution.OverviewResult, activeGroupID int64) substitution.RunningSupervision {
+	t.Helper()
+	for _, supervision := range overview.RunningSupervisions {
+		if supervision.ID == activeGroupID {
+			return supervision
+		}
+	}
+	t.Fatalf("running supervision %d not found", activeGroupID)
+	return substitution.RunningSupervision{}
 }

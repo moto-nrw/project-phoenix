@@ -21,6 +21,7 @@ export interface ActiveSupervisionRoom {
   room_color?: string;
   student_count?: number;
   supervisor_name?: string;
+  isCurrentUserSupervising?: boolean;
   students?: ActiveSupervisionStudent[];
 }
 
@@ -169,6 +170,7 @@ interface SupervisedGroupLike {
   name: string;
   room_id?: string;
   room?: { id: string; name: string; color?: string | null };
+  isCurrentUserSupervising?: boolean;
 }
 
 interface EducationalGroupLike {
@@ -201,6 +203,7 @@ export function mapSupervisedGroupsToRooms(
       room_color: group.room?.color ?? undefined,
       student_count: undefined,
       supervisor_name: undefined,
+      isCurrentUserSupervising: group.isCurrentUserSupervising === true,
     }))
     .sort(
       (a, b) =>
@@ -232,15 +235,36 @@ export function supervisionTabLabel(
   room: ActiveSupervisionRoom,
   liveSession?: SupervisionSessionInfo | null,
 ): string {
+  let label: string;
   if (liveSession) {
-    return `${liveSession.title} · ${liveSession.timeRange}`;
+    label = `${liveSession.title} · ${liveSession.timeRange}`;
+  } else {
+    const sessionName: string | undefined = room.name;
+    const roomName = room.room_name;
+    label =
+      sessionName && roomName && sessionName !== roomName
+        ? `${sessionName} · ${roomName}`
+        : (sessionName ?? roomName ?? "Aufsicht");
   }
-  const sessionName: string | undefined = room.name;
-  const roomName = room.room_name;
-  if (sessionName && roomName && sessionName !== roomName) {
-    return `${sessionName} · ${roomName}`;
+  return room.isCurrentUserSupervising ? `${label} · Eigene Aufsicht` : label;
+}
+
+export function additionalSupervisionTarget(options: {
+  readonly currentRoom: ActiveSupervisionRoom | null;
+  readonly isSchulhofTabSelected: boolean;
+  readonly schulhofStatus: Pick<
+    SchulhofStatusResponse,
+    "activeGroupId" | "isUserSupervising"
+  > | null;
+}): string | null {
+  if (options.isSchulhofTabSelected) {
+    return options.schulhofStatus?.isUserSupervising
+      ? (options.schulhofStatus.activeGroupId ?? null)
+      : null;
   }
-  return sessionName ?? roomName ?? "Aufsicht";
+  return options.currentRoom?.isCurrentUserSupervising
+    ? options.currentRoom.id
+    : null;
 }
 
 function mapVisitToSupervisionStudent(

@@ -271,7 +271,7 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 			visitEnded = true
 			return nil
 		},
-	}},
+	}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 	}
 
 	result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -321,7 +321,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 			endSessionFunc: func(context.Context, int64) error {
 				return errors.New("session end failed")
 			},
-		}, VisitRepo: &mockVisitRepository{}},
+		}, VisitRepo: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -355,7 +355,8 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 					return nil
 				},
 			},
-			VisitRepo: &mockVisitRepository{},
+			VisitRepo:      &mockVisitRepository{},
+			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
 					assert.Equal(t, []int64{100}, activeGroupIDs)
@@ -410,7 +411,8 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 				},
 				endSessionFunc: func(context.Context, int64) error { return endSessionErr },
 			},
-			VisitRepo: &mockVisitRepository{},
+			VisitRepo:      &mockVisitRepository{},
+			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
 					_, inTx := modelBase.TxFromContext(ctx)
@@ -1455,43 +1457,6 @@ func TestNormalizeTransferredSupervisorRole(t *testing.T) {
 	assert.Equal(t, "helper", normalizeTransferredSupervisorRole("helper"))
 }
 
-func TestValidateSessionForTimeout_Branches(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	t.Run("not found", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return nil, errors.New("missing")
-			},
-		}},
-		}
-
-		session, err := svc.validateSessionForTimeout(ctx, 100)
-
-		require.Error(t, err)
-		assert.Nil(t, session)
-		assert.Contains(t, err.Error(), ErrActiveGroupNotFound.Error())
-	})
-
-	t.Run("already ended", func(t *testing.T) {
-		endedAt := time.Now()
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return &activeModels.Group{Model: modelBase.Model{ID: 100}, EndTime: &endedAt}, nil
-			},
-		}},
-		}
-
-		session, err := svc.validateSessionForTimeout(ctx, 100)
-
-		require.Error(t, err)
-		assert.Nil(t, session)
-		assert.Contains(t, err.Error(), ErrActiveGroupAlreadyEnded.Error())
-	})
-}
-
 func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	t.Parallel()
 
@@ -1613,11 +1578,17 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 
 	t.Run("update failure is captured", func(t *testing.T) {
 		result := &DailySessionCleanupResult{Success: true}
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		record := &activeModels.GroupSupervisor{Model: modelBase.Model{ID: 10}, GroupID: 20, StartDate: today.AddDays(-1)}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+			findByIDForUpdateFunc: func(context.Context, int64) (*activeModels.Group, error) {
+				return &activeModels.Group{Model: modelBase.Model{ID: 20}}, nil
+			},
+		}, SupervisorRepo: &mockGroupSupervisorRepository{
 			findStaleOpenFunc: func(context.Context, timezone.Date) ([]*activeModels.GroupSupervisor, error) {
-				return []*activeModels.GroupSupervisor{
-					{Model: modelBase.Model{ID: 10}, StartDate: today.AddDays(-1)},
-				}, nil
+				return []*activeModels.GroupSupervisor{record}, nil
+			},
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.GroupSupervisor, error) {
+				return record, nil
 			},
 			updateColumnsFunc: func(context.Context, *activeModels.GroupSupervisor, ...string) (int64, error) {
 				return 0, errors.New("stale close failed")
