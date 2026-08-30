@@ -65,7 +65,7 @@ func (s *Scheduler) runOutboxOnce(task *ScheduledTask) {
 	maxAttempts := s.resolveIntSetting(context.Background(), configModel.KeyEnrollmentOutboxMaxAttempts, "", 6)
 	s.outboxWorker.SetMaxAttempts(maxAttempts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 	ctx = s.withUnitOfWork(ctx)
 
