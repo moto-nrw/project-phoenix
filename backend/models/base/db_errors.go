@@ -30,26 +30,31 @@ func IsUniqueViolationOn(err error, constraint string) bool {
 	var pgErr pgdriver.Error
 	if errors.As(err, &pgErr) {
 		return pgErr.Field('C') == "23505" &&
-			(pgErr.Field('n') == constraint || constraintName(pgErr.Error()) == constraint)
+			(pgErr.Field('n') == constraint || hasQuotedIdentifier(pgErr.Error(), constraint))
 	}
-	return hasTextualSQLState(err, "23505") && constraintName(err.Error()) == constraint
+	return hasTextualSQLState(err, "23505") && hasQuotedIdentifier(err.Error(), constraint)
 }
 
 func hasTextualSQLState(err error, code string) bool {
 	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+code)
 }
 
-func constraintName(message string) string {
-	_, message, found := strings.Cut(message, `constraint "`)
-	if !found {
-		return ""
-	}
+func hasQuotedIdentifier(message, identifier string) bool {
+	for {
+		_, message, found := strings.Cut(message, `"`)
+		if !found {
+			return false
+		}
 
-	constraint, _, found := strings.Cut(message, `"`)
-	if !found {
-		return ""
+		quoted, remaining, found := strings.Cut(message, `"`)
+		if !found {
+			return false
+		}
+		if quoted == identifier {
+			return true
+		}
+		message = remaining
 	}
-	return constraint
 }
 
 // IsLockNotAvailable reports whether err carries PostgreSQL error code 55P03

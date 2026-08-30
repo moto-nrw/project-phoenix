@@ -30,6 +30,16 @@ func TestIsUniqueViolationOn_DegradedTextError(t *testing.T) {
 	}
 }
 
+func TestIsUniqueViolationOn_LocalizedDegradedTextError(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New(`FEHLER: doppelter Schlüsselwert verletzt eindeutige Bedingung "idx_guardian_profiles_tenant_email" (SQLSTATE=23505)`)
+
+	if !IsUniqueViolationOn(err, testUniqueConstraint) {
+		t.Fatal("IsUniqueViolationOn() = false, want true for a localized textual unique violation")
+	}
+}
+
 func TestIsUniqueViolation_NonUniqueErrorsRemainDistinct(t *testing.T) {
 	t.Parallel()
 
