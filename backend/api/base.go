@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
@@ -171,8 +172,25 @@ type API struct {
 	Platform *platformAPI.Resource
 }
 
+type apiBuildResources struct {
+	pool     *bun.DB
+	tracker  analytics.Tracker
+	released bool
+}
+
+func (resources *apiBuildResources) close() error {
+	if resources.released {
+		return nil
+	}
+	var err error
+	if resources.tracker != nil {
+		err = resources.tracker.Close()
+	}
+	return errors.Join(err, database.ClosePool(resources.pool))
+}
+
 // New creates a new API instance
-func New(enableCORS bool, logger *slog.Logger) (*API, error) {
+func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	metricsBearerToken, err := observability.MetricsBearerTokenFromEnv(os.Getenv)
 	if err != nil {
 		return nil, err
@@ -183,6 +201,10 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	buildResources := apiBuildResources{pool: db}
+	defer func() {
+		resultErr = errors.Join(resultErr, buildResources.close())
+	}()
 	db.AddQueryHook(database.NewLockWaitQueryHook(services.ObserveUnitOfWorkLockWait))
 	postgresUnitOfWork, err := database.NewPostgresUnitOfWork(db, services.ObserveUnitOfWorkPoolWait)
 	if err != nil {
@@ -218,6 +240,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	buildResources.tracker = serviceFactory.Tracker
 	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, err
 	}
@@ -304,6 +327,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
 
+	buildResources.released = true
 	return api, nil
 }
 

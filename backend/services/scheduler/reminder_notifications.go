@@ -142,7 +142,7 @@ func (s *Scheduler) checkAndRunReminderNotifications(task *ScheduledTask) {
 
 	s.rotateReminderNotificationCacheIfNewDay(time.Now())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "reminder-notifications", func(tenantCtx context.Context, tenantID int64) error {

@@ -25,7 +25,7 @@ var (
 )
 
 var expectedCompositionRoots = []compositionRoot{
-	{ID: "serve", Kind: "http", File: "api/server.go", Declaration: "NewServer", SmokeTest: "api/route_table_golden_test.go#TestRouteTableGolden", Tables: []string{}},
+	{ID: "serve", Kind: "http", File: "api/server.go", Declaration: "WithRuntime", SmokeTest: "api/route_table_golden_test.go#TestRouteTableGolden", Tables: []string{}},
 	{ID: "worker", Kind: "embedded-worker", File: "api/server.go", Declaration: "newScheduler", SmokeTest: "test/composition_inventory_test.go#TestWorkerJobRegistryInventory", Tables: []string{}},
 	{ID: "commands", Kind: "cli", File: "cmd/root.go", Declaration: "RootCmd", SmokeTest: "cmd/root_test.go#TestRootCmd_HasCommands", Tables: []string{}},
 }
@@ -340,7 +340,7 @@ func receiverName(expression ast.Expr) string {
 }
 
 var compositionConstructors = map[string]map[string]string{
-	"github.com/moto-nrw/project-phoenix/api":                   {"New": "api.New", "NewServer": "api.NewServer"},
+	"github.com/moto-nrw/project-phoenix/api":                   {"New": "api.New", "NewServer": "api.NewServer", "WithRuntime": "api.WithRuntime"},
 	"github.com/moto-nrw/project-phoenix/api/testutil":          {"SetupAPITest": "api/testutil.SetupAPITest"},
 	"github.com/moto-nrw/project-phoenix/database/repositories": {"NewFactory": "database/repositories.NewFactory"},
 	"github.com/moto-nrw/project-phoenix/services":              {"NewFactory": "services.NewFactory"},

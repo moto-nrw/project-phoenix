@@ -18,7 +18,7 @@ func TestServeCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "serve", serveCmd.Use)
 	assert.Contains(t, serveCmd.Short, "start http server")
 	assert.Contains(t, serveCmd.Long, "http server")
-	assert.NotNil(t, serveCmd.Run)
+	assert.NotNil(t, serveCmd.RunE)
 }
 
 func TestServeCmd_IsRegisteredOnRoot(t *testing.T) {
@@ -64,6 +64,8 @@ func TestValidateServeConfig_MissingRequiredConfigFails(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET")
+	require.NotNil(t, serveCmd.RunE)
+	require.ErrorContains(t, serveCmd.RunE(serveCmd, nil), "AUTH_JWT_SECRET")
 }
 
 func TestValidateServeConfig_MissingDatabaseDSNFails(t *testing.T) {

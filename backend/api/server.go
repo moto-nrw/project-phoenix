@@ -2,12 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -15,53 +16,125 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
-	"github.com/spf13/viper"
 )
 
-// Server provides an HTTP server for the API
-type Server struct {
-	*http.Server
-	scheduler      *scheduler.Scheduler
-	capacityLogger *capacityLogger
-	tracker        analytics.Tracker
+const shutdownTimeout = 30 * time.Second
+
+// ServeConfig contains the typed inputs for the production Serve root.
+type ServeConfig struct {
+	Port       string
+	EnableCORS bool
+	Logger     *slog.Logger
 }
 
-// NewServer creates and configures a new API server
-func NewServer(logger *slog.Logger) (*Server, error) {
-	slog.Info("Initializing API server")
+// Runtime owns the assembled HTTP graph and its process-scoped resources.
+// A Runtime may be served once.
+type Runtime struct {
+	server          *http.Server
+	api             *API
+	scheduler       backgroundScheduler
+	capacityLogger  *capacityLogger
+	tracker         analytics.Tracker
+	logger          *slog.Logger
+	resourcesUnsafe bool
+}
 
-	api, err := New(viper.GetBool("enable_cors"), logger)
+// backgroundScheduler is the lifecycle contract Runtime needs from its worker
+// graph. Serve must wait for Stop before it releases shared resources.
+type backgroundScheduler interface {
+	Start()
+	Stop()
+}
+
+// startupListener signals after http.Server has registered the listener and is
+// ready to accept connections. Shutdown must not begin before that point.
+type startupListener struct {
+	net.Listener
+	started chan struct{}
+	once    sync.Once
+}
+
+func (listener *startupListener) Accept() (net.Conn, error) {
+	listener.once.Do(func() { close(listener.started) })
+	return listener.Listener.Accept()
+}
+
+// WithRuntime constructs one production Serve graph, runs fn, and releases all
+// process-scoped resources in reverse ownership order.
+func WithRuntime(ctx context.Context, config ServeConfig, fn func(*Runtime) error) (resultErr error) {
+	if ctx == nil {
+		return fmt.Errorf("serve context is required")
+	}
+	if fn == nil {
+		return fmt.Errorf("serve callback is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("serve context ended before build: %w", err)
+	}
+
+	runtime, err := newRuntime(config)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, runtime.closeResources())
+	}()
+	return fn(runtime)
+}
+
+func newRuntime(config ServeConfig) (*Runtime, error) {
+	if config.Logger == nil {
+		return nil, fmt.Errorf("serve dependency logger is required")
+	}
+	if strings.TrimSpace(config.Port) == "" {
+		return nil, fmt.Errorf("serve dependency port is required")
+	}
+
+	config.Logger.Info("initializing API server")
+
+	api, err := New(config.EnableCORS, config.Logger)
 	if err != nil {
 		return nil, err
 	}
 
-	srv := &Server{
-		Server: &http.Server{
-			Addr:    resolveListenAddr(viper.GetString("port")),
-			Handler: api,
-			// ReadTimeout stays modest to protect against slowloris attacks,
-			// but WriteTimeout must be disabled to allow long-lived SSE streams.
-			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 0,
-			IdleTimeout:  0,
-		},
-		scheduler: newScheduler(api, logger),
-		capacityLogger: newCapacityLogger(func() dbCapacityStats {
-			stats := database.SnapshotCapacity(api.db)
-			return dbCapacityStats{
-				openConnections:   stats.OpenConnections,
-				inUse:             stats.InUse,
-				idle:              stats.Idle,
-				waitCount:         stats.WaitCount,
-				waitDuration:      stats.WaitDuration,
-				maxIdleClosed:     stats.MaxIdleClosed,
-				maxLifetimeClosed: stats.MaxLifetimeClosed,
-			}
-		}, api.Services.RealtimeHub, api.metrics, logger.With("component", "capacity")),
-		tracker: api.Services.Tracker,
+	runtime := &Runtime{
+		api:            api,
+		scheduler:      newScheduler(api, config.Logger),
+		capacityLogger: newRuntimeCapacityLogger(api, config.Logger),
+		tracker:        api.Services.Tracker,
+		logger:         config.Logger,
+	}
+	runtime.server = &http.Server{
+		Addr:    resolveListenAddr(config.Port),
+		Handler: runtime.Handler(),
+		// ReadTimeout stays modest to protect against slowloris attacks,
+		// but WriteTimeout must be disabled to allow long-lived SSE streams.
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 0,
+		IdleTimeout:  0,
 	}
 
-	return srv, nil
+	return runtime, nil
+}
+
+func newRuntimeCapacityLogger(api *API, logger *slog.Logger) *capacityLogger {
+	return newCapacityLogger(func() dbCapacityStats {
+		stats := database.SnapshotCapacity(api.db)
+		return dbCapacityStats{
+			openConnections:   stats.OpenConnections,
+			inUse:             stats.InUse,
+			idle:              stats.Idle,
+			waitCount:         stats.WaitCount,
+			waitDuration:      stats.WaitDuration,
+			maxIdleClosed:     stats.MaxIdleClosed,
+			maxLifetimeClosed: stats.MaxLifetimeClosed,
+		}
+	}, api.Services.RealtimeHub, api.metrics, logger.With("component", "capacity"))
+}
+
+// Handler returns the fully assembled production HTTP graph.
+func (runtime *Runtime) Handler() http.Handler {
+	return runtime.api
 }
 
 // resolveListenAddr turns a configured port into a listen address. A value
@@ -233,58 +306,139 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	}
 }
 
-// Start runs the server with graceful shutdown
-func (srv *Server) Start() {
-	capacityCtx, stopCapacityLogger := context.WithCancel(context.Background())
-	defer stopCapacityLogger()
-	if srv.capacityLogger != nil {
-		srv.capacityLogger.LogSnapshot()
-		go srv.capacityLogger.Start(capacityCtx)
+// Serve runs the HTTP server and embedded worker until ctx is cancelled.
+func (runtime *Runtime) Serve(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("serve context is required")
 	}
-
-	// Start scheduler if initialized (includes session cleanup task)
-	if srv.scheduler != nil {
-		srv.scheduler.Start()
+	listener, err := net.Listen("tcp", runtime.server.Addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", runtime.server.Addr, err)
 	}
-
-	// Start server in a goroutine so that it doesn't block
-	go func() {
-		slog.Info("Server listening", slog.String("addr", srv.Addr))
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Server error", slog.String("error", err.Error()))
-			os.Exit(1)
+	if err := ctx.Err(); err != nil {
+		if closeErr := listener.Close(); closeErr != nil {
+			return fmt.Errorf("close canceled listener: %w", closeErr)
 		}
+		return nil
+	}
+
+	capacityCtx, stopCapacityLogger := context.WithCancel(ctx)
+	capacityStopped := runtime.startBackground(capacityCtx)
+	defer func() {
+		stopCapacityLogger()
+		<-capacityStopped
 	}()
 
-	// Set up channel to listen for signals
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-
-	// Block until we receive a signal
-	sig := <-quit
-	slog.Info("Server shutting down", slog.String("signal", sig.String()))
-
-	// Stop scheduler if it's running (includes session cleanup task)
-	if srv.scheduler != nil {
-		srv.scheduler.Stop()
+	serveErr := make(chan error, 1)
+	servingListener := &startupListener{Listener: listener, started: make(chan struct{})}
+	go func() {
+		runtime.logger.Info("server listening", slog.String("addr", runtime.server.Addr))
+		serveErr <- runtime.server.Serve(servingListener)
+	}()
+	select {
+	case <-servingListener.started:
+	case err := <-serveErr:
+		return runtime.handleServeExit(err)
 	}
 
-	// Create a deadline for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	var runErr error
+	select {
+	case err := <-serveErr:
+		runErr = runtime.handleServeExit(err)
+	case <-ctx.Done():
+		runErr = runtime.shutdown(ctx.Err())
+	}
+
+	if runErr == nil {
+		runtime.logger.Info("server gracefully stopped")
+	}
+	return runErr
+}
+
+func (runtime *Runtime) handleServeExit(err error) error {
+	shutdownErr := runtime.shutdown(err)
+	if errors.Is(err, http.ErrServerClosed) {
+		return shutdownErr
+	}
+	return errors.Join(fmt.Errorf("serve HTTP: %w", err), shutdownErr)
+}
+
+func (runtime *Runtime) startBackground(capacityCtx context.Context) <-chan struct{} {
+	capacityStopped := make(chan struct{})
+	if capacityCtx.Err() != nil {
+		close(capacityStopped)
+		return capacityStopped
+	}
+	if runtime.capacityLogger != nil {
+		runtime.capacityLogger.LogSnapshot()
+		go func() {
+			runtime.capacityLogger.Start(capacityCtx)
+			close(capacityStopped)
+		}()
+	} else {
+		close(capacityStopped)
+	}
+	if runtime.scheduler != nil && capacityCtx.Err() == nil {
+		runtime.scheduler.Start()
+	}
+	return capacityStopped
+}
+
+func (runtime *Runtime) shutdown(reason error) error {
+	return runtime.shutdownWithTimeout(reason, shutdownTimeout)
+}
+
+func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration) error {
+	runtime.logger.Info("server shutting down", slog.String("reason", reason.Error()))
+
+	// Scheduler jobs can still use the tracker and database pool. Keep Serve
+	// alive until they stop, while giving HTTP requests their own full drain
+	// deadline.
+	schedulerStopped := make(chan struct{})
+	go func() {
+		runtime.stopScheduler()
+		close(schedulerStopped)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-
-	// Attempt graceful shutdown
-	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("Server forced to shutdown", slog.String("error", err.Error()))
-		os.Exit(1)
+	if err := runtime.server.Shutdown(ctx); err != nil {
+		closeErr := runtime.server.Close()
+		runtime.resourcesUnsafe = true
+		return errors.Join(
+			fmt.Errorf("shutdown HTTP server: %w", err),
+			closeErr,
+		)
 	}
-
-	// Flush buffered analytics events before exit
-	if srv.tracker != nil {
-		if err := srv.tracker.Close(); err != nil {
-			slog.Warn("analytics tracker close failed", slog.String("error", err.Error()))
-		}
+	select {
+	case <-schedulerStopped:
+		return nil
+	case <-ctx.Done():
+		runtime.resourcesUnsafe = true
+		return fmt.Errorf("shutdown scheduler: %w", ctx.Err())
 	}
+}
 
-	slog.Info("Server gracefully stopped")
+func (runtime *Runtime) stopScheduler() {
+	if runtime.scheduler == nil {
+		return
+	}
+	scheduler := runtime.scheduler
+	runtime.scheduler = nil
+	scheduler.Stop()
+}
+
+func (runtime *Runtime) closeResources() error {
+	if runtime.resourcesUnsafe {
+		// cmd.Execute exits after this fatal shutdown error, which stops the
+		// remaining handler or worker before the operating system releases its
+		// resources. Closing the pool here would race those goroutines.
+		return nil
+	}
+	var err error
+	if runtime.tracker != nil {
+		err = runtime.tracker.Close()
+	}
+	err = errors.Join(err, database.ClosePool(runtime.api.db))
+	return err
 }

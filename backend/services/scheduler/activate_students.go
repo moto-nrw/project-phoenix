@@ -108,7 +108,7 @@ func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := s.taskContext(30 * time.Minute)
 	defer cancel()
 
 	now := time.Now()
