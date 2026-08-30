@@ -57,9 +57,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Export gehört ins Menü, unter der Überschrift „Herunterladen" bzw.
    „Exportieren" — nie als Knopfreihe je Format. Kontextbedienelemente
    (Zeitraum, Datum) zählen nicht als Aktion und dürfen daneben stehen.
-   Unter sm stehen die Aktionen neben dem Titel, solange sie neben seiner
-   Mindestbreite Platz haben; sonst brechen sie als Gruppe rechtsbündig in
-   eine eigene Zeile um. Kein Umbruch nach Anzahl, kein toter Raum rechts.
+   Unter sm: eine Aktion steht neben der Statuszeile; ab zwei bleiben die
+   Symbolknöpfe dort und jeder Textknopf bekommt eine volle Zeile darunter
+   (Abschnitt „Unter sm").
 5. **Suche und Filter gehören in `search`/`filters`.** Handgebaute Zeilen aus
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
@@ -131,10 +131,9 @@ Auf dem Telefon gilt dasselbe Gerüst mit derselben Reihenfolge, aber ohne
 die Kosten einer Desktop-Karte in einer 390-px-Spalte. Das entscheidet
 `TenantPage` und das Kit, nie die Seite:
 
-- **Kopf als Band, nicht als Karte.** Der Kopf ist ein weißes, randloses
-  Band direkt unter der Kopfzeile der Shell (ohne Rundung und Schatten,
-  12 px Innenrand). Kein Text steht direkt auf dem gemusterten Grund, auch
-  der Zurück-Knopf nicht. Der Seitenname steht mobil nur in der Kopfzeile;
+- **Kein Kopf als Karte.** Statuszeile, Aktionen, Reiter und Suche stehen
+  flach unter der Kopfzeile der Shell (kein Rahmen, kein Schatten, kein
+  Innenrand); der Zurück-Knopf steht mit darin. Der Seitenname steht mobil nur in der Kopfzeile;
   das `h1` bleibt für Screenreader (`sr-only`). Unterseiten mit `back` und
   Objektseiten mit `leading` behalten ihren Titel, weil die Kopfzeile dort
   nur den Bereich nennt.

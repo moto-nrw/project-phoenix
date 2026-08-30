@@ -292,11 +292,11 @@ export function TenantPage({
       {/* Eine Fläche von Titel bis Reiter. Die Reiter lagen vorher frei auf
           dem gemusterten Grund und sahen aus wie nachträglich dazwischen
           geschoben; sie sind jetzt die letzte Zeile des Kopfes. */}
-      {/* Unter sm ist der Kopf ein weißes Band, das die Kopfzeile der Shell
-          nach unten verlängert: randlos, ohne Rundung und Schatten, mit
-          12 px Innenrand. Text direkt auf dem gemusterten Grund gibt es
-          nicht -- auch der Zurück-Knopf steht im Band. */}
-      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:-mx-4 max-sm:-mt-4 max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0 max-sm:px-4 max-sm:py-3 max-sm:shadow-none!">
+      {/* Unter sm ist der Kopf keine Karte: Statuszeile, Aktionen, Reiter
+          und Suche stehen flach unter der Kopfzeile der Shell. Eine Karte
+          in einer 390-px-Spalte kostete Rahmen, Schatten und 20 px Rand
+          für nichts. */}
+      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent! max-sm:p-0 max-sm:shadow-none! max-sm:backdrop-blur-none!">
         {back && (
           <MobileBackButton
             href={backHref}
@@ -612,7 +612,7 @@ function TenantPageTabs({
   return (
     // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
     // die volle Kartenbreite, auf jedem Geraet.
-    <div className="-mx-5 mt-4 max-sm:-mx-4 max-sm:mt-3">
+    <div className="-mx-5 mt-4 max-sm:mx-0 max-sm:mt-3">
       {/* EIN Band auf allen Breiten. Unter sm scrollt es waagerecht und zeigt
           jeden Reiter; ab sm wird gemessen und der Ueberhang steht unter
           „Mehr". Vorher stand unter sm eine Auswahlliste -- sie zeigte nur den
@@ -633,7 +633,7 @@ function TenantPageTabs({
           ref={rowRef}
           role="tablist"
           aria-label={label}
-          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 max-sm:[&::-webkit-scrollbar]:hidden"
+          className="flex items-end gap-6 max-sm:[scrollbar-width:none] max-sm:gap-2 max-sm:overflow-x-auto max-sm:[&::-webkit-scrollbar]:hidden"
         >
           {visible.map((item) => renderTab(item))}
           {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
