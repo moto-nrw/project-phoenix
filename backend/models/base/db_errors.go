@@ -41,12 +41,12 @@ func hasTextualSQLState(err error, code string) bool {
 
 func hasQuotedIdentifier(message, identifier string) bool {
 	for {
-		_, message, found := strings.Cut(message, `"`)
+		_, afterOpeningQuote, found := strings.Cut(message, `"`)
 		if !found {
 			return false
 		}
 
-		quoted, remaining, found := strings.Cut(message, `"`)
+		quoted, remaining, found := strings.Cut(afterOpeningQuote, `"`)
 		if !found {
 			return false
 		}
