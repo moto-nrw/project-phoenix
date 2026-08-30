@@ -38,6 +38,7 @@ type calendarFunctionScan struct {
 	timePackages      map[string]bool
 	timezonePackages  map[string]bool
 	assertionPackages map[string]bool
+	receiverTypes     map[*ast.Object]string
 }
 
 type calendarPackageHelpers struct {
@@ -51,6 +52,7 @@ type calendarVariables map[*ast.Object]bool
 
 type calendarHelperCandidate struct {
 	name             string
+	receiver         string
 	fn               *ast.FuncDecl
 	fingerprint      string
 	timePackages     map[string]bool
@@ -185,6 +187,7 @@ func scanCalendarFixtureFunctions(rel string, fset *token.FileSet, file *ast.Fil
 			instantHelpers: helpers.instants[key], weeklyHelpers: helpers.weekly[key], dateHelpers: helpers.dates[key],
 			timePackages: timePackages, timezonePackages: timezonePackages,
 			assertionPackages: assertionPackages,
+			receiverTypes:     calendarReceiverTypes(fn),
 		}
 		functionFindings := scan.findings()
 		helperFingerprint := calendarHelperClosureFingerprint(fn, helpers.candidates[key])
@@ -225,24 +228,26 @@ func calendarFingerprint(source string) string {
 func calendarHelperClosureFingerprint(fn *ast.FuncDecl, candidates map[string][]calendarHelperCandidate) string {
 	seen := map[*ast.FuncDecl]bool{}
 	var fingerprints []string
-	collectCalendarHelperFingerprints(fn.Body, candidates, seen, &fingerprints)
+	collectCalendarHelperFingerprints(fn, candidates, seen, &fingerprints)
 	sort.Strings(fingerprints)
 	return calendarFingerprint(strings.Join(fingerprints, "\x00"))
 }
 
-func collectCalendarHelperFingerprints(node ast.Node, candidates map[string][]calendarHelperCandidate, seen map[*ast.FuncDecl]bool, fingerprints *[]string) {
-	ast.Inspect(node, func(node ast.Node) bool {
+func collectCalendarHelperFingerprints(fn *ast.FuncDecl, candidates map[string][]calendarHelperCandidate, seen map[*ast.FuncDecl]bool, fingerprints *[]string) {
+	receiverTypes := calendarReceiverTypes(fn)
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
-		for _, candidate := range candidates[expressionName(call.Fun)] {
+		for _, candidate := range candidates[calendarCalledHelper(call, receiverTypes)] {
 			if seen[candidate.fn] {
 				continue
 			}
 			seen[candidate.fn] = true
-			*fingerprints = append(*fingerprints, candidate.name+":"+candidate.fingerprint)
-			collectCalendarHelperFingerprints(candidate.fn.Body, candidates, seen, fingerprints)
+			identity := calendarHelperIdentity(candidate.receiver, candidate.name)
+			*fingerprints = append(*fingerprints, identity+":"+candidate.fingerprint)
+			collectCalendarHelperFingerprints(candidate.fn, candidates, seen, fingerprints)
 		}
 		return true
 	})
@@ -263,15 +268,143 @@ func formatChangedCalendarFunctions(findings map[string]calendarClockFinding) st
 	return strings.Join(lines, "\n")
 }
 
-func declaredFunctions(file *ast.File) map[string]*ast.FuncDecl {
-	functions := map[string]*ast.FuncDecl{}
+func declaredFunctions(file *ast.File) []*ast.FuncDecl {
+	var functions []*ast.FuncDecl
 	for _, declaration := range file.Decls {
 		fn, ok := declaration.(*ast.FuncDecl)
 		if ok && fn.Body != nil {
-			functions[fn.Name.Name] = fn
+			functions = append(functions, fn)
 		}
 	}
 	return functions
+}
+
+func calendarHelperIdentity(receiver, name string) string {
+	if receiver == "" {
+		return name
+	}
+	return receiver + "." + name
+}
+
+func calendarReceiverName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return ""
+	}
+	return expressionName(fn.Recv.List[0].Type)
+}
+
+func calendarReceiverTypes(fn *ast.FuncDecl) map[*ast.Object]string {
+	types := map[*ast.Object]string{}
+	recordCalendarFieldTypes(fn.Recv, types)
+	recordCalendarFieldTypes(fn.Type.Params, types)
+	for changed := true; changed; {
+		changed = recordCalendarAssignedTypes(fn.Body, types)
+	}
+	return types
+}
+
+func recordCalendarFieldTypes(fields *ast.FieldList, types map[*ast.Object]string) {
+	if fields == nil {
+		return
+	}
+	for _, field := range fields.List {
+		for _, name := range field.Names {
+			if name.Obj != nil {
+				types[name.Obj] = expressionName(field.Type)
+			}
+		}
+	}
+}
+
+func recordCalendarAssignedTypes(body *ast.BlockStmt, types map[*ast.Object]string) bool {
+	changed := false
+	ast.Inspect(body, func(node ast.Node) bool {
+		switch declaration := node.(type) {
+		case *ast.AssignStmt:
+			for i, lhs := range declaration.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if ok && id.Obj != nil && i < len(declaration.Rhs) {
+					changed = recordCalendarType(id.Obj, calendarExpressionType(declaration.Rhs[i], types), types) || changed
+				}
+			}
+		case *ast.ValueSpec:
+			for i, name := range declaration.Names {
+				typeName := expressionName(declaration.Type)
+				if typeName == "" && i < len(declaration.Values) {
+					typeName = calendarExpressionType(declaration.Values[i], types)
+				}
+				changed = recordCalendarType(name.Obj, typeName, types) || changed
+			}
+		}
+		return true
+	})
+	return changed
+}
+
+func recordCalendarType(object *ast.Object, typeName string, types map[*ast.Object]string) bool {
+	if object == nil || typeName == "" || types[object] == typeName {
+		return false
+	}
+	types[object] = typeName
+	return true
+}
+
+func calendarExpressionType(expr ast.Expr, types map[*ast.Object]string) string {
+	switch value := expr.(type) {
+	case *ast.CompositeLit:
+		return expressionName(value.Type)
+	case *ast.UnaryExpr:
+		return calendarExpressionType(value.X, types)
+	case *ast.ParenExpr:
+		return calendarExpressionType(value.X, types)
+	case *ast.Ident:
+		if types != nil && types[value.Obj] != "" {
+			return types[value.Obj]
+		}
+		return calendarObjectType(value.Obj, types, map[*ast.Object]bool{})
+	default:
+		return ""
+	}
+}
+
+func calendarObjectType(object *ast.Object, types map[*ast.Object]string, seen map[*ast.Object]bool) string {
+	if object == nil || seen[object] {
+		return ""
+	}
+	seen[object] = true
+	switch declaration := object.Decl.(type) {
+	case *ast.Field:
+		return expressionName(declaration.Type)
+	case *ast.ValueSpec:
+		if typeName := expressionName(declaration.Type); typeName != "" {
+			return typeName
+		}
+		for i, name := range declaration.Names {
+			if name.Obj == object && i < len(declaration.Values) {
+				return calendarExpressionType(declaration.Values[i], types)
+			}
+		}
+	case *ast.AssignStmt:
+		for i, lhs := range declaration.Lhs {
+			id, ok := lhs.(*ast.Ident)
+			if ok && id.Obj == object && i < len(declaration.Rhs) {
+				return calendarExpressionType(declaration.Rhs[i], types)
+			}
+		}
+	}
+	return ""
+}
+
+func calendarCalledHelper(call *ast.CallExpr, receiverTypes map[*ast.Object]string) string {
+	switch function := call.Fun.(type) {
+	case *ast.Ident:
+		return function.Name
+	case *ast.SelectorExpr:
+		receiver := calendarExpressionType(function.X, receiverTypes)
+		return calendarHelperIdentity(receiver, function.Sel.Name)
+	default:
+		return ""
+	}
 }
 
 func isTestFunction(fn *ast.FuncDecl) bool {
@@ -338,7 +471,8 @@ func discoverCalendarPackageHelpers(root string) (calendarPackageHelpers, error)
 	for key, packageCandidates := range candidates {
 		result.candidates[key] = map[string][]calendarHelperCandidate{}
 		for _, candidate := range packageCandidates {
-			result.candidates[key][candidate.name] = append(result.candidates[key][candidate.name], candidate)
+			identity := calendarHelperIdentity(candidate.receiver, candidate.name)
+			result.candidates[key][identity] = append(result.candidates[key][identity], candidate)
 		}
 	}
 	return result, nil
@@ -355,14 +489,14 @@ func addCalendarHelperCandidates(path string, fset *token.FileSet, candidates ma
 	}
 	key := calendarPackageKey(path, file.Name.Name)
 	timePackages, timezonePackages := timeImportNames(file)
-	for name, fn := range declaredFunctions(file) {
+	for _, fn := range declaredFunctions(file) {
 		if !isTestFunction(fn) {
 			fingerprint, err := calendarFunctionFingerprint(fset, fn, source)
 			if err != nil {
 				return err
 			}
 			candidates[key] = append(candidates[key], calendarHelperCandidate{
-				name: name, fn: fn, fingerprint: fingerprint,
+				name: fn.Name.Name, receiver: calendarReceiverName(fn), fn: fn, fingerprint: fingerprint,
 				timePackages: timePackages, timezonePackages: timezonePackages,
 			})
 		}
@@ -382,17 +516,18 @@ func propagateCalendarHelpers(candidates map[string][]calendarHelperCandidate, h
 		changed = false
 		for key, packageCandidates := range candidates {
 			for _, candidate := range packageCandidates {
+				identity := calendarHelperIdentity(candidate.receiver, candidate.name)
 				dateVars := currentCalendarDateVariables(candidate.fn.Body, helpers.dates[key], candidate.timezonePackages)
 				instantVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.instants[key], candidate.timePackages, candidate.timezonePackages, nil)
 				weeklyVars := currentCalendarInstantVariables(candidate.fn.Body, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages, weeklyFixtureInstantField)
-				if !helpers.dates[key][candidate.name] && functionReturnsLiveDate(candidate.fn, dateVars, helpers.dates[key], candidate.timezonePackages) {
-					helpers.dates[key][candidate.name], changed = true, true
+				if !helpers.dates[key][identity] && functionReturnsLiveDate(candidate.fn, dateVars, helpers.dates[key], candidate.timezonePackages) {
+					helpers.dates[key][identity], changed = true, true
 				}
-				if !helpers.instants[key][candidate.name] && functionReturnsLiveInstant(candidate.fn, instantVars, helpers.instants[key], candidate.timePackages, candidate.timezonePackages) {
-					helpers.instants[key][candidate.name], changed = true, true
+				if !helpers.instants[key][identity] && functionReturnsLiveInstant(candidate.fn, instantVars, helpers.instants[key], candidate.timePackages, candidate.timezonePackages) {
+					helpers.instants[key][identity], changed = true, true
 				}
-				if !helpers.weekly[key][candidate.name] && functionReturnsLiveWeeklyInstant(candidate.fn, weeklyVars, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages) {
-					helpers.weekly[key][candidate.name], changed = true, true
+				if !helpers.weekly[key][identity] && functionReturnsLiveWeeklyInstant(candidate.fn, weeklyVars, helpers.weekly[key], candidate.timePackages, candidate.timezonePackages) {
+					helpers.weekly[key][identity], changed = true, true
 				}
 			}
 		}
@@ -803,14 +938,14 @@ func expressionUsesTodayDate(expr ast.Expr, dateVars calendarVariables, dateHelp
 	case *ast.ParenExpr:
 		return expressionUsesTodayDate(value.X, dateVars, dateHelpers, timezonePackages)
 	case *ast.CallExpr:
-		if id, ok := value.Fun.(*ast.Ident); ok && dateHelpers[id.Name] {
+		if dateHelpers[calendarCalledHelper(value, nil)] {
 			return true
 		}
 		if isImportedCall(value.Fun, timezonePackages, "TodayDate") {
 			return true
 		}
 		if selector, ok := value.Fun.(*ast.SelectorExpr); ok {
-			if (selector.Sel.Name != "Now" && dateHelpers[selector.Sel.Name]) || expressionUsesTodayDate(selector.X, dateVars, dateHelpers, timezonePackages) {
+			if expressionUsesTodayDate(selector.X, dateVars, dateHelpers, timezonePackages) {
 				return true
 			}
 		}
@@ -993,11 +1128,7 @@ func isLiveInstantSource(call *ast.CallExpr, instantHelpers, timePackages, timez
 	if isImportedCall(call.Fun, timePackages, "Now") || isImportedCall(call.Fun, timezonePackages, "Now") {
 		return true
 	}
-	if id, ok := call.Fun.(*ast.Ident); ok {
-		return instantHelpers[id.Name]
-	}
-	selector, ok := call.Fun.(*ast.SelectorExpr)
-	return ok && selector.Sel.Name != "Now" && instantHelpers[selector.Sel.Name]
+	return instantHelpers[calendarCalledHelper(call, nil)]
 }
 
 func newCalendarClockFinding(file, function string, line int, risk string) calendarClockFinding {
