@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -171,6 +172,7 @@ func TestParseMFAChallengeJWT_RejectsGarbageToken(t *testing.T) {
 func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T) {
 	t.Parallel()
 
+	tenantID := tenanttest.NewTenantID()
 	issuer, err := NewTokenAuthWithSecret("issuer-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 	verifier, err := NewTokenAuthWithSecret("verifier-secret-must-be-at-least-32-characters-long")
@@ -179,7 +181,7 @@ func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T
 	tokenString, err := issuer.CreateMFAChallengeJWT(MFAChallengeClaims{
 		AccountID: 1,
 		Scope:     MFAChallengeScopeTenant,
-		TenantID:  1,
+		TenantID:  tenantID,
 	}, 5*time.Minute)
 	require.NoError(t, err)
 
@@ -191,6 +193,7 @@ func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T
 func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
 	t.Parallel()
 
+	tenantID := tenanttest.NewTenantID()
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -198,7 +201,7 @@ func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
 	tokenString, err := ta.CreateMFAChallengeJWT(MFAChallengeClaims{
 		AccountID: 1,
 		Scope:     MFAChallengeScopeTenant,
-		TenantID:  1,
+		TenantID:  tenantID,
 	}, -1*time.Second)
 	require.NoError(t, err)
 

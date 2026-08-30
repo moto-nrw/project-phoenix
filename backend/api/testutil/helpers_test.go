@@ -10,6 +10,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/internal/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -79,10 +80,11 @@ func TestWithClaims(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest("GET", "/test", nil)
+	tenantID := tenanttest.NewTenantID()
 
 	claims := jwt.AppClaims{
 		ID:       42,
-		TenantID: 1,
+		TenantID: tenantID,
 		Username: "testuser",
 		IsAdmin:  true,
 	}
@@ -95,6 +97,7 @@ func TestWithClaims(t *testing.T) {
 	require.NotNil(t, ctxClaims)
 	appClaims := ctxClaims.(jwt.AppClaims)
 	assert.Equal(t, 42, appClaims.ID)
+	assert.Equal(t, tenantID, appClaims.TenantID)
 	assert.Equal(t, "testuser", appClaims.Username)
 	assert.True(t, appClaims.IsAdmin)
 }
@@ -165,9 +168,10 @@ func TestNewRequest(t *testing.T) {
 func TestNewRequest_WithOptions(t *testing.T) {
 	t.Parallel()
 
+	tenantID := tenanttest.NewTenantID()
 	req := testutil.NewRequest("GET", "/api/test", nil,
 		testutil.WithPermissions("test:read"),
-		testutil.WithClaims(t, jwt.AppClaims{ID: 1, TenantID: 1}),
+		testutil.WithClaims(t, jwt.AppClaims{ID: 1, TenantID: tenantID}),
 	)
 
 	assert.Equal(t, "GET", req.Method)
@@ -274,10 +278,11 @@ func TestNewMultipartRequest_EmptyContent(t *testing.T) {
 func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	t.Parallel()
 
+	tenantID := tenanttest.NewTenantID()
 	req := testutil.NewMultipartRequest(t, "POST", "/api/upload",
 		"document", "data.json", `{"key": "value"}`,
 		testutil.WithPermissions("uploads:create"),
-		testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: 1}),
+		testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: tenantID}),
 	)
 
 	assert.Equal(t, "POST", req.Method)
@@ -294,6 +299,7 @@ func TestNewMultipartRequest_WithOptions(t *testing.T) {
 	require.NotNil(t, ctxClaims)
 	appClaims := ctxClaims.(jwt.AppClaims)
 	assert.Equal(t, 42, appClaims.ID)
+	assert.Equal(t, tenantID, appClaims.TenantID)
 }
 
 // =============================================================================
@@ -482,8 +488,10 @@ func TestClaimsFollowTheTestIntoItsOwnTenant(t *testing.T) {
 	assert.Equal(t, own, req.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
 		"bootstrap-tenant claims must follow the test")
 
+	otherTenantID := tenanttest.NewTenantID()
+	require.NotEqual(t, own, otherTenantID)
 	other := httptest.NewRequest("GET", "/test", nil)
-	testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: 4711})(other)
-	assert.Equal(t, int64(4711), other.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
+	testutil.WithClaims(t, jwt.AppClaims{ID: 42, TenantID: otherTenantID})(other)
+	assert.Equal(t, otherTenantID, other.Context().Value(jwt.CtxClaims).(jwt.AppClaims).TenantID,
 		"an explicitly named tenant must survive untouched")
 }

@@ -584,36 +584,10 @@ var cleanupCallBaseline = map[string]int{
 	"services/users":                 1,
 }
 
-// tenantContext1Baseline is the shrink-only per-package baseline of
-// bootstrap-tenant call sites (#2419). Every package that opens the test
-// database now runs on per-test tenants (see PerTestTenants and the
-// db_packages_opt_into_per_test_tenants gate), so what is left here is the
-// residue that does NOT come from a test writing into the shared tenant.
-// Counts may only go DOWN. A package not listed here must stay at zero.
-//
-// Why each entry survives — check the reason before touching a number:
-//
-//	api/testutil        the values TestClaimsFollowTheTestIntoItsOwnTenant
-//	                    feeds in: the bootstrap tenant IS the input whose
-//	                    rebase that test pins.
-//	auth/jwt            test imports auth/jwt, so auth/jwt's own internal
-//	                    tests cannot import test — no way to reach a
-//	                    per-test tenant from there.
-//	services/calendar   in-memory structs in pure unit tests (no DB, no rows).
-//	services/auth       an in-memory stub row standing in for "some other
-//	                    tenant" in a cross-tenant invalidation test.
-//	services/active     a comment naming the column in a UNIQUE constraint.
-//	services/enrollment a comment.
-//	tenant              an internal context test with no database at all.
-var tenantContext1Baseline = map[string]int{
-	"api/testutil":        3,
-	"auth/jwt":            2,
-	"services/active":     1,
-	"services/auth":       1,
-	"services/calendar":   3,
-	"services/enrollment": 1,
-	"tenant":              1,
-}
+// tenantContext1Baseline is empty: tests must generate or locally own tenant
+// identity instead of relying on the fixed bootstrap tenant. A package absent
+// from the baseline is allowed zero matches.
+var tenantContext1Baseline = map[string]int{}
 
 // walkGoFiles feeds every Go file under root to visit, as (rel, pkg, code):
 // the backend-relative path with forward slashes, its package directory, and
