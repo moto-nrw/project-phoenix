@@ -30,31 +30,45 @@ func IsUniqueViolationOn(err error, constraint string) bool {
 	var pgErr pgdriver.Error
 	if errors.As(err, &pgErr) {
 		return pgErr.Field('C') == "23505" &&
-			(pgErr.Field('n') == constraint || hasQuotedIdentifier(pgErr.Error(), constraint))
+			(pgErr.Field('n') == constraint || hasTextualConstraint(pgErr.Error(), constraint))
 	}
-	return hasTextualSQLState(err, "23505") && hasQuotedIdentifier(err.Error(), constraint)
+	return hasTextualSQLState(err, "23505") && hasTextualConstraint(err.Error(), constraint)
 }
 
 func hasTextualSQLState(err error, code string) bool {
 	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+code)
 }
 
-func hasQuotedIdentifier(message, identifier string) bool {
-	for {
-		_, afterOpeningQuote, found := strings.Cut(message, `"`)
-		if !found {
-			return false
+func hasTextualConstraint(message, identifier string) bool {
+	primary, _, _ := strings.Cut(message, "\n")
+	return hasDoubleQuotedIdentifier(primary, identifier) ||
+		strings.Contains(primary, "»"+identifier+"«")
+}
+
+func hasDoubleQuotedIdentifier(message, identifier string) bool {
+	for offset := 0; offset < len(message); offset++ {
+		if message[offset] != '"' {
+			continue
 		}
 
-		quoted, remaining, found := strings.Cut(afterOpeningQuote, `"`)
-		if !found {
-			return false
+		var quoted strings.Builder
+		for offset++; offset < len(message); offset++ {
+			if message[offset] != '"' {
+				quoted.WriteByte(message[offset])
+				continue
+			}
+			if offset+1 < len(message) && message[offset+1] == '"' {
+				quoted.WriteByte('"')
+				offset++
+				continue
+			}
+			if quoted.String() == identifier {
+				return true
+			}
+			break
 		}
-		if quoted == identifier {
-			return true
-		}
-		message = remaining
 	}
+	return false
 }
 
 // IsLockNotAvailable reports whether err carries PostgreSQL error code 55P03

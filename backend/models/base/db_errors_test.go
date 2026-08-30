@@ -33,10 +33,32 @@ func TestIsUniqueViolationOn_DegradedTextError(t *testing.T) {
 func TestIsUniqueViolationOn_LocalizedDegradedTextError(t *testing.T) {
 	t.Parallel()
 
-	err := errors.New(`FEHLER: doppelter Schlüsselwert verletzt eindeutige Bedingung "idx_guardian_profiles_tenant_email" (SQLSTATE=23505)`)
+	err := errors.New(`FEHLER: doppelter Schlüsselwert verletzt eindeutige Bedingung »idx_guardian_profiles_tenant_email« (SQLSTATE=23505)`)
 
 	if !IsUniqueViolationOn(err, testUniqueConstraint) {
 		t.Fatal("IsUniqueViolationOn() = false, want true for a localized textual unique violation")
+	}
+}
+
+func TestIsUniqueViolationOn_DegradedTextIgnoresDetail(t *testing.T) {
+	t.Parallel()
+
+	err := errors.New(`ERROR: duplicate key value violates unique constraint "other_constraint" (SQLSTATE=23505)` + "\n" +
+		`DETAIL: Key (email)=("idx_guardian_profiles_tenant_email") already exists.`)
+
+	if IsUniqueViolationOn(err, testUniqueConstraint) {
+		t.Fatal("IsUniqueViolationOn() = true for an identifier only present in DETAIL")
+	}
+}
+
+func TestIsUniqueViolationOn_DegradedTextWithEscapedIdentifierQuote(t *testing.T) {
+	t.Parallel()
+
+	const constraint = `idx_guardian"email`
+	err := errors.New(`ERROR: duplicate key value violates unique constraint "idx_guardian""email" (SQLSTATE=23505)`)
+
+	if !IsUniqueViolationOn(err, constraint) {
+		t.Fatal("IsUniqueViolationOn() = false, want true for an escaped identifier quote")
 	}
 }
 
