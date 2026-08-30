@@ -27,7 +27,7 @@ import (
 func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 	t.Parallel()
 
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 3, 7) // Wednesday, >=7 days out
@@ -119,7 +119,7 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 	t.Parallel()
 
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday
@@ -183,7 +183,7 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 func TestFlowH_ClearPersistedAbsence(t *testing.T) {
 	t.Parallel()
 
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	target := nextWeekday(timezone.TodayDate(), 2, 7) // Tuesday

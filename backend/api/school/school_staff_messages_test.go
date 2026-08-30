@@ -37,12 +37,12 @@ func decodeData[T any](t *testing.T, body []byte) T {
 
 func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolChiRouter(db, factory)
-	tenantRouter := staffmessaging.NewResource(factory.StaffMessaging.Service, db).Router()
+	db, resource, tenantID, _ := setupSchoolRoute(t)
+	schoolRouter := newSchoolChiRouter(resource)
+	tenantRouter := staffmessaging.NewResource(resource.StaffMessaging.Service, db).Router()
 
 	// The chat is off by default (#2598); the school switches it on.
-	require.NoError(t, factory.Timetable.SettingsService.SetValue(
+	require.NoError(t, resource.Timetable.SettingsService.SetValue(
 		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
@@ -141,8 +141,8 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 
 func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolRoute(t)
-	schoolRouter := newSchoolChiRouter(db, factory)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
+	schoolRouter := newSchoolChiRouter(resource)
 
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Off", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)

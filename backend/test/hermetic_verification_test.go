@@ -865,7 +865,7 @@ var sharedPoolAssign = regexp.MustCompile(
 // statement. It deliberately does not match function declarations or test
 // names that merely contain "Route(t".
 var routeSizedSetupCall = regexp.MustCompile(
-	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:setup|build)\w+(?:Route|Module)\(t(?:,|\))`)
+	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:setup|build)\w+(?:Route|Router|Module)\(t(?:,|\))`)
 
 func usesSharedDBSetup(content []byte) bool {
 	return bytes.Contains(content, []byte("SetupTestDB(")) ||

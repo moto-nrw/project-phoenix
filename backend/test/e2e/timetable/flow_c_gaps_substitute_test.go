@@ -24,7 +24,7 @@ import (
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestFlowC_GapsAndSubstitute(t *testing.T) {
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).

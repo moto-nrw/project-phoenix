@@ -25,7 +25,7 @@ import (
 func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-race")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "RaceGraduate", "4a")
@@ -83,7 +83,7 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "FallbackGraduate", "4a")

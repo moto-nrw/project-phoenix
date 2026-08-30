@@ -19,7 +19,7 @@ type settingsTestContext struct {
 	resource *configAPI.SettingsResource
 }
 
-func setupSettingsRoute(t *testing.T) *settingsTestContext {
+func setupSettingsModule(t *testing.T) *settingsTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -50,7 +50,7 @@ func setupSettingsRoute(t *testing.T) *settingsTestContext {
 func TestSettingsGetSchema_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -73,7 +73,7 @@ func TestSettingsGetSchema_Success(t *testing.T) {
 func TestSettingsSetValue_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -92,7 +92,7 @@ func TestSettingsSetValue_Success(t *testing.T) {
 func TestSettingsSetValue_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -111,7 +111,7 @@ func TestSettingsSetValue_InvalidKey(t *testing.T) {
 func TestSettingsSetValue_InvalidValue(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -130,7 +130,7 @@ func TestSettingsSetValue_InvalidValue(t *testing.T) {
 func TestSettingsSetValue_WithConfigManage(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -153,7 +153,7 @@ func TestSettingsSetValue_WithConfigManage(t *testing.T) {
 func TestSettingsResetValue_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -168,7 +168,7 @@ func TestSettingsResetValue_Success(t *testing.T) {
 func TestSettingsResetValue_InvalidKey(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -187,7 +187,7 @@ func TestSettingsResetValue_InvalidKey(t *testing.T) {
 func TestSettingsGetLoginImage_Success(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -208,7 +208,7 @@ func TestSettingsGetLoginImage_Success(t *testing.T) {
 func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	var callbackKey string
 	var callbackValue any
@@ -241,7 +241,7 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		return nil, errors.New("hook failed")
@@ -272,7 +272,7 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	callbackInvoked := false
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
@@ -304,7 +304,7 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	postCommitRan := false
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
@@ -332,7 +332,7 @@ func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
 func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	postCommitRan := false
 	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
@@ -360,7 +360,7 @@ func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	// No OnValueSet registered — should not panic
 	router := ctx.resource.SettingsRouter()
@@ -385,7 +385,7 @@ func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
 func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -420,7 +420,7 @@ func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -451,7 +451,7 @@ func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -484,7 +484,7 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -503,7 +503,7 @@ func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
 func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 
@@ -518,7 +518,7 @@ func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
 func TestSettingsGetSchema_HidesOperatorOnly(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsRoute(t)
+	ctx := setupSettingsModule(t)
 
 	router := ctx.resource.SettingsRouter()
 

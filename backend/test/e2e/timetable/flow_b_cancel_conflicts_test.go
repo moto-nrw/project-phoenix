@@ -29,7 +29,7 @@ import (
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	// --- Setup: target Monday at 13:00–14:00 -------------------------------

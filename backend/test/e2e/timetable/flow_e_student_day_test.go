@@ -28,7 +28,7 @@ import (
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).

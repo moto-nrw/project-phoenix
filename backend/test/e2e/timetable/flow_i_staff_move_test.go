@@ -22,7 +22,7 @@ import (
 func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	t.Parallel()
 
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 	s.extraCleanup = append(s.extraCleanup, func() {
 		_, _ = s.db.NewDelete().Model((*struct{})(nil)).

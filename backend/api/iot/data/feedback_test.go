@@ -49,8 +49,8 @@ type feedbackTestContext struct {
 	resource *dataAPI.FeedbackResource
 }
 
-// setupFeedbackRoute initializes the feedback route.
-func setupFeedbackRoute(t *testing.T) *feedbackTestContext {
+// setupFeedbackModule initializes the feedback route.
+func setupFeedbackModule(t *testing.T) *feedbackTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -75,7 +75,7 @@ func setupFeedbackRoute(t *testing.T) *feedbackTestContext {
 
 func TestSubmitFeedback_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	router := ctx.resource.Router()
 
@@ -94,7 +94,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 
 func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
 
@@ -114,7 +114,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 
 func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
 
@@ -135,7 +135,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 
 func TestSubmitFeedback_MissingValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
 
@@ -156,7 +156,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 
 func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
 
@@ -178,7 +178,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 
 func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
 
@@ -206,7 +206,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 // mapping (#405).
 func TestSubmitFeedback_Alumnus(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-alumnus")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Graduate", "4a")
@@ -243,7 +243,7 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 
 func TestSubmitFeedback_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
@@ -266,7 +266,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 
 func TestSubmitFeedback_NeutralValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b")
@@ -289,7 +289,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 
 func TestSubmitFeedback_NegativeValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c")
@@ -312,7 +312,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 
 func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d")
@@ -340,7 +340,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 
 func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-disabled")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "DisabledStudent", "2a")
@@ -387,7 +387,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 
 func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	t.Parallel()
-	ctx := setupFeedbackRoute(t)
+	ctx := setupFeedbackModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-enabled")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "EnabledStudent", "2b")

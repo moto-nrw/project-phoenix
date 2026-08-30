@@ -28,7 +28,7 @@ import (
 func TestFlowF_GDPRCleanup(t *testing.T) {
 	t.Parallel()
 
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	// --- Fixtures: students, room, old + fresh instances -------------------

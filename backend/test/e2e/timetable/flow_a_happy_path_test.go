@@ -26,7 +26,7 @@ import (
 func TestFlowA_PlanToReport(t *testing.T) {
 	t.Parallel()
 
-	s := setupTimetableScenarioRoute(t)
+	s := setupTimetableScenarioModule(t)
 	defer s.teardown()
 
 	// --- Setup: period, room, staff, students, template --------------------

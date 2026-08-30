@@ -27,8 +27,8 @@ type rfidTestContext struct {
 	resource *dataAPI.RFIDResource
 }
 
-// setupRFIDRoute initializes the RFID route.
-func setupRFIDRoute(t *testing.T) *rfidTestContext {
+// setupRFIDModule initializes the RFID route.
+func setupRFIDModule(t *testing.T) *rfidTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -48,7 +48,7 @@ func setupRFIDRoute(t *testing.T) *rfidTestContext {
 
 func TestAssignRFIDTag_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	router := ctx.resource.Router()
 
@@ -66,7 +66,7 @@ func TestAssignRFIDTag_NoDevice(t *testing.T) {
 
 func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-1")
 
@@ -87,7 +87,7 @@ func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
 
 func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-2")
 
@@ -107,7 +107,7 @@ func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 
 func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-3")
 
@@ -126,7 +126,7 @@ func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
 
 func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-4")
 
@@ -147,7 +147,7 @@ func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
 
 func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-5")
 
@@ -168,7 +168,7 @@ func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
 
 func TestAssignRFIDTag_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-6")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff1")
@@ -196,7 +196,7 @@ func TestAssignRFIDTag_Success(t *testing.T) {
 
 func TestUnassignRFIDTag_NoDevice(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	router := ctx.resource.Router()
 
@@ -210,7 +210,7 @@ func TestUnassignRFIDTag_NoDevice(t *testing.T) {
 
 func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-7")
 
@@ -227,7 +227,7 @@ func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
 
 func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-8")
 
@@ -244,7 +244,7 @@ func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
 
 func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-9")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "NoTag", "Staff")
@@ -262,7 +262,7 @@ func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
 
 func TestUnassignRFIDTag_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupRFIDRoute(t)
+	ctx := setupRFIDModule(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-10")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "HasTag", "Staff")

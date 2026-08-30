@@ -225,16 +225,15 @@ func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 
 	composition := setupCaregiverCompositionModule(t)
 
-	require.NotNil(t, composition.auth)
-	require.NotNil(t, composition.operator)
-	assert.Same(t, composition.factoryCapability, composition.authCapability)
+	require.True(t, composition.authWired)
+	require.True(t, composition.operatorWired)
+	assert.True(t, composition.sharedCapability)
 }
 
 type caregiverComposition struct {
-	auth              any
-	operator          any
-	factoryCapability any
-	authCapability    any
+	authWired        bool
+	operatorWired    bool
+	sharedCapability bool
 }
 
 func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
@@ -244,9 +243,9 @@ func setupCaregiverCompositionModule(t *testing.T) *caregiverComposition {
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	initializeAPIResources(api, repoFactory, db, slog.Default())
 	return &caregiverComposition{
-		auth: api.Auth, operator: api.Operator,
-		factoryCapability: api.Services.CaregiverCapability,
-		authCapability:    api.Auth.CaregiverCapabilityService,
+		authWired:        api.Auth != nil,
+		operatorWired:    api.Operator != nil,
+		sharedCapability: api.Services.CaregiverCapability == api.Auth.CaregiverCapabilityService,
 	}
 }
 
