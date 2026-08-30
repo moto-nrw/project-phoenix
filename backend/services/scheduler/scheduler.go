@@ -607,7 +607,9 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%s: %v", panicName, r)
 			s.getLogger().Error("goroutine panic recovered",
-				slog.String("job_id", task.Name), slog.String("error", err.Error()))
+				slog.String("job_id", task.Name),
+				slog.String("error", err.Error()),
+			)
 			sentry.CurrentHub().Recover(r)
 			sentry.Flush(2 * time.Second)
 		}
@@ -638,7 +640,9 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 		ctx = traced
 	} else {
 		s.getLogger().Error("worker job trace setup failed",
-			slog.String("job_id", task.Name), slog.String("error", err.Error()))
+			slog.String("job_id", task.Name),
+			slog.String("error", err.Error()),
+		)
 	}
 	started := time.Now()
 	defer func() {
@@ -648,12 +652,16 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			s.observeWorkerRun(JobID(task.Name), "panic", duration)
 			s.traceWorkerFailure(ctx, task.Name, "panic", err)
 			s.workerLogger(ctx).ErrorContext(ctx, "worker job run failed",
-				slog.String("job_id", task.Name), slog.Duration("duration", duration))
+				slog.String("job_id", task.Name),
+				slog.Duration("duration", duration),
+			)
 			panic(recovered)
 		}
 		s.observeWorkerRun(JobID(task.Name), "completed", duration)
 		s.workerLogger(ctx).DebugContext(ctx, "worker job run completed",
-			slog.String("job_id", task.Name), slog.Duration("duration", duration))
+			slog.String("job_id", task.Name),
+			slog.Duration("duration", duration),
+		)
 	}()
 	check(ctx, task)
 }
@@ -924,7 +932,9 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("panic in token cleanup task: %v", r)
 			s.getLogger().Error("goroutine panic recovered",
-				slog.String("job_id", task.Name), slog.String("error", err.Error()))
+				slog.String("job_id", task.Name),
+				slog.String("error", err.Error()),
+			)
 			sentry.CurrentHub().Recover(r)
 			sentry.Flush(2 * time.Second)
 		}
