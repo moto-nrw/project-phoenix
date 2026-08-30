@@ -93,7 +93,7 @@ export function TodayNoticeList({
                   >
                     {pending === notice.id
                       ? "Wird gespeichert …"
-                      : "Zur Kenntnis genommen"}
+                      : "Zur Kenntnis nehmen"}
                   </Button>
                 )}
               </div>
