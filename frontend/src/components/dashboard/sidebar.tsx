@@ -1,7 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -20,7 +20,12 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  hasRole,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { operatorPath } from "~/lib/operator-url";
@@ -332,6 +337,8 @@ const NFC_ONLY_HREFS = new Set<string>([
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
 // accordion is gated separately below (it's not in NAV_ITEMS).
 const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
+const GROUP_NAV_ICON =
+  "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
 
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
@@ -433,9 +440,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
   const fromParam = searchParams.get("from");
-  const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
+  const { expanded, toggle } = useSidebarAccordion(
+    pathname,
+    fromParam,
+    "groups",
+  );
 
   const userIsAdmin = hasRole(session, "admin");
+  const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
@@ -505,7 +517,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Berechtigten mit allen Kindern.
   const openCareGroupMode = useOpenCareGroupMode();
 
-  const formatGroupAttendanceCount = (groupId: string | number) => {
+  const formatGroupAttendanceCount = (groupId: string) => {
     if (!canShowGroupAttendanceCounts) return undefined;
     const count = groupAttendanceCounts[groupId.toString()];
     return count ? `${count.present}/${count.total}` : undefined;
@@ -845,6 +857,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
   const currentSessionParam = searchParams.get("session");
+  const personalGroups = useMemo(
+    () => groups.filter((group) => group.is_personal !== false),
+    [groups],
+  );
+  const otherGroups = useMemo(
+    () => groups.filter((group) => group.is_personal === false),
+    [groups],
+  );
+  const [otherGroupsExpanded, setOtherGroupsExpanded] = useState(false);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -855,6 +876,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     "sidebar-last-group",
     childFromParam?.startsWith("/ogs-groups") ?? false,
   );
+  const hasSelectedOtherGroup = otherGroups.some(
+    (group) =>
+      group.id.toString() === currentGroupParam ||
+      group.id.toString() === childGroupId,
+  );
+  const areOtherGroupsExpanded =
+    expanded === "groups" && (otherGroupsExpanded || hasSelectedOtherGroup);
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
     childFromParam?.startsWith("/active-supervisions") ?? false,
@@ -863,6 +891,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
+
+  useEffect(() => {
+    if (expanded !== "groups") {
+      setOtherGroupsExpanded(false);
+    }
+  }, [expanded]);
 
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
@@ -902,20 +936,22 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
   const handleGroupsToggle = useCallback(() => {
+    if (expanded === "groups" && otherGroupsExpanded) {
+      setOtherGroupsExpanded(false);
+      return;
+    }
     toggle("groups");
     if (!pathname.startsWith("/ogs-groups")) {
       const savedGroupId = localStorage.getItem("sidebar-last-group");
       const targetGroup = savedGroupId
-        ? groups.find((g) => g.id.toString() === savedGroupId)
-        : groups[0];
-      const groupId = targetGroup?.id ?? groups[0]?.id;
+        ? personalGroups.find((g) => g.id.toString() === savedGroupId)
+        : personalGroups[0];
+      const groupId = targetGroup?.id ?? personalGroups[0]?.id;
       if (groupId) {
         router.push(`/ogs-groups?group=${groupId}`);
-      } else {
-        router.push("/ogs-groups");
       }
     }
-  }, [toggle, pathname, groups, router]);
+  }, [expanded, otherGroupsExpanded, pathname, personalGroups, router, toggle]);
 
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
@@ -1023,6 +1059,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // overviewEnabled avoids the synthetic Schulhof entry triggering the
   // accordion when the school keeps everyone on their own supervisions.
   const showStaffAccordions = userIsCaregiver || overviewEnabled;
+  const showGroupAccordion = showStaffAccordions || userHasEffectiveAdminScope;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorSections = useMemo(
@@ -1088,55 +1125,85 @@ function SidebarContent({ className = "" }: SidebarProps) {
             .filter((item) => item.href === "/dashboard")
             .map(renderNavItem)}
 
-          {/* Meine Gruppen accordion (staff only; hidden in open-care group
-              mode because there is no concept of "meine Gruppe" — staff work
-              with all children instead, #1544) */}
-          {showStaffAccordions && !openCareGroupMode && (
-            <SidebarAccordionSection
-              icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-              concept="groups"
-              label={
-                groups.length > 1
-                  ? "Meine Gruppen"
-                  : [
-                      "Meine Gruppe",
-                      formatGroupAttendanceCount(groups[0]?.id ?? ""),
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-              }
-              activeColor="text-moto-green"
-              isExpanded={expanded === "groups"}
-              onToggle={handleGroupsToggle}
-              isActive={isAccordionSectionActive(
-                "/ogs-groups",
-                Boolean(currentGroupParam) ||
-                  Boolean(childGroupId) ||
-                  groups.length > 0,
-              )}
-              isIconActive={
-                pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-              }
-              isLoading={isLoadingGroups}
-              emptyText="Keine Gruppen zugeordnet"
-              hasChildren={groups.length > 0}
-            >
-              {groups.map((group, index) => (
-                <SidebarSubItem
-                  key={group.id}
-                  href={`/ogs-groups?group=${group.id}`}
-                  label={group.name}
-                  count={formatGroupAttendanceCount(group.id)}
-                  isActive={isGroupSubItemActive(
-                    childGroupId,
-                    group.id.toString(),
-                    pathname,
-                    currentGroupParam,
-                    index,
+          {/* Group navigation (tenant staff/admin; hidden in open-care mode). */}
+          {showGroupAccordion && !openCareGroupMode && (
+            <>
+              <SidebarAccordionSection
+                icon={GROUP_NAV_ICON}
+                concept="groups"
+                label="Meine Gruppen"
+                activeColor="text-moto-green"
+                isExpanded={expanded === "groups" && !areOtherGroupsExpanded}
+                onToggle={handleGroupsToggle}
+                isActive={isAccordionSectionActive(
+                  "/ogs-groups",
+                  Boolean(currentGroupParam) ||
+                    Boolean(childGroupId) ||
+                    groups.length > 0,
+                )}
+                isIconActive={
+                  pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+                }
+                isLoading={isLoadingGroups}
+                emptyText="Keine eigenen Gruppen"
+                hasChildren={personalGroups.length > 0}
+              >
+                {personalGroups.map((group, index) => (
+                  <SidebarSubItem
+                    key={group.id}
+                    href={`/ogs-groups?group=${group.id}`}
+                    label={group.name}
+                    count={formatGroupAttendanceCount(group.id)}
+                    isActive={isGroupSubItemActive(
+                      childGroupId,
+                      group.id.toString(),
+                      pathname,
+                      currentGroupParam,
+                      index,
+                    )}
+                  />
+                ))}
+              </SidebarAccordionSection>
+              {otherGroups.length > 0 && (
+                <SidebarAccordionSection
+                  icon={GROUP_NAV_ICON}
+                  concept="groups"
+                  label="Weitere Gruppen"
+                  activeColor="text-moto-green"
+                  isExpanded={areOtherGroupsExpanded}
+                  onToggle={() => {
+                    if (expanded !== "groups") {
+                      toggle("groups");
+                    }
+                    setOtherGroupsExpanded((current) => !current);
+                  }}
+                  isActive={isAccordionSectionActive(
+                    "/ogs-groups",
+                    Boolean(currentGroupParam) || Boolean(childGroupId),
                   )}
-                />
-              ))}
-            </SidebarAccordionSection>
+                  isIconActive={
+                    pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+                  }
+                  hasChildren
+                >
+                  {otherGroups.map((group, index) => (
+                    <SidebarSubItem
+                      key={group.id}
+                      href={`/ogs-groups?group=${group.id}`}
+                      label={group.name}
+                      count={formatGroupAttendanceCount(group.id)}
+                      isActive={isGroupSubItemActive(
+                        childGroupId,
+                        group.id.toString(),
+                        pathname,
+                        currentGroupParam,
+                        personalGroups.length + index,
+                      )}
+                    />
+                  ))}
+                </SidebarAccordionSection>
+              )}
+            </>
           )}
 
           {/* Aktuelle Aufsicht accordion (staff only; hidden in binary mode

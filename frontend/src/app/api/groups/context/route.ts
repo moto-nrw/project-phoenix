@@ -2,30 +2,22 @@ import { createGetHandler } from "~/lib/route-wrapper.server";
 import { apiGet } from "~/lib/api-helpers.server";
 
 interface GroupsApiResponse {
-  status: string;
   data: Array<{
-    id: number;
+    id: string;
     name: string;
-    created_at: string;
-    updated_at: string;
+    room_id?: string;
+    room_name?: string;
+    via_substitution: boolean;
+    is_personal: boolean;
   }>;
-  message: string;
 }
 
-/**
- * Check if the current user has any educational groups
- * Used by the supervision context to determine menu visibility
- */
+/** Load the educational groups visible in the tenant portal navigation. */
 export const GET = createGetHandler(async (_request, token) => {
-  try {
-    const response = await apiGet<GroupsApiResponse>("/api/me/groups", token);
+  const response = await apiGet<GroupsApiResponse>(
+    "/api/students/ogs-group-navigation",
+    token,
+  );
 
-    return {
-      groups: response.data ?? [],
-    };
-  } catch {
-    return {
-      groups: [],
-    };
-  }
+  return { groups: response.data };
 });

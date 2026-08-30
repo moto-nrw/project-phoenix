@@ -167,6 +167,7 @@ Object.defineProperty(window, "localStorage", {
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: () => false,
+  hasEffectiveAdminScope: () => false,
   isCaregiver: () => true,
   hasRole: (_: unknown, r: string) => r === "user",
 }));
@@ -368,6 +369,7 @@ describe("OGSGroupPage — school check-in wiring", () => {
             roomId: "10",
             roomName: "Raum 1",
             viaSubstitution: false,
+            isPersonal: true,
           },
         ],
         groupId: "1",
