@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, isCaregiver } from "~/lib/auth-utils";
 import { Loading } from "~/components/ui/loading";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 
@@ -31,7 +31,7 @@ export function RoleGuard({
     return <>{fallback ?? <Loading fullPage={false} />}</>;
   }
 
-  const isAdmin = hasRole(session, "admin");
+  const isAdmin = hasEffectiveAdminScope(session);
   const isAllowed =
     variant === "adminOnly"
       ? isAdmin

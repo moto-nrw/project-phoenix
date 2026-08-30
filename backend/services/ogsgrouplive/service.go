@@ -300,7 +300,10 @@ func (s *service) resolveGroups(ctx context.Context, requestedGroupID int64) ([]
 
 	substituted, err := s.deps.UserContext.GetSubstitutedGroupIDs(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load substitution metadata: %w", err)
+		s.logger().Warn("load substitution metadata failed",
+			"error", err,
+		)
+		substituted = map[int64]bool{}
 	}
 	groups, err := s.mapGroups(ctx, visibleGroups, personalIDs, substituted)
 	if err != nil {
@@ -345,9 +348,12 @@ func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group
 	if len(roomGroupIDs) > 0 {
 		loaded, err := s.deps.Education.GetGroupsWithRoomsByIDs(ctx, roomGroupIDs)
 		if err != nil {
-			return nil, fmt.Errorf("load group rooms: %w", err)
+			s.logger().Warn("load group rooms failed",
+				"error", err,
+			)
+		} else {
+			withRooms = loaded
 		}
-		withRooms = loaded
 	}
 
 	result := make([]Group, 0, len(groups))
@@ -362,6 +368,13 @@ func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group
 		result = append(result, item)
 	}
 	return result, nil
+}
+
+func (s *service) logger() *slog.Logger {
+	if s.deps.Logger != nil {
+		return s.deps.Logger
+	}
+	return slog.Default()
 }
 
 func (s *service) hasOperationalOverview(ctx context.Context) (bool, error) {

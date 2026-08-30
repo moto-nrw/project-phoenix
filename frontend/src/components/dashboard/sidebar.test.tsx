@@ -26,8 +26,10 @@ vi.mock("~/lib/supervision-context", () => ({
 
 vi.mock("~/lib/auth-utils", () => {
   const isAdminFn = vi.fn();
+  const hasEffectiveAdminScopeFn = vi.fn(() => isAdminFn());
   return {
     isAdmin: isAdminFn,
+    hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
     isCaregiver: vi.fn(() => !isAdminFn()),
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
@@ -96,7 +98,11 @@ import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  isAdmin,
+} from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
@@ -115,6 +121,7 @@ const mockUseSearchParams = vi.mocked(useSearchParams);
 const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
+const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 // Standardverhalten des geteilten hasPermission-Mocks: Rechte hat nur der
 // Admin. Tests, die einzelne Rechte gezielt vergeben, stellen darüber wieder
@@ -202,6 +209,7 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockHasEffectiveAdminScope.mockImplementation(() => mockIsAdmin());
     restoreDefaultHasPermission();
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseNFCEnabled.mockReturnValue(true);
@@ -324,6 +332,14 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
       expect(screen.getByText("Weitere Gruppen")).toBeInTheDocument();
+    });
+
+    it("shows group navigation for an effective admin", () => {
+      mockHasEffectiveAdminScope.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
     });
 
     it("shows all children with the children concept icon for admins", () => {
@@ -815,6 +831,32 @@ describe("Sidebar", () => {
       expect(
         screen.getByText("Weitere Gruppen").closest("button"),
       ).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("opens additional groups when the current group is selected", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByText("Weitere Gruppen").closest("button"),
+      ).toHaveAttribute("aria-expanded", "true");
     });
 
     it("hides additional groups when the backend returns only personal groups", () => {
