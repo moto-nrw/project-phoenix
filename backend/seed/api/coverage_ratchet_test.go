@@ -113,7 +113,6 @@ var seedCoverageAllowlist = map[string]string{
 	"platform.operator_passkey_sessions":    "GAP: prod has 4 rows",
 
 	"schedule.activity_exceptions":              "GAP: prod has 2 rows",
-	"schedule.calendar_periods":                 "GAP: prod has 10 rows",
 	"schedule.closing_days":                     "GAP: prod has 3 rows",
 	"schedule.dateframes":                       "empty in prod too",
 	"schedule.grade_transition_roster_removals": "empty in prod too",
@@ -132,7 +131,6 @@ var seedCoverageAllowlist = map[string]string{
 	"schedule.timeframes":                       "GAP: prod has 16 rows",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
-	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
 	"users.class_list_entries":                "not in prod yet (migration newer than the deployed image)",
 	"users.guardian_phone_numbers":            "GAP: prod has 3071 rows",
 	"users.guests":                            "empty in prod too",
@@ -140,8 +138,6 @@ var seedCoverageAllowlist = map[string]string{
 	"users.parent_announcement_options":       "empty in prod too",
 	"users.parent_announcement_reads":         "GAP: prod has 31 rows",
 	"users.parent_announcement_responses":     "empty in prod too",
-	"users.parent_announcement_targets":       "GAP: prod has 4 rows",
-	"users.parent_announcements":              "GAP: prod has 1 rows",
 	"users.parent_message_reads":              "GAP: prod has 352 rows",
 	"users.persons_guardians":                 "empty in prod too",
 	"users.profiles":                          "GAP: prod has 1 rows",
@@ -152,6 +148,7 @@ var seedCoverageAllowlist = map[string]string{
 	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
 	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
+	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
 	"users.student_data_change_requests":      "GAP: prod has 97 rows",
 	"users.student_document_file_cleanup":     "empty in prod too",
 	"users.student_documents":                 "empty in prod too",

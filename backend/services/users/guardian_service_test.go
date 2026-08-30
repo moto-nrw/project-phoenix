@@ -12,12 +12,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -314,10 +314,14 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 	t.Run("deletes guardian successfully", func(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "to-delete")
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN:          strPtr("DE89370400440532013000"),
+			AccountHolder: strPtr("Sabine Schneider"),
+		}, 1, ""))
 		// No defer - we're testing deletion
 
 		// ACT
-		err := service.DeleteGuardian(ctx, profile.ID)
+		err := service.DeleteGuardian(ctx, profile.ID, 1)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -325,6 +329,41 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		// Verify deletion
 		result, _ := service.GetGuardianByID(ctx, profile.ID)
 		assert.Nil(t, result)
+
+		var deletionAudit auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&deletionAudit).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIBAN).
+			Where(`"guardian_financial_change".new_value = ?`, "").
+			Scan(ctx))
+		assert.Equal(t, "•••• 3000", deletionAudit.OldValue)
+		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", deletionAudit.Note)
+
+		var accountHolderAudits []auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&accountHolderAudits).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Scan(ctx))
+		require.Len(t, accountHolderAudits, 2)
+		for _, audit := range accountHolderAudits {
+			assert.NotContains(t, audit.OldValue, "Sabine")
+			assert.NotContains(t, audit.NewValue, "Sabine")
+		}
+
+		var accountHolderDeletionAudit auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&accountHolderDeletionAudit).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Where(`"guardian_financial_change".new_value = ?`, "").
+			Scan(ctx))
+		assert.Equal(t, "••••••••", accountHolderDeletionAudit.OldValue)
+		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", accountHolderDeletionAudit.Note)
 	})
 
 	t.Run("plain delete is refused while the guardian is still linked (RESTRICT)", func(t *testing.T) {
@@ -343,7 +382,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.DeleteGuardian(ctx, guardian.ID)
+		err = service.DeleteGuardian(ctx, guardian.ID, 1)
 
 		// ASSERT — the FK violation surfaces; the guardian survives.
 		require.Error(t, err, "RESTRICT FK must block deleting a linked guardian")
@@ -377,6 +416,9 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
+	for _, studentID := range []int64{siblingA.ID, siblingB.ID} {
+		require.NoError(t, service.SetStudentPayer(ctx, studentID, &guardian.ID, 1))
+	}
 
 	// The delete preview reports both children before deletion.
 	impact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
@@ -389,8 +431,8 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	// MUST run in one (the SELECT ... FOR UPDATE row lock and the link-then-
 	// guardian ordering are only meaningful/atomic within a single tx), and the
 	// HTTP handler wraps it that way. Exercising the real contract here.
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs)
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs, 1)
 	})
 
 	// ASSERT — guardian gone, and no links survive.
@@ -400,6 +442,16 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
 	assert.Empty(t, remainingImpact.StudentNames, "all student links must be removed")
+
+	var unassignments []auditModels.GuardianFinancialChange
+	require.NoError(t, db.NewSelect().
+		Model(&unassignments).
+		ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+		Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
+		Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+		Where(`"guardian_financial_change".new_value = ?`, "false").
+		Scan(ctx))
+	assert.Len(t, unassignments, 2, "every deleted payer relationship must be audited")
 }
 
 func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testing.T) {
@@ -421,8 +473,8 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999})
+	err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999}, 1)
 	})
 
 	require.ErrorIs(t, err, users.ErrGuardianDeletePreviewChanged)
@@ -977,6 +1029,36 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		assert.Equal(t, emergencyPriority, updated.EmergencyPriority)
 	})
 
+	// The payer mark is owned by SetStudentPayer (guardians:financial, audited).
+	// A relationship edit holding a stale copy of the row must not carry it
+	// back into the table — that would silently undo a payer assignment.
+	t.Run("leaves the payer mark untouched", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-payer")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdatePayer", "Student", "5c")
+
+		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+		require.False(t, created.IsPayer)
+
+		// The payer is assigned AFTER the caller read the relationship, so the
+		// in-memory copy still says false — exactly the concurrent shape.
+		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+
+		canPickup := true
+		require.NoError(t, service.UpdateStudentGuardianRelationship(ctx, created.ID,
+			users.StudentGuardianUpdateRequest{CanPickup: &canPickup}))
+
+		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		require.NoError(t, err)
+		assert.True(t, updated.CanPickup, "the requested field must still be written")
+		assert.True(t, updated.IsPayer, "an unrelated relationship edit must not clear the payer mark")
+	})
+
 	t.Run("returns error when relationship is missing", func(t *testing.T) {
 		missingID := time.Now().UnixNano()
 		isPrimary := true
@@ -1296,14 +1378,81 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		}
 		_, err := service.LinkGuardianToStudent(ctx, req)
 		require.NoError(t, err)
+		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
 
 		// ACT
-		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID)
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, true)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify removal
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Empty(t, guardians)
+
+		count, err := db.NewSelect().
+			Model((*auditModels.GuardianFinancialChange)(nil)).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
+			Where(`"guardian_financial_change".student_id = ?`, student.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".new_value = ?`, "false").
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "removing a payer relationship must be audited")
+	})
+
+	t.Run("refuses to unlink the payer without the financial permission", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "payer-keep")
+		student := testpkg.CreateTestStudent(t, db, "KeepPayer", "Student", "6c")
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+
+		// ACT
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
+
+		// ASSERT
+		require.ErrorIs(t, err, users.ErrPayerRemovalRequiresFinancial)
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, guardians, 1, "the relationship must survive the refusal")
+		assert.True(t, guardians[0].Relationship.IsPayer, "the payer mark must survive the refusal")
+
+		count, err := db.NewSelect().
+			Model((*auditModels.GuardianFinancialChange)(nil)).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
+			Where(`"guardian_financial_change".student_id = ?`, student.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".new_value = ?`, "false").
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count, "a refused unlink must not leave a payer-removed audit row")
+	})
+
+	t.Run("unlinks a guardian who is not the payer without the financial permission", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "not-payer")
+		student := testpkg.CreateTestStudent(t, db, "NotPayer", "Student", "6d")
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+
+		// ACT
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
+
+		// ASSERT
+		require.NoError(t, err)
 		guardians, err := service.GetStudentGuardians(ctx, student.ID)
 		require.NoError(t, err)
 		assert.Empty(t, guardians)
@@ -1314,7 +1463,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b")
 
 		// ACT
-		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999)
+		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999, 1, true)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2593,4 +2742,91 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	require.Len(t, res, 1)
 	assert.True(t, res[0].InvitationPending,
 		"account holder with a pending upgrade approval for this child must read as pending")
+}
+
+// TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions pins that a
+// bank-detail change whose masked representation is unchanged (a new IBAN with
+// the same last four digits, a renamed account holder behind the fixed mask)
+// still persists and still leaves a distinguishable, plaintext-free audit row
+// (#2608).
+func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupGuardianService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	loadAudits := func(t *testing.T, profileID int64, field string) []auditModels.GuardianFinancialChange {
+		t.Helper()
+		var rows []auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&rows).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profileID).
+			Where(`"guardian_financial_change".field_name = ?`, field).
+			OrderExpr(`"guardian_financial_change".id ASC`).
+			Scan(ctx))
+		return rows
+	}
+
+	t.Run("new IBAN with the same last four digits", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "same-tail")
+
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN: strPtr("DE89370400440532013000"),
+		}, 1, ""))
+
+		// ACT: valid IBAN, same "3000" tail, different account.
+		err := service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN: strPtr("DE84120300000000203000"),
+		}, 1, "")
+
+		// ASSERT
+		require.NoError(t, err)
+		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+		require.NotNil(t, stored.IBAN)
+		assert.Equal(t, "DE84120300000000203000", *stored.IBAN)
+
+		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN)
+		require.Len(t, audits, 2)
+		assert.Equal(t, "•••• 3000", audits[1].OldValue)
+		assert.Equal(t, "•••• 3000 (geändert)", audits[1].NewValue)
+		assert.NotContains(t, audits[1].NewValue, "DE84")
+	})
+
+	t.Run("renamed account holder behind the fixed mask", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "holder-rename")
+
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN:          strPtr("DE89370400440532013000"),
+			AccountHolder: strPtr("Sabine Schneider"),
+		}, 1, ""))
+
+		// ACT
+		err := service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN:          strPtr("DE89370400440532013000"),
+			AccountHolder: strPtr("Peter Schneider"),
+		}, 1, "")
+
+		// ASSERT
+		require.NoError(t, err)
+		stored, err := service.GuardianFinancialRepo.FindByGuardianProfileID(ctx, profile.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+		require.NotNil(t, stored.AccountHolder)
+		assert.Equal(t, "Peter Schneider", *stored.AccountHolder)
+
+		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldAccountHolder)
+		require.Len(t, audits, 2)
+		assert.Equal(t, "••••••••", audits[1].OldValue)
+		assert.Equal(t, "•••••••• (geändert)", audits[1].NewValue)
+		for _, row := range audits {
+			assert.NotContains(t, row.OldValue, "Schneider")
+			assert.NotContains(t, row.NewValue, "Schneider")
+		}
+		// The unchanged IBAN produced no extra row.
+		assert.Len(t, loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN), 1)
+	})
 }

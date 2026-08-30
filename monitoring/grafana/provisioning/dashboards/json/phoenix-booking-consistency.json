@@ -1,0 +1,213 @@
+{
+  "uid": "phoenix-booking-consistency",
+  "title": "Phoenix Booking Consistency",
+  "description": "Actionable booking-consistency audit signals. Tenant IDs are shown without names or child data.",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15m",
+  "timezone": "browser",
+  "tags": ["phoenix", "booking", "data-integrity"],
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "custom",
+        "query": "prod,staging",
+        "current": {
+          "text": "prod",
+          "value": "prod"
+        },
+        "options": [
+          { "text": "prod", "value": "prod", "selected": true },
+          { "text": "staging", "value": "staging", "selected": false }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Runbook",
+      "type": "link",
+      "url": "https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md",
+      "targetBlank": true
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Audit records in the last 26 hours",
+      "description": "One record is expected per active tenant. Zero triggers the missing-run alert.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 5 },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(count_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" [26h])) or vector(0)",
+          "queryType": "instant",
+          "editorMode": "code",
+          "legendFormat": "records"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Missing pickup projections",
+      "description": "Actionable: booked care days without a valid effective pickup time.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "decimals": 0, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,pickup_projection_missing_days | unwrap pickup_projection_missing_days [26h])",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "tenant {{tenant_id}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Approved children missing required offering",
+      "description": "Actionable: an approved child has no required, selectable care offering.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "decimals": 0, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,approved_without_required_offering | unwrap approved_without_required_offering [26h])",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "tenant {{tenant_id}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Optional offering review",
+      "description": "Review only: optional offering selection is absent. This does not contribute to total_findings and does not alert.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "decimals": 0, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,approved_without_optional_offering | unwrap approved_without_optional_offering [26h])",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "tenant {{tenant_id}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Total actionable findings",
+      "description": "Sum of missing pickup projections and missing required offerings. Alerts only fire on increases, not on a known baseline.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "fieldConfig": { "defaults": { "decimals": 0, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "last_over_time({env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | keep tenant_id,total_findings | unwrap total_findings [26h])",
+          "queryType": "range",
+          "editorMode": "code",
+          "legendFormat": "tenant {{tenant_id}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "logs",
+      "title": "Audit results by tenant and audit date",
+      "description": "All remaining counters. Lines contain tenant IDs and aggregate counts only.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{env=\"$env\",service=\"server\"} |= \"booking consistency audit\" | json | msg=~\"booking consistency audit (passed|found drift)\" | line_format \"audit_date={{.audit_date}} tenant_id={{.tenant_id}} pickup_projection_missing_days={{.pickup_projection_missing_days}} approved_without_required_offering={{.approved_without_required_offering}} approved_without_optional_offering={{.approved_without_optional_offering}} total_findings={{.total_findings}}\"",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Technical audit errors",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 8 },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{env=\"$env\",service=\"server\"} |~ \"booking consistency audit failed|tenant operation failed, continuing to next tenant\" | json | level=\"ERROR\" | msg=~\"booking consistency audit failed|tenant operation failed, continuing to next tenant\" | operation=~\"booking-consistency-audit|\"",
+          "queryType": "range",
+          "editorMode": "code"
+        }
+      ]
+    }
+  ]
+}

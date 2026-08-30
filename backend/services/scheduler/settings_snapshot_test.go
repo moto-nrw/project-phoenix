@@ -14,6 +14,7 @@ import (
 	platformRepository "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,15 +77,15 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	valueRepository := configRepository.NewSettingValueRepository(db)
-	settings := configService.NewSettingsService(valueRepository, nil, nil, db, slog.Default())
-	scheduler := &Scheduler{
+	valueRepository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
+	settings := configService.NewSettingsService(valueRepository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	scheduler := unitScheduler(&Scheduler{
 		db:         db,
 		schoolRepo: platformRepository.NewSchoolRepository(db),
 		settings:   settings,
 		done:       make(chan struct{}),
-		logger:     slog.Default(),
-	}
+		logger:     slog.Default()})
+
 	counter := &schedulerSettingQueryCounter{}
 	db.AddQueryHook(counter)
 
@@ -104,7 +105,7 @@ func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	var calls atomic.Int32
-	scheduler := &Scheduler{
+	scheduler := unitScheduler(&Scheduler{
 		done:              make(chan struct{}),
 		minuteSnapshotNow: func() time.Time { return fixedNow },
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
@@ -113,8 +114,7 @@ func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
 			}
 			<-release
 			return &schedulerMinuteSnapshot{tenantIDs: []int64{1, 2}}, nil
-		},
-	}
+		}})
 
 	const callers = 32
 	results := make(chan *schedulerMinuteSnapshot, callers)
@@ -149,14 +149,13 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 	current := time.Date(2026, time.July, 30, 12, 15, 10, 0, time.UTC)
 	loadErr := errors.New("settings unavailable")
 	var calls atomic.Int32
-	scheduler := &Scheduler{
+	scheduler := unitScheduler(&Scheduler{
 		done:              make(chan struct{}),
 		minuteSnapshotNow: func() time.Time { return current },
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
 			calls.Add(1)
 			return nil, loadErr
-		},
-	}
+		}})
 
 	_, err := scheduler.getMinuteSnapshot(context.Background())
 	require.ErrorIs(t, err, loadErr)
@@ -170,6 +169,26 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 	assert.Equal(t, int32(2), calls.Load(), "the next minute must retry so settings recover within the freshness bound")
 }
 
+func TestGetMinuteSnapshotBindsTenantRuntimeBeforeLoading(t *testing.T) {
+	t.Parallel()
+	var adminCalled bool
+	scheduler := unitScheduler(&Scheduler{
+		done: make(chan struct{}),
+		minuteSnapshotLoader: func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+			err := tenant.WithinAdmin(ctx, func(context.Context) error {
+				adminCalled = true
+				return nil
+			})
+			return &schedulerMinuteSnapshot{}, err
+		},
+	})
+
+	_, err := scheduler.getMinuteSnapshot(context.Background())
+
+	require.NoError(t, err)
+	assert.True(t, adminCalled)
+}
+
 func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 	t.Parallel()
 
@@ -177,7 +196,7 @@ func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	var calls atomic.Int32
-	scheduler := &Scheduler{
+	scheduler := unitScheduler(&Scheduler{
 		done:              make(chan struct{}),
 		minuteSnapshotNow: func() time.Time { return current },
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
@@ -191,8 +210,7 @@ func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
 			default:
 				return nil, errors.New("unexpected extra load")
 			}
-		},
-	}
+		}})
 
 	firstResult := make(chan *schedulerMinuteSnapshot, 1)
 	go func() {

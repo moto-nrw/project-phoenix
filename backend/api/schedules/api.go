@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -56,51 +55,51 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Current dateframe endpoint - requires schedules:read permission
-		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)
 
 		// Dateframe endpoints
 		r.Route("/dateframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listDateframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteDateframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listDateframes)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getDateframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createDateframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateDateframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteDateframe)
 
 			// Special dateframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-date", rs.getDateframesByDate)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/overlapping", rs.getOverlappingDateframes)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-date", rs.getDateframesByDate)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/overlapping", rs.getOverlappingDateframes)
 		})
 
 		// Timeframe endpoints
 		r.Route("/timeframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteTimeframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listTimeframes)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getTimeframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createTimeframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateTimeframe)
+			r.With(common.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteTimeframe)
 
 			// Special timeframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/active", rs.getActiveTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-range", rs.getTimeframesByRange)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/active", rs.getActiveTimeframes)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-range", rs.getTimeframesByRange)
 		})
 
 		// Recurrence rule endpoints
 		r.Route("/recurrence-rules", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listRecurrenceRules)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteRecurrenceRule)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listRecurrenceRules)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getRecurrenceRule)
+			r.With(common.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createRecurrenceRule)
+			r.With(common.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateRecurrenceRule)
+			r.With(common.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteRecurrenceRule)
 
 			// Special recurrence rule queries and operations
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/{id}/generate-events", rs.generateEvents)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
+			r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/{id}/generate-events", rs.generateEvents)
 		})
 
 		// Advanced scheduling operations
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/check-conflict", rs.checkConflict)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/find-available-slots", rs.findAvailableSlots)
+		r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/check-conflict", rs.checkConflict)
+		r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/find-available-slots", rs.findAvailableSlots)
 	})
 
 	return r

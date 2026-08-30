@@ -25,7 +25,7 @@ const (
 )
 
 // ShiftCoverageInterval is one uncovered part of an assignment's wall-clock
-// window. StartTime and EndTime are normalized through timezone.WallClock.
+// window. StartTime and EndTime are normalized through timezone.NormalizeWallClock.
 type ShiftCoverageInterval struct {
 	StartTime time.Time
 	EndTime   time.Time
@@ -113,7 +113,7 @@ type StaffOverviewReader interface {
 }
 
 type StaffWorkScheduleBatchReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModel.StaffWorkSchedule, error)
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModel.CalendarDate) ([]*configModel.StaffWorkSchedule, error)
 }
 
 type WorkTimeModelBatchReader interface {
@@ -259,7 +259,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 				staffIDs = append(staffIDs, member.ID)
 			}
 		}
-		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, firstWeekFrom, lastWeekTo)
+		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(firstWeekFrom), workforceDate(lastWeekTo))
 		if err != nil {
 			return nil, fmt.Errorf("load staff work schedules: %w", err)
 		}
@@ -363,8 +363,8 @@ func newStaffScheduleAssignment(
 		InstanceID:         instance.ID,
 		StaffID:            row.StaffID,
 		Date:               instance.Date,
-		StartTime:          timezone.WallClock(instance.StartTime),
-		EndTime:            timezone.WallClock(instance.EndTime),
+		StartTime:          timezone.NormalizeWallClock(instance.StartTime),
+		EndTime:            timezone.NormalizeWallClock(instance.EndTime),
 		ActivityTitle:      instance.Title,
 		ActivityGroupID:    instance.ActivityGroupID,
 		RoomID:             roomID,
@@ -475,8 +475,8 @@ type shiftCoverageWindow struct {
 // touching shifts form one continuous interval. BreakMinutes intentionally do
 // not create gaps because the model does not locate a break within the shift.
 func uncoveredShiftIntervals(start, end time.Time, shifts []*scheduleModel.StaffShift) []ShiftCoverageInterval {
-	start = timezone.WallClock(start)
-	end = timezone.WallClock(end)
+	start = timezone.NormalizeWallClock(start)
+	end = timezone.NormalizeWallClock(end)
 	if !end.After(start) {
 		return []ShiftCoverageInterval{}
 	}
@@ -507,8 +507,8 @@ func clipShiftCoverageWindow(start, end time.Time, shift *scheduleModel.StaffShi
 		// the assignment reads as uncovered until a replacement is entered.
 		return shiftCoverageWindow{}, false
 	}
-	shiftStart := timezone.WallClock(shift.StartTime)
-	shiftEnd := timezone.WallClock(shift.EndTime)
+	shiftStart := timezone.NormalizeWallClock(shift.StartTime)
+	shiftEnd := timezone.NormalizeWallClock(shift.EndTime)
 	if !shiftEnd.After(start) || !end.After(shiftStart) {
 		return shiftCoverageWindow{}, false
 	}
@@ -625,11 +625,11 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		found := false
 		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
 			for _, weekStart := range weekStarts {
-				if target, ok := configModel.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
+				if target, ok := configModel.WeeklyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(weekStart)); ok {
 					for offset := 0; offset < 7; offset++ {
 						day := weekStart.AddDays(offset)
 						if holidaySet[day] {
-							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
+							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(day))
 							target -= dayTarget
 						}
 					}
@@ -668,17 +668,17 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		}
 		anchor := model.RotationAnchorDate
 		if member.RotationAnchorDate != nil {
-			anchor = *member.RotationAnchorDate
+			anchor = workforceDate(*member.RotationAnchorDate)
 		}
-		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, weekStarts) {
+		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, workforceDates(weekStarts)) {
 			for offset := 0; offset < 7; offset++ {
-				day := weekStart.AddDays(offset)
+				day := calendarDate(weekStart.AddDays(offset))
 				if holidaySet[day] {
-					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, day)
+					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, workforceDate(day))
 					target -= dayTarget
 				}
 			}
-			targets[staffDateKey{member.ID, weekStart}] = target
+			targets[staffDateKey{member.ID, calendarDate(weekStart)}] = target
 		}
 	}
 	return targets, nil
@@ -726,8 +726,8 @@ func plannedShiftMinutes(shifts []*scheduleModel.StaffShift) map[staffDateKey]in
 // span minus the break duration (validation caps the break at the span, but
 // legacy rows are clamped defensively).
 func staffShiftNetMinutes(shift *scheduleModel.StaffShift) int {
-	start := timezone.WallClock(shift.StartTime)
-	end := timezone.WallClock(shift.EndTime)
+	start := timezone.NormalizeWallClock(shift.StartTime)
+	end := timezone.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0

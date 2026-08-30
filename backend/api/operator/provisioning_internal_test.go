@@ -308,6 +308,27 @@ func newMockAdminDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	return bun.NewDB(sqlDB, pgdialect.New()), mock
 }
 
+func withMockAdminRuntime(t *testing.T, req *http.Request, db *bun.DB) *http.Request {
+	t.Helper()
+	runtime, err := tenant.NewUnitOfWork(
+		func(context.Context, int64, func(context.Context, any) error) error {
+			return errors.New("tenant transaction is not available in this operator test")
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error {
+			return db.RunInTx(ctx, nil, func(txCtx context.Context, tx bun.Tx) error {
+				if _, execErr := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); execErr != nil {
+					return execErr
+				}
+				return fn(modelBase.ContextWithTx(txCtx, &tx), tx)
+			})
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	return req.WithContext(tenant.WithUnitOfWork(req.Context(), runtime))
+}
+
 func (m *mockCaregiverCapabilityService) EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 	if m.enableFn != nil {
 		return m.enableFn(ctx, accountID, input)
@@ -2657,6 +2678,7 @@ func TestProvisioningResource_GetSchoolAccountCaregiverCapability(t *testing.T) 
 	routeCtx.URLParams.Add("id", "12")
 	routeCtx.URLParams.Add("accountId", "34")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withMockAdminRuntime(t, req, db)
 	rr := httptest.NewRecorder()
 
 	resource.GetSchoolAccountCaregiverCapability(rr, req)
@@ -2697,6 +2719,7 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 	routeCtx.URLParams.Add("id", "12")
 	routeCtx.URLParams.Add("accountId", "34")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withMockAdminRuntime(t, req, db)
 	rr := httptest.NewRecorder()
 
 	resource.EnableSchoolAccountCaregiverCapability(rr, req)
@@ -2760,6 +2783,7 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 	routeCtx.URLParams.Add("id", "12")
 	routeCtx.URLParams.Add("accountId", "34")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx))
+	req = withMockAdminRuntime(t, req, db)
 	rr := httptest.NewRecorder()
 
 	resource.DisableSchoolAccountCaregiverCapability(rr, req)

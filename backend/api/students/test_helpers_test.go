@@ -49,6 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 		broadcaster,
 		slog.Default(),
 	)
+	testpkg.SetTenantRuntime(t, parentEventEmitter, db)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,
@@ -83,16 +84,18 @@ func setupTestContext(t *testing.T) *testContext {
 		ExcusedRequestService:   svc.ExcusedRequests,
 		// The three users:update-gated review queues, wired so the combined
 		// pending-count endpoint can be exercised end to end (#2232).
-		MasterDataReviewService: svc.MasterDataReview,
-		CareRequestService:      svc.CareRequests,
-		OfferingChangeService:   svc.OfferingChanges,
-		PickupAdjustmentService: svc.PickupAdjustments,
-		Broadcaster:             broadcaster,
-		ParentEventEmitter:      parentEventEmitter,
-		StudentPhotos:           studentPhotos,
-		ListExportService:       listexport.NewService(),
-		Logger:                  slog.Default(),
-		DB:                      db,
+		MasterDataReviewService:  svc.MasterDataReview,
+		CareRequestService:       svc.CareRequests,
+		OfferingChangeService:    svc.OfferingChanges,
+		PickupAdjustmentService:  svc.PickupAdjustments,
+		ParentRequestBulkService: svc.ParentRequests,
+		FamilyProtectionService:  svc.FamilyProtection,
+		Broadcaster:              broadcaster,
+		ParentEventEmitter:       parentEventEmitter,
+		StudentPhotos:            studentPhotos,
+		ListExportService:        listexport.NewService(),
+		Logger:                   slog.Default(),
+		DB:                       db,
 	})
 
 	return &testContext{

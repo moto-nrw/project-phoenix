@@ -7,6 +7,9 @@
  * früheren per-Art-Historie (#2417).
  */
 
+import type { ReactNode } from "react";
+
+import { Button } from "~/components/ui/button";
 import { formatDate } from "~/lib/date-helpers";
 import type { AggregatedHistoryRequest } from "~/lib/change-request-list-api";
 import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api";
@@ -29,7 +32,8 @@ import {
 
 function MasterDataHistoryCard({
   row,
-}: Readonly<{ row: StaffMasterDataHistoryEntry }>) {
+  action,
+}: Readonly<{ row: StaffMasterDataHistoryEntry; action?: ReactNode }>) {
   return (
     <RequestReviewCard
       type="master_data"
@@ -42,6 +46,7 @@ function MasterDataHistoryCard({
         decidedByName: row.decided_by_name,
         reason: row.review_reason,
       }}
+      action={action}
     >
       <p className="text-sm text-gray-700">
         {formatMasterDataValue(row.field_key, row.old_value, "leer")}
@@ -54,7 +59,8 @@ function MasterDataHistoryCard({
 
 function CareHistoryCard({
   row,
-}: Readonly<{ row: StaffCareRequestHistoryEntry }>) {
+  action,
+}: Readonly<{ row: StaffCareRequestHistoryEntry; action?: ReactNode }>) {
   // Frozen decision-time diff (#2430) when present, payload summary otherwise.
   const showDiff = (row.diff?.length ?? 0) > 0;
   const entries = showDiff ? (row.diff ?? []) : row.requested;
@@ -71,6 +77,7 @@ function CareHistoryCard({
         decidedByName: row.decided_by_name,
         reason: row.decision_reason,
       }}
+      action={action}
     >
       {entries.length > 0 && (
         <ReviewDiffPanel title={showDiff ? "Änderungen" : "Beantragt"}>
@@ -92,7 +99,8 @@ function CareHistoryCard({
 
 function OfferingHistoryCard({
   row,
-}: Readonly<{ row: StaffOfferingRequestHistoryEntry }>) {
+  action,
+}: Readonly<{ row: StaffOfferingRequestHistoryEntry; action?: ReactNode }>) {
   return (
     <RequestReviewCard
       type="offering"
@@ -105,6 +113,7 @@ function OfferingHistoryCard({
         decidedByName: row.decided_by_name,
         reason: row.reason,
       }}
+      action={action}
     >
       {row.diff.length > 0 && (
         <ReviewDiffPanel title="Änderungen">
@@ -130,7 +139,8 @@ function OfferingHistoryCard({
 
 function ExcusedHistoryCard({
   row,
-}: Readonly<{ row: StaffExcusedRequestHistoryEntry }>) {
+  action,
+}: Readonly<{ row: StaffExcusedRequestHistoryEntry; action?: ReactNode }>) {
   return (
     <RequestReviewCard
       type="excused"
@@ -148,6 +158,7 @@ function ExcusedHistoryCard({
         decidedByName: row.decided_by_name,
         reason: row.reason,
       }}
+      action={action}
     >
       <p className="text-sm text-gray-700">
         {row.dates.map((d) => formatDate(d)).join(", ")}
@@ -159,16 +170,36 @@ function ExcusedHistoryCard({
 
 export function RequestHistoryItem({
   item,
-}: Readonly<{ item: AggregatedHistoryRequest }>) {
+  onCorrect,
+}: Readonly<{
+  item: AggregatedHistoryRequest;
+  /**
+   * Öffnet „Entscheidung korrigieren" (#2267). Nur gesetzt, wenn das Backend
+   * die Zeile dafür freigibt. Bewusst eine eigene Schaltfläche unterhalb der
+   * Zeile und nicht im Zeilen-Umschalter: eine Korrektur ändert echte Daten.
+   */
+  onCorrect?: () => void;
+}>) {
+  const action = onCorrect ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="md"
+      className="max-sm:min-h-11"
+      onClick={onCorrect}
+    >
+      Entscheidung korrigieren
+    </Button>
+  ) : undefined;
   switch (item.request_type) {
     case "master_data":
-      return <MasterDataHistoryCard row={item.data} />;
+      return <MasterDataHistoryCard row={item.data} action={action} />;
     case "care_schedule":
-      return <CareHistoryCard row={item.data} />;
+      return <CareHistoryCard row={item.data} action={action} />;
     case "offering":
-      return <OfferingHistoryCard row={item.data} />;
+      return <OfferingHistoryCard row={item.data} action={action} />;
     case "excused":
-      return <ExcusedHistoryCard row={item.data} />;
+      return <ExcusedHistoryCard row={item.data} action={action} />;
     case "direct_correction": {
       const row = item.data;
       return (

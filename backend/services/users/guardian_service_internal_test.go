@@ -66,8 +66,19 @@ func (f *fakeStudentGuardianRepo) Delete(ctx context.Context, id interface{}) er
 
 type fakeStudentRepo struct {
 	users.StudentRepository
-	findByIDFn  func(ctx context.Context, id interface{}) (*users.Student, error)
-	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	findByIDFn           func(ctx context.Context, id interface{}) (*users.Student, error)
+	findByIDsFn          func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	findByIDsForUpdateFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	findByIDForUpdateFn  func(ctx context.Context, id int64) (*users.Student, error)
+}
+
+type fakeGuardianFinancialRepo struct {
+	users.GuardianFinancialDataRepository
+	findFn func(ctx context.Context, guardianProfileID int64) (*users.GuardianFinancialData, error)
+}
+
+func (f *fakeGuardianFinancialRepo) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) (*users.GuardianFinancialData, error) {
+	return f.findFn(ctx, guardianProfileID)
 }
 
 func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
@@ -76,6 +87,20 @@ func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.
 
 func (f *fakeStudentRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
 	return f.findByIDsFn(ctx, ids)
+}
+
+func (f *fakeStudentRepo) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	if f.findByIDsForUpdateFn == nil {
+		return map[int64]*users.Student{}, nil
+	}
+	return f.findByIDsForUpdateFn(ctx, ids)
+}
+
+func (f *fakeStudentRepo) FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error) {
+	if f.findByIDForUpdateFn == nil {
+		return &users.Student{}, nil
+	}
+	return f.findByIDForUpdateFn(ctx, id)
 }
 
 type fakePersonRepo struct {
@@ -208,9 +233,32 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
 	}},
 	}
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1})
+	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to lock guardian profile")
+}
+
+// TestDeleteGuardian_WithoutFinancialRepoRefuses pins that a service wired
+// without the financial-data repository fails the delete with a clear error
+// instead of dereferencing nil (review round 10).
+func TestDeleteGuardian_WithoutFinancialRepoRefuses(t *testing.T) {
+	t.Parallel()
+
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+		lockFn: func(_ context.Context, _ int64) error { return nil },
+	}}}
+	for name, run := range map[string]func() error{
+		"DeleteGuardian":          func() error { return svc.DeleteGuardian(context.Background(), 1, 1) },
+		"DeleteGuardianWithLinks": func() error { return svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotPanics(t, func() {
+				err := run()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "guardian financial repository is not wired")
+			})
+		})
+	}
 }
 
 func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
@@ -222,9 +270,11 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
 			return nil, errors.New("query failed")
 		},
+	}, GuardianFinancialRepo: &fakeGuardianFinancialRepo{
+		findFn: func(_ context.Context, _ int64) (*users.GuardianFinancialData, error) { return nil, nil },
 	}},
 	}
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1})
+	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load guardian links")
 }
@@ -243,11 +293,17 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 		deleteFn: func(_ context.Context, _ interface{}) error {
 			return errors.New("delete failed")
 		},
+	}, StudentRepo: &fakeStudentRepo{
+		findByIDsForUpdateFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+			return map[int64]*users.Student{7: {}}, nil
+		},
+	}, GuardianFinancialRepo: &fakeGuardianFinancialRepo{
+		findFn: func(_ context.Context, _ int64) (*users.GuardianFinancialData, error) { return nil, nil },
 	}},
 	}
 	// expectedLinkIDs matches the current set, so the stale-preview guard passes
 	// and execution reaches the link-deletion loop, which then fails.
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{5})
+	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{5}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove guardian link")
 }

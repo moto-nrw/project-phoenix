@@ -140,7 +140,7 @@ func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
 	channel := &recordingChannel{name: "recording"}
 	svc := notifications.NewService(enabledSettings(true), nil, channel)
 	rollbackErr := errors.New("force rollback")
-	err = tenant.WithTenantTx(context.Background(), db, 41, func(ctx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, testpkg.WithTenantRuntime(t, context.Background(), db), db, 41, func(ctx context.Context, _ bun.Tx) error {
 		require.NoError(t, svc.Notify(ctx, tenantEvent(41)))
 		assert.Empty(t, channel.events, "notification must remain queued inside the transaction")
 		return rollbackErr
@@ -242,6 +242,14 @@ func TestNotifyValidation(t *testing.T) {
 	backslashRelative := tenantEvent(41)
 	backslashRelative.DeepLink = `/\evil.example/path`
 	assert.EqualError(t, svc.Notify(ctx, backslashRelative), "deep link must be an app-relative path")
+
+	externalSchoolLink := tenantEvent(41)
+	externalSchoolLink.SchoolDeepLink = "https://example.com/phish"
+	assert.EqualError(t, svc.Notify(ctx, externalSchoolLink), "school deep link must be an app-relative path")
+
+	protocolRelativeSchoolLink := tenantEvent(41)
+	protocolRelativeSchoolLink.SchoolDeepLink = "//example.com"
+	assert.EqualError(t, svc.Notify(ctx, protocolRelativeSchoolLink), "school deep link must be an app-relative path")
 
 	badPriority := tenantEvent(41)
 	badPriority.Priority = "urgent"

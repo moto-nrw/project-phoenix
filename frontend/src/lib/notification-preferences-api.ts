@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 
-export type PreferencePortal = "tenant" | "parent";
+export type PreferencePortal = "tenant" | "parent" | "school";
 
 export interface NotificationPreferenceType {
   key: string;
@@ -54,9 +54,14 @@ class PreferencesApiError extends Error {
 }
 
 function basePath(portal: PreferencePortal): string {
-  return portal === "parent"
-    ? "/api/parent/me/notification-preferences"
-    : "/api/notifications/preferences";
+  switch (portal) {
+    case "parent":
+      return "/api/parent/me/notification-preferences";
+    case "school":
+      return "/api/school/notifications/preferences";
+    default:
+      return "/api/notifications/preferences";
+  }
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {

@@ -1526,7 +1526,7 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 		if err != nil {
 			return fmt.Errorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
-		existing.ExpectedArrival = timezone.WallClock(parsed)
+		existing.ExpectedArrival = timezone.NormalizeWallClock(parsed)
 		if strings.TrimSpace(sched.Notes) != "" {
 			existing.Notes = strutil.TrimToNil(sched.Notes)
 		}
@@ -1556,7 +1556,7 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 		if err != nil {
 			return fmt.Errorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
-		existing.PickupTime = timezone.WallClock(parsed)
+		existing.PickupTime = timezone.NormalizeWallClock(parsed)
 		if strings.TrimSpace(sched.Notes) != "" {
 			existing.Notes = strutil.TrimToNil(sched.Notes)
 		}
@@ -1737,7 +1737,7 @@ func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studen
 		if err != nil {
 			return fmt.Errorf("arrival schedule %d: invalid time '%s': %w", i+1, sched.ExpectedArrival, err)
 		}
-		arrivalTime := timezone.WallClock(parsed)
+		arrivalTime := timezone.NormalizeWallClock(parsed)
 
 		record := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       studentID,
@@ -1768,7 +1768,7 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 			return fmt.Errorf("pickup schedule %d: invalid time '%s': %w", i+1, sched.PickupTime, err)
 		}
 		// Use a valid reference date — time.Parse("15:04") produces year 0000 which PostgreSQL rejects
-		pickupTime := timezone.WallClock(parsed)
+		pickupTime := timezone.NormalizeWallClock(parsed)
 
 		record := &scheduleModels.StudentPickupSchedule{
 			StudentID:  studentID,

@@ -12,6 +12,8 @@
 //                                     OverflowMenu from the kit
 //   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
 //                                     rounded-2xl (moto-content-surface)
+//   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
+//                                     label so its visible box is clickable
 //
 // The baselines below are SHRINK-ONLY: matches may be removed when a file is
 // migrated, but never added. Every existing utility is tracked by value and
@@ -498,11 +500,13 @@ const noTenantKicker = {
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
 // greift nur in Seitendateien des Tenant-Portals — Kit- und
 // Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
-const TENANT_PAGE_FILE_RE = /app\/\[tenant\]\/\(protected\)\/.*\/(page|loading)\.tsx$/;
+const TENANT_PAGE_FILE_RE =
+  /app\/\[tenant\]\/\(protected\)\/.*\/(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
-const HANDROLLED_SURFACE_RE = /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
+const HANDROLLED_SURFACE_RE =
+  /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
 const noHandrolledSurface = {
   meta: {
@@ -516,10 +520,11 @@ const noHandrolledSurface = {
     },
   },
   create(context) {
-    const filename = (context.filename ?? context.getFilename?.() ?? "").replace(
-      /\\/g,
-      "/",
-    );
+    const filename = (
+      context.filename ??
+      context.getFilename?.() ??
+      ""
+    ).replace(/\\/g, "/");
     if (!TENANT_PAGE_FILE_RE.test(filename)) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
 
@@ -571,10 +576,11 @@ const noTabsAsValueSwitcher = {
     },
   },
   create(context) {
-    const filename = (context.filename ?? context.getFilename?.() ?? "").replace(
-      /\\/g,
-      "/",
-    );
+    const filename = (
+      context.filename ??
+      context.getFilename?.() ??
+      ""
+    ).replace(/\\/g, "/");
     if (OTHER_PORTALS_RE.test(filename)) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
 
@@ -592,6 +598,47 @@ const noTabsAsValueSwitcher = {
   },
 };
 
+function jsxName(node) {
+  return node?.type === "JSXIdentifier" ? node.name : null;
+}
+
+function hasLabelAncestor(node) {
+  for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (
+      ancestor.type === "JSXElement" &&
+      jsxName(ancestor.openingElement.name) === "label"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const requireCheckboxLabel = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Require the shared Checkbox and its visible text to share one native label hit area.",
+    },
+    messages: {
+      missingLabel:
+        "Wrap Checkbox and its visible text in one <label>. A sibling label names the hidden input but leaves the visible box unclickable.",
+    },
+    schema: [],
+  },
+  create(context) {
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "Checkbox" || hasLabelAncestor(node)) {
+          return;
+        }
+        context.report({ node, messageId: "missingLabel" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -601,5 +648,6 @@ export default {
     "no-tenant-kicker": noTenantKicker,
     "no-handrolled-surface": noHandrolledSurface,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
+    "require-checkbox-label": requireCheckboxLabel,
   },
 };

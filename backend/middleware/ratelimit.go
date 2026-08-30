@@ -3,12 +3,12 @@ package middleware
 import (
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"golang.org/x/time/rate"
 )
 
@@ -179,5 +179,12 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 
 // GetClientIP extracts the real client IP address from the request
 func GetClientIP(r *http.Request) string {
-	return clientip.GetClientIPString(r)
+	if r == nil {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }

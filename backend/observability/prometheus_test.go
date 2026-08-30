@@ -1,9 +1,6 @@
 package observability
 
 import (
-	"database/sql"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -62,89 +59,111 @@ func TestMetricsBearerTokenFromEnvReturnsTrimmedToken(t *testing.T) {
 	assert.Equal(t, "correct-token", token)
 }
 
-func TestMetricsAuthMiddlewareRejectsWrongToken(t *testing.T) {
-	t.Parallel()
-
-	handler := MetricsAuthMiddleware("correct-token")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Fatal("handler should not be called with the wrong token")
-	}))
-	request := httptest.NewRequest(http.MethodGet, "/internal/metrics", nil)
-	request.Header.Set("Authorization", "Bearer wrong-token")
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, request)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-}
-
-func TestMetricsAuthMiddlewareAllowsCorrectToken(t *testing.T) {
-	t.Parallel()
-
-	handler := MetricsAuthMiddleware("correct-token")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	request := httptest.NewRequest(http.MethodGet, "/internal/metrics", nil)
-	request.Header.Set("Authorization", "Bearer correct-token")
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, request)
-
-	assert.Equal(t, http.StatusAccepted, rr.Code)
-}
-
-// Deliberately NOT parallel: RegisterSSEStatsProvider installs a
-// process-global provider that MetricsHandler reads on every scrape, so two
-// of these tests overwrite each other's provider.
-func TestMetricsHandlerRefreshesSSEGaugesBeforeServing(t *testing.T) {
-	RegisterSSEStatsProvider(staticSSEStatsProvider{
-		stats: SSEStats{ClientsByTenant: map[int64]int{303: 5}},
-	})
-	request := httptest.NewRequest(http.MethodGet, "/internal/metrics", nil)
-
-	rr := httptest.NewRecorder()
-	MetricsHandler().ServeHTTP(rr, request)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), `phoenix_sse_clients{tenant_id="303"} 5`)
-}
-
 func TestPrometheusRecordersUseStableLabels(t *testing.T) {
 	t.Parallel()
 
-	ObserveTenantRequest(404, "", http.MethodGet, "/api/students/{id}", http.StatusCreated, time.Millisecond, "commit")
-	ObserveIoTRequest(0, http.MethodPost, "/api/iot/scan", http.StatusUnauthorized, time.Millisecond, "")
+	ObserveTenantRequest(404, "", "GET", "/api/students/{id}", 201, time.Millisecond, "commit")
+	ObserveIoTRequest(0, "POST", "/api/iot/scan", 401, time.Millisecond, "")
 	RecordSSEConnection(404, "connected")
 	RecordSSEBroadcast(0, "student_location_changed", "all", 2)
 
 	assert.Equal(t, "unknown", StatusClass(0))
-	assert.Equal(t, "2xx", StatusClass(http.StatusNoContent))
+	assert.Equal(t, "2xx", StatusClass(204))
 	assert.Equal(t, "unknown", sanitizeLabel(" "))
-	assert.Equal(t, "auth_error", outcomeForStatus(http.StatusForbidden))
-	assert.Equal(t, "validation_error", outcomeForStatus(http.StatusBadRequest))
-	assert.Equal(t, "server_error", outcomeForStatus(http.StatusInternalServerError))
-	assert.Equal(t, "success", outcomeForStatus(http.StatusOK))
+	assert.Equal(t, "auth_error", outcomeForStatus(403))
+	assert.Equal(t, "validation_error", outcomeForStatus(400))
+	assert.Equal(t, "server_error", outcomeForStatus(500))
+	assert.Equal(t, "success", outcomeForStatus(200))
+	assert.Equal(t, "GET", normalizeHTTPMethod("get"))
+	assert.Equal(t, "other", normalizeHTTPMethod("STUDENT-ERIKA"))
 }
 
-func TestRoutePatternFallsBackToUnmatched(t *testing.T) {
+func TestRecordTenantRuntimeEventCountsByEntryPointAndOutcome(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(tenantRuntimeEvents.WithLabelValues("worker", "missing_tenant"))
+
+	RecordTenantRuntimeEvent("worker", "missing_tenant")
+
+	after := testutil.ToFloat64(tenantRuntimeEvents.WithLabelValues("worker", "missing_tenant"))
+	assert.Equal(t, before+1, after)
+}
+
+func TestRecordAuthorizationEventUsesStableLabels(t *testing.T) {
+	t.Parallel()
+	denialsBefore := testutil.ToFloat64(authorizationDenials.WithLabelValues("permission_denied"))
+	unknownBefore := testutil.ToFloat64(authorizationDenials.WithLabelValues("unknown"))
+	durationsBefore := testutil.CollectAndCount(authMiddlewareDuration)
+
+	RecordAuthorizationEvent("resolved", "permission_denied", time.Millisecond)
+	RecordAuthorizationEvent("", "student-Erika", 0)
+
+	assert.Equal(t, denialsBefore+1, testutil.ToFloat64(authorizationDenials.WithLabelValues("permission_denied")))
+	assert.Equal(t, unknownBefore+1, testutil.ToFloat64(authorizationDenials.WithLabelValues("unknown")))
+	assert.Equal(t, durationsBefore+1, testutil.CollectAndCount(authMiddlewareDuration))
+}
+
+func TestHTTPMethodLabelsCollapseUnknownValues(t *testing.T) {
 	t.Parallel()
 
-	request := httptest.NewRequest(http.MethodGet, "/not-mounted", nil)
+	const route = "/cardinality/method"
+	before := testutil.ToFloat64(appHTTPRequests.WithLabelValues("other", route, "5xx"))
 
-	assert.Equal(t, "unmatched", RoutePattern(request))
+	ObserveHTTPRequest("student-Erika", route, 500, time.Millisecond)
+	ObserveHTTPRequest("another-untrusted-method", route, 500, time.Millisecond)
+
+	after := testutil.ToFloat64(appHTTPRequests.WithLabelValues("other", route, "5xx"))
+	assert.Equal(t, before+2, after)
+}
+
+func TestRecordUnitOfWorkEvidence(t *testing.T) {
+	t.Parallel()
+	const entryPoint = "unit_test_evidence"
+	rollbackBefore := testutil.ToFloat64(unitOfWorkRollbacks.WithLabelValues(entryPoint))
+	retryBefore := testutil.ToFloat64(unitOfWorkRetries.WithLabelValues(entryPoint))
+	durationBefore := testutil.CollectAndCount(unitOfWorkDuration)
+	poolBefore := testutil.CollectAndCount(unitOfWorkPoolWait)
+	lockBefore := testutil.CollectAndCount(unitOfWorkLockWait)
+
+	RecordUnitOfWorkEvent(entryPoint, "transaction", "rollback", 25*time.Millisecond, 2)
+	RecordUnitOfWorkEvent(entryPoint, "pool_wait", "", 3*time.Millisecond, 0)
+	RecordUnitOfWorkEvent(entryPoint, "lock_wait", "", 4*time.Millisecond, 0)
+
+	assert.Equal(t, rollbackBefore+1, testutil.ToFloat64(unitOfWorkRollbacks.WithLabelValues(entryPoint)))
+	assert.Equal(t, retryBefore+2, testutil.ToFloat64(unitOfWorkRetries.WithLabelValues(entryPoint)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(unitOfWorkDuration))
+	assert.Equal(t, poolBefore+1, testutil.CollectAndCount(unitOfWorkPoolWait))
+	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
+}
+
+func TestRecordSettingsEvidence(t *testing.T) {
+	t.Parallel()
+	const key = "test.settings_evidence"
+	lookupBefore := testutil.ToFloat64(settingsLookups.WithLabelValues(key, "hit", "ok"))
+	failureBefore := testutil.ToFloat64(settingsSideEffectFailures.WithLabelValues(key))
+	durationBefore := testutil.CollectAndCount(settingsLookupDuration)
+
+	ObserveSettingsLookup(key, "hit", "ok", 2*time.Millisecond)
+	RecordSettingsSideEffectFailure(key)
+
+	assert.Equal(t, lookupBefore+1, testutil.ToFloat64(settingsLookups.WithLabelValues(key, "hit", "ok")))
+	assert.Equal(t, failureBefore+1, testutil.ToFloat64(settingsSideEffectFailures.WithLabelValues(key)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(settingsLookupDuration))
 }
 
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 	t.Parallel()
 
-	RegisterDBStatsProvider(fakeDBStatsProvider{stats: sql.DBStats{
-		OpenConnections:   8,
-		InUse:             3,
-		Idle:              5,
-		WaitCount:         13,
-		WaitDuration:      2 * time.Second,
-		MaxIdleClosed:     21,
-		MaxLifetimeClosed: 34,
-	}})
+	RegisterDBStatsProvider(func() DBStats {
+		return DBStats{
+			OpenConnections:   8,
+			InUse:             3,
+			Idle:              5,
+			WaitCount:         13,
+			WaitDuration:      2 * time.Second,
+			MaxIdleClosed:     21,
+			MaxLifetimeClosed: 34,
+		}
+	})
 	ch := make(chan prometheus.Metric, 10)
 
 	dbStatsCollector{}.Collect(ch)

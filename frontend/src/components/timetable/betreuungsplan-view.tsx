@@ -34,6 +34,7 @@ import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -97,6 +98,7 @@ import {
   DENSITY_TO_HOUR_HEIGHT_PX,
   chunkDateRange,
   firstSchoolDayInPeriod,
+  formatFullDayLabel,
   formatWeekLabel,
   formatMonthLabel,
   getMonthDays,
@@ -104,6 +106,7 @@ import {
   getWeekRange,
   getWeekdays,
   nextWorkdayISO,
+  previousWorkdayISO,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -129,7 +132,8 @@ const CONFLICT_ACKS_SWR_KEY = "timetable-conflict-acks";
 // jeden Wochen-/Ansichts-/Block-Wechsel überleben.
 const ALLOWED_URL_PARAMS = ["d", "view", "block"] as const;
 
-type ViewParam = "woche" | "monat" | "serien";
+type ViewParam = "tag" | "woche" | "monat" | "serien";
+type PeriodCoverage = "none" | "partial" | "full";
 
 /**
  * Übersetzt den `view`-URL-Wert in den internen Ansichts-Typ. Ungültige Werte
@@ -137,6 +141,7 @@ type ViewParam = "woche" | "monat" | "serien";
  * verlinkbar (kein `view`-Wert erzeugt sie).
  */
 function parseViewParam(raw: string | null): TimetableView {
+  if (raw === "tag") return "day";
   if (raw === "monat") return "month";
   if (raw === "serien") return "series";
   return "week";
@@ -144,6 +149,7 @@ function parseViewParam(raw: string | null): TimetableView {
 
 /** Segmentschalter-Wert (deutsches Vokabular) aus dem internen Ansichts-Typ. */
 function viewToTab(view: TimetableView): ViewParam {
+  if (view === "day") return "tag";
   if (view === "month") return "monat";
   if (view === "series") return "serien";
   return "woche";
@@ -229,15 +235,18 @@ function TimetablesContent() {
   const rawDay = params.d;
   const requestedDayISO =
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
-  // Leseansicht (#2283): Nicht-Planende sehen nur die Wochenansicht — ein
-  // ?v=monat/serien-Deeplink fällt still auf die Woche zurück.
-  const view: TimetableView = canManageSchedules
-    ? parseViewParam(params.view)
-    : "week";
+  // Leseansicht (#2283, #2621): Nicht-Planende sehen Tag und Woche — ein
+  // ?view=monat/serien-Deeplink fällt still auf die Woche zurück.
+  const requestedView = parseViewParam(params.view);
+  const view: TimetableView =
+    canManageSchedules || requestedView === "day" ? requestedView : "week";
   // The monthly calendar and series period lookup retain their requested
-  // calendar date. Only the workweek view snaps weekend anchors to Monday.
+  // calendar date. Only the workweek and the single school day snap weekend
+  // anchors to Monday.
   const dayISO =
-    view === "week" ? nextWorkdayISO(requestedDayISO) : requestedDayISO;
+    view === "week" || view === "day"
+      ? nextWorkdayISO(requestedDayISO)
+      : requestedDayISO;
   const selectedInstanceId = params.block;
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
@@ -319,23 +328,40 @@ function TimetablesContent() {
     },
     [visibleDate, updateUrlParams],
   );
+  // Tagesnavigation springt von Schultag zu Schultag: Freitag führt vorwärts
+  // auf Montag, Montag rückwärts auf Freitag. Das Wochenende hat im
+  // Betreuungsplan keine Tage, also darf es auch keinen leeren Halt geben.
+  const goToDay = useCallback(
+    (direction: 1 | -1) => {
+      const next = parseISODate(dayISO);
+      next.setDate(next.getDate() + 1);
+      const target =
+        direction === 1
+          ? nextWorkdayISO(toISODate(next))
+          : previousWorkdayISO(dayISO);
+      updateUrlParams({ d: target, block: null });
+    },
+    [dayISO, updateUrlParams],
+  );
   const goToToday = useCallback(
     () =>
       updateUrlParams({
-        d: view === "week" ? todayTargetISO : todayISO,
+        d: view === "week" || view === "day" ? todayTargetISO : todayISO,
         block: null,
       }),
     [todayISO, todayTargetISO, updateUrlParams, view],
   );
 
   const handlePrev = useCallback(() => {
-    if (view === "week") goToWeek(-7);
+    if (view === "day") goToDay(-1);
+    else if (view === "week") goToWeek(-7);
     else if (view === "month") goToMonth(-1);
-  }, [view, goToWeek, goToMonth]);
+  }, [view, goToDay, goToWeek, goToMonth]);
   const handleNext = useCallback(() => {
-    if (view === "week") goToWeek(7);
+    if (view === "day") goToDay(1);
+    else if (view === "week") goToWeek(7);
     else if (view === "month") goToMonth(1);
-  }, [view, goToWeek, goToMonth]);
+  }, [view, goToDay, goToWeek, goToMonth]);
 
   // Ansichtswechsel schreibt `view` (Woche als Default = Param-Entfernung) und
   // schließt den Slide-Over (Block-Param abräumen).
@@ -375,10 +401,24 @@ function TimetablesContent() {
   );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const workweekToISO = weekDayISOs[4]!;
-  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
+  // Die Tagesansicht lädt genau ihren Tag — ein Wochenfenster würde Blöcke
+  // holen, die sie gar nicht zeigt, und den Konfliktbanner mit fremden Tagen
+  // füllen.
+  const fetchFromISO =
+    view === "month"
+      ? toISODate(monthRange.from)
+      : view === "day"
+        ? dayISO
+        : fromISO;
   const fetchToISO =
-    view === "month" ? toISODate(monthRange.to) : workweekToISO;
-  const periodContextDays = view === "month" ? monthDays : weekDays;
+    view === "month"
+      ? toISODate(monthRange.to)
+      : view === "day"
+        ? dayISO
+        : workweekToISO;
+  const dayOnly = useMemo(() => [visibleDate], [visibleDate]);
+  const periodContextDays =
+    view === "month" ? monthDays : view === "day" ? dayOnly : weekDays;
   const periodContextDayISOs = useMemo(
     () => periodContextDays.map(toISODate),
     [periodContextDays],
@@ -389,6 +429,10 @@ function TimetablesContent() {
   );
   const monthLabel = useMemo(
     () => formatMonthLabel(visibleDate),
+    [visibleDate],
+  );
+  const dayLabel = useMemo(
+    () => formatFullDayLabel(visibleDate),
     [visibleDate],
   );
 
@@ -578,7 +622,19 @@ function TimetablesContent() {
     () => new Map(students.map((item) => [item.id, item.name])),
     [students],
   );
-  const calendarPeriods = useMemo(() => periods ?? [], [periods]);
+  const periodsReady =
+    status === "authenticated" &&
+    !periodsLoading &&
+    !periodsError &&
+    periods !== undefined;
+  const periodsPending =
+    status === "authenticated" && !periodsError && !periodsReady;
+  // Eine fehlende Antwort ist kein leerer Zeitraum. Erst nach erfolgreichem
+  // Laden dürfen Abdeckung und nicht planbare Tage daraus abgeleitet werden.
+  const calendarPeriods = useMemo(
+    () => (periodsReady ? periods : []),
+    [periods, periodsReady],
+  );
   const periodAssignments = useMemo(
     () => mapPeriodsForDates(calendarPeriods, periodContextDayISOs),
     [calendarPeriods, periodContextDayISOs],
@@ -587,16 +643,42 @@ function TimetablesContent() {
     () => uniqueAssignedPeriods(periodAssignments),
     [periodAssignments],
   );
+  const firstCoveredDateISO = periodAssignments.find(
+    (assignment) =>
+      assignment.period !== null &&
+      (view !== "month" ||
+        assignment.date.slice(0, 7) === dayISO.slice(0, 7)) &&
+      nextWorkdayISO(assignment.date) === assignment.date,
+  )?.date;
+  const planningDisabledDateISOs = useMemo(
+    () =>
+      new Set(
+        periodAssignments
+          .filter((assignment) => assignment.period === null)
+          .map((assignment) => assignment.date),
+      ),
+    [periodAssignments],
+  );
   const weekPeriodAssignments = useMemo(
     () => mapPeriodsForDates(calendarPeriods, weekDayISOs),
     [calendarPeriods, weekDayISOs],
   );
-  const weekHasFullPeriodCoverage = useMemo(
-    () =>
-      weekPeriodAssignments.length > 0 &&
-      weekPeriodAssignments.every((assignment) => assignment.period !== null),
-    [weekPeriodAssignments],
+  const weekPeriodCoverage = useMemo<PeriodCoverage>(() => {
+    const coveredDayCount = weekPeriodAssignments.filter(
+      (assignment) => assignment.period !== null,
+    ).length;
+    if (coveredDayCount === 0) return "none";
+    if (coveredDayCount === weekPeriodAssignments.length) return "full";
+    return "partial";
+  }, [weekPeriodAssignments]);
+  // Tagesansicht (#2621): der sichtbare Tag ist genau ein Datum, deshalb
+  // reicht ein direkter Blick in die Zeitraum-Zuordnung — und der Schließtag
+  // wird zum benennbaren Leerzustand statt zu einem stillen leeren Raster.
+  const dayHasPeriodCoverage = useMemo(
+    () => findPeriodForDate(calendarPeriods, dayISO) !== null,
+    [calendarPeriods, dayISO],
   );
+  const dayClosingReason = closingDays.get(dayISO) ?? null;
   // Der sichtbare Planungszeitraum: der Zeitraum, in den das sichtbare Datum
   // fällt. Speist Zeitraum-Chip, Bedarfsquellen-Chip und die Serienliste.
   const visiblePeriod = useMemo(
@@ -792,6 +874,31 @@ function TimetablesContent() {
     [visibleInstances, selectedInstanceId],
   );
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
+  const weekEmptyState = useMemo(() => {
+    if (instances.length > 0 || error) return undefined;
+    if (weekPeriodCoverage === "partial") {
+      return {
+        title: "Diese Woche hat noch keine Termine",
+        description: canManageSchedules
+          ? "Einige Tage sind nicht planbar. An den anderen Tagen können Sie Termine planen."
+          : "Für diese Woche ist noch nichts geplant. Geplant wird von den Admins Ihrer Schule.",
+      };
+    }
+    if (weekPeriodCoverage === "full") {
+      return {
+        title: "Diese Woche hat noch keine Termine",
+        description: canManageSchedules
+          ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
+          : "Für diese Woche ist noch nichts geplant.",
+      };
+    }
+    return {
+      title: "Diese Woche hat keinen Planungszeitraum",
+      description: canManageSchedules
+        ? "Legen Sie zuerst einen aktiven Planungszeitraum an."
+        : "Für diese Woche ist noch nichts geplant.",
+    };
+  }, [canManageSchedules, error, instances.length, weekPeriodCoverage]);
 
   // Legende der Planungsspuren als Fussband IM Raster (BAUARTEN-SPEC Teil 3:
   // auf dem gemusterten Grund steht kein Text).
@@ -1173,7 +1280,8 @@ function TimetablesContent() {
   // permission-dependent toolbar bits (view switcher, export, "Neu") stay
   // hidden until they resolve (hasPermission(undefined, …) is false while
   // loading).
-  const showSkeleton = status === "loading" || settingsSchemaLoading;
+  const showSkeleton =
+    status === "loading" || settingsSchemaLoading || periodsPending;
 
   if (!showSkeleton && timetableDisabled) {
     return (
@@ -1190,10 +1298,12 @@ function TimetablesContent() {
   const isOnToday =
     view === "series"
       ? true
-      : view === "week"
-        ? todayTargetISO >= fromISO && todayTargetISO <= workweekToISO
-        : visibleDate.getFullYear() === todayDate.getFullYear() &&
-          visibleDate.getMonth() === todayDate.getMonth();
+      : view === "day"
+        ? dayISO === todayTargetISO
+        : view === "week"
+          ? todayTargetISO >= fromISO && todayTargetISO <= workweekToISO
+          : visibleDate.getFullYear() === todayDate.getFullYear() &&
+            visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
 
   // Solange die Phasen laden, keine bestätigte Negativ-Aussage ("keine
@@ -1257,7 +1367,9 @@ function TimetablesContent() {
   // Feinjustage der Wochenansicht und erscheint nur dort; Drucken meint immer
   // die Woche, die gerade zu sehen ist.
   const menuItems: OverflowMenuEntry[] = [
-    ...(canManageSchedules && view === "week" ? densityMenuItems : []),
+    ...(canManageSchedules && (view === "week" || view === "day")
+      ? densityMenuItems
+      : []),
     ...(canManageSchedules ? hiddenConflictsMenuItems : []),
     ...(canManageSchedules && canExportBetreuungsplan
       ? [
@@ -1274,8 +1386,8 @@ function TimetablesContent() {
   // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
   // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
   // Berechtigung (403) bleibt es leer und der Hinweis führt zum Anlegen-Dialog.
-  const showEmptyPeriodState =
-    !periodsLoading && periods !== undefined && calendarPeriods.length === 0;
+  const showEmptyPeriodState = periodsReady && calendarPeriods.length === 0;
+  const periodLoadError = periodsError !== undefined;
 
   // Zeitraum, den die Fläche gerade zeigt: Überschrift der Zeitleiste und
   // erstes Stück der Statuszeile.
@@ -1286,7 +1398,9 @@ function TimetablesContent() {
         (visiblePeriod?.name ?? weekLabel)
       : view === "month"
         ? monthLabel
-        : weekLabel;
+        : view === "day"
+          ? dayLabel
+          : weekLabel;
 
   // Statuszeile der Kopfkarte: Zeitraum und die Zahlen, die die Fläche ohnehin
   // lädt. Vom Wochenlabel steht hier nur der Kopf ("KW 29"), weil die
@@ -1392,12 +1506,17 @@ function TimetablesContent() {
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
         }}
-        defaultDate={nextWorkdayISO(quickPrefill?.date ?? dayISO)}
+        defaultDate={
+          quickPrefill
+            ? nextWorkdayISO(quickPrefill.date)
+            : (firstCoveredDateISO ?? dayISO)
+        }
         closingDayRanges={closingDayRanges}
         closingDaysLoading={closingDaysLoading}
         weekFrom={fromISO}
         weekTo={workweekToISO}
         calendarPeriods={modalCalendarPeriods}
+        planningPeriods={calendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}
         initialInstance={editingInstance}
@@ -1507,6 +1626,7 @@ function TimetablesContent() {
             <TimetableAddMenu
               onAddInstance={openEventCreate}
               onAddSeries={openSeriesCreate}
+              disabled={!periodsReady || firstCoveredDateISO === undefined}
             />
           ) : (
             <StatusBadge
@@ -1526,22 +1646,26 @@ function TimetablesContent() {
           nextLabel="Weiter"
           onToday={showTodayButton ? goToToday : undefined}
           viewSwitcher={
-            // Leseansicht (#2283): nur die Woche — kein Umschalter.
-            canManageSchedules ? (
-              <SegmentedControl
-                ariaLabel="Ansicht"
-                value={viewToTab(view)}
-                onChange={(next) => setViewParam(next as ViewParam)}
-                items={[
-                  { value: "woche", label: "Woche" },
-                  { value: "monat", label: "Monat" },
-                  { value: "serien", label: "Serien" },
-                ]}
-              />
-            ) : undefined
+            // Tag und Woche stehen allen offen (#2621); Monat und Serien sind
+            // Planungsansichten und bleiben Planenden vorbehalten.
+            <SegmentedControl
+              ariaLabel="Ansicht"
+              value={viewToTab(view)}
+              onChange={(next) => setViewParam(next as ViewParam)}
+              items={[
+                { value: "tag", label: "Tag" },
+                { value: "woche", label: "Woche" },
+                ...(canManageSchedules
+                  ? [
+                      { value: "monat", label: "Monat" },
+                      { value: "serien", label: "Serien" },
+                    ]
+                  : []),
+              ]}
+            />
           }
         >
-          {calendarPeriods.length > 0 && (
+          {periodsReady && calendarPeriods.length > 0 && (
             <PeriodSwitcherDropdown
               periods={calendarPeriods}
               weekDays={periodContextDays}
@@ -1614,11 +1738,25 @@ function TimetablesContent() {
           : null
       }
     >
+      {periodLoadError && (
+        <Alert
+          type="error"
+          title="Planungszeiträume konnten nicht geladen werden"
+          message="Bitte laden Sie die Seite neu."
+        />
+      )}
+
       {canManageSchedules && shouldLoadInstances && (
         <ConflictWarningsBanner
           openConflicts={openConflicts}
           hiddenConflicts={hiddenConflicts}
-          periodLabel={view === "month" ? "in diesem Monat" : "diese Woche"}
+          periodLabel={
+            view === "month"
+              ? "in diesem Monat"
+              : view === "day"
+                ? "an diesem Tag"
+                : "diese Woche"
+          }
           onHide={handleHideConflict}
           onHideAll={handleHideAllConflicts}
           onUnhide={handleUnhideConflict}
@@ -1638,8 +1776,53 @@ function TimetablesContent() {
           instances={visibleInstances}
           todayISO={todayISO}
           closingDays={closingDays}
+          planningDisabledDateISOs={planningDisabledDateISOs}
           onDayClick={openWeekForDay}
           onInstanceClick={handleSelectInstance}
+        />
+      )}
+
+      {view === "day" && (
+        <WeeklyCalendarGrid
+          legend={planningTrackLegendNode}
+          weekDays={dayOnly}
+          instances={visibleInstances}
+          selectedId={selectedInstanceId}
+          onInstanceClick={handleSelectInstance}
+          onSlotClick={canManageSchedules ? openQuickCreate : undefined}
+          gapInstanceIds={gapInstanceIds}
+          planningDisabledDateISOs={planningDisabledDateISOs}
+          closingDays={closingDays}
+          todayISO={todayISO}
+          dayStartHour={dayStartHour}
+          dayEndHour={dayEndHour}
+          hourHeightPx={hourHeightPx}
+          showDayHeader
+          emptyState={
+            instances.length === 0 && !error
+              ? {
+                  // Der Schließtag ist der stärkste Grund und steht
+                  // deshalb vorn. Ohne Planungsrecht sagt der Text
+                  // nicht "Planungszeitraum": das ist ein Begriff aus
+                  // der Planung und für Lesende keine Auskunft.
+                  title: dayClosingReason
+                    ? "Schließtag"
+                    : dayHasPeriodCoverage || !canManageSchedules
+                      ? "An diesem Tag ist nichts geplant"
+                      : "Dieser Tag hat keinen Planungszeitraum",
+                  description: dayClosingReason
+                    ? `Die Betreuung entfällt: ${dayClosingReason}`
+                    : // Leseansicht (#2283): keine Handlungs-
+                      // aufforderung an Leute, die nicht planen dürfen
+                      // — stattdessen, wer den Tag plant.
+                      canManageSchedules
+                      ? dayHasPeriodCoverage
+                        ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
+                        : "Legen Sie zuerst einen aktiven Planungszeitraum an."
+                      : "Geplant wird von den Admins Ihrer Schule.",
+                }
+              : undefined
+          }
         />
       )}
 
@@ -1652,28 +1835,14 @@ function TimetablesContent() {
           onInstanceClick={handleSelectInstance}
           onSlotClick={canManageSchedules ? openQuickCreate : undefined}
           gapInstanceIds={gapInstanceIds}
+          planningDisabledDateISOs={planningDisabledDateISOs}
           closingDays={closingDays}
           todayISO={todayISO}
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
           hourHeightPx={hourHeightPx}
           showDayHeader
-          emptyState={
-            instances.length === 0 && !error
-              ? {
-                  title: weekHasFullPeriodCoverage
-                    ? "Diese Woche hat noch keine Termine"
-                    : "Diese Woche hat keinen Planungszeitraum",
-                  // Leseansicht (#2283): keine Handlungsaufforderung
-                  // an Leute, die nicht planen dürfen.
-                  description: canManageSchedules
-                    ? weekHasFullPeriodCoverage
-                      ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                      : "Lege zuerst einen aktiven Planungszeitraum an."
-                    : "Für diese Woche ist noch nichts geplant.",
-                }
-              : undefined
-          }
+          emptyState={weekEmptyState}
         />
       )}
 

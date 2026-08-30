@@ -196,7 +196,7 @@ export function PushNotificationSection({
     setError(null);
     setMessage(null);
     try {
-      await sendTestNotification();
+      await sendTestNotification(portal === "school" ? "school" : "tenant");
       setMessage(t("testSent"));
     } catch (err) {
       logger.error("test_notification_failed", {
@@ -270,7 +270,7 @@ export function PushNotificationSection({
     ) : null;
 
   const testAction =
-    state === "subscribed" && portal === "tenant" ? (
+    state === "subscribed" && portal !== "parent" ? (
       <Button
         type="button"
         variant="surface"

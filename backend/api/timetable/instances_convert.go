@@ -117,6 +117,7 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 	{
 		Match: func(err error) bool {
 			return errors.Is(err, scheduleSvc.ErrInstanceWeekend) ||
+				errors.Is(err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod) ||
 				errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid) ||
 				errors.Is(err, scheduleSvc.ErrTemplateTargetGradeExceedsLimit)
 		},

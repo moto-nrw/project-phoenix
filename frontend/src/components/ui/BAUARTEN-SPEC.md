@@ -231,12 +231,12 @@ Datenverwaltung, die Register als Reiter an den Sammlungen, der Sammelreiter
 Ein Begriff, ein Wort, überall gleich: Seitenleiste, Brotkrume, Seitentitel,
 Knopf, Hilfe, E-Mail. Verbindlich:
 
-| Statt | Ab jetzt |
-|---|---|
-| „Alle Kinder" / „Kindersuche" / „Kinder" | **Kinder** |
-| „Mitarbeiter" / „Personal" / „Lehrkräfte" | **Mitarbeitende** |
-| „Betreuungsangebote" | **Angebote** (im Bereich Anmeldungen) |
-| „Tagesauswertung" | **Tagesbericht** |
+| Statt                                     | Ab jetzt                              |
+| ----------------------------------------- | ------------------------------------- |
+| „Alle Kinder" / „Kindersuche" / „Kinder"  | **Kinder**                            |
+| „Mitarbeiter" / „Personal" / „Lehrkräfte" | **Mitarbeitende**                     |
+| „Betreuungsangebote"                      | **Angebote** (im Bereich Anmeldungen) |
+| „Tagesauswertung"                         | **Tagesbericht**                      |
 
 Zwei sichtbare Namen teilen keinen Wortstamm ohne sichtbare Abgrenzung.
 Der Wortstamm „Betreuungs-" darf nur noch EINMAL als Navigationsname
@@ -298,10 +298,10 @@ läuft über die volle Kartenbreite; der aktive Reiter färbt nur sein Stück da
 grün ein (`border-b-[3px]`, `text-base`, `pb-3`, Abstand untereinander `gap-6`).
 Zwei Gründe:
 
-- *Abstände.* Trägt nur der aktive Reiter einen Strich, richtet sich die Zeile
+- _Abstände._ Trägt nur der aktive Reiter einen Strich, richtet sich die Zeile
   an etwas aus, das den übrigen fehlt: unter deren Text steht fast doppelt so
   viel Luft. Mit der Linie am Band sind alle Reiter gleich hohe Kästen.
-- *Verständlichkeit.* Die Linie verbindet den Reiter sichtbar mit dem Inhalt
+- _Verständlichkeit._ Die Linie verbindet den Reiter sichtbar mit dem Inhalt
   darunter. Eine getönte Pille oder eine geschlossene Segment-Spur sagt das
   nicht — beide lesen sich als „wähle einen Wert", nicht als „wechsle die
   Ansicht". Genau daran scheiterten die ersten beiden Fassungen.

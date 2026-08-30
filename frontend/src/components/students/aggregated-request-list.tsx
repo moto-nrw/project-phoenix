@@ -1,104 +1,86 @@
 "use client";
 
 /**
- * Aggregierte Eltern-Anfragenliste (#2432): EINE Liste über alle vier
- * Anfragearten (Stammdaten, Betreuungszeiten, Angebote, Abwesenheiten)
- * statt vier gestapelter Abschnitte. Suche und Filter wirken serverseitig;
- * nachgeladen wird über den Keyset-Cursor des Aggregations-Endpunkts.
+ * Aggregierte Eltern-Anfragenliste (#2432, umgebaut in #2267): EINE Liste
+ * über alle Anfragearten statt vier gestapelter Abschnitte.
  *
- * Die Komponente rendert je nach `view` entweder entscheidbare Karten (die
- * bestehenden Entscheiden-Abläufe leben in den per-Art-Item-Komponenten)
- * oder die read-only Historie-Karten. Der Aufrufer remountet sie beim
- * Umschalten Offen ↔ Historie (key={view}), wie zuvor die Einzelsektionen.
+ * Seit #2267 ist die offene Arbeitsliste zweigeteilt: links die Kinder mit
+ * offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf schmalen
+ * Geräten ersetzt der Detailbereich die Liste; „Zur Liste" bringt Blick und
+ * Tastatur genau dorthin zurück, wo sie waren.
+ *
+ * Bewusst NICHT über components/database/master-detail-layout.tsx gebaut: das
+ * legt den Detailbereich auf schmalen Geräten in eine Schublade (die Vorgabe
+ * verlangt ein echtes Ersetzen) und friert Höhen auf 100dvh ein, was bei
+ * 200 % Zoom zu abgeschnittenen Inhalten führt.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { TrayIcon } from "@phosphor-icons/react/ssr";
-
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { CareExitModal } from "~/components/students/care-exit-modal";
-import { CareRequestReviewItem } from "~/components/students/care-request-review-item";
-import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
-import { ExcusedRequestReviewItem } from "~/components/students/excused-request-review-item";
-import { MasterDataReviewItem } from "~/components/students/master-data-review-item";
-import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
-import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
-import { RequestHistoryItem } from "~/components/students/request-history-item";
-import {
-  RequestReviewCard,
-  RequestRowHeader,
-} from "~/components/students/request-review-card";
-import { StatusBadge } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
+import { useViewportAtLeast } from "~/lib/hooks/use-viewport-at-least";
+import { useReturnFocus } from "~/lib/hooks/use-return-focus";
 import { createLogger } from "~/lib/logger";
+import { useTenantSafe } from "~/lib/tenant-context";
+import { staffReasonRequired } from "~/lib/tenant-api";
+import type { CareWithdrawalCompletion } from "~/lib/care-exit-api";
 import {
-  fetchCareWithdrawals,
-  type CareWithdrawalCompletion,
-} from "~/lib/care-exit-api";
-import {
-  type AggregatedHistoryRequest,
+  bulkApproveParentRequests,
+  ChangeRequestStaleError,
   type AggregatedOpenRequest,
-  type AggregatedRequestParams,
-  type AggregatedRequestStatus,
-  type AggregatedRequestType,
-  listAggregatedOpenRequests,
-  listAggregatedRequestHistory,
-  listEnrollmentChangeRequests,
+  type BulkApproveRequestRef,
+  type ParentRequestKind,
+  type RequestReviewAccess,
 } from "~/lib/change-request-list-api";
 import {
-  createFeedState,
-  takeMergedPage,
-  type FeedSource,
-} from "~/lib/request-feed";
+  bucketCases,
+  groupOpenCases,
+  hasReviewMetadata,
+  itemKey,
+  type OpenCase,
+} from "~/components/students/requests/case-model";
+import {
+  BulkApprovalPanel,
+  BulkConfirmationDialog,
+} from "~/components/students/requests/bulk-approval-panel";
+import { HistoryRequestList } from "~/components/students/requests/history-request-list";
+import { RequestCaseDetail } from "~/components/students/requests/request-case-detail";
+import {
+  RequestCaseList,
+  caseRowID,
+} from "~/components/students/requests/request-case-list";
+import {
+  NoCaseSelectedState,
+  RequestEmptyState,
+} from "~/components/students/requests/request-empty-states";
+import { STALE_REQUEST_NOTICE } from "~/components/students/requests/request-copy";
+import {
+  useMergedRequestFeed,
+  useRequestSources,
+  useWithdrawalFeed,
+} from "~/components/students/requests/use-request-feed";
+import { useWithdrawalDialogs } from "~/components/students/requests/withdrawal-cards";
+
+export type { AggregatedRequestFilters } from "~/components/students/requests/filters";
+import type { AggregatedRequestFilters } from "~/components/students/requests/filters";
 
 const logger = createLogger({ component: "AggregatedRequestList" });
-const WITHDRAWAL_PAGE_SIZE = 100;
 
-export interface AggregatedRequestFilters {
-  readonly search: string;
-  /**
-   * Nur die Einträge dieses Kindes — das Änderungsprotokoll der Kinderkartei
-   * (#2437). Ohne Angabe: alle Kinder, die die Person sehen darf.
-   */
-  readonly studentId?: string;
-  /**
-   * Darf der Aggregator über die vier Kinderdaten-Arten abgefragt werden? Er
-   * verlangt users:update oder users:absence; wer nur Anmeldungsänderungen
-   * entscheidet, bekäme sonst für die ganze Liste einen 403. Ohne Angabe ja —
-   * er ist die Hauptquelle der Liste.
-   */
-  readonly includeAggregated?: boolean;
-  /**
-   * Dürfen Anmeldungsänderungen mitgeladen werden? Sie hängen an config:manage
-   * und kommen aus einem eigenen Endpunkt; ohne das Recht bleibt die Quelle
-   * weg, statt der Seite einen 403 einzuhandeln.
-   */
-  readonly includeEnrollment?: boolean;
-  /** Offene Komplett-Abmeldungen; verlangt users:delete. */
-  readonly includeCareWithdrawals?: boolean;
-  /** Leer = alle Arten. */
-  readonly types: readonly AggregatedRequestType[];
-  /** Nur Historie; leer = alle Status. */
-  readonly statuses: readonly AggregatedRequestStatus[];
-  /** Nur Historie, YYYY-MM-DD. */
-  readonly from?: string;
-  /** Nur Historie, YYYY-MM-DD. */
-  readonly to?: string;
+/** Ab dieser Breite stehen Liste und Detailbereich nebeneinander. */
+const SPLIT_VIEW_MIN_WIDTH = 1024;
+
+function bulkRef(item: AggregatedOpenRequest): BulkApproveRequestRef[] {
+  if (!hasReviewMetadata(item)) return [];
+  return [
+    {
+      kind: item.request_type as ParentRequestKind,
+      id: String(item.data.id),
+      expected_version: item.expected_version,
+    },
+  ];
 }
-
-type AnyItem = AggregatedOpenRequest | AggregatedHistoryRequest;
-
-function itemKey(item: AnyItem): string {
-  return `${item.request_type}:${item.data.id}`;
-}
-
-/** Wie viele Zeilen eine Seite der zusammengeführten Liste zeigt. */
-const PAGE_SIZE = 25;
 
 export function AggregatedRequestList({
   view,
@@ -110,216 +92,59 @@ export function AggregatedRequestList({
   /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
   onCountChange?: (count: number | null, hasMore: boolean) => void;
 }>) {
-  const [items, setItems] = useState<AnyItem[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [withdrawals, setWithdrawals] = useState<CareWithdrawalCompletion[]>(
-    [],
+  // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
+  // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
+  // strengste Fassung — lieber einmal zu viel begründen als zu wenig.
+  const tenant = useTenantSafe();
+  const reasonRequired = staffReasonRequired(
+    tenant?.tenant?.parentRequestReasonPolicy,
   );
-  const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
-  const [careExitWithdrawal, setCareExitWithdrawal] =
-    useState<CareWithdrawalCompletion | null>(null);
-  const [deletionWithdrawal, setDeletionWithdrawal] =
-    useState<CareWithdrawalCompletion | null>(null);
-  const [deletionWarningWithdrawal, setDeletionWarningWithdrawal] =
-    useState<CareWithdrawalCompletion | null>(null);
+  const [reviewAccess, setReviewAccess] = useState<
+    RequestReviewAccess | undefined
+  >(undefined);
+  const sources = useRequestSources(view, filters, setReviewAccess);
+  const feed = useMergedRequestFeed(sources, view);
+  const { items, setItems, hasMore, loading, loadingMore, error, setError } =
+    feed;
+  const withdrawalsFeed = useWithdrawalFeed(view, filters, setError);
+  const {
+    items: withdrawals,
+    setItems: setWithdrawals,
+    loading: withdrawalsLoading,
+    loadingMore: withdrawalsLoadingMore,
+    hasMore: withdrawalsHaveMore,
+    load: loadWithdrawals,
+    loadMore: loadMoreWithdrawals,
+  } = withdrawalsFeed;
+  const [notice, setNotice] = useState<string | null>(null);
+  const [staleNotice, setStaleNotice] = useState<string | null>(null);
+  const [selectedCaseKey, setSelectedCaseKey] = useState<string | null>(null);
+  const [selectedForBulk, setSelectedForBulk] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const wide = useViewportAtLeast(SPLIT_VIEW_MIN_WIDTH);
+  const returnFocus = useReturnFocus();
   // Set while THIS list dispatches change-requests-refresh so its own listener
-  // (below) doesn't refetch — it already removed the decided row optimistically.
-  // dispatchEvent is synchronous, so the flag only has to cover that one call.
+  // doesn't refetch — it already removed the decided row optimistically.
   const suppressSelfReloadRef = useRef(false);
-  const withdrawalGenerationRef = useRef(0);
-
-  // Die Quellen des Reiters: der Aggregator über die vier users:update-Arten
-  // und — mit config:manage — die Anmeldungsänderungen aus ihrem eigenen
-  // Endpunkt. Beide liefern nach Zeitpunkt sortierte Seiten; zusammengeführt
-  // wird in request-feed.
-  const sources = useMemo<FeedSource<AnyItem>[]>(() => {
-    const params: AggregatedRequestParams = {
-      search: filters.search,
-      studentId: filters.studentId,
-      ...(view === "history"
-        ? { statuses: filters.statuses, from: filters.from, to: filters.to }
-        : {}),
-    };
-    const wantsType = (type: AggregatedRequestType) =>
-      filters.types.length === 0 || filters.types.includes(type);
-    // Der Aggregator kennt die Anmeldungen nicht: seine Art-Liste kommt ohne
-    // sie, und ist NUR sie gewählt, wird er gar nicht erst gefragt (er würde
-    // die unbekannte Art mit 400 abweisen).
-    const aggregatedTypes = filters.types.filter(
-      (type) => type !== "enrollment" && type !== "care_withdrawal",
-    );
-    const built: FeedSource<AnyItem>[] = [];
-    if (
-      filters.includeAggregated !== false &&
-      (filters.types.length === 0 || aggregatedTypes.length > 0)
-    ) {
-      const aggregatedParams: AggregatedRequestParams = {
-        ...params,
-        types: aggregatedTypes,
-      };
-      built.push({
-        key: "aggregated",
-        fetchPage: (cursor) =>
-          view === "history"
-            ? listAggregatedRequestHistory({ ...aggregatedParams, cursor })
-            : listAggregatedOpenRequests({ ...aggregatedParams, cursor }),
-      });
-    }
-    if (filters.includeEnrollment && wantsType("enrollment")) {
-      built.push({
-        key: "enrollment",
-        fetchPage: (cursor) =>
-          listEnrollmentChangeRequests(view, { ...params, cursor }),
-      });
-    }
-    return built;
-  }, [view, filters]);
-
-  // Der Lesezustand je Quelle (Puffer + Cursor) lebt außerhalb des Renders:
-  // „Weitere Einträge laden" macht genau dort weiter, wo jede Quelle stand.
-  const feedRef = useRef(createFeedState<AnyItem>(sources));
-  // Jede Neu-Ladung erhält einen eigenen Zustand. Antworten einer älteren
-  // Ladung dürfen weder die sichtbare Liste noch den Cursor des neuen Feeds
-  // verändern.
-  const feedGenerationRef = useRef(0);
-  const feedLoadingRef = useRef(false);
-  const loadMoreInFlightRef = useRef(false);
-
-  const loadFirstPage = useCallback(() => {
-    const feed = createFeedState<AnyItem>(sources);
-    const generation = ++feedGenerationRef.current;
-    feedRef.current = feed;
-    feedLoadingRef.current = true;
-    return {
-      generation,
-      page: takeMergedPage(sources, feed, PAGE_SIZE).finally(() => {
-        if (generation === feedGenerationRef.current) {
-          feedLoadingRef.current = false;
-        }
-      }),
-    };
-  }, [sources]);
-
-  // Erste Seite laden — auch bei jeder Such-/Filteränderung (fetchPage wechselt
-  // die Identität), dann ersetzt die Antwort die Liste komplett.
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    const { generation, page } = loadFirstPage();
-    page
-      .then((page) => {
-        if (cancelled || generation !== feedGenerationRef.current) return;
-        setItems(page.items);
-        setHasMore(page.hasMore);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled || generation !== feedGenerationRef.current) return;
-        const message = err instanceof Error ? err.message : String(err);
-        logger.warn("aggregated_request_list_load_failed", { error: message });
-        setError("Anfragen konnten nicht geladen werden.");
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadFirstPage]);
-
-  const loadWithdrawals = useCallback(async () => {
-    const generation = ++withdrawalGenerationRef.current;
-    const selected = filters.types;
-    const typeMatches =
-      selected.length === 0 || selected.includes("care_withdrawal");
-    if (!filters.includeCareWithdrawals || !typeMatches) {
-      setWithdrawals([]);
-      return;
-    }
-    try {
-      const items: CareWithdrawalCompletion[] = [];
-      let pageNumber = 1;
-      let total = 0;
-      do {
-        const page = await fetchCareWithdrawals({
-          search: filters.search,
-          studentId: filters.studentId,
-          page: pageNumber,
-          pageSize: WITHDRAWAL_PAGE_SIZE,
-          ...(view === "history" ? { state: "resolved" as const } : {}),
-        });
-        items.push(...page.items);
-        total = page.total;
-        if (page.items.length === 0) break;
-        pageNumber += 1;
-      } while (items.length < total);
-      if (generation === withdrawalGenerationRef.current) {
-        setWithdrawals(items);
-      }
-    } catch (err: unknown) {
-      if (generation !== withdrawalGenerationRef.current) return;
-      logger.warn("care_withdrawal_list_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError("Abmeldungen konnten nicht geladen werden.");
-    }
-  }, [
-    filters.includeCareWithdrawals,
-    filters.search,
-    filters.studentId,
-    filters.types,
-    view,
-  ]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setWithdrawalsLoading(filters.includeCareWithdrawals === true);
-    void loadWithdrawals().finally(() => {
-      if (!cancelled) setWithdrawalsLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [filters.includeCareWithdrawals, loadWithdrawals, view]);
-
-  // Refetch ohne Spinner, wenn eine Entscheidung anderswo fällt: Entscheidungen
-  // in diesem Fenster senden change-requests-refresh, Entscheidungen anderswo
-  // kommen als SSE-abgeleitetes messages-unread-refresh bzw. beim Fokuswechsel
-  // an. Nur die offene Arbeitsliste braucht das — die Historie mountet beim
-  // Umschalten frisch.
-  const reloadInPlace = useCallback(async () => {
-    const { generation, page } = loadFirstPage();
-    try {
-      const result = await page;
-      if (generation !== feedGenerationRef.current) return;
-      setItems(result.items);
-      setHasMore(result.hasMore);
-      setLoading(false);
-    } catch (err) {
-      if (generation !== feedGenerationRef.current) return;
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn("aggregated_request_list_reload_failed", { error: message });
-      setLoading(false);
-    }
-  }, [loadFirstPage]);
 
   useEffect(() => {
     if (view !== "open") return;
     const handler = () => {
       if (suppressSelfReloadRef.current) return;
-      void reloadInPlace();
+      void feed.reload();
       void loadWithdrawals();
     };
     const onFocus = () => {
-      void reloadInPlace();
+      void feed.reload();
       void loadWithdrawals();
     };
     const onVisibility = () => {
       if (typeof document !== "undefined" && !document.hidden) {
-        void reloadInPlace();
+        void feed.reload();
         void loadWithdrawals();
       }
     };
@@ -333,44 +158,121 @@ export function AggregatedRequestList({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [view, reloadInPlace, loadWithdrawals]);
+  }, [view, feed, loadWithdrawals]);
 
-  const loadMore = useCallback(async () => {
-    if (!hasMore || feedLoadingRef.current || loadMoreInFlightRef.current)
-      return;
-    const generation = feedGenerationRef.current;
-    const feed = feedRef.current;
-    loadMoreInFlightRef.current = true;
-    setLoadingMore(true);
+  const handleDecided = useCallback(
+    (key: string, decidedNotice: string) => {
+      setItems((prev) => prev.filter((item) => itemKey(item) !== key));
+      setSelectedForBulk((current) => {
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+      suppressSelfReloadRef.current = true;
+      window.dispatchEvent(new Event("change-requests-refresh"));
+      suppressSelfReloadRef.current = false;
+      setNotice(decidedNotice);
+    },
+    [setItems],
+  );
+
+  // Eine Anfrage wurde zwischenzeitlich geändert: die Zeile bleibt stehen und
+  // wird neu geladen, statt eine Entscheidung vorzutäuschen, die nicht galt.
+  const handleStale = useCallback(() => {
+    setStaleNotice(STALE_REQUEST_NOTICE);
+    void feed.reload();
+  }, [feed]);
+
+  const openCases = useMemo(
+    () => (view === "open" ? groupOpenCases(items, withdrawals) : []),
+    [items, view, withdrawals],
+  );
+  const buckets = useMemo(() => bucketCases(openCases), [openCases]);
+
+  // Auswahl aufheben, sobald das Kind keine offenen Anfragen mehr hat.
+  useEffect(() => {
+    if (
+      selectedCaseKey !== null &&
+      !openCases.some((childCase) => childCase.key === selectedCaseKey)
+    ) {
+      setSelectedCaseKey(null);
+    }
+  }, [openCases, selectedCaseKey]);
+
+  const selectedCase =
+    openCases.find((childCase) => childCase.key === selectedCaseKey) ??
+    // In der breiten Ansicht steht rechts das erste Kind, solange nichts
+    // gewählt ist: eine leere halbe Seite hilft niemandem.
+    (wide && selectedCaseKey === null ? openCases[0] : undefined);
+
+  const selectCase = useCallback(
+    (childCase: OpenCase) => {
+      returnFocus.remember(caseRowID(childCase.key));
+      setSelectedCaseKey(childCase.key);
+      setNotice(null);
+      setStaleNotice(null);
+    },
+    [returnFocus],
+  );
+
+  const backToList = useCallback(() => {
+    setSelectedCaseKey(null);
+    returnFocus.restore();
+  }, [returnFocus]);
+
+  const selectedBulkItems = useMemo(
+    () =>
+      items.filter(
+        (item): item is AggregatedOpenRequest =>
+          view === "open" && selectedForBulk.has(itemKey(item)),
+      ),
+    [items, selectedForBulk, view],
+  );
+
+  const confirmBulkApproval = useCallback(async () => {
+    const refs = selectedBulkItems.flatMap(bulkRef);
+    setBulkSaving(true);
     setError(null);
     try {
-      const page = await takeMergedPage(sources, feed, PAGE_SIZE);
-      if (generation !== feedGenerationRef.current) return;
-      setItems((prev) => [...prev, ...page.items]);
-      setHasMore(page.hasMore);
-    } catch (err) {
-      if (generation !== feedGenerationRef.current) return;
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn("aggregated_request_list_load_more_failed", {
-        error: message,
+      const count = await bulkApproveParentRequests(refs, bulkReason.trim());
+      const selectedKeys = new Set(selectedForBulk);
+      setItems((current) =>
+        current.filter((item) => !selectedKeys.has(itemKey(item))),
+      );
+      setSelectedForBulk(new Set());
+      setBulkReason("");
+      setBulkConfirmOpen(false);
+      setNotice(`${count} Anfragen wurden freigegeben.`);
+      suppressSelfReloadRef.current = true;
+      window.dispatchEvent(new Event("change-requests-refresh"));
+      suppressSelfReloadRef.current = false;
+    } catch (err: unknown) {
+      logger.warn("parent_request_bulk_approval_failed", {
+        error: err instanceof Error ? err.message : String(err),
       });
-      setError("Weitere Anfragen konnten nicht geladen werden.");
+      setBulkConfirmOpen(false);
+      if (err instanceof ChangeRequestStaleError) {
+        setStaleNotice(err.message);
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Die Anfragen konnten nicht gemeinsam freigegeben werden.",
+        );
+      }
+      await feed.reload();
     } finally {
-      loadMoreInFlightRef.current = false;
-      setLoadingMore(false);
+      setBulkSaving(false);
     }
-  }, [sources, hasMore]);
-
-  // Nach einer Entscheidung: Zeile entfernen, Hinweis zeigen und das
-  // Badge/die Geschwister-Ansichten über change-requests-refresh anstoßen.
-  // Der eigene Listener ist währenddessen unterdrückt — die Zeile ist schon weg.
-  const handleDecided = useCallback((key: string, decidedNotice: string) => {
-    setItems((prev) => prev.filter((item) => itemKey(item) !== key));
-    suppressSelfReloadRef.current = true;
-    window.dispatchEvent(new Event("change-requests-refresh"));
-    suppressSelfReloadRef.current = false;
-    setNotice(decidedNotice);
-  }, []);
+  }, [
+    bulkReason,
+    feed,
+    selectedBulkItems,
+    selectedForBulk,
+    setError,
+    setItems,
+  ]);
 
   const handleWithdrawalFinished = useCallback(
     (row: CareWithdrawalCompletion, deleted = false) => {
@@ -380,7 +282,35 @@ export function AggregatedRequestList({
       );
       window.dispatchEvent(new Event("change-requests-refresh"));
     },
-    [],
+    [setWithdrawals],
+  );
+  const withdrawalDialogs = useWithdrawalDialogs(handleWithdrawalFinished);
+
+  const handleBulkSelection = useCallback((key: string, checked: boolean) => {
+    setSelectedForBulk((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const handleProtectionChanged = useCallback(
+    (studentID: string, enabled: boolean) => {
+      setItems((current) =>
+        current.map((item) =>
+          "student_id" in item && item.student_id === studentID
+            ? { ...item, family_protected: enabled }
+            : item,
+        ),
+      );
+      setNotice(
+        enabled
+          ? "Der Familienschutz ist jetzt aktiv."
+          : "Der Familienschutz ist jetzt aus.",
+      );
+    },
+    [setItems],
   );
 
   const visibleWithdrawals =
@@ -415,7 +345,6 @@ export function AggregatedRequestList({
 
   // filters.studentId zählt bewusst NICHT als aktiver Filter: im
   // Änderungsprotokoll eines Kindes ist es der Kontext, kein Suchkriterium.
-  // "Keine Treffer für Suche und Filter" wäre dort nur verwirrend.
   const hasActiveFilters =
     filters.search.trim() !== "" ||
     filters.types.length > 0 ||
@@ -423,240 +352,102 @@ export function AggregatedRequestList({
     Boolean(filters.from) ||
     Boolean(filters.to);
 
+  const showList = view === "open" && (wide || selectedCase === undefined);
+  const showDetail = view === "open" && (wide || selectedCase !== undefined);
+
   return (
     <div className="space-y-3">
       {error && <Alert type="error" message={error} />}
+      {staleNotice && <Alert type="warning" message={staleNotice} />}
       {notice && <Alert type="success" message={notice} />}
       {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
-        <EmptyState
-          icon={<TrayIcon size={32} aria-hidden="true" />}
-          // Die Quellen durchsuchen je Abruf nur ein Stück der Historie. Sind
-          // noch ältere Seiten da, wäre „noch nichts entschieden“ schlicht
-          // falsch — dann sagt der Text, dass weitergesucht werden kann.
-          title={
-            hasMore
-              ? "Hier ist noch nichts gefunden."
-              : view === "open"
-                ? "Keine offenen Anfragen."
-                : "Noch keine entschiedenen Anfragen."
-          }
-          description={
-            hasMore
-              ? "Ältere Einträge sind noch nicht geladen. Mit „Weitere Einträge laden“ weitersuchen."
-              : hasActiveFilters
-                ? "Für die aktuelle Suche und Filter gibt es keine Treffer."
-                : undefined
-          }
-          variant="compact"
+        <RequestEmptyState
+          view={view}
+          hasMore={hasMore}
+          hasActiveFilters={hasActiveFilters}
+          reviewAccess={reviewAccess}
         />
-      ) : (
-        // Eine gemeinsame Fläche mit Spaltenkopf statt gestapelter Karten: so
-        // richten sich die Zeilen aneinander aus und lesen sich als Tabelle.
-        <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-          <RequestRowHeader view={view} />
-          {view === "open"
-            ? visibleWithdrawals.map((row) => {
-                const name = `${row.firstName} ${row.lastName}`.trim();
-                const overdue = row.urgency === "overdue";
-                return (
-                  <RequestReviewCard
-                    key={`care_withdrawal:${row.id}`}
-                    type="care_withdrawal"
-                    typeLabel="Abmeldung"
-                    childName={name}
-                    summary={`Keine Betreuungstage ab ${formatDate(row.firstBookinglessDay)}`}
-                    badge={
-                      <StatusBadge
-                        tone={overdue ? "red" : "orange"}
-                        label={overdue ? "Überfällig" : "Geplant"}
-                      />
-                    }
-                    history={{
-                      kind: "readonly",
-                      label: overdue ? "Überfällig" : "Geplant",
-                      tone: overdue ? "red" : "orange",
-                    }}
-                    action={
-                      <div className="flex flex-wrap gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => setCareExitWithdrawal(row)}
-                        >
-                          Betreuung beenden
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="compact"
-                          onClick={() => setDeletionWarningWithdrawal(row)}
-                        >
-                          Kind sofort löschen
-                        </Button>
-                      </div>
-                    }
-                  >
-                    <p className="text-sm text-gray-600">
-                      Für dieses Kind ist kein Betreuungstag mehr gebucht.
-                      Beenden Sie jetzt die Betreuung.
-                    </p>
-                  </RequestReviewCard>
-                );
-              })
-            : null}
-          {view === "history"
-            ? visibleWithdrawals.map((row) => {
-                const deleted = row.outcome === "deleted";
-                return (
-                  <RequestReviewCard
-                    key={`care_withdrawal:${row.id}`}
-                    type="care_withdrawal"
-                    typeLabel="Abmeldung"
-                    childName={
-                      deleted || row.studentId === ""
-                        ? "Gelöschtes Kind"
-                        : `${row.firstName} ${row.lastName}`.trim()
-                    }
-                    summary={
-                      deleted ? "Kind sofort gelöscht" : "Betreuung beendet"
-                    }
-                    badge={
-                      <StatusBadge
-                        tone="gray"
-                        label={deleted ? "Gelöscht" : "Abgeschlossen"}
-                      />
-                    }
-                    history={{
-                      kind: "readonly",
-                      label: deleted ? "Gelöscht" : "Abgeschlossen",
-                      tone: "gray",
-                    }}
-                  >
-                    {row.resolvedAt ? (
-                      <p className="text-sm text-gray-600">
-                        Erledigt am {formatDate(row.resolvedAt)}
-                      </p>
-                    ) : null}
-                  </RequestReviewCard>
-                );
-              })
-            : null}
-          {items.map((item) => {
-            const key = itemKey(item);
-            // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:
-            // Entschieden wird in der Detailansicht, hierhin verlinkt sie nur.
-            if (item.request_type === "enrollment") {
-              return (
-                <EnrollmentRequestItem key={key} row={item.data} view={view} />
-              );
-            }
-            if (view === "history") {
-              return (
-                <RequestHistoryItem
-                  key={key}
-                  item={item as AggregatedHistoryRequest}
+      ) : view === "open" ? (
+        <>
+          <BulkApprovalPanel
+            count={selectedBulkItems.length}
+            reason={bulkReason}
+            setReason={setBulkReason}
+            reasonRequired={reasonRequired}
+            open={() => setBulkConfirmOpen(true)}
+          />
+          <div className="grid gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
+            {showList && (
+              <RequestCaseList
+                buckets={buckets}
+                selectedKey={selectedCase?.key ?? null}
+                onSelect={selectCase}
+              />
+            )}
+            {showDetail &&
+              (selectedCase ? (
+                <RequestCaseDetail
+                  key={selectedCase.key}
+                  childCase={selectedCase}
+                  canManageFamilyProtection={Boolean(
+                    filters.canManageFamilyProtection,
+                  )}
+                  reasonRequired={reasonRequired}
+                  selected={selectedForBulk}
+                  narrow={!wide}
+                  onBackToList={backToList}
+                  onSelectionChange={handleBulkSelection}
+                  onDecided={handleDecided}
+                  onProtectionChanged={handleProtectionChanged}
+                  onReload={handleStale}
+                  onNotice={setNotice}
+                  finishWithdrawal={withdrawalDialogs.finishWithdrawal}
+                  removeWithdrawal={withdrawalDialogs.removeWithdrawal}
                 />
-              );
-            }
-            const open = item as AggregatedOpenRequest;
-            const onDecided = (decidedNotice: string) =>
-              handleDecided(key, decidedNotice);
-            switch (open.request_type) {
-              case "master_data":
-                return (
-                  <MasterDataReviewItem
-                    key={key}
-                    row={open.data}
-                    onDecided={onDecided}
-                  />
-                );
-              case "care_schedule":
-                return (
-                  <CareRequestReviewItem
-                    key={key}
-                    row={open.data}
-                    onDecided={onDecided}
-                  />
-                );
-              case "offering":
-                return (
-                  <OfferingRequestReviewItem
-                    key={key}
-                    row={open.data}
-                    onDecided={onDecided}
-                  />
-                );
-              case "excused":
-                return (
-                  <ExcusedRequestReviewItem
-                    key={key}
-                    row={open.data}
-                    onDecided={onDecided}
-                  />
-                );
-            }
-          })}
-        </div>
+              ) : (
+                <NoCaseSelectedState />
+              ))}
+          </div>
+        </>
+      ) : (
+        <HistoryRequestList
+          items={items}
+          withdrawals={visibleWithdrawals}
+          reasonRequired={reasonRequired}
+          onCorrected={(corrected) => {
+            setNotice(corrected);
+            void feed.reload();
+          }}
+        />
       )}
-      {hasMore && (
+      {(hasMore || withdrawalsHaveMore) && (
         <div className="flex justify-center pt-1">
           <Button
             type="button"
             variant="outline"
             size="md"
-            onClick={() => void loadMore()}
-            disabled={loadingMore}
+            className="max-sm:min-h-11"
+            onClick={() => {
+              if (hasMore) void feed.loadMore();
+              if (withdrawalsHaveMore) void loadMoreWithdrawals();
+            }}
+            disabled={loadingMore || withdrawalsLoadingMore}
           >
-            {loadingMore ? "Wird geladen…" : "Weitere Einträge laden"}
+            {loadingMore || withdrawalsLoadingMore
+              ? "Wird geladen…"
+              : "Weitere Einträge laden"}
           </Button>
         </div>
       )}
-      {careExitWithdrawal && (
-        <CareExitModal
-          isOpen
-          studentIds={[careExitWithdrawal.studentId]}
-          completionId={careExitWithdrawal.id}
-          firstBookinglessDay={careExitWithdrawal.firstBookinglessDay}
-          onClose={() => setCareExitWithdrawal(null)}
-          onFinished={() => {
-            setCareExitWithdrawal(null);
-            handleWithdrawalFinished(careExitWithdrawal);
-          }}
-        />
-      )}
-      {deletionWithdrawal && (
-        <StudentDeletionModal
-          isOpen
-          studentId={deletionWithdrawal.studentId}
-          completionId={deletionWithdrawal.id}
-          displayName={`${deletionWithdrawal.firstName} ${deletionWithdrawal.lastName}`.trim()}
-          onClose={() => setDeletionWithdrawal(null)}
-          onDeleted={() => {
-            setDeletionWithdrawal(null);
-            handleWithdrawalFinished(deletionWithdrawal, true);
-          }}
-        />
-      )}
-      {deletionWarningWithdrawal && (
-        <ConfirmationModal
-          isOpen
-          onClose={() => setDeletionWarningWithdrawal(null)}
-          onConfirm={() => {
-            setDeletionWithdrawal(deletionWarningWithdrawal);
-            setDeletionWarningWithdrawal(null);
-          }}
-          title="Kind sofort löschen"
-          confirmText="Löschen prüfen"
-          cancelText="Zurück"
-          mobileSheet
-        >
-          <p className="text-sm text-gray-600">
-            Das Kind wird sofort gelöscht. Auch ein späterer letzter
-            Betreuungstag wird nicht abgewartet.
-          </p>
-        </ConfirmationModal>
-      )}
+      {withdrawalDialogs.dialogs}
+      <BulkConfirmationDialog
+        open={bulkConfirmOpen}
+        count={selectedBulkItems.length}
+        reason={bulkReason}
+        saving={bulkSaving}
+        close={() => setBulkConfirmOpen(false)}
+        confirm={() => void confirmBulkApproval()}
+      />
     </div>
   );
 }

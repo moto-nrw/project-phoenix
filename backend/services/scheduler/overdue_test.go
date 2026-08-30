@@ -52,11 +52,11 @@ func buildOverdue(t *testing.T) *overdueSetup {
 	repoFactory := repositories.NewFactory(db)
 
 	spy := testpkg.NewRecordingBroadcaster()
-	sched := &Scheduler{
+	sched := unitScheduler(&Scheduler{
 		tasks:  make(map[string]*ScheduledTask),
 		done:   make(chan struct{}),
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
+
 	sched.SetInstanceOverdueDeps(repoFactory.ActivityInstance, repoFactory.Room, spy)
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OVR-Room-%d", time.Now().UnixNano()))
@@ -198,11 +198,10 @@ func spyFindByInstance(b *testpkg.RecordingBroadcaster, instanceID int64, eventT
 // Day-rollover is a pure-memory behaviour — test it without the DB.
 func TestRotateOverdueCacheIfNewDay(t *testing.T) {
 	t.Parallel()
-	sched := &Scheduler{
+	sched := unitScheduler(&Scheduler{
 		tasks:  make(map[string]*ScheduledTask),
 		done:   make(chan struct{}),
-		logger: slog.Default(),
-	}
+		logger: slog.Default()})
 
 	// Seed: mark "yesterday" as the cache day, store one emitted key.
 	yesterday := timezone.NewDate(2026, 4, 19)

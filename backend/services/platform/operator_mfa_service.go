@@ -100,10 +100,22 @@ type OperatorMFAServiceConfig struct {
 
 type operatorMFAService struct {
 	OperatorMFAServiceConfig
-	mfaSecret []byte
+	mfaSecret     []byte
+	tenantRuntime *tenant.UnitOfWork
 }
 
 var _ OperatorMFAService = (*operatorMFAService)(nil)
+
+func (s *operatorMFAService) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
+}
+
+func (s *operatorMFAService) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
 
 // NewOperatorMFAService constructs the service. Returns an error rather
 // than panicking so wiring problems surface at startup.
@@ -363,7 +375,7 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 // threshold). Mirrors the tenant-side mfaService.Disable cascade.
 // (#1430 review item #7)
 func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) error {
-	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.Repos.OperatorMFACredential.DeleteByOperatorID(txCtx, operatorID); err != nil {
 			return fmt.Errorf("delete operator credential: %w", err)
 		}

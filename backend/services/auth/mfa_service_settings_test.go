@@ -159,7 +159,7 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 
 	repos := repositories.NewFactory(db)
 	valueRepo := newMFATestValueRepo()
-	settings := configSvc.NewSettingsService(valueRepo, &mfaTestAuditRepo{}, nil, db, slog.Default())
+	settings := configSvc.NewSettingsService(valueRepo, &mfaTestAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 
 	mailer := testpkg.NewCapturingMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
@@ -179,6 +179,8 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 		DB:          db,
 	})
 	require.NoError(t, err)
+	testpkg.SetTenantRuntime(t, svc, db)
+	testpkg.SetTenantRuntime(t, settings, db)
 
 	return &wiredMFAFixture{
 		svc:        svc,

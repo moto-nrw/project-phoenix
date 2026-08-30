@@ -363,7 +363,10 @@ func (s *service) loadGroupsWithRelations(ctx context.Context, groups []*activeM
 // organisational group mode is deliberately not consulted here: it describes
 // how the school organises children, not who may open a running module.
 func (s *service) hasOperationalOverview(ctx context.Context) (bool, error) {
-	allowed, err := authorize.HasOperationalOverview(ctx, s.deps.Settings, s.deps.UserContext)
+	principal, principalErr := permissions.PrincipalFromContext(ctx)
+	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
+	admin := principalErr == nil && principal.HasAdminScope()
+	allowed, err := authorize.HasOperationalOverview(ctx, s.deps.Settings, s.deps.UserContext, assignmentBound, admin)
 	if err != nil {
 		return false, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
@@ -502,6 +505,9 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	if err != nil {
 		return fmt.Errorf("load planned instances: %w", err)
 	}
+	if !authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx)) {
+		redactPlannedPickupTimes(planned)
+	}
 	if planned != nil {
 		projection.PlannedNow = planned
 	}
@@ -520,6 +526,16 @@ func (s *service) loadScheduleSections(ctx context.Context, projection *Projecti
 	}
 	projection.Capabilities = capabilities
 	return nil
+}
+
+func redactPlannedPickupTimes(instances []scheduleService.OperationPlannedInstance) {
+	for i := range instances {
+		instances[i].PickupTimesLoaded = false
+		instances[i].PickupTimesRedacted = true
+		for j := range instances[i].RosterPreview {
+			instances[i].RosterPreview[j].PickupTime = nil
+		}
+	}
 }
 
 func (s *service) resolveCapabilities(ctx context.Context) (Capabilities, error) {

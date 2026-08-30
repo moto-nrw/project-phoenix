@@ -71,7 +71,7 @@ func createRouter(parentCtx context.Context, res *Resource) chi.Router {
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(req.Context()), tenantID)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
@@ -264,6 +264,10 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	s.mock.createErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInvalidInstanceReference)
 	refW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusBadRequest, refW.Code)
+
+	s.mock.createErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+	periodW := doCreate(t, router, body)
+	assert.Equal(t, http.StatusBadRequest, periodW.Code)
 }
 
 func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
@@ -275,6 +279,9 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
+	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
+		timezone.TodayDate().AddDays(-1), timezone.TodayDate().AddDays(7))
+	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
 			TableExpr("schedule.activity_instances").

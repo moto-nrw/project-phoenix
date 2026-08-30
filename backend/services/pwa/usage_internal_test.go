@@ -20,23 +20,30 @@ import (
 var errUsageRepo = errors.New("usage repository failure")
 
 type recordingUsageRepository struct {
-	iot.PWAStandaloneUsageRepository
-	recorded      []*iot.PWAStandaloneUsage
+	recorded      []recordedUsage
 	recordErr     error
+	deletedTenant int64
 	deletedCutoff time.Time
 	deleteCount   int
 	deleteErr     error
 }
 
-func (r *recordingUsageRepository) RecordSeen(_ context.Context, usage *iot.PWAStandaloneUsage) error {
+type recordedUsage struct {
+	tenantID  int64
+	accountID int64
+	portal    string
+}
+
+func (r *recordingUsageRepository) RecordSeen(_ context.Context, tenantID, accountID int64, portal string) error {
 	if r.recordErr != nil {
 		return r.recordErr
 	}
-	r.recorded = append(r.recorded, usage)
+	r.recorded = append(r.recorded, recordedUsage{tenantID: tenantID, accountID: accountID, portal: portal})
 	return nil
 }
 
-func (r *recordingUsageRepository) DeleteLastSeenBefore(_ context.Context, cutoff time.Time) (int, error) {
+func (r *recordingUsageRepository) DeleteLastSeenBefore(_ context.Context, tenantID int64, cutoff time.Time) (int, error) {
+	r.deletedTenant = tenantID
 	r.deletedCutoff = cutoff
 	return r.deleteCount, r.deleteErr
 }
@@ -82,8 +89,8 @@ func TestUsageServiceReportStaff(t *testing.T) {
 
 	require.NoError(t, service.ReportStaff(context.Background(), 42))
 	require.Len(t, repo.recorded, 1)
-	assert.Equal(t, int64(42), repo.recorded[0].AccountID)
-	assert.Equal(t, iot.PushPortalStaff, repo.recorded[0].Portal)
+	assert.Equal(t, int64(42), repo.recorded[0].accountID)
+	assert.Equal(t, iot.PushPortalStaff, repo.recorded[0].portal)
 
 	require.Error(t, service.ReportStaff(context.Background(), 0), "invalid account must not reach the repository")
 	require.Len(t, repo.recorded, 1)
@@ -98,32 +105,36 @@ func TestUsageServiceReportParent(t *testing.T) {
 		repo := &recordingUsageRepository{}
 		mappings := accountTenantStub{mappings: []authModels.AccountTenant{{TenantID: 11}, {TenantID: 12}}}
 		service := NewUsageService(db, repo, nil, mappings, nil, nil)
+		testpkg.SetTenantRuntime(t, service, db)
 
 		require.NoError(t, service.ReportParent(context.Background(), 42))
 		require.Len(t, repo.recorded, 2)
-		assert.Equal(t, int64(11), repo.recorded[0].TenantID)
-		assert.Equal(t, int64(12), repo.recorded[1].TenantID)
+		assert.Equal(t, int64(11), repo.recorded[0].tenantID)
+		assert.Equal(t, int64(12), repo.recorded[1].tenantID)
 		for _, usage := range repo.recorded {
-			assert.Equal(t, iot.PushPortalParent, usage.Portal)
-			assert.Equal(t, int64(42), usage.AccountID)
+			assert.Equal(t, iot.PushPortalParent, usage.portal)
+			assert.Equal(t, int64(42), usage.accountID)
 		}
 	})
 
 	t.Run("zero mappings is a no-op, not an error", func(t *testing.T) {
 		repo := &recordingUsageRepository{}
 		service := NewUsageService(db, repo, nil, accountTenantStub{}, nil, nil)
+		testpkg.SetTenantRuntime(t, service, db)
 		require.NoError(t, service.ReportParent(context.Background(), 42))
 		assert.Empty(t, repo.recorded)
 	})
 
 	t.Run("forwards mapping and repository errors", func(t *testing.T) {
 		service := NewUsageService(db, nil, nil, accountTenantStub{err: errUsageRepo}, nil, nil)
+		testpkg.SetTenantRuntime(t, service, db)
 		err := service.ReportParent(context.Background(), 42)
 		require.ErrorIs(t, err, errUsageRepo)
 		assert.ErrorContains(t, err, "resolving guardian tenant mappings")
 
 		repo := &recordingUsageRepository{recordErr: errUsageRepo}
 		service = NewUsageService(db, repo, nil, accountTenantStub{mappings: []authModels.AccountTenant{{TenantID: 11}}}, nil, nil)
+		testpkg.SetTenantRuntime(t, service, db)
 		err = service.ReportParent(context.Background(), 42)
 		require.ErrorIs(t, err, errUsageRepo)
 		assert.ErrorContains(t, err, "recording pwa usage for tenant 11")
@@ -143,6 +154,7 @@ func TestUsageServiceCleanupExpiredUsage(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 3, result.RowsDeleted)
 		assert.Equal(t, 90, result.RetentionDays)
+		assert.Equal(t, testpkg.Tenant(t), repo.deletedTenant)
 		assert.WithinDuration(t, time.Now().AddDate(0, 0, -90), repo.deletedCutoff, time.Minute)
 	})
 

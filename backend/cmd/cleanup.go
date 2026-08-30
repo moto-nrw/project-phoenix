@@ -766,16 +766,13 @@ func runCleanupTimetableStats(_ *cobra.Command, _ []string) error {
 	return forEachTenantTimetableStats(ctx)
 }
 
-// forEachTenantTimetableCleanup runs the actual DELETE per tenant, using the
-// same tenant.ForEachActive helper the scheduler uses — so CLI and scheduler
-// agree on tenant iteration semantics.
+// forEachTenantTimetableCleanup runs the actual DELETE per tenant.
 func forEachTenantTimetableCleanup(cc *cleanupContext) error {
 	totalInstances, totalExceptions, totalStudents := 0, 0, 0
 	tenantCount := 0
 	errs := make([]error, 0)
 
-	err := tenant.ForEachActive(context.Background(), cc.DB, cc.RepoFactory.School,
-		slog.Default(), "cli-timetable-cleanup",
+	err := forEachActiveTenant(context.Background(), cc, "cli-timetable-cleanup",
 		func(txCtx context.Context, tenantID int64) error {
 			tenantCount++
 			result, err := cc.TimetableCleanupService.CleanupExpiredTimetableData(txCtx)
@@ -817,8 +814,7 @@ func forEachTenantTimetablePreview(cc *cleanupContext) error {
 	fmt.Println("=========================")
 
 	totalInstances, totalExceptions, totalStudents := 0, 0, 0
-	err := tenant.ForEachActive(context.Background(), cc.DB, cc.RepoFactory.School,
-		slog.Default(), "cli-timetable-preview",
+	err := forEachActiveTenant(context.Background(), cc, "cli-timetable-preview",
 		func(txCtx context.Context, tenantID int64) error {
 			p, err := cc.TimetableCleanupService.PreviewExpiredTimetableData(txCtx)
 			if err != nil {
@@ -843,8 +839,7 @@ func forEachTenantTimetableStats(cc *cleanupContext) error {
 	fmt.Println("Timetable Retention Statistics")
 	fmt.Println("==============================")
 
-	err := tenant.ForEachActive(context.Background(), cc.DB, cc.RepoFactory.School,
-		slog.Default(), "cli-timetable-stats",
+	err := forEachActiveTenant(context.Background(), cc, "cli-timetable-stats",
 		func(txCtx context.Context, tenantID int64) error {
 			stats, err := cc.TimetableCleanupService.GetStats(txCtx)
 			if err != nil {
@@ -855,6 +850,36 @@ func forEachTenantTimetableStats(cc *cleanupContext) error {
 		})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
+	}
+	return nil
+}
+
+func forEachActiveTenant(
+	ctx context.Context,
+	cc *cleanupContext,
+	operation string,
+	fn func(context.Context, int64) error,
+) error {
+	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
+	tenantIDs, err := listActiveTenantIDsForCLI(ctx, cc)
+	if err != nil {
+		return err
+	}
+	for _, rawID := range tenantIDs {
+		id, idErr := tenant.NewTenantID(rawID)
+		if idErr != nil {
+			return fmt.Errorf("%s: %w", operation, idErr)
+		}
+		if tenantErr := tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+			return fn(txCtx, id.Int64())
+		}); tenantErr != nil {
+			slog.Error("tenant operation failed, continuing to next tenant",
+				"entry_point", "worker",
+				"operation", operation,
+				"tenant_id", id.Int64(),
+				"error", tenantErr,
+			)
+		}
 	}
 	return nil
 }
@@ -896,7 +921,7 @@ func printTimetableStatsLine(tenantID int64, s *schedule.TimetableCleanupStats) 
 // Mirrors the timetable trio: top-level command toggles between cleanup and
 // dry-run via the --dry-run flag, the "preview" subcommand is the explicit
 // dry-run alias, and "stats" reads the current row counts. All three iterate
-// the same tenant.ForEachActive helper the scheduler uses, so CLI and cron
+// the same tenant runtime seam the scheduler uses, so CLI and cron
 // agree on tenant ordering and isolation.
 
 func runCleanupTimeTracking(_ *cobra.Command, _ []string) error {
@@ -931,11 +956,12 @@ func runCleanupTimeTrackingStats(_ *cobra.Command, _ []string) error {
 
 // listActiveTenantIDsForCLI returns the IDs of all active, non-deleted tenants
 // via a direct SQL query against platform.schools. We bypass
-// tenant.ForEachActive on purpose: that helper drives a bun.Relation() join
+// the repository ListActive method on purpose: that path drives a bun.Relation() join
 // which mis-resolves the search_path in the CLI context and produces
 // "relation organizations does not exist". The same bug bites the timetable
 // CLI today — fixing it cleanly is out of scope for Tranche 0b.
 func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64, error) {
+	ctx = tenant.WithUnitOfWork(ctx, cc.TenantRuntime)
 	var ids []int64
 	err := tenant.WithAdminTx(ctx, cc.DB, func(txCtx context.Context, tx bun.Tx) error {
 		rows, err := tx.QueryContext(txCtx, `
@@ -960,35 +986,29 @@ func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64
 }
 
 func forEachTenantTimeTrackingCleanup(cc *cleanupContext) error {
-	tenantIDs, err := listActiveTenantIDsForCLI(context.Background(), cc)
+	totalSessions, totalAbsences, totalStaff := 0, 0, 0
+	errs := make([]error, 0)
+	tenantCount := 0
+	err := forEachActiveTenant(context.Background(), cc, "cli-time-tracking-cleanup", func(txCtx context.Context, tenantID int64) error {
+		tenantCount++
+		result, cleanupErr := cc.TimeTrackingCleanupService.CleanupExpiredTimeTrackingData(txCtx)
+		if cleanupErr != nil {
+			errs = append(errs, fmt.Errorf("tenant %d: %w", tenantID, cleanupErr))
+			return cleanupErr
+		}
+		totalSessions += result.SessionsDeleted
+		totalAbsences += result.AbsencesDeleted
+		totalStaff += result.StaffAffected
+		printTimeTrackingCleanupLine(tenantID, result)
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
 	}
 
-	totalSessions, totalAbsences, totalStaff := 0, 0, 0
-	errs := make([]error, 0)
-
-	for _, tenantID := range tenantIDs {
-		txErr := tenant.WithTenantTx(context.Background(), cc.DB, tenantID,
-			func(txCtx context.Context, _ bun.Tx) error {
-				result, err := cc.TimeTrackingCleanupService.CleanupExpiredTimeTrackingData(txCtx)
-				if err != nil {
-					return err
-				}
-				totalSessions += result.SessionsDeleted
-				totalAbsences += result.AbsencesDeleted
-				totalStaff += result.StaffAffected
-				printTimeTrackingCleanupLine(tenantID, result)
-				return nil
-			})
-		if txErr != nil {
-			errs = append(errs, fmt.Errorf("tenant %d: %w", tenantID, txErr))
-		}
-	}
-
 	fmt.Println("\nTime-Tracking Cleanup Summary")
 	fmt.Println("=============================")
-	fmt.Printf("Tenants processed:    %d\n", len(tenantIDs))
+	fmt.Printf("Tenants processed:    %d\n", tenantCount)
 	fmt.Printf("Sessions deleted:     %d\n", totalSessions)
 	fmt.Printf("Absences deleted:     %d\n", totalAbsences)
 	fmt.Printf("Staff affected:       %d\n", totalStaff)
@@ -1009,28 +1029,20 @@ func forEachTenantTimeTrackingPreview(cc *cleanupContext) error {
 	fmt.Println("\nTime-Tracking Cleanup Preview")
 	fmt.Println("=============================")
 
-	tenantIDs, err := listActiveTenantIDsForCLI(context.Background(), cc)
+	totalSessions, totalAbsences, totalStaff := 0, 0, 0
+	err := forEachActiveTenant(context.Background(), cc, "cli-time-tracking-preview", func(txCtx context.Context, tenantID int64) error {
+		p, previewErr := cc.TimeTrackingCleanupService.PreviewExpiredTimeTrackingData(txCtx)
+		if previewErr != nil {
+			return previewErr
+		}
+		totalSessions += p.SessionsToDelete
+		totalAbsences += p.AbsencesToDelete
+		totalStaff += p.StaffAffected
+		printTimeTrackingPreviewLine(tenantID, p)
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
-	}
-
-	totalSessions, totalAbsences, totalStaff := 0, 0, 0
-	for _, tenantID := range tenantIDs {
-		txErr := tenant.WithTenantTx(context.Background(), cc.DB, tenantID,
-			func(txCtx context.Context, _ bun.Tx) error {
-				p, err := cc.TimeTrackingCleanupService.PreviewExpiredTimeTrackingData(txCtx)
-				if err != nil {
-					return err
-				}
-				totalSessions += p.SessionsToDelete
-				totalAbsences += p.AbsencesToDelete
-				totalStaff += p.StaffAffected
-				printTimeTrackingPreviewLine(tenantID, p)
-				return nil
-			})
-		if txErr != nil {
-			fmt.Printf("[tenant %d] error: %s\n", tenantID, txErr.Error())
-		}
 	}
 
 	fmt.Printf("\nTOTAL: %d sessions, %d absences, %d staff across all tenants\n",
@@ -1042,24 +1054,16 @@ func forEachTenantTimeTrackingStats(cc *cleanupContext) error {
 	fmt.Println("Time-Tracking Retention Statistics")
 	fmt.Println("==================================")
 
-	tenantIDs, err := listActiveTenantIDsForCLI(context.Background(), cc)
+	err := forEachActiveTenant(context.Background(), cc, "cli-time-tracking-stats", func(txCtx context.Context, tenantID int64) error {
+		stats, statsErr := cc.TimeTrackingCleanupService.GetStats(txCtx)
+		if statsErr != nil {
+			return statsErr
+		}
+		printTimeTrackingStatsLine(tenantID, stats)
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("list active tenants: %w", err)
-	}
-
-	for _, tenantID := range tenantIDs {
-		txErr := tenant.WithTenantTx(context.Background(), cc.DB, tenantID,
-			func(txCtx context.Context, _ bun.Tx) error {
-				stats, err := cc.TimeTrackingCleanupService.GetStats(txCtx)
-				if err != nil {
-					return err
-				}
-				printTimeTrackingStatsLine(tenantID, stats)
-				return nil
-			})
-		if txErr != nil {
-			fmt.Printf("[tenant %d] error: %s\n", tenantID, txErr.Error())
-		}
 	}
 	return nil
 }

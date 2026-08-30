@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,7 +58,7 @@ func (f *overviewFixture) newDatevExportService(values map[string]string) active
 			return values[key], nil
 		},
 	}
-	payrollStatus := configSvc.NewPayrollStatusService(settings, f.repos.Staff)
+	payrollStatus := configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff))
 	return active.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
@@ -333,7 +334,7 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 	}
 	svc := active.NewStaffTimeExportService(
 		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{},
-		configSvc.NewPayrollStatusService(settings, f.repos.Staff), nil,
+		configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff)), nil,
 	)
 
 	file, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")

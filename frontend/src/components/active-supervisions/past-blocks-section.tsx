@@ -14,6 +14,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -218,13 +219,25 @@ function PastBlockCard({
                     Keine Kinder eingeplant.
                   </p>
                 ) : (
-                  roster.rows.map((row) => (
-                    <PastRosterRow
-                      key={row.studentId}
-                      row={row}
-                      showStatus={completed}
-                    />
-                  ))
+                  <>
+                    {roster.pickupTimesLoaded === false &&
+                    !roster.pickupTimesRedacted ? (
+                      <Alert
+                        type="warning"
+                        announce="polite"
+                        message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+                      />
+                    ) : null}
+                    {roster.rows.map((row) => (
+                      <PastRosterRow
+                        key={row.studentId}
+                        row={row}
+                        pickupTimesLoaded={roster.pickupTimesLoaded}
+                        pickupTimesRedacted={roster.pickupTimesRedacted}
+                        showStatus={completed}
+                      />
+                    ))}
+                  </>
                 )}
               </div>
             ) : null}
@@ -237,8 +250,20 @@ function PastBlockCard({
 
 function PastRosterRow({
   row,
+  pickupTimesLoaded,
+  pickupTimesRedacted,
   showStatus,
-}: Readonly<{ row: TimetableRosterRow; showStatus: boolean }>) {
+}: Readonly<{
+  row: TimetableRosterRow;
+  pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
+  showStatus: boolean;
+}>) {
+  const pickupTimeLabel = rosterPickupTimeLabel(
+    row.pickupTime,
+    pickupTimesLoaded,
+    pickupTimesRedacted,
+  );
   return (
     <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
       <div className="flex items-center justify-between gap-3">
@@ -250,6 +275,11 @@ function PastRosterRow({
             {[row.schoolClass, row.groupName].filter(Boolean).join(" · ") ||
               "Ohne Klassengruppe"}
           </p>
+          {pickupTimeLabel === null ? null : (
+            <p className="mt-0.5 text-xs font-medium text-gray-700">
+              Gehzeit: {pickupTimeLabel}
+            </p>
+          )}
         </div>
         {showStatus ? (
           <StatusDotBadge

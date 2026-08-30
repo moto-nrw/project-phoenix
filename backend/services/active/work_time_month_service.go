@@ -231,7 +231,7 @@ type monthStaffReader interface {
 
 // monthScheduleReader is implemented by config.StaffWorkScheduleRepository.
 type monthScheduleReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error)
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error)
 	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
 }
 
@@ -454,9 +454,9 @@ func (a *monthAggregates) balance() int {
 // is the fallback — the same two-tier resolution the weekly summaries use.
 type dailyTargetResolver struct {
 	entries     []*configModels.StaffWorkSchedule
-	staffAnchor *timezone.Date
+	staffAnchor *configModels.CalendarDate
 	model       *configModels.WorkTimeModel
-	modelAnchor timezone.Date
+	modelAnchor configModels.CalendarDate
 	holidays    map[timezone.Date]bool
 }
 
@@ -468,11 +468,11 @@ func (r *dailyTargetResolver) targetFor(d timezone.Date) int {
 		return 0
 	}
 	if len(r.entries) > 0 {
-		target, _ := configModels.DailyTargetFromSchedule(r.entries, r.staffAnchor, d)
+		target, _ := configModels.DailyTargetFromSchedule(r.entries, r.staffAnchor, workforceDate(d))
 		return target
 	}
 	if r.model != nil {
-		target, _ := configModels.DailyTargetFromModel(r.model, r.modelAnchor, d)
+		target, _ := configModels.DailyTargetFromModel(r.model, r.modelAnchor, workforceDate(d))
 		return target
 	}
 	return 0
@@ -493,9 +493,9 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load staff for month summary: %w", err)
 	}
-	resolver.staffAnchor = staff.RotationAnchorDate
+	resolver.staffAnchor = workforceDatePointer(staff.RotationAnchorDate)
 
-	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to)
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, workforceDate(from), workforceDate(to))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work schedules: %w", err)
 	}
@@ -526,7 +526,7 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	resolver.model = model
 	resolver.modelAnchor = model.RotationAnchorDate
 	if staff.RotationAnchorDate != nil {
-		resolver.modelAnchor = *staff.RotationAnchorDate
+		resolver.modelAnchor = workforceDate(*staff.RotationAnchorDate)
 	}
 	return resolver, nil
 }
@@ -836,8 +836,8 @@ func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int
 // services/schedule — that package imports this one, so it cannot be shared
 // without an import cycle.
 func shiftNetMinutes(shift *scheduleModels.StaffShift) int {
-	start := timezone.WallClock(shift.StartTime)
-	end := timezone.WallClock(shift.EndTime)
+	start := timezone.NormalizeWallClock(shift.StartTime)
+	end := timezone.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0

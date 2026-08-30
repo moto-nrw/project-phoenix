@@ -162,7 +162,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		Guardians:   repositories.NewFactory(db).StudentGuardian,
 	})
 
-	msg, err := render(context.Background(), row)
+	msg, err := render(testpkg.WithPackageTenantRuntime(context.Background()), row)
 	require.NoError(t, err, "the guardian still has access to the child")
 	require.NotNil(t, msg)
 
@@ -172,7 +172,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	`, parentChain.TenantID, parentChain.StudentID, parentChain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = render(context.Background(), row)
+	_, err = render(testpkg.WithPackageTenantRuntime(context.Background()), row)
 	require.ErrorIs(t, err, platformService.ErrRenderCancelled,
 		"a revoked guardian must not be mailed, and retrying cannot change that")
 }

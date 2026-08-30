@@ -17,6 +17,8 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -26,12 +28,13 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { InfoItem } from "~/components/ui/info-card";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { StatCard } from "~/components/ui/stat-card";
 import { formatDate } from "~/lib/date-helpers";
+import { hasPermission } from "~/lib/auth-utils";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
@@ -90,6 +93,7 @@ function visibilityIcon(visibility: FileFolder["visibility"]) {
 }
 
 export function FilesPage() {
+  const { data: session } = useSession();
   const {
     data: overview,
     isLoading,
@@ -145,6 +149,9 @@ export function FilesPage() {
 
   const canManage = overview?.canManage ?? false;
   const canUpload = overview?.canUpload ?? false;
+  const canChangeUploadPermission =
+    hasPermission(session, "config:read") &&
+    hasPermission(session, "config:update");
 
   const folderNav = (
     <nav aria-label="Ordner" className="space-y-1">
@@ -296,19 +303,34 @@ export function FilesPage() {
             </p>
             <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
             {canManage && overview && overview.maxBytes > 0 && (
-              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                <StatCard
-                  variant="tile"
-                  label="Belegter Speicherplatz"
-                  value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Team darf hochladen"
+              <div className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                <InfoItem
+                  label="Speicherplatz"
                   value={
-                    overview.staffUploadEnabled ? "Ja" : "Nein (Einstellungen)"
+                    <span className="tabular-nums">
+                      {formatBytes(overview.usedBytes)} von{" "}
+                      {formatBytes(overview.maxBytes)} belegt
+                    </span>
                   }
                 />
+                <div className="space-y-1">
+                  <InfoItem
+                    label="Dateien hochladen"
+                    value={
+                      overview.staffUploadEnabled
+                        ? "Leitung und Team"
+                        : "Nur Leitung"
+                    }
+                  />
+                  {canChangeUploadPermission && (
+                    <Link
+                      href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                      className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                    >
+                      Berechtigung ändern
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </aside>
@@ -588,7 +610,7 @@ function FolderFilesPanel({
             </Button>
           </p>
           <p className="text-xs text-gray-400">
-            PDF, Word, Excel, PowerPoint, PNG oder JPG · max. 25 MB pro Datei
+            PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB
           </p>
           <input
             ref={fileInputRef}
@@ -620,7 +642,7 @@ function FolderFilesPanel({
             title="Noch keine Dateien in diesem Ordner"
             description={
               canUpload
-                ? "Laden Sie die erste Datei über den Bereich oben hoch."
+                ? "Laden Sie oben die erste Datei hoch."
                 : "Sobald die Leitung Dateien ablegt, erscheinen sie hier."
             }
           />

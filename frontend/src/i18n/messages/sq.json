@@ -159,7 +159,9 @@
     "newsReadAndConfirm": "Konfirmoni si të lexuar",
     "newsReadAnnouncement": "Lexoni",
     "newsExternalLink": "Hap informacione të tjera",
-    "newsClose": "Mbyll"
+    "newsClose": "Mbyll",
+    "newsLetterBadge": "Kërkohet konfirmim",
+    "newsLetterBindingHint": "Ky e-mail është vetëm për informim. Vlen konfirmimi këtu në portalin e prindërve. Mjafton një person kujdestar për çdo fëmijë."
   },
   "parentNotificationSetup": {
     "title": "Mos humbisni asnjë mesazh të rëndësishëm",
@@ -468,10 +470,8 @@
       "kindSick": "Njofto sëmundjen",
       "kindExcused": "Justifiko mungesën",
       "kindHintSick": "Për ditët kur fëmija është i sëmurë. OGS-ja e sheh menjëherë njoftimin.",
-      "kindHintSickApproval": "OGS-ja konfirmon njoftimin e sëmundjes. Deri atëherë, fëmija juaj pritet të vijë.",
       "kindHintSickUnknown": "Për ditët e sëmundjes. OGS-ja e merr njoftimin tuaj.",
       "kindHintExcused": "Për takime ose mungesa të tjera të planifikuara. Jepni shkurt arsyen.",
-      "kindHintExcusedApproval": "OGS-ja konfirmon mungesën. Deri atëherë, fëmija juaj pritet të vijë.",
       "kindHintExcusedUnknown": "Për takime ose mungesa të tjera. Jepni arsyen.",
       "periodLabel": "Ditët e mungesës",
       "from": "Nga",
@@ -490,7 +490,6 @@
       "submitExcused": "Dërgoni justifikimin në OGS",
       "reasonLabelRequired": "Arsyeja / njoftimi për OGS-në",
       "reasonRequiredError": "Shkruani një njoftim të shkurtër për OGS-në.",
-      "approvalHint": "Pas dërgimit, OGS-ja duhet ta konfirmojë mungesën.",
       "requestSentTitle": "Kërkesa u dërgua",
       "requestSentBody": "OGS-ja duhet ta konfirmojë mungesën. Deri atëherë, fëmija juaj pritet të vijë."
     },
@@ -502,9 +501,7 @@
       "excusedLabel": "Me arsye",
       "pendingLabel": "Në pritje të miratimit",
       "rejectedLabel": "U refuzua",
-      "withdraw": "Tërhiq",
-      "withdrawError": "Tërheqja dështoi. Ju lutemi rifreskoni faqen.",
-      "withdrawAlreadyDecided": "OGS-ja tashmë e ka trajtuar këtë kërkesë, prandaj nuk mund të tërhiqet më.",
+      "edit": "Ndrysho kërkesën",
       "reasonPrefix": "Arsyeja"
     },
     "pickup": {
@@ -529,7 +526,10 @@
       "alreadyHomeGeneric": "Fëmija juaj është tashmë në shtëpi sot. Ora e marrjes nuk mund të ndryshohet më.",
       "existingHint": "Për {date} është caktuar tashmë një ndryshim. Ruajtja e mbishkruan.",
       "reset": "Hiqni ndryshimin",
-      "withdraw": "Tërhiqni kërkesën",
+      "edit": "Ndrysho kërkesën",
+      "saveEdit": "Ruaj ndryshimin",
+      "editedAt": "Ndryshuar më {date}",
+      "staleError": "Kërkesa ka ndryshuar ndërkohë. Ju lutemi rifreskoni faqen.",
       "pendingChange": "{from} → {to}",
       "pendingRequested": "Ora e re e marrjes: {to}",
       "statusPending": "Në pritje të konfirmimit",
@@ -1152,6 +1152,41 @@
     "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
     "lockedAllAction": "Te aplikacioni për prindër"
   },
+  "parentRequestEdit": {
+    "title": "Ndrysho kërkesën",
+    "intro": "Ndryshoni kërkesën tuaj derisa shkolla nuk ka vendosur ende.",
+    "editedAt": "Ndryshuar më {date}",
+    "firstDay": "Dita e parë",
+    "lastDay": "Dita e fundit",
+    "day": "Dita",
+    "pickupTime": "Ora e marrjes",
+    "timeFormatHint": "Ora në formatin 15:30",
+    "timeExample": "p.sh. 15:30",
+    "reasonLabel": "Arsyeja / shënim për shkollën",
+    "reasonRequired": "Ju lutemi shkruani një shënim të shkurtër për shkollën.",
+    "valueRequired": "Ju lutemi shkruani një vlerë.",
+    "saveError": "Fatkeqësisht nuk funksionoi. Ju lutemi provoni përsëri.",
+    "staleError": "Kërkesa ka ndryshuar ndërkohë. Ju lutemi rifreskoni faqen.",
+    "submit": "Ruaj ndryshimin",
+    "saving": "Po ruhet …",
+    "cancel": "Anulo",
+    "close": "Mbyll dritaren"
+  },
+  "parentRequestSharing": {
+    "button": "Ndaje kërkesën",
+    "title": "Ndaje kërkesën me të tjerët",
+    "privacyHint": "Vetëm kujdestarët e zgjedhur e shohin kërkesën tuaj dhe përgjigjen e shkollës.",
+    "recipientLegend": "Ndaje kërkesën (me dëshirë)",
+    "protected": "Kjo kërkesë mbetet private. Shkolla ka aktivizuar mbrojtjen e familjes.",
+    "noRecipients": "Nuk ka kujdestarë të tjerë me qasje në aplikacionin e prindërve.",
+    "loading": "Po ngarkohen marrësit …",
+    "error": "Marrësit nuk mund të ngarkoheshin.",
+    "optionsError": "Marrësit nuk mund të ngarkoheshin. Mund ta dërgoni kërkesën gjithsesi dhe ta ndani më vonë.",
+    "save": "Ruaj zgjedhjen",
+    "saving": "Po ruhet …",
+    "cancel": "Anulo",
+    "close": "Mbyll dritaren"
+  },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",
     "subtitle": "Kontrolloni të dhënat e fëmijës dhe ofertat e rezervuara të përkujdesjes. Ndryshimet që kërkojnë miratim shënohen qartë.",
@@ -1170,6 +1205,7 @@
     "requestButton": "Kërko ndryshim",
     "requestSubmitted": "Kërkesa u dërgua. Ekipi do ta kontrollojë ndryshimin.",
     "requestError": "Kërkesa nuk mund të dërgohej.",
+    "requestEdit": "Ndrysho kërkesën",
     "pendingBadge": "Në shqyrtim",
     "pendingNotice": "Një ndryshim në këtë fushë pret konfirmimin e ekipit.",
     "editDisabled": "Ndryshimi i këtyre të dhënave është çaktivizuar për këtë OGS.",
@@ -1253,10 +1289,7 @@
       "pendingEffectiveFrom": "Dëshirohet nga {date}",
       "pendingNotice": "Ekipi po shqyrton kërkesën tuaj. Deri në konfirmim gjithçka mbetet si më parë.",
       "pendingNote": "Mesazhi juaj: {note}",
-      "withdraw": "Tërhiq kërkesën",
-      "withdrawError": "Kërkesa nuk mund të tërhiqej.",
-      "withdrawConfirmTitle": "Të tërhiqet kërkesa?",
-      "withdrawConfirmBody": "Doni vërtet ta tërhiqni kërkesën për ndryshim? Përkujdesja e rezervuar mbetet e pandryshuar.",
+      "edit": "Ndrysho kërkesën",
       "requestButton": "Ndrysho kujdesin",
       "disabledNoEnrollment": "Për {name} nuk ka të dhëna të tjera për kujdesin.",
       "disabledNoPermission": "Nuk keni leje të kërkoni ndryshime për këtë fëmijë.",
@@ -1282,6 +1315,12 @@
     },
     "careOfferingsModal": {
       "title": "Kërko ndryshim të përkujdesjes së rezervuar",
+      "editTitle": "Ndrysho kërkesën",
+      "editIntro": "Ndryshoni kërkesën tuaj të hapur. Zgjedhja e re zëvendëson kërkesën e mëparshme.",
+      "editedAt": "Ndryshuar më {date}",
+      "saveEdit": "Ruaj ndryshimin",
+      "noteRequired": "Shkruani shkurt pse duhet të ndryshojë përkujdesja.",
+      "staleError": "Kërkesa ka ndryshuar ndërkohë. Ju lutemi rifreskoni faqen.",
       "intro": "Zgjidhni cilat oferta duhet të ndjekë fëmija dhe nga cila datë. Ekipi do ta shqyrtojë kërkesën.",
       "loadError": "Ofertat e disponueshme nuk mund të ngarkoheshin.",
       "noOfferings": "Nuk ka oferta përkujdesjeje për këtë periudhë.",
@@ -1316,13 +1355,16 @@
       "7": "Die"
     },
     "careSchedule": {
+      "arrival": "Ora e mbërritjes",
       "pickup": "Ora e marrjes",
       "modes": "Mënyra e marrjes",
       "loadError": "Oraret e kujdesit nuk mund të ngarkoheshin. Ju lutemi përditësoni faqen.",
+      "readOnlyNotice": "Planin javor nuk mund ta ndryshoni këtu. Ndryshimet e ofertave të rezervuara janë në pjesën tjetër.",
+      "noPermissionNotice": "Këtu nuk mund të kërkoni ndryshim. Ju lutemi pyesni OGS-në.",
       "requestButton": "Kërko ndryshime",
       "requestTitle": "Kërko ndryshimin e planit javor",
       "close": "Mbyll dialogun",
-      "requestIntro": "Zgjidhni çfarë duhet të vlejë rregullisht në çdo ditë të javës.",
+      "requestIntro": "Ndryshoni ditët e kujdesit, orët ose mënyrat e marrjes. Shihni vetëm ndryshimet që lejon OGS-ja juaj.",
       "requestNoticeTitle": "Kërkesë për OGS-në",
       "requestNoticeBody": "Ky është një ndryshim i përhershëm që vlen çdo javë. OGS-ja e shqyrton kërkesën. Plani aktual javor mbetet në fuqi deri në miratim.",
       "requestSubmit": "Dërgo kërkesën në OGS",
@@ -1333,7 +1375,8 @@
       "requestError": "Kërkesa nuk mund të dërgohej.",
       "requestAlreadyPending": "Një ndryshim për këtë fëmijë është tashmë në shqyrtim.",
       "requestDisabled": "Ky ndryshim nuk është aktivizuar nga OGS-ja juaj.",
-      "requestInvalid": "Kontrolloni oraret dhe mënyrat e zgjedhura të marrjes.",
+      "requestBookingLed": "OGS-ja juaj nuk pranon kërkesa për planin javor. Ndryshimet bëhen përmes ofertave të rezervuara.",
+      "requestInvalid": "Kontrolloni ditët e kujdesit, oraret dhe mënyrat e marrjes.",
       "modeUnchanged": "Mënyra e marrjes pa ndryshim",
       "modeCurrent": "Aktualisht: {modes}",
       "careDay": "Kujdes në këtë ditë",
@@ -1354,11 +1397,7 @@
       "timeExample": "p.sh. 15:30",
       "pendingBadge": "Në shqyrtim",
       "pendingNotice": "OGS-ja po shqyrton ndryshimin. Plani aktual javor mbetet në fuqi deri në miratim.",
-      "requestedAt": "Kërkuar më {date}",
-      "withdraw": "Tërhiq kërkesën",
-      "withdrawError": "Kërkesa nuk mund të tërhiqej.",
-      "withdrawConfirmTitle": "Tërhiq kërkesën?",
-      "withdrawConfirmBody": "Dëshironi vërtet ta tërhiqni kërkesën për ndryshimin e marrjes?"
+      "requestedAt": "Kërkuar më {date}"
     }
   },
   "parentOgsMessaging": {
@@ -1540,7 +1579,8 @@
       "pickupUnknown": "Ora e marrjes nuk është e disponueshme për momentin"
     },
     "care": {
-      "weekTitle": "Plani javor i OGS-së"
+      "weekTitle": "Plani javor i OGS-së",
+      "absenceTitle": "Mungesat"
     }
   },
   "parentMessages": {
@@ -1619,6 +1659,7 @@
     "subscribe": "Abononi në kalendar",
     "linkLabel": "Lidhja e abonimit (për kopjim)",
     "copy": "Kopjo",
+    "copiedButton": "U kopjua",
     "copied": "Lidhja u kopjua.",
     "copyFailed": "Kopjimi nuk është i mundur. Ju lutemi shënoni lidhjen me dorë.",
     "linkOnce": "Për arsye sigurie e shihni këtë lidhje vetëm tani. Kopjojeni menjëherë në kalendarin tuaj.",
@@ -1632,6 +1673,9 @@
     "rotateError": "Lidhja e abonimit nuk u rinovua dot.",
     "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
     "createNew": "Krijoni lidhje të re abonimi"
+  },
+  "staffCalendarSubscribe": {
+    "description": "Abononi një herë takimet tuaja në kalendarin e telefonit. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht. Nuk keni nevojë ta shtoni secilin takim veçmas. Ndryshimet në kalendarin e telefonit nuk kalojnë te moto."
   },
   "parentNews": {
     "kicker": "Postë nga OGS",

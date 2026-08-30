@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
-// seedAnnouncementsStep creates demo announcements via the operator API.
+// seedAnnouncementsStep creates demo operator announcements.
 type seedAnnouncementsStep struct{}
 
 func (seedAnnouncementsStep) Name() string { return "Seeding announcements" }
@@ -49,6 +49,42 @@ func (seedAnnouncementsStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	fmt.Printf("  %d announcements created\n", len(announcements))
+	return nil
+}
+
+// seedParentLetterStep runs after parentEnrollmentSeedStep so its portal-only
+// audience resolves the demo guardians and the delivery matrix is populated.
+type seedParentLetterStep struct{}
+
+func (seedParentLetterStep) Name() string { return "Seeding parent letter" }
+
+func (seedParentLetterStep) Run(_ context.Context, rt *Runtime) error {
+	rt.Client.BindAuth(rt.TenantAuth)
+	return seedParentLetter(rt)
+}
+
+func seedParentLetter(rt *Runtime) error {
+	raw, err := rt.Client.Post("/api/parent-announcements/", map[string]any{
+		"title":          "Elternbrief: Ausflug am Freitag",
+		"body":           "Liebe Eltern, am Freitag fahren wir in den Zoo. Bitte bestätigen Sie den Brief im Elternportal.",
+		"priority":       "important",
+		"delivery_mode":  "letter",
+		"email_audience": "portal_only",
+		"targets": []map[string]any{
+			{"target_type": "school_all"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create parent letter: %w", err)
+	}
+	id, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("parse parent letter response: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil); err != nil {
+		return fmt.Errorf("publish parent letter: %w", err)
+	}
+	fmt.Println("  1 parent letter published")
 	return nil
 }
 

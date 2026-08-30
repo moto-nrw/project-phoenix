@@ -139,10 +139,86 @@ export interface ExcusedRequest {
   readonly created_at: string; // ISO timestamp
   readonly reviewed_at?: string; // ISO timestamp
   // is_self is true only for the calling guardian's own request. In a
-  // multi-guardian family only the submitter may withdraw it (the backend
-  // rejects a non-submitter's withdrawal), so the UI shows the withdraw action
-  // only when this is true.
+  // multi-guardian family only the submitter may change it (the backend rejects
+  // a non-submitter's edit), so the UI shows "Anfrage bearbeiten" only when this
+  // is true.
   readonly is_self: boolean;
+}
+
+export type ParentRequestShareType =
+  "master_data" | "care_schedule" | "pickup_change" | "offering" | "excused";
+
+interface RequestSharingRecipient {
+  readonly guardian_profile_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly selected: boolean;
+}
+
+export interface RequestSharingState {
+  readonly family_protected: boolean;
+  readonly recipients: RequestSharingRecipient[];
+}
+
+/**
+ * One entry of a request's append-only history (backend
+ * `users.parent_request_events`). The newest entry carries the request's
+ * current `version`, which every guardian edit must send back as
+ * `expected_version` so a concurrent OGS decision is never overwritten.
+ */
+export interface ParentRequestEvent {
+  readonly event_type: string;
+  readonly version: string;
+  readonly created_at: string; // ISO timestamp
+}
+
+/** Reads the history of one request (oldest first). */
+export async function listParentRequestEvents(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+): Promise<ParentRequestEvent[]> {
+  return getJson<ParentRequestEvent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/requests/${encodeURIComponent(requestType)}/${encodeURIComponent(requestId)}/events`,
+  );
+}
+
+export async function getRequestSharingOptions(
+  studentId: string,
+): Promise<RequestSharingState> {
+  return getJson<RequestSharingState>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/request-sharing-options`,
+  );
+}
+
+function requestSharingURL(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+): string {
+  return `/api/parent/me/children/${encodeURIComponent(studentId)}/request-sharing/${encodeURIComponent(requestType)}/${encodeURIComponent(requestId)}`;
+}
+
+export async function getRequestSharing(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+): Promise<RequestSharingState> {
+  return getJson<RequestSharingState>(
+    requestSharingURL(studentId, requestType, requestId),
+  );
+}
+
+export async function setRequestSharing(
+  studentId: string,
+  requestType: ParentRequestShareType,
+  requestId: string,
+  recipientGuardianProfileIds: string[],
+): Promise<RequestSharingState> {
+  return putJson<RequestSharingState>(
+    requestSharingURL(studentId, requestType, requestId),
+    { recipient_guardian_profile_ids: recipientGuardianProfileIds },
+  );
 }
 
 // Normalized response of POST .../sick-note. Direct submissions carry the
@@ -179,6 +255,10 @@ export interface ChildFeatures {
   readonly master_data_edit_enabled: boolean;
   readonly master_data_contact_edit_enabled: boolean;
   readonly master_data_request_enabled: boolean;
+  // Whether the school makes a reason mandatory when a guardian sends a
+  // request (operations.parent_request_reason_policy is guardians|both).
+  // Missing = the strictest reading, see lib/parent-request-reason.ts.
+  readonly reason_required?: boolean;
   readonly meal_plan_enabled: boolean;
   // STATE, not a capability: the child has a pending change request (master data
   // or care schedule) awaiting an OGS decision. Lets the overview badge the
@@ -235,6 +315,7 @@ export interface PickupChangeRequest {
   readonly decision_reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
+  readonly is_self?: boolean;
 }
 
 // A guardian linked to the child, with portal-access status.
@@ -573,16 +654,43 @@ export async function submitSickNote(
   dates: string[],
   reason: string,
   status: StudentStatusKind = "sick",
+  recipientGuardianProfileIds: string[] = [],
 ): Promise<SickNoteSubmitResult> {
   const res = await postJson<SickNoteSubmitResult | StatusDay[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
-    { dates, reason, status },
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note?envelope=1`,
+    {
+      dates,
+      reason,
+      status,
+      recipient_guardian_profile_ids: recipientGuardianProfileIds,
+    },
   );
-  // Current backends return a bare array. Keep accepting the former envelope so
-  // a rolling deployment still presents one stable shape to callers.
+  // With ?envelope=1 the backend answers {status_days, pending_request}. An
+  // older backend still answers the bare array; keep accepting both so a
+  // rolling deployment presents one stable shape to callers.
   return Array.isArray(res)
     ? { status_days: res, pending_request: undefined }
     : res;
+}
+
+/**
+ * Changes the guardian's own still-pending absence request. `expectedVersion`
+ * comes from the newest entry of the request's event history; the backend
+ * answers 409 `change_request_stale` when the request moved on meanwhile.
+ */
+export async function updateExcusedRequest(
+  studentId: string,
+  requestId: string,
+  input: { dates: string[]; note: string; expectedVersion: string },
+): Promise<ExcusedRequest> {
+  return putJson<ExcusedRequest>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/excused-requests/${encodeURIComponent(requestId)}`,
+    {
+      dates: input.dates,
+      note: input.note,
+      expected_version: input.expectedVersion,
+    },
+  );
 }
 
 /**
@@ -594,21 +702,6 @@ export async function listExcusedRequests(
 ): Promise<ExcusedRequest[]> {
   return getJson<ExcusedRequest[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/excused-requests`,
-  );
-}
-
-/**
- * Withdraws the guardian's own still-pending sick or excused absence request.
- * Returns the updated request (now `withdrawn`). The function retains its
- * legacy excused-only name. The backend rejects a withdraw once the OGS has
- * decided the request.
- */
-export async function withdrawExcusedRequest(
-  studentId: string,
-  requestId: string,
-): Promise<ExcusedRequest> {
-  return deleteJson<ExcusedRequest>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/excused-requests/${encodeURIComponent(requestId)}`,
   );
 }
 
@@ -768,6 +861,11 @@ export interface ParentAnnouncement {
   readonly priority: "info" | "important";
   readonly link_url?: string;
   readonly requires_acknowledgement: boolean;
+  /**
+   * "letter" is a binding Elternbrief (#2384): the full text also went out by
+   * e-mail, and the confirmation here in the portal is the one that counts.
+   */
+  readonly delivery_mode?: "standard" | "letter";
   readonly school_name: string;
   readonly published_at?: string; // ISO timestamp
   readonly expires_at?: string; // ISO timestamp
@@ -953,6 +1051,7 @@ export async function submitCareException(
     date: string;
     pickupTime: string;
     reason: string;
+    recipientGuardianProfileIds?: string[];
   },
 ): Promise<PickupChangeRequest> {
   return postJson<PickupChangeRequest>(
@@ -961,6 +1060,29 @@ export async function submitCareException(
       date: params.date,
       pickup_time: params.pickupTime,
       reason: params.reason,
+      recipient_guardian_profile_ids: params.recipientGuardianProfileIds ?? [],
+    },
+  );
+}
+
+/** Changes the guardian's own still-pending pickup-time request. */
+export async function updatePickupChangeRequest(
+  studentId: string,
+  requestId: string,
+  input: {
+    date: string;
+    pickupTime: string;
+    reason: string;
+    expectedVersion: string;
+  },
+): Promise<PickupChangeRequest> {
+  return putJson<PickupChangeRequest>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests/${encodeURIComponent(requestId)}`,
+    {
+      date: input.date,
+      pickup_time: input.pickupTime,
+      reason: input.reason,
+      expected_version: input.expectedVersion,
     },
   );
 }
@@ -970,15 +1092,6 @@ export async function listPickupChangeRequests(
 ): Promise<PickupChangeRequest[]> {
   return getJson<PickupChangeRequest[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests`,
-  );
-}
-
-export async function withdrawPickupChangeRequest(
-  studentId: string,
-  requestId: string,
-): Promise<PickupChangeRequest> {
-  return deleteJson<PickupChangeRequest>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests/${encodeURIComponent(requestId)}`,
   );
 }
 
@@ -1112,7 +1225,7 @@ interface CareScheduleWeekday {
 // RequestDiffEntry wire shape (label/old/new + structured discriminators), so
 // the localized parents portal can render each row in the guardian's language.
 // `submitted_by_self` is true only for the calling guardian's own request —
-// withdraw is offered only then.
+// "Anfrage bearbeiten" is offered only then.
 interface PendingCareRequest {
   readonly id: string;
   readonly created_at: string; // ISO timestamp
@@ -1155,6 +1268,26 @@ export async function getChildCareSchedule(
 ): Promise<ChildCareSchedule> {
   return getJson<ChildCareSchedule>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule`,
+  );
+}
+
+export interface CareScheduleRequestInput {
+  readonly weekdays: ReadonlyArray<{
+    readonly weekday: number;
+    readonly scheduled?: boolean;
+    readonly pickup?: string;
+    readonly mode?: string;
+  }>;
+}
+
+/** Submits a permanent change request for the child's standard weekly plan. */
+export async function submitCareScheduleRequest(
+  studentId: string,
+  payload: CareScheduleRequestInput,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
+    { payload },
   );
 }
 
@@ -1229,6 +1362,7 @@ interface OfferingDecision {
   readonly applied?: OfferingDiffLine[];
   /** Rule-added offerings the school excluded for this one request (#2370). */
   readonly overridden_names?: string[];
+  readonly submitted_by_self?: boolean;
 }
 
 /** Why the change button is unavailable. Stable identifiers from the backend. */
@@ -1328,21 +1462,37 @@ export async function submitOfferingChangeRequest(
     note?: string;
     complete_withdrawal_confirmed?: boolean;
   },
+  recipientGuardianProfileIds: string[] = [],
 ): Promise<ChildCareOfferings> {
   return postJson<ChildCareOfferings>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests`,
-    input,
+    {
+      ...input,
+      recipient_guardian_profile_ids: recipientGuardianProfileIds,
+    },
   );
 }
 
-/** Withdraws the guardian's own still-open offering change request. */
-export async function withdrawOfferingChangeRequest(
+/**
+ * Changes the guardian's own still-open offering change request. The body is
+ * the same shape as the create call (`offerings`, not `selections`) so the
+ * catalog screen can feed both without translating between two field names.
+ */
+export async function updateOfferingChangeRequest(
   studentId: string,
   requestId: string,
+  input: {
+    offerings: OfferingChangeSelectionInput[];
+    effective_from: string;
+    note?: string;
+    complete_withdrawal_confirmed?: boolean;
+    expectedVersion: string;
+  },
 ): Promise<ChildCareOfferings> {
-  return postJson<ChildCareOfferings>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests/${encodeURIComponent(requestId)}/withdraw`,
-    {},
+  const { expectedVersion, ...body } = input;
+  return putJson<ChildCareOfferings>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests/${encodeURIComponent(requestId)}`,
+    { ...body, expected_version: expectedVersion },
   );
 }
 
@@ -1359,6 +1509,7 @@ export interface MasterDataChange {
   readonly new_value: unknown;
   readonly status: "auto_applied" | "pending" | "approved" | "rejected";
   readonly created_at: string;
+  readonly is_self?: boolean;
 }
 
 // The structured Stammdaten view. Mirrors api/parent.MasterDataResponse.
@@ -1421,10 +1572,26 @@ export interface MasterDataChangeInput {
 export async function submitMasterDataRequest(
   studentId: string,
   changes: MasterDataChangeInput[],
+  recipientGuardianProfileIds: string[] = [],
 ): Promise<MasterDataChange[]> {
   return postJson<MasterDataChange[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests`,
-    { changes },
+    {
+      changes,
+      recipient_guardian_profile_ids: recipientGuardianProfileIds,
+    },
+  );
+}
+
+/** Changes the guardian's own still-pending Stammdaten change request. */
+export async function updateMasterDataRequest(
+  studentId: string,
+  requestId: string,
+  input: { newValue: unknown; expectedVersion: string },
+): Promise<MasterDataChange> {
+  return putJson<MasterDataChange>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests/${encodeURIComponent(requestId)}`,
+    { new_value: input.newValue, expected_version: input.expectedVersion },
   );
 }
 

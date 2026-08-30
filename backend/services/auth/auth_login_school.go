@@ -308,7 +308,7 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	// tx (same RLS constraints as the login flows — there is no tenant
 	// transaction yet).
 	var targetTenantID int64
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		tenantID, _, resolveErr := s.resolveAccountTenantBySlug(adminCtx, accountID, tenantSlug)
 		if resolveErr != nil {
 			return resolveErr
@@ -748,7 +748,7 @@ func wrapSchoolMintError(op string, err error) error {
 // loadSchoolMetadataForTenant loads the tenant-scoped metadata (roles,
 // permissions, person info, org id) and stamps the school scope on it. The
 // permissions travel into the JWT exactly like a tenant login — that is
-// what lets authorize.RequiresPermission(class_day:read) work unchanged
+// what lets common.RequiresPermission(class_day:read) work unchanged
 // behind /school/*.
 //
 // This is the ONE choke point every school token mint runs through BEFORE it
@@ -788,7 +788,7 @@ func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *auth
 		school        *platformModels.School
 		activeMapping bool
 	)
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, err = s.repos.School.FindByID(adminCtx, tenantID)
 		if err != nil {
 			return fmt.Errorf("lookup school %d for school metadata: %w", tenantID, err)
@@ -844,7 +844,7 @@ func (s *Service) schoolClaimsPayloadInTx(ctx context.Context, account *authMode
 // log the user out for good).
 func (s *Service) hasSchoolPortalRoleAtTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	var hasRole bool
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		accountRoles, rolesErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, tenantID)
 		if rolesErr != nil {
 			if isNotFoundError(rolesErr) {
@@ -879,7 +879,7 @@ func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountI
 	hasPortalRole := false
 	var firstPortalTenantID int64
 
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		mappings, listErr := s.repos.AccountTenant.FindActiveByAccountID(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
@@ -931,4 +931,72 @@ func (s *Service) findSchoolPortalTenantForAccount(ctx context.Context, accountI
 	}
 
 	return hasPortalRole, firstPortalTenantID, nil
+}
+
+// HasSchoolPortalAccess reports whether the account may STILL hold a school
+// session at this school. It exists for surfaces that authenticate once and
+// then stay open for the whole token lifetime — today the school SSE stream
+// (#2208), which would otherwise keep waking a Lehrkraft whose access was
+// revoked minutes ago until her access token expires.
+//
+// It re-checks the same four facts every school token mint gates on
+// (loadActiveAccountForSchoolMint + loadSchoolMetadataForTenant +
+// hasSchoolPortalRoleAtTenant), because any one of them being revoked ends the
+// session just as surely as the portal role does:
+//
+//   - the account is still active,
+//   - the school is still alive and active,
+//   - the auth.account_tenants mapping is still `active`,
+//   - the account still holds a school-portal role there.
+//
+// It deliberately does NOT go through loadSchoolMetadataForTenant itself: that
+// path also assembles roles, permissions and person data for a JWT, and this
+// runs once a minute per open stream where none of it is needed.
+//
+// A revoked fact answers (false, nil) — that is the caller's signal to close
+// the stream. Errors propagate for the same reason they do in
+// hasSchoolPortalRoleAtTenant: a database blip is not a revocation, and the
+// caller decides how long it may keep serving on the last successful answer.
+func (s *Service) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("look up account %d for school portal access: %w", accountID, err)
+	}
+	if account == nil || !account.Active {
+		return false, nil
+	}
+
+	// Both reads are RLS-guarded and this runs outside any tenant transaction
+	// (the SSE stream holds none) — same admin-tx requirement as the login
+	// flows.
+	var (
+		school        *platformModels.School
+		activeMapping bool
+	)
+	if txErr := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		school, err = s.repos.School.FindByID(adminCtx, tenantID)
+		if err != nil {
+			if isNotFoundError(err) {
+				school = nil
+				return nil
+			}
+			return fmt.Errorf("look up school %d for school portal access: %w", tenantID, err)
+		}
+		activeMapping, err = s.repos.AccountTenant.ExistsByAccountAndTenant(adminCtx, accountID, tenantID)
+		if err != nil {
+			return fmt.Errorf("verify account %d membership at school %d: %w", accountID, tenantID, err)
+		}
+		return nil
+	}); txErr != nil {
+		return false, txErr
+	}
+
+	if school == nil || school.IsDeleted() || !school.Active || !activeMapping {
+		return false, nil
+	}
+
+	return s.hasSchoolPortalRoleAtTenant(ctx, accountID, tenantID)
 }

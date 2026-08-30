@@ -19,7 +19,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,7 +48,7 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations authsvc.Invi
 
 func inTenantTx(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) {
 	t.Helper()
-	require.NoError(t, tenant.WithTenantTx(testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
 	}))
 }

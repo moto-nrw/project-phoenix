@@ -40,9 +40,23 @@ func TenantMiddleware(next http.Handler) http.Handler {
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
+		if claims.Scope != tenant.ScopePlatform && claims.TenantID <= 0 {
+			_, err := tenant.NewTenantID(claims.TenantID)
+			tenant.ObserveMissingTenant(r.Context(), err)
+			renderUnauthorized(w, r, ErrTokenUnauthorized)
+			return
+		}
 
 		ctx := r.Context()
-		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+		if claims.TenantID > 0 {
+			tenantID, err := tenant.NewTenantID(claims.TenantID)
+			if err != nil {
+				tenant.ObserveMissingTenant(r.Context(), err)
+				renderUnauthorized(w, r, ErrTokenUnauthorized)
+				return
+			}
+			ctx = tenant.WithTenant(ctx, tenantID)
+		}
 		ctx = tenant.WithOrgID(ctx, claims.OrgID)
 		ctx = tenant.WithScope(ctx, claims.Scope)
 

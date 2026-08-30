@@ -18,7 +18,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -40,11 +39,15 @@ func (c overviewStaffContext) GetCurrentStaff(context.Context) (*usersModel.Staf
 	return c.staff, nil
 }
 
+func (c overviewStaffContext) HasCurrentStaff(context.Context) (bool, error) {
+	return c.staff != nil, nil
+}
+
 // setOverviewScope stores the tenant override the way the settings API does.
 func setOverviewScope(tb testing.TB, db *bun.DB, tenantID int64, scope string) {
 	tb.Helper()
 
-	repository := configRepo.NewSettingValueRepository(db)
+	repository := configRepo.NewSettingValueRepository(ConfigRuntime(db))
 	value := &configModel.SettingValue{
 		SettingKey: configModel.KeyOperationalOverviewScope,
 		Value:      json.RawMessage(`"` + scope + `"`),
@@ -53,8 +56,8 @@ func setOverviewScope(tb testing.TB, db *bun.DB, tenantID int64, scope string) {
 	require.NoError(tb, repository.Upsert(tenant.WithTenantID(context.Background(), tenantID), value))
 }
 
-func staffClaimsCtx(ctx context.Context, tenantID int64) context.Context {
-	return context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 4711, TenantID: tenantID})
+func staffClaimsCtx(ctx context.Context, _ int64) context.Context {
+	return ctx
 }
 
 // TestOperationalOverviewScopeIsTenantScoped is the core cross-tenant claim:
@@ -73,20 +76,20 @@ func TestOperationalOverviewScopeIsTenantScoped(t *testing.T) {
 	setOverviewScope(t, db, tenantA, configModel.OverviewScopeAllStaff)
 
 	settings := configService.NewSettingsService(
-		configRepo.NewSettingValueRepository(db), nil, nil, db, slog.Default(),
+		configRepo.NewSettingValueRepository(ConfigRuntime(db)), nil, nil, SettingsRuntime(t, db), slog.Default(),
 	)
 	caller := overviewStaffContext{staff: &usersModel.Staff{}}
 
 	assertScope := func(tb testing.TB, tenantID int64, wantScope string, wantOverview bool) {
 		tb.Helper()
-		err := tenant.WithTenantTx(context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		err := WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			ctx := staffClaimsCtx(txCtx, tenantID)
 
-			scope, err := authorize.OperationalOverviewScope(ctx, settings)
+			scope, err := authorize.OperationalOverviewScope(ctx, settings, false)
 			require.NoError(tb, err)
 			assert.Equal(tb, wantScope, scope)
 
-			allowed, err := authorize.HasOperationalOverview(ctx, settings, caller)
+			allowed, err := authorize.HasOperationalOverview(ctx, settings, caller, false, false)
 			require.NoError(tb, err)
 			assert.Equal(tb, wantOverview, allowed)
 			return nil
@@ -128,7 +131,7 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()
-		err := tenant.WithTenantTx(context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
+		err := WithTenantTx(t, context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
 			groups, err := repository.List(txCtx, nil)
 			require.NoError(tb, err)
 

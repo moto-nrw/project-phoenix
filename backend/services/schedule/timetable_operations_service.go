@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -63,6 +64,10 @@ type OperationArrivalService interface {
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 }
 
+type OperationPickupService interface {
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error)
+}
+
 type TimetableOperationsService interface {
 	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
 	// ActiveSessions lists the given day's running instances with their plan
@@ -114,6 +119,7 @@ type TimetableOperationsDependencies struct {
 	ActivityGroupRepo  activitiesModel.GroupRepository
 	ActiveService      OperationActiveService
 	ArrivalService     OperationArrivalService
+	PickupService      OperationPickupService
 	CareDayService     CareDayService
 	SupervisorRepo     activeModel.GroupSupervisorRepository
 	VisitRepo          activeModel.VisitRepository
@@ -147,17 +153,19 @@ type OperationPlannedInstance struct {
 	// They are excluded from ExpectedStudentsCount; this field keeps the
 	// reduction visible instead of silently shrinking the number the
 	// supervisor knows.
-	NotScheduledCount int                       `json:"not_scheduled_students_count"`
-	AssignedStaffIDs  []int64                   `json:"assigned_staff_ids"`
-	IsAssigned        bool                      `json:"is_assigned"`
-	IsPrimary         bool                      `json:"is_primary"`
-	IsSubstitute      bool                      `json:"is_substitute"`
-	IsAbsent          bool                      `json:"is_absent"`
-	RosterPreview     []OperationRosterRow      `json:"roster_preview,omitempty"`
-	Warnings          []InstanceConflictWarning `json:"warnings"`
-	CanStart          bool                      `json:"can_start"`
-	StartAvailableAt  string                    `json:"start_available_at"`
-	StartExpiresAt    string                    `json:"start_expires_at"`
+	NotScheduledCount   int                       `json:"not_scheduled_students_count"`
+	AssignedStaffIDs    []int64                   `json:"assigned_staff_ids"`
+	IsAssigned          bool                      `json:"is_assigned"`
+	IsPrimary           bool                      `json:"is_primary"`
+	IsSubstitute        bool                      `json:"is_substitute"`
+	IsAbsent            bool                      `json:"is_absent"`
+	RosterPreview       []OperationRosterRow      `json:"roster_preview,omitempty"`
+	PickupTimesLoaded   bool                      `json:"pickup_times_loaded"`
+	PickupTimesRedacted bool                      `json:"pickup_times_redacted,omitempty"`
+	Warnings            []InstanceConflictWarning `json:"warnings"`
+	CanStart            bool                      `json:"can_start"`
+	StartAvailableAt    string                    `json:"start_available_at"`
+	StartExpiresAt      string                    `json:"start_expires_at"`
 }
 
 // OperationActiveSession is one running instance seen from its live session
@@ -172,8 +180,10 @@ type OperationActiveSession struct {
 }
 
 type OperationRoster struct {
-	Instance OperationRosterInstance `json:"instance"`
-	Rows     []OperationRosterRow    `json:"rows"`
+	Instance            OperationRosterInstance `json:"instance"`
+	Rows                []OperationRosterRow    `json:"rows"`
+	PickupTimesLoaded   bool                    `json:"pickup_times_loaded"`
+	PickupTimesRedacted bool                    `json:"pickup_times_redacted,omitempty"`
 	// MovedFrom is set only on check-in responses that auto-moved the child
 	// out of another running session (#2386). It carries the origin's display
 	// name; an empty string means the move happened but no name resolved.
@@ -210,6 +220,7 @@ type OperationRosterRow struct {
 	CheckedInAt      *string                  `json:"checked_in_at,omitempty"`
 	CheckedOutAt     *string                  `json:"checked_out_at,omitempty"`
 	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
+	PickupTime       *string                  `json:"pickup_time"`
 	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
 	// ParallelPresentIn names the other running instance where this child is
 	// currently recorded present (#2265). Set only on rosters of active
@@ -251,7 +262,7 @@ type timetableOperationsService struct {
 func NewTimetableOperationsService(deps TimetableOperationsDependencies) TimetableOperationsService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActivityGroupRepo == nil ||
-		deps.ActiveService == nil || deps.ArrivalService == nil || deps.CareDayService == nil || deps.SupervisorRepo == nil ||
+		deps.ActiveService == nil || deps.ArrivalService == nil || deps.PickupService == nil || deps.CareDayService == nil || deps.SupervisorRepo == nil ||
 		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.Settings == nil || deps.DB == nil {
 		panic("schedule.NewTimetableOperationsService: required dependency is nil")
 	}
@@ -360,6 +371,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 				return nil, err
 			}
 			mapped.RosterPreview = roster.Rows
+			mapped.PickupTimesLoaded = roster.PickupTimesLoaded
 		}
 		out = append(out, mapped)
 	}
@@ -721,7 +733,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 // they are on her sheet, and a child who turns up anyway must stay one tap
 // away.
 func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) error {
-	if !authorize.IsAssignmentBoundPortal(ctx) {
+	if !isAssignmentBoundPortal(ctx) {
 		return nil
 	}
 	planned, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
@@ -797,7 +809,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// she is planned into next week or was planned into in March. Her access
 	// follows the day she stands in front of the children, so the day is part
 	// of the boundary, not just the assignment.
-	if authorize.IsAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
+	if isAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
 		return 0, ErrTimetableOperationForbidden
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
@@ -811,7 +823,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// the active group's supervisor list. Starting a block adds its operator
 	// as a supervisor, so using that list here would preserve access after the
 	// assignment has been withdrawn.
-	if authorize.IsAssignmentBoundPortal(ctx) {
+	if isAssignmentBoundPortal(ctx) {
 		return 0, ErrTimetableOperationForbidden
 	}
 	if inst.ActiveGroupID != nil {
@@ -826,6 +838,11 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 		}
 	}
 	return 0, ErrTimetableOperationForbidden
+}
+
+func isAssignmentBoundPortal(ctx context.Context) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	return claims.IsSchoolScope()
 }
 
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {
@@ -942,6 +959,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			return nil, err
 		}
 	}
+	pickupTimes, pickupTimesLoaded := s.rosterPickupTimes(ctx, inst, studentIDs)
 	parallelPresence, err := s.parallelPresenceByStudent(ctx, inst, studentIDs)
 	if err != nil {
 		return nil, err
@@ -952,6 +970,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			continue
 		}
 		row := s.mapRosterRow(inst, planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay)
+		row.PickupTime = formatRosterPickupTime(pickupTimes[planned.StudentID])
 		row.ParallelPresentIn = parallelPresence[planned.StudentID]
 		rows = append(rows, row)
 	}
@@ -963,6 +982,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			continue
 		}
 		row := s.mapRosterRow(inst, visit.StudentID, nil, visit, students, persons, groups, nil, careDay)
+		row.PickupTime = formatRosterPickupTime(pickupTimes[visit.StudentID])
 		row.ParallelPresentIn = parallelPresence[visit.StudentID]
 		rows = append(rows, row)
 	}
@@ -1008,8 +1028,38 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			CanComplete:         availability.CanComplete,
 			CompleteAvailableAt: availability.CompleteAvailableAt.Format(time.RFC3339),
 		},
-		Rows: rows,
+		Rows:              rows,
+		PickupTimesLoaded: pickupTimesLoaded,
 	}, nil
+}
+
+func (s *timetableOperationsService) rosterPickupTimes(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+	studentIDs []int64,
+) (map[int64]*EffectivePickupTime, bool) {
+	if len(studentIDs) == 0 {
+		return map[int64]*EffectivePickupTime{}, true
+	}
+	pickups, err := s.deps.PickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, inst.Date)
+	if err != nil {
+		s.logger().WarnContext(
+			ctx,
+			"could not load pickup times for timetable roster",
+			slog.String("error", err.Error()),
+			slog.Int64("instance_id", inst.ID),
+		)
+		return map[int64]*EffectivePickupTime{}, false
+	}
+	return pickups, true
+}
+
+func formatRosterPickupTime(effective *EffectivePickupTime) *string {
+	if effective == nil || effective.PickupTime == nil {
+		return nil
+	}
+	formatted := effective.PickupTime.Format("15:04")
+	return &formatted
 }
 
 // ActiveSessions implements TimetableOperationsService. Purely descriptive
@@ -1261,7 +1311,7 @@ func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct
 
 func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals map[int64]*EffectiveArrivalTime, inst *scheduleModel.ActivityInstance) {
 	slotStart := inst.StartTime.Format("15:04")
-	slotStartClock := timezone.WallClock(inst.StartTime)
+	slotStartClock := timezone.NormalizeWallClock(inst.StartTime)
 	for studentID, arrival := range arrivals {
 		if arrival == nil {
 			continue
@@ -1277,7 +1327,7 @@ func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals
 			})
 			continue
 		}
-		arrivalClock := timezone.WallClock(*arrival.ArrivalTime)
+		arrivalClock := timezone.NormalizeWallClock(*arrival.ArrivalTime)
 		if arrivalClock.After(slotStartClock) {
 			expectedArrival := arrival.ArrivalTime.Format("15:04")
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
@@ -1359,13 +1409,15 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 // the same setting as every other surface, so a module listed by PlannedNow
 // can never 403 on the detail call. Fails closed on a settings fault.
 func (s *timetableOperationsService) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
-	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings)
+	claims := jwt.ClaimsFromCtx(ctx)
+	assignmentBound := claims.IsSchoolScope()
+	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings, assignmentBound)
 	if err != nil {
 		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
 			slog.String("error", err.Error()))
 		return false
 	}
-	admin := isAdmin || authorize.HasEffectiveAdminScope(ctx)
+	admin := isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 	switch scope {
 	case configModel.OverviewScopeAllStaff:
 		return admin || hasStaff

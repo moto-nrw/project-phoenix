@@ -13,14 +13,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource bundles the display handlers and their dependencies.
@@ -56,17 +54,18 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		r.Use(common.SecurityPrincipalMiddleware)
+		withTx := common.TenantTxMiddleware
 
 		// Listing is readable with either permission: display:read enables
 		// view-only roles, display:manage must not lock its holders out of
 		// the very list their mutations operate on.
-		r.With(authorize.RequiresAnyPermission(permissions.DisplayRead, permissions.DisplayManage), withTx).Get("/", rs.listDisplays)
-		r.With(authorize.RequiresPermission(permissions.DisplayManage), withTx).Post("/", rs.createDisplay)
+		r.With(common.RequiresAnyPermission(permissions.DisplayRead, permissions.DisplayManage), withTx).Get("/", rs.listDisplays)
+		r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Post("/", rs.createDisplay)
 		r.Route("/{id}", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.DisplayManage), withTx).Patch("/", rs.updateDisplay)
-			r.With(authorize.RequiresPermission(permissions.DisplayManage), withTx).Post("/regenerate", rs.regenerateToken)
-			r.With(authorize.RequiresPermission(permissions.DisplayManage), withTx).Delete("/", rs.deleteDisplay)
+			r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Patch("/", rs.updateDisplay)
+			r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Post("/regenerate", rs.regenerateToken)
+			r.With(common.RequiresPermission(permissions.DisplayManage), withTx).Delete("/", rs.deleteDisplay)
 		})
 	})
 

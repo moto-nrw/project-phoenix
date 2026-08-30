@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -44,7 +43,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 
 	// Seed a pending excused request covering today for this child.
 	const note = "Zahnarzttermin am Vormittag"
-	err := tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
@@ -55,7 +54,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 
 	get := func(perms []string) *string {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.AdminTestClaims(int(account.ID))
 		rr := authExec(t, tc, req, claims, perms)
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		var resp struct {
@@ -74,7 +73,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	assert.Nil(t, get([]string{"users:read"}),
 		"a users:read-only caller must not receive the pending excused note")
 
-	// users:update (the review-queue permission) → the note is shown.
+	// An admin with users:update (the review-queue permission) sees the note.
 	shown := get([]string{"users:read", "users:update"})
 	require.NotNil(t, shown, "a users:update caller should receive the pending excused note")
 	assert.Equal(t, note, *shown)
@@ -97,7 +96,7 @@ func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	const note = "Familienfeier, kommt später"
-	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.services.ExcusedRequests.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
 			[]timezone.Date{timezone.TodayDate()}, note,
@@ -107,7 +106,7 @@ func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 
 	rr := authExec(t, tc,
 		testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil),
-		testutil.TeacherTestClaims(int(account.ID)),
+		testutil.AdminTestClaims(int(account.ID)),
 		[]string{"users:read", "users:absence"},
 	)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

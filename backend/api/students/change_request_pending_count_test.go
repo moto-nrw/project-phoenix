@@ -30,7 +30,7 @@ func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testi
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	absencePerms := []string{"users:read", "users:absence"}
 	updatePerms := []string{"users:read", "users:update"}
 

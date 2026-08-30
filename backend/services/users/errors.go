@@ -141,6 +141,13 @@ var (
 	// to admins.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
 
+	// ErrPayerRemovalRequiresFinancial refuses to unlink a guardian who is the
+	// child's payer when the caller lacks guardians:financial (#2608). Clearing
+	// the payer mark changes who is charged for the child; that decision is
+	// owned by the financial permission, so users:update alone must not reach
+	// it through a plain unlink.
+	ErrPayerRemovalRequiresFinancial = errors.New("Diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung.") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrStudentDeletionPreviewChanged refuses a permanent deletion when the
 	// dependent row counts or the student/person record changed after the admin
 	// reviewed the impact.

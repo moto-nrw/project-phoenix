@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,7 +24,7 @@ func iotMetricsMiddleware(next http.Handler) http.Handler {
 		observability.ObserveIoTRequest(
 			tenant.FromContext(r.Context()),
 			r.Method,
-			observability.RoutePattern(r),
+			common.RoutePattern(r),
 			recorder.status,
 			time.Since(start),
 			deviceType,

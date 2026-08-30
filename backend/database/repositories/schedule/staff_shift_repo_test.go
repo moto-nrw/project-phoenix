@@ -54,7 +54,7 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 	// must normalize to WallClock so comparisons and formatting work.
 	assert.Equal(t, wallClock(8, 0), got.StartTime)
 	assert.Equal(t, wallClock(16, 30), got.EndTime)
-	assert.Equal(t, "08:00", timezone.WallClock(got.StartTime).Format("15:04"))
+	assert.Equal(t, "08:00", timezone.NormalizeWallClock(got.StartTime).Format("15:04"))
 }
 
 func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {

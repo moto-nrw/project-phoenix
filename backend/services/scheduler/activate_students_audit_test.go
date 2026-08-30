@@ -42,10 +42,9 @@ func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
 	student.ID = 701
 	repo := &fakeStudentLifecycleRepo{pendingDue: []*userModels.Student{student}}
 	auditor := &fakeStudentLifecycleAuditor{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		studentLifecycleRepo:  repo,
-		studentLifecycleAudit: auditor,
-	}
+		studentLifecycleAudit: auditor})
 
 	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
 
@@ -63,12 +62,11 @@ func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 	student.ID = 702
 	repo := &fakeStudentLifecycleRepo{activeDue: []*userModels.Student{student}}
 	auditErr := errors.New("audit unavailable")
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		studentLifecycleRepo: repo,
 		studentLifecycleAudit: &fakeStudentLifecycleAuditor{
 			err: auditErr,
-		},
-	}
+		}})
 
 	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
 
@@ -87,10 +85,9 @@ func TestRunActivateStudentsForTenant_SkipsStaleTransitionAndAudit(t *testing.T)
 		},
 	}
 	auditor := &fakeStudentLifecycleAuditor{}
-	s := &Scheduler{
+	s := unitScheduler(&Scheduler{
 		studentLifecycleRepo:  repo,
-		studentLifecycleAudit: auditor,
-	}
+		studentLifecycleAudit: auditor})
 
 	err := s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now())
 

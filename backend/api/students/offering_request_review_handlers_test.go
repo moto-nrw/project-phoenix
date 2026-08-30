@@ -335,3 +335,11 @@ func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	require.NotNil(t, svc.previewEffectiveFrom)
 	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.previewEffectiveFrom)
 }
+
+// Edit is the guardian edit path (#2267); the staff review handlers under
+// test never call it.
+func (f *fakeOfferingChangeRequestService) Edit(
+	context.Context, int64, enrollmentService.CreateOfferingChangeInput, string,
+) (*enrollmentModels.OfferingChangeRequest, error) {
+	return nil, nil
+}

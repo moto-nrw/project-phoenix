@@ -3,7 +3,7 @@
 import { BackButton } from "~/components/ui/back-button";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { TeamThreadSkeleton } from "./page-skeleton";
+import { TeamThreadSkeleton } from "~/components/messaging/team-chat-skeletons";
 
 /** Route-level loading UI für eine Unterhaltung. */
 export default function TeamThreadLoading() {

@@ -127,7 +127,7 @@ func setupOfferingGuardRouterTest(
 		nil, nil, nil, nil, db,
 	)
 	token := mintOfferingGuardReviewerToken(t, reviewer.ID, reviewer.Email)
-	return offeringGuardHarness{resource.Router(), request.ID, child.ID, token, repos, ctx}
+	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()), request.ID, child.ID, token, repos, ctx}
 }
 
 func createOfferingGuardPhase(t *testing.T, repos *repositories.Factory, ctx context.Context, mode string) *enrollmentModels.Phase {

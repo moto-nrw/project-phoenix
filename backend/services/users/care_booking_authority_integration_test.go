@@ -536,7 +536,7 @@ func TestConcurrentBookingAuthorityActivationCreatesOneCompletion(t *testing.T) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			errs <- tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
+			errs <- testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
 				_, err := svc.ApplyBookingAuthoritySetting(ctx, timezone.TodayDate(), true)
 				return err
 			})

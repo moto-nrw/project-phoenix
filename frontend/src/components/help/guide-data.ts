@@ -17,6 +17,7 @@ import {
   FolderOpen,
   GraduationCap,
   KeyRound,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -665,6 +666,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
+          "Im Tab `Erziehungsberechtigte` steht unten der Block `Zahlungskonto`. Dort wählen Sie, wer für dieses Kind zahlt, und tragen die IBAN dieser Person ein. Sichtbar ist der Block nur mit der Berechtigung `Bankverbindungen`.",
           "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen – die Zeiten selbst bearbeiten Sie über `Zeiten bearbeiten` im Tab `Betreuungszeiten`.",
           "Tab `Betreuungszeiten`: die Ankunfts- und Abholzeiten des Kindes verwalten. Es gibt genau zwei Wege. Auf einer Tageskarte führt `Ausnahme eintragen` zu einer Änderung nur für diesen einen Tag; neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein `Grund`. Die Schaltfläche `Wochenplan` oben rechts öffnet die festen Zeiten aller Wochentage samt der Notizen, die jede Woche gelten. Ausnahmen bleiben bestehen, wenn der Wochenplan geändert wird; würde eine geleerte Zeit einen Eintrag entfernen, fragt die App vorher nach.",
           "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
@@ -694,6 +696,29 @@ export const appChapters: readonly GuideChapter[] = [
               "Dialog „Krankmeldung planen“: „Zeitraum“ wählen, Von- und Bis-Datum prüfen und die angezeigte Anzahl der Tage vor dem Speichern kontrollieren.",
           },
         ],
+      },
+      {
+        id: "bankverbindungen",
+        title: "Bankverbindungen",
+        icon: Landmark,
+        summary:
+          "Hinterlegen Sie je Kind, von welchem Konto der Beitrag eingezogen wird, und laden Sie alle Bankverbindungen als Liste herunter.",
+        steps: [
+          "Das Kind öffnen und in den Tab `Erziehungsberechtigte` wechseln.",
+          "Im Block `Zahlungskonto` unter `Wer zahlt für dieses Kind?` die Person auswählen. Zur Auswahl stehen nur die Erziehungsberechtigten dieses Kindes.",
+          "Auf `IBAN eintragen` klicken, die IBAN eingeben und speichern. moto prüft die IBAN und weist falsche Eingaben zurück.",
+          "Läuft das Konto auf einen anderen Namen, tragen Sie diesen unter `Anderer Kontoinhaber` ein. Sonst bleibt das Feld leer.",
+          "Später zeigt moto nur die letzten vier Ziffern. Mit `Anzeigen` sehen Sie die ganze IBAN.",
+          "Die gesammelte Liste finden Sie in der Seitenleiste unter `Eltern` -> `Bankverbindungen`. Mit `Ohne IBAN` sehen Sie nur die Kinder, bei denen noch etwas fehlt.",
+          "Format wählen (PDF, Excel oder Word) und auf `Herunterladen` klicken.",
+        ],
+        callout: {
+          title: "Geschwister nur einmal pflegen",
+          body: "Die IBAN gehört zur Person, nicht zum Kind. Tragen Sie bei einem zweiten Kind dieselbe Person als Zahlungskonto ein, gilt die IBAN dort automatisch mit. Sie müssen sie nur einmal eingeben.",
+          tone: "green",
+        },
+        screenshot:
+          "Block Zahlungskonto im Tab Erziehungsberechtigte sowie die Seite Bankverbindungen mit der Liste je Kind und den Export-Schaltflächen.",
       },
       {
         id: "eltern-konten-verbinden",
@@ -732,18 +757,25 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern prüfen",
         icon: ClipboardCheck,
         summary:
-          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), freigegebene Änderungen am Wochenplan und Änderungen an der gebuchten Betreuung reichen sie als Anfrage ein – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
           "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
-          "Die dauerhaften Bring- und Abholzeiten ändern Eltern seit dem Umbau der Eltern-App nicht mehr selbst: Die Rubrik `Betreuungszeiten` gibt es dort nicht mehr, der Wochenplan steht nur noch als Anzeige. Der Hinweis dort nennt die OGS als Stelle, die die Zeiten pflegt; Änderungswünsche kommen jetzt als Nachricht. Ältere, noch offene Anfragen bleiben in der Warteschlange und lassen sich normal entscheiden.",
+          "Manche Schulen legen die Betreuungstage durch gebuchte Angebote fest. Dort können Eltern den Wochenplan nicht ändern. Sie ändern stattdessen die gebuchten Angebote. In anderen Schulen können Eltern am Wochenplan `Änderungen anfragen`. Die Schule bestimmt, ob das für Abholzeit oder Abholart möglich ist. Offene ältere Anfragen bleiben sichtbar und lassen sich normal entscheiden.",
           "Krankmeldungen und entschuldigte Abmeldungen sind zuerst Anfragen.",
           "Bis zur Bestätigung gilt das Kind als erwartet.",
           "Offene Anfragen finden Sie unter `Eltern` > `Anfragen` im Reiter `Eltern`.",
           "Der Reiter bündelt Stammdaten, Betreuungszeiten, Angebote und Abwesenheiten.",
           "Die Bestätigung für Krankmeldungen ändern Sie unter `Einstellungen` > `Elternportal`.",
           "Dort ändern Sie auch die Bestätigung für entschuldigte Abmeldungen.",
-          "Jede Anfrage zeigt das Kind und die gewünschte Änderung.",
+          "Links steht die Liste der Kinder mit offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf dem Telefon ersetzt die Detailansicht die Liste; mit `Zur Liste` kommen Sie zurück.",
+          "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen; schließen Sie sie mit `Als erledigt markieren` ab.",
+          "Widersprechen sich zwei Wünsche zum selben Tag, legen Sie oben EIN Ergebnis fest: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden abgelehnt.",
+          "Markieren Sie bei passenden Anfragen `Gemeinsam freigeben`. Tragen Sie einen gemeinsamen Grund ein. moto gibt entweder alle ausgewählten Anfragen frei oder keine.",
+          "Anfragen mit weiteren Folgen entscheiden Sie einzeln. An der Anfrage steht dann `Nur einzeln entscheiden` und der Grund dafür.",
+          "Andere Sorgeberechtigte sehen eine Anfrage nur, wenn die Eltern sie mit ihnen teilen.",
+          "Admins können am Fall `Angaben schützen` wählen. Dann können Eltern keine Anfragen für dieses Kind teilen. Die Funktion steht auch in der Kinderkartei unter `Stammdaten`.",
+          "Standardmäßig entscheiden nur OGS-Admins. Unter `Einstellungen` > `Elternportal` können Sie zusätzlich erlauben, dass aktuelle Gruppenleitungen und Vertretungen Anfragen für Kinder ihrer Gruppen entscheiden.",
           "Bei Betreuungszeiten sehen Sie den Vergleich für jeden Wochentag.",
           "Gilt eine Anfrage nur für einen Tag, steht `Einzelner Tag` in der Zeile. Daneben steht das Datum.",
           "Ohne diese Kennzeichnung ändert die Anfrage den Wochenplan dauerhaft. Dann steht dort ein Wochentag statt eines Datums.",
@@ -767,6 +799,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Anfragen zu Betreuungsangeboten gelten ab dem Datum, das Sie unter `Gültig ab` bestätigt haben: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot zu diesem Datum voll, meldet die App das und die Anfrage bleibt offen.",
           "Die Eltern sehen die Entscheidung in ihrem Nachrichten-Verlauf, bei Betreuungsangeboten mit dem Datum, das Sie bestätigt haben. Das Ergebnis steht zusätzlich zwei Wochen lang unter `Gebuchte Betreuung` im Kinderbereich der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
           "Über den Schalter `Historie` oben auf der Seite sehen Sie alle bereits entschiedenen Anfragen: wer wann freigegeben oder abgelehnt hat, mit welcher Begründung – und auch automatisch übernommene Stammdaten-Änderungen. Änderungen, die Sie selbst an den gebuchten Angeboten eines Kindes vorgenommen haben, stehen dort als `Direkt-Korrektur`. Über `Weitere Einträge laden` blättern Sie weiter zurück.",
+          "Haben Sie sich vertan, öffnen Sie die Zeile in der `Historie` und tippen auf `Entscheidung korrigieren`. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
+          "Ob eine Begründung Pflicht ist, legen Sie unter `Einstellungen` > `Elternportal` fest. Ablehnen verlangt immer eine Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
@@ -1037,10 +1071,10 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Team-Chat",
         icon: MessageSquare,
         summary:
-          "Nachrichten an einzelne Kolleginnen und Kollegen Ihrer Schule. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
+          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
         steps: [
-          "In der Seitenleiste den Bereich `Team` aufklappen und `Team-Chat` öffnen.",
-          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule.",
+          "`Team-Chat` in der Seitenleiste öffnen.",
+          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule. Lehrkräfte sind mit `Lehrkraft` gekennzeichnet; sie lesen und antworten in ihrem Portal „moto schule“ unter `Nachrichten` (siehe `Lehrkraft schreibt Nachrichten`).",
           "Nachricht schreiben und mit `Senden` abschicken.",
           "Eine Zahl neben `Team-Chat` zeigt, wie viele Nachrichten Sie noch nicht gelesen haben. Sie verschwindet, sobald Sie die Unterhaltung öffnen.",
           "Über `Nur ungelesen` blenden Sie alles aus, was Sie schon gelesen haben.",
@@ -1147,6 +1181,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Voraussetzung: die Lehrkraft hat schon einen Zugang zu moto schule (siehe `Lehrkraft-Zugang mit Klassenansicht`).",
           "Im `Betreuungsplan` den Termin öffnen und die Lehrkraft als Person eintragen, wie jede andere Betreuungskraft auch. Eine eigene Rolle braucht sie dafür nicht.",
           "Die Lehrkraft findet den Termin am selben Tag in moto schule unter `Meine Aufsichten`. Sie startet die Aufsicht, hakt die Kinder ab und beendet sie am Ende.",
+          "In der Kinderliste steht die `Gehzeit` direkt an jedem Kind. Die Zeit gilt für das Datum der Aufsicht. Ohne Gehzeit steht dort `—`.",
           "Tippt sie in der Liste auf den Namen eines Kindes, sieht sie für dieses Kind die Abholzeit, den Heimweg, wer abholen darf und die Notfallkontakte. Jeder dieser Aufrufe wird im Zugriffsprotokoll vermerkt.",
           "Nehmen Sie die Einteilung wieder heraus, ist die Aufsicht für die Lehrkraft sofort weg. Sie sieht dann auch die Kinder dieser Aufsicht nicht mehr.",
         ],
@@ -1157,6 +1192,30 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Ansicht Meine Aufsichten in moto schule mit einer eingeteilten Aufsicht und der Kinderliste darunter.",
+        printCompact: true,
+      },
+      {
+        id: "lehrkraft-nachrichten",
+        title: "Lehrkraft schreibt Nachrichten",
+        icon: MessageSquare,
+        summary:
+          "Gibt Lehrkräften in moto schule den kurzen Draht zur OGS: dieselbe Unterhaltung wie im `Team-Chat`, nur aus dem anderen Portal. Dazu gehört, was die Lehrkraft dort selbst einstellt.",
+        steps: [
+          "Voraussetzung: Ihre Schule hat den Team-Chat eingeschaltet (siehe `Team-Chat`). Solange er aus ist, erscheint `Nachrichten` in moto schule gar nicht erst.",
+          "Die Lehrkraft öffnet in moto schule `Nachrichten`. Dort stehen ihre Unterhaltungen mit der OGS.",
+          "Über `Neue Nachricht` wählt sie eine Person aus. Neben jedem Namen steht, um wen es sich handelt: `OGS-Leitung`, `OGS-Team` oder `Lehrkraft`. Eltern sehen von diesen Nachrichten nichts.",
+          "Eine Zahl neben `Nachrichten` zeigt, wie viele Nachrichten noch nicht gelesen sind. Sie verschwindet, sobald die Unterhaltung geöffnet ist.",
+          "Antworten aus der OGS erscheinen sofort, ohne die Seite neu zu laden. Ist die Lehrkraft gerade an anderer Stelle im Portal, erscheint ein kurzer Hinweis mit dem Weg zur Unterhaltung.",
+          "Im Menü hinter dem eigenen Namen liegt `Einstellungen`. Dort legt die Lehrkraft zuerst fest, worüber sie informiert werden möchte, und richtet danach das Gerät ein. Mit `Testbenachrichtigung senden` prüft sie, ob wirklich etwas ankommt.",
+          "Auf iPhone und iPad kommen Benachrichtigungen nur an, wenn moto schule vorher über `Zum Home-Bildschirm` hinzugefügt wurde. Die Anleitung dazu steht auf der Einstellungsseite.",
+        ],
+        callout: {
+          title: "Dieselbe Unterhaltung, zwei Portale",
+          body: "Ihr Team schreibt im OGS-Portal unter `Team-Chat`, die Lehrkraft in moto schule unter `Nachrichten`. Beide sehen denselben Verlauf. Nachrichten lassen sich nicht nachträglich ändern oder löschen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Nachrichten in moto schule mit der Liste der Unterhaltungen, dem Zähler in der Navigation und der Einstellungsseite für Benachrichtigungen.",
         printCompact: true,
       },
       {
@@ -1247,12 +1306,13 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus. Planen können nur Admins; alle anderen Teammitglieder sehen den Plan zum Nachschauen.",
         steps: [
-          "Teammitglieder ohne Admin-Rechte finden den Betreuungsplan unter `Planung` -> `Kalender` im Reiter `Betreuungsplan`. Oben steht `Nur ansehen`: Sie sehen die Wochenplanung der ganzen Schule – wer macht was, wann, wo und mit welchen Kindern (Teilnehmerliste im Termin-Detail). Der Reiter `Meine Termine` daneben zeigt weiterhin die eigenen Einsätze, Schichten und Einladungen. Die Schul-Ansicht zeigt bewusst nur die Woche; Planungswerkzeuge wie Monats- und Serienansicht, Lücken- und Konflikthinweise sowie Anlegen, Bearbeiten, Absagen und Löschen bleiben Admins vorbehalten.",
-          "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Wochenansicht zeigt Montag bis Freitag. Die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
+          "Teammitglieder ohne Admin-Rechte finden den Betreuungsplan unter `Planung` -> `Kalender` im Reiter `Betreuungsplan`. Oben steht `Nur ansehen`: Sie sehen die Wochenplanung der ganzen Schule – wer macht was, wann, wo und mit welchen Kindern (Teilnehmerliste im Termin-Detail). Der Reiter `Meine Termine` daneben zeigt weiterhin die eigenen Einsätze, Schichten und Einladungen. Oben lässt sich zwischen `Tag` und `Woche` umschalten: `Woche` zeigt Montag bis Freitag, `Tag` zeigt einen einzelnen Schultag über die volle Breite – gut, wenn an einem Tag viele Blöcke parallel laufen. Die Pfeile und `Heute` bewegen sich dann von Schultag zu Schultag; das Wochenende wird übersprungen. Planungswerkzeuge wie Monats- und Serienansicht, Lücken- und Konflikthinweise sowie Anlegen, Bearbeiten, Absagen und Löschen bleiben Admins vorbehalten.",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Tag`, `Woche`, `Monat` und `Serien` wechseln; die Wochenansicht zeigt Montag bis Freitag, die Tagesansicht einen einzelnen Schultag über die volle Breite. Die Pfeile und `Heute` navigieren durch Tag, Woche oder Monat – in der Tagesansicht von Schultag zu Schultag, ohne Wochenende. Die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
           "Der `Zeitraum`-Chip in der Kontextzeile zeigt den Planungszeitraum des sichtbaren Datums; ein Klick öffnet eine Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Der Chip `Bedarf: …` daneben zeigt, welche Anmeldephase den Bedarf des Zeitraums liefert.",
           "Der Lücken-Chip in der Kontextzeile zählt offene Personal-Lücken des sichtbaren Zeitraums; ein Klick öffnet eine Sprungliste mit Uhrzeit, Titel und Soll/Ist je Lücke, die direkt zum betroffenen Termin springt.",
           "Unter der Kontextzeile zählt ein Hinweis-Banner die Konflikte des sichtbaren Zeitraums: dasselbe Kind in zwei zeitgleichen Terminen oder dieselbe Betreuungskraft zeitgleich in verschiedenen Räumen. `Details` klappt die Liste auf; jeder Eintrag nennt die Person und die beteiligten Termine, die sich direkt öffnen lassen. Geprüfte Konflikte lassen sich mit `Ausblenden` wegklicken, bei mehreren offenen Konflikten auch alle auf einmal über `Alle ausblenden` – die Entscheidung gilt nur für Ihr Konto und nur für die konkreten Konflikte; ändert sich Person, Zeit oder Raum, erscheint die Warnung wieder. Sind alle Konflikte quittiert, verschwindet der Banner vollständig; über das Drei-Punkte-Menü in der Kopfzeile (`Ausgeblendete Konflikte anzeigen`) holen Sie die ausgeblendeten jederzeit zurück. Konflikte blockieren weder Speichern noch Starten.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`). Das Formular öffnet sich als dreistufiger Assistent mit den Schritten `Termin`, `Wiederholung` und `Personal und Kinder`.",
+          "Tage außerhalb des Planungszeitraums sind grau und mit `Nicht planbar` markiert. Bereits geplante Termine bleiben sichtbar. An diesen Tagen können Sie keine Termine anlegen. In einer Randwoche bleiben die anderen Tage planbar.",
           "Schritt 1 `Termin`: `Titel` eintragen, bei Bedarf eine `Kategorie` und `Raum` wählen. Der `Schulhof` lässt sich wie jeder andere Raum wählen; der Termin startet regulär, und die zugeordneten Kinder und Mitarbeitenden gelten dann für die Schulhof-Aufsicht. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen, dazu optional Notizen. Mit `Weiter` geht es zum nächsten Schritt; `Speichern` erscheint erst im letzten Schritt `Personal und Kinder`. Angaben zu Wiederholung und Personal/Kinder bleiben freiwillig: Wer beide Schritte einfach mit `Weiter` durchklickt, legt einen einmaligen Termin ohne zugeordnetes Personal an.",
           "Schritt 2 `Wiederholung`: festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen. Bei `Alle 2 Wochen` erscheint zusätzlich die Auswahl `Woche A` oder `Woche B`; vorausgewählt ist die Woche des angeklickten Datums, sofern der Kalenderzeitraum einen A/B-Zyklus hat. Dieser Schritt legt außerdem den Planungszeitraum fest und zeigt beim Bearbeiten eines Serientermins die Optionen zum Splitten oder Beenden der Serie.",
           "Schritt 3 `Personal und Kinder`: `Personal` und `Kinder` zuordnen. Mit `Jahrgang/Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Zielgruppe auf einmal in die Auswahl. Suche und Filter helfen bei langen Kinderlisten. Hier erscheinen auch Hinweise zu doppelt eingeplanten Personen sowie zum Abgleich mit dem Dienstplan; sie verhindern das Speichern nicht. Parallele Termine und mehrere Termine im selben Raum sind erlaubt und erzeugen keinen Hinweis; gewarnt wird nur, wenn ein Kind zeitgleich in zwei Terminen steckt oder eine Betreuungskraft zeitgleich in verschiedenen Räumen eingeplant ist.",
@@ -1273,7 +1333,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Für Notizen gibt es zwei Ebenen: Die `Wochennotiz` pflegen Sie am Regeltermin (Serie); sie erscheint an jedem Termin der Reihe und bleibt bei Re-Plan und Serienänderungen erhalten (z. B. `Raum erst ab 14 Uhr offen`). Die `Tagesnotiz` gilt nur für einen einzelnen Termin und wird über `Nur diese Woche` gespeichert. An einem Einzeltermin sehen Sie beide getrennt.",
           "Hat ein Regeltermin noch nicht begonnen, zeigt das Bearbeiten der Serie (Ansicht `Serien` -> `Bearbeiten`) in Schritt 1 zusätzlich das Feld `Serienbeginn` mit dem gespeicherten Startdatum. Dort ziehen Sie den Beginn auf ein früheres Datum vor, zum Beispiel vom 13.08. auf den 12.08. Neue Termine entstehen nur zwischen neuem und bisherigem Beginn an den gewählten Wochentagen; bereits geplante Termine bleiben unverändert. Das Datum darf nicht in der Vergangenheit liegen und muss im Planungszeitraum bleiben; ein späterer Beginn ist nicht möglich.",
           "Beim Löschen eines Serientermins wählen Sie zwischen `Nur diese Woche` und `Ab jetzt dauerhaft`; frühere Termine bleiben erhalten. Liegt der Termin in der Vergangenheit, entfällt die Auswahl und der Termin wird direkt gelöscht: Ein Regeltermin lässt sich nur ab heute beenden. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
-          "Geplante Termine erscheinen schon vor ihrer Startzeit unter `Räume` -> `Aufsicht heute` im Abschnitt `Als Nächstes`. Die Schaltfläche zeigt die genaue Uhrzeit, ab der der Termin gestartet werden kann; den Vorlauf legen Admins unter `Einstellungen` -> `Betrieb` fest. In einer aktiven Aufsicht stehen Aktivität, Raum und vollständige Planzeit gemeinsam im Kopf.",
+          "Geplante Termine erscheinen schon vor ihrer Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes`. Die Schaltfläche zeigt die genaue Uhrzeit, ab der der Termin gestartet werden kann; den Vorlauf legen Admins unter `Einstellungen` -> `Betrieb` fest. In einer aktiven Aufsicht stehen Aktivität, Raum und vollständige Planzeit gemeinsam im Kopf.",
+          "Öffnen Sie die Anwesenheitsliste eines geplanten oder laufenden Termins. Jede Kinderzeile zeigt die `Gehzeit` für das Datum des Termins. Ohne Gehzeit steht dort `—`.",
+          "Kann moto die Gehzeiten nicht laden, zeigt die Liste einen Hinweis. Die Anwesenheitsliste bleibt verfügbar.",
           "`Beenden` zeigt vor der Bestätigung das Planende sowie Anzahl und Namen der noch anwesenden Kinder. Geplante Termine lassen sich standardmäßig erst ab Planende beenden; Admins können diese Grenze unter `Einstellungen` -> `Betrieb` abschalten. Nach dem Beenden kann die Person, die beendet hat, oder ein Admin die Aktivität fünf Minuten lang mit `Rückgängig` wieder öffnen.",
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
@@ -1288,7 +1350,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Wochenansicht des Betreuungsplans mit Kopfzeile (Ansichten Woche/Monat/Serien, Zeitraum-Chip, Bedarfs-Chip, Lücken-Chip) und geplanten Terminen.",
+          "Wochenansicht des Betreuungsplans mit Kopfzeile, geplanten Terminen und einem als `Nicht planbar` markierten Tag außerhalb des Planungszeitraums.",
         image: "/help/screens/stundenplan.webp",
       },
       {
@@ -1348,6 +1410,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Einen bestehenden Termin über `Bearbeiten` anpassen. Änderungen gelten für die ganze Serie; ist erneut `Eltern per E-Mail benachrichtigen` gesetzt, geht eine Aktualisierungs-E-Mail heraus. Ein bereits abgesagter Termin lässt sich nicht mehr bearbeiten.",
           "Mit `Absagen` bleibt der Termin sichtbar, aber als `Abgesagt` markiert; mit `Löschen` verschwindet er ganz. Bei einer Terminreihe fragt die App, ob die Aktion für `Nur diesen Termin entfernen` oder die `Ganze Reihe` gilt. Noch nicht versendete Benachrichtigungen werden dabei automatisch gestoppt.",
           "Über `Zum Kalender hinzufügen` an einem Termin eine `.ics`-Datei herunterladen, um ihn in einen persönlichen Kalender (Handy, Outlook) zu übernehmen.",
+          "Unter dem Kalender zum Bereich `Kalender abonnieren` gehen. Dann `Abo-Link anzeigen` wählen.",
+          "`Im Kalender abonnieren` wählen. Oder den Link kopieren und im persönlichen Kalender einfügen.",
+          "Termine, Betreuungsangebote und Dienstplan-Schichten erscheinen dort automatisch. Änderungen in moto werden übernommen.",
+          "Das Abo ist nur zum Lesen. Änderungen im persönlichen Kalender wirken nicht auf moto zurück. Sie sehen den Link nur einmal. Geben Sie ihn nicht weiter.",
+          "Mit `Link neu erstellen` endet das bisherige Abo. Kalender mit dem alten Link erhalten danach keine Änderungen mehr.",
         ],
         callout: {
           title: "Eltern nur mit Portalzugang einladen",
@@ -1355,7 +1422,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog mit E-Mail-Benachrichtigung sowie Bearbeiten/Absagen/Löschen und Teilnehmerübersicht.",
+          "Mein Kalender mit Tag/Woche/Monat, Termin-Dialog, Bearbeiten/Absagen/Löschen, Teilnehmerübersicht und dem Bereich Kalender abonnieren.",
       },
       {
         id: "dienstplan",
@@ -1526,14 +1593,15 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Dateien: gemeinsame Ablage der OGS",
         icon: FolderOpen,
         summary:
-          "Unter `Dateien` liegen gemeinsame Unterlagen der OGS wie Konzeption, Formulare oder Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest. Unterlagen zu einem Kind oder zu einer Person gehören nicht hierher, sondern in den Reiter `Dokumente` beim Kind bzw. bei der Person.",
+          "Unter `Dateien` liegen gemeinsame Unterlagen der OGS, zum Beispiel Formulare und Notfallpläne. Die Leitung legt pro Ordner fest, wer ihn sehen darf. Unterlagen zu Kindern und Mitarbeitenden bleiben im `Dokumente`-Bereich der Person.",
         steps: [
           "In der Seitenleiste den Bereich `Team` aufklappen und `Dateien` öffnen. Links stehen die Ordner, rechts die Dateien des gewählten Ordners.",
           "Als Leitung mit `Neuer Ordner` einen Ordner anlegen und die Sichtbarkeit wählen: `Alle Mitarbeitenden`, `Nur Leitung` oder `Ausgewählt` (bestimmte Rollen und Personen). Alle Dateien im Ordner übernehmen diese Einstellung.",
           "Dateien per Ziehen oder über `Dateien auswählen` hochladen. Erlaubt sind PDF, Word, Excel, PowerPoint, PNG und JPG bis 25 MB pro Datei.",
-          "PDF und Bilder öffnen sich per Klick auf den Dateinamen direkt im Browser. Word, Excel und PowerPoint werden heruntergeladen.",
+          "Den Dateinamen wählen. PDF-Dateien und Bilder öffnen sich direkt. Word-, Excel- und PowerPoint-Dateien werden heruntergeladen.",
           "Über das Menü mit den drei Punkten an einer Datei `Öffnen`, `Herunterladen` oder `Löschen` wählen; am Ordner `Ordner bearbeiten` oder `Ordner löschen`.",
-          "Standardmäßig lädt nur die Leitung hoch. Unter `Einstellungen` -> `Team darf Dateien hochladen` dürfen alle Mitarbeitenden in die Ordner hochladen, die sie sehen, und ihre eigenen Dateien wieder löschen.",
+          "Am Computer sehen Sie unter `Dateien hochladen`, wer Dateien hochladen darf. Wenn Sie Einstellungen ändern dürfen, öffnen Sie mit `Berechtigung ändern` die passende Einstellung.",
+          "Standardmäßig lädt nur die Leitung Dateien hoch. Schalten Sie `Team darf Dateien hochladen` ein, wenn auch das Team hochladen darf. Eigene Dateien können Mitarbeitende wieder löschen.",
         ],
         callout: {
           title: "Sichtbarkeit gilt pro Ordner",
@@ -1541,7 +1609,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Dateiablage mit Ordnerliste links, Dateitabelle rechts und dem Fenster zum Anlegen eines Ordners.",
+          "Dateiablage mit Ordnerliste, Upload-Berechtigung und Dateitabelle.",
         image: "/help/screens/dateien.webp",
       },
       {
@@ -1865,11 +1933,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Von der Tageskarte aus melden Eltern ihr Kind krank, ändern die Abholung für einen Tag oder schreiben der OGS.",
           "`Kinder` zeigt bei einem Kind direkt dieses Kind, bei mehreren einen Umschalter oben. Der Bereich hat vier Abschnitte: `Heute`, `Gebuchte Betreuung`, `Daten von {Name}` und `Eltern und Abholberechtigte`.",
           "`Kalender` ist eine Terminliste nach `Diese Woche`, `Nächste Woche` und `Später`. Zusagen und Absagen stehen direkt in der Zeile.",
-          "Hinter `Mehr` liegen `Elternbriefe`, Essensplan, Einstellungen, eine neue Anmeldung und das Abmelden. Ein ungelesener Elternbrief wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Elternbrief erscheint zusätzlich auf der Startseite.",
+          "Hinter `Mehr` liegen `Elternbriefe`, Essensplan, Einstellungen, eine neue Anmeldung und das Abmelden. Ein ungelesener Elternbrief wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Elternbrief erscheint zusätzlich auf der Startseite. Verbindliche Elternbriefe sind mit `Bestätigung erforderlich` gekennzeichnet – dort zählt nur die Bestätigung im Elternportal, nicht die E-Mail.",
         ],
         callout: {
           title: "Was es nicht mehr gibt",
-          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` sind aus der Eltern-App entfernt; Eltern konnten dort ohnehin nichts anmelden. Der Wochenplan steht nur noch als Anzeige unter `Gebuchte Betreuung`, weil eine frei änderbare Bringzeit zu falschen Elternangaben geführt hat. Produktfeedback gibt es in der Eltern-App nicht mehr.",
+          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` gibt es nicht mehr. Der Wochenplan steht jetzt unter `Gebuchte Betreuung`. Legen gebuchte Angebote die Betreuungstage fest, ist der Plan nur zur Ansicht. Sonst können Eltern dort eine neue Abholzeit oder Abholart anfragen. Die Schule bestimmt, welche Angaben Eltern ändern dürfen. Produktfeedback gibt es in der Eltern-App nicht mehr.",
           tone: "orange",
         },
         screenshot:
@@ -1906,23 +1974,31 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Abwesenheiten sowie Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral unter `Eltern` > `Anfragen` entschieden.",
         steps: [
-          "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Zeiten pflegt die OGS, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
+          "Unter `Gebuchte Betreuung` sehen Eltern die Buchungen und den Wochenplan. Legen gebuchte Angebote die Betreuungstage fest, ist der Plan nur zur Ansicht. Änderungen reichen Eltern dann bei den gebuchten Angeboten ein. Sonst können sie eine neue Abholzeit oder Abholart anfragen. Die Schule bestimmt, welche Angaben Eltern ändern dürfen.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
-          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Anfragen` öffnen; der Reiter `Eltern` ist voreingestellt. Alle offenen Anfragen stehen in einer gemeinsamen Liste, jeweils mit dem Vergleich `aktuell -> gewünscht`. Über das Suchfeld nach dem Namen eines Kindes suchen, über den Filter `Anfrageart` gezielt eine Sorte anzeigen (`Stammdaten`, `Betreuungszeiten`, `Angebote und AGs`, `Abwesenheiten`, `Anmeldung`). Für Betreuungszeiten kommen keine neuen Anfragen mehr; noch offene Altfälle lassen sich weiterhin entscheiden.",
+          "Öffnen Sie in der Seitenleiste `Anfragen`. Der Reiter `Eltern` ist schon gewählt. Links steht die Liste der Kinder mit offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf dem Telefon ersetzt die Detailansicht die Liste; mit `Zur Liste` kommen Sie zurück.",
+          "Neue Anfragen zu Betreuungszeiten gibt es nicht an jeder Schule. Die Schule bestimmt, ob Eltern Abholzeit oder Abholart anfragen dürfen. Offene ältere Anfragen können Sie weiterhin entscheiden.",
+          "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen.",
+          "Eine abgelaufene Anfrage ändert nichts mehr. Schließen Sie sie mit `Als erledigt markieren` ab. Ablehnen bleibt möglich, freigeben nicht.",
+          "Widersprechen sich zwei Wünsche zum selben Tag, stehen sie oben zusammen. Wählen Sie dort aus, was gelten soll: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden dann abgelehnt.",
+          "Hat die OGS einen Wert nach der Anfrage selbst geändert, steht das als Hinweis an der Anfrage. Prüfen Sie dann, welcher Wert jetzt gelten soll.",
+          "Markieren Sie bei passenden Anfragen `Gemeinsam freigeben`. Tragen Sie einen gemeinsamen Grund ein. moto gibt entweder alle ausgewählten Anfragen frei oder keine. Bei anderen Anfragen steht `Nur einzeln entscheiden` und der Grund dafür.",
+          "Andere Sorgeberechtigte sehen eine Anfrage nur nach einer Freigabe durch die Eltern. Admins können am Fall `Angaben schützen` wählen. Dann können Eltern keine Anfragen für dieses Kind teilen. Jede Änderung wird mit Grund, Person und Zeitpunkt gespeichert.",
           "Mit `Freigeben` wird die Änderung übernommen. Bei einer Tages-Abholzeit zeigt moto vorher die betroffenen Termine im Betreuungsplan. Das Kind wird nach dem Freigeben von diesen Terminen abgemeldet. Bei Betreuungszeiten wird der Wochenplan aktualisiert. Gehört ein Betreuungstag zu einem gebuchten Angebot, ändern Sie zuerst die Buchung. Lehnen Sie diese Anfrage danach ab. Bei Abwesenheiten trägt moto das Kind als krank oder entschuldigt ein.",
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
           "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
           "Anfragen der Art `Anmeldung` betreffen eine noch nicht übernommene Anmeldung. Sie werden nicht in der Liste entschieden: `Prüfen` öffnet die Änderungsübersicht der Anmeldung mit Rückfrage, Freigabe und Ablehnung. Diese Art sieht nur, wer die Anmeldungen verwalten darf.",
           "Über den Schalter `Historie` stehen alle bereits entschiedenen Anfragen in derselben Liste, jeweils mit Datum, entscheidender Person und Begründung - auch entschiedene Anmeldungsänderungen, die vorher nirgends nachschlagbar waren. Dort lässt sich zusätzlich nach `Status` (Angenommen, Abgelehnt, Zurückgezogen) und nach `Zeitraum` filtern.",
           "In der Historie stehen auch Änderungen, die die OGS selbst an den gebuchten Angeboten eines Kindes vorgenommen hat, etwa nach einem Anruf. Sie sind mit `Direkt-Korrektur` gekennzeichnet und zeigen, wer wann was geändert hat und warum. Über den Filter `Anfrageart` lassen sie sich einzeln anzeigen.",
+          "Haben Sie sich vertan, öffnen Sie die Zeile in der Historie und tippen auf `Entscheidung korrigieren`. Wählen Sie das neue Ergebnis und tragen Sie ein, warum Sie korrigieren. Die alte Entscheidung bleibt gespeichert. Bei Betreuungszeiten und Angeboten geht das nicht; tragen Sie den richtigen Stand dort direkt ein.",
         ],
         callout: {
           title: "Wer darf entscheiden",
-          body: "Der Bereich `Anfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie im Kinderbereich zurückziehen.",
+          body: "Standardmäßig entscheiden nur OGS-Admins. Unter `Einstellungen` > `Elternportal` können Admins zusätzlich erlauben, dass Gruppenleitungen Anfragen für Kinder ihrer eigenen Gruppen entscheiden. Eltern können eine offene Anfrage bearbeiten, solange die OGS nicht entschieden hat.",
           tone: "orange",
         },
         screenshot:
-          "Seite Anfragen, Reiter Eltern: gemeinsame Liste der offenen Anfragen aller Arten mit Suchfeld, Filter und den Schaltflächen Freigeben und Ablehnen.",
+          "Seite Anfragen, Reiter Eltern: Fälle unter Heute wichtig und Weitere Anfragen, gemeinsame Freigabe und Schutz privater Angaben.",
         image: "/help/screens/offene-anfragen.webp",
       },
       {
@@ -1933,7 +2009,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Elternbriefe`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
-          "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail enthält nur den Titel und einen Link ins Elternportal.",
+          "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
           "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
           "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt.",
@@ -1946,6 +2022,54 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
+      },
+      {
+        id: "elternbriefe",
+        title: "Elternbriefe",
+        icon: Megaphone,
+        summary:
+          "Ein Elternbrief geht gleichzeitig über beide Wege raus: vollständig im Elternportal und als E-Mail mit dem kompletten Text. Eltern bestätigen ihn ausdrücklich in moto, und Sie sehen pro Kind, wer bestätigt hat und bei wem Sie nachfassen müssen. Für reine Informationen ohne Rückmeldung nutzen Sie weiterhin eine `Mitteilung`.",
+        steps: [
+          "In der Seitenleiste `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen, oben auf `Elternbriefe` wechseln und auf `Elternbrief` tippen.",
+          "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
+          "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
+          "Schritt `Empfänger`: Zielgruppe wählen wie bei einer Mitteilung. Eltern mit offener Anmeldung stehen hier nicht zur Verfügung, weil für sie noch kein Kind verknüpft ist.",
+          "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief die Statusansicht: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
+          "In der Empfängerliste stehen E-Mail-Status und moto-Status getrennt nebeneinander. `Versendet` heißt: die E-Mail wurde an den Mailserver übergeben. Ob sie im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",
+          "Mit `Offene erinnern` werden genau die Familien benachrichtigt, für deren Kind noch niemand bestätigt hat. Mit `Fehlgeschlagene erneut senden` gehen ausschließlich die E-Mails erneut raus, die nicht zugestellt werden konnten.",
+        ],
+        checklist: [
+          "Eine Bestätigung pro Kind genügt – weitere Sorgeberechtigte müssen nicht zusätzlich bestätigen.",
+          "Geschwister sind mit erledigt: bestätigt eine Person, gilt das für alle ihre adressierten Kinder.",
+          "`Keine E-Mail-Adresse` und `Kein Portalzugang` sind keine Zustellfehler, sondern fehlende Daten bei der Bezugsperson.",
+        ],
+        callout: {
+          title: "Keine sensiblen Daten per E-Mail",
+          body: "Beim Elternbrief geht der vollständige Text per E-Mail hinaus. Für Inhalte mit Gesundheitsdaten oder anderen sensiblen Angaben zu einzelnen Kindern nutzen Sie stattdessen eine `Mitteilung` – dort enthält die E-Mail nur einen neutralen Hinweis mit Link ins Elternportal.",
+          tone: "orange",
+        },
+        screenshot:
+          "Statusansicht eines Elternbriefs: oben die Zahl der bestätigten Kinder, darunter die Kinderliste mit „Bestätigt“ und „Offen“ sowie die Empfängerliste mit getrenntem E-Mail- und moto-Status.",
+        // gallery statt image: der Renderer zeigt entweder das eine Bild ODER die
+        // Galerie (guide-components.tsx:681), und der Ablauf braucht drei
+        // Stationen — Liste, Assistent, Status.
+        gallery: [
+          {
+            image: "/help/screens/elternbriefe.webp",
+            caption:
+              "Der Bereich `Mitteilungen und Umfragen` mit dem Reiter `Elternbriefe`.",
+          },
+          {
+            image: "/help/screens/elternbrief-anlegen.webp",
+            caption:
+              "Schritt `Inhalt`: der Kasten `Beim Veröffentlichen passiert automatisch` und die Auswahl `Wer erhält die E-Mail?`.",
+          },
+          {
+            image: "/help/screens/elternbrief-status.webp",
+            caption:
+              "Statusansicht: bestätigte Kinder, erreichte Kinder ohne Portalzugang und die Aktionen `Offene erinnern` sowie `Fehlgeschlagene erneut senden`.",
+          },
+        ],
       },
       {
         id: "elternumfragen",

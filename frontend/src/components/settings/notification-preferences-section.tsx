@@ -64,7 +64,9 @@ export function NotificationPreferencesSection({
   return portal === "parent" ? (
     <ParentNotificationPreferencesSection />
   ) : (
-    <NotificationPreferencesSectionContent portal="tenant" />
+    // Staff-catalogue portals (OGS and, since #2208, the school portal) share
+    // the German copy; only the proxy base path differs.
+    <NotificationPreferencesSectionContent portal={portal} />
   );
 }
 

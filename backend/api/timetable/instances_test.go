@@ -450,6 +450,7 @@ func TestReopenInstance_EffectiveAdminScope(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/instances/7/reopen", bytes.NewReader(nil))
 			testutil.WithClaims(t, jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
+			attachTestPrincipal(t, req, jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 

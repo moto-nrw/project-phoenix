@@ -16,7 +16,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -42,7 +41,7 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    weekday,
-		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
@@ -263,7 +262,7 @@ func TestPickupChangeApprovalRollsBackWhenAutoExcusalFails(t *testing.T) {
 	require.NoError(t, err)
 
 	releaseSlot := holdInstanceStudentLock(t, f, slotID)
-	err = tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, tx bun.Tx) error {
+	err = testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, tx bun.Tx) error {
 		if _, timeoutErr := tx.ExecContext(txCtx, `SET LOCAL lock_timeout = '100ms'`); timeoutErr != nil {
 			return timeoutErr
 		}
@@ -341,7 +340,7 @@ func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, timezone.
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
-		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),
+		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	room := testpkg.CreateTestRoom(t, f.db, "Pickup request auto excusal")
@@ -585,31 +584,6 @@ func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, decided.Request.Status)
 }
 
-// TestWithdrawPickupChangeRequestClosesIt: a parent may take a request back
-// while it is still pending, and it must not stay in the staff queue afterwards.
-func TestWithdrawPickupChangeRequestClosesIt(t *testing.T) {
-	t.Parallel()
-
-	f := newCareFixture(t)
-	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.TodayDate().AddDays(5)
-	req := seedPickupChangeRequest(t, f, date)
-
-	withdrawn, err := f.svc.WithdrawPickupChangeRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
-	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Status)
-
-	pending, err := f.svc.ListPendingPickupChanges(ctx)
-	require.NoError(t, err)
-	for _, item := range pending {
-		assert.NotEqual(t, req.ID, item.Request.ID, "eine zurueckgezogene Anfrage bleibt nicht in der Liste")
-	}
-
-	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
-	require.NoError(t, err)
-	assert.Nil(t, applied, "eine zurueckgezogene Anfrage aendert keine Abholzeit")
-}
-
 // TestListPickupChangeRequestsReturnsTheParentsOwn covers the read the parents
 // app uses for its status list.
 func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
@@ -631,4 +605,93 @@ func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "die eigene Anfrage muss in der Liste stehen")
+}
+
+// pickupCorrecter is the correction port the staff route asserts on the care
+// service; declared here so the test does not depend on the concrete type.
+type pickupCorrecter interface {
+	Correct(ctx context.Context, requestID int64, approve bool, expectedVersion, reason string, reviewedBy int64) error
+}
+
+// approvedPickupChange files a pickup change and approves it, returning the
+// request and the day it covers.
+func approvedPickupChange(t *testing.T, f *careFixture) (*scheduleModels.CareScheduleChangeRequest, timezone.Date) {
+	t.Helper()
+	ctx := f.staffCtx(f.staffAccount)
+	date := nextSchoolDay(timezone.TodayDate().AddDays(2))
+	req, err := f.svc.CreatePickupChangeRequest(
+		ctx, f.chain.StudentID, f.chain.AccountID, date,
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
+	)
+	require.NoError(t, err)
+	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+	return req, date
+}
+
+// #2267 A11: turning a pickup-change approval into a rejection removes the
+// exception row the approval created — identified by the id the `decided`
+// ledger event recorded, so the revert targets exactly that row and not
+// "whatever exception sits on that day now".
+//
+// Without a ledger the revert has nothing safe to remove, and refusing is the
+// only honest answer: deleting the day.s current exception could drop an entry
+// somebody else made. This fixture wires no recorder (a schedule test may not
+// import services/users — architecture ratchet), so it pins that refusal; the
+// happy path is covered where the ledger is wired.
+func TestPickupChangeCorrectRefusesWithoutALedgerEntry(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	req, date := approvedPickupChange(t, f)
+
+	applied, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	require.NoError(t, err)
+	require.NotNil(t, applied)
+
+	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, false, "", "Doch nicht genehmigt", f.staffAccount)
+	require.ErrorContains(t, err, "cannot be corrected")
+
+	survivor, ferr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	require.NoError(t, ferr)
+	assert.NotNil(t, survivor, "nothing is deleted when the revert cannot prove what to delete")
+}
+
+// A weekly plan keeps no pre-decision copy of the child's schedule, so its
+// decisions cannot be reverted — the service says so instead of guessing.
+func TestCareScheduleCorrectIsUnsupported(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	req, err := f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
+	require.NoError(t, err)
+	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "Nicht möglich", ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+
+	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, true, "", "Doch genehmigen", f.staffAccount)
+	require.ErrorContains(t, err, "cannot be corrected")
+	assert.Contains(t, err.Error(), "Wochenplan", "the message must say what to do instead")
+}
+
+// A request nobody decided yet has nothing to correct.
+func TestPickupChangeCorrectRefusesAnUndecidedRequest(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	req, err := f.svc.CreatePickupChangeRequest(
+		ctx, f.chain.StudentID, f.chain.AccountID, nextSchoolDay(timezone.TodayDate().AddDays(2)),
+		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
+	)
+	require.NoError(t, err)
+
+	err = f.svc.(pickupCorrecter).Correct(ctx, req.ID, false, "", "Korrektur", f.staffAccount)
+	require.ErrorContains(t, err, "not decided")
 }

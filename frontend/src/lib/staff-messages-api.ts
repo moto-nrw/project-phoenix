@@ -8,6 +8,11 @@
  * the Go backend with the staff JWT. Backend int64 ids arrive already
  * stringified.
  *
+ * The school portal (#2208) reaches the SAME conversations through its own
+ * proxy routes (/api/school/staff-messages, school session): the functions are
+ * built by createStaffMessagesApi(basePath), and the named exports below are
+ * the tenant-portal instance.
+ *
  * Deliberately separate from parent-messages-api.ts: the two look alike on the
  * wire but are different surfaces with different audiences, and merging them
  * would make it possible to send an internal note into a parent conversation by
@@ -22,10 +27,18 @@ export interface StaffMessage {
   created_at: string;
 }
 
+/**
+ * Which side of the school a colleague sits on (#2208). Coarse on purpose:
+ * with Lehrkräfte in the same conversations as the OGS team, the name alone
+ * no longer says who someone is.
+ */
+export type StaffRoleKind = "lehrkraft" | "admin" | "staff";
+
 export interface StaffInboxThread {
   thread_id: string;
   counterpart_account_id: string;
   counterpart_name: string;
+  counterpart_role_kind: StaffRoleKind;
   last_message_at?: string;
   last_message_body?: string;
   last_message_mine: boolean;
@@ -36,12 +49,39 @@ export interface StaffThreadDetail {
   thread_id: string;
   counterpart_account_id: string;
   counterpart_name: string;
+  counterpart_role_kind: StaffRoleKind;
   messages: StaffMessage[];
 }
 
 export interface MessageableStaff {
   account_id: string;
   name: string;
+  role_kind: StaffRoleKind;
+}
+
+/**
+ * The label a reader sees next to a colleague's name, or null when it would
+ * only repeat what the reader already knows.
+ *
+ * In the OGS portal every colleague is OGS by default, so only "Lehrkraft"
+ * carries information. In the school portal a Lehrkraft writes INTO the OGS
+ * and needs to tell the leadership from the team - and sees fellow Lehrkräfte
+ * marked as such.
+ */
+export function staffRoleKindLabel(
+  kind: StaffRoleKind | undefined,
+  portal: "tenant" | "school",
+): string | null {
+  switch (kind) {
+    case "lehrkraft":
+      return "Lehrkraft";
+    case "admin":
+      return portal === "school" ? "OGS-Leitung" : null;
+    case "staff":
+      return portal === "school" ? "OGS-Team" : null;
+    default:
+      return null;
+  }
 }
 
 interface ApiResponse<T> {
@@ -128,81 +168,99 @@ async function postEnvelope<T>(
   return unwrap<T>(response, fallbackMessage);
 }
 
-/** The caller's conversations, newest activity first. */
-export async function fetchStaffInbox(filters: {
-  onlyUnread?: boolean;
-}): Promise<StaffInboxThread[]> {
-  const params = new URLSearchParams();
-  if (filters.onlyUnread) params.set("only_unread", "true");
-  const result = await getEnvelope<StaffInboxThread[]>(
-    `/api/staff-messages${params.size > 0 ? `?${params.toString()}` : ""}`,
-    "Nachrichten konnten nicht geladen werden",
-  );
-  return result.data ?? [];
+/** The six calls a Team-Chat surface needs, bound to one proxy base path. */
+export interface StaffMessagesApi {
+  /** The caller's conversations, newest activity first. */
+  fetchInbox(filters: { onlyUnread?: boolean }): Promise<StaffInboxThread[]>;
+  /** Unread total for the navigation badge. */
+  fetchUnreadCount(): Promise<number>;
+  /** Colleagues the caller may write to. */
+  fetchRecipients(): Promise<MessageableStaff[]>;
+  /** The full conversation (messages oldest-first) for the chat window. */
+  fetchThread(threadId: string): Promise<StaffThreadDetail>;
+  /** Open (or create) the conversation with one colleague. */
+  openThread(accountId: string): Promise<StaffThreadDetail>;
+  /** Send one message into a conversation. */
+  postMessage(threadId: string, body: string): Promise<StaffMessage>;
 }
 
-/** Unread total for the sidebar badge. */
-export async function fetchStaffUnreadCount(): Promise<number> {
-  const result = await getEnvelope<{ unread_count: number }>(
-    "/api/staff-messages/unread-count",
-    "Ungelesene Nachrichten konnten nicht geladen werden",
-  );
-  return result.data?.unread_count ?? 0;
+/**
+ * Builds the client for one portal. `basePath` is the Next.js proxy prefix
+ * ("/api/staff-messages" for the OGS portal, "/api/school/staff-messages" for
+ * the school portal); both forward to the same backend surface.
+ */
+export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
+  return {
+    async fetchInbox(filters) {
+      const params = new URLSearchParams();
+      if (filters.onlyUnread) params.set("only_unread", "true");
+      const result = await getEnvelope<StaffInboxThread[]>(
+        `${basePath}${params.size > 0 ? `?${params.toString()}` : ""}`,
+        "Nachrichten konnten nicht geladen werden",
+      );
+      return result.data ?? [];
+    },
+
+    async fetchUnreadCount() {
+      const result = await getEnvelope<{ unread_count: number }>(
+        `${basePath}/unread-count`,
+        "Ungelesene Nachrichten konnten nicht geladen werden",
+      );
+      return result.data?.unread_count ?? 0;
+    },
+
+    async fetchRecipients() {
+      const result = await getEnvelope<MessageableStaff[]>(
+        `${basePath}/recipients`,
+        "Die Liste konnte nicht geladen werden",
+      );
+      return result.data ?? [];
+    },
+
+    async fetchThread(threadId) {
+      const fallback = "Der Verlauf konnte nicht geladen werden";
+      const result = await getEnvelope<StaffThreadDetail>(
+        `${basePath}/threads/${encodeURIComponent(threadId)}`,
+        fallback,
+      );
+      if (!result.data) {
+        throw new Error(fallback);
+      }
+      return result.data;
+    },
+
+    async openThread(accountId) {
+      const fallback = "Die Unterhaltung konnte nicht geöffnet werden";
+      const result = await postEnvelope<StaffThreadDetail>(
+        `${basePath}/threads/open`,
+        { account_id: accountId },
+        fallback,
+      );
+      if (!result.data) {
+        throw new Error(fallback);
+      }
+      return result.data;
+    },
+
+    async postMessage(threadId, body) {
+      const fallback = "Die Nachricht konnte nicht gesendet werden";
+      const result = await postEnvelope<StaffMessage>(
+        `${basePath}/threads/${encodeURIComponent(threadId)}`,
+        { body },
+        fallback,
+      );
+      if (!result.data) {
+        throw new Error(fallback);
+      }
+      return result.data;
+    },
+  };
 }
 
-/** Colleagues the caller may write to. */
-export async function fetchMessageableStaff(): Promise<MessageableStaff[]> {
-  const result = await getEnvelope<MessageableStaff[]>(
-    "/api/staff-messages/recipients",
-    "Die Liste konnte nicht geladen werden",
-  );
-  return result.data ?? [];
-}
+/** The OGS (tenant) portal instance. */
+export const tenantStaffMessagesApi = createStaffMessagesApi(
+  "/api/staff-messages",
+);
 
-/** The full conversation (messages oldest-first) for the chat window. */
-export async function fetchStaffThread(
-  threadId: string,
-): Promise<StaffThreadDetail> {
-  const fallback = "Der Verlauf konnte nicht geladen werden";
-  const result = await getEnvelope<StaffThreadDetail>(
-    `/api/staff-messages/threads/${encodeURIComponent(threadId)}`,
-    fallback,
-  );
-  if (!result.data) {
-    throw new Error(fallback);
-  }
-  return result.data;
-}
-
-/** Open (or create) the conversation with one colleague. */
-export async function openStaffThread(
-  accountId: string,
-): Promise<StaffThreadDetail> {
-  const fallback = "Die Unterhaltung konnte nicht geöffnet werden";
-  const result = await postEnvelope<StaffThreadDetail>(
-    "/api/staff-messages/threads/open",
-    { account_id: accountId },
-    fallback,
-  );
-  if (!result.data) {
-    throw new Error(fallback);
-  }
-  return result.data;
-}
-
-/** Send one message into a conversation. */
-export async function postStaffMessage(
-  threadId: string,
-  body: string,
-): Promise<StaffMessage> {
-  const fallback = "Die Nachricht konnte nicht gesendet werden";
-  const result = await postEnvelope<StaffMessage>(
-    `/api/staff-messages/threads/${encodeURIComponent(threadId)}`,
-    { body },
-    fallback,
-  );
-  if (!result.data) {
-    throw new Error(fallback);
-  }
-  return result.data;
-}
+/** Unread total for the sidebar badge (tenant portal). */
+export const fetchStaffUnreadCount = tenantStaffMessagesApi.fetchUnreadCount;

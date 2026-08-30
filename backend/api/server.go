@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
+	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
@@ -20,7 +21,7 @@ import (
 type Server struct {
 	*http.Server
 	scheduler      *scheduler.Scheduler
-	capacityLogger *observability.CapacityLogger
+	capacityLogger *capacityLogger
 	tracker        analytics.Tracker
 }
 
@@ -43,9 +44,20 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 			WriteTimeout: 0,
 			IdleTimeout:  0,
 		},
-		scheduler:      newScheduler(api, logger),
-		capacityLogger: observability.NewCapacityLogger(api.db.DB, api.Services.RealtimeHub, api.Metrics, logger.With("component", "capacity")),
-		tracker:        api.Services.Tracker,
+		scheduler: newScheduler(api, logger),
+		capacityLogger: newCapacityLogger(func() dbCapacityStats {
+			stats := database.SnapshotCapacity(api.db)
+			return dbCapacityStats{
+				openConnections:   stats.OpenConnections,
+				inUse:             stats.InUse,
+				idle:              stats.Idle,
+				waitCount:         stats.WaitCount,
+				waitDuration:      stats.WaitDuration,
+				maxIdleClosed:     stats.MaxIdleClosed,
+				maxLifetimeClosed: stats.MaxLifetimeClosed,
+			}
+		}, api.Services.RealtimeHub, api.metrics, logger.With("component", "capacity")),
+		tracker: api.Services.Tracker,
 	}
 
 	return srv, nil
@@ -75,6 +87,19 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 	sched := scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, api.Services.OperatorAuth, api.Services.OperatorInvitation, logger.With("service", "scheduler"))
 	sched.SetDB(api.db)
 	sched.SetSchoolRepo(api.repos.School)
+	sched.SetTenantRuntime(api.tenantRuntime)
+	sched.SetTenantRuntimeObserver(observability.RecordTenantRuntimeEvent)
+	sched.SetUnitOfWorkObserver(observability.RecordUnitOfWorkEvent)
+	sched.SetWorkerTracer(scheduler.WorkerTracer{
+		StartJob: func(ctx context.Context, operation string) (context.Context, error) {
+			ctx, _, err := api.tracer.StartJob(ctx, operation)
+			return ctx, err
+		},
+		Logger: api.tracer.Logger,
+		Failure: func(ctx context.Context, operation, outcome string, err error) {
+			api.tracer.Failure(ctx, "worker", operation, outcome, err)
+		},
+	})
 
 	configureSchedulerServices(sched, api.Services)
 	configureSchedulerRepos(sched, api)
@@ -120,6 +145,7 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.TimetableCleanup != nil {
 		sched.SetTimetableCleanup(svc.TimetableCleanup)
 	}
+	sched.SetCalendarFeedCleanup(svc.CalendarFeedCleanup)
 	// Tranche 0b: time-tracking GDPR cleanup. Same nil-safe wiring.
 	if svc.TimeTrackingCleanup != nil {
 		sched.SetTimeTrackingCleanup(svc.TimeTrackingCleanup)

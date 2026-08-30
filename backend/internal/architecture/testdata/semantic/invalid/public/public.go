@@ -47,3 +47,25 @@ func (sharedFactoryResult) First() sharedNestedResult { return sharedNestedResul
 func (sharedFactoryResult) Second() sharedNestedResult { return sharedNestedResult{} }
 
 func (sharedNestedResult) List() error { return nil }
+
+type compositeFactoryResult struct{}
+
+func NewComposite() ([]compositeFactoryResult, error) { return nil, nil }
+
+func (compositeFactoryResult) List() error { return nil }
+
+type laterFactoryResult struct{}
+
+func NewLater() (error, laterFactoryResult) { return nil, laterFactoryResult{} }
+
+func (laterFactoryResult) List() error { return nil }
+
+type firstResult struct{}
+
+func (firstResult) List() error { return nil }
+
+type secondResult struct{}
+
+func (secondResult) List() error { return nil }
+
+func NewMultiple() (firstResult, secondResult) { return firstResult{}, secondResult{} }

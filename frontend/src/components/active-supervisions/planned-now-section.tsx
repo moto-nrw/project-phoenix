@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Alert } from "~/components/ui/alert";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -301,8 +303,21 @@ export function PlannedNowSection({
 
                     {instance.rosterPreview.length > 0 ? (
                       <div className="mt-3 space-y-2">
+                        {instance.pickupTimesLoaded === false &&
+                        !instance.pickupTimesRedacted ? (
+                          <Alert
+                            type="warning"
+                            announce="polite"
+                            message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+                          />
+                        ) : null}
                         {visibleRows.map((row) => (
-                          <RosterPreviewRow key={row.studentId} row={row} />
+                          <RosterPreviewRow
+                            key={row.studentId}
+                            row={row}
+                            pickupTimesLoaded={instance.pickupTimesLoaded}
+                            pickupTimesRedacted={instance.pickupTimesRedacted}
+                          />
                         ))}
                         {hiddenCount > 0 ? (
                           <button
@@ -441,7 +456,20 @@ function SummaryPill({
   );
 }
 
-function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
+function RosterPreviewRow({
+  row,
+  pickupTimesLoaded,
+  pickupTimesRedacted,
+}: Readonly<{
+  row: TimetableRosterRow;
+  pickupTimesLoaded?: boolean;
+  pickupTimesRedacted?: boolean;
+}>) {
+  const pickupTimeLabel = rosterPickupTimeLabel(
+    row.pickupTime,
+    pickupTimesLoaded,
+    pickupTimesRedacted,
+  );
   const warnings = row.warnings ?? [];
   const warningLabel =
     warnings.length > 0
@@ -469,6 +497,11 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
             {[row.schoolClass, row.groupName].filter(Boolean).join(" · ") ||
               "Ohne Klassengruppe"}
           </p>
+          {pickupTimeLabel === null ? null : (
+            <p className="mt-0.5 text-xs font-medium text-gray-700">
+              Gehzeit: {pickupTimeLabel}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {warningLabel ? (

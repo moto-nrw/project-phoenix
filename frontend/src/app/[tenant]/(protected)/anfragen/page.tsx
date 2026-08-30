@@ -169,6 +169,7 @@ export default function AnfragenPage() {
       includeAggregated: showAggregatedRequests,
       includeEnrollment: showEnrollmentRequests,
       includeCareWithdrawals: showCareWithdrawals,
+      canManageFamilyProtection: showEnrollmentRequests,
       types:
         view === "history"
           ? typeFilter.filter((type) => type !== "care_withdrawal")

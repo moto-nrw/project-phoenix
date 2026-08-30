@@ -69,7 +69,7 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	seedMealPlanWeek(t, db, currentMonday)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
-	rows, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, currentMonday)
+	rows, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "Spaghetti", rows[0].Dish)
@@ -87,7 +87,7 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 	seedMealPlanWeek(t, db, nextMonday)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
-	rows, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, nextMonday)
+	rows, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, nextMonday)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 }
@@ -100,7 +100,7 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
-	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, currentMonday)
+	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.ErrorIs(t, err, parentService.ErrMealPlanDisabled)
 }
 
@@ -115,7 +115,7 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	lastWeek := currentMonday.AddDays(-7)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
-	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, lastWeek)
+	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, lastWeek)
 	require.ErrorIs(t, err, parentService.ErrMealPlanWeekOutOfRange)
 }
 
@@ -128,7 +128,7 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	weekAfterNext := currentMonday.AddDays(14)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
-	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, weekAfterNext)
+	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, weekAfterNext)
 	require.ErrorIs(t, err, parentService.ErrMealPlanWeekOutOfRange)
 }
 
@@ -141,7 +141,7 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
-	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, other.ID, currentMonday)
+	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, currentMonday)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, parentService.ErrMealPlanDisabled)
 }
@@ -154,7 +154,7 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
-	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, currentMonday)
+	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, parentService.ErrMealPlanDisabled)
 }
@@ -168,12 +168,12 @@ func TestChildFeatures_ReflectsMealPlanSetting(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	svcOn := buildMealPlanService(t, db, mealPlanSettings(true, nil))
-	flags, err := svcOn.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	flags, err := svcOn.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.MealPlanEnabled)
 
 	svcOff := buildMealPlanService(t, db, mealPlanSettings(false, nil))
-	flags, err = svcOff.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	flags, err = svcOff.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, flags.MealPlanEnabled)
 }

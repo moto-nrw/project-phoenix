@@ -259,8 +259,8 @@ func (s *PickupAutoExcusalSyncer) desiredCutoff(
 	if baseline == nil {
 		return false, zero, nil
 	}
-	exceptionClock := timezone.WallClock(*row.PickupTime)
-	baselineClock := timezone.WallClock(baseline.PickupTime)
+	exceptionClock := timezone.NormalizeWallClock(*row.PickupTime)
+	baselineClock := timezone.NormalizeWallClock(baseline.PickupTime)
 	if !exceptionClock.Before(baselineClock) {
 		return false, zero, nil
 	}

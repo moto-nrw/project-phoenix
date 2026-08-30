@@ -22,10 +22,10 @@ func NewBookingConsistencyRepository(db *bun.DB) auditModel.BookingConsistencyRe
 	return &bookingConsistencyRepository{db: db}
 }
 
-// Audit compares the authoritative approved booking windows with the next
-// seven arrival/pickup days and every future planned instance. Legacy stored
-// pickup rows with source=care_offering are deliberately absent: the read-time
-// projection introduced by #2494 ignores them too.
+// Audit checks approved booking windows for missing pickup projections and
+// offering coverage. Raw arrival rows and materialized class rosters are not
+// consistency signals: booking-led care deliberately ignores the former on
+// unbooked days and marks the latter not scheduled at read time.
 func (r *bookingConsistencyRepository) Audit(
 	ctx context.Context,
 	auditDate timezone.Date,
@@ -74,27 +74,6 @@ WITH params AS (
 		AND student.status <> 'alumnus'
 	INNER JOIN params ON params.tenant_id = request_child.tenant_id
 	WHERE request_child.status = 'approved'
-), planned_rows AS (
-	SELECT DISTINCT
-		instance_student.id AS row_id,
-		instance_student.student_id,
-		instance.date
-	FROM schedule.instance_students AS instance_student
-	INNER JOIN schedule.activity_instances AS instance
-		ON instance.tenant_id = instance_student.tenant_id
-		AND instance.id = instance_student.instance_id
-	INNER JOIN activities.groups AS activity_group
-		ON activity_group.tenant_id = instance.tenant_id
-		AND activity_group.id = instance.activity_group_id
-		AND activity_group.type = 'care'
-	INNER JOIN approved_students
-		ON approved_students.student_id = instance_student.student_id
-		AND instance.date >= approved_students.service_start_date
-		AND instance.date <= approved_students.service_end_date
-	INNER JOIN params ON params.tenant_id = instance_student.tenant_id
-	WHERE instance.status = 'planned'
-		AND instance.date >= params.audit_date
-		AND instance_student.is_unplanned = FALSE
 ), care_inputs AS (
 	SELECT
 		approved_students.student_id,
@@ -150,94 +129,6 @@ WITH params AS (
 		) AS pickup_time
 	FROM care_inputs
 	GROUP BY student_id, date
-), arrival_days AS (
-	SELECT DISTINCT
-		arrival.student_id,
-		audit_dates.date
-	FROM schedule.student_arrival_schedules AS arrival
-	INNER JOIN approved_students ON approved_students.student_id = arrival.student_id
-	INNER JOIN params ON params.tenant_id = arrival.tenant_id
-	INNER JOIN audit_dates
-		ON EXTRACT(ISODOW FROM audit_dates.date)::int = arrival.weekday
-		AND audit_dates.date >= approved_students.service_start_date
-		AND audit_dates.date <= approved_students.service_end_date
-	LEFT JOIN schedule.student_arrival_exceptions AS arrival_exception
-		ON arrival_exception.tenant_id = arrival.tenant_id
-		AND arrival_exception.student_id = arrival.student_id
-		AND arrival_exception.exception_date = audit_dates.date
-	WHERE arrival_exception.id IS NULL
-	UNION
-	SELECT DISTINCT
-		arrival_exception.student_id,
-		arrival_exception.exception_date
-	FROM schedule.student_arrival_exceptions AS arrival_exception
-	INNER JOIN approved_students ON approved_students.student_id = arrival_exception.student_id
-	INNER JOIN params ON params.tenant_id = arrival_exception.tenant_id
-	INNER JOIN audit_dates
-		ON audit_dates.date = arrival_exception.exception_date
-		AND audit_dates.date >= approved_students.service_start_date
-		AND audit_dates.date <= approved_students.service_end_date
-	WHERE arrival_exception.expected_arrival IS NOT NULL
-), arrival_without_booking AS (
-	SELECT arrival_days.student_id, arrival_days.date
-	FROM arrival_days
-	LEFT JOIN care_days
-		ON care_days.student_id = arrival_days.student_id
-		AND care_days.date = arrival_days.date
-	WHERE care_days.student_id IS NULL
-), booking_without_arrival AS (
-	SELECT care_days.student_id, care_days.date
-	FROM care_days
-	INNER JOIN audit_dates ON audit_dates.date = care_days.date
-	CROSS JOIN params
-	LEFT JOIN arrival_days
-		ON arrival_days.student_id = care_days.student_id
-		AND arrival_days.date = care_days.date
-	LEFT JOIN schedule.student_arrival_exceptions AS arrival_exception
-		ON arrival_exception.tenant_id = params.tenant_id
-		AND arrival_exception.student_id = care_days.student_id
-		AND arrival_exception.exception_date = care_days.date
-	WHERE arrival_days.student_id IS NULL
-		AND arrival_exception.id IS NULL
-), planned_without_booking AS (
-	SELECT planned_rows.row_id
-	FROM planned_rows
-	WHERE NOT EXISTS (
-		SELECT 1
-		FROM approved_students AS booking_child
-		INNER JOIN enrollment.request_child_offerings AS link
-			ON link.tenant_id = booking_child.tenant_id
-			AND link.request_child_id = booking_child.request_child_id
-		INNER JOIN enrollment.care_offerings AS care_offering
-			ON care_offering.tenant_id = link.tenant_id
-			AND care_offering.id = link.care_offering_id
-			AND care_offering.phase_id = booking_child.phase_id
-		WHERE booking_child.student_id = planned_rows.student_id
-			AND planned_rows.date >= booking_child.service_start_date
-			AND planned_rows.date <= booking_child.service_end_date
-			AND care_offering.is_active = TRUE
-			AND care_offering.counts_as_care = TRUE
-			AND (link.valid_from IS NULL OR link.valid_from <= planned_rows.date)
-			AND (link.valid_until IS NULL OR link.valid_until > planned_rows.date)
-			AND EXISTS (
-				SELECT 1
-				FROM jsonb_array_elements_text(CASE
-					WHEN COALESCE(jsonb_array_length(link.selected_days), 0) > 0
-						OR care_offering.days_of_week_mode <> 'fixed'
-						THEN COALESCE(link.selected_days, '[]'::jsonb)
-					ELSE COALESCE(care_offering.available_days, '[]'::jsonb)
-				END) AS selected_day(value)
-				WHERE LOWER(BTRIM(selected_day.value)) = CASE EXTRACT(ISODOW FROM planned_rows.date)::int
-					WHEN 1 THEN 'mon'
-					WHEN 2 THEN 'tue'
-					WHEN 3 THEN 'wed'
-					WHEN 4 THEN 'thu'
-					WHEN 5 THEN 'fri'
-					WHEN 6 THEN 'sat'
-					ELSE 'sun'
-				END
-			)
-	)
 ), approved_without_offering AS (
 	SELECT
 		phase.care_offering_selection_mode,
@@ -307,9 +198,6 @@ SELECT
 		FROM care_days
 		INNER JOIN audit_dates ON audit_dates.date = care_days.date
 		WHERE pickup_time IS NULL OR has_invalid_pickup)::int AS pickup_projection_missing_days,
-	(SELECT COUNT(*) FROM arrival_without_booking)::int AS arrival_without_booking_days,
-	(SELECT COUNT(*) FROM booking_without_arrival)::int AS booking_without_arrival_days,
-	(SELECT COUNT(*) FROM planned_without_booking)::int AS planned_without_booking_rows,
 	(SELECT COUNT(*) FROM approved_without_offering
 		WHERE missing_required_offering
 			OR (care_offering_selection_mode <> 'optional' AND NOT has_choosable_offering))::int AS approved_without_required_offering,

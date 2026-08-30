@@ -80,6 +80,21 @@ type parsedCreateInstanceRequest struct {
 	endTime   time.Time
 }
 
+func createInstanceIdempotencyKey(r *http.Request) (*string, error) {
+	raw := r.Header.Get("Idempotency-Key")
+	if raw == "" {
+		return nil, nil
+	}
+	key := strings.TrimSpace(raw)
+	if key == "" {
+		return nil, errors.New("Idempotency-Key cannot be blank")
+	}
+	if len(key) > scheduleModel.ActivityInstanceIdempotencyKeyMaxLength {
+		return nil, errors.New("Idempotency-Key is too long")
+	}
+	return &key, nil
+}
+
 // Bind runs cheap presence checks. Format errors (date / time) bubble up
 // from the handler so the user sees a precise message ("invalid start_time
 // format, expected HH:MM") instead of a generic 400.
@@ -186,6 +201,11 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := parsed.req
+	idempotencyKey, err := createInstanceIdempotencyKey(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	listKind, err := normalizeInstanceListKind(req.ListKind)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -212,6 +232,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       req.StudentIDs,
 		CreatedByStaffID: createdByPtr,
+		IdempotencyKey:   idempotencyKey,
 		RequiredStaff:    normalizeRequiredStaff(req.RequiredStaff),
 	})
 	if err != nil {
@@ -255,17 +276,25 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, enriched, "Instance created")
 }
 
+var createInstanceErrorRules = []common.ErrorRule{
+	{
+		Match: func(err error) bool {
+			return errors.Is(err, scheduleSvc.ErrInvalidInstanceReference) ||
+				errors.Is(err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+		},
+		Render: common.ErrorInvalidRequest,
+	},
+	{Target: scheduleSvc.ErrIdempotencyKeyReuse, Render: conflictCode("idempotency_key_reused")},
+	{
+		Match: func(err error) bool {
+			return base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique")
+		},
+		Render: staticConflict("instance already exists for this template/date/start_time", "duplicate_instance"),
+	},
+}
+
 func renderCreateInstanceError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			errors.New("instance already exists for this template/date/start_time"),
-			"duplicate_instance",
-		))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"create instance failed", err))
-	}
+	common.RenderError(w, r, common.RenderWithRules(err, createInstanceErrorRules, func(err error) render.Renderer {
+		return common.ErrorInternalServerWrap("create instance failed", err)
+	}))
 }

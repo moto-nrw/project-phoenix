@@ -19,7 +19,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -563,7 +562,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	rolledChildID := rolled[0].ID
 
 	var summary *enrollmentService.DeadlineWorkerSummary
-	err = tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var workerErr error
 		summary, workerErr = env.rolloverSvc.RunDeadlineWorker(txCtx, time.Now())
 		return workerErr

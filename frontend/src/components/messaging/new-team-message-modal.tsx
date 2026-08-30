@@ -7,8 +7,8 @@ import { Input } from "~/components/ui/input";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import {
   type MessageableStaff,
-  fetchMessageableStaff,
-  openStaffThread,
+  type StaffMessagesApi,
+  staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
 import { createLogger } from "~/lib/logger";
 
@@ -21,11 +21,21 @@ const logger = createLogger({ component: "NewTeamMessageModal" });
  * recipient IS the whole choice here. The backend get-or-creates the
  * conversation, so picking someone you already write with lands in the existing
  * history rather than creating a second thread.
+ *
+ * Portal-neutral (#2208): the API client and the reader's portal come in as
+ * props, so the school portal reuses it against its own proxy routes.
  */
 export function NewTeamMessageModal({
+  api,
+  portal,
+  hint,
   onClose,
   onOpened,
 }: {
+  readonly api: StaffMessagesApi;
+  readonly portal: "tenant" | "school";
+  /** The one line under the title that says who can be reached here. */
+  readonly hint: string;
   readonly onClose: () => void;
   readonly onOpened: (threadId: string) => void;
 }) {
@@ -40,7 +50,8 @@ export function NewTeamMessageModal({
     let cancelled = false;
     setIsLoading(true);
     setLoadError(null);
-    fetchMessageableStaff()
+    api
+      .fetchRecipients()
       .then((rows) => {
         if (!cancelled) setPeople(rows);
       })
@@ -65,7 +76,7 @@ export function NewTeamMessageModal({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [api]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -78,7 +89,7 @@ export function NewTeamMessageModal({
     setOpeningId(person.account_id);
     setOpenError(null);
     try {
-      const thread = await openStaffThread(person.account_id);
+      const thread = await api.openThread(person.account_id);
       onOpened(thread.thread_id);
     } catch (err) {
       logger.error("team_thread_open_failed", {
@@ -101,9 +112,7 @@ export function NewTeamMessageModal({
   return (
     <Modal isOpen onClose={onClose} title="Neue Nachricht">
       <div className="space-y-3">
-        <p className="text-sm text-gray-600">
-          Sie schreiben nur an Personen Ihrer Schule.
-        </p>
+        <p className="text-sm text-gray-600">{hint}</p>
 
         <Input
           value={query}
@@ -130,24 +139,34 @@ export function NewTeamMessageModal({
             </p>
           )}
 
-          {filtered.map((person) => (
-            <button
-              key={person.account_id}
-              type="button"
-              disabled={openingId !== null}
-              onClick={() => void handlePick(person)}
-              className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-60"
-            >
-              <span className="truncate text-sm font-medium text-gray-900">
-                {person.name}
-              </span>
-              {openingId === person.account_id && (
-                <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                  Wird geöffnet...
+          {filtered.map((person) => {
+            const roleLabel = staffRoleKindLabel(person.role_kind, portal);
+            return (
+              <button
+                key={person.account_id}
+                type="button"
+                disabled={openingId !== null}
+                onClick={() => void handlePick(person)}
+                className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-60"
+              >
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span className="truncate text-sm font-medium text-gray-900">
+                    {person.name}
+                  </span>
+                  {roleLabel && (
+                    <span className="flex-shrink-0 text-xs text-gray-500">
+                      {roleLabel}
+                    </span>
+                  )}
                 </span>
-              )}
-            </button>
-          ))}
+                {openingId === person.account_id && (
+                  <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
+                    Wird geöffnet...
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </Modal>

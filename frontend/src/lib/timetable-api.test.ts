@@ -181,7 +181,9 @@ describe("timetableService", () => {
       student_ids: [21],
     };
 
-    await expect(timetableService.create(body)).resolves.toMatchObject({
+    await expect(
+      timetableService.create(body, "form-operation-42"),
+    ).resolves.toMatchObject({
       id: "42",
       title: "Mensa",
     });
@@ -198,6 +200,9 @@ describe("timetableService", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(body),
+        headers: expect.objectContaining({
+          "Idempotency-Key": "form-operation-42",
+        }),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

@@ -50,6 +50,206 @@ describe("reconcileCategoryId", () => {
   });
 });
 
+describe("useEventForm submit locking", () => {
+  it("sends one request for two submit events before the next render", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    const create = vi
+      .spyOn(timetableService, "create")
+      .mockReturnValue(new Promise(() => undefined));
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        defaultStartTime: "12:00",
+        defaultEndTime: "13:00",
+        canCheckShiftCoverage: false,
+      }),
+    );
+    act(() => {
+      result.current.update("title", "Basteln");
+      result.current.update("roomId", "7");
+    });
+
+    const event = { preventDefault: vi.fn() } as unknown as Parameters<
+      typeof result.current.handleSubmit
+    >[0];
+    act(() => {
+      void result.current.handleSubmit(event);
+      void result.current.handleSubmit(event);
+    });
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(result.current.submitting).toBe(true);
+  });
+
+  it("uses a new idempotency key after a failed create is edited", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    const create = vi
+      .spyOn(timetableService, "create")
+      .mockRejectedValueOnce(new Error("Speichern fehlgeschlagen"))
+      .mockReturnValue(new Promise(() => undefined));
+
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        defaultStartTime: "12:00",
+        defaultEndTime: "13:00",
+        canCheckShiftCoverage: false,
+      }),
+    );
+    act(() => {
+      result.current.update("title", "Basteln");
+      result.current.update("roomId", "7");
+    });
+    const event = { preventDefault: vi.fn() } as unknown as Parameters<
+      typeof result.current.handleSubmit
+    >[0];
+
+    await act(async () => {
+      await result.current.handleSubmit(event);
+    });
+    act(() => result.current.update("title", "Malen"));
+    act(() => {
+      void result.current.handleSubmit(event);
+    });
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create.mock.calls[1]?.[1]).not.toBe(create.mock.calls[0]?.[1]);
+  });
+
+  it("unlocks a deferred series save after confirmation fails", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    const countEditedInWindow = vi
+      .spyOn(timetableService, "countEditedInWindow")
+      .mockResolvedValue({ count: 1, occurrences: [] });
+    vi.spyOn(timetableService, "updateTemplate").mockRejectedValue(
+      new Error("Speichern fehlgeschlagen"),
+    );
+
+    const initialSeries: TimetableTemplate = {
+      id: "9",
+      name: "Basteln",
+      type: "care",
+      categoryId: "2",
+      categoryName: "Betreuung",
+      roomId: "7",
+      isOpen: true,
+      maxParticipants: 20,
+      targetGroupType: "angebot",
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      weekdayAssignments: [],
+      schedules: [
+        {
+          id: "1",
+          weekday: 1,
+          startTime: "12:00",
+          endTime: "13:00",
+          weekPattern: 0,
+          calendarPeriodId: "5",
+        },
+      ],
+    };
+    const { result } = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [
+          {
+            id: "5",
+            tenantId: "1",
+            name: "Schuljahr 2026/27",
+            periodType: "school_year",
+            startDate: "2026-08-01",
+            endDate: "2027-07-31",
+            weekCycleLength: 1,
+            weekCycleAnchor: null,
+            isActive: true,
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+        defaultCalendarPeriodId: "5",
+        planningPeriods: null,
+        initialInstance: null,
+        initialSeries,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+    await waitFor(() => expect(result.current.form.roomId).toBe("7"));
+
+    const event = { preventDefault: vi.fn() } as unknown as Parameters<
+      typeof result.current.handleSubmit
+    >[0];
+    await act(async () => {
+      await result.current.handleSubmit(event);
+    });
+    await waitFor(() => expect(result.current.lostEdits).not.toBeNull());
+
+    await act(async () => {
+      await result.current.confirmLostEdits();
+    });
+    expect(result.current.lostEdits).toBeNull();
+
+    await act(async () => {
+      await result.current.handleSubmit(event);
+    });
+    expect(countEditedInWindow).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("useEventForm offering source roster stash", () => {
   it("restores the manual roster when the source is cleared again", async () => {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
@@ -69,6 +269,7 @@ describe("useEventForm offering source roster stash", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,
@@ -159,6 +360,7 @@ describe("useEventForm offering source roster stash", () => {
       defaultDate: "2026-08-03",
       calendarPeriods: [],
       defaultCalendarPeriodId: null,
+      planningPeriods: null,
       initialInstance: null,
       initialSeries,
       convertInstance: null,
@@ -210,6 +412,7 @@ describe("useEventForm offering source roster stash", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,
@@ -275,6 +478,7 @@ describe("useEventForm offering source roster stash", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,
@@ -323,6 +527,7 @@ describe("useEventForm offering source roster stash", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,
@@ -382,6 +587,7 @@ describe("useEventForm offering source roster stash", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,
@@ -436,6 +642,7 @@ describe("useEventForm Quellenfilter-Modus (#2482)", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,
@@ -544,6 +751,7 @@ describe("useEventForm category loading", () => {
         defaultDate: "2026-08-03",
         calendarPeriods: [],
         defaultCalendarPeriodId: null,
+        planningPeriods: null,
         initialInstance: null,
         initialSeries: null,
         convertInstance: null,

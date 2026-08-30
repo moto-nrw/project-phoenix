@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -103,7 +102,7 @@ func buildSchemaWithScope(
 		// the route level; they bypass WritePermission in SetValue).
 		writable := isOperator ||
 			def.WritePermission == "" ||
-			authorize.HasPermission(def.WritePermission, userPermissions)
+			hasPermission(def.WritePermission, userPermissions)
 
 		resolved := &ResolvedSetting{
 			Key:          key,
@@ -216,7 +215,7 @@ func shouldIncludeInSchema(def *config.Definition, userPermissions []string, isO
 	// the per-setting ReadPermission because operator access is route-gated.
 	return isOperator ||
 		def.ReadPermission == "" ||
-		authorize.HasPermission(def.ReadPermission, userPermissions)
+		hasPermission(def.ReadPermission, userPermissions)
 }
 
 // evaluateDependency checks if a setting's dependency condition is met.

@@ -20,7 +20,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -95,7 +94,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	fixture := setupCorrectionFixture(t, tc, student.ID, student.TenantID, "Kindlein")
-	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims := testutil.AdminTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 
 	fetch := func(t *testing.T, query string) aggListEnvelope {
@@ -110,7 +109,7 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// ARRANGE 1 — the office corrects the booking itself, through the very
 	// service the admin route calls: the child stays in Ganztag and is taken
 	// out of Mittagessen. The frozen before/after snapshots must show that.
-	err := tenant.WithTenantTx(t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, t.Context(), tc.db, student.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		_, updateErr := tc.services.EnrollmentDecision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID:      fixture.child.RequestID,
 			ChildID:        fixture.child.ID,
@@ -218,13 +217,14 @@ func TestOfferingWithdrawalApprovalRequiresUpdateButNotDeletePermission(t *testi
 		Where("id = ?", pending.ID).Exec(t.Context())
 	require.NoError(t, err)
 
+	// #2267: reason policy defaults to "both"
 	body := strings.NewReader(fmt.Sprintf(
-		`{"approve":true,"effective_from":%q,"complete_withdrawal_confirmed":true}`,
+		`{"approve":true,"reason":"Passt so","effective_from":%q,"complete_withdrawal_confirmed":true}`,
 		pending.EffectiveFrom.String(),
 	))
 	response := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
-		testutil.TeacherTestClaims(int(account.ID)), []string{"users:update"})
+		testutil.AdminTestClaims(int(account.ID)), []string{"users:update"})
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 

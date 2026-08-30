@@ -44,7 +44,7 @@ import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
   weekDays: Date[];
-  view?: "week" | "month" | "series";
+  view?: "day" | "week" | "month" | "series";
   selectedPeriodId?: string | null;
   isLoading?: boolean;
   /** Open the create modal. */
@@ -91,7 +91,12 @@ export function PeriodSwitcherDropdown({
   );
   const hasMissingDays = assignments.some((a) => a.period === null);
   const showContextAssignments = view !== "series";
-  const contextLabel = view === "month" ? "Dieser Monat" : "Diese Woche";
+  const contextLabel =
+    view === "month"
+      ? "Dieser Monat"
+      : view === "day"
+        ? "Dieser Tag"
+        : "Diese Woche";
   const selectedPeriod = selectedPeriodId
     ? (periods.find((period) => period.id === selectedPeriodId) ?? null)
     : null;
@@ -103,7 +108,11 @@ export function PeriodSwitcherDropdown({
       : view === "series"
         ? "Zeiträume"
         : assignedPeriods.length === 0
-          ? "Zeitraum anlegen"
+          ? // Ohne Planungsrecht ist "Zeitraum anlegen" eine Aufforderung ins
+            // Leere: der Umschalter ist dort reine Auskunft (#2621).
+            canManage
+            ? "Zeitraum anlegen"
+            : "Kein Planungszeitraum"
           : assignedPeriods.length === 1 && !hasMissingDays
             ? assignedPeriods[0]!.name
             : view === "week"

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"golang.org/x/sync/singleflight"
 )
@@ -84,6 +85,7 @@ type Service struct {
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
+	tenantRuntime       *tenant.UnitOfWork
 	// mfaService is optional. When non-nil and an account requires MFA the
 	// login flow returns a challenge token instead of an access/refresh
 	// pair; when nil the gate is bypassed and login behaves as before.
@@ -91,6 +93,25 @@ type Service struct {
 	// AuthService ↔ MFAService construction-order dependency.
 	mfaService MFAService
 	refreshSF  singleflight.Group // deduplicates concurrent token refresh calls
+}
+
+func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
+	if s.tenantRuntime == nil {
+		return ctx
+	}
+	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
+
+// detachedTenantContext preserves tenant/runtime values while isolating
+// asynchronous work from the request transaction and its commit hooks.
+func detachedTenantContext(ctx context.Context) context.Context {
+	ctx = context.WithoutCancel(ctx)
+	ctx = base.ContextWithoutTx(ctx)
+	return tenant.ContextWithoutAfterCommitHooks(ctx)
+}
+
+func (s *Service) SetTenantRuntime(runtime tenant.UnitOfWork) {
+	s.tenantRuntime = &runtime
 }
 
 // NewService creates a new auth service with reduced parameter count

@@ -5,7 +5,6 @@
 package filestore
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -14,12 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	apiDocuments "github.com/moto-nrw/project-phoenix/api/common/documents"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	filestoreSvc "github.com/moto-nrw/project-phoenix/services/filestore"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -63,7 +60,7 @@ func (rs *Resource) getLogger() *slog.Logger {
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
-		manage := authorize.RequiresPermission(permissions.FilesManage)
+		manage := common.RequiresPermission(permissions.FilesManage)
 
 		r.With(withTx).Get("/folders", rs.listFolders)
 		r.With(manage, withTx).Post("/folders", rs.createFolder)
@@ -87,11 +84,10 @@ func (rs *Resource) coordinator() (*apiDocuments.Coordinator, error) {
 		return nil, err
 	}
 	return &apiDocuments.Coordinator{
-		Kind:             storageKind,
-		Backend:          backend,
-		Store:            rs.Service,
-		NewTenantContext: func(tenantID int64) context.Context { return tenant.WithTenantID(context.Background(), tenantID) },
-		Logger:           rs.getLogger(),
+		Kind:    storageKind,
+		Backend: backend,
+		Store:   rs.Service,
+		Logger:  rs.getLogger(),
 	}, nil
 }
 

@@ -34,7 +34,7 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	// so the deciding admin needs a real staff record behind their account.
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
 
-	tenantCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	upsertPickup := func(hour, minute int) {
 		require.NoError(t, tc.services.PickupSchedule.UpsertStudentPickupSchedule(
 			tenantCtx,
@@ -60,9 +60,10 @@ func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
 	require.NoError(t, err)
 
 	// Approve through the production decide route.
+	// #2267: reason policy defaults to "both"
 	decideReq, err := http.NewRequest(http.MethodPost,
 		fmt.Sprintf("/care-schedule-change-requests/%d/decide", pending.ID),
-		strings.NewReader(`{"approve":true}`))
+		strings.NewReader(`{"approve":true,"reason":"Passt so"}`))
 	require.NoError(t, err)
 	decideReq.Header.Set("Content-Type", "application/json")
 	rr := authExec(t, tc, decideReq, testutil.AdminTestClaims(int(staffAccount.ID)), []string{"admin:*"})

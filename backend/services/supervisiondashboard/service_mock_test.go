@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -91,7 +91,18 @@ type mockSchulhofService struct {
 }
 type mockOperationsService struct {
 	scheduleService.TimetableOperationsService
+	plannedNowFn     func(scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error)
+	activeSessionsFn func() ([]scheduleService.OperationActiveSession, error)
 }
+
+func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, _ timezone.Date, _ time.Time, opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+	return m.plannedNowFn(opts)
+}
+
+func (m *mockOperationsService) ActiveSessions(_ context.Context, _ timezone.Date) ([]scheduleService.OperationActiveSession, error) {
+	return m.activeSessionsFn()
+}
+
 type mockPickupService struct {
 	scheduleService.PickupScheduleService
 	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error)
@@ -124,7 +135,16 @@ func fullDependencies() Dependencies {
 }
 
 func adminContext() context.Context {
-	return context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 99, IsAdmin: true})
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+		AccountID: 99,
+		TenantID:  23,
+		Scope:     string(permissions.ScopeTenant),
+		Admin:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return permissions.WithPrincipal(context.Background(), principal)
 }
 
 func TestGetFailsFast(t *testing.T) {

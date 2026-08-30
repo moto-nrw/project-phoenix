@@ -3120,6 +3120,21 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 	return row
 }
 
+// SetCalendarPeriodActive flips is_active on a fixture calendar period and
+// keeps the in-memory row in sync. Tests use it both to arm the active-period
+// invariant on a period from CreateTestCalendarPeriod (created inactive) and
+// to deactivate a period mid-test.
+func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.CalendarPeriod, active bool) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	period.IsActive = active
+	_, err := db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
+	require.NoError(tb, err, "Failed to set test calendar period active state")
+}
+
 // StaffShiftOpts controls optional fields for CreateTestStaffShift.
 type StaffShiftOpts struct {
 	StartHHMM   string // default "08:00"
@@ -3472,4 +3487,76 @@ func CleanupClassListEntryFixtures(tb testing.TB, db *bun.DB, entryIDs ...int64)
 	ctx := context.Background()
 	_, _ = db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.List(entryIDs)).Exec(ctx)
 	_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.List(entryIDs)).Exec(ctx)
+}
+
+// CreateTestCoGuardianForStudent adds a SECOND portal guardian to a child that
+// already has one — the shape every "what does the other parent see" test
+// needs (request sharing, Familienschutz, the co-guardian notice #2267).
+//
+// The returned chain names the new guardian; StudentID and TenantID are the
+// child's, so a caller can compare the two guardians' views of one child.
+func CreateTestCoGuardianForStudent(
+	tb testing.TB, db *bun.DB, studentID int64, firstName, lastName string,
+) ParentChain {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	account := CreateTestAccount(tb, db, "co-guardian")
+	profile := &users.GuardianProfile{
+		FirstName:              firstName,
+		LastName:               lastName,
+		Email:                  &account.Email,
+		AccountID:              &account.ID,
+		HasAccount:             true,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(fixtureTenantID(tb))
+	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create co-guardian profile")
+
+	link := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianProfileID:  profile.ID,
+		RelationshipType:   "parent",
+		IsEmergencyContact: false,
+		CanPickup:          true,
+		EmergencyPriority:  2,
+	}
+	// A co-guardian, not the primary one: same portal access, no primacy.
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleCoGuardian)
+	link.SetTenantID(fixtureTenantID(tb))
+	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
+	require.NoError(tb, err, "Failed to link co-guardian to student")
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    fixtureTenantID(tb),
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create co-guardian account_tenants mapping")
+
+	var guardianRoleID int64
+	err = db.NewSelect().ColumnExpr("id").TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleGuardian).Scan(ctx, &guardianRoleID)
+	require.NoError(tb, err, "Failed to find seeded guardian role")
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
+	roleAssignment.SetTenantID(fixtureTenantID(tb))
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign guardian role to co-guardian")
+
+	return ParentChain{
+		AccountID:         account.ID,
+		TenantID:          fixtureTenantID(tb),
+		GuardianProfileID: profile.ID,
+		StudentID:         studentID,
+		Email:             account.Email,
+	}
 }

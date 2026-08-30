@@ -143,6 +143,10 @@ const permissionDescriptions: Record<string, string> = {
   "staff:financial":
     "Bank- und Steuerdaten von Mitarbeitenden ansehen und bearbeiten (IBAN, Steuer-ID, SV-Nummer)",
 
+  // Guardian payment data
+  "guardians:financial":
+    "Bankverbindungen von Eltern ansehen, bearbeiten und als Liste exportieren (IBAN)",
+
   // Calendar
   "calendar:own": "Eigenen Kalender nutzen und Einladungen beantworten",
   "calendar:manage": "Termine und Einladungen erstellen und verwalten",

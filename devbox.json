@@ -45,16 +45,13 @@
   },
   "shell": {
     "scripts": {
+      "bootstrap": "(command -v goimports > /dev/null 2>&1 || go install golang.org/x/tools/cmd/goimports@latest) && (command -v deadcode > /dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest) && (command -v agent-browser > /dev/null 2>&1 || (npm install -g agent-browser && agent-browser install)) && cd frontend && nci --silent",
       "test-backend": "scripts/test-backend.sh"
     },
     "init_hook": [
       "unset DEVELOPER_DIR",
-      "lefthook install --force > /dev/null 2>&1 || true",
-      "which goimports > /dev/null 2>&1 || go install golang.org/x/tools/cmd/goimports@latest > /dev/null 2>&1",
-      "which deadcode > /dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest > /dev/null 2>&1",
-      "which agent-browser > /dev/null 2>&1 || (npm install -g agent-browser > /dev/null 2>&1 && agent-browser install > /dev/null 2>&1)",
-      "[ ! -d frontend/node_modules ] && echo 'installing frontend deps...' && cd frontend && nci --silent || true",
-      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') pnpm $(pnpm -v) | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck sops age\""
+      "for hook in pre-commit pre-push post-merge; do hook_path=$(git rev-parse --git-path hooks/$hook); test -x \"$hook_path\" && grep -Fqx \"call_lefthook run \\\"$hook\\\" \\\"\\$@\\\"\" \"$hook_path\" || { lefthook install; break; }; done",
+      "[ -d frontend/node_modules ] || echo 'Run devbox run bootstrap to install development tools and frontend dependencies.'"
     ]
   }
 }

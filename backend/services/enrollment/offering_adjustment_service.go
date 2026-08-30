@@ -824,7 +824,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 
 	var guardian *users.GuardianProfile
 	if input.ReplaceTargetedData && s.GuardianProfileRepo != nil {
-		guardian, err = s.reconcilePrimaryGuardianLink(ctx, guardianRequest, student.ID, true)
+		guardian, err = s.reconcilePrimaryGuardianLink(ctx, guardianRequest, student.ID, true, input.ActorAccountID)
 		if err != nil {
 			return nil, err
 		}
@@ -833,7 +833,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	keepGuardianProfileIDs := map[int64]bool{}
 	if input.ReplaceTargetedData {
 		var relinkErr error
-		keepGuardianProfileIDs, relinkErr = s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians)
+		keepGuardianProfileIDs, relinkErr = s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians, input.ActorAccountID)
 		if relinkErr != nil {
 			return nil, relinkErr
 		}
@@ -905,7 +905,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		}
 	}
 	if input.ReplaceTargetedData {
-		if _, relinkErr := s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians); relinkErr != nil {
+		if _, relinkErr := s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians, input.ActorAccountID); relinkErr != nil {
 			return nil, relinkErr
 		}
 	}

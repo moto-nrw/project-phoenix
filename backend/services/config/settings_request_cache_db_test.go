@@ -1,4 +1,4 @@
-package config_test
+package config
 
 import (
 	"context"
@@ -10,15 +10,12 @@ import (
 
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-func setupRequestCacheDBTest(t *testing.T) (*bun.DB, int64, configService.SettingsService) {
+func setupRequestCacheDBTest(t *testing.T) (*testpkg.DB, int64, SettingsService) {
 	t.Helper()
 	config.ResetRegistry()
 	t.Cleanup(config.ResetRegistry)
@@ -32,9 +29,10 @@ func setupRequestCacheDBTest(t *testing.T) (*bun.DB, int64, configService.Settin
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
 	})
 
-	repository := configRepository.NewSettingValueRepository(db)
-	auditRepository := configRepository.NewSettingAuditRepository(db)
-	service := configService.NewSettingsService(repository, auditRepository, nil, db, slog.Default())
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
+	auditRepository := configRepository.NewSettingAuditRepository(testpkg.ConfigRuntime(db))
+	service := NewSettingsService(repository, auditRepository, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	testpkg.SetTenantRuntime(t, service, db)
 	return db, tenantID, service
 }
 
@@ -49,8 +47,8 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 	registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "15:00")
 	registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
 
-	requestCtx := configService.WithSettingsRequestCache(
-		tenant.WithTenantID(context.Background(), tenantID),
+	requestCtx := WithSettingsRequestCache(
+		testpkg.ContextForTenant(context.Background(), tenantID),
 	)
 
 	// The request memoizes the short cutoff default (15:00) before any writer.
@@ -59,24 +57,24 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 	require.Equal(t, "15:00", short)
 
 	// A concurrent request commits short=15:30.
-	repository := configRepository.NewSettingValueRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	override := &config.SettingValue{
 		SettingKey: config.KeySlotListShortDayCutoff,
 		Value:      json.RawMessage(`"15:30"`),
 	}
 	override.SetTenantID(tenantID)
 	require.NoError(t, repository.Upsert(
-		tenant.WithTenantID(context.Background(), tenantID), override,
+		testpkg.ContextForTenant(context.Background(), tenantID), override,
 	))
 
 	// The first request now writes long=15:15. Against its stale cache entry
 	// (short=15:00) the pair looks valid; against the committed 15:30 it is
 	// inverted and must be rejected.
-	err = tenant.WithTenantTx(requestCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithinTenantContext(t, requestCtx, db, tenantID, func(txCtx context.Context) error {
 		return service.SetValue(txCtx, config.KeySlotListLongDayCutoff, "15:15", nil, nil)
 	})
 	require.Error(t, err, "the inverted pair must be rejected despite the request cache")
-	var invalid *configService.InvalidValueError
+	var invalid *InvalidValueError
 	require.True(t, errors.As(err, &invalid), "expected InvalidValueError, got %v", err)
 }
 
@@ -91,20 +89,20 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
 
 	// The login gate reads the mode and memoizes "off" for this request.
-	requestCtx := configService.WithSettingsRequestCache(context.Background())
+	requestCtx := WithSettingsRequestCache(context.Background())
 	mode, err := service.ResolveStringForTenant(requestCtx, tenantID, config.KeyMFAMode)
 	require.NoError(t, err)
 	require.Equal(t, config.MFAModeOff, mode)
 
 	// An admin switches the school to required_all while the login is in flight.
-	repository := configRepository.NewSettingValueRepository(db)
+	repository := configRepository.NewSettingValueRepository(testpkg.ConfigRuntime(db))
 	override := &config.SettingValue{
 		SettingKey: config.KeyMFAMode,
 		Value:      json.RawMessage(`"` + config.MFAModeRequiredAll + `"`),
 	}
 	override.SetTenantID(tenantID)
 	require.NoError(t, repository.Upsert(
-		tenant.WithTenantID(context.Background(), tenantID), override,
+		testpkg.ContextForTenant(context.Background(), tenantID), override,
 	))
 
 	// The cached path still answers with the pre-flip value...
@@ -115,7 +113,7 @@ func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
 
 	// ...while the in-transaction read, on the mint's own transaction, sees the
 	// committed state and refuses to mint an MFA-free session.
-	err = tenant.WithAdminTx(requestCtx, db, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithinAdminContext(t, requestCtx, db, func(txCtx context.Context) error {
 		fresh, resolveErr := service.ResolveStringForTenantInTx(txCtx, tenantID, config.KeyMFAMode)
 		require.NoError(t, resolveErr)
 		assert.Equal(t, config.MFAModeRequiredAll, fresh,
@@ -148,30 +146,29 @@ func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
 	db, tenantID, service := setupRequestCacheDBTest(t)
 	registerTestSetting(config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
 
-	counter := &settingValuesSelectCounter{}
-	db.AddQueryHook(counter)
+	selectCount := testpkg.CaptureSettingValueSelects(db)
 
-	requestCtx := configService.WithSettingsRequestCache(
-		tenant.WithTenantID(context.Background(), tenantID),
+	requestCtx := WithSettingsRequestCache(
+		testpkg.ContextForTenant(context.Background(), tenantID),
 	)
 
-	err := tenant.WithTenantTx(requestCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithinTenantContext(t, requestCtx, db, tenantID, func(txCtx context.Context) error {
 		value, resolveErr := service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
 		require.Equal(t, 4, value)
-		require.Equal(t, int32(1), counter.count.Load())
+		require.Equal(t, int32(1), selectCount())
 
 		// Cached: no additional query.
 		_, resolveErr = service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
-		require.Equal(t, int32(1), counter.count.Load())
+		require.Equal(t, int32(1), selectCount())
 
 		require.NoError(t, service.LockClassCollectionPair(txCtx))
 
 		// Post-lock read must hit the database again.
 		_, resolveErr = service.ResolveInt(txCtx, config.KeyEnrollmentGradeLevelMax)
 		require.NoError(t, resolveErr)
-		assert.Equal(t, int32(2), counter.count.Load(),
+		assert.Equal(t, int32(2), selectCount(),
 			"LockClassCollectionPair must flush grade_level_max from the request cache")
 		return nil
 	})
@@ -190,15 +187,15 @@ func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
 	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
 
 	mintLock := make(chan error, 1)
-	writerCtx := tenant.WithTenantID(context.Background(), tenantID)
+	writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)
 
-	err := tenant.WithTenantTx(writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
 		require.NoError(t, service.SetValue(txCtx, config.KeyMFAMode, config.MFAModeRequiredAll, nil, nil))
 
 		// A school login reaching its mint takes the shared side of the same
 		// lock on its own transaction.
 		go func() {
-			mintLock <- tenant.WithAdminTx(context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
+			mintLock <- testpkg.WithinAdminContext(t, context.Background(), db, func(mintCtx context.Context) error {
 				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
 			})
 		}()
@@ -230,13 +227,13 @@ func TestNonMFASettingWriteDoesNotBlockTheMintLock(t *testing.T) {
 	registerTestSetting("test.unrelated", config.FieldNumber, 30)
 
 	mintLock := make(chan error, 1)
-	writerCtx := tenant.WithTenantID(context.Background(), tenantID)
+	writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)
 
-	err := tenant.WithTenantTx(writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
 		require.NoError(t, service.SetValue(txCtx, "test.unrelated", 45, nil, nil))
 
 		go func() {
-			mintLock <- tenant.WithAdminTx(context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
+			mintLock <- testpkg.WithinAdminContext(t, context.Background(), db, func(mintCtx context.Context) error {
 				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
 			})
 		}()

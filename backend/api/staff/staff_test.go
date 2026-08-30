@@ -53,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := staffAPI.NewResource(svc.Users, svc.StaffDocuments, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, svc.StaffBalanceAdjust, svc.StaffMonthClose, svc.StaffOverview, svc.TimeTrackingAuditLog, svc.StaffTimeExport, db, slog.Default())
 
 	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/staff", resource.Router())
 
 	return &testContext{
@@ -1460,15 +1461,17 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
+	repos := repositories.NewFactory(ctx.db)
+	repos.SetConfigRuntime(testpkg.ConfigRuntime(ctx.db))
 
-	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
+	require.NoError(t, repos.StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}, timezone.Date{}))
+	}, configModels.CalendarDate("")))
 
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = []string{"time_tracking:manage"}
@@ -1491,7 +1494,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	activeRows, err := repositories.NewFactory(ctx.db).StaffWorkSchedule.GetCurrentByStaffID(testpkg.Ctx(t), staff.ID)
+	activeRows, err := repos.StaffWorkSchedule.GetCurrentByStaffID(testpkg.Ctx(t), staff.ID)
 	require.NoError(t, err)
 	require.Len(t, activeRows, 1)
 	assert.Equal(t, configModels.DayTuesday, activeRows[0].DayOfWeek)
@@ -1514,7 +1517,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 		require.NoError(t, err)
 	})
 
-	model, err := repositories.NewFactory(ctx.db).WorkTimeModel.FindByID(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
+	model, err := repos.WorkTimeModel.FindByID(testpkg.Ctx(t), *reloadedStaff.WorkTimeModelID)
 	require.NoError(t, err)
 	require.Len(t, model.Entries, 1)
 	assert.Equal(t, configModels.DayTuesday, model.Entries[0].DayOfWeek)
@@ -1527,15 +1530,17 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
+	repos := repositories.NewFactory(ctx.db)
+	repos.SetConfigRuntime(testpkg.ConfigRuntime(ctx.db))
 
-	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
+	require.NoError(t, repos.StaffWorkSchedule.ReplaceSchedule(testpkg.Ctx(t), staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}, timezone.Date{}))
+	}, configModels.CalendarDate("")))
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)

@@ -189,6 +189,11 @@ func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff
 	return u.currentStaff, nil
 }
 
+func (u slotListUserContext) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := u.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
+}
+
 type failingRoomRepo struct {
 	err error
 }
@@ -1461,7 +1466,7 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 
 	// 15:00 is long-day (short cutoff 14:30, long cutoff 16:00). Owning the
 	// pickup time at the partial cutoff keeps the child in that cohort.
-	from := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	exc := &scheduleModels.StudentPickupException{
 		StudentID:             partial.ID,
 		ExceptionDate:         pickupDate,

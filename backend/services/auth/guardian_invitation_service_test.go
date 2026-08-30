@@ -76,6 +76,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 		m(&cfg)
 	}
 	service := authService.NewGuardianInvitationService(cfg)
+	testpkg.SetTenantRuntime(t, service, db)
 
 	cleanup := func() {
 	}
@@ -646,6 +647,7 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		DB:                   db,
 		Logger:               slog.Default(),
 	})
+	testpkg.SetTenantRuntime(t, service, db)
 
 	cleanup := func() {}
 
@@ -697,7 +699,7 @@ func requireGuardianEnrollmentClaimed(t *testing.T, env *guardianTestEnv, reques
 	assert.Equal(t, accountID, *linkedRequest.GuardianAccountID)
 
 	var enrollments []*parentModels.EnrollmentRequestSummary
-	require.NoError(t, tenant.WithAdminTx(context.Background(), env.db, func(ctx context.Context, _ bun.Tx) error {
+	require.NoError(t, testpkg.WithAdminTx(t, context.Background(), env.db, func(ctx context.Context, _ bun.Tx) error {
 		var listErr error
 		enrollments, listErr = env.repos.ParentEnrollmentRequest.ListByAccount(ctx, accountID)
 		return listErr
@@ -754,7 +756,7 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	require.NoError(t, err)
 
 	var account *authModels.Account
-	err = tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 		var acceptErr error
 		account, acceptErr = env.service.Accept(adminCtx, invitation.Token, authService.GuardianInvitationAcceptData{
 			Password:        strongTestPassword,

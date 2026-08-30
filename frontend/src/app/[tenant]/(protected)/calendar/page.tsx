@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -13,7 +14,10 @@ import {
   PersonalCalendarChrome,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
+import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -58,8 +62,6 @@ import {
 } from "~/lib/personal-calendar-api";
 import { useSWRAuth } from "~/lib/swr";
 import { getWeekRange } from "~/lib/timetable-helpers";
-
-type CalendarTab = "meine" | "schule";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -301,7 +303,22 @@ const SchoolPlanReadView = dynamic(
   },
 );
 
-export default function StaffCalendarPage() {
+/**
+ * Ein Deeplink in den Betreuungsplan (`?view=tag&d=…&block=…`) muss auch den
+ * richtigen Tab öffnen — sonst landet ein geteilter Link (#2621) auf "Meine
+ * Termine" und der Zustand ist verloren. Der Betreuungsplan verwaltet seine
+ * Parameter über eine Allowlist (d/view/block) und würde einen eigenen
+ * Tab-Parameter beim nächsten Wechsel wieder abräumen; deshalb entscheidet
+ * die Anwesenheit genau dieser Parameter über den Starttab.
+ */
+function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
+  return ["d", "view", "block"].some((key) => params?.has(key) === true);
+}
+
+type CalendarTab = "meine" | "schule";
+
+function StaffCalendarPageInner() {
+  const searchParams = useSearchParams();
   const toast = useToast();
   const { data: session } = useSession();
   const canManageCalendar = hasPermission(session, "calendar:manage");
@@ -310,10 +327,37 @@ export default function StaffCalendarPage() {
   // Admins behalten den vollwertigen Planungsbereich in der Sidebar.
   const showSchoolPlanTab =
     !isAdmin(session) && hasPermission(session, "schedules:read");
+  const schoolPlanSelected = hasSchoolPlanParams(searchParams);
+  const [activeTab, setActiveTab] = useState<CalendarTab>(() =>
+    schoolPlanSelected ? "schule" : "meine",
+  );
+
+  // Deeplinks and browser navigation change the query without remounting this
+  // page. Keep the visible tab aligned with the URL in both directions.
+  useEffect(() => {
+    setActiveTab(schoolPlanSelected ? "schule" : "meine");
+  }, [schoolPlanSelected]);
+
+  const handleCalendarTabChange = useCallback(
+    (value: string) => {
+      const nextTab = value as CalendarTab;
+      if (nextTab === "meine") {
+        const nextParams = new URLSearchParams(searchParams?.toString());
+        for (const key of ["d", "view", "block"]) nextParams.delete(key);
+        const query = nextParams.toString();
+        window.history.replaceState(
+          null,
+          "",
+          query ? `?${query}` : window.location.pathname,
+        );
+      }
+      setActiveTab(nextTab);
+    },
+    [searchParams],
+  );
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
-  const [activeTab, setActiveTab] = useState<CalendarTab>("meine");
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   // Der Wochenend-Schalter sitzt im Bedienband der Kopfkarte, das Raster
@@ -723,6 +767,25 @@ export default function StaffCalendarPage() {
         }
       : null;
 
+  const personalCalendarWithSubscribe = (
+    // Der Abo-Bereich (#2621) bleibt auch in einer leeren Woche erreichbar,
+    // deshalb ersetzt der Leerzustand hier nur das Raster, nicht den Inhalt.
+    <>
+      {calendarEmpty ? (
+        <SectionCard>
+          <EmptyState
+            title={calendarEmpty.title}
+            description={calendarEmpty.description}
+            action={calendarEmpty.action}
+          />
+        </SectionCard>
+      ) : (
+        personalCalendar
+      )}
+      <CalendarSubscribePanel audience="staff" />
+    </>
+  );
+
   return (
     <TenantPage
       title="Kalender"
@@ -730,7 +793,6 @@ export default function StaffCalendarPage() {
       statsLoading={calendarLoading}
       loading={calendarLoading}
       error={calendarErrorState}
-      empty={calendarEmpty}
       actions={
         canManageCalendar && onCalendarTab ? (
           <Button
@@ -762,7 +824,7 @@ export default function StaffCalendarPage() {
         showSchoolPlanTab
           ? {
               value: activeTab,
-              onChange: (next) => setActiveTab(next as CalendarTab),
+              onChange: handleCalendarTabChange,
               items: [
                 { value: "meine", label: "Meine Termine" },
                 { value: "schule", label: "Betreuungsplan" },
@@ -1280,8 +1342,17 @@ export default function StaffCalendarPage() {
           <SchoolPlanReadView />
         </Suspense>
       ) : (
-        personalCalendar
+        personalCalendarWithSubscribe
       )}
     </TenantPage>
+  );
+}
+
+export default function StaffCalendarPage() {
+  // useSearchParams braucht eine Suspense-Grenze (Next.js 16).
+  return (
+    <Suspense fallback={null}>
+      <StaffCalendarPageInner />
+    </Suspense>
   );
 }

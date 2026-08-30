@@ -74,17 +74,17 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations only require groups:read permission
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/substitutions", rs.getGroupSubstitutions)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
+		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/substitutions", rs.getGroupSubstitutions)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
-		r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteGroup)
+		r.With(common.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
+		r.With(common.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateGroup)
+		r.With(common.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteGroup)
 
 		// Group transfer operations - Self-service feature for group leaders
 		//

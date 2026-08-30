@@ -379,6 +379,31 @@ export function nextWorkdayISO(iso: string): string {
 }
 
 /**
+ * Ein Schultag zurück: Mo landet auf dem vorigen Freitag, sonst auf dem
+ * Vortag. Gegenstück zur Vorwärtsnavigation der Tagesansicht, die über
+ * `nextWorkdayISO` läuft.
+ */
+export function previousWorkdayISO(iso: string): string {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() - 1);
+  const day = d.getDay(); // 0 = So, 6 = Sa
+  if (day === 0) d.setDate(d.getDate() - 2);
+  else if (day === 6) d.setDate(d.getDate() - 1);
+  return toISODate(d);
+}
+
+/**
+ * "Mittwoch, 12.08.2026" — Datumszeile der Tagesansicht. Ausgeschrieben, weil
+ * die Kopfzeile dort genau einen Tag benennt und nicht wie die Woche eine
+ * Spanne abkürzen muss.
+ */
+export function formatFullDayLabel(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${getGermanWeekdayLong(d)}, ${day}.${month}.${d.getFullYear()}`;
+}
+
+/**
  * Snappt ein Wochenend-Sprungziel innerhalb eines Planungszeitraums auf den
  * nächsten Schultag: Sa/So heben auf den folgenden Montag, sofern der noch im
  * Zeitraum liegt, sonst zurück auf den vorangehenden Freitag, sofern der im
@@ -1405,7 +1430,7 @@ export function computeTimetableSetup(input: {
  * Chrome-Abbau (Planung-Redesign Inkrement 4, Chunk 8) entfernt, deshalb
  * leben die noch gebrauchten Typen/Konstanten hier im Helper-Modul.
  */
-export type TimetableView = "week" | "month" | "series";
+export type TimetableView = "day" | "week" | "month" | "series";
 
 /**
  * Drei diskrete Zoomstufen des Wochenrasters. Die Pixel-pro-Stunde-Werte

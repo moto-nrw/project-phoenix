@@ -180,7 +180,7 @@ CLI commands (migrate, seed, cleanup) connect via `DB_DSN` as the `postgres` **s
 
 - **Actual instant** (created_at, checked_in_at): `TIMESTAMPTZ` ↔ `time.Time`, API ISO timestamp
 - **Calendar date** (attendance day, birthday): `DATE` ↔ `timezone.Date` — NEVER `time.Time` — API `YYYY-MM-DD`
-- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.WallClock()`, API `HH:MM`
+- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.NormalizeWallClock()`, API `HH:MM`
 
 bun binds every `time.Time` as UTC, so DATE columns modeled as `time.Time` land one day behind around Berlin midnight. `TestDateColumnTypes` fails CI for violations. Full guide: `.claude/rules/calendar-dates.md`.
 
@@ -223,8 +223,8 @@ end); naked `go test` runs leave their clones to the next run's generation GC.
 Manual container control, if ever needed:
 
 ```bash
-docker compose --profile test up -d postgres-test        # Start (isolated network)
-docker compose --profile test down                        # Stop (plain `down` won't work)
+docker compose -p project-phoenix --profile test up -d postgres-test  # Start (one container for all worktrees)
+docker compose -p project-phoenix --profile test down                 # Stop (plain `down` won't work)
 cd backend && go run ./internal/testdb/cmd/sweep          # Drop leftover clones now
 ```
 

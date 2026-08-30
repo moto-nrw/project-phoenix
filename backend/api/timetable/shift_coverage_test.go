@@ -29,7 +29,7 @@ func coverageClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
@@ -50,7 +50,7 @@ func shiftCoverageRouter(parentCtx context.Context, resource *Resource) chi.Rout
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-			ctx := tenant.WithTenantID(request.Context(), tenantID)
+			ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(request.Context()), tenantID)
 			next.ServeHTTP(w, request.WithContext(ctx))
 		})
 	})

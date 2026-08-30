@@ -23,12 +23,24 @@ const LANDSCAPE_NFC_SCREENSHOTS = new Set([
   "/help/screens/nfc-geraete-pruefen.webp",
 ]);
 
+const TALL_LETTER_SCREENSHOTS = new Set([
+  "/help/screens/elternbriefe.webp",
+  "/help/screens/elternbrief-anlegen.webp",
+  "/help/screens/elternbrief-status.webp",
+]);
+
 function getGuideScreenshotDimensions(image: string): {
   width: number;
   height: number;
 } {
   if (image === "/help/screens/anmeldung-loeschen.png") {
     return { width: 1440, height: 1100 };
+  }
+  // Die Elternbrief-Aufnahmen zeigen hohe Dialoge (Assistent, Statusansicht)
+  // und wurden deshalb mit 1250px Höhe aufgenommen. Ohne den Sonderfall würde
+  // Next sie auf das 1440x900-Standardverhältnis stauchen.
+  if (TALL_LETTER_SCREENSHOTS.has(image)) {
+    return { width: 1440, height: 1250 };
   }
   if (image.includes("/nfc-") && !LANDSCAPE_NFC_SCREENSHOTS.has(image)) {
     return { width: 1024, height: 1024 };

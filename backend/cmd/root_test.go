@@ -35,6 +35,7 @@ func TestRootCmd_HasCommands(t *testing.T) {
 	assert.Contains(t, names, "seed")
 	assert.Contains(t, names, "gendoc")
 	assert.Contains(t, names, "simulate")
+	t.Run("composition-inventory", assertCommandComposition)
 }
 
 func TestRootCmd_PersistentFlags(t *testing.T) {

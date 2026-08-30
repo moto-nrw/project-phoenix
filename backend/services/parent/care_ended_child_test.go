@@ -27,7 +27,7 @@ func endCareFor(t *testing.T, db *bun.DB, studentID int64) {
 		TableExpr("users.students").
 		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
 		Where("id = ?", studentID).
-		Exec(context.Background())
+		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)
 }
 
@@ -39,12 +39,12 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	svc, _, _, _ := buildAbsenceApprovalServices(t, false, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// While the child is still in care the family can report an absence.
 	_, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate().AddDays(2)}, "Fieber",
-		activeModels.StudentStatusDaySick)
+		activeModels.StudentStatusDaySick, nil)
 	require.NoError(t, err)
 
 	endCareFor(t, db, chain.StudentID)
@@ -52,7 +52,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 	t.Run("no new direct absence can be reported", func(t *testing.T) {
 		_, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 			[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Fieber",
-			activeModels.StudentStatusDaySick)
+			activeModels.StudentStatusDaySick, nil)
 		require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 	})
 
@@ -60,7 +60,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 		pendingSvc, _, _, _ := buildAbsenceApprovalServices(t, true, false)
 		_, err := pendingSvc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 			[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Fieber",
-			activeModels.StudentStatusDaySick)
+			activeModels.StudentStatusDaySick, nil)
 		require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 	})
 

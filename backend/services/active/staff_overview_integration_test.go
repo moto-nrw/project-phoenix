@@ -131,7 +131,7 @@ func (f *overviewFixture) addSchedule(t *testing.T, staffID int64, targetMinutes
 			DayOfWeek:     day,
 			TargetMinutes: targetMinutes,
 			WeekIndex:     0, RotationLength: 1,
-			ValidFrom: timezone.NewDate(2020, time.January, 1),
+			ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
 		}
 		_, err := f.db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(f.ctx)
 		require.NoError(t, err)
@@ -462,7 +462,9 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 	before, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodWeek)
 	require.NoError(t, err)
 
-	weekStart := configModels.MondayOf(f.today)
+	workforceWeekStart := configModels.MondayOf(configModels.NewCalendarDate(f.today.Year, f.today.Month, f.today.Day))
+	weekStartValue := workforceWeekStart.UTCMidnight()
+	weekStart := timezone.NewDate(weekStartValue.Year(), weekStartValue.Month(), weekStartValue.Day())
 	effectiveDate := timezone.NewDate(f.today.Year, f.today.Month, 1)
 	if !effectiveDate.Before(weekStart) {
 		effectiveDate = f.today.AddDays(1)

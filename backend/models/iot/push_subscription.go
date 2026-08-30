@@ -16,6 +16,8 @@ import (
 const (
 	PushPortalStaff  = "staff"
 	PushPortalParent = "parent"
+	// PushPortalSchool marks a device registered through "moto schule" (#2208).
+	PushPortalSchool = "school"
 )
 
 var trustedPushServiceHosts = map[string]struct{}{
@@ -75,8 +77,8 @@ func (s *PushSubscription) Validate() error {
 	if s.AccountID <= 0 {
 		return errors.New("account_id is required")
 	}
-	if s.Portal != PushPortalStaff && s.Portal != PushPortalParent {
-		return errors.New("portal must be 'staff' or 'parent'")
+	if s.Portal != PushPortalStaff && s.Portal != PushPortalParent && s.Portal != PushPortalSchool {
+		return errors.New("portal must be 'staff', 'parent' or 'school'")
 	}
 	if strings.TrimSpace(s.Endpoint) == "" {
 		return errors.New("endpoint is required")
@@ -96,10 +98,22 @@ func (s *PushSubscription) Validate() error {
 type PushSubscriptionRepository interface {
 	base.CRUDRepository[*PushSubscription]
 
-	// Upsert inserts or refreshes a subscription keyed by (tenant_id, endpoint).
+	// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
+	// endpoint).
 	Upsert(ctx context.Context, sub *PushSubscription) error
-	// DeleteByEndpoint removes the caller's subscription for the current tenant.
+	// DeleteByEndpoint removes the caller's staff-portal subscription for the
+	// current tenant.
 	DeleteByEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteParentByAccountEndpoint removes the caller's parent-portal
+	// subscription for the current tenant.
+	DeleteParentByAccountEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteSchoolByEndpoint removes only a school-portal subscription for the
+	// caller in the current tenant.
+	DeleteSchoolByEndpoint(ctx context.Context, accountID int64, endpoint string) error
+	// DeleteSchoolByEndpointAcrossTenants removes every school-portal binding
+	// for an endpoint across tenants (#2208). Callers must use an admin
+	// transaction; a browser holds at most one school registration.
+	DeleteSchoolByEndpointAcrossTenants(ctx context.Context, endpoint string) error
 	// DeleteExpiredIfUnchanged removes a subscription only if its persisted
 	// ownership, key material, and update timestamp still match the sent snapshot.
 	DeleteExpiredIfUnchanged(ctx context.Context, sub *PushSubscription) (bool, error)
@@ -116,6 +130,9 @@ type PushSubscriptionRepository interface {
 	// reserve this for account-wide session revocation, not a single-device
 	// logout.
 	DeleteParentByAccountID(ctx context.Context, accountID int64) error
+	// DeleteSchoolByAccountID removes every school-portal subscription for an
+	// account across tenants (#2208). Admin transaction required.
+	DeleteSchoolByAccountID(ctx context.Context, accountID int64) error
 	// DeleteByTokenFamilyID removes subscriptions registered by one
 	// refresh-token family, any portal, across tenants. Callers must use an
 	// admin transaction. An empty family ID is a no-op so pre-binding rows
@@ -129,6 +146,9 @@ type PushSubscriptionRepository interface {
 	// were never bound to a token family. tenantID > 0 limits the delete to
 	// that school. Callers must use an admin transaction.
 	DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteSchoolUnboundByAccount is DeleteStaffUnboundByAccount for
+	// school-portal subscriptions (#2208).
+	DeleteSchoolUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
 	// DeleteOrphanedSubscriptions removes push rows whose token family is gone
 	// or whose account has no live session left for that portal. Unbound
 	// parent rows stay if any parent session exists on the account.
@@ -141,6 +161,9 @@ type PushSubscriptionRepository interface {
 	// FindForTenantStaff, narrowed to named recipients — the addressing
 	// primitive for personal notifications.
 	FindForStaffAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
+	// FindForSchoolAccounts returns school-portal subscriptions for named
+	// accounts in the current tenant.
+	FindForSchoolAccounts(ctx context.Context, accountIDs []int64) ([]*PushSubscription, error)
 	// FindForTenantAdmins returns staff-portal subscriptions of accounts with
 	// effective admin scope in the current tenant.
 	FindForTenantAdmins(ctx context.Context) ([]*PushSubscription, error)

@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 func TestWithTenantTx_RejectsZeroTenantID(t *testing.T) {
@@ -14,12 +13,12 @@ func TestWithTenantTx_RejectsZeroTenantID(t *testing.T) {
 
 	// WithTenantTx should reject tenantID == 0 before even touching the DB.
 	// We pass nil because the function should error before using it (mock-like unit test).
-	err := tenant.WithTenantTx(context.Background(), nil, 0, func(_ context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), struct{}{}, 0, func(_ context.Context, _ struct{}) error {
 		t.Fatal("callback should not be called with zero tenant ID")
 		return nil
 	})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "non-zero tenant_id")
+	assert.ErrorIs(t, err, tenant.ErrInvalidTenantID)
 }
 
 // NOTE: Integration tests for WithTenantTx and WithAdminTx that verify

@@ -62,15 +62,16 @@ vi.mock("./api-helpers.server", () => ({
 
 function createMockRequest(
   path: string,
-  options: { method?: string; body?: unknown } = {},
+  options: { method?: string; body?: unknown; headers?: HeadersInit } = {},
 ): NextRequest {
   const url = new URL(path, "http://localhost:3000");
   const init: { method: string; body?: string; headers?: HeadersInit } = {
     method: options.method ?? "GET",
+    headers: options.headers,
   };
   if (options.body) {
     init.body = JSON.stringify(options.body);
-    init.headers = { "Content-Type": "application/json" };
+    init.headers = { ...options.headers, "Content-Type": "application/json" };
   }
   return new NextRequest(url, init);
 }
@@ -192,6 +193,28 @@ describe("proxyPost", () => {
     expect(mockApiPost).toHaveBeenCalledWith("/api/items", "test-token", body);
     const json = await parseJson<ApiResponse<{ id: number }>>(response);
     expect(json.data).toEqual({ id: 9 });
+  });
+
+  it("forwards an idempotency key to the backend request", async () => {
+    const body = { name: "New" };
+    mockApiPost.mockResolvedValueOnce({ data: { id: 9 } });
+
+    const handler = proxyPost("/api/items");
+    await handler(
+      createMockRequest("/api/items", {
+        method: "POST",
+        body,
+        headers: { "Idempotency-Key": "create-instance-1" },
+      }),
+      createMockContext(),
+    );
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/items",
+      "test-token",
+      body,
+      "create-instance-1",
+    );
   });
 
   it("forwards the whole response when raw is set", async () => {

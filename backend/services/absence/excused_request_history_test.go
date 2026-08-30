@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,18 +32,22 @@ func TestListHistory_DecidedExcusedRequests(t *testing.T) {
 	withdrawn := createPending(t, svc, db, chain, []timezone.Date{day.AddDays(1)}, "Familienfeier")
 	pending := createPending(t, svc, db, chain, []timezone.Date{day.AddDays(2)}, "Ausflug")
 
-	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
 			RequestID: rejected.ID, Approve: false, Reason: "bitte anrufen", ReviewedBy: staffAccount.ID,
 		}); e != nil {
 			return e
 		}
-		_, e := svc.WithdrawRequest(txCtx, withdrawn.ID, chain.StudentID, chain.AccountID)
-		return e
+		// Guardian withdrawal was retired in #2267 (guardians edit instead), but
+		// historic withdrawn rows must keep showing up here — so the status is
+		// written straight through the repository.
+		return repositories.NewFactory(db).ExcusedAbsenceRequest.Decide(
+			txCtx, withdrawn.ID, activeModels.ExcusedRequestStatusWithdrawn, nil, nil, false,
+		)
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, next, e := svc.ListHistory(txCtx, modelBase.RequestQueueFilters{Limit: 25})
 		require.NoError(t, e)
 		assert.Nil(t, next)

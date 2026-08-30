@@ -17,6 +17,11 @@ var ErrExcusedRequestNotPending = errors.New("active: excused absence request is
 // caller's tenant.
 var ErrExcusedRequestNotFound = errors.New("active: excused absence request not found")
 
+// ErrExcusedRequestNotDecided means a correction was attempted on a row that
+// carries no decision to correct — still pending, or already closed some other
+// way (withdrawn, care ended, marked done).
+var ErrExcusedRequestNotDecided = errors.New("active: excused absence request is not decided")
+
 // Legacy-named absence-request lifecycle states. A guardian submits a pending
 // sick or excused request; a staff decision moves it to approved (and writes
 // the requested status days) or rejected; the guardian can withdraw it while
@@ -26,6 +31,9 @@ const (
 	ExcusedRequestStatusApproved  = "approved"
 	ExcusedRequestStatusRejected  = "rejected"
 	ExcusedRequestStatusWithdrawn = "withdrawn"
+	// ExcusedRequestStatusDone closes a request that only covered days already
+	// gone: nothing to apply, and "abgelehnt" would misstate what happened.
+	ExcusedRequestStatusDone = "done"
 	// ExcusedRequestStatusCareEnded closes an open request whose child left
 	// the OGS before anybody decided it (#2487).
 	ExcusedRequestStatusCareEnded = "care_ended"
@@ -54,7 +62,8 @@ type ExcusedAbsenceRequest struct {
 // accept a staff decision or a guardian withdrawal.
 func (e *ExcusedAbsenceRequest) IsTerminal() bool {
 	switch e.Status {
-	case ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn, ExcusedRequestStatusCareEnded:
+	case ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn,
+		ExcusedRequestStatusCareEnded, ExcusedRequestStatusDone:
 		return true
 	default:
 		return false
@@ -110,8 +119,18 @@ type ExcusedAbsenceRequestRepository interface {
 	// request id via a not-pending 409.
 	FindByIDForUpdate(ctx context.Context, id int64) (*ExcusedAbsenceRequest, error)
 
+	// UpdatePending rewrites the payload of a still-pending row — the guardian
+	// edit path (#2267). It refuses a decided row (ErrExcusedRequestNotPending)
+	// and bumps updated_at, which is the request's version.
+	UpdatePending(ctx context.Context, id int64, dates []timezone.Date, note, absenceStatus string) error
+
 	// Decide moves a pending row to approved/rejected/withdrawn, stamping
 	// decision_reason, reviewed_by, reviewed_at and (for approvals) applied_at.
 	// Withdrawals carry no reviewer stamp.
 	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error
+	// Redecide rewrites an ALREADY DECIDED row — the correction path (#2267).
+	// It is separate from Decide on purpose: Decide only ever touches pending
+	// rows, and a correction must never be able to slip past that guard by
+	// accident. The row must currently be approved or rejected.
+	Redecide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
 }

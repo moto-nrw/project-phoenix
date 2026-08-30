@@ -121,7 +121,7 @@ func (s *partialAbsenceService) Create(
 		if err != nil {
 			return err
 		}
-		clock := timezone.WallClock(input.FromTime)
+		clock := timezone.NormalizeWallClock(input.FromTime)
 		staffID := input.StaffID
 		reason := trimmedReason(input.Reason)
 
@@ -212,7 +212,7 @@ func (s *partialAbsenceService) Update(
 			return err
 		}
 
-		clock := timezone.WallClock(input.FromTime)
+		clock := timezone.NormalizeWallClock(input.FromTime)
 		if row.ExcusedOwnsPickupTime {
 			row.PickupTime = &clock
 		}

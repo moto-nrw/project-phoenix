@@ -47,8 +47,10 @@ import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
+import { LetterStatusPanel } from "~/components/announcements/letter-status-panel";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -72,6 +74,7 @@ import {
   fetchAnnouncementStats,
   fetchPollChildren,
   fetchPollResults,
+  isLetter,
   isPoll,
   publishAnnouncement,
   remindUnanswered,
@@ -80,6 +83,7 @@ import {
 } from "~/lib/parent-announcements-api";
 import type {
   Announcement,
+  AnnouncementEmailAudience,
   AnnouncementInput,
   AnnouncementPriority,
   AnnouncementRecipient,
@@ -117,11 +121,23 @@ const STATUS_META: Record<
  * UI one, because writing an information and asking a question are different
  * jobs with different follow-up work (Statistik vs Auswertung).
  */
-type AnnouncementKind = "announcement" | "poll";
+type AnnouncementKind = "announcement" | "letter" | "poll";
 
 const KIND_ITEMS: ReadonlyArray<SegmentedControlItem<AnnouncementKind>> = [
   { value: "announcement", label: "Mitteilungen" },
+  { value: "letter", label: "Elternbriefe" },
   { value: "poll", label: "Umfragen" },
+];
+
+/**
+ * Who receives the e-mail. Deliberately a value choice, not a content panel, so
+ * SegmentedControl is the right control (ui/Tabs is for panels).
+ */
+const EMAIL_AUDIENCE_ITEMS: ReadonlyArray<
+  SegmentedControlItem<AnnouncementEmailAudience>
+> = [
+  { value: "portal_only", label: "Nur mit Portalzugang" },
+  { value: "all_contacts", label: "Alle Bezugspersonen" },
 ];
 
 const KIND_COPY: Record<
@@ -141,6 +157,14 @@ const KIND_COPY: Record<
     emptyTitle: "Keine Mitteilungen",
     emptyBody: "Erstellen Sie eine neue Mitteilung für die Eltern.",
   },
+  letter: {
+    title: "Elternbriefe",
+    action: "Elternbrief",
+    ariaLabel: "Neuen Elternbrief erstellen",
+    emptyTitle: "Keine Elternbriefe",
+    emptyBody:
+      "Ein Elternbrief geht gleichzeitig ins Elternportal und per E-Mail und wird von den Eltern bestätigt.",
+  },
   poll: {
     title: "Elternumfragen",
     action: "Umfrage",
@@ -150,6 +174,17 @@ const KIND_COPY: Record<
       "Stellen Sie den Eltern eine Frage, zum Beispiel ob ihr Kind zum Sommerfest kommt.",
   },
 };
+
+/**
+ * Which tab an announcement belongs to. The three kinds are mutually exclusive
+ * in the backend too — a letter can never be a poll (a DB constraint says so),
+ * so this ordering can never hide a row from every tab.
+ */
+function kindOf(announcement: Announcement): AnnouncementKind {
+  if (isPoll(announcement)) return "poll";
+  if (isLetter(announcement)) return "letter";
+  return "announcement";
+}
 
 const RESPONSE_TYPE_LABEL: Record<AnnouncementResponseType, string> = {
   none: "Keine Rückmeldung",
@@ -289,7 +324,7 @@ function ParentAnnouncementsContent() {
   const filtered = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return list.filter((a) => {
-      if (isPoll(a) !== (kind === "poll")) return false;
+      if (kindOf(a) !== kind) return false;
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
       if (term && !a.title.toLowerCase().includes(term)) return false;
       return true;
@@ -300,8 +335,9 @@ function ParentAnnouncementsContent() {
   // tabs costs nothing and the user sees where the work is.
   const kindCounts = useMemo(
     () => ({
-      announcement: list.filter((a) => !isPoll(a)).length,
-      poll: list.filter((a) => isPoll(a)).length,
+      announcement: list.filter((a) => kindOf(a) === "announcement").length,
+      letter: list.filter((a) => kindOf(a) === "letter").length,
+      poll: list.filter((a) => kindOf(a) === "poll").length,
     }),
     [list],
   );
@@ -675,7 +711,10 @@ function ParentAnnouncementsContent() {
             <AnnouncementFormModal
               announcement={editing}
               kind={
-                editing ? (isPoll(editing) ? "poll" : "announcement") : kind
+                // kindOf, not a poll/announcement ternary: editing a letter must keep
+                // its mode, otherwise saving the draft would silently downgrade it to
+                // a plain Mitteilung and drop the mandatory channels.
+                editing ? kindOf(editing) : kind
               }
               groups={groups ?? []}
               activities={activities ?? []}
@@ -860,6 +899,10 @@ function AnnouncementFormModal({
 }: AnnouncementFormModalProps) {
   const isEdit = announcement !== null;
   const isPollForm = kind === "poll";
+  // An Elternbrief (#2384) is the same entity with both channels mandatory: the
+  // backend forces them and a DB constraint guarantees them, so the form shows
+  // them as fixed facts rather than as choices that could be unticked.
+  const isLetterForm = kind === "letter";
   const [step, setStep] = useState(0);
   // Tracks the id of the draft once it exists in the backend. Seeded from an
   // existing draft when editing; set after a create so that a publish-retry
@@ -879,6 +922,12 @@ function AnnouncementFormModal({
     announcement?.requires_acknowledgement ?? false,
   );
   const [sendEmail, setSendEmail] = useState(announcement?.send_email ?? false);
+  // Who gets the mail — a separate question from who sees the announcement in
+  // the portal. The narrow option is the default so an oversight never
+  // discloses the text to someone deliberately kept out of the portal.
+  const [emailAudience, setEmailAudience] = useState<AnnouncementEmailAudience>(
+    announcement?.email_audience ?? "portal_only",
+  );
   // Both cut-offs were written as the END of a Berlin day, so they have to be
   // read back as that Berlin day — a plain `new Date(...)` shows the following
   // day east of Berlin and re-saving would move the date by one day.
@@ -988,8 +1037,12 @@ function AnnouncementFormModal({
       link_url: trimmedLink ? trimmedLink : null,
       // A poll never also carries a read confirmation (the field is hidden for
       // polls, so a value left over from a converted draft must not leak).
-      requires_acknowledgement: isPollForm ? false : requiresAck,
-      send_email: sendEmail,
+      // A letter always carries both channels; the backend forces them anyway,
+      // but sending the true values keeps the payload honest.
+      requires_acknowledgement: isPollForm
+        ? false
+        : isLetterForm || requiresAck,
+      send_email: isLetterForm || sendEmail,
       expires_at: expiresAt ? endOfBerlinDayISO(expiresAt) : null,
       targets,
       response_type: isPollForm
@@ -1002,6 +1055,10 @@ function AnnouncementFormModal({
       response_deadline:
         isPollForm && deadline ? endOfBerlinDayISO(deadline) : null,
       options: isPollForm ? options : undefined,
+      delivery_mode: isLetterForm ? "letter" : "standard",
+      // A broad e-mail audience belongs only to letters; standard announcements
+      // always retain the existing portal-only delivery scope.
+      email_audience: isLetterForm ? emailAudience : "portal_only",
     };
 
     setSubmitting(publish ? "publish" : "draft");
@@ -1108,9 +1165,13 @@ function AnnouncementFormModal({
                 ? isEdit
                   ? "Umfrage bearbeiten"
                   : "Neue Umfrage"
-                : isEdit
-                  ? "Elternmitteilung bearbeiten"
-                  : "Neue Elternmitteilung"}
+                : isLetterForm
+                  ? isEdit
+                    ? "Elternbrief bearbeiten"
+                    : "Neuer Elternbrief"
+                  : isEdit
+                    ? "Elternmitteilung bearbeiten"
+                    : "Neue Elternmitteilung"}
             </SlideOverTitle>
           </div>
           <SlideOverCloseButton />
@@ -1272,8 +1333,12 @@ function AnnouncementFormModal({
                     />
                     <p className="mt-1.5 text-xs text-gray-500">
                       Danach wird{" "}
-                      {isPollForm ? "die Umfrage" : "die Mitteilung"} für Eltern
-                      ausgeblendet.
+                      {isPollForm
+                        ? "die Umfrage"
+                        : isLetterForm
+                          ? "der Elternbrief"
+                          : "die Mitteilung"}{" "}
+                      für Eltern ausgeblendet.
                     </p>
                   </div>
                 </div>
@@ -1313,9 +1378,30 @@ function AnnouncementFormModal({
                   </div>
                 </div>
 
+                {/* An Elternbrief is defined by both channels being mandatory, so
+                  they are stated as facts instead of offered as choices. Shown,
+                  not hidden: the author must see what will happen. */}
+                {isLetterForm && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <p className="text-sm font-medium text-gray-800">
+                      Beim Veröffentlichen passiert automatisch:
+                    </p>
+                    <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                      <li>Der Brief erscheint vollständig im Elternportal.</li>
+                      <li>
+                        Die Bezugspersonen bekommen den Brieftext per E-Mail.
+                      </li>
+                      <li>
+                        Eltern bestätigen den Brief im Elternportal. Eine
+                        Bestätigung pro Kind genügt.
+                      </li>
+                    </ul>
+                  </div>
+                )}
+
                 {/* A poll answer already IS the confirmation — offering a second,
                   weaker "gelesen" checkbox on top only muddies the result. */}
-                {!isPollForm && (
+                {!isPollForm && !isLetterForm && (
                   <label
                     htmlFor="announcement-ack"
                     className="flex cursor-pointer items-start gap-3"
@@ -1337,25 +1423,51 @@ function AnnouncementFormModal({
                   </label>
                 )}
 
-                <label
-                  htmlFor="announcement-email"
-                  className="flex cursor-pointer items-start gap-3"
-                >
-                  <Checkbox
-                    id="announcement-email"
-                    checked={sendEmail}
-                    onChange={(e) => setSendEmail(e.target.checked)}
-                  />
-                  <span className="text-sm text-gray-800">
-                    <span className="block">
-                      Eltern zusätzlich per E-Mail benachrichtigen
+                {!isLetterForm && (
+                  <label
+                    htmlFor="announcement-email"
+                    className="flex cursor-pointer items-start gap-3"
+                  >
+                    <Checkbox
+                      id="announcement-email"
+                      checked={sendEmail}
+                      onChange={(e) => setSendEmail(e.target.checked)}
+                    />
+                    <span className="text-sm text-gray-800">
+                      <span className="block">
+                        Eltern zusätzlich per E-Mail benachrichtigen
+                      </span>
+                      <span className="block text-xs text-gray-500">
+                        Beim Veröffentlichen erhalten die erreichten Eltern eine
+                        E-Mail mit Titel und Link ins Elternportal.
+                      </span>
                     </span>
-                    <span className="block text-xs text-gray-500">
-                      Beim Veröffentlichen erhalten die erreichten Eltern eine
-                      E-Mail mit Titel und Link ins Elternportal.
-                    </span>
-                  </span>
-                </label>
+                  </label>
+                )}
+
+                {(isLetterForm || sendEmail) && (
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-gray-800">
+                      Wer erhält die E-Mail?
+                    </p>
+                    <SegmentedControl
+                      items={
+                        isLetterForm
+                          ? EMAIL_AUDIENCE_ITEMS
+                          : EMAIL_AUDIENCE_ITEMS.slice(0, 1)
+                      }
+                      value={emailAudience}
+                      onChange={setEmailAudience}
+                      ariaLabel="E-Mail-Empfänger"
+                      fullWidth
+                    />
+                    <p className="mt-2 text-xs text-gray-500">
+                      {emailAudience === "all_contacts"
+                        ? "Auch Bezugspersonen ohne Portal-Zugang bekommen die E-Mail. Sie können den Brief nicht in moto bestätigen. Geht es um Gesundheit oder andere sensible Angaben zu einem Kind? Dann wählen Sie die andere Option."
+                        : "Nur Bezugspersonen mit Portal-Zugang bekommen die E-Mail. Alle anderen sehen Sie danach in der Empfängerliste."}
+                    </p>
+                  </div>
+                )}
               </section>
             </div>
           ) : (
@@ -1369,8 +1481,14 @@ function AnnouncementFormModal({
               onSetStudentName={(id, name) =>
                 setStudentNames((prev) => ({ ...prev, [id]: name }))
               }
-              kindLabel={isPollForm ? "diese Umfrage" : "diese Mitteilung"}
-              allowPendingEnrollment={!isPollForm}
+              kindLabel={
+                isPollForm
+                  ? "diese Umfrage"
+                  : isLetterForm
+                    ? "diesen Elternbrief"
+                    : "diese Mitteilung"
+              }
+              allowPendingEnrollment={!isPollForm && !isLetterForm}
             />
           )}
 
@@ -2106,7 +2224,8 @@ function DetailModal({
   // A published poll renders its Auswertung instead of the read/ack statistics
   // (see below), so it must not pay for the two requests behind them either.
   const showReadStats = !(
-    isPoll(announcement) && announcement.status !== "draft"
+    (isPoll(announcement) || isLetter(announcement)) &&
+    announcement.status !== "draft"
   );
 
   useEffect(() => {
@@ -2145,6 +2264,7 @@ function DetailModal({
 
   const isPublished = announcement.status !== "draft";
   const poll = isPoll(announcement);
+  const letter = isLetter(announcement);
   const chips = targetChips(announcement.targets, groups, activities);
 
   return (
@@ -2227,14 +2347,20 @@ function DetailModal({
               <DataField label={poll ? "Antwortart" : "Lesebestätigung"}>
                 {poll
                   ? RESPONSE_TYPE_LABEL[announcement.response_type]
-                  : announcement.requires_acknowledgement
-                    ? "Erforderlich"
-                    : "Nicht erforderlich"}
+                  : letter
+                    ? "Erforderlich (Elternbrief)"
+                    : announcement.requires_acknowledgement
+                      ? "Erforderlich"
+                      : "Nicht erforderlich"}
               </DataField>
               <DataField label="E-Mail an die Eltern">
-                {announcement.send_email
-                  ? "Wird versendet"
-                  : "Wird nicht versendet"}
+                {letter
+                  ? announcement.email_audience === "all_contacts"
+                    ? "An alle Bezugspersonen"
+                    : "An Bezugspersonen mit Portalzugang"
+                  : announcement.send_email
+                    ? "Wird versendet"
+                    : "Wird nicht versendet"}
               </DataField>
               {poll && announcement.response_deadline && (
                 <DataField label="Antwort bis">
@@ -2248,6 +2374,19 @@ function DetailModal({
             <PollResultsPanel
               announcement={announcement}
               onReminded={onReminded}
+            />
+          )}
+
+          {/* A published Elternbrief shows the recipient matrix instead of the
+            generic read/ack statistics: it counts CHILDREN and reports both
+            channels separately, while the generic panel counts guardian
+            accounts. Two different denominators in one modal is a support
+            ticket waiting to happen. */}
+          {letter && isPublished && (
+            <LetterStatusPanel
+              announcementId={announcement.id}
+              canAct={announcement.status === "published"}
+              emailAudience={announcement.email_audience}
             />
           )}
 

@@ -164,13 +164,17 @@ describe("RootLayout", () => {
   });
 
   describe("viewport", () => {
+    // Bewusste Regeländerung (#2267): der Zoom darf nicht gesperrt sein.
     it("has correct viewport settings", () => {
       expect(viewport).toEqual({
         width: "device-width",
         initialScale: 1,
-        maximumScale: 1,
-        userScalable: false,
       });
+    });
+
+    it("erlaubt Pinch-Zoom", () => {
+      expect(viewport).not.toHaveProperty("maximumScale");
+      expect(viewport).not.toHaveProperty("userScalable");
     });
   });
 });

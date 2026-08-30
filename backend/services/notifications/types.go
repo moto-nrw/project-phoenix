@@ -23,6 +23,11 @@ import (
 const (
 	PortalStaff  = "staff"
 	PortalParent = "parent"
+	// PortalSchool is the Lehrkraft portal "moto schule" (#2208). It has no
+	// catalogue of its own: a staff type opts into it with SchoolPortal, and
+	// the decision is stored on the same (account, type) row as in the OGS
+	// portal — the same person hears about the same conversation once.
+	PortalSchool = "school"
 )
 
 // Groups the profile page renders as headings, in this order.
@@ -89,6 +94,10 @@ type TypeDefinition struct {
 	// decision.
 	TenantGate string
 	SortOrder  int
+	// SchoolPortal offers a PortalStaff type in the school portal as well
+	// (#2208). Only types a Lehrkraft can actually receive belong here; the
+	// OGS supervision reminders never address a school-only account.
+	SchoolPortal bool
 }
 
 var (
@@ -118,6 +127,15 @@ func RegisterType(def TypeDefinition) {
 	typeRegistry[def.Key] = def
 }
 
+// OfferedInPortal reports whether a person using the given portal may see
+// and decide this type. The school portal borrows from the staff catalogue.
+func OfferedInPortal(def TypeDefinition, portal string) bool {
+	if portal == PortalSchool {
+		return def.Portal == PortalStaff && def.SchoolPortal
+	}
+	return def.Portal == portal
+}
+
 // GetType returns one definition.
 func GetType(key string) (TypeDefinition, bool) {
 	typeMu.RLock()
@@ -132,7 +150,7 @@ func TypesForPortal(portal string) []TypeDefinition {
 	typeMu.RLock()
 	defs := make([]TypeDefinition, 0, len(typeRegistry))
 	for _, def := range typeRegistry {
-		if def.Portal == portal {
+		if OfferedInPortal(def, portal) {
 			defs = append(defs, def)
 		}
 	}
@@ -223,13 +241,14 @@ func init() {
 	// switch: a school that has the internal messenger off has no conversation
 	// to announce, so the type disappears from the preference catalogue too.
 	RegisterType(TypeDefinition{
-		Key:         TypeStaffMessage,
-		Label:       "Nachrichten von Kolleginnen und Kollegen",
-		Description: "Wenn Ihnen jemand aus dem Team eine Nachricht im Team-Chat schreibt.",
-		Group:       GroupMessages,
-		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyStaffMessagingEnabled,
-		SortOrder:   2,
+		Key:          TypeStaffMessage,
+		Label:        "Nachrichten von Kolleginnen und Kollegen",
+		Description:  "Wenn Ihnen jemand aus dem Team eine Nachricht im Team-Chat schreibt.",
+		Group:        GroupMessages,
+		Portal:       PortalStaff,
+		TenantGate:   configModel.KeyStaffMessagingEnabled,
+		SortOrder:    2,
+		SchoolPortal: true,
 	})
 
 	RegisterType(TypeDefinition{

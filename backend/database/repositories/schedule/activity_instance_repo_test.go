@@ -11,7 +11,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -175,7 +174,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 	var createdIDs []int64
 
-	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		first := buildInstance(0, fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
 		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, first)
 		require.NoError(t, err)
@@ -792,7 +791,7 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 
 	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
-	legacyWeekendRepo, ok := repo.(interface {
+	legacyWeekendRepo, ok := any(repo).(interface {
 		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
 	})
 	require.True(t, ok, "activity-instance repository must support legacy weekend cleanup")

@@ -57,7 +57,7 @@ type GrantAccountTenantAccessRequest struct {
 // ListAccountTenantAccess returns every school mapping of one account.
 func (s *operatorProvisioningService) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		if _, err := s.loadAccount(adminCtx, accountID); err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 	clientIP net.IP,
 ) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		account, err := s.loadAccountForUpdate(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -202,7 +202,7 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 	clientIP net.IP,
 ) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		account, err := s.loadAccountForUpdate(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -323,7 +323,7 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 	clientIP net.IP,
 ) ([]AccountTenantAccessEntry, error) {
 	var result []AccountTenantAccessEntry
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		account, err := s.loadAccountForUpdate(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -505,7 +505,7 @@ func (s *operatorProvisioningService) validateAssignableSchoolRole(ctx context.C
 // applied so the UI cannot offer roles the backend would reject.
 func (s *operatorProvisioningService) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error) {
 	var result []*authModels.Role
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		if _, err := s.loadActiveSchool(adminCtx, schoolID); err != nil {
 			return err
 		}

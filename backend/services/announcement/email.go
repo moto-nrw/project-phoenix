@@ -30,7 +30,16 @@ const (
 	emailPayloadKicker = "brand_kicker"
 	emailPayloadIntro  = "intro"
 
+	// emailPayloadBody / emailPayloadAckRequired are the Elternbrief additions
+	// (#2384). A letter is the ONE case where the body travels by e-mail: the
+	// school has decided this content may leave the portal, and a parent who
+	// never opens the app must still be able to read it. Both are optional, so
+	// outbox rows queued before this change still render exactly as before.
+	emailPayloadBody        = "body"
+	emailPayloadAckRequired = "ack_required"
+
 	defaultEmailKicker = "Elternmitteilung"
+	letterEmailKicker  = "Elternbrief"
 )
 
 // EmailConfig is the static config for the announcement e-mail renderer.
@@ -60,10 +69,34 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 			kicker = defaultEmailKicker
 		}
 		intro, _ := row.Payload[emailPayloadIntro].(string)
+		body, _ := row.Payload[emailPayloadBody].(string)
+		ackRequired, _ := row.Payload[emailPayloadAckRequired].(bool)
 
 		subject := title
 		if schoolName != "" {
 			subject = fmt.Sprintf("%s: %s", schoolName, title)
+		}
+
+		content := map[string]any{
+			"Title":             title,
+			"Intro":             intro,
+			"BrandKicker":       kicker,
+			"SchoolName":        schoolName,
+			"GuardianFirstName": first,
+			"GuardianLastName":  last,
+			"PortalURL":         portalURL,
+			"LogoURL":           logoURL,
+			"MotoLogoURL":       motoLogoURL,
+		}
+		// The body and the acknowledgement notice are added ONLY for an
+		// Elternbrief. A Mitteilung mail stays title + link, and the rendered
+		// content must not even carry the keys — the mail is the least trusted
+		// channel, and that rule is pinned by TestAnnouncementRenderer_TitleAndLinkOnly.
+		if body != "" {
+			content["Body"] = body
+		}
+		if ackRequired {
+			content["AckRequired"] = true
 		}
 
 		return &email.Message{
@@ -71,17 +104,7 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 			To:       email.NewEmail("", recipient),
 			Subject:  subject,
 			Template: "announcement-published.html",
-			Content: map[string]any{
-				"Title":             title,
-				"Intro":             intro,
-				"BrandKicker":       kicker,
-				"SchoolName":        schoolName,
-				"GuardianFirstName": first,
-				"GuardianLastName":  last,
-				"PortalURL":         portalURL,
-				"LogoURL":           logoURL,
-				"MotoLogoURL":       motoLogoURL,
-			},
+			Content:  content,
 		}, nil
 	}
 }

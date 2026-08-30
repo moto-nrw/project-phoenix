@@ -34,7 +34,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -129,7 +128,7 @@ func (s *scenario) teardown() {
 
 // tenantCtx returns a context bound to the primary tenant.
 func (s *scenario) tenantCtx() context.Context {
-	return tenant.WithTenantID(context.Background(), s.primaryTenant)
+	return testpkg.TenantContext(s.primaryTenant)
 }
 
 // mountRouter builds the full timetable Resource with real services and
@@ -169,6 +168,7 @@ func (s *scenario) do(method, path string, body any, claims jwt.AppClaims) *http
 	require.NoError(s.t, err, "mint JWT")
 
 	req := httptest.NewRequest(method, path, reader)
+	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -253,7 +253,7 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 
 // createTimeframeWithTimes inserts a timeframe with explicit HH:MM times.
 // schedule.timeframes stores timezone-free SQL TIME values; the service layer
-// still normalises through timezone.WallClock() so driver-specific date
+// still normalises through timezone.NormalizeWallClock() so driver-specific date
 // anchors cannot affect comparisons.
 func (s *scenario) createTimeframeWithTimes(description, startHHMM, endHHMM string) *scheduleModels.Timeframe {
 	s.t.Helper()

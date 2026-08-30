@@ -207,6 +207,23 @@ describe("InstanceDetailModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("renders the complete 255-character title", () => {
+    const longTitle = "T".repeat(255);
+
+    render(
+      <InstanceDetailModal
+        instance={instance({ title: longTitle })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(longTitle).toHaveLength(255);
+    expect(screen.getByRole("heading", { name: longTitle })).toHaveTextContent(
+      longTitle,
+    );
+  });
+
   it("renders details and executes lifecycle/edit/repeat/attendance actions", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
     const onEdit = vi.fn();

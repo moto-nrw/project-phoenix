@@ -75,6 +75,8 @@ func TestRegistry_Dispatch_PropagatesError(t *testing.T) {
 
 	r := NewRegistry()
 	want := errors.New("boom")
+	var observed string
+	r.SetFailureObserver(func(key string) { observed = key })
 	r.Register("k", func(_ context.Context, _ int64, _ any) (func(), error) {
 		return nil, want
 	})
@@ -82,6 +84,7 @@ func TestRegistry_Dispatch_PropagatesError(t *testing.T) {
 	cb, err := r.Dispatch(context.Background(), 1, "k", nil)
 	assert.Same(t, want, err)
 	assert.Nil(t, cb)
+	assert.Equal(t, "k", observed)
 }
 
 // TestRegistry_Register_PanicsOnDuplicateKey locks the boot-time check

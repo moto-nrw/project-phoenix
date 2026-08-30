@@ -372,7 +372,7 @@ func DetectPlannedConflicts(
 //
 // Instances scan their TIME columns with arbitrary, driver-chosen year
 // anchors (see the WallClock caveat in api/timetable/exception_conflicts.go);
-// normalising both sides through timezone.WallClock pins the comparison to
+// normalising both sides through timezone.NormalizeWallClock pins the comparison to
 // pure HH:MM:SS.
 func loadOverlappingInstances(
 	ctx context.Context,
@@ -389,8 +389,8 @@ func loadOverlappingInstances(
 		return nil
 	}
 
-	qStart := timezone.WallClock(q.StartTime)
-	qEnd := timezone.WallClock(q.EndTime)
+	qStart := timezone.NormalizeWallClock(q.StartTime)
+	qEnd := timezone.NormalizeWallClock(q.EndTime)
 
 	out := make([]*scheduleModel.ActivityInstance, 0, len(instances))
 	for _, inst := range instances {
@@ -401,8 +401,8 @@ func loadOverlappingInstances(
 		if q.ExcludeInstanceID != nil && inst.ID == *q.ExcludeInstanceID {
 			continue
 		}
-		iStart := timezone.WallClock(inst.StartTime)
-		iEnd := timezone.WallClock(inst.EndTime)
+		iStart := timezone.NormalizeWallClock(inst.StartTime)
+		iEnd := timezone.NormalizeWallClock(inst.EndTime)
 		if qStart.Before(iEnd) && iStart.Before(qEnd) {
 			out = append(out, inst)
 		}
@@ -473,8 +473,8 @@ func plannedStaffConflicts(
 			ResourceID: row.StaffID,
 			Message: fmt.Sprintf("„Personal“ ist am %s von %s–%s bereits bei „%s“ eingeplant (%s).",
 				q.Date.Format(germanDateLayout),
-				timezone.WallClock(inst.StartTime).Format("15:04"),
-				timezone.WallClock(inst.EndTime).Format("15:04"),
+				timezone.NormalizeWallClock(inst.StartTime).Format("15:04"),
+				timezone.NormalizeWallClock(inst.EndTime).Format("15:04"),
 				inst.Title,
 				roomNote,
 			),
@@ -525,8 +525,8 @@ func plannedStudentConflicts(
 			ResourceID: row.StudentID,
 			Message: fmt.Sprintf("Kind ist am %s von %s–%s bereits bei „%s“ eingeplant.",
 				q.Date.Format(germanDateLayout),
-				timezone.WallClock(inst.StartTime).Format("15:04"),
-				timezone.WallClock(inst.EndTime).Format("15:04"),
+				timezone.NormalizeWallClock(inst.StartTime).Format("15:04"),
+				timezone.NormalizeWallClock(inst.EndTime).Format("15:04"),
 				inst.Title,
 			),
 			ConflictingInstanceID: inst.ID,
@@ -588,10 +588,10 @@ func DetectWindowConflicts(inputs []WindowConflictInput) map[int64][]InstanceCon
 			if a.Instance.Date != b.Instance.Date {
 				break // sorted by date — no later same-date partner exists
 			}
-			aStart := timezone.WallClock(a.Instance.StartTime)
-			aEnd := timezone.WallClock(a.Instance.EndTime)
-			bStart := timezone.WallClock(b.Instance.StartTime)
-			bEnd := timezone.WallClock(b.Instance.EndTime)
+			aStart := timezone.NormalizeWallClock(a.Instance.StartTime)
+			aEnd := timezone.NormalizeWallClock(a.Instance.EndTime)
+			bStart := timezone.NormalizeWallClock(b.Instance.StartTime)
+			bEnd := timezone.NormalizeWallClock(b.Instance.EndTime)
 			// Half-open: touching edges are not a conflict.
 			if !aStart.Before(bEnd) || !bStart.Before(aEnd) {
 				continue

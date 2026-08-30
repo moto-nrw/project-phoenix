@@ -50,7 +50,7 @@ func (s *Service) markPendingWipeCompletedIndependently(ctx context.Context, acc
 	if tenant.IsAdminTx(ctx) || s.db == nil {
 		return s.markAccountWideWipeCompleted(ctx, accountID)
 	}
-	return tenant.WithAdminTx(s.independentCleanupCtx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(s.withTenantRuntime(s.independentCleanupCtx(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return s.markAccountWideWipeCompleted(adminCtx, accountID)
 	})
 }

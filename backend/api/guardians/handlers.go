@@ -210,6 +210,11 @@ type GuardianWithRelationship struct {
 	CanPickup          bool              `json:"can_pickup"`
 	PickupNotes        *string           `json:"pickup_notes,omitempty"`
 	EmergencyPriority  int               `json:"emergency_priority"`
+	// IsPayer marks this guardian's bank account as the one charged for this
+	// child (#2608). The flag itself is not bank data — it names a person, not
+	// an account — so it rides on the existing guardian read; the IBAN behind
+	// it needs guardians:financial.
+	IsPayer bool `json:"is_payer"`
 	// AccountStatus is the portal-access state of this guardian for the staff
 	// "Erziehungsberechtigte" tab: "active" (has login with access to this
 	// child), "active_no_access" (has login, but this child's link carries no
@@ -843,11 +848,15 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// to satisfy the RESTRICT FK; otherwise a plain delete. Both run in one
 	// tenant transaction so a failure leaves guardian and links intact.
 	tenantID := tenant.FromContext(r.Context())
+	accountID, ok := actingAccountID(w, r)
+	if !ok {
+		return
+	}
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if hasLinks {
-			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs)
+			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs, accountID)
 		}
-		return rs.GuardianService.DeleteGuardian(ctx, id)
+		return rs.GuardianService.DeleteGuardian(ctx, id, accountID)
 	}); err != nil {
 		rs.renderGuardianDeleteError(w, r, err, isAdmin)
 		return
@@ -970,7 +979,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
+	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, viper.GetString("app_env"))
 }
 
 // listPendingInvitations handles listing all pending guardian invitations
@@ -1000,6 +1009,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 
 // getStudentGuardians handles getting all guardians for a student (PUBLIC - everyone can view for emergency)
 func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) {
+	canSeePayment := authorize.HasPermission(permissions.GuardiansFinancial, jwt.PermissionsFromCtx(r.Context()))
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
@@ -1032,6 +1042,7 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 			CanPickup:          gwr.Relationship.CanPickup,
 			PickupNotes:        gwr.Relationship.PickupNotes,
 			EmergencyPriority:  gwr.Relationship.EmergencyPriority,
+			IsPayer:            canSeePayment && gwr.Relationship.IsPayer,
 			AccountStatus: guardianAccountStatus(
 				gwr.Profile.HasAccount,
 				authorize.StudentGuardianHasPermission(gwr.Relationship, authorize.GuardianPermissionPortalAccess),
@@ -1336,9 +1347,20 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 
 	// Remove guardian from student
 	tenantID := tenant.FromContext(r.Context())
+	accountID, ok := actingAccountID(w, r)
+	if !ok {
+		return
+	}
+	// Unlinking the child's payer clears the payer mark, which belongs to
+	// guardians:financial (#2608); the service refuses it for everyone else.
+	mayClearPayer := authorize.HasPermission(permissions.GuardiansFinancial, jwt.PermissionsFromCtx(r.Context()))
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID)
+		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID, accountID, mayClearPayer)
 	}); err != nil {
+		if errors.Is(err, guardianSvc.ErrPayerRemovalRequiresFinancial) {
+			common.RenderError(w, r, common.ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

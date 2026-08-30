@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -49,7 +48,7 @@ func (rs *Resource) logger() *slog.Logger {
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
-		guard := authorize.RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead)
+		guard := common.RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead)
 		r.With(guard, withTx).Get("/report", rs.getReport)
 		r.With(guard, withTx).Get("/export", rs.exportReport)
 	})

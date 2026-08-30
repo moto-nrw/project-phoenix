@@ -48,6 +48,7 @@ type Factory struct {
 	Account                authModels.AccountRepository
 	AccountParent          authModels.AccountParentRepository
 	AccountTenant          authModels.AccountTenantRepository
+	StaffCalendarFeedToken authModels.StaffCalendarFeedTokenRepository
 	Role                   authModels.RoleRepository
 	Permission             authModels.PermissionRepository
 	RolePermission         authModels.RolePermissionRepository
@@ -83,11 +84,17 @@ type Factory struct {
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
+	FamilyProtection    userModels.FamilyProtectionEventRepository
+	ParentRequestShare  userModels.ParentRequestShareEventRepository
+	ParentRequestEvent  userModels.ParentRequestEventRepository
 
 	// Staff Stammdaten (#1423)
 	StaffMasterData    userModels.StaffMasterDataRepository
 	StaffQualification userModels.StaffQualificationRepository
 	StaffFinancialData userModels.StaffFinancialDataRepository
+
+	// Guardian payment data (#2608)
+	GuardianFinancialData userModels.GuardianFinancialDataRepository
 
 	// Staff documents (#1424)
 	StaffDocument   userModels.StaffDocumentRepository
@@ -131,6 +138,7 @@ type Factory struct {
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
+	InstanceIdempotency       scheduleModels.InstanceIdempotencyRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
 	InstanceStudent           scheduleModels.InstanceStudentRepository
 	ActivityException         scheduleModels.ActivityExceptionRepository
@@ -172,7 +180,7 @@ type Factory struct {
 	// IoT domain
 	Device             iotModels.DeviceRepository
 	PushSubscription   iotModels.PushSubscriptionRepository
-	PWAStandaloneUsage iotModels.PWAStandaloneUsageRepository
+	PWAStandaloneUsage *iot.PWAStandaloneUsageRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -197,6 +205,7 @@ type Factory struct {
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
+	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
 	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 	BookingConsistency           auditModels.BookingConsistencyRepository
@@ -213,6 +222,7 @@ type Factory struct {
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
 	EmailOutbox              platformModels.EmailOutboxCleanupRepository
+	EmailDelivery            platformModels.EmailDeliveryRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
@@ -268,6 +278,7 @@ type Factory struct {
 	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
 	CalendarAppointmentTarget         calendarModels.AppointmentTargetRepository
 	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
+	CalendarStaffFeedTombstone        calendarModels.StaffFeedTombstoneRepository
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
@@ -275,11 +286,13 @@ type Factory struct {
 
 // NewFactory creates a new repository factory with all repositories
 func NewFactory(db *bun.DB) *Factory {
+	activityInstance := schedule.NewActivityInstanceRepository(db)
 	return &Factory{
 		// Auth repositories
 		Account:                auth.NewAccountRepository(db),
 		AccountParent:          auth.NewAccountParentRepository(db),
 		AccountTenant:          auth.NewAccountTenantRepository(db),
+		StaffCalendarFeedToken: auth.NewStaffCalendarFeedTokenRepository(db),
 		Role:                   auth.NewRoleRepository(db),
 		Permission:             auth.NewPermissionRepository(db),
 		RolePermission:         auth.NewRolePermissionRepository(db),
@@ -315,11 +328,17 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
+		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
+		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
+		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
 
 		// Staff Stammdaten (#1423)
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),
 		StaffQualification: users.NewStaffQualificationRepository(db),
 		StaffFinancialData: users.NewStaffFinancialDataRepository(db),
+
+		// Guardian payment data (#2608)
+		GuardianFinancialData: users.NewGuardianFinancialDataRepository(db),
 
 		// Staff documents (#1424)
 		StaffDocument:   users.NewStaffDocumentRepository(db),
@@ -362,7 +381,8 @@ func NewFactory(db *bun.DB) *Factory {
 		TimetableConflictAck:      schedule.NewTimetableConflictAckRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ClosingDay:                schedule.NewClosingDayRepository(db),
-		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
+		ActivityInstance:          activityInstance,
+		InstanceIdempotency:       activityInstance,
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
 		InstanceStudent:           schedule.NewInstanceStudentRepository(db),
 		ActivityException:         schedule.NewActivityExceptionRepository(db),
@@ -406,10 +426,10 @@ func NewFactory(db *bun.DB) *Factory {
 		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
-		SettingValue:      config.NewSettingValueRepository(db),
-		SettingAudit:      config.NewSettingAuditRepository(db),
-		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
-		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
+		SettingValue:      config.NewSettingValueRepository(config.NewRuntime(db)),
+		SettingAudit:      config.NewSettingAuditRepository(config.NewRuntime(db)),
+		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(config.NewRuntime(db)),
+		WorkTimeModel:     config.NewWorkTimeModelRepository(config.NewRuntime(db)),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
@@ -428,6 +448,7 @@ func NewFactory(db *bun.DB) *Factory {
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
+		GuardianFinancialChange:      audit.NewGuardianFinancialChangeRepository(db),
 		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 		BookingConsistency:           audit.NewBookingConsistencyRepository(db),
@@ -444,6 +465,7 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
 		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
+		EmailDelivery:            platformRepo.NewEmailDeliveryRepository(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
@@ -495,6 +517,16 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
 		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
+		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
+}
+
+// SetConfigRuntime replaces the bootstrap repositories with tenant-aware
+// instances before the service graph captures them.
+func (f *Factory) SetConfigRuntime(runtime config.Runtime) {
+	f.SettingValue = config.NewSettingValueRepository(runtime)
+	f.SettingAudit = config.NewSettingAuditRepository(runtime)
+	f.StaffWorkSchedule = config.NewStaffWorkScheduleRepository(runtime)
+	f.WorkTimeModel = config.NewWorkTimeModelRepository(runtime)
 }

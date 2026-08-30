@@ -1099,5 +1099,5 @@ func timeValue(value *string) string {
 }
 
 func formatWallClock(value time.Time) string {
-	return timezone.WallClock(value).Format("15:04")
+	return timezone.NormalizeWallClock(value).Format("15:04")
 }

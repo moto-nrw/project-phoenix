@@ -23,6 +23,7 @@ import {
 } from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
+import { Alert } from "~/components/ui/alert";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
@@ -81,6 +82,11 @@ interface WeeklyCalendarGridProps {
    */
   onSlotClick?: (dateISO: string, hour: number) => void;
   /**
+   * Calendar dates that stay visible but do not accept new timetable blocks.
+   * Existing blocks remain visible so historical data is never hidden.
+   */
+  planningDisabledDateISOs?: ReadonlySet<string>;
+  /**
    * Instanz-IDs offener (nicht quittierter) Personal-Lücken. Ein Block, dessen
    * ID hier liegt, zeigt das eine Lücken-Status-Icon (Betreuungsplan Abschnitt
    * 5.1/5.2). Optional und per Default leer: ohne Set zeigt kein Block ein
@@ -123,6 +129,7 @@ export function WeeklyCalendarGrid({
   dayEndHour,
   hourHeightPx,
   onSlotClick,
+  planningDisabledDateISOs,
   gapInstanceIds,
   closingDays,
   emptyState,
@@ -188,6 +195,11 @@ export function WeeklyCalendarGrid({
     Math.max(selectedDayIndex, 0),
     weekDays.length - 1,
   );
+  const planningDisabledDayCount = weekDays.reduce(
+    (count, day) =>
+      count + (planningDisabledDateISOs?.has(toISODate(day)) ? 1 : 0),
+    0,
+  );
 
   return (
     <div
@@ -196,6 +208,20 @@ export function WeeklyCalendarGrid({
         { "--day-grid-cols": smGridTemplate(weekDays.length) } as CSSProperties
       }
     >
+      {planningDisabledDayCount > 0 && (
+        <div className="border-b border-gray-200 bg-white p-2">
+          <Alert
+            type="info"
+            title="Nicht planbar"
+            message={
+              weekDays.length === 1
+                ? "Dieser Tag liegt außerhalb des Planungszeitraums."
+                : "Die markierten Tage liegen außerhalb des Planungszeitraums."
+            }
+          />
+        </div>
+      )}
+
       {/* Mobile day strip — tap a day to switch (single-day view < sm).
           Bei genau einem übergebenen Tag entfällt er: ein Umschalter mit einer
           einzigen Option schaltet nichts, kostet aber eine fette Zeile direkt
@@ -210,6 +236,7 @@ export function WeeklyCalendarGrid({
           const isToday = iso === todayISO;
           const isSelected = index === safeSelectedIndex;
           const closingReason = closingDays?.get(iso);
+          const planningDisabled = planningDisabledDateISOs?.has(iso) ?? false;
           return (
             <button
               key={iso}
@@ -236,6 +263,15 @@ export function WeeklyCalendarGrid({
                 // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
                 // Beschriftung und Grund bleiben im Tooltip.
                 <ClosingDayChip reason={closingReason} text="" />
+              )}
+              {planningDisabled && (
+                <span
+                  className={`text-[9px] leading-none font-medium ${
+                    isSelected ? "text-white/80" : "text-gray-500"
+                  }`}
+                >
+                  Nicht planbar
+                </span>
               )}
               {isToday && !isSelected && (
                 <span
@@ -274,11 +310,15 @@ export function WeeklyCalendarGrid({
             const iso = toISODate(day);
             const isToday = iso === todayISO;
             const closingReason = closingDays?.get(iso);
+            const planningDisabled =
+              planningDisabledDateISOs?.has(iso) ?? false;
             return (
               <div
                 key={iso}
                 className={`flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:px-2 ${
-                  closingReason === undefined ? "" : "bg-gray-50"
+                  closingReason === undefined && !planningDisabled
+                    ? ""
+                    : "bg-gray-50"
                 }`}
               >
                 <div className="flex min-w-0 items-center gap-1 sm:gap-2">
@@ -301,12 +341,19 @@ export function WeeklyCalendarGrid({
                     </span>
                   )}
                 </div>
-                {closingReason !== undefined && (
+                {/* Der Schließtag-Grund („Ferien") schlägt das generische
+                    „Nicht planbar": ein Schließtag ist ohnehin nicht planbar,
+                    und der konkrete Grund darf nicht verschwinden. */}
+                {closingReason !== undefined ? (
                   <ClosingDayChip
                     reason={closingReason}
                     className="w-full justify-center text-center"
                   />
-                )}
+                ) : planningDisabled ? (
+                  <span className="text-[10px] font-medium text-gray-500">
+                    Nicht planbar
+                  </span>
+                ) : null}
               </div>
             );
           })}
@@ -353,6 +400,8 @@ export function WeeklyCalendarGrid({
             const isToday = iso === todayISO;
             const dayInstances = grouped.get(iso) ?? [];
             const closingReason = closingDays?.get(iso);
+            const planningDisabled =
+              planningDisabledDateISOs?.has(iso) ?? false;
             const laned = assignBlockLanes(dayInstances);
             const nowOffset = isToday
               ? getCurrentTimeOffset(
@@ -362,7 +411,7 @@ export function WeeklyCalendarGrid({
                 )
               : null;
             let backgroundClass = "";
-            if (closingReason !== undefined) {
+            if (closingReason !== undefined || planningDisabled) {
               backgroundClass = "bg-gray-100/70";
             } else if (isToday) {
               backgroundClass = "bg-gray-50/60";
@@ -403,6 +452,7 @@ export function WeeklyCalendarGrid({
                     order, so blocks paint on top and keep their own click
                     handlers without z-index tricks. */}
                 {onSlotClick &&
+                  !planningDisabled &&
                   hours.slice(0, -1).map((hour) => (
                     <button
                       key={`slot-${hour}`}

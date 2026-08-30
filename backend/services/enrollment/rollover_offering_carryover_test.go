@@ -13,7 +13,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -283,7 +282,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 		})
 	}
 
-	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -326,7 +325,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 
 	// Production wraps the rollover in the handler's tenant transaction —
 	// that is where the atomicity contract comes from.
-	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -375,7 +374,7 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 		CareOfferingID: offering.ID,
 	})
 
-	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -417,7 +416,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 		ParentsURL:               "http://parents.localhost:3000",
 		DB:                       env.db,
 	})
-	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := svcNoCloner.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -604,7 +603,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 			Exec(context.Background())
 	})
 
-	err = tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err = testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		summary, workerErr := env.rolloverSvc.RunDeadlineWorker(txCtx, time.Now())
 		if workerErr != nil {
 			return workerErr

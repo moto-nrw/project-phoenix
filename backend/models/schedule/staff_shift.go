@@ -28,7 +28,7 @@ type StaffShift struct {
 	Date    timezone.Date `bun:"date,notnull,type:date" json:"date"`
 	// StartTime/EndTime map TIME WITHOUT TIME ZONE columns; only the
 	// wall-clock portion is meaningful. Repositories normalize scanned
-	// values via timezone.WallClock.
+	// values via timezone.NormalizeWallClock.
 	StartTime    time.Time `bun:"start_time,notnull" json:"start_time"`
 	EndTime      time.Time `bun:"end_time,notnull" json:"end_time"`
 	BreakMinutes int       `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
@@ -98,8 +98,8 @@ func (s *StaffShift) Validate() error {
 // series: end after start, break within 0..MaxStaffShiftBreakMinutes and not
 // longer than the shift itself.
 func validateShiftWindow(startTime, endTime time.Time, breakMinutes int) error {
-	start := timezone.WallClock(startTime)
-	end := timezone.WallClock(endTime)
+	start := timezone.NormalizeWallClock(startTime)
+	end := timezone.NormalizeWallClock(endTime)
 	if !end.After(start) {
 		return errors.New("end time must be after start time")
 	}
@@ -120,8 +120,8 @@ func validateShiftWindow(startTime, endTime time.Time, breakMinutes int) error {
 // Callers must ensure both shifts belong to the same date; touching
 // boundaries (one ends exactly when the other starts) do not overlap.
 func (s *StaffShift) Overlaps(other *StaffShift) bool {
-	aStart, aEnd := timezone.WallClock(s.StartTime), timezone.WallClock(s.EndTime)
-	bStart, bEnd := timezone.WallClock(other.StartTime), timezone.WallClock(other.EndTime)
+	aStart, aEnd := timezone.NormalizeWallClock(s.StartTime), timezone.NormalizeWallClock(s.EndTime)
+	bStart, bEnd := timezone.NormalizeWallClock(other.StartTime), timezone.NormalizeWallClock(other.EndTime)
 	return aStart.Before(bEnd) && bStart.Before(aEnd)
 }
 
@@ -130,8 +130,8 @@ func (s *StaffShift) Overlaps(other *StaffShift) bool {
 // the same date. Used to keep a replacement inside the gap of the cancelled
 // origin it covers (#1841).
 func (s *StaffShift) Contains(other *StaffShift) bool {
-	sStart, sEnd := timezone.WallClock(s.StartTime), timezone.WallClock(s.EndTime)
-	oStart, oEnd := timezone.WallClock(other.StartTime), timezone.WallClock(other.EndTime)
+	sStart, sEnd := timezone.NormalizeWallClock(s.StartTime), timezone.NormalizeWallClock(s.EndTime)
+	oStart, oEnd := timezone.NormalizeWallClock(other.StartTime), timezone.NormalizeWallClock(other.EndTime)
 	return !oStart.Before(sStart) && !oEnd.After(sEnd)
 }
 
@@ -139,7 +139,7 @@ func (s *StaffShift) Contains(other *StaffShift) bool {
 // Berlin time (Date + wall-clock StartTime). time.Date normalizes values
 // that fall into a DST gap.
 func (s *StaffShift) StartInstant() time.Time {
-	wc := timezone.WallClock(s.StartTime)
+	wc := timezone.NormalizeWallClock(s.StartTime)
 	return time.Date(s.Date.Year, s.Date.Month, s.Date.Day, wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
 }
 
@@ -147,6 +147,6 @@ func (s *StaffShift) StartInstant() time.Time {
 // Berlin time (Date + wall-clock EndTime). time.Date normalizes values that
 // fall into a DST gap.
 func (s *StaffShift) EndInstant() time.Time {
-	wc := timezone.WallClock(s.EndTime)
+	wc := timezone.NormalizeWallClock(s.EndTime)
 	return time.Date(s.Date.Year, s.Date.Month, s.Date.Day, wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
 }

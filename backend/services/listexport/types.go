@@ -44,6 +44,7 @@ const (
 	ColumnStudentClass      ColumnID = "student_class"
 	ColumnStudentGroup      ColumnID = "student_group"
 	ColumnContactName       ColumnID = "contact_name"
+	ColumnIBAN              ColumnID = "iban"
 	ColumnContactPhone      ColumnID = "contact_phone"
 	ColumnGuardianContacts  ColumnID = "guardian_contacts"
 	// ColumnHealthInfo carries the child's stored health note (allergies,

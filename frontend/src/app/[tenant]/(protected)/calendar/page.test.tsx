@@ -52,6 +52,16 @@ vi.mock("next-auth/react", () => ({
 
 // Der Betreuungsplan-Tab (#2283) lädt die große Planner-View dynamisch;
 // für die Seiten-Tests genügt ein Platzhalter.
+// useSearchParams liefert außerhalb des App-Routers null; der Tab-Start hängt
+// an den Plan-Parametern (#2621), also wird der Hook hier steuerbar gemacht.
+const { mockUseSearchParams } = vi.hoisted(() => ({
+  mockUseSearchParams: vi.fn<() => URLSearchParams | null>(() => null),
+}));
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return { ...actual, useSearchParams: () => mockUseSearchParams() };
+});
+
 vi.mock("~/components/timetable/betreuungsplan-view", () => ({
   BetreuungsplanView: () => <div data-testid="school-plan-view" />,
 }));
@@ -127,6 +137,7 @@ function mockCalendarSWR() {
 describe("StaffCalendarPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue(null);
     // The page derives its week from `new Date()`; pin the clock into the
     // fixture week so events fall in the visible range (Date only, so waitFor's
     // real timers keep working). Fake the clock BEFORE any render.
@@ -145,6 +156,17 @@ describe("StaffCalendarPage", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("shows the personal calendar subscription below the calendar", () => {
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Kalender abonnieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Neue, geänderte und abgesagte Termine/),
+    ).toBeInTheDocument();
   });
 
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
@@ -338,6 +360,80 @@ describe("StaffCalendarPage", () => {
 
     expect(screen.getByRole("tab", { name: "Meine Termine" })).toBeVisible();
     expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toBeVisible();
+    // Ohne Plan-Parameter startet die Fläche bei den eigenen Terminen.
+    expect(screen.getByRole("tab", { name: "Meine Termine" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("öffnet den Betreuungsplan-Tab bei einem geteilten Plan-Link (#2621)", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams("view=tag&d=2026-08-24"),
+    );
+
+    render(<StaffCalendarPage />);
+
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("follows Plan-Parameter after client-side navigation", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    const { rerender } = render(<StaffCalendarPage />);
+
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams("view=tag&d=2026-08-24"),
+    );
+    rerender(<StaffCalendarPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
+
+    mockUseSearchParams.mockReturnValue(null);
+    rerender(<StaffCalendarPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Meine Termine" }),
+      ).toHaveAttribute("aria-selected", "true"),
+    );
+  });
+
+  it("clears Plan-Parameter when switching to Meine Termine", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+    window.history.replaceState(null, "", "?view=tag&d=2026-08-24");
+    mockUseSearchParams.mockImplementation(
+      () => new URLSearchParams(window.location.search),
+    );
+
+    render(<StaffCalendarPage />);
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Meine Termine" }));
+
+    expect(window.location.search).toBe("");
+    expect(screen.getByRole("tab", { name: "Meine Termine" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("shows no tabs for admins", () => {

@@ -30,6 +30,8 @@ interface MonthPlannerGridProps {
    * beschriftet.
    */
   closingDays?: ReadonlyMap<string, string>;
+  /** Dates outside active planning periods. */
+  planningDisabledDateISOs?: ReadonlySet<string>;
   onDayClick: (dateISO: string) => void;
   onInstanceClick?: (instance: EnrichedInstance) => void;
   /**
@@ -46,6 +48,7 @@ export function MonthPlannerGrid({
   instances,
   todayISO,
   closingDays,
+  planningDisabledDateISOs,
   onDayClick,
   onInstanceClick,
   legend,
@@ -75,6 +78,7 @@ export function MonthPlannerGrid({
           const isToday = iso === todayISO;
           const outsideMonth = day.getMonth() !== currentMonth;
           const closingReason = closingDays?.get(iso);
+          const planningDisabled = planningDisabledDateISOs?.has(iso) ?? false;
           const conflicts = dayInstances.reduce(
             (sum, inst) => sum + inst.conflictWarnings.length,
             0,
@@ -84,6 +88,8 @@ export function MonthPlannerGrid({
           const moreCount = dayInstances.length - visibleInstances.length;
           let backgroundClass = "bg-white";
           if (closingReason !== undefined) {
+            backgroundClass = "bg-gray-100/70";
+          } else if (planningDisabled) {
             backgroundClass = "bg-gray-100/70";
           } else if (outsideMonth) {
             backgroundClass = "bg-gray-50/40";
@@ -131,8 +137,16 @@ export function MonthPlannerGrid({
                   />
                 )}
 
+                {planningDisabled && (
+                  <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
+                    <MotoConceptIcon concept="calendar" size={14} />
+                    Nicht planbar
+                  </div>
+                )}
+
                 {dayInstances.length === 0 ? (
-                  closingReason === undefined && (
+                  closingReason === undefined &&
+                  !planningDisabled && (
                     <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
                       <MotoConceptIcon concept="calendar" size={14} />
                       Leer

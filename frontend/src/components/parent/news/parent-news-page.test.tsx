@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listAnnouncements, type ParentAnnouncement } from "~/lib/parent-api";
 import { ParentNewsPage } from "./parent-news-page";
 
+let searchParams = new URLSearchParams();
+const replace = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/parents/news",
+  useRouter: () => ({ replace }),
+  useSearchParams: () => searchParams,
+}));
+
 vi.mock("~/lib/parent-api", () => ({
   listAnnouncements: vi.fn(),
   markAnnouncementRead: vi.fn(),
@@ -33,6 +42,7 @@ function announcement(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  searchParams = new URLSearchParams();
   mocked.mockResolvedValue([]);
 });
 
@@ -106,6 +116,15 @@ describe("ParentNewsPage", () => {
     ]);
     render(<ParentNewsPage />);
     expect(await screen.findByText("Gelesen bestätigen")).toBeInTheDocument();
+  });
+
+  it("öffnet den per Link angeforderten Elternbrief", async () => {
+    searchParams = new URLSearchParams("brief=a1");
+    mocked.mockResolvedValue([announcement()]);
+
+    render(<ParentNewsPage />);
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Sommerfest");
   });
 
   it("gruppiert offene Elternbriefe vor erledigten Einträgen", async () => {

@@ -456,7 +456,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 		{
 			StudentID:       student.ID,
 			Weekday:         scheduleModel.WeekdayMonday,
-			ExpectedArrival: timezone.WallClock(mustParseHHMM(t, "11:45")),
+			ExpectedArrival: timezone.NormalizeWallClock(mustParseHHMM(t, "11:45")),
 			CreatedBy:       staff.ID,
 		},
 	})
@@ -516,8 +516,8 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Deckungs", "Kind", "8d")
 	setClassArrivalTimes(t, repos, "8d", map[string]string{"mon": "11:45", "tue": "11:45"})
 
-	sameAsClass := timezone.WallClock(mustParseHHMM(t, "11:45"))
-	deviating := timezone.WallClock(mustParseHHMM(t, "12:15"))
+	sameAsClass := timezone.NormalizeWallClock(mustParseHHMM(t, "11:45"))
+	deviating := timezone.NormalizeWallClock(mustParseHHMM(t, "12:15"))
 	require.NoError(t, svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID,
 		[]*scheduleModel.StudentArrivalSchedule{
 			{StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday, ExpectedArrival: sameAsClass, CreatedBy: staff.ID},

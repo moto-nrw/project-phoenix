@@ -1,195 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
-import { MessagesSquare } from "lucide-react";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { TileCard } from "~/components/ui/tile-card";
-import { Button } from "~/components/ui/button";
-import { Alert } from "~/components/ui/alert";
-import { UnreadBadge } from "~/components/messaging/unread-badge";
-import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
-import { useTenantRouter } from "~/lib/tenant-router";
-import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
-  type StaffInboxThread,
-  fetchStaffInbox,
-  isStaffMessagingDisabled,
-} from "~/lib/staff-messages-api";
-import { createLogger } from "~/lib/logger";
-import { formatChatDateTime } from "~/lib/date-helpers";
+  TeamChatInbox,
+  type TeamChatInboxParts,
+} from "~/components/messaging/team-chat-inbox";
+import { useTenantTeamChatPortal } from "~/lib/hooks/use-tenant-team-chat-portal";
 
-const logger = createLogger({ component: "TeamChatInboxPage" });
-
-function TeamChatInboxContent() {
-  const router = useTenantRouter();
-  const { tenant } = useTenant();
-  // Tenant-prefix the SWR key so a tenant switch (multi-tab / switch-tenant)
-  // can never render the previous school's cached conversations from this key.
-  const tenantSlug = useTenantSlugSafe();
-  // The school can switch the internal chat off. The sidebar hides the entry
-  // then, but a bookmarked URL still lands here — so the page has to say why it
-  // is empty instead of showing a compose button that dead-ends in a 403.
-  const flagSaysEnabled = tenant?.staffMessagingEnabled === true;
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [onlyUnread, setOnlyUnread] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
-
-  const {
-    data: threads,
-    error,
-    isLoading,
-    mutate,
-  } = useSWR(
-    flagSaysEnabled
-      ? [`${tenantSlug ?? ""}:team-chat-inbox`, onlyUnread]
-      : null,
-    () => fetchStaffInbox({ onlyUnread }),
-    {
-      revalidateOnFocus: false,
-      keepPreviousData: true,
-      onError: (err: unknown) =>
-        logger.error("team_chat_inbox_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        }),
-    },
-  );
-
-  // A colleague wrote → revalidate the list. Refetch-only (never advances a
-  // read cursor), so it fires even in a background tab; the debounce collapses
-  // a burst into one refetch.
-  const refreshInbox = useCallback(() => void mutate(), [mutate]);
-  useMessagesActivity({
-    onMatch: refreshInbox,
-    eventName: "team-messages-activity",
-    debounceMs: 500,
-    marksRead: false,
-  });
-
-  const filteredThreads = useMemo(() => {
-    const list: StaffInboxThread[] = threads ?? [];
-    if (!searchTerm) return list;
-    const term = searchTerm.toLowerCase();
-    return list.filter((thread) =>
-      thread.counterpart_name.toLowerCase().includes(term),
-    );
-  }, [threads, searchTerm]);
-
-  // The cached tenant metadata is not the last word: it is resolved once and
-  // cached, so a school switching the chat off mid-session would leave this
-  // page showing a red "loading failed" plus a compose button that dead-ends in
-  // the very 403 that produced the error. The backend's stable code is the
-  // authority — if it says the feature is off, render the off-state whatever
-  // the cached flag believes.
-  const disabledByBackend = isStaffMessagingDisabled(error);
-  const chatEnabled = flagSaysEnabled && !disabledByBackend;
-  // Only a REAL failure belongs in a red alert. "Switched off" is not one.
-  const loadFailed = Boolean(error) && !disabledByBackend;
-
-  useEffect(() => {
-    if (!chatEnabled && composeOpen) {
-      setComposeOpen(false);
-    }
-  }, [chatEnabled, composeOpen]);
-
-  // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` hält jede
-  // laufende SWR-Wiederholung isLoading wahr (isLoading = !data &&
-  // isValidating) und die Seite zeigt ewig Platzhalter, statt zu sagen, was
-  // los ist. Der Fehlerzustand darunter wäre unerreichbar. Gleiche Regel wie
-  // auf der Thread-Seite.
-  const showSkeleton = isLoading && !threads && !loadFailed;
-  // Arrays sind truthy: ein zwischengespeichertes LEERES Ergebnis aus einem
-  // früheren erfolgreichen Abruf lässt `threads` wahr werden, obwohl der
-  // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung präsentiert die
-  // Seite den Fehlschlag als belastbares "keine Nachrichten".
-  const nothingToShow = !threads || threads.length === 0;
-
-  // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
-  const threadList = threads ?? [];
-  const unreadThreads = threadList.filter(
-    (thread) => thread.unread_count > 0,
-  ).length;
-  const chatSummary = chatEnabled
-    ? `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`
-    : "Team-Chat ist nicht eingeschaltet";
-
-  const composeButton = (
-    <Button
-      type="button"
-      variant="primary"
-      size="md"
-      onClick={() => setComposeOpen(true)}
-    >
-      Neue Nachricht
-    </Button>
-  );
-
-  // Fehler- und Leerzustand ersetzen den Inhalt des Gerüsts. Solange das
-  // Verfassen-Fenster offen ist, muss der Inhalt gerendert werden, denn dort
-  // hängt das Fenster.
-  const hasThreads = filteredThreads.length > 0;
-  const bodyReplaced = !showSkeleton && !hasThreads && !composeOpen;
-  const emptyState = (() => {
-    if (!bodyReplaced) return null;
-    if (!chatEnabled) {
-      return {
-        icon: <MessagesSquare size={48} className="text-gray-400" />,
-        title: "Der Team-Chat ist ausgeschaltet",
-        description:
-          "Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an Ihre Leitung, wenn Sie ihn nutzen möchten.",
-      };
-    }
-    if (loadFailed) {
-      // Fehler OHNE Daten: eine leere Liste danebenzustellen behauptet „Sie
-      // haben keine Nachrichten“, obwohl in Wahrheit niemand nachsehen konnte.
-      return {
-        icon: <MessagesSquare size={48} className="text-gray-400" />,
-        title: "Das hat leider nicht geklappt",
-        description:
-          "Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-        action: (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => void mutate()}
-          >
-            Erneut versuchen
-          </Button>
-        ),
-      };
-    }
-    return {
-      icon: <MessagesSquare size={48} className="text-gray-400" />,
-      title: "Noch keine Nachrichten",
-      description:
-        "Hier stehen Ihre Unterhaltungen mit dem Team. Sie schreiben nur an Personen Ihrer Schule. Eltern sehen davon nichts.",
-      action: composeButton,
-    };
-  })();
-
+/**
+ * Die Hülle des OGS-Portals um den geteilten Posteingang: Kopfkarte mit
+ * Statuszeile, Suche, Filter und Hauptaktion kommen aus dem Gerüst.
+ */
+function renderInboxFrame(parts: TeamChatInboxParts) {
   return (
     <TenantPage
-      title="Team-Chat"
-      stats={chatSummary}
-      statsLoading={showSkeleton}
-      actions={chatEnabled ? composeButton : undefined}
-      search={{
-        value: searchTerm,
-        onChange: setSearchTerm,
-        placeholder: "Person suchen…",
-      }}
+      title={parts.title}
+      stats={parts.stats}
+      statsLoading={parts.statsLoading}
+      actions={parts.composeButton ?? undefined}
+      search={parts.search}
       filters={
-        chatEnabled
+        parts.chatEnabled
           ? [
               {
                 id: "unread",
                 type: "dropdown",
                 label: "Unterhaltungen filtern",
-                value: onlyUnread ? "unread" : "all",
-                onChange: (next) => setOnlyUnread(next === "unread"),
+                value: parts.onlyUnread ? "unread" : "all",
+                onChange: (next) => parts.setOnlyUnread(next === "unread"),
                 options: [
                   { value: "all", label: "Alle Unterhaltungen" },
                   { value: "unread", label: "Nur ungelesen" },
@@ -198,65 +36,21 @@ function TeamChatInboxContent() {
             ]
           : undefined
       }
-      loading={showSkeleton}
-      empty={emptyState}
+      loading={parts.loading}
+      empty={parts.empty}
+      overlays={parts.overlays}
     >
-      <>
-        {loadFailed && !nothingToShow && (
-          // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
-          // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
-          // sein muss.
-          <Alert
-            type="error"
-            message="Die Unterhaltungen konnten nicht geladen werden."
-          />
-        )}
-
-        <ul className="space-y-3">
-          {filteredThreads.map((thread) => (
-            <li key={thread.thread_id}>
-              <TileCard
-                onClick={() => router.push(`/team-chat/${thread.thread_id}`)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <h3 className="truncate text-base font-semibold text-gray-900">
-                        {thread.counterpart_name}
-                      </h3>
-                      <UnreadBadge count={thread.unread_count} tone="staff" />
-                    </div>
-                    {thread.last_message_body && (
-                      <p className="mt-1 truncate text-sm text-gray-600">
-                        {thread.last_message_mine && (
-                          <span className="text-gray-500">Sie: </span>
-                        )}
-                        {thread.last_message_body}
-                      </p>
-                    )}
-                  </div>
-                  {thread.last_message_at && (
-                    <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                      {formatChatDateTime(thread.last_message_at)}
-                    </span>
-                  )}
-                </div>
-              </TileCard>
-            </li>
-          ))}
-        </ul>
-      </>
-
-      {composeOpen && chatEnabled && (
-        <NewTeamMessageModal
-          onClose={() => setComposeOpen(false)}
-          onOpened={(threadId) => router.push(`/team-chat/${threadId}`)}
-        />
-      )}
+      {parts.staleWarning}
+      {parts.list}
     </TenantPage>
   );
 }
 
+/**
+ * Posteingang des Team-Chats im OGS-Portal. Logik und Liste kommen aus der
+ * geteilten `TeamChatInbox` (#2208); die Seite steuert nur das Gerüst bei.
+ */
 export default function TeamChatPage() {
-  return <TeamChatInboxContent />;
+  const portal = useTenantTeamChatPortal();
+  return <TeamChatInbox portal={portal} frame={renderInboxFrame} />;
 }

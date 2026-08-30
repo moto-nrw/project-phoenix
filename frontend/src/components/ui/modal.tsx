@@ -355,10 +355,10 @@ function DialogModal({
         >
           {/* Header with close button - only show border if title exists */}
           {title ? (
-            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-4 sm:p-6">
+            <div className="flex shrink-0 items-start gap-4 border-b border-gray-100 p-4 sm:p-6">
               <h3
                 id={titleId}
-                className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl"
+                className="min-w-0 flex-1 text-lg font-semibold wrap-anywhere text-gray-900 sm:text-xl"
               >
                 {title}
               </h3>
@@ -366,7 +366,7 @@ function DialogModal({
                 type="button"
                 onClick={handleClose}
                 disabled={isDismissDisabled}
-                className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+                className="group relative flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
                 aria-label={closeLabel}
               >
                 {/* Animated X icon */}
@@ -376,6 +376,7 @@ function DialogModal({
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                   strokeWidth={2}
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"

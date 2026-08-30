@@ -103,6 +103,13 @@ interface TimetableEventModalProps {
   weekFrom?: string;
   weekTo?: string;
   calendarPeriods: CalendarPeriod[];
+  /** All loaded planning periods validate one-off appointment dates. */
+  /**
+   * Alle Planungszeiträume für die Datumsprüfung; `calendarPeriods` sind
+   * dagegen die Auswahloptionen des Serien-Zeitraum-Pickers. `null` schaltet
+   * die Prüfung bewusst ab — nie stillschweigend weglassen.
+   */
+  planningPeriods: CalendarPeriod[] | null;
   defaultCalendarPeriodId?: string | null;
   showPeriodField?: boolean;
   initialInstance?: EnrichedInstance | null;
@@ -143,6 +150,7 @@ export function TimetableEventModal({
   weekFrom,
   weekTo,
   calendarPeriods,
+  planningPeriods,
   defaultCalendarPeriodId,
   showPeriodField = false,
   initialInstance = null,
@@ -277,6 +285,7 @@ export function TimetableEventModal({
     weekFrom,
     weekTo,
     calendarPeriods,
+    planningPeriods,
     defaultCalendarPeriodId,
     initialInstance,
     initialSeries,

@@ -110,22 +110,35 @@ function decisionNotice(row: StaffCareRequest, approve: boolean): string {
 export function CareRequestReviewItem({
   row,
   onDecided,
+  grouped = false,
+  expectedVersion,
+  decisionDisabledReason,
+  approveReasonRequired = false,
 }: Readonly<{
   row: StaffCareRequest;
   onDecided: (notice: string) => void;
+  grouped?: boolean;
+  /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
+  expectedVersion?: string;
+  /** Warum hier gerade nicht einzeln entschieden werden kann (#2267). */
+  decisionDisabledReason?: string;
+  approveReasonRequired?: boolean;
 }>) {
-  const decision = useCareRequestDecision(row, onDecided);
+  const decision = useCareRequestDecision(row, onDecided, expectedVersion);
   return (
     <RequestReviewCard
       type="care_schedule"
       typeLabel={careTypeLabel(row.request_kind)}
       childName={`${row.first_name} ${row.last_name}`}
+      grouped={grouped}
       summary={careSummary(row.diff, row.request_kind)}
       submittedAt={row.created_at}
       reason={decision.reason}
       onReasonChange={decision.setReason}
       reasonPlaceholder="Begründung (Pflicht bei Ablehnung)"
       reasonError={decision.reasonError}
+      approveReasonRequired={approveReasonRequired}
+      decisionDisabledReason={decisionDisabledReason}
       busy={decision.busy}
       onApprove={() => void decision.decide(true)}
       onReject={() => void decision.decide(false)}
@@ -138,6 +151,7 @@ export function CareRequestReviewItem({
 function useCareRequestDecision(
   row: StaffCareRequest,
   onDecided: (notice: string) => void,
+  expectedVersion?: string,
 ) {
   const toast = useToast();
   const [reason, setReason] = useState("");
@@ -158,6 +172,8 @@ function useCareRequestDecision(
         approve,
         trimmed || undefined,
         row.impact_token,
+        // Nur mitschicken, wenn die Liste eine Fassung kennt.
+        ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
       onDecided(decisionNotice(row, approve));
     } catch (err) {

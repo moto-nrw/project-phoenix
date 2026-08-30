@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -63,7 +64,7 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 // path (the explicit isAdmin argument) from ever becoming the way in.
 func operationActor(ctx context.Context) (accountID int64, isAdmin bool) {
 	claims := jwt.ClaimsFromCtx(ctx)
-	if authorize.IsAssignmentBoundPortal(ctx) {
+	if common.IsAssignmentBoundPortal(ctx) {
 		return int64(claims.ID), false
 	}
 	return int64(claims.ID), claims.IsAdmin
@@ -113,6 +114,9 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		rs.renderOperationsError(w, r, err)
 		return
 	}
+	if opts.IncludeRoster && !canViewOperationPickupTimes(r.Context()) {
+		redactOperationPlannedPickupTimes(result)
+	}
 	common.Respond(w, r, http.StatusOK, map[string]any{"instances": result}, "Planned timetable instances retrieved")
 }
 
@@ -156,7 +160,11 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		accountID, isAdmin := operationActor(r.Context())
-		return rs.OperationsService.Roster(r.Context(), accountID, isAdmin, instanceID)
+		roster, err := rs.OperationsService.Roster(r.Context(), accountID, isAdmin, instanceID)
+		if err == nil && !canViewOperationPickupTimes(r.Context()) {
+			redactOperationRosterPickupTimes(roster)
+		}
+		return roster, err
 	}, "Timetable roster retrieved")
 }
 
@@ -174,6 +182,9 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
+	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, result, "Timetable roster retrieved")
 }
@@ -197,7 +208,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()), instanceID)
+		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), common.HasEffectiveAdminScope(r.Context()), instanceID)
 		if err != nil {
 			return nil, err
 		}
@@ -489,6 +500,9 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 		rs.renderOperationsError(w, r, err)
 		return
 	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
+	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked in to timetable instance")
 }
 
@@ -506,6 +520,9 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
+	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		redactOperationRosterPickupTimes(result)
 	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked out from timetable instance")
 }
@@ -538,7 +555,36 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 		rs.renderOperationsError(w, r, err)
 		return
 	}
+	if !canViewOperationPickupTimes(r.Context()) {
+		result.PickupTime = nil
+	}
 	common.Respond(w, r, http.StatusOK, result, "Timetable attendance updated")
+}
+
+func canViewOperationPickupTimes(ctx context.Context) bool {
+	return common.IsAssignmentBoundPortal(ctx) ||
+		authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
+}
+
+func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
+	if roster == nil {
+		return
+	}
+	roster.PickupTimesLoaded = false
+	roster.PickupTimesRedacted = true
+	for i := range roster.Rows {
+		roster.Rows[i].PickupTime = nil
+	}
+}
+
+func redactOperationPlannedPickupTimes(instances []scheduleSvc.OperationPlannedInstance) {
+	for i := range instances {
+		instances[i].PickupTimesLoaded = false
+		instances[i].PickupTimesRedacted = true
+		for j := range instances[i].RosterPreview {
+			instances[i].RosterPreview[j].PickupTime = nil
+		}
+	}
 }
 
 func (rs *Resource) withOperationInstance(w http.ResponseWriter, r *http.Request, fn func(int64) (any, error), message string) {

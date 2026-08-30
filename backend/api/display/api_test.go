@@ -55,15 +55,17 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
-	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	testpkg.SetTenantRuntime(t, settingsService, db)
+	ctx := testpkg.TenantContext(tenantID)
 	require.NoError(t, settingsService.SetValue(ctx, configModel.KeyDisplayEnabled, true, nil, nil))
 }
 
 func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
-	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	testpkg.SetTenantRuntime(t, settingsService, db)
 	svc := displayService.NewService(displayService.Dependencies{
 		DisplayRepo: repos.Display,
 		SchoolRepo:  repos.School,
@@ -89,7 +91,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 		SettingsService: settingsService,
 		DB:              db,
 	})
-	return displayAPI.NewResource(svc, settingsService, db).Router()
+	return testpkg.TenantRuntimeMiddleware(t, db)(displayAPI.NewResource(svc, settingsService, db).Router())
 }
 
 func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {
@@ -344,8 +346,8 @@ func buildInstance(tenantID int64, title string, roomID int64, start time.Time) 
 	inst := &scheduleModels.ActivityInstance{
 		Date:      timezone.TodayDate(),
 		Title:     title,
-		StartTime: timezone.WallClock(start.In(timezone.Berlin)),
-		EndTime:   timezone.WallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
+		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
+		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
 		RoomID:    roomID,
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
@@ -665,7 +667,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
 		repos := repositories.NewFactory(db)
-		settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+		settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
 
 		rec = doDashboardRequest(t, router, rawToken)

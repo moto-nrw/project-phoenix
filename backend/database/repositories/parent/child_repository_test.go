@@ -83,7 +83,7 @@ func linkChildToAccountWithPermissions(
 
 func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) error {
 	t.Helper()
-	return tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		return fn(ctx)
 	})
 }

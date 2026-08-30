@@ -22,7 +22,7 @@ func testClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.WallClock(parsed)
+	return timezone.NormalizeWallClock(parsed)
 }
 
 func testShift(t *testing.T, staffID int64, date timezone.Date, start, end string) *scheduleModel.StaffShift {
@@ -39,8 +39,8 @@ func formattedGaps(gaps []ShiftCoverageInterval) [][2]string {
 	out := make([][2]string, 0, len(gaps))
 	for _, gap := range gaps {
 		out = append(out, [2]string{
-			timezone.WallClock(gap.StartTime).Format("15:04"),
-			timezone.WallClock(gap.EndTime).Format("15:04"),
+			timezone.NormalizeWallClock(gap.StartTime).Format("15:04"),
+			timezone.NormalizeWallClock(gap.EndTime).Format("15:04"),
 		})
 	}
 	return out
@@ -376,7 +376,7 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 	modelReader := &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
 		ID:                 modelID,
 		RotationLength:     1,
-		RotationAnchorDate: monday,
+		RotationAnchorDate: workforceDate(monday),
 		Entries: []*configModel.WorkTimeModelEntry{
 			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
 			{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 60},
@@ -395,8 +395,8 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 		context.Background(),
 		[]*users.Staff{scheduledStaff, modelStaff},
 		[]*configModel.StaffWorkSchedule{
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: validFrom},
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: validFrom},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: workforceDate(validFrom)},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: workforceDate(validFrom)},
 		},
 		[]timezone.Date{monday},
 	)

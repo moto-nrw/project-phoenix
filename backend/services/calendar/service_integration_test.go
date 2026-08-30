@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sort"
 	"strconv"
@@ -123,7 +124,7 @@ func calendarContext(tb testing.TB, accountID int64) context.Context {
 }
 
 func wallClock(h, m int) time.Time {
-	return timezone.WallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
+	return timezone.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
 }
 
 func eventDates(events []calendarSvc.Event, source string) []string {
@@ -668,6 +669,424 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	assert.NotEqual(t, httpsURL, httpsURL3)
 	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), token)
 	require.Error(t, err)
+}
+
+func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Mitarbeiter")
+	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Teamsitzung",
+		StartDate:    timezone.TodayDate().AddDays(7),
+		EndDate:      timezone.TodayDate().AddDays(7),
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+	})
+	require.NoError(t, err)
+
+	httpsURL, webcalURL, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(httpsURL, "https://moto.test/api/calendar-feed/"))
+	assert.True(t, strings.HasPrefix(webcalURL, "webcal://moto.test/api/calendar-feed/"))
+
+	httpsURLAgain, webcalURLAgain, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	assert.Empty(t, httpsURLAgain)
+	assert.Empty(t, webcalURLAgain)
+
+	token := strings.TrimPrefix(httpsURL, "https://moto.test/api/calendar-feed/")
+	var storedHash string
+	require.NoError(t, db.NewSelect().
+		Table("auth.account_tenants").
+		Column("staff_calendar_feed_token").
+		Where("account_id = ?", account.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Scan(context.Background(), &storedHash))
+	rawSum := sha256.Sum256([]byte(token))
+	assert.Equal(t, hex.EncodeToString(rawSum[:]), storedHash)
+	assert.NotEqual(t, token, storedHash)
+
+	filename, content, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Equal(t, "moto-kalender.ics", filename)
+	assert.Contains(t, content, "SUMMARY:Teamsitzung")
+}
+
+func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Fehler")
+	ctx, cancel := context.WithCancel(calendarContext(t, account.ID))
+	cancel()
+
+	_, _, err := service.StaffCalendarFeedURL(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, calendarSvc.ErrForbidden)
+}
+
+func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedIndependent(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.ParentsURL = "https://parents.test"
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	_, account := testpkg.CreateTestCalendarStaff(t, db, "Dual", "Role")
+	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	staffToken := strings.TrimPrefix(staffURL, "https://moto.test/api/calendar-feed/")
+
+	parentURL, _, err := service.ParentCalendarFeedURL(testpkg.Ctx(t), account.ID)
+	require.NoError(t, err)
+	parentToken := strings.TrimPrefix(parentURL, "https://parents.test/api/calendar-feed/")
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), parentToken)
+	require.NoError(t, err)
+
+	rotatedURL, _, err := service.RotateStaffCalendarFeed(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	rotatedToken := strings.TrimPrefix(rotatedURL, "https://moto.test/api/calendar-feed/")
+	assert.NotEqual(t, staffToken, rotatedToken)
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), staffToken)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
+	require.NoError(t, err)
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), parentToken)
+	require.NoError(t, err, "staff rotation must not invalidate the independent parent feed")
+
+	require.NoError(t, repos.AccountTenant.Deactivate(testpkg.Ctx(t), account.ID, testpkg.Tenant(t)))
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	require.NoError(t, repos.AccountTenant.EnsureActive(testpkg.Ctx(t), &authModels.AccountTenant{
+		AccountID: account.ID,
+		TenantID:  testpkg.Tenant(t),
+	}))
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "reactivation must not resurrect a capability issued before offboarding")
+}
+
+func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWithoutPrivateDescriptions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Quellen")
+	day := timezone.TodayDate().AddDays(7)
+	privateAppointmentDescription := "Besprechung zu Kind Mia Muster"
+	appointmentLocation := "Teamraum"
+	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Teamsitzung",
+		Description:  &privateAppointmentDescription,
+		Location:     &appointmentLocation,
+		StartDate:    day,
+		EndDate:      day,
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+	})
+	require.NoError(t, err)
+
+	room := testpkg.CreateTestRoom(t, db, "Werkraum")
+	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "11:00",
+		EndHHMM:   "12:00",
+		Title:     "Kreativangebot",
+	})
+	testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM: "13:00",
+		EndHHMM:   "16:00",
+		Notes:     "Abholung Mia Muster beachten",
+	})
+
+	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	token := strings.TrimPrefix(staffURL, "https://moto.test/api/calendar-feed/")
+	_, content, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+
+	assert.Contains(t, content, "SUMMARY:Teamsitzung")
+	assert.Contains(t, content, "LOCATION:Teamraum")
+	assert.Contains(t, content, "SUMMARY:Kreativangebot")
+	assert.Contains(t, content, "LOCATION:Werkraum")
+	assert.Contains(t, content, "SUMMARY:Dienst")
+	assert.NotContains(t, content, "Mia Muster")
+	assert.NotContains(t, content, "DESCRIPTION:")
+}
+
+func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvents(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Entfernt")
+	otherStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Andere", "Person")
+	day := timezone.TodayDate().AddDays(7)
+	room := testpkg.CreateTestRoom(t, db, "Tombstone-Raum")
+	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "10:00",
+		EndHHMM:   "11:00",
+		Title:     "Alte Zuordnung",
+	})
+	assignment := testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	shift := testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM: "12:00",
+		EndHHMM:   "14:00",
+	})
+
+	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	token := strings.TrimPrefix(staffURL, "https://moto.test/api/calendar-feed/")
+	_, before, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
+	assert.Contains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
+
+	assignment.StaffID = otherStaff.ID
+	require.NoError(t, repos.InstanceStaff.Update(testpkg.Ctx(t), assignment))
+	require.NoError(t, repos.StaffShift.Delete(testpkg.Ctx(t), shift.ID))
+
+	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, after, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
+	assert.Contains(t, after, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
+	assert.GreaterOrEqual(t, strings.Count(after, "STATUS:CANCELLED"), 2)
+}
+
+func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEventsOutsideLookback(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Alte Absage")
+	day := timezone.TodayDate().AddDays(-60)
+	room := testpkg.CreateTestRoom(t, db, "Alter Tombstone-Raum")
+	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "10:00",
+		EndHHMM:   "11:00",
+		Title:     "Altes Kreativangebot",
+	})
+	testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	shift := testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM: "12:00",
+		EndHHMM:   "14:00",
+	})
+
+	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	token := strings.TrimPrefix(staffURL, "https://moto.test/api/calendar-feed/")
+	_, before, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.NotContains(t, before, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
+	assert.NotContains(t, before, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
+
+	_, err = db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("status = ?", scheduleModels.InstanceStatusCancelled).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("id = ?", instance.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	shift.Cancelled = true
+	require.NoError(t, repos.StaffShift.Update(testpkg.Ctx(t), shift))
+
+	_, after, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, after, fmt.Sprintf("UID:timetable-%d-%d@moto-app.de", instance.ID, testpkg.Tenant(t)))
+	assert.Contains(t, after, fmt.Sprintf("UID:shift-%d-%d@moto-app.de", shift.ID, testpkg.Tenant(t)))
+	assert.GreaterOrEqual(t, strings.Count(after, "STATUS:CANCELLED"), 2)
+}
+
+func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDeletionCancellations(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.AccountRepo = repos.Account
+	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	cfg.PersonRepo = repos.Person
+	cfg.FrontendURL = "https://moto.test"
+	service := calendarSvc.NewService(cfg)
+
+	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Absage")
+	start := timezone.TodayDate().AddDays(7)
+	endsOn := start.AddDays(28)
+	detail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Wöchentliche Runde",
+		StartDate:    start,
+		EndDate:      start,
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{strings.ToLower(start.Weekday().String())},
+			EndsOn:        &endsOn,
+		},
+	})
+	require.NoError(t, err)
+
+	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
+	require.NoError(t, err)
+	token := strings.TrimPrefix(staffURL, "https://moto.test/api/calendar-feed/")
+
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(
+		calendarContext(t, account.ID), detail.Appointment.ID, start.AddDays(7)))
+	_, withExdate, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, withExdate, "EXDATE;TZID=Europe/Berlin:")
+
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, account.ID), detail.Appointment.ID))
+	_, afterDelete, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, afterDelete, "SUMMARY:Wöchentliche Runde")
+	assert.Contains(t, afterDelete, "STATUS:CANCELLED")
+	assert.Contains(t, afterDelete, "SEQUENCE:")
+}
+
+func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	cfg := calendarTestConfig(db)
+	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
+	service := calendarSvc.NewService(cfg)
+
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Cleanup", "Feed")
+	day := timezone.TodayDate().AddDays(7)
+	endsOn := day.AddDays(14)
+	detail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Alter Feed-Termin",
+		StartDate:    day,
+		EndDate:      day,
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{strings.ToLower(day.Weekday().String())},
+			EndsOn:        &endsOn,
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(t, account.ID), detail.Appointment.ID))
+	cancelledDetail, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Alter abgesagter Feed-Termin",
+		StartDate:    day.AddDays(1),
+		EndDate:      day.AddDays(1),
+		StartTime:    wallClock(11, 0),
+		EndTime:      wallClock(12, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{strings.ToLower(day.AddDays(1).Weekday().String())},
+			EndsOn:        &endsOn,
+		},
+	})
+	require.NoError(t, err)
+	_, err = service.CancelStaffAppointment(calendarContext(t, account.ID), cancelledDetail.Appointment.ID)
+	require.NoError(t, err)
+
+	room := testpkg.CreateTestRoom(t, db, "Cleanup-Raum")
+	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{})
+	assignment := testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	require.NoError(t, repos.InstanceStaff.Delete(testpkg.Ctx(t), assignment.ID))
+
+	expired := time.Now().AddDate(0, 0, -91)
+	_, err = db.NewUpdate().Table("calendar.appointments").
+		Set("deleted_at = ?", expired).
+		Where("id = ?", detail.Appointment.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("calendar.appointments").
+		Set("cancelled_at = ?", expired).
+		Where("id = ?", cancelledDetail.Appointment.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewUpdate().Table("calendar.staff_feed_tombstones").
+		Set("cancelled_at = ?", expired).
+		Where("source = ?", calModels.EventSourceTimetable).
+		Where("source_id = ?", instance.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	deleted, err := service.CleanupExpiredFeedTombstones(testpkg.Ctx(t))
+	require.NoError(t, err)
+	assert.Equal(t, 3, deleted)
+
+	checks := []struct {
+		table  string
+		column string
+		id     int64
+	}{
+		{table: "calendar.appointments", column: "id", id: detail.Appointment.ID},
+		{table: "calendar.recurrence_rules", column: "appointment_id", id: detail.Appointment.ID},
+		{table: "calendar.appointments", column: "id", id: cancelledDetail.Appointment.ID},
+		{table: "calendar.recurrence_rules", column: "appointment_id", id: cancelledDetail.Appointment.ID},
+		{table: "calendar.staff_feed_tombstones", column: "source_id", id: instance.ID},
+	}
+	for _, check := range checks {
+		var count int
+		require.NoError(t, db.NewSelect().Table(check.table).ColumnExpr("COUNT(*)").Where(check.column+" = ?", check.id).Scan(context.Background(), &count))
+		assert.Zero(t, count, check.table)
+	}
 }
 
 func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.T) {

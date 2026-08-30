@@ -37,6 +37,67 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
     );
   }
 
+  if (view === "day") {
+    // Tagesansicht (#2621): eine Spalte über die volle Breite — dasselbe
+    // Raster wie die Woche, nur ohne die vier anderen Tage.
+    const daySkeletonEvents = [
+      { top: 300, height: 64, width: "96%" },
+      { top: 374, height: 58, width: "88%" },
+      { top: 448, height: 50, width: "62%" },
+      { top: 504, height: 54, width: "80%" },
+    ];
+
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Tagesplan wird geladen"
+        data-testid="timetable-content-skeleton"
+        className={`${timetableSurface} overflow-hidden`}
+      >
+        <div className="hidden h-14 grid-cols-[64px_minmax(0,1fr)] border-b border-gray-200 bg-white sm:grid">
+          <div aria-hidden />
+          <div className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2">
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-6 w-6 rounded-full" />
+          </div>
+        </div>
+        <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]">
+          <div className="space-y-16 border-r border-gray-200 bg-gray-50 px-2 py-4">
+            {Array.from({ length: 7 }, (_, hour) => (
+              <Skeleton key={hour} className="ml-auto h-2.5 w-8" />
+            ))}
+          </div>
+          <div className="relative overflow-hidden border-l border-gray-200">
+            {Array.from({ length: 7 }, (_, line) => (
+              <div
+                key={line}
+                className="absolute right-0 left-0 border-t border-gray-100"
+                style={{ top: `${(line + 1) * 70}px` }}
+              />
+            ))}
+            {daySkeletonEvents.map((event) => (
+              <div
+                key={`${event.top}-${event.height}`}
+                className="absolute left-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:left-2.5"
+                style={{
+                  top: `${event.top}px`,
+                  height: `${event.height}px`,
+                  width: event.width,
+                  maxWidth: "calc(100% - 1rem)",
+                }}
+              >
+                <Skeleton className="h-3 w-2/5 bg-gray-300/80" />
+                <Skeleton className="mt-2 h-2.5 w-1/4 bg-gray-300/80" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view === "week") {
     const weekSkeletonEvents = [
       [

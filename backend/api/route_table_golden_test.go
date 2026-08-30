@@ -4,8 +4,8 @@
 // consolidation) must not move, drop, or re-auth a single route. Two goldens
 // pin that:
 //
-//  1. TestRouteTableGolden walks the fully-assembled production router
-//     (api.New — the same constructor `serve` and `gendoc` use) and compares
+//  1. TestRouteTableGolden walks the fully-assembled production Serve root
+//     (api.NewServer, including the embedded worker wiring) and compares
 //     the sorted METHOD+pattern list against testdata/route_table.golden.
 //     Any added, removed, or moved route fails the diff.
 //
@@ -53,10 +53,10 @@ var (
 	goldenAPIErr  error
 )
 
-// newGoldenAPI builds the production API exactly once per test binary.
-// api.New registers Prometheus collectors and DB stats providers on global
-// registries — a second construction in the same process would panic on
-// duplicate registration.
+// newGoldenAPI builds the production Serve root exactly once per test binary.
+// NewServer calls api.New, which registers Prometheus collectors and DB stats
+// providers on global registries — a second construction in the same process
+// would panic on duplicate registration.
 func newGoldenAPI(t *testing.T) *API {
 	t.Helper()
 
@@ -71,12 +71,19 @@ func newGoldenAPI(t *testing.T) *API {
 	_, err := db.ExecContext(t.Context(), "ALTER ROLE phoenix_auth PASSWORD '"+password+"'")
 	require.NoError(t, err, "sync phoenix_auth password for the API test database")
 
-	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
-
 	goldenAPIOnce.Do(func() {
-		goldenAPI, goldenAPIErr = New(false, slog.Default())
+		server, err := NewServer(slog.Default())
+		if err != nil {
+			goldenAPIErr = err
+			return
+		}
+		var ok bool
+		goldenAPI, ok = server.Handler.(*API)
+		if !ok {
+			goldenAPIErr = fmt.Errorf("Serve root handler has type %T, want *api.API", server.Handler)
+		}
 	})
-	require.NoError(t, goldenAPIErr, "api.New failed — route goldens need the assembled production router")
+	require.NoError(t, goldenAPIErr, "api.NewServer failed — route goldens need the assembled production Serve root")
 	return goldenAPI
 }
 

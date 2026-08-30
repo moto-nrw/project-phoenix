@@ -54,7 +54,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	testpkg.EnsureWebManualDevice(t, db)
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	router := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory)).Router()
+	router := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory), nil, nil).Router()
 
 	return &supervisionFixture{
 		db:       db,
@@ -330,8 +330,8 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	foreign := &scheduleModel.ActivityInstance{
 		Date:      timezone.TodayDate(),
 		Title:     "Fremde Schule",
-		StartTime: timezone.WallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
-		EndTime:   timezone.WallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
+		StartTime: timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
+		EndTime:   timezone.NormalizeWallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
 		RoomID:    otherRoom.ID,
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
