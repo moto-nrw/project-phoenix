@@ -565,7 +565,9 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%s: %v", panicName, r)
 			s.getLogger().Error("goroutine panic recovered",
-				slog.String("job_id", task.Name), slog.String("error", err.Error()))
+				slog.String("job_id", task.Name),
+				slog.String("error", err.Error()),
+			)
 			sentry.CurrentHub().Recover(r)
 			sentry.Flush(2 * time.Second)
 		}

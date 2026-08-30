@@ -75,7 +75,9 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	if err != nil {
 		s.traceWorkerFailure(ctx, "email-outbox", "run_failure", err)
 		s.getLogger().Error("outbox worker tick failed",
-			slog.String("job_id", "email-outbox"), slog.String("error", err.Error()))
+			slog.String("job_id", "email-outbox"),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 	s.recordOutboxResult(ctx, processed, started)
@@ -86,7 +88,9 @@ func (s *Scheduler) recordOutboxResult(ctx context.Context, processed int, start
 	if err != nil {
 		s.traceWorkerFailure(ctx, "email-outbox", "backlog_failure", err)
 		s.getLogger().Error("outbox worker backlog query failed",
-			slog.String("job_id", "email-outbox"), slog.String("error", err.Error()))
+			slog.String("job_id", "email-outbox"),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 	s.getLogger().Info("outbox worker tick complete",
