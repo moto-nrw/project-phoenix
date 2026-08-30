@@ -42,21 +42,7 @@ var (
 		"database/repositories/active/staff_vacation_quota.go": 1,
 	}
 
-	// Hand-rolled .Set("col = ?") sites for the consolidated updater column
-	// families. Everything else was migrated to UpdateColumns in audit B8c.
-	updaterSetAllowlist = map[string]int{
-		// Tenant WHERE not expressible via UpdateColumns without flipping
-		// repo-wide TenantScoped (AccountParent is a cross-tenant table).
-		"database/repositories/auth/account_parent.go": 2,
-		// Out of B8c scope (post-audit additions, listed for the recount).
-		"database/repositories/auth/guardian_invitation.go": 2, // UpdateEmailStatus (email_sent_at + email_retry_count)
-		"database/repositories/users/profile.go":            1, // UpdateAvatar
-		// Compound updates UpdateColumns cannot express (state-guard WHERE
-		// beyond the PK, or a ::jsonb cast on a sibling column).
-		"database/repositories/active/work_session_break.go": 1, // EndBreak: WHERE ended_at IS NULL guard
-		"database/repositories/auth/passkey.go":              1, // UpdateAfterUse: revoked_at IS NULL + jsonb cast
-		"database/repositories/platform/operator_passkey.go": 1, // UpdateAfterUse: revoked_at IS NULL + jsonb cast
-	}
+	updaterSetAllowlist = map[string]int{}
 )
 
 var (
