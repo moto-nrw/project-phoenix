@@ -1,9 +1,7 @@
 package users_test
 
 import (
-	"fmt"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -19,14 +17,11 @@ import (
 
 func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffNotice
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	account := testpkg.CreateTestAccount(t, db,
-		fmt.Sprintf("notice-author-%d@test.local", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+	account := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
 
 	day := func(iso string) timezone.Date {
 		d, err := timezone.ParseDate(iso)
@@ -50,9 +45,6 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 			notice.ValidUntil = &u
 		}
 		require.NoError(t, repo.Create(ctx, notice))
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, db, "users.staff_notices", notice.ID)
-		})
 		return notice
 	}
 
@@ -66,7 +58,6 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 		CreatedBy: account.ID,
 	}
 	require.NoError(t, repo.Create(ctx, inactive))
-	defer testpkg.CleanupTableRecords(t, db, "users.staff_notices", inactive.ID)
 
 	info := create(t, "Laufender Hinweis", users.StaffNoticePriorityInfo, "2026-08-01", nil)
 	important := create(t, "Wichtiger Hinweis", users.StaffNoticePriorityImportant, "2026-08-01", nil)
@@ -105,14 +96,11 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 
 func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffNotice
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	account := testpkg.CreateTestAccount(t, db,
-		fmt.Sprintf("notice-reader-%d@test.local", time.Now().UnixNano()))
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
+	account := testpkg.CreateTestAccount(t, db, "notice-reader@test.local")
 
 	from, err := timezone.ParseDate("2026-08-01")
 	require.NoError(t, err)
@@ -126,7 +114,6 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 		CreatedBy:               account.ID,
 	}
 	require.NoError(t, repo.Create(ctx, notice))
-	defer testpkg.CleanupTableRecords(t, db, "users.staff_notices", notice.ID)
 
 	require.NoError(t, repo.Acknowledge(ctx, notice.ID, account.ID))
 

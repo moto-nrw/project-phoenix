@@ -568,10 +568,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
           case "teamChat":
             return staffMessagingEnabled;
           case "staffNotices":
-            return true;
+            return hasPermission(session, "users:read");
         }
       }),
-    [staffMessagingEnabled],
+    [staffMessagingEnabled, session],
   );
   const communicationBadgeCounts: Record<string, number> = {
     "/team-chat": teamChatUnreadCount,

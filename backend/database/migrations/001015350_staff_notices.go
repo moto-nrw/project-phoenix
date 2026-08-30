@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -46,7 +46,7 @@ func init() {
 // Wichtigkeit, optionale Kenntnisnahme in einer eigenen Tabelle) — nur ohne
 // Zielgruppen: die Reichweite ist zunächst schulweit.
 func staffNoticesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.350: Tagesinformationen (users.staff_notices)...")
+	slog.Info("migration starting", "migration", staffNoticesVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -54,7 +54,7 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			slog.Warn("migration rollback failed", "migration", staffNoticesVersion, "error", err)
 		}
 	}()
 
@@ -140,11 +140,15 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating users.staff_notice_acks: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit staff notices migration: %w", err)
+	}
+	slog.Info("migration finished", "migration", staffNoticesVersion)
+	return nil
 }
 
 func staffNoticesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.350: Dropping Tagesinformationen tables...")
+	slog.Info("migration rollback starting", "migration", staffNoticesVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -152,7 +156,7 @@ func staffNoticesDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			slog.Warn("migration rollback failed", "migration", staffNoticesVersion, "error", err)
 		}
 	}()
 
@@ -164,5 +168,9 @@ func staffNoticesDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping staff notice tables: %w", err)
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit staff notices rollback: %w", err)
+	}
+	slog.Info("migration rollback finished", "migration", staffNoticesVersion)
+	return nil
 }

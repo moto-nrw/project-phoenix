@@ -52,7 +52,12 @@ export default function TagesinformationenPage() {
     revalidateOnFocus: false,
   });
 
-  const { data, isLoading, mutate } = useSWRAuth<StaffNotice[]>(
+  const {
+    data,
+    error: noticesError,
+    isLoading,
+    mutate,
+  } = useSWRAuth<StaffNotice[]>(
     isAdmin ? "staff-notices" : null,
     fetchStaffNotices,
     { revalidateOnFocus: false },
@@ -67,6 +72,16 @@ export default function TagesinformationenPage() {
 
   const todayNotices = todayData ?? [];
   const notices = data ?? [];
+  const visibleListError =
+    listError ||
+    (noticesError
+      ? getApiErrorMessage(
+          noticesError,
+          "laden",
+          "die Tagesinformationen",
+          "Die Tagesinformationen konnten nicht geladen werden.",
+        )
+      : "");
 
   const save = async (input: StaffNoticeInput) => {
     if (editing) {
@@ -107,7 +122,7 @@ export default function TagesinformationenPage() {
       <header className="moto-content-surface mb-4 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Tagesinformationen
             </p>
             <h1 className="mt-1 text-xl font-bold text-gray-900 sm:text-2xl">
@@ -171,11 +186,11 @@ export default function TagesinformationenPage() {
         </h2>
       )}
 
-      {listError && <Alert type="error" message={listError} />}
+      {visibleListError && <Alert type="error" message={visibleListError} />}
 
       {!isAdmin ? null : isLoading && notices.length === 0 ? (
         <Loading fullPage={false} />
-      ) : notices.length === 0 ? (
+      ) : noticesError ? null : notices.length === 0 ? (
         <EmptyState
           icon={<Megaphone className="h-6 w-6" />}
           title="Noch keine Tagesinformationen"

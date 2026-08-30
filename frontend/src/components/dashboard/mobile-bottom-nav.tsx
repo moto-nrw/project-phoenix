@@ -349,12 +349,13 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
   {
     // Tagesinformationen (#2180): Hinweise der Leitung an das Team. Auf
-    // kleinen Bildschirmen der einzige Zugang, wie beim Team-Chat.
+    // kleinen Bildschirmen der einzige Zugang, wie beim Team-Chat. Wie die
+    // Route /today ist der Eintrag an users:read gebunden.
     href: "/tagesinformationen",
     label: "Tagesinformationen",
     iconKey: "newspaper",
     concept: "announcements",
-    alwaysShow: true,
+    requiresPermission: "users:read",
   },
   {
     // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über

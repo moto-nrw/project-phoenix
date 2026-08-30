@@ -107,9 +107,9 @@ func (r *StaffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID
 	var rows []*users.StaffNoticeAck
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
-		ModelTableExpr("users.staff_notice_acks AS sna").
-		Where("sna.account_id = ?", accountID).
-		Where("sna.notice_id IN (?)", bun.In(noticeIDs))
+		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
+		Where(`"sna".account_id = ?`, accountID).
+		Where(`"sna".notice_id IN (?)`, bun.In(noticeIDs))
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "load own staff notice acknowledgements", Err: err}
@@ -133,11 +133,11 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 	}
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model((*users.StaffNoticeAck)(nil)).
-		ModelTableExpr("users.staff_notice_acks AS sna").
-		ColumnExpr("sna.notice_id AS notice_id").
+		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
+		ColumnExpr(`"sna".notice_id AS notice_id`).
 		ColumnExpr("COUNT(*) AS count").
-		Where("sna.notice_id IN (?)", bun.In(noticeIDs)).
-		GroupExpr("sna.notice_id")
+		Where(`"sna".notice_id IN (?)`, bun.In(noticeIDs)).
+		GroupExpr(`"sna".notice_id`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "count staff notice acknowledgements", Err: err}
