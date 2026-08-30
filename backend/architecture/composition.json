@@ -18195,7 +18195,7 @@
       "declaration": "TestCreateInstance_DuplicateTemplateBoundReturnsConflict",
       "target": "database/repositories.NewFactory",
       "lines": [
-        293
+        294
       ],
       "tables": [
         "schedule.activity_instances"
@@ -18207,7 +18207,7 @@
       "declaration": "TestCreateInstance_DuplicateTemplateBoundReturnsConflict",
       "target": "services.NewFactory",
       "lines": [
-        294
+        295
       ],
       "tables": [
         "schedule.activity_instances"
@@ -29961,7 +29961,7 @@
       "declaration": "buildMealPlanService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        38
       ],
       "tables": []
     },
@@ -29971,7 +29971,7 @@
       "declaration": "seedMealPlanWeek",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        57
       ],
       "tables": []
     },
