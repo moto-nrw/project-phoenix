@@ -40,9 +40,9 @@ describe("useSidebarAccordion", () => {
       });
   });
 
-  it("leaves group expansion to the non-persistent group navigation", () => {
+  it("expands the groups section for /ogs-groups", () => {
     const { result } = renderHook(() => useSidebarAccordion("/ogs-groups"));
-    expect(result.current.expanded).toBeNull();
+    expect(result.current.expanded).toBe("groups");
   });
 
   it("expands 'supervisions' section for /active-supervisions path", () => {
@@ -62,11 +62,11 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe(null);
   });
 
-  it("does not persist group expansion from child pages", () => {
+  it("expands groups from fromParam on child pages", () => {
     const { result } = renderHook(() =>
       useSidebarAccordion("/students/123", "/ogs-groups"),
     );
-    expect(result.current.expanded).toBeNull();
+    expect(result.current.expanded).toBe("groups");
   });
 
   it("expands 'supervisions' from fromParam on child pages", () => {
@@ -260,7 +260,7 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe(null);
 
     rerender({ pathname: "/ogs-groups" });
-    expect(result.current.expanded).toBeNull();
+    expect(result.current.expanded).toBe("groups");
 
     rerender({ pathname: "/active-supervisions" });
     expect(result.current.expanded).toBe("supervisions");

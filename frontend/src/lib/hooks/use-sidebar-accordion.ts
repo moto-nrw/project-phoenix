@@ -6,7 +6,13 @@ import { isPlanningPath } from "~/lib/planning-navigation";
 import { isElternPath, isEnrollmentPath } from "~/lib/section-navigation";
 
 type AccordionSection =
-  "supervisions" | "database" | "planning" | "enrollments" | "eltern" | null;
+  | "groups"
+  | "supervisions"
+  | "database"
+  | "planning"
+  | "enrollments"
+  | "eltern"
+  | null;
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
 
@@ -19,6 +25,7 @@ function sectionFromPathname(
   pathname: string,
   fromParam?: string | null,
 ): AccordionSection {
+  if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
   if (isPlanningPath(pathname)) return "planning";
@@ -27,6 +34,7 @@ function sectionFromPathname(
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
+    if (fromParam.startsWith("/ogs-groups")) return "groups";
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
     if (isPlanningPath(fromParam)) return "planning";
@@ -49,10 +57,11 @@ function sectionFromPathname(
 export function useSidebarAccordion(
   pathname: string,
   fromParam?: string | null,
+  defaultSection: AccordionSection = null,
 ) {
   // Initialize from pathname only (safe for SSR — no localStorage during render)
-  const [expanded, setExpanded] = useState<AccordionSection>(() =>
-    sectionFromPathname(pathname, fromParam),
+  const [expanded, setExpanded] = useState<AccordionSection>(
+    () => sectionFromPathname(pathname, fromParam) ?? defaultSection,
   );
 
   // Restore from localStorage on mount when pathname doesn't determine a section.
@@ -61,6 +70,7 @@ export function useSidebarAccordion(
     if (sectionFromPathname(pathname, fromParam)) return; // pathname already decided
     const stored = localStorage.getItem(STORAGE_KEY);
     if (
+      stored === "groups" ||
       stored === "supervisions" ||
       stored === "database" ||
       stored === "planning" ||
@@ -78,13 +88,13 @@ export function useSidebarAccordion(
   // - Navigate to child page with ?from= → keep that section open
   // - Navigate to unrelated page → collapse all
   useEffect(() => {
-    const fromPath = sectionFromPathname(pathname, fromParam);
+    const fromPath = sectionFromPathname(pathname, fromParam) ?? defaultSection;
     if (fromPath !== expanded) {
       setExpanded(fromPath);
     }
     // Only react to pathname/fromParam changes, not expanded changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, fromParam]);
+  }, [pathname, fromParam, defaultSection]);
 
   // Persist to localStorage whenever expanded changes
   useEffect(() => {

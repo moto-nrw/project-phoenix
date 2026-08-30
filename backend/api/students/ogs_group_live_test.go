@@ -116,7 +116,7 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 		assert.Equal(t, states, groupPersonalState(decodeOGSGroupNavigation(t, navigationRR.Body.Bytes())))
 	})
 
-	t.Run("all_staff does not broaden groups without groups:read", func(t *testing.T) {
+	t.Run("all_staff keeps personal navigation without groups:read", func(t *testing.T) {
 		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
 		req := testutil.NewRequest("GET", "/ogs-group-live", nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(ownerAccount.ID)), []string{"users:read"})
@@ -128,7 +128,20 @@ func TestOGSGroupLive_GroupVisibilityScope(t *testing.T) {
 
 		navigationReq := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
 		navigationRR := authExec(t, tc, navigationReq, testutil.TeacherTestClaims(int(ownerAccount.ID)), []string{"users:read"})
-		assert.Equal(t, http.StatusForbidden, navigationRR.Code, "body: %s", navigationRR.Body.String())
+		require.Equal(t, http.StatusOK, navigationRR.Code, "body: %s", navigationRR.Body.String())
+		assert.Equal(t, map[string]bool{
+			strconv.FormatInt(ownedGroup.ID, 10): true,
+		}, groupPersonalState(decodeOGSGroupNavigation(t, navigationRR.Body.Bytes())))
+	})
+
+	t.Run("legacy caregiver without permissions keeps personal navigation", func(t *testing.T) {
+		setOGSLiveOverviewScope(t, tc, configModel.OverviewScopeAllStaff)
+		navigationReq := testutil.NewRequest("GET", "/ogs-group-navigation", nil)
+		navigationRR := authExec(t, tc, navigationReq, testutil.TeacherTestClaims(int(ownerAccount.ID)), nil)
+		require.Equal(t, http.StatusOK, navigationRR.Code, "body: %s", navigationRR.Body.String())
+		assert.Equal(t, map[string]bool{
+			strconv.FormatInt(ownedGroup.ID, 10): true,
+		}, groupPersonalState(decodeOGSGroupNavigation(t, navigationRR.Body.Bytes())))
 	})
 
 	t.Run("personal scope hides groups without a fixed or transferred responsibility", func(t *testing.T) {
