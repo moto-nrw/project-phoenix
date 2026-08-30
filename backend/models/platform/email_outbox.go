@@ -117,6 +117,10 @@ type EmailOutboxRepository interface {
 	// app.current_tenant_id.
 	ClaimDuePending(ctx context.Context, limit int, now time.Time) ([]*EmailOutbox, error)
 
+	// CountPending returns the durable platform-wide queue depth, including rows
+	// waiting for their next retry. Caller must run as phoenix_admin.
+	CountPending(ctx context.Context) (int, error)
+
 	// LockSending locks the claimed row FOR UPDATE and reports whether it
 	// still exists with status='sending'. The worker calls it inside the
 	// same phoenix_admin transaction as the actual send: features cancel

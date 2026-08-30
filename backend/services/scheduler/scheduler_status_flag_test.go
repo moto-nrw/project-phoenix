@@ -145,7 +145,7 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenTimeDoesNotMatch(t *testing.T) {
 		}})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 	// If we reach here without a nil-db panic the short-circuit worked.
 	assert.False(t, task.Running, "task should have reset Running flag")
 }
@@ -161,7 +161,7 @@ func TestCheckAndRunStatusFlagClear_SkipsWhenClearTimeEmpty(t *testing.T) {
 		settings: &fakeStatusFlagSettings{overrides: map[string]string{}}})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 	assert.False(t, task.Running)
 }
 
@@ -193,7 +193,7 @@ func TestCheckAndRunStatusFlagClear_FiresBothModesWhenTimeMatches(t *testing.T) 
 		}})
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	// Since clearStatusFlag returns an error (nil db), the lastStatusFlagClear
 	// entry for tenantID 0 should have been deleted so a retry can happen.
@@ -352,7 +352,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
 	_, gotExcused := reloadStudentFlags(t, db, excusedStudent.ID)
@@ -412,7 +412,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
 	_, gotExcused := reloadStudentFlags(t, db, excusedStudent.ID)
@@ -460,7 +460,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 
 	task := &ScheduledTask{Name: "status-flag-clear"}
 
-	s.checkAndRunStatusFlagClear(task)
+	s.checkAndRunStatusFlagClear(context.Background(), task)
 
 	gotSick, _ := reloadStudentFlags(t, db, sickStudent.ID)
 	assert.True(t, gotSick, "sick must NOT be cleared when clock does not match configured time")

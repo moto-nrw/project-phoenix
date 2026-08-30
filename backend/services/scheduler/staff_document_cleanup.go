@@ -25,7 +25,7 @@ func (s *Scheduler) runStaffDocumentFileCleanupTask(task *ScheduledTask) {
 		0, func() time.Duration { return staffDocumentFileCleanupInterval }, s.checkAndRunStaffDocumentFileCleanup)
 }
 
-func (s *Scheduler) checkAndRunStaffDocumentFileCleanup(task *ScheduledTask) {
+func (s *Scheduler) checkAndRunStaffDocumentFileCleanup(ctx context.Context, task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -39,7 +39,7 @@ func (s *Scheduler) checkAndRunStaffDocumentFileCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := s.taskContext(5 * time.Minute)
+	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 	if err := s.forEachTenantIncludingInactive(ctx, "staff-document-file-cleanup",
 		s.cleanupStaffDocumentFilesForTenant); err != nil {
