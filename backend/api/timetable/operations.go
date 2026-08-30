@@ -262,6 +262,13 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		renderSpontaneousActivityResolutionError(w, r, err)
 		return
 	}
+	// Activity resolution can create metadata and therefore cross a Berlin day
+	// boundary. Recheck immediately before creating the activity instance.
+	window, err = spontaneousStartWorkdayWindow(rs.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	isSpontaneous := true
 	claims := jwt.ClaimsFromCtx(r.Context())

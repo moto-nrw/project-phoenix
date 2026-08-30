@@ -312,7 +312,7 @@ export function SpontaneousActivityStart({
             <span className="block text-sm font-semibold text-gray-900">
               Spontane Aktivität starten
             </span>
-            <span className="block truncate text-sm text-gray-600">
+            <span className="block text-sm text-gray-600">
               {disabledReason ??
                 "Aktivität wählen, Raum belegen, Kinder danach hinzufügen"}
             </span>

@@ -133,7 +133,7 @@ describe("SpontaneousActivityStart", () => {
       screen.getByText(
         "Spontane Aktivitäten sind nur montags bis freitags möglich.",
       ),
-    ).toBeInTheDocument();
+    ).not.toHaveClass("truncate");
   });
 
   it("starts an existing activity in the selected room with optional staff", async () => {
