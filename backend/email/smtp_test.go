@@ -435,4 +435,29 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 				"display name %q broke To header formatting — fix for #1193 may have regressed", tc.displayName)
 		})
 	}
+
+	t.Run("reply-to header", func(t *testing.T) {
+		message := Message{
+			From:     NewEmail("moto", "kontakt@moto.nrw"),
+			ReplyTo:  NewEmail(`OGS "Am Berg", Grundschule`, "ogs@schule-am-berg.example"),
+			To:       NewEmail("Erika Muster", "erika@example.test"),
+			Subject:  "Einladung zum Eltern-Portal",
+			Template: "regression.html",
+			Content:  map[string]string{"Message": "Hallo"},
+		}
+
+		built, err := mailer.buildMessage(message)
+		require.NoError(t, err)
+		replyTo := built.GetAddrHeaderString(mail.HeaderReplyTo)
+		require.Len(t, replyTo, 1)
+		assert.Contains(t, replyTo[0], "ogs@schule-am-berg.example")
+		from := built.GetAddrHeaderString(mail.HeaderFrom)
+		require.Len(t, from, 1)
+		assert.Contains(t, from[0], "kontakt@moto.nrw")
+
+		message.ReplyTo = Email{}
+		built, err = mailer.buildMessage(message)
+		require.NoError(t, err)
+		assert.Empty(t, built.GetAddrHeaderString(mail.HeaderReplyTo))
+	})
 }

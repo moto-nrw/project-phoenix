@@ -73,8 +73,12 @@ type InvitationServiceConfig struct {
 	SchoolURL        string
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
-	DB               *bun.DB
-	Logger           *slog.Logger
+	// MailIdentity points replies to a staff invitation at the OGS instead of
+	// moto (#1936). This send bypasses the outbox, so it stamps the header
+	// itself. Optional: nil sends without a Reply-To, exactly as before.
+	MailIdentity email.ReplyToResolver
+	DB           *bun.DB
+	Logger       *slog.Logger
 }
 
 type invitationService struct {
@@ -94,6 +98,7 @@ type invitationService struct {
 	schoolURL         string
 	defaultFrom       email.Email
 	invitationExpiry  time.Duration
+	mailIdentity      email.ReplyToResolver
 	db                *bun.DB
 	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
@@ -132,6 +137,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		frontendURL:       trimmedFrontend,
 		schoolURL:         strings.TrimRight(strings.TrimSpace(config.SchoolURL), "/"),
 		defaultFrom:       config.DefaultFrom,
+		mailIdentity:      config.MailIdentity,
 		invitationExpiry:  config.InvitationExpiry,
 		db:                config.DB,
 		txHandler:         modelBase.NewTxHandler(config.DB),
@@ -193,7 +199,11 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	// token must never reach an inbox as a dead link. Outside a tenant tx
 	// the hook runs synchronously.
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.sendInvitationEmail(ctx, invitation, roleName, req.SchoolName, schoolPortal)
+		// The surrounding transaction is committed when this callback runs.
+		// Detach it before resolving the tenant mail identity so its settings
+		// lookup opens a fresh RLS transaction rather than using the closed one.
+		postCommitCtx := detachedTenantContext(s.withTenantRuntime(ctx))
+		s.sendInvitationEmail(postCommitCtx, invitation, roleName, req.SchoolName, schoolPortal)
 	})
 
 	return invitation, nil
@@ -929,8 +939,13 @@ func (s *invitationService) sendInvitationEmail(ctx context.Context, invitation 
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
 	}
 
+	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
+	// reach the OGS, not moto (#1936).
+	replyIdentity := email.ResolveReplyToIdentity(ctx, s.mailIdentity, tenant.FromContext(ctx), s.getLogger())
+
 	message := email.Message{
 		From:     s.defaultFrom,
+		ReplyTo:  email.NewEmail(replyIdentity.Name, replyIdentity.Address),
 		To:       email.NewEmail("", invitation.Email),
 		Subject:  subject,
 		Template: "invitation.html",

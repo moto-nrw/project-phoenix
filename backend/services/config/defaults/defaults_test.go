@@ -166,6 +166,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"notifications.care_cancelled_enabled",
 		"notifications.care_cancelled_default_on",
 		"notifications.care_cancelled_email",
+		// Tenant reply address for parent-facing mail (#1936).
+		"email.reply_to_address",
 	}
 
 	for _, key := range expectedKeys {
