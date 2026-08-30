@@ -8,6 +8,8 @@ import {
   mapSubstitutionResponse,
   mapSubstitutionsResponse,
   prepareSubstitutionForBackend,
+  type SubstitutionProxyEnvelope,
+  unwrapSubstitutionProxyEnvelope,
 } from "./substitution-helpers";
 
 class SubstitutionService {
@@ -21,7 +23,9 @@ class SubstitutionService {
     if (!response.ok) {
       throw new Error(`Gruppenübergaben konnten nicht geladen werden.`);
     }
-    const body = (await response.json()) as BackendSubstitutionOverview;
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
     return mapSubstitutionsResponse(body.group_handovers);
   }
 
@@ -32,7 +36,9 @@ class SubstitutionService {
     if (!response.ok) {
       throw new Error("Fachkräfte konnten nicht geladen werden.");
     }
-    const body = (await response.json()) as BackendSubstitutionOverview;
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
     return body.targets.map((staff) => {
       const [firstName = "", ...lastNameParts] = staff.full_name.split(" ");
       return {
@@ -69,7 +75,9 @@ class SubstitutionService {
         body.error ?? "Gruppenübergabe konnte nicht erstellt werden.",
       );
     }
-    const body = (await response.json()) as BackendGroupHandover;
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendGroupHandover>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
     return mapSubstitutionResponse(body);
   }
 

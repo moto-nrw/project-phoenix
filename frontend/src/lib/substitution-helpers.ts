@@ -20,6 +20,19 @@ export interface BackendSubstitutionOverview {
   targets: Array<{ id: number; full_name: string }>;
 }
 
+export interface SubstitutionProxyEnvelope<T> {
+  data?: T;
+}
+
+export function unwrapSubstitutionProxyEnvelope<T>(
+  envelope: SubstitutionProxyEnvelope<T>,
+): T {
+  if (envelope.data === undefined) {
+    throw new Error("Ungültige Antwort für Gruppenübergaben.");
+  }
+  return envelope.data;
+}
+
 // Frontend types
 export interface Substitution {
   id: string;

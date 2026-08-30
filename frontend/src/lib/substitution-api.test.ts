@@ -20,10 +20,12 @@ const handover = {
 describe("substitutionService", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("maps the unwrapped overview response", async () => {
+  it("maps the proxy-wrapped overview response", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ group_handovers: [handover], targets: [] }),
+      json: async () => ({
+        data: { group_handovers: [handover], targets: [] },
+      }),
     });
 
     const result = await substitutionService.fetchSubstitutions();
@@ -43,7 +45,9 @@ describe("substitutionService", () => {
   it("rejects a malformed overview instead of showing an empty plan", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ group_handovers: null, targets: [] }),
+      json: async () => ({
+        data: { group_handovers: null, targets: [] },
+      }),
     });
 
     await expect(substitutionService.fetchSubstitutions()).rejects.toThrow(
@@ -52,7 +56,10 @@ describe("substitutionService", () => {
   });
 
   it("assigns and maps a typed group handover", async () => {
-    sessionFetch.mockResolvedValue({ ok: true, json: async () => handover });
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: handover }),
+    });
 
     const result = await substitutionService.createSubstitution(
       "12",
@@ -75,6 +82,14 @@ describe("substitutionService", () => {
       }),
     });
     expect(result.id).toBe("5");
+  });
+
+  it("rejects a missing proxy envelope", async () => {
+    sessionFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    await expect(substitutionService.fetchSubstitutions()).rejects.toThrow(
+      "Ungültige Antwort",
+    );
   });
 
   it("ends a typed group handover", async () => {

@@ -3,6 +3,11 @@
 
 import { sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
+import {
+  type BackendSubstitutionOverview,
+  type SubstitutionProxyEnvelope,
+  unwrapSubstitutionProxyEnvelope,
+} from "~/lib/substitution-helpers";
 
 const logger = createLogger({ component: "GroupTransferAPI" });
 
@@ -58,9 +63,9 @@ export const groupTransferService = {
         throw new Error("Fachkräfte konnten nicht geladen werden.");
       }
 
-      const data = (await response.json()) as {
-        targets?: BackendHandoverTarget[];
-      };
+      const envelope =
+        (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+      const data = unwrapSubstitutionProxyEnvelope(envelope);
 
       if (!Array.isArray(data.targets)) {
         throw new Error("Ungültige Antwort für verfügbare Fachkräfte.");
@@ -153,14 +158,9 @@ export const groupTransferService = {
         throw error;
       }
 
-      const responseData = (await response.json()) as {
-        group_handovers: Array<{
-          id: number;
-          group: { id: number };
-          target: { id: number; full_name: string };
-          period: { end_date: string };
-        }>;
-      };
+      const envelope =
+        (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+      const responseData = unwrapSubstitutionProxyEnvelope(envelope);
 
       return responseData.group_handovers.map((handover) => ({
         substitutionId: handover.id.toString(),

@@ -26,15 +26,17 @@ describe("groupTransferService", () => {
     sessionFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        targets: [],
-        group_handovers: [
-          {
-            id: 5,
-            group: { id: 12 },
-            target: { id: 34, full_name: "Toni Test" },
-            period: { end_date: "2026-08-29" },
-          },
-        ],
+        data: {
+          targets: [],
+          group_handovers: [
+            {
+              id: 5,
+              group: { id: 12 },
+              target: { id: 34, full_name: "Toni Test" },
+              period: { end_date: "2026-08-29" },
+            },
+          ],
+        },
       }),
     });
 
@@ -54,7 +56,9 @@ describe("groupTransferService", () => {
   it("rejects malformed target data instead of showing nobody", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ targets: null, group_handovers: [] }),
+      json: async () => ({
+        data: { targets: null, group_handovers: [] },
+      }),
     });
 
     await expect(groupTransferService.getAllAvailableStaff()).rejects.toThrow(
