@@ -79,7 +79,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 		if loadErr != nil {
 			return loadErr
 		}
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
 		person, loadErr := s.PersonRepo.FindByID(txCtx, student.PersonID)
@@ -277,7 +277,7 @@ func (s *service) editMasterDataRequestInTx(
 	if err != nil {
 		return nil, err
 	}
-	if student.CareEndedOn(timezone.TodayDate()) {
+	if student.CareEndedOn(s.todayDate()) {
 		return nil, ErrChildCareEnded
 	}
 	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)

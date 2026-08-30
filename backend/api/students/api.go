@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -131,6 +132,10 @@ func NewResource(cfg ResourceConfig) *Resource {
 		cfg.Now = time.Now
 	}
 	return &Resource{ResourceConfig: cfg}
+}
+
+func (rs *Resource) todayDate() timezone.Date {
+	return timezone.DateFromTime(rs.Now())
 }
 
 // Router returns a configured router for student endpoints

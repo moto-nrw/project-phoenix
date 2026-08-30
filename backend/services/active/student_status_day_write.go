@@ -96,8 +96,8 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 	if len(dates) == 0 {
 		return errors.New("student status day dates are required")
 	}
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
@@ -143,8 +143,8 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		return errors.New("student status day dates are required")
 	}
 	studentIDs = dedupeStudentIDs(studentIDs)
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Phase 1: lock and authorize every student before writing any row.
@@ -308,8 +308,8 @@ func dedupeStudentIDs(studentIDs []int64) []int64 {
 // DeleteByID clears a single status-day row after ownership and locked-row
 // re-authorization checks, resetting today's live flags when the row is today.
 func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWriteContext, statusDayID, studentID int64) error {
-	now := time.Now()
-	today := timezone.TodayDate()
+	now := s.now()
+	today := timezone.DateFromTime(now)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
 		row, err := s.repo.FindActiveByID(ctx, statusDayID)
 		if err != nil {

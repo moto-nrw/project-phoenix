@@ -22,7 +22,7 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 	phaseID := insertRequestChildSourcePhase(t, db, tenantID)
 	requestID := insertRequestChildSourceRequest(t, db, tenantID, phaseID)
 	requestChildID := insertRequestChildSourceChild(t, db, tenantID, requestID, sourcedStudent.ID)
-	period := testpkg.CreateTestCalendarPeriod(t, db, "class-filter rollback", timezone.TodayDate(), timezone.TodayDate().AddDays(1))
+	period := testpkg.CreateTestCalendarPeriod(t, db, "class-filter rollback", timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24).AddDays(1))
 	room := testpkg.CreateTestRoom(t, db, "class-filter rollback")
 
 	_, err := db.NewRaw(`
@@ -39,8 +39,8 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 		requestChildID *int64
 		validFrom      timezone.Date
 	}{
-		{studentID: manualStudent.ID, validFrom: timezone.TodayDate()},
-		{studentID: sourcedStudent.ID, requestChildID: &requestChildID, validFrom: timezone.TodayDate().AddDays(-1)},
+		{studentID: manualStudent.ID, validFrom: timezone.NewDate(2026, 8, 24)},
+		{studentID: sourcedStudent.ID, requestChildID: &requestChildID, validFrom: timezone.NewDate(2026, 8, 24).AddDays(-1)},
 	} {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:                enrollmentInput.studentID,
@@ -52,12 +52,12 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 		_, err = db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
 		require.NoError(t, err)
 	}
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+	instance := testpkg.CreateTestActivityInstance(t, db, timezone.NewDate(2026, 8, 24), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &group.ID,
 		CalendarPeriodID: &period.ID,
 	})
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, sourcedStudent.ID, "")
-	observedInstance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{
+	observedInstance := testpkg.CreateTestActivityInstance(t, db, timezone.NewDate(2026, 8, 24).AddDays(1), room.ID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &group.ID,
 		CalendarPeriodID: &period.ID,
 	})
@@ -66,7 +66,7 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 		CheckedInAt: &checkedInAt,
 	})
 
-	require.NoError(t, templateSourceSchoolClassesDown(ctx, db))
+	require.NoError(t, templateSourceSchoolClassesDownAt(ctx, db, timezone.NewDate(2026, 8, 24)))
 	t.Cleanup(func() {
 		require.NoError(t, templateSourceSchoolClassesUp(context.Background(), db))
 	})
@@ -87,7 +87,7 @@ func TestTemplateSourceSchoolClassesDownPreservesSourcedEnrollmentHistory(t *tes
 		Where(`"student_enrollment".enrollment_request_child_id = ?`, requestChildID).
 		Scan(ctx))
 	require.NotNil(t, historical.ValidUntil)
-	require.Equal(t, timezone.TodayDate(), *historical.ValidUntil)
+	require.Equal(t, timezone.NewDate(2026, 8, 24), *historical.ValidUntil)
 
 	var plannedRosterRows int
 	require.NoError(t, db.NewRaw(`

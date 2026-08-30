@@ -107,7 +107,7 @@ func setupOfferingChangeFixture(
 		oldGroupID:   oldGroup.ID,
 		newGroupID:   newGroup.ID,
 		switchDate:   env.sourcePhase.ServiceStartDate.AddDays(150),
-		pastSwitchAt: timezone.TodayDate().AddDays(-1),
+		pastSwitchAt: timezone.NewDate(2026, 8, 24).AddDays(-1),
 	}
 }
 
@@ -518,7 +518,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 	require.NoError(t, err)
 
 	// The period start moves behind the requested date while the request waits.
-	phaseStart := timezone.TodayDate().AddDays(30)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = phaseStart
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 	require.NoError(t, env.repos.OfferingChangeRequest.UpdateEffectiveFrom(ctx, row.ID, fx.pastSwitchAt))
@@ -811,7 +811,7 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 	catalog, err := svc.Catalog(ctx, fx.studentID)
 	require.NoError(t, err)
 	assert.Equal(t, env.sourcePhase.ServiceEndDate, catalog.LatestEffectiveFrom)
-	assert.False(t, catalog.EarliestEffectiveFrom.Before(timezone.TodayDate()),
+	assert.False(t, catalog.EarliestEffectiveFrom.Before(timezone.NewDate(2026, 8, 24)),
 		"a switch must not be offered for a date already gone")
 
 	byID := map[int64]enrollmentService.OfferingChangeCatalogItem{}
@@ -953,7 +953,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeToday(t 
 	})
 	require.NoError(t, err)
 
-	confirmed := timezone.TodayDate().AddDays(-1)
+	confirmed := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:     row.ID,
 		Approve:       true,
@@ -1064,7 +1064,7 @@ func TestOfferingChangeRequestService_ListPending_ReportsTheSelectableDateRange(
 	}
 	require.NotNil(t, queued)
 	earliest := env.sourcePhase.ServiceStartDate
-	if today := timezone.TodayDate(); earliest.Before(today) {
+	if today := timezone.NewDate(2026, 8, 24); earliest.Before(today) {
 		earliest = today
 	}
 	assert.Equal(t, earliest, queued.EarliestEffectiveFrom,
@@ -1093,7 +1093,7 @@ func TestOfferingChangeRequestService_PreviewDecision_RefusesADateOutOfRange(t *
 	})
 	require.NoError(t, err)
 
-	confirmed := timezone.TodayDate().AddDays(-1)
+	confirmed := timezone.NewDate(2026, 8, 24).AddDays(-1)
 	_, err = svc.PreviewDecision(ctx, row.ID, nil, &confirmed)
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
 }
@@ -1391,12 +1391,12 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 	require.NoError(t, err)
 
 	// The period start moves into the future while the request waits.
-	phaseStart := timezone.TodayDate().AddDays(30)
+	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(30)
 	env.sourcePhase.ServiceStartDate = phaseStart
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 
 	// Tomorrow is after today but still before the period begins.
-	confirmed := timezone.TodayDate().AddDays(1)
+	confirmed := timezone.NewDate(2026, 8, 24).AddDays(1)
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:     row.ID,
 		Approve:       true,

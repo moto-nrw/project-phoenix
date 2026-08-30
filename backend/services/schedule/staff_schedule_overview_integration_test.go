@@ -92,7 +92,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	db := testpkg.SetupTestDB(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
-	date := timezone.TodayDate().AddDays(12000 + int(time.Now().UnixNano()%1000))
+	date := timezone.NewDate(2060, 1, 5)
 	local := createOverviewTenantFixture(t, db, testpkg.Tenant(t), date, false)
 	foreign := createOverviewTenantFixture(t, db, foreignTenantID, date, true)
 	secondLocalStaff := testpkg.CreateTestStaffForTenant(t, db, testpkg.Tenant(t), "Overview", "Second-Assignment")
@@ -172,10 +172,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	tenantID := testpkg.UniqueTestTenantID(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 
-	monday := timezone.TodayDate().AddDays(14000 + int(time.Now().UnixNano()%1000))
-	for monday.Weekday() != time.Monday {
-		monday = monday.AddDays(1)
-	}
+	monday := timezone.NewDate(2060, 2, 2)
 	friday := monday.AddDays(4)
 	validFrom := monday.AddDays(-30)
 
@@ -297,10 +294,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	monday := timezone.TodayDate().AddDays(15000 + int(time.Now().UnixNano()%1000))
-	for monday.Weekday() != time.Monday {
-		monday = monday.AddDays(1)
-	}
+	monday := timezone.NewDate(2060, 3, 1)
 	friday := monday.AddDays(4)
 	saturday := monday.AddDays(5)
 
@@ -346,12 +340,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	db := testpkg.SetupTestDB(t)
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
-	monday := timezone.TodayDate().AddDays(13000 + int(time.Now().UnixNano()%1000))
-	// Keep the fixture anchored to Monday so containing-calendar-week activation is
-	// deterministic regardless of the randomized far-future offset.
-	for monday.Weekday() != time.Monday {
-		monday = monday.AddDays(1)
-	}
+	monday := timezone.NewDate(2060, 4, 5)
 	wednesday := monday.AddDays(2)
 	friday := monday.AddDays(4)
 	nextMonday := monday.AddDays(7)

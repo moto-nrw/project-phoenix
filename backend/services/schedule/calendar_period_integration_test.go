@@ -602,7 +602,7 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 		p := periods[0]
 		// Independent re-derivation of the expected school year — keeps the
 		// test honest against the production helper.
-		today := timezone.TodayDate()
+		today := timezone.NewDate(2026, 8, 24)
 		startYear := today.Year
 		if today.Month < time.August {
 			startYear--
@@ -732,7 +732,7 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 	tenantID, ctx := newBootstrapTenant(t, db)
 
 	// Same bounds as the default school year so the two inserts overlap.
-	today := timezone.TodayDate()
+	today := timezone.NewDate(2026, 8, 24)
 	startYear := today.Year
 	if today.Month < time.August {
 		startYear--

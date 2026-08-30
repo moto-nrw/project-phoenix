@@ -252,7 +252,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	oldDecision := time.Now().AddDate(0, 0, -30)
 	_, err = env.db.NewUpdate().TableExpr("enrollment.offering_change_requests").
 		Set("reviewed_at = ?", oldDecision).
-		Set("effective_from = ?", timezone.TodayDate().AddDays(-1)).
+		Set("effective_from = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
 		Where("id = ?", row.ID).Exec(ctx)
 	require.NoError(t, err)
 	view, err := svc.GetForStudent(ctx, fx.studentID)
@@ -260,7 +260,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	require.NotNil(t, view, "the status remains while the completion task is open")
 
 	changed, err := env.repos.CareWithdrawal.MarkObsoleteForRebooking(
-		ctx, fx.studentID, timezone.TodayDate().AddDays(-1), time.Now(),
+		ctx, fx.studentID, timezone.NewDate(2026, 8, 24).AddDays(-1), time.Now(),
 	)
 	require.NoError(t, err)
 	require.True(t, changed)

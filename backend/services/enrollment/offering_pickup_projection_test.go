@@ -78,7 +78,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-future-end",
@@ -87,7 +87,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 		t, env, offering.ID, "gehzeit-future-end@example.com", "Ende", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
+	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
 	_, err := env.db.NewUpdate().
 		Model((*enrollmentModels.RequestChildOffering)(nil)).
 		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
@@ -135,7 +135,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	oldOffering := createPickupTimeOffering(t, env, "gehzeit-switch-old",
@@ -146,7 +146,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 		t, env, oldOffering.ID, "gehzeit-switch@example.com", "Wechsel", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.TodayDate().AddDays(1), time.Monday)
+	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
 	require.NoError(t, env.repos.RequestChildOffering.ScheduleReplacementForRequestChild(
 		ctx,
 		childID,

@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -146,7 +145,7 @@ func (rs *Resource) visibleParticipants(r *http.Request, rows []*scheduleModel.I
 	perms := jwt.PermissionsFromCtx(ctx)
 	visible := make([]*usersModel.Student, 0, len(students))
 	personIDs := make([]int64, 0, len(students))
-	today := timezone.TodayDate()
+	today := rs.todayDate()
 	for _, id := range studentIDs {
 		student := students[id]
 		// Graduated children and children whose care has ended are not

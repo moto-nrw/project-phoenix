@@ -997,7 +997,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	}
 
 	// Create a new break
-	now := time.Now()
+	now := s.now()
 	brk := &activeModels.WorkSessionBreak{
 		SessionID: session.ID,
 		StartedAt: now,
@@ -1724,7 +1724,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
-	now := time.Now()
+	now := s.now()
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
 		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
@@ -2850,7 +2850,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	// these rows then fall back to, re-paritying their A/B weeks and moving a
 	// historical Saldo.
 	if effective.IsZero() && isRotationalSchedule(entries) {
-		effective = timezone.TodayDate()
+		effective = timezone.DateFromTime(s.now())
 	}
 	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, workforceDate(effective)); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
@@ -2871,7 +2871,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 // model and binds it to the staff member.
 func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error {
 	if anchor.IsZero() {
-		anchor = timezone.TodayDate()
+		anchor = timezone.DateFromTime(s.now())
 	}
 	model := &configModels.WorkTimeModel{
 		Name:               name,

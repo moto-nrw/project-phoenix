@@ -104,6 +104,10 @@ func templateSourceSchoolClassesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
+	return templateSourceSchoolClassesDownAt(ctx, db, timezone.TodayDate())
+}
+
+func templateSourceSchoolClassesDownAt(ctx context.Context, db *bun.DB, today timezone.Date) error {
 	fmt.Println("Rolling back migration 1.15.314: Dropping activities.groups.source_school_classes...")
 
 	// Class-filtered templates lose their filter on rollback: the pre-1.15.314
@@ -185,7 +189,7 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 					AND target_group_type = 'angebot'
 				)
 			);
-	`, timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate(), timezone.TodayDate()).Exec(ctx)
+	`, today, today, today, today, today).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping source_school_classes from activities.groups: %w", err)
 	}

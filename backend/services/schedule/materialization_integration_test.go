@@ -68,7 +68,9 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), func() time.Time {
+		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	})
 	require.NoError(t, err)
 
 	svc := scheduleSvc.NewMaterializationService(

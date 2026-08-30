@@ -31,6 +31,14 @@ type cleanupService struct {
 	consentRetention   ConsentRetentionResolver
 	txHandler          *base.TxHandler
 	batchSize          int
+	today              func() timezone.Date
+}
+
+func (s *cleanupService) todayDate() timezone.Date {
+	if s.today != nil {
+		return s.today()
+	}
+	return timezone.TodayDate()
 }
 
 // NewCleanupService creates a new cleanup service instance
@@ -42,8 +50,9 @@ func NewCleanupService(
 	dataDeletionRepo audit.DataDeletionRepository,
 	consentRetention ConsentRetentionResolver,
 	db *bun.DB,
+	today ...func() timezone.Date,
 ) CleanupService {
-	return &cleanupService{
+	service := &cleanupService{
 		visitRepo:          visitRepo,
 		attendanceRepo:     attendanceRepo,
 		supervisorRepo:     supervisorRepo,
@@ -53,6 +62,10 @@ func NewCleanupService(
 		txHandler:          base.NewTxHandler(db),
 		batchSize:          100, // Process 100 students at a time
 	}
+	if len(today) > 0 {
+		service.today = today[0]
+	}
+	return service
 }
 
 // CleanupExpiredVisits runs the cleanup process for all students
@@ -235,7 +248,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		Errors:    make([]string, 0),
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all attendance records from before today that don't have check-out times
 	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
@@ -300,7 +313,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		RecordsByDate:  make(map[string]int),
 	}
 
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all stale attendance records
 	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
@@ -337,7 +350,7 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 	}
 
 	// Today as a Berlin calendar day; binds as a DATE literal.
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all supervisor records from before today that don't have end_date
 	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
@@ -394,7 +407,7 @@ func (s *cleanupService) PreviewSupervisorCleanup(ctx context.Context) (*Supervi
 	}
 
 	// Today as a Berlin calendar day; binds as a DATE literal.
-	today := timezone.TodayDate()
+	today := s.todayDate()
 
 	// Find all stale supervisor records
 	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)

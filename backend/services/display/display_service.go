@@ -51,6 +51,7 @@ type Dependencies struct {
 	SettingsService configSvc.SettingsService
 	DB              *bun.DB
 	Logger          *slog.Logger
+	Now             func() time.Time
 }
 
 type service struct {
@@ -59,6 +60,9 @@ type service struct {
 
 // NewService creates the display service.
 func NewService(deps Dependencies) Service {
+	if deps.Now == nil {
+		deps.Now = timezone.Now
+	}
 	return &service{Dependencies: deps}
 }
 
@@ -300,8 +304,8 @@ func (s *service) Dashboard(ctx context.Context, rawToken string) (*DashboardPay
 // aggregate builds the tenant-scoped dashboard body. Must run inside
 // tenant.WithTenantTx.
 func (s *service) aggregate(ctx context.Context) (*DashboardPayload, error) {
-	now := timezone.Now()
-	today := timezone.TodayDate()
+	now := s.Now()
+	today := timezone.DateFromTime(now)
 
 	rooms, err := s.Facilities.ListRooms(ctx, nil)
 	if err != nil {

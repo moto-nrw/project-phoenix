@@ -20,6 +20,7 @@ type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository
 	db               *bun.DB
+	now              func() time.Time
 }
 
 // NewStudentStatusDayServiceWithPartialAbsences also prevents a full-day
@@ -28,8 +29,13 @@ func NewStudentStatusDayServiceWithPartialAbsences(
 	repo activeModels.StudentStatusDayRepository,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
 	db *bun.DB,
+	clocks ...func() time.Time,
 ) *StudentStatusDayService {
-	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db}
+	now := time.Now
+	if len(clocks) > 0 && clocks[0] != nil {
+		now = clocks[0]
+	}
+	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, now: now}
 }
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many

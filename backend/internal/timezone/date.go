@@ -52,6 +52,14 @@ func TodayDate() Date {
 	return DateFromTime(time.Now())
 }
 
+// CalendarDateClock converts an optional instant clock to Berlin calendar dates.
+func CalendarDateClock(clocks ...func() time.Time) func() Date {
+	if len(clocks) == 0 || clocks[0] == nil {
+		return TodayDate
+	}
+	return func() Date { return DateFromTime(clocks[0]()) }
+}
+
 // ParseDate parses a strict "YYYY-MM-DD" string.
 func ParseDate(s string) (Date, error) {
 	t, err := time.Parse(dateLayout, s)

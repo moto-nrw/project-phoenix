@@ -82,7 +82,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	// Next Monday strictly in the future: the weekly-resync tests rely on the
 	// exception staying inside FindUpcomingByStudentID (today onwards), so a
 	// pinned calendar date would rot once it passes.
-	date := timezone.TodayDate().AddDays(1)
+	date := timezone.NewDate(2026, 8, 24).AddDays(1)
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)
 	}
