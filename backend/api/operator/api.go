@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -216,6 +217,7 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+		r.Use(common.SecurityPrincipalMiddleware)
 		r.Use(RequiresActiveOperator(rs.operatorLookup))
 
 		rs.mountPasskeyRoutes(r)

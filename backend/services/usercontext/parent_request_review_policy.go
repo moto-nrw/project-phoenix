@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -40,7 +41,7 @@ func (p *ParentRequestReviewPolicy) StudentFilter(
 	ctx context.Context,
 	permissions []string,
 ) (func(*users.Student) bool, error) {
-	if authorize.HasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+	if hasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
 		return func(student *users.Student) bool { return student != nil }, nil
 	}
 	// users:absence alone never unlocks a read surface (#2232). Refusing here
@@ -104,7 +105,7 @@ const (
 // decision StudentFilter makes, without the per-child part, so a client can
 // explain an empty queue instead of only showing it.
 func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions []string) (string, error) {
-	if authorize.HasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
+	if hasEffectiveAdminScope(ctx) || authorize.HasAdminWildcard(permissions) {
 		return ReviewAccessAdmin, nil
 	}
 	if authorize.AbsenceReadPrerequisiteUnmet(permissions) {
@@ -121,4 +122,13 @@ func (p *ParentRequestReviewPolicy) AccessLevel(ctx context.Context, permissions
 		return ReviewAccessNone, nil
 	}
 	return ReviewAccessGroupLeader, nil
+}
+
+// hasEffectiveAdminScope reports whether the caller holds the admin role or a
+// system-wide admin permission. Local copy of the helper #2645 removed from
+// auth/authorize: services must not import the security-runtime contract, and
+// sse_subscription.go in this package resolves it the same way.
+func hasEffectiveAdminScope(ctx context.Context) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	return claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }

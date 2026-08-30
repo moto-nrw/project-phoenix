@@ -212,6 +212,13 @@ func (s *userContextService) GetCurrentStaff(ctx context.Context) (*users.Staff,
 	return staff, nil
 }
 
+// HasCurrentStaff exposes only the existence fact required by authorization
+// policies, keeping persistence models out of the policy boundary.
+func (s *userContextService) HasCurrentStaff(ctx context.Context) (bool, error) {
+	staff, err := s.GetCurrentStaff(ctx)
+	return err == nil && staff != nil, err
+}
+
 // GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teacher, error) {
 	staff, err := s.GetCurrentStaff(ctx)

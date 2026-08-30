@@ -9,7 +9,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -88,7 +87,7 @@ func requirePlatformScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := jwt.ClaimsFromCtx(r.Context())
 		if !claims.IsPlatformScope() {
-			common.RenderError(w, r, authorize.ErrForbidden)
+			common.RenderError(w, r, common.AuthorizationForbidden())
 			return
 		}
 
@@ -159,6 +158,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Tenant switching
 		r.Post("/switch-tenant", rs.switchTenant)
@@ -202,89 +202,89 @@ func (rs *Resource) Router() chi.Router {
 			// existing account inside the caller's tenant, so guarding it with
 			// users:create would let every "user" account grant itself the
 			// admin role (issue #1021 review).
-			r.With(authorize.RequiresPermission(permUsersManage)).Post("/register", rs.register)
-			r.With(authorize.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
+			r.With(common.RequiresPermission(permUsersManage)).Post("/register", rs.register)
+			r.With(common.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
 
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("roles:create")).Post("/", rs.createRole)
-				r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
+				r.With(common.RequiresPermission("roles:create")).Post("/", rs.createRole)
+				r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
-					r.With(authorize.RequiresPermission("roles:update")).Put("/", rs.updateRole)
-					r.With(authorize.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-					r.With(authorize.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
+					r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
+					r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)
+					r.With(common.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
+					r.With(common.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
 				})
 			})
 
 			// Permission management routes
 			r.Route(pathPermissions, func(r chi.Router) {
-				r.With(requirePlatformScope, authorize.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
-				r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.listPermissions)
+				r.With(requirePlatformScope, common.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
+				r.With(common.RequiresPermission("permissions:read")).Get("/", rs.listPermissions)
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.getPermissionByID)
-					r.With(requirePlatformScope, authorize.RequiresPermission("permissions:update")).Put("/", rs.updatePermission)
-					r.With(requirePlatformScope, authorize.RequiresPermission("permissions:delete")).Delete("/", rs.deletePermission)
+					r.With(common.RequiresPermission("permissions:read")).Get("/", rs.getPermissionByID)
+					r.With(requirePlatformScope, common.RequiresPermission("permissions:update")).Put("/", rs.updatePermission)
+					r.With(requirePlatformScope, common.RequiresPermission("permissions:delete")).Delete("/", rs.deletePermission)
 				})
 			})
 
 			// Account management routes
 			r.Route("/accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
-				r.With(authorize.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
+				r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
+				r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
 
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, accountManagementErrorRenderer))
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, accountManagementErrorRenderer))
-					r.With(authorize.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
-					r.With(authorize.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
-					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, accountManagementErrorRenderer))
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, accountManagementErrorRenderer))
+					r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
+					r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
+					r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
 
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
+						r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
+						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, accountManagementErrorRenderer))
 					})
 
 					// Permission assignments
 					r.Route(pathPermissions, func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.GrantPermissionToAccount, accountManagementErrorRenderer))
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.DenyPermissionToAccount, accountManagementErrorRenderer))
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
+						r.With(common.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
+						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.GrantPermissionToAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.DenyPermissionToAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromAccount, accountManagementErrorRenderer))
 					})
 
 					// Token management
 					r.Route("/tokens", func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.RevokeAllTokens, common.ErrorInternalServer))
+						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
+						r.With(common.RequiresPermission(permUsersManage)).Delete("/", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.RevokeAllTokens, common.ErrorInternalServer))
 					})
 
 					// MFA admin override ("Godmode") — issue #1308 Phase 6.
 					// users:manage at the route layer; the service does its own
 					// defense-in-depth permission re-check.
 					r.Route("/mfa", func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.mfaAdminGetState)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.mfaAdminDisable)
-						r.With(authorize.RequiresPermission(permUsersManage)).Put("/override", rs.mfaAdminSetOverride)
+						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.mfaAdminGetState)
+						r.With(common.RequiresPermission(permUsersManage)).Delete("/", rs.mfaAdminDisable)
+						r.With(common.RequiresPermission(permUsersManage)).Put("/override", rs.mfaAdminSetOverride)
 					})
 				})
 			})
 
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
-				r.With(authorize.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
-				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
-				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
+				r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
+				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
+				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
 			})
 
 			// Token cleanup
 			r.Route("/tokens", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
+				r.With(common.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
 			})
 
 			r.Route("/invitations", func(r chi.Router) {
@@ -292,11 +292,11 @@ func (rs *Resource) Router() chi.Router {
 				// users:create globally (migration 1.5.3, so Betreuer can
 				// create person records), and an invitation hands out a role.
 				// The UI already gates this screen on the admin role.
-				r.With(authorize.RequiresPermission(permUsersManage)).Post("/", rs.createInvitation)
-				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
+				r.With(common.RequiresPermission(permUsersManage)).Post("/", rs.createInvitation)
+				r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
-					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
+					r.With(common.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
+					r.With(common.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
 				})
 			})
 
@@ -307,19 +307,19 @@ func (rs *Resource) Router() chi.Router {
 			// when approving the first child.
 			r.Route("/guardian-invitations", func(r chi.Router) {
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendGuardianInvitation)
+					r.With(common.RequiresPermission(permUsersManage)).Post("/resend", rs.resendGuardianInvitation)
 				})
 			})
 
 			// Parent account management
 			r.Route("/parent-accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
-				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
+				r.With(common.RequiresPermission(permUsersCreate)).Post("/", rs.createParentAccount)
+				r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
 				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
+					r.With(common.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
 				})
 			})
 		})

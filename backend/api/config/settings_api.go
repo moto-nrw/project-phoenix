@@ -135,13 +135,13 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		settingsWrite := authorize.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
+		settingsWrite := common.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 
-		r.With(authorize.RequiresPermission(permissions.ConfigRead), withTx).Get("/schema", rs.getSchema)
+		r.With(common.RequiresPermission(permissions.ConfigRead), withTx).Get("/schema", rs.getSchema)
 		// Payroll configuration status (#1417): config:manage only — the
 		// same tier that writes the payroll settings; carries a per-tenant
 		// staff-without-Personalnummer count (count only, no names).
-		r.With(authorize.RequiresPermission(permissions.ConfigManage), withTx).Get("/payroll-status", rs.getPayrollStatus)
+		r.With(common.RequiresPermission(permissions.ConfigManage), withTx).Get("/payroll-status", rs.getPayrollStatus)
 
 		r.With(settingsWrite, withTx).Get("/values/{key}/reveal", rs.revealValue)
 		r.With(settingsWrite, withTx).Put("/values/{key}", rs.setValue)
@@ -152,7 +152,7 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		// withTx is intentionally omitted on POST/DELETE to avoid conflicting role contexts.
 		// GET uses settingsWrite (not ConfigRead) so write-capable roles can also read the
 		// login-image metadata — the frontend depends on this GET to enable upload/delete controls.
-		settingsReadOrWrite := authorize.RequiresAnyPermission(permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
+		settingsReadOrWrite := common.RequiresAnyPermission(permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
 		r.With(settingsReadOrWrite, withTx).Get("/login-image", rs.getLoginImage)
 		r.With(settingsWrite, common.TenantOperationMiddleware).Post("/login-image", rs.uploadLoginImage)
 		r.With(settingsWrite, common.TenantOperationMiddleware).Delete("/login-image", rs.deleteLoginImage)

@@ -12,8 +12,7 @@ import (
 
 	"github.com/go-chi/jwtauth/v5"
 	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -295,7 +294,7 @@ func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
 	assert.Equal(t, int64(41), conn.client.TenantID)
 }
 
-func TestHasEffectiveAdminScope(t *testing.T) {
+func TestPrincipalAdminScope(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -312,9 +311,9 @@ func TestHasEffectiveAdminScope(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{IsAdmin: tt.isAdmin})
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
-			assert.Equal(t, tt.want, authorize.HasEffectiveAdminScope(ctx))
+			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 1, TenantID: 2, Admin: tt.isAdmin, Permissions: tt.permissions})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, principal.HasAdminScope())
 		})
 	}
 }

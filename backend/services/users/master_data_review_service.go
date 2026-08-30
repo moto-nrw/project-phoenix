@@ -266,7 +266,8 @@ func (s *masterDataReviewService) loadStudentScope(ctx context.Context, studentI
 
 func (s *masterDataReviewService) reviewableFilter(ctx context.Context) (func(*userModels.Student) bool, error) {
 	if s.reviewPolicy == nil {
-		return authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx), nil
+		writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
+		return func(student *userModels.Student) bool { return writable(student) }, nil
 	}
 	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
 	if err != nil {

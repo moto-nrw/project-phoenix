@@ -9,7 +9,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
 )
 
@@ -36,7 +35,7 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Stats endpoint - requires system:manage permission (admin only)
-		r.With(authorize.RequiresPermission("system:manage"), withTx).Get("/stats", rs.getStats)
+		r.With(common.RequiresPermission("system:manage"), withTx).Get("/stats", rs.getStats)
 	})
 
 	return r

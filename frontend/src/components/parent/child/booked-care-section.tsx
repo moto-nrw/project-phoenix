@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CalendarCheckIcon, CalendarXIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
+import { WeeklyScheduleSection } from "~/components/parent/child/weekly-schedule-section";
 import {
   ParentSection,
   ParentSubsection,
@@ -27,15 +28,6 @@ import {
 } from "~/lib/parent-api";
 
 const logger = createLogger({ component: "BookedCareSection" });
-
-const WEEKDAYS = [1, 2, 3, 4, 5] as const;
-const WEEKDAY_DAY_KEYS: Record<number, string> = {
-  1: "mon",
-  2: "tue",
-  3: "wed",
-  4: "thu",
-  5: "fri",
-};
 
 const DAY_KEY_TO_WEEKDAY: Record<string, number> = {
   mon: 1,
@@ -197,6 +189,8 @@ export function BookedCareSection({
           studentId={studentId}
           schedule={schedule}
           childFirstName={childFirstName}
+          careEnded={careEnded}
+          onScheduleChange={setSchedule}
         />
       ) : scheduleError ? (
         <ParentSection
@@ -491,133 +485,6 @@ export function BookedCareSection({
           onEdited={refresh}
         />
       )}
-    </div>
-  );
-}
-
-function WeeklyScheduleSection({
-  studentId,
-  schedule,
-  childFirstName,
-}: Readonly<{
-  studentId: string;
-  schedule: ChildCareSchedule;
-  childFirstName: string;
-}>) {
-  const t = useTranslations("parentMasterData");
-  const tc = useTranslations("parentChild");
-  const byWeekday = useMemo(() => {
-    const map = new Map<number, ChildCareSchedule["weekdays"][number]>();
-    for (const entry of schedule.weekdays) map.set(entry.weekday, entry);
-    return map;
-  }, [schedule.weekdays]);
-
-  return (
-    <ParentSection title={tc("care.weekTitle")} concept="calendar" prominent>
-      {schedule.pending_request ? (
-        <ParentSubsection
-          title={t("careSchedule.requestTitle")}
-          actions={
-            <StatusBadge label={t("careSchedule.pendingBadge")} tone="orange" />
-          }
-        >
-          <p className="text-sm text-gray-500">
-            {t("careSchedule.requestedAt", {
-              date: formatDate(schedule.pending_request.created_at),
-            })}
-          </p>
-          <dl className="space-y-1">
-            {schedule.pending_request.diff.map((line) => (
-              <div
-                key={`${line.label}-${line.weekday ?? 0}-${line.care_kind ?? "value"}`}
-                className="text-sm"
-              >
-                <dt className="font-medium text-gray-800">{line.label}</dt>
-                <dd className="text-gray-600">
-                  {line.old} → {line.new}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="text-sm text-gray-600">
-            {t("careSchedule.pendingNotice")}
-          </p>
-          <RequestSharingControl
-            studentId={studentId}
-            requestType="care_schedule"
-            requestId={schedule.pending_request.id}
-            isSelf={schedule.pending_request.submitted_by_self}
-          />
-        </ParentSubsection>
-      ) : null}
-      <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {WEEKDAYS.map((num) => {
-          const day = byWeekday.get(num);
-          const modes =
-            day?.status === "scheduled" && day.modes.length > 0
-              ? day.modes.map((mode) => t(`departureModes.${mode}`)).join(", ")
-              : t("careSchedule.notSet");
-          const statusLabel =
-            day?.status === "scheduled"
-              ? t("careSchedule.inCare", { firstName: childFirstName })
-              : day?.status === "not_scheduled"
-                ? t("careSchedule.notInCare")
-                : t("careSchedule.unknownCareDay");
-          return (
-            <div
-              key={num}
-              className="rounded-xl border border-gray-200 bg-white p-4"
-            >
-              <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
-                <span>
-                  {t(`careSchedule.weekdays.${WEEKDAY_DAY_KEYS[num]}`)}
-                </span>
-                <StatusBadge
-                  label={statusLabel}
-                  tone={day?.status === "scheduled" ? "green" : "gray"}
-                  showDot={false}
-                />
-              </dt>
-              <dd className="mt-4 space-y-4">
-                {day?.status === "scheduled" && (
-                  <>
-                    <CareFact
-                      label={t("careSchedule.pickup")}
-                      value={
-                        day.pickup
-                          ? t("careSchedule.timeValue", { time: day.pickup })
-                          : undefined
-                      }
-                      emptyLabel={t("careSchedule.notSet")}
-                    />
-                    <CareFact
-                      label={t("careSchedule.modes")}
-                      value={modes}
-                      emptyLabel={t("careSchedule.notSet")}
-                    />
-                  </>
-                )}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-    </ParentSection>
-  );
-}
-
-/** Eine Angabe des Wochenplans. Anzeige, nie ein Feld. */
-function CareFact({
-  label,
-  value,
-  emptyLabel,
-}: Readonly<{ label: string; value?: string; emptyLabel: string }>) {
-  return (
-    <div>
-      <span className="block text-sm text-gray-500">{label}</span>
-      <span className="block text-sm font-medium text-gray-900">
-        {value || emptyLabel}
-      </span>
     </div>
   );
 }

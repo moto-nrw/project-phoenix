@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -139,14 +138,14 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations require substitutions:read permission
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/active", rs.listActive)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/{id}", rs.get)
+		r.With(common.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/", rs.list)
+		r.With(common.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/active", rs.listActive)
+		r.With(common.RequiresPermission(permissions.SubstitutionsRead), withTx).Get("/{id}", rs.get)
 
 		// Write operations require substitutions:create/update/delete permissions
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsCreate), withTx).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsUpdate), withTx).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsDelete), withTx).Delete("/{id}", rs.delete)
+		r.With(common.RequiresPermission(permissions.SubstitutionsCreate), withTx).Post("/", rs.create)
+		r.With(common.RequiresPermission(permissions.SubstitutionsUpdate), withTx).Put("/{id}", rs.update)
+		r.With(common.RequiresPermission(permissions.SubstitutionsDelete), withTx).Delete("/{id}", rs.delete)
 	})
 
 	return r

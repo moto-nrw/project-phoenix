@@ -1191,6 +1191,7 @@ func TestAccountManagement(t *testing.T) {
 
 	adminClaims := testutil.AdminTestClaims(1)
 	adminClaims.Scope = tenant.ScopePlatform
+	adminClaims.TenantID = 0
 
 	t.Run("list accounts with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)

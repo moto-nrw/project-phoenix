@@ -268,7 +268,8 @@ func newExcusedAbsenceRequestService(
 // queue and the pending badge.
 func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) (func(*usersModels.Student) bool, error) {
 	if s.reviewPolicy == nil {
-		return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext), nil
+		writable := authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+		return func(student *usersModels.Student) bool { return writable(student) }, nil
 	}
 	filter, err := s.reviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
 	if err != nil {

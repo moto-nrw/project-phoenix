@@ -24,6 +24,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
@@ -131,6 +132,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.ParentMiddleware)
+		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Cross-tenant children list — every student the parent is
 		// linked to, across every active tenant mapping. Account id

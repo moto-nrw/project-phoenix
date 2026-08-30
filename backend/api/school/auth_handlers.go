@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -92,7 +91,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := clientip.GetClientIPString(r)
+	ipAddress := common.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
 	var trustedDeviceCookie string
@@ -219,7 +218,7 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 // confirm, so the role re-check, error mapping, and trusted-device cookie
 // stay in one place.
 func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Request, accountID, tenantID int64, rememberDevice bool) {
-	ipAddress := clientip.GetClientIPString(r)
+	ipAddress := common.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
 	accessToken, refreshToken, err := rs.AuthService.IssueSchoolTokensForAuthenticatedAccount(
@@ -284,7 +283,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, clientip.ParseClientIP(r), jwt.MFAChallengeScopeSchool)
+	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, common.ParseClientIP(r), jwt.MFAChallengeScopeSchool)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -319,7 +318,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, clientip.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, common.ParseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -415,7 +414,7 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, refreshToken, err := rs.AuthService.SwitchSchool(
 		r.Context(), int64(claims.ID), req.TenantSlug,
-		clientip.GetClientIPString(r), r.Header.Get(headerUserAgent),
+		common.GetClientIPString(r), r.Header.Get(headerUserAgent),
 	)
 	if err != nil {
 		var authErr *authService.AuthError
@@ -479,7 +478,7 @@ func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 // empty cookie value and no Set-Cookie header is written.
 func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID, tenantID int64) error {
 	cookieValue, expiresAt, err := rs.MFAService.IssueTrustedDevice(
-		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), clientip.ParseClientIP(r),
+		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), common.ParseClientIP(r),
 	)
 	if err != nil {
 		return err

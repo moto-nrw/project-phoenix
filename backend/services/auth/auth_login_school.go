@@ -748,7 +748,7 @@ func wrapSchoolMintError(op string, err error) error {
 // loadSchoolMetadataForTenant loads the tenant-scoped metadata (roles,
 // permissions, person info, org id) and stamps the school scope on it. The
 // permissions travel into the JWT exactly like a tenant login — that is
-// what lets authorize.RequiresPermission(class_day:read) work unchanged
+// what lets common.RequiresPermission(class_day:read) work unchanged
 // behind /school/*.
 //
 // This is the ONE choke point every school token mint runs through BEFORE it

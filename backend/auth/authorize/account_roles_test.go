@@ -1,38 +1,24 @@
 package authorize
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
-)
+type testAccount struct{ roles []string }
 
-// Moved from models/auth/account_test.go (TestAccount_HasRole) when the role
-// membership check left the model in issue #586 (Rule 12).
+func (a *testAccount) AuthorizationRoleNames() []string {
+	if a == nil {
+		return nil
+	}
+	return a.roles
+}
+
 func TestAccountHasRole(t *testing.T) {
 	t.Parallel()
-
-	account := &auth.Account{
-		Email: "test@example.com",
-		Roles: []*auth.Role{{Name: "admin"}},
+	account := &testAccount{roles: []string{"User", "ADMIN"}}
+	if !AccountHasRole(account, "admin") || AccountHasRole(account, "guardian") {
+		t.Fatal("role membership must be case-insensitive and fail closed")
 	}
-
-	if !AccountHasRole(account, "admin") {
-		t.Error("AccountHasRole() should return true for 'admin'")
-	}
-	if AccountHasRole(account, "user") {
-		t.Error("AccountHasRole() should return false for 'user'")
-	}
-	// Case-insensitive.
-	if !AccountHasRole(account, "ADMIN") {
-		t.Error("AccountHasRole() should be case-insensitive")
-	}
-	// Nil roles.
-	account.Roles = nil
-	if AccountHasRole(account, "admin") {
-		t.Error("AccountHasRole() should return false when roles is nil")
-	}
-	// Nil account.
-	if AccountHasRole(nil, "admin") {
-		t.Error("AccountHasRole() should return false for a nil account")
+	var missing *testAccount
+	if AccountHasRole(missing, "admin") {
+		t.Fatal("nil account must not have a role")
 	}
 }

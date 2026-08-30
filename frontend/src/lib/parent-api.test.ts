@@ -18,6 +18,7 @@ import {
   UNKNOWN_CHILD_TODAY,
   getChildCareOfferings,
   getChildOfferingCatalog,
+  submitCareScheduleRequest,
   submitOfferingChangeRequest,
   updateOfferingChangeRequest,
   getChildMasterData,
@@ -181,6 +182,41 @@ describe("parent care offering requests", () => {
           note: "Doch Dienstag",
           expected_version: "v3",
         },
+      },
+    ]);
+  });
+});
+
+describe("parent care schedule requests", () => {
+  it("submits a weekly-plan request", async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    mockFetch(async (input, init) => {
+      requests.push({
+        url: String(input),
+        body: JSON.parse(String(init?.body)) as unknown,
+      });
+      return jsonResponse({
+        data: {
+          weekdays: [],
+          can_request: false,
+          request_capabilities: {
+            arrival: false,
+            pickup: false,
+            departure_mode: false,
+          },
+          today_absent: false,
+        },
+      });
+    });
+
+    await submitCareScheduleRequest("child/42", {
+      weekdays: [{ weekday: 1, pickup: "16:30" }],
+    });
+
+    expect(requests).toEqual([
+      {
+        url: "/api/parent/me/children/child%2F42/care-schedule/requests",
+        body: { payload: { weekdays: [{ weekday: 1, pickup: "16:30" }] } },
       },
     ]);
   });

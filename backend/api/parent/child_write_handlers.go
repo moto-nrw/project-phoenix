@@ -493,6 +493,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_request_payload"))
 	case errors.Is(err, parentService.ErrCareRequestFieldDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_request_field_disabled"))
+	case errors.Is(err, parentService.ErrCareRequestBookingsAuthoritative):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_request_bookings_authoritative"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
 	case errors.Is(err, parentService.ErrCareExceptionReasonRequired):

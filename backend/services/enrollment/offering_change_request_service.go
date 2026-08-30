@@ -1885,7 +1885,8 @@ func (s *offeringChangeRequestService) PreviewDecision(
 
 func (s *offeringChangeRequestService) reviewableFilter(ctx context.Context) (func(*usersModels.Student) bool, error) {
 	if s.ReviewPolicy == nil {
-		return authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext), nil
+		writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+		return func(student *usersModels.Student) bool { return writable(student) }, nil
 	}
 	filter, err := s.ReviewPolicy.StudentFilter(ctx, jwt.PermissionsFromCtx(ctx))
 	if err != nil {

@@ -13,7 +13,6 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -199,5 +198,5 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP returns the router-selected client IP for audit/rate-limit flows.
 func getClientIP(r *http.Request) string {
-	return clientip.GetClientIPString(r)
+	return common.GetClientIPString(r)
 }

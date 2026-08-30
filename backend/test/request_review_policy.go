@@ -14,7 +14,8 @@ type RequestReviewPolicy struct {
 }
 
 func (p RequestReviewPolicy) StudentFilter(ctx context.Context, permissions []string) (func(*userModels.Student) bool, error) {
-	return authorize.WritableStudentFilter(ctx, permissions, p.UserContext), nil
+	writable := authorize.WritableStudentFilter(ctx, permissions, p.UserContext)
+	return func(student *userModels.Student) bool { return writable(student) }, nil
 }
 
 func (p RequestReviewPolicy) Allows(ctx context.Context, permissions []string, student *userModels.Student) (bool, error) {
@@ -29,7 +30,8 @@ type AbsenceRequestReviewPolicy struct {
 }
 
 func (p AbsenceRequestReviewPolicy) StudentFilter(ctx context.Context, permissions []string) (func(*userModels.Student) bool, error) {
-	return authorize.AbsenceWritableStudentFilter(ctx, permissions, p.UserContext), nil
+	writable := authorize.AbsenceWritableStudentFilter(ctx, permissions, p.UserContext)
+	return func(student *userModels.Student) bool { return writable(student) }, nil
 }
 
 func (p AbsenceRequestReviewPolicy) Allows(ctx context.Context, permissions []string, student *userModels.Student) (bool, error) {

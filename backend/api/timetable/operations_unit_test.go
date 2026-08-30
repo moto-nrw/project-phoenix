@@ -286,6 +286,7 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/instances/231/reopen", nil)
 			testutil.WithClaims(t, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
+			attachTestPrincipal(t, req, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
@@ -294,6 +295,16 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 			assert.Equal(t, tc.wantAdmin, service.lastIsAdmin)
 		})
 	}
+}
+
+func attachTestPrincipal(t *testing.T, req *http.Request, claims jwt.AppClaims, granted []string) {
+	t.Helper()
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,
+		Roles: claims.Roles, Permissions: granted, Admin: claims.IsAdmin,
+	})
+	require.NoError(t, err)
+	*req = *req.WithContext(permissions.WithPrincipal(req.Context(), principal))
 }
 
 func TestOperationsCreateAndStartSpontaneous(t *testing.T) {

@@ -909,5 +909,5 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
+	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, viper.GetString("app_env"))
 }

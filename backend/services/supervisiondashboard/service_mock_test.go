@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -135,7 +135,16 @@ func fullDependencies() Dependencies {
 }
 
 func adminContext() context.Context {
-	return context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 99, IsAdmin: true})
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
+		AccountID: 99,
+		TenantID:  23,
+		Scope:     string(permissions.ScopeTenant),
+		Admin:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return permissions.WithPrincipal(context.Background(), principal)
 }
 
 func TestGetFailsFast(t *testing.T) {

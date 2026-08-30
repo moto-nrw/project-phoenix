@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -732,7 +733,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 // they are on her sheet, and a child who turns up anyway must stay one tap
 // away.
 func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) error {
-	if !authorize.IsAssignmentBoundPortal(ctx) {
+	if !isAssignmentBoundPortal(ctx) {
 		return nil
 	}
 	planned, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
@@ -808,7 +809,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// she is planned into next week or was planned into in March. Her access
 	// follows the day she stands in front of the children, so the day is part
 	// of the boundary, not just the assignment.
-	if authorize.IsAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
+	if isAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
 		return 0, ErrTimetableOperationForbidden
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
@@ -822,7 +823,7 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// the active group's supervisor list. Starting a block adds its operator
 	// as a supervisor, so using that list here would preserve access after the
 	// assignment has been withdrawn.
-	if authorize.IsAssignmentBoundPortal(ctx) {
+	if isAssignmentBoundPortal(ctx) {
 		return 0, ErrTimetableOperationForbidden
 	}
 	if inst.ActiveGroupID != nil {
@@ -837,6 +838,11 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 		}
 	}
 	return 0, ErrTimetableOperationForbidden
+}
+
+func isAssignmentBoundPortal(ctx context.Context) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	return claims.IsSchoolScope()
 }
 
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {
@@ -1403,13 +1409,15 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 // the same setting as every other surface, so a module listed by PlannedNow
 // can never 403 on the detail call. Fails closed on a settings fault.
 func (s *timetableOperationsService) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
-	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings)
+	claims := jwt.ClaimsFromCtx(ctx)
+	assignmentBound := claims.IsSchoolScope()
+	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings, assignmentBound)
 	if err != nil {
 		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
 			slog.String("error", err.Error()))
 		return false
 	}
-	admin := isAdmin || authorize.HasEffectiveAdminScope(ctx)
+	admin := isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 	switch scope {
 	case configModel.OverviewScopeAllStaff:
 		return admin || hasStaff

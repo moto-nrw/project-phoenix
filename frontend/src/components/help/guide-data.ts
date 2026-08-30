@@ -755,11 +755,11 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern prüfen",
         icon: ClipboardCheck,
         summary:
-          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), freigegebene Änderungen am Wochenplan und Änderungen an der gebuchten Betreuung reichen sie als Anfrage ein – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
           "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
-          "Die dauerhaften Bring- und Abholzeiten ändern Eltern seit dem Umbau der Eltern-App nicht mehr selbst: Die Rubrik `Betreuungszeiten` gibt es dort nicht mehr, der Wochenplan steht nur noch als Anzeige. Der Hinweis dort nennt die OGS als Stelle, die die Zeiten pflegt; Änderungswünsche kommen jetzt als Nachricht. Ältere, noch offene Anfragen bleiben in der Warteschlange und lassen sich normal entscheiden.",
+          "Manche Schulen legen die Betreuungstage durch gebuchte Angebote fest. Dort können Eltern den Wochenplan nicht ändern. Sie ändern stattdessen die gebuchten Angebote. In anderen Schulen können Eltern am Wochenplan `Änderungen anfragen`. Die Schule bestimmt, ob das für Abholzeit oder Abholart möglich ist. Offene ältere Anfragen bleiben sichtbar und lassen sich normal entscheiden.",
           "Krankmeldungen und entschuldigte Abmeldungen sind zuerst Anfragen.",
           "Bis zur Bestätigung gilt das Kind als erwartet.",
           "Offene Anfragen finden Sie unter `Anfragen` im Reiter `Eltern`.",
@@ -1584,14 +1584,15 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Dateien: gemeinsame Ablage der OGS",
         icon: FolderOpen,
         summary:
-          "Unter `Dateien` liegen gemeinsame Unterlagen der OGS wie Konzeption, Formulare oder Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest. Unterlagen zu einem Kind oder zu einer Person gehören nicht hierher, sondern in den `Dokumente`-Reiter beim Kind bzw. bei der Person.",
+          "Unter `Dateien` liegen gemeinsame Unterlagen der OGS, zum Beispiel Formulare und Notfallpläne. Die Leitung legt pro Ordner fest, wer ihn sehen darf. Unterlagen zu Kindern und Mitarbeitenden bleiben im `Dokumente`-Bereich der Person.",
         steps: [
           "`Dateien` in der Seitenleiste öffnen. Links stehen die Ordner, rechts die Dateien des gewählten Ordners.",
           "Als Leitung mit `Neuer Ordner` einen Ordner anlegen und die Sichtbarkeit wählen: `Alle Mitarbeitenden`, `Nur Leitung` oder `Ausgewählt` (bestimmte Rollen und Personen). Alle Dateien im Ordner übernehmen diese Einstellung.",
           "Dateien per Ziehen oder über `Dateien auswählen` hochladen. Erlaubt sind PDF, Word, Excel, PowerPoint, PNG und JPG bis 25 MB pro Datei.",
-          "PDF und Bilder öffnen sich per Klick auf den Dateinamen direkt im Browser. Word, Excel und PowerPoint werden heruntergeladen.",
+          "Den Dateinamen wählen. PDF-Dateien und Bilder öffnen sich direkt. Word-, Excel- und PowerPoint-Dateien werden heruntergeladen.",
           "Über das Menü mit den drei Punkten an einer Datei `Öffnen`, `Herunterladen` oder `Löschen` wählen; am Ordner `Ordner bearbeiten` oder `Ordner löschen`.",
-          "Standardmäßig lädt nur die Leitung hoch. Unter `Einstellungen` -> `Team darf Dateien hochladen` dürfen alle Mitarbeitenden in die Ordner hochladen, die sie sehen, und ihre eigenen Dateien wieder löschen.",
+          "Am Computer sehen Sie unter `Dateien hochladen`, wer Dateien hochladen darf. Wenn Sie Einstellungen ändern dürfen, öffnen Sie mit `Berechtigung ändern` die passende Einstellung.",
+          "Standardmäßig lädt nur die Leitung Dateien hoch. Schalten Sie `Team darf Dateien hochladen` ein, wenn auch das Team hochladen darf. Eigene Dateien können Mitarbeitende wieder löschen.",
         ],
         callout: {
           title: "Sichtbarkeit gilt pro Ordner",
@@ -1599,7 +1600,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Dateiablage mit Ordnerliste links, Dateitabelle rechts und dem Fenster zum Anlegen eines Ordners.",
+          "Dateiablage mit Ordnerliste, Upload-Berechtigung und Dateitabelle.",
         image: "/help/screens/dateien.webp",
       },
       {
@@ -1926,7 +1927,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Was es nicht mehr gibt",
-          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` sind aus der Eltern-App entfernt; Eltern konnten dort ohnehin nichts anmelden. Der Wochenplan steht nur noch als Anzeige unter `Gebuchte Betreuung`, weil eine frei änderbare Bringzeit zu falschen Elternangaben geführt hat. Produktfeedback gibt es in der Eltern-App nicht mehr.",
+          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` gibt es nicht mehr. Der Wochenplan steht jetzt unter `Gebuchte Betreuung`. Legen gebuchte Angebote die Betreuungstage fest, ist der Plan nur zur Ansicht. Sonst können Eltern dort eine neue Abholzeit oder Abholart anfragen. Die Schule bestimmt, welche Angaben Eltern ändern dürfen. Produktfeedback gibt es in der Eltern-App nicht mehr.",
           tone: "orange",
         },
         screenshot:
@@ -1963,9 +1964,10 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Abwesenheiten sowie Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral in der Seitenleiste unter `Anfragen` entschieden.",
         steps: [
-          "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Zeiten pflegt die OGS, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
+          "Unter `Gebuchte Betreuung` sehen Eltern die Buchungen und den Wochenplan. Legen gebuchte Angebote die Betreuungstage fest, ist der Plan nur zur Ansicht. Änderungen reichen Eltern dann bei den gebuchten Angeboten ein. Sonst können sie eine neue Abholzeit oder Abholart anfragen. Die Schule bestimmt, welche Angaben Eltern ändern dürfen.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
           "Öffnen Sie in der Seitenleiste `Anfragen`. Der Reiter `Eltern` ist schon gewählt. Links steht die Liste der Kinder mit offenen Anfragen, rechts alle Anfragen des gewählten Kindes. Auf dem Telefon ersetzt die Detailansicht die Liste; mit `Zur Liste` kommen Sie zurück.",
+          "Neue Anfragen zu Betreuungszeiten gibt es nicht an jeder Schule. Die Schule bestimmt, ob Eltern Abholzeit oder Abholart anfragen dürfen. Offene ältere Anfragen können Sie weiterhin entscheiden.",
           "Kinder, die heute betroffen sind, stehen unter `Heute wichtig`. Alle anderen stehen unter `Weitere Anfragen`. Unter `Abgelaufen` stehen Anfragen, die nur noch vergangene Tage betreffen.",
           "Eine abgelaufene Anfrage ändert nichts mehr. Schließen Sie sie mit `Als erledigt markieren` ab. Ablehnen bleibt möglich, freigeben nicht.",
           "Widersprechen sich zwei Wünsche zum selben Tag, stehen sie oben zusammen. Wählen Sie dort aus, was gelten soll: einen der Wünsche, einen eigenen Wert oder `Keine Änderung`. Die anderen Wünsche werden dann abgelehnt.",
