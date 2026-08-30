@@ -125,27 +125,16 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
 }
 
-func TestIsoWeekdayMatchesNow(t *testing.T) {
+func TestIsoWeekdayMatches(t *testing.T) {
 	t.Parallel()
 
-	// This test checks the mapping from Go's Sunday=0 to ISO Sunday=7
-	// via the helper's sole branch point. It does not assert a specific
-	// day (that would depend on when the test runs) but asserts the
-	// function's contract for the current day.
-	today := time.Now().Weekday()
-	var iso int
-	if today == time.Sunday {
-		iso = 7
-	} else {
-		iso = int(today)
-	}
-	assert.True(t, isoWeekdayMatchesNow(iso), "current day must match its ISO weekday")
-	// A day that is definitely not today
-	other := iso + 1
-	if other > 7 {
-		other = 1
-	}
-	assert.False(t, isoWeekdayMatchesNow(other), "non-current day must not match")
+	monday := time.Date(2024, time.January, 1, 12, 0, 0, 0, timezone.Berlin)
+	sunday := time.Date(2024, time.January, 7, 12, 0, 0, 0, timezone.Berlin)
+
+	assert.True(t, isoWeekdayMatches(1, monday))
+	assert.False(t, isoWeekdayMatches(2, monday))
+	assert.True(t, isoWeekdayMatches(7, sunday))
+	assert.False(t, isoWeekdayMatches(1, sunday))
 }
 
 // =============================================================================
@@ -304,11 +293,14 @@ func TestRunCleanupJobsRejectsMissingRuntime(t *testing.T) {
 	t.Parallel()
 
 	auth := &fakeAuthCleanup{}
-	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
 	var outcomes []string
-	s.SetTenantRuntimeObserver(func(entryPoint, outcome string) {
-		assert.Equal(t, "worker", entryPoint)
-		outcomes = append(outcomes, outcome)
+	s := newScheduler(WorkerDependencies{
+		Logger:      slog.Default(),
+		AuthCleanup: auth,
+		TenantRuntimeObserver: func(entryPoint, outcome string) {
+			assert.Equal(t, "worker", entryPoint)
+			outcomes = append(outcomes, outcome)
+		},
 	})
 
 	err := s.RunCleanupJobs()
@@ -1491,7 +1483,7 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 	task := &ScheduledTask{Name: "test-session-end", Running: true}
 
 	// Check session end (should skip because already running)
-	s.checkAndRunSessionEnd(task)
+	s.checkAndRunSessionEnd(context.Background(), task)
 
 	// Verify service was NOT called
 	activeSvc.mu.Lock()
@@ -1541,7 +1533,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 	task := &ScheduledTask{Name: "token-cleanup"}
 
 	// Execute token cleanup
-	s.executeTokenCleanup(task)
+	s.executeTokenCleanup(context.Background(), task)
 
 	// Verify all cleanup jobs were called
 	auth.mu.Lock()
@@ -1566,7 +1558,7 @@ func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 	task := &ScheduledTask{Name: "token-cleanup", Running: true}
 
 	// Execute token cleanup (should skip because already running)
-	s.executeTokenCleanup(task)
+	s.executeTokenCleanup(context.Background(), task)
 
 	// Verify no cleanup jobs were called
 	auth.mu.Lock()
@@ -1586,7 +1578,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 	task := &ScheduledTask{Name: "token-cleanup"}
 
 	// Execute token cleanup (should handle error gracefully)
-	s.executeTokenCleanup(task)
+	s.executeTokenCleanup(context.Background(), task)
 
 	// Verify cleanup was attempted
 	auth.mu.Lock()
@@ -1608,7 +1600,7 @@ func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup (threshold falls back to the 60-minute default)
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1637,7 +1629,7 @@ func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called with the env-configured threshold
 	activeSvc.mu.Lock()
@@ -1660,7 +1652,7 @@ func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup"}
 
 	// Run session cleanup (should handle error gracefully)
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1680,7 +1672,7 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 	task := &ScheduledTask{Name: "session-cleanup", Running: true}
 
 	// Run session cleanup (should skip because already running)
-	s.checkAndRunSessionCleanup(task)
+	s.checkAndRunSessionCleanup(context.Background(), task)
 
 	// Verify service was NOT called
 	activeSvc.mu.Lock()
@@ -2666,39 +2658,6 @@ func TestBuildCleanupJobs_EmailChangeCleanerPropagatesError(t *testing.T) {
 }
 
 // =============================================================================
-// FeedbackCleaner Tests
-// =============================================================================
-
-type fakeFeedbackCleaner struct {
-	mu       sync.Mutex
-	calls    int
-	result   int
-	callErr  error
-	lastDays int
-}
-
-func (f *fakeFeedbackCleaner) DeleteEntriesOlderThan(_ context.Context, days int) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls++
-	f.lastDays = days
-	return f.result, f.callErr
-}
-
-func TestSetFeedbackCleaner(t *testing.T) {
-	t.Parallel()
-
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-
-	assert.Nil(t, s.feedbackCleaner)
-
-	fc := &fakeFeedbackCleaner{}
-	s.SetFeedbackCleaner(fc)
-
-	assert.NotNil(t, s.feedbackCleaner)
-}
-
-// =============================================================================
 // Timetable Materialization Tests (WP-B8)
 // =============================================================================
 
@@ -2806,34 +2765,10 @@ func (f *fakeSettingsResolver) ResolveString(_ context.Context, key string) (str
 	return "", fmt.Errorf("no value for key %s", key)
 }
 
-// currentISOWeekday returns today's ISO 8601 weekday (1=Mon…7=Sun).
-// Mirrors the math in isoWeekdayMatchesNow so tests stay day-of-week agnostic.
-func currentISOWeekday() int {
-	today := time.Now().Weekday()
-	if today == time.Sunday {
-		return 7
-	}
-	return int(today)
-}
+const materializationTestWeekday = 1
 
-// otherISOWeekday returns an ISO weekday guaranteed to differ from today.
-func otherISOWeekday() int {
-	wd := currentISOWeekday() + 1
-	if wd > 7 {
-		wd = 1
-	}
-	return wd
-}
-
-func TestSetMaterializer(t *testing.T) {
-	t.Parallel()
-
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-	assert.Nil(t, s.materializer)
-
-	m := &fakeMaterializer{}
-	s.SetMaterializer(m)
-	assert.NotNil(t, s.materializer)
+func fixedMaterializationTime() time.Time {
+	return time.Date(2024, time.January, 1, 12, 0, 0, 0, timezone.Berlin)
 }
 
 func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
@@ -2880,7 +2815,7 @@ func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "test", Running: true}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 0, m.materializeCalls, "must skip work when task already running")
 }
@@ -2892,17 +2827,18 @@ func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
 	// the defaultVal (true) — materializer runs on the configured weekday.
 	m := &fakeMaterializer{}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls, "default-enabled tenant must invoke materializer")
 	// Task running flag must be cleared via the deferred unlock.
@@ -2916,20 +2852,21 @@ func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
 
 	m := &fakeMaterializer{}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: otherISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday + 1,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 0, m.materializeCalls, "wrong weekday must skip materialization")
 }
@@ -2939,23 +2876,24 @@ func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
 
 	m := &fakeMaterializer{}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	// Seed lastMaterialization with today's timestamp — simulates a prior run.
 	// Unit scheduler composition supplies one validated tenant.
-	s.lastMaterialization.Store(schedulerUnitTenantID, time.Now())
+	s.lastMaterialization.Store(schedulerUnitTenantID, fixedMaterializationTime())
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 0, m.materializeCalls, "must skip when already ran today")
 }
@@ -2971,21 +2909,22 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 		},
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday:    currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday:    materializationTestWeekday,
 				configModel.KeyTimetableMaterializationWeeksAhead: 3,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
 	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
@@ -3010,20 +2949,21 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 		},
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls)
 }
@@ -3035,21 +2975,22 @@ func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
 		returnErr: errors.New("materialization exploded"),
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
 	assert.NotPanics(t, func() {
-		s.checkAndRunMaterialization(task)
+		s.checkAndRunMaterializationWithContext(context.Background(), task)
 	})
 	assert.Equal(t, 1, m.materializeCalls, "materializer is invoked even if it errors")
 }
@@ -3066,41 +3007,23 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 		},
 	}
 	s := unitScheduler(&Scheduler{
-		logger:       slog.Default(),
-		materializer: m,
+		logger:             slog.Default(),
+		materializer:       m,
+		materializationNow: fixedMaterializationTime,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				configModel.KeyTimetableMaterializationEnabled: true,
 			},
 			intValues: map[string]int{
-				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+				configModel.KeyTimetableMaterializationWeekday: materializationTestWeekday,
 			},
 		}})
 
 	task := &ScheduledTask{Name: "test"}
 
-	s.checkAndRunMaterialization(task)
+	s.checkAndRunMaterializationWithContext(context.Background(), task)
 
 	assert.Equal(t, 1, m.materializeCalls)
-}
-
-func TestIsoWeekdayMatchesNow_NonSundayMismatch(t *testing.T) {
-	t.Parallel()
-
-	// Exercises the "today != Sunday" branch explicitly with a mismatch.
-	// Combined with the existing TestIsoWeekdayMatchesNow, this covers both
-	// branches deterministically regardless of the day the suite runs.
-	wd := otherISOWeekday()
-	// Wrap around so the mismatch value is deterministic even if it happens
-	// to be 7 (Sunday mapping would pass on Sundays).
-	if currentISOWeekday() == 7 {
-		// On Sundays: a non-7 value is guaranteed false.
-		assert.False(t, isoWeekdayMatchesNow(1))
-		assert.False(t, isoWeekdayMatchesNow(6))
-	} else {
-		// On non-Sundays: wd (today+1 mod 7) never equals today's weekday.
-		assert.False(t, isoWeekdayMatchesNow(wd))
-	}
 }
 
 func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {

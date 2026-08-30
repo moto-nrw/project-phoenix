@@ -134,6 +134,14 @@ var (
 		},
 		[]string{"entry_point"},
 	)
+	workerJobDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_job_duration_seconds",
+			Help:    "Embedded Worker job run duration by stable job ID and outcome.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300},
+		},
+		[]string{"job_id", "outcome"},
+	)
 	settingsLookups = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_settings_lookups_total",
@@ -271,6 +279,7 @@ func init() {
 		unitOfWorkRetries,
 		unitOfWorkPoolWait,
 		unitOfWorkLockWait,
+		workerJobDuration,
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
@@ -377,6 +386,11 @@ func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Durati
 	case "lock_wait":
 		unitOfWorkLockWait.WithLabelValues(entryPoint).Observe(duration.Seconds())
 	}
+}
+
+// RecordWorkerRunEvent records one bounded embedded-job outcome.
+func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
+	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
 }
 
 func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {

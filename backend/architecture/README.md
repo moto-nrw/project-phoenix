@@ -154,7 +154,8 @@ migration. It is pinned to evidence commit
 - every typed legacy-composition reference reported by this evaluator;
 - every call to `api.New`, the evidence-only `api.NewServer`, the current
   `api.WithRuntime`, `repositories.NewFactory`,
-  `services.NewFactory`, `scheduler.NewScheduler`, and `SetupAPITest` under the
+  `services.NewFactory`, the evidence-only `scheduler.NewScheduler`, the current
+  `scheduler.NewWorker`, and `SetupAPITest` under the
   affected production and test trees (`api`, `cmd`, `services`,
   `database/repositories`, and `test`); this is deliberately not a scan of
   unrelated unit-test packages or migration tests;

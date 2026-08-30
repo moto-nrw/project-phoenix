@@ -77,7 +77,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	s.checkAndRunPWAUsageCleanup(&ScheduledTask{Name: "pwa-usage-cleanup"})
+	s.checkAndRunPWAUsageCleanup(context.Background(), &ScheduledTask{Name: "pwa-usage-cleanup"})
 
 	var portals []string
 	require.NoError(t, db.NewSelect().

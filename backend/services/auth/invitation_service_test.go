@@ -312,6 +312,8 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
 	otherTenant := &authModel.InvitationToken{
 		Email:     "principal@example.com",
 		Token:     "other-tenant-token",
@@ -319,7 +321,7 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 		CreatedBy: nullableCreatedBy(1),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
-	otherTenant.SetTenantID(1)
+	otherTenant.SetTenantID(otherTenantID)
 	require.NoError(t, invitations.Create(ctx, otherTenant))
 
 	targetTenant := &authModel.InvitationToken{
@@ -329,20 +331,20 @@ func TestCreateInvitationOnlyInvalidatesExistingTokensInTargetTenant(t *testing.
 		CreatedBy: nullableCreatedBy(1),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
-	targetTenant.SetTenantID(2)
+	targetTenant.SetTenantID(targetTenantID)
 	require.NoError(t, invitations.Create(ctx, targetTenant))
 
 	req := InvitationRequest{
 		Email:     "principal@example.com",
 		RoleID:    2,
-		TenantID:  2,
+		TenantID:  targetTenantID,
 		CreatedBy: 0,
 	}
 
 	invitation, err := service.CreateInvitation(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
-	require.Equal(t, int64(2), invitation.TenantID)
+	require.Equal(t, targetTenantID, invitation.TenantID)
 	require.Nil(t, invitation.CreatedBy)
 
 	require.Nil(t, otherTenant.UsedAt, "invite in a different tenant must remain valid")

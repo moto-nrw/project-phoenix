@@ -14,7 +14,7 @@
       "id": "worker",
       "kind": "embedded-worker",
       "file": "api/server.go",
-      "declaration": "newScheduler",
+      "declaration": "newWorker",
       "smoke_test": "test/composition_inventory_test.go#TestWorkerJobRegistryInventory",
       "tables": []
     },
@@ -468,11 +468,6 @@
           "file": "api/base.go",
           "line": 117,
           "declaration": "type API"
-        },
-        {
-          "file": "api/server.go",
-          "line": 195,
-          "declaration": "configureSchedulerServices"
         }
       ]
     },
@@ -16711,10 +16706,10 @@
     {
       "scope": "production",
       "file": "api/server.go",
-      "declaration": "newScheduler",
-      "target": "services/scheduler.NewScheduler",
+      "declaration": "newWorker",
+      "target": "services/scheduler.NewWorker",
       "lines": [
-        161
+        162
       ],
       "tables": []
     },
@@ -17700,11 +17695,21 @@
     {
       "scope": "test",
       "file": "api/server_test.go",
+      "declaration": "TestWithRuntimeBuildsCompleteWorker",
+      "target": "api.WithRuntime",
+      "lines": [
+        116
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/server_test.go",
       "declaration": "TestWithRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        73,
-        84
+        90,
+        101
       ],
       "tables": []
     },
@@ -18156,7 +18161,7 @@
       "declaration": "TestSetupAPITest",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        29
+        30
       ],
       "tables": []
     },
@@ -28393,7 +28398,7 @@
       "declaration": "TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        305
+        304
       ],
       "tables": []
     },
@@ -28403,7 +28408,7 @@
       "declaration": "TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338
+        337
       ],
       "tables": [
         "enrollment.phases",
@@ -28688,7 +28693,7 @@
       "declaration": "withLateInviteRenewalFixture",
       "target": "database/repositories.NewFactory",
       "lines": [
-        391
+        390
       ],
       "tables": [
         "enrollment.late_invites",
@@ -31539,16 +31544,6 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/outbox_worker_test.go",
-      "declaration": "TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence",
-      "target": "services/scheduler.NewScheduler",
-      "lines": [
-        38
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/scheduler/overdue_test.go",
       "declaration": "buildOverdue",
       "target": "database/repositories.NewFactory",
@@ -31581,26 +31576,6 @@
     },
     {
       "scope": "test",
-      "file": "services/scheduler/runtime_test.go",
-      "declaration": "newUnitScheduler",
-      "target": "services/scheduler.NewScheduler",
-      "lines": [
-        51
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/scheduler/scheduler_test.go",
-      "declaration": "TestRunCleanupJobsRejectsMissingRuntime",
-      "target": "services/scheduler.NewScheduler",
-      "lines": [
-        307
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/scheduler/student_change_log_cleanup_test.go",
       "declaration": "TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit",
       "target": "database/repositories.NewFactory",
@@ -31611,6 +31586,47 @@
         "audit.data_deletions",
         "audit.student_field_edits"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "services/scheduler/worker_test.go",
+      "declaration": "TestNewWorkerRejectsMissingJobs",
+      "target": "services/scheduler.NewWorker",
+      "lines": [
+        57
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/scheduler/worker_test.go",
+      "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
+      "target": "services/scheduler.NewWorker",
+      "lines": [
+        49
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/scheduler/worker_test.go",
+      "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
+      "target": "services/scheduler.NewWorker",
+      "lines": [
+        80
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/scheduler/worker_test.go",
+      "declaration": "TestNewWorkerRejectsTypedNilDependencies",
+      "target": "services/scheduler.NewWorker",
+      "lines": [
+        96,
+        107
+      ],
+      "tables": []
     },
     {
       "scope": "test",
