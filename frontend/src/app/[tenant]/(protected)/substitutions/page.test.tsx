@@ -28,6 +28,8 @@ const { mockCreateSubstitution, mockDeleteSubstitution } = vi.hoisted(() => ({
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
+  hasEffectiveAdminScope: (session: { user?: { isAdmin?: boolean } } | null) =>
+    session?.user?.isAdmin ?? false,
   hasRole: (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
     if (role === "admin") return session?.user?.isAdmin ?? false;
     if (role === "user") return !(session?.user?.isAdmin ?? false);

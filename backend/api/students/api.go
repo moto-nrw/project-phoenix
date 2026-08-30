@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -154,6 +155,18 @@ func (rs *Resource) Router() chi.Router {
 		// missing — mirroring the permission split of the replaced single
 		// endpoints instead of failing the whole roster.
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+		// Navigation only exposes groups scoped by the service. It remains
+		// authenticated-only so legacy caregiver sessions and staff with
+		// users:read retain their personal-group navigation; groups:read only
+		// controls whether the service includes further tenant groups.
+		r.With(withTx).Get("/ogs-group-navigation",
+			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+				if rs.OGSGroupLiveService == nil {
+					return nil, errors.New("OGS group live service is not configured")
+				}
+				return rs.OGSGroupLiveService.ListGroups(ctx)
+			}, common.ErrorInternalServer, "OGS group navigation retrieved successfully"),
+		)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)

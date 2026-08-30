@@ -15,6 +15,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: (session: { user?: { isAdmin?: boolean } } | null) =>
     session?.user?.isAdmin ?? false,
+  hasEffectiveAdminScope: (session: { user?: { isAdmin?: boolean } } | null) =>
+    session?.user?.isAdmin ?? false,
   hasRole: (
     session: { user?: { roles?: string[]; isAdmin?: boolean } } | null,
     role: string,
