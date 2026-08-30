@@ -99,8 +99,8 @@ class SubstitutionService {
       body: JSON.stringify({
         type: "additional_supervision",
         additional_supervision: {
-          active_group_id: Number.parseInt(activeGroupId, 10),
-          target_staff_id: Number.parseInt(targetStaffId, 10),
+          active_group_id: activeGroupId,
+          target_staff_id: targetStaffId,
         },
       }),
     });
@@ -153,7 +153,7 @@ class SubstitutionService {
       credentials: "include",
       body: JSON.stringify({
         type: "group_handover",
-        id: Number.parseInt(id, 10),
+        id,
       }),
     });
     if (!response.ok) {

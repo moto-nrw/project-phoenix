@@ -41,20 +41,20 @@ func (rs *Resource) Router() chi.Router {
 type assignmentRequest struct {
 	Type          substitution.TargetType `json:"type"`
 	GroupHandover *struct {
-		GroupID       int64  `json:"group_id"`
-		TargetStaffID int64  `json:"target_staff_id"`
-		StartDate     string `json:"start_date,omitempty"`
-		EndDate       string `json:"end_date,omitempty"`
+		GroupID       common.JSONID `json:"group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+		StartDate     string        `json:"start_date,omitempty"`
+		EndDate       string        `json:"end_date,omitempty"`
 	} `json:"group_handover"`
 	AdditionalSupervision *struct {
-		ActiveGroupID int64 `json:"active_group_id"`
-		TargetStaffID int64 `json:"target_staff_id"`
+		ActiveGroupID common.JSONID `json:"active_group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
 	} `json:"additional_supervision"`
 }
 
 type endRequest struct {
 	Type substitution.TargetType `json:"type"`
-	ID   int64                   `json:"id"`
+	ID   common.JSONID           `json:"id"`
 }
 
 func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +152,7 @@ func (request assignmentRequest) assignment() (substitution.Assignment, error) {
 			return substitution.Assignment{}, substitution.ErrInvalidPeriod
 		}
 		return substitution.Assignment{Type: request.Type, GroupHandover: &substitution.GroupHandoverAssignment{
-			GroupID: request.GroupHandover.GroupID, TargetStaffID: request.GroupHandover.TargetStaffID,
+			GroupID: request.GroupHandover.GroupID.Int64(), TargetStaffID: request.GroupHandover.TargetStaffID.Int64(),
 			StartDate: start, EndDate: end,
 		}}, nil
 	case substitution.TargetAdditionalSupervision:
@@ -160,8 +160,8 @@ func (request assignmentRequest) assignment() (substitution.Assignment, error) {
 			return substitution.Assignment{}, substitution.ErrInvalidTarget
 		}
 		return substitution.Assignment{Type: request.Type, AdditionalSupervision: &substitution.AdditionalSupervisionAssignment{
-			ActiveGroupID: request.AdditionalSupervision.ActiveGroupID,
-			TargetStaffID: request.AdditionalSupervision.TargetStaffID,
+			ActiveGroupID: request.AdditionalSupervision.ActiveGroupID.Int64(),
+			TargetStaffID: request.AdditionalSupervision.TargetStaffID.Int64(),
 		}}, nil
 	default:
 		return substitution.Assignment{}, substitution.ErrInvalidTarget
@@ -179,7 +179,7 @@ func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
 		renderModuleError(w, r, err)
 		return
 	}
-	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID}); err != nil {
+	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID.Int64()}); err != nil {
 		renderModuleError(w, r, err)
 		return
 	}

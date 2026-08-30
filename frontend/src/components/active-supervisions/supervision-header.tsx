@@ -81,7 +81,9 @@ export function SupervisionHeader({
         // 1 supervision = title, 2+ supervisions = tabs (dropdown)
         !isDesktop && totalSupervisions === 1
           ? isSchulhofTabSelected
-            ? SCHULHOF_ROOM_NAME
+            ? schulhofStatus?.isUserSupervising
+              ? `${SCHULHOF_ROOM_NAME} · Eigene Aufsicht`
+              : SCHULHOF_ROOM_NAME
             : currentRoom
               ? supervisionTabLabel(
                   currentRoom,

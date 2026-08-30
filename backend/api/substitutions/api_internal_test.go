@@ -26,6 +26,20 @@ func TestAssignAdditionalSupervisionAcceptsOnlyTargetIDs(t *testing.T) {
 	require.Equal(t, int64(73), assignment.AdditionalSupervision.TargetStaffID)
 }
 
+func TestAssignAdditionalSupervisionPreservesLargeStringIDs(t *testing.T) {
+	t.Parallel()
+	request, err := decodeAssignment(strings.NewReader(`{
+		"type":"additional_supervision",
+		"additional_supervision":{"active_group_id":"9007199254740993","target_staff_id":"9007199254740995"}
+	}`))
+
+	require.NoError(t, err)
+	assignment, err := request.assignment()
+	require.NoError(t, err)
+	require.Equal(t, int64(9007199254740993), assignment.AdditionalSupervision.ActiveGroupID)
+	require.Equal(t, int64(9007199254740995), assignment.AdditionalSupervision.TargetStaffID)
+}
+
 func TestAssignAdditionalSupervisionRejectsClientRoleAndStart(t *testing.T) {
 	t.Parallel()
 

@@ -74,8 +74,8 @@ describe("substitutionService", () => {
       body: JSON.stringify({
         type: "group_handover",
         group_handover: {
-          group_id: 12,
-          target_staff_id: 34,
+          group_id: "12",
+          target_staff_id: "34",
           start_date: "2026-08-29",
           end_date: "2026-08-30",
         },
@@ -137,7 +137,10 @@ describe("substitutionService", () => {
       }),
     });
 
-    const result = await substitutionService.addSupervisor("41", "73");
+    const result = await substitutionService.addSupervisor(
+      "9007199254740993",
+      "9007199254740995",
+    );
 
     expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions", {
       method: "POST",
@@ -145,8 +148,8 @@ describe("substitutionService", () => {
       body: JSON.stringify({
         type: "additional_supervision",
         additional_supervision: {
-          active_group_id: 41,
-          target_staff_id: 73,
+          active_group_id: "9007199254740993",
+          target_staff_id: "9007199254740995",
         },
       }),
     });
@@ -164,12 +167,15 @@ describe("substitutionService", () => {
   it("ends a typed group handover", async () => {
     sessionFetch.mockResolvedValue({ ok: true });
 
-    await substitutionService.deleteSubstitution("5");
+    await substitutionService.deleteSubstitution("9007199254740993");
 
     expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions/end", {
       method: "POST",
       credentials: "include",
-      body: JSON.stringify({ type: "group_handover", id: 5 }),
+      body: JSON.stringify({
+        type: "group_handover",
+        id: "9007199254740993",
+      }),
     });
   });
 });

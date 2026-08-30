@@ -11,13 +11,19 @@ describe("groupTransferService", () => {
   it("assigns a typed group handover", async () => {
     sessionFetch.mockResolvedValue({ ok: true });
 
-    await groupTransferService.transferGroup("12", "34");
+    await groupTransferService.transferGroup(
+      "9007199254740993",
+      "9007199254740995",
+    );
 
     expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions", {
       method: "POST",
       body: JSON.stringify({
         type: "group_handover",
-        group_handover: { group_id: 12, target_staff_id: 34 },
+        group_handover: {
+          group_id: "9007199254740993",
+          target_staff_id: "9007199254740995",
+        },
       }),
     });
   });
@@ -92,11 +98,16 @@ describe("groupTransferService", () => {
   it("ends a typed group handover", async () => {
     sessionFetch.mockResolvedValue({ ok: true });
 
-    await groupTransferService.cancelTransferBySubstitutionId("5");
+    await groupTransferService.cancelTransferBySubstitutionId(
+      "9007199254740993",
+    );
 
     expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions/end", {
       method: "POST",
-      body: JSON.stringify({ type: "group_handover", id: 5 }),
+      body: JSON.stringify({
+        type: "group_handover",
+        id: "9007199254740993",
+      }),
     });
   });
 });

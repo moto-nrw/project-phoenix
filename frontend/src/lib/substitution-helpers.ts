@@ -117,8 +117,8 @@ export function mapSubstitutionsResponse(
 export interface CreateSubstitutionRequest {
   type: "group_handover";
   group_handover: {
-    group_id: number;
-    target_staff_id: number;
+    group_id: string;
+    target_staff_id: string;
     start_date: string;
     end_date: string;
   };
@@ -127,8 +127,8 @@ export interface CreateSubstitutionRequest {
 export interface AddSupervisorRequest {
   type: "additional_supervision";
   additional_supervision: {
-    active_group_id: number;
-    target_staff_id: number;
+    active_group_id: string;
+    target_staff_id: string;
   };
 }
 
@@ -141,8 +141,8 @@ export function prepareSubstitutionForBackend(
   return {
     type: "group_handover",
     group_handover: {
-      group_id: Number.parseInt(groupId, 10),
-      target_staff_id: Number.parseInt(substituteStaffId, 10),
+      group_id: groupId,
+      target_staff_id: substituteStaffId,
       start_date: startDate,
       end_date: endDate,
     },
