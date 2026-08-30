@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -21,7 +22,10 @@ func init() {
 }
 
 func operationalOverviewTwoModesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.351: Preserving operational overview scopes for existing schools...")
+	slog.Info("migration starting",
+		slog.String("migration", operationalOverviewTwoModesVersion),
+		slog.String("detail", "preserving operational overview scopes for existing schools"),
+	)
 
 	if _, err := db.NewRaw(`
 		WITH desired AS (
@@ -62,6 +66,9 @@ func operationalOverviewTwoModesUp(ctx context.Context, db *bun.DB) error {
 // migration identifier. Keeping the explicit values is safer than guessing
 // which tenant changes a rollback should undo.
 func operationalOverviewTwoModesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.351: keeping operational overview scope values...")
+	slog.Info("migration rollback keeps existing values",
+		slog.String("migration", operationalOverviewTwoModesVersion),
+		slog.String("detail", "operational overview scope values are retained"),
+	)
 	return nil
 }
