@@ -19,7 +19,7 @@ func TestAssignAdditionalSupervisionAcceptsOnlyTargetIDs(t *testing.T) {
 	}`))
 
 	require.NoError(t, err)
-	assignment, err := request.assignment()
+	assignment, err := request.toAssignment()
 	require.NoError(t, err)
 	require.Equal(t, "additional_supervision", string(request.Type))
 	require.Equal(t, int64(41), assignment.AdditionalSupervision.ActiveGroupID)
@@ -34,7 +34,7 @@ func TestAssignAdditionalSupervisionPreservesLargeStringIDs(t *testing.T) {
 	}`))
 
 	require.NoError(t, err)
-	assignment, err := request.assignment()
+	assignment, err := request.toAssignment()
 	require.NoError(t, err)
 	require.Equal(t, int64(9007199254740993), assignment.AdditionalSupervision.ActiveGroupID)
 	require.Equal(t, int64(9007199254740995), assignment.AdditionalSupervision.TargetStaffID)

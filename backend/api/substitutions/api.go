@@ -153,10 +153,6 @@ func decodeAssignment(body io.Reader) (assignmentRequest, error) {
 	return request, nil
 }
 
-func (request assignmentRequest) assignment() (substitution.Assignment, error) {
-	return request.toAssignment()
-}
-
 func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
 	var request endRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
