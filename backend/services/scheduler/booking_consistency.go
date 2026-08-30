@@ -48,7 +48,7 @@ func (s *Scheduler) checkAndRunBookingConsistencyAudit(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), bookingConsistencyAuditTimeout)
+	ctx, cancel := s.taskContext(bookingConsistencyAuditTimeout)
 	defer cancel()
 
 	auditDate := timezone.TodayDate()

@@ -83,7 +83,7 @@ func (s *Scheduler) checkAndRunAppointmentReminders(task *ScheduledTask) {
 
 	now := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 
 	scanToByTenant := make(map[int64]time.Time)

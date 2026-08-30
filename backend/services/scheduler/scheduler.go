@@ -167,6 +167,8 @@ type Scheduler struct {
 	tasks                      map[string]*ScheduledTask
 	mu                         sync.RWMutex
 	logger                     *slog.Logger
+	lifecycleCtx               context.Context
+	stopLifecycle              context.CancelFunc
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -270,6 +272,7 @@ type ScheduledTask struct {
 
 // NewScheduler creates a new scheduler
 func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, emailChangeCleaner EmailChangeTokenCleaner, operatorInvitationCleaner OperatorInvitationCleaner, logger *slog.Logger) *Scheduler {
+	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
@@ -279,6 +282,8 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 		tasks:             make(map[string]*ScheduledTask),
 		done:              make(chan struct{}),
 		logger:            logger,
+		lifecycleCtx:      lifecycleCtx,
+		stopLifecycle:     stopLifecycle,
 	}
 }
 
@@ -695,9 +700,25 @@ func (s *Scheduler) Start() {
 // Stop gracefully stops the scheduler
 func (s *Scheduler) Stop() {
 	s.getLogger().Info("stopping scheduler service")
+	if s.stopLifecycle != nil {
+		s.stopLifecycle()
+	}
 	close(s.done)
 	s.wg.Wait()
 	s.getLogger().Info("scheduler service stopped")
+}
+
+// taskContext is cancelled when the scheduler stops, in addition to its
+// task-specific deadline.
+func (s *Scheduler) taskContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(s.lifecycleContext(), timeout)
+}
+
+func (s *Scheduler) lifecycleContext() context.Context {
+	if s.lifecycleCtx != nil {
+		return s.lifecycleCtx
+	}
+	return context.Background()
 }
 
 // registerTask records the task in the registry and starts its polling
@@ -837,7 +858,7 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(task *ScheduledTask, dayCache *s
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	ctx, cancel := s.taskContext(2 * time.Hour)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
@@ -1106,7 +1127,7 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.
 func (s *Scheduler) RunCleanupJobs() error {
 	started := time.Now()
-	ctx, err := s.startWorkerJob(context.Background(), "cleanup-jobs")
+	ctx, err := s.startWorkerJob(s.lifecycleContext(), "cleanup-jobs")
 	if err != nil {
 		return fmt.Errorf("%w: %v", errWorkerTraceStart, err)
 	}
@@ -1263,7 +1284,7 @@ func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	ctx, cancel := s.taskContext(2 * time.Hour)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-end-check", func(tenantCtx context.Context, tenantID int64) error {
@@ -1377,7 +1398,13 @@ func (s *Scheduler) runSessionCleanupTaskPolling(task *ScheduledTask) {
 	s.getLogger().Info("session cleanup using 5-minute polling for per-tenant scheduling")
 
 	// Brief delay on startup to let services initialize
-	time.Sleep(30 * time.Second)
+	startupDelay := time.NewTimer(30 * time.Second)
+	defer startupDelay.Stop()
+	select {
+	case <-startupDelay.C:
+	case <-s.done:
+		return
+	}
 	s.checkAndRunSessionCleanup(task)
 
 	ticker := time.NewTicker(5 * time.Minute)
@@ -1409,7 +1436,7 @@ func (s *Scheduler) checkAndRunSessionCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	ctx, cancel := s.taskContext(2 * time.Hour)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "session-cleanup", func(tenantCtx context.Context, tenantID int64) error {
@@ -1518,7 +1545,7 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := s.taskContext(30 * time.Second)
 	defer cancel()
 
 	breakErr := s.forEachTenant(ctx, "break-auto-end", func(tenantCtx context.Context) error {
@@ -1599,7 +1626,7 @@ func (s *Scheduler) checkAndRunAutoCheckout(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := s.taskContext(30 * time.Second)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "auto-checkout", func(tenantCtx context.Context, tenantID int64) error {
@@ -1796,7 +1823,7 @@ func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := s.taskContext(30 * time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
@@ -1925,7 +1952,7 @@ func (s *Scheduler) checkAndRunMaterialization(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := s.taskContext(30 * time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "materialization-check", func(tenantCtx context.Context, tenantID int64) error {
@@ -2031,7 +2058,7 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "timetable-auto-start", func(tenantCtx context.Context, tenantID int64) error {
@@ -2096,7 +2123,7 @@ func (s *Scheduler) checkAndRunAutoEnd(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "timetable-auto-end", func(tenantCtx context.Context, tenantID int64) error {
@@ -2198,7 +2225,7 @@ func (s *Scheduler) checkAndRunOverdue(task *ScheduledTask) {
 
 	s.rotateOverdueCacheIfNewDay(time.Now())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "instance-overdue", func(tenantCtx context.Context, tenantID int64) error {
