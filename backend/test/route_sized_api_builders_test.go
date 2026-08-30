@@ -18,6 +18,7 @@ const (
 	testutilImport     = "github.com/moto-nrw/project-phoenix/api/testutil"
 	chiImport          = "github.com/go-chi/chi/v5"
 	httpImport         = "net/http"
+	projectImportRoot  = "github.com/moto-nrw/project-phoenix"
 )
 
 type routeBuilderKind uint8
@@ -29,10 +30,18 @@ const (
 )
 
 type routeBuilderFile struct {
-	relPath string
-	file    *ast.File
-	imports map[string]string
-	types   map[string]ast.Expr
+	relPath           string
+	file              *ast.File
+	imports           map[string]string
+	types             map[string]routeBuilderTypeDecl
+	typesByPackage    map[string]map[string]routeBuilderTypeDecl
+	typesByImportPath map[string]map[string]routeBuilderTypeDecl
+}
+
+type routeBuilderTypeDecl struct {
+	expression ast.Expr
+	imports    map[string]string
+	pkgKey     string
 }
 
 type routeBuilderResult struct {
@@ -49,9 +58,10 @@ type parsedRouteBuilderFile struct {
 }
 
 type routeBuilderParseState struct {
-	backendRoot    string
-	parsed         []parsedRouteBuilderFile
-	typesByPackage map[string]map[string]ast.Expr
+	backendRoot       string
+	parsed            []parsedRouteBuilderFile
+	typesByPackage    map[string]map[string]routeBuilderTypeDecl
+	typesByImportPath map[string]map[string]routeBuilderTypeDecl
 }
 
 func TestAPITestsUseNarrowRouteBuilders(t *testing.T) {
@@ -137,8 +147,9 @@ func selectorIdentifier(selector *ast.SelectorExpr) (*ast.Ident, bool) {
 
 func parseRouteBuilderFiles(backendRoot string) ([]routeBuilderFile, error) {
 	state := &routeBuilderParseState{
-		backendRoot:    backendRoot,
-		typesByPackage: make(map[string]map[string]ast.Expr),
+		backendRoot:       backendRoot,
+		typesByPackage:    make(map[string]map[string]routeBuilderTypeDecl),
+		typesByImportPath: make(map[string]map[string]routeBuilderTypeDecl),
 	}
 	if err := filepath.WalkDir(backendRoot, state.parse); err != nil {
 		return nil, err
@@ -150,7 +161,7 @@ func (state *routeBuilderParseState) parse(path string, entry fs.DirEntry, walkE
 	if walkErr != nil {
 		return walkErr
 	}
-	if entry.IsDir() || !strings.HasSuffix(path, "_test.go") {
+	if entry.IsDir() || !strings.HasSuffix(path, ".go") {
 		return nil
 	}
 	relPath, err := filepath.Rel(state.backendRoot, path)
@@ -158,29 +169,39 @@ func (state *routeBuilderParseState) parse(path string, entry fs.DirEntry, walkE
 		return err
 	}
 	relPath = filepath.ToSlash(relPath)
-	if !routeBuilderScope(relPath) {
-		return nil
-	}
-
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		return err
 	}
 	pkgKey := filepath.Dir(relPath) + "|" + file.Name.Name
 	if state.typesByPackage[pkgKey] == nil {
-		state.typesByPackage[pkgKey] = make(map[string]ast.Expr)
+		state.typesByPackage[pkgKey] = make(map[string]routeBuilderTypeDecl)
 	}
-	collectRouteBuilderTypes(file, state.typesByPackage[pkgKey])
+	imports := routeBuilderImports(file)
+	collectRouteBuilderTypes(file, imports, pkgKey, state.typesByPackage[pkgKey])
+	if !strings.HasSuffix(relPath, "_test.go") {
+		importPath := projectImportRoot
+		if dir := filepath.ToSlash(filepath.Dir(relPath)); dir != "." {
+			importPath += "/" + dir
+		}
+		if state.typesByImportPath[importPath] == nil {
+			state.typesByImportPath[importPath] = make(map[string]routeBuilderTypeDecl)
+		}
+		collectRouteBuilderTypes(file, imports, pkgKey, state.typesByImportPath[importPath])
+	}
+	if !strings.HasSuffix(relPath, "_test.go") || !routeBuilderScope(relPath) {
+		return nil
+	}
 	state.parsed = append(state.parsed, parsedRouteBuilderFile{
 		relPath: relPath,
 		file:    file,
-		imports: routeBuilderImports(file),
+		imports: imports,
 		pkgKey:  pkgKey,
 	})
 	return nil
 }
 
-func collectRouteBuilderTypes(file *ast.File, types map[string]ast.Expr) {
+func collectRouteBuilderTypes(file *ast.File, imports map[string]string, pkgKey string, types map[string]routeBuilderTypeDecl) {
 	for _, declaration := range file.Decls {
 		general, ok := declaration.(*ast.GenDecl)
 		if !ok || general.Tok != token.TYPE {
@@ -188,7 +209,11 @@ func collectRouteBuilderTypes(file *ast.File, types map[string]ast.Expr) {
 		}
 		for _, specification := range general.Specs {
 			typeSpec := specification.(*ast.TypeSpec)
-			types[typeSpec.Name.Name] = typeSpec.Type
+			types[typeSpec.Name.Name] = routeBuilderTypeDecl{
+				expression: typeSpec.Type,
+				imports:    imports,
+				pkgKey:     pkgKey,
+			}
 		}
 	}
 }
@@ -197,10 +222,12 @@ func (state *routeBuilderParseState) files() []routeBuilderFile {
 	files := make([]routeBuilderFile, 0, len(state.parsed))
 	for _, source := range state.parsed {
 		files = append(files, routeBuilderFile{
-			relPath: source.relPath,
-			file:    source.file,
-			imports: source.imports,
-			types:   state.typesByPackage[source.pkgKey],
+			relPath:           source.relPath,
+			file:              source.file,
+			imports:           source.imports,
+			types:             state.typesByPackage[source.pkgKey],
+			typesByPackage:    state.typesByPackage,
+			typesByImportPath: state.typesByImportPath,
 		})
 	}
 	return files
@@ -271,7 +298,7 @@ func inspectRouteBuilderType(source routeBuilderFile, expression ast.Expr, visit
 	case *ast.Ident:
 		return inspectRouteBuilderIdentifier(source, typed, visited)
 	case *ast.SelectorExpr:
-		return inspectRouteBuilderSelector(source, typed)
+		return inspectRouteBuilderSelector(source, typed, visited)
 	case *ast.StarExpr:
 		return inspectRouteBuilderType(source, typed.X, visited)
 	case *ast.ParenExpr:
@@ -292,31 +319,141 @@ func inspectRouteBuilderIdentifier(source routeBuilderFile, identifier *ast.Iden
 		(identifier.Name == "API" && filepath.Dir(source.relPath) == "api") {
 		return routeBuilderResult{hasRoute: true}
 	}
-	if visited[identifier.Name] {
-		return routeBuilderResult{}
-	}
 	declaration, ok := source.types[identifier.Name]
 	if !ok {
 		return routeBuilderResult{}
 	}
-	visited[identifier.Name] = true
-	result := inspectRouteBuilderType(source, declaration, visited)
-	delete(visited, identifier.Name)
+	key := declaration.pkgKey + "." + identifier.Name
+	if visited[key] {
+		return routeBuilderResult{}
+	}
+	visited[key] = true
+	nested := source
+	nested.imports = declaration.imports
+	nested.types = source.typesByPackage[declaration.pkgKey]
+	result := inspectRouteBuilderType(nested, declaration.expression, visited)
+	delete(visited, key)
 	return result
 }
 
-func inspectRouteBuilderSelector(source routeBuilderFile, selector *ast.SelectorExpr) routeBuilderResult {
+func inspectRouteBuilderSelector(source routeBuilderFile, selector *ast.SelectorExpr, visited map[string]bool) routeBuilderResult {
 	identifier, ok := selector.X.(*ast.Ident)
 	if !ok {
 		return routeBuilderResult{}
 	}
 	importPath := source.imports[identifier.Name]
-	return routeBuilderResult{
+	result := routeBuilderResult{
 		hasFactory: importPath == rootServicesImport && selector.Sel.Name == "Factory",
 		hasRoute: (importPath == chiImport && selector.Sel.Name == "Router") ||
 			(importPath == httpImport && selector.Sel.Name == "Handler") ||
 			(strings.Contains(importPath, "/api/") && selector.Sel.Name == "Resource"),
 	}
+	if result.hasFactory || result.hasRoute {
+		return result
+	}
+	declaration, ok := source.typesByImportPath[importPath][selector.Sel.Name]
+	if !ok {
+		return result
+	}
+	key := importPath + "." + selector.Sel.Name
+	if visited[key] {
+		return result
+	}
+	visited[key] = true
+	nested := source
+	nested.imports = declaration.imports
+	nested.types = source.typesByPackage[declaration.pkgKey]
+	result = inspectRouteBuilderType(nested, declaration.expression, visited)
+	delete(visited, key)
+	result.hasUntyped = inspectImportedCarrierUntyped(nested, declaration.expression, make(map[string]bool))
+	if typed, isInterface := declaration.expression.(*ast.InterfaceType); isInterface &&
+		typed.Methods != nil && len(typed.Methods.List) > 0 {
+		return routeBuilderResult{hasFactory: result.hasFactory, hasUntyped: result.hasUntyped}
+	}
+	return result
+}
+
+func inspectImportedCarrierUntyped(source routeBuilderFile, expression ast.Expr, visited map[string]bool) bool {
+	switch typed := expression.(type) {
+	case *ast.Ident:
+		if typed.Name == "any" {
+			return true
+		}
+		declaration, ok := source.types[typed.Name]
+		if !ok {
+			return false
+		}
+		key := declaration.pkgKey + "." + typed.Name
+		if visited[key] {
+			return false
+		}
+		visited[key] = true
+		nested := source
+		nested.imports = declaration.imports
+		nested.types = source.typesByPackage[declaration.pkgKey]
+		result := inspectImportedCarrierUntyped(nested, declaration.expression, visited)
+		delete(visited, key)
+		return result
+	case *ast.StarExpr:
+		return inspectImportedCarrierUntyped(source, typed.X, visited)
+	case *ast.ParenExpr:
+		return inspectImportedCarrierUntyped(source, typed.X, visited)
+	case *ast.ArrayType:
+		return inspectImportedCarrierUntyped(source, typed.Elt, visited)
+	case *ast.Ellipsis:
+		return inspectImportedCarrierUntyped(source, typed.Elt, visited)
+	}
+	return inspectImportedCompositeUntyped(source, expression, visited)
+}
+
+func inspectImportedCompositeUntyped(source routeBuilderFile, expression ast.Expr, visited map[string]bool) bool {
+	switch typed := expression.(type) {
+	case *ast.MapType:
+		return inspectImportedCarrierUntyped(source, typed.Key, visited) ||
+			inspectImportedCarrierUntyped(source, typed.Value, visited)
+	case *ast.ChanType:
+		return inspectImportedCarrierUntyped(source, typed.Value, visited)
+	case *ast.FuncType:
+		return importedFieldsHaveUntyped(source, typed.Params, visited) ||
+			importedFieldsHaveUntyped(source, typed.Results, visited)
+	case *ast.StructType:
+		return importedFieldsHaveUntyped(source, typed.Fields, visited)
+	case *ast.InterfaceType:
+		return importedInterfaceIsUntyped(source, typed, visited)
+	case *ast.IndexExpr:
+		return inspectImportedCarrierUntyped(source, typed.Index, visited)
+	case *ast.IndexListExpr:
+		for _, index := range typed.Indices {
+			if inspectImportedCarrierUntyped(source, index, visited) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func importedInterfaceIsUntyped(source routeBuilderFile, typed *ast.InterfaceType, visited map[string]bool) bool {
+	if typed.Methods == nil || len(typed.Methods.List) == 0 {
+		return true
+	}
+	for _, method := range typed.Methods.List {
+		if len(method.Names) == 0 && inspectImportedCarrierUntyped(source, method.Type, visited) {
+			return true
+		}
+	}
+	return false
+}
+
+func importedFieldsHaveUntyped(source routeBuilderFile, fields *ast.FieldList, visited map[string]bool) bool {
+	if fields == nil {
+		return false
+	}
+	for _, field := range fields.List {
+		if inspectImportedCarrierUntyped(source, field.Type, visited) {
+			return true
+		}
+	}
+	return false
 }
 
 func inspectCompositeRouteBuilderType(source routeBuilderFile, expression ast.Expr, visited map[string]bool) routeBuilderResult {

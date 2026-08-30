@@ -133,13 +133,75 @@ func setupSampleModule() sampleModule { return sampleModule{} }
 	require.Empty(t, violations)
 }
 
+func TestRouteSizedBuilderAnalyzerRejectsImportedFactoryCarrier(t *testing.T) {
+	t.Parallel()
+
+	root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
+
+import "github.com/moto-nrw/project-phoenix/helpers"
+
+func setupSampleModule() helpers.Module { return helpers.Module{} }
+`)
+	writeRouteBuilderSource(t, root, "helpers/module.go", `package helpers
+
+import graph "github.com/moto-nrw/project-phoenix/services"
+
+type Module struct { Factory *graph.Factory }
+`)
+
+	violations, err := routeSizedBuilderViolations(root)
+
+	require.NoError(t, err)
+	require.Condition(t, func() bool {
+		return containsViolation(violations, "setupSampleModule returns services.Factory")
+	}, "violations %q do not reject the imported carrier", violations)
+}
+
+func TestRouteSizedBuilderAnalyzerRejectsImportedUntypedCarrier(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		helper string
+	}{
+		{name: "direct any", helper: "type Module struct { Capability any }"},
+		{name: "empty interface", helper: "type Module interface{}"},
+		{name: "embedded any interface", helper: "type Module interface { any }"},
+		{name: "nested any", helper: "type Hidden struct { Capability any }; type Module struct { Hidden Hidden }"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := writeRouteBuilderFixture(t, "api/sample/sample_test.go", `package sample_test
+
+import "github.com/moto-nrw/project-phoenix/helpers"
+
+func setupSampleModule() helpers.Module { return helpers.Module{} }
+`)
+			writeRouteBuilderSource(t, root, "helpers/module.go", "package helpers\n\n"+tt.helper+"\n")
+
+			violations, err := routeSizedBuilderViolations(root)
+
+			require.NoError(t, err)
+			require.Condition(t, func() bool {
+				return containsViolation(violations, "setupSampleModule returns an untyped capability")
+			}, "violations %q do not reject the imported untyped carrier", violations)
+		})
+	}
+}
+
 func writeRouteBuilderFixture(t *testing.T, relativePath, source string) string {
 	t.Helper()
 	root := t.TempDir()
+	writeRouteBuilderSource(t, root, relativePath, source)
+	return root
+}
+
+func writeRouteBuilderSource(t *testing.T, root, relativePath, source string) {
+	t.Helper()
 	path := filepath.Join(root, filepath.FromSlash(relativePath))
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, []byte(source), 0o600))
-	return root
 }
 
 func containsViolation(violations []string, detail string) bool {
