@@ -95,7 +95,7 @@ func TestOperationalOverviewTwoModesRollbackRestoresOnlyUntouchedAdminsScope(t *
 	require.NoError(t, err)
 	require.NoError(t, operationalOverviewTwoModesUp(ctx, db))
 
-	changedBy := int64(1)
+	changedBy := testpkg.CreateTestAccount(t, db, "operational-overview-rollback").ID
 	_, err = db.NewRaw(`
 		UPDATE config.setting_values
 		SET value = '"all_staff"'::jsonb
