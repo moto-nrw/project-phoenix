@@ -2367,23 +2367,25 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "einstellungen-sicht-auf-alle-raeume",
-        title: "Sicht auf alle Räume freigeben",
+        title: "Sichtbereich für Mitarbeitende wählen",
         icon: Eye,
         summary:
-          "Im Auslieferungszustand sieht jede Person in der `Aktuellen Aufsicht` nur die Räume, die sie selbst übernommen hat. Arbeitet Ihr Team flexibel, geben Sie hier alle Räume frei.",
+          "Sie wählen, ob Mitarbeitende alles oder nur eigene Zuständigkeiten sehen. Admins sehen immer alles.",
         steps: [
           "`Einstellungen` -> `Betrieb` öffnen. Die Sektion `Aufsicht` steht ganz oben.",
-          "Bei `Sicht auf alle Räume` auswählen, wer alle Räume sehen soll: `Nur eigene Räume`, `Alle Räume für Administratoren` oder `Alle Räume für alle Mitarbeitenden`.",
+          "Bei `Sichtbereich für Mitarbeitende` zwischen `Ganzes Team` und `Eigene Zuständigkeiten` wählen.",
+          "`Ganzes Team` zeigt Mitarbeitenden alle Gruppen und laufenden Betreuungen.",
+          "`Eigene Zuständigkeiten` zeigt eigene und übergebene Gruppen. Dazu kommen eigene laufende Betreuungen.",
           "Die Auswahl wird sofort gespeichert. Wer die Seite schon offen hat, lädt sie einmal neu.",
-          "Mit `Zurücksetzen` gilt wieder `Nur eigene Räume`. Fremde Räume verschwinden dann sofort wieder.",
+          "Mit `Zurücksetzen` gilt wieder `Ganzes Team`.",
         ],
         callout: {
-          title: "Die Freigabe gibt keine neuen Rechte",
-          body: "Sie entscheidet nur, welche Räume jemand sieht. Wer ein Kind sonst nicht ummelden darf, darf es auch in einem fremden Raum nicht. Admin-, Planungs- und Löschrechte hängen weiterhin allein an der Rolle.",
+          title: "Der Sichtbereich gibt keine neuen Rechte",
+          body: "Er ändert nur, was Mitarbeitende sehen. Wer ein Kind bisher nicht ummelden durfte, darf es weiterhin nicht.",
           tone: "blue",
         },
         screenshot:
-          "Sektion Aufsicht im Reiter Betrieb mit der Auswahl Sicht auf alle Räume.",
+          "Sektion Aufsicht im Reiter Betrieb mit dem Sichtbereich für Mitarbeitende.",
       },
       {
         id: "einstellungen-zustaendigkeit",
@@ -2392,7 +2394,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
         steps: [
-          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Wer welche Räume in der `Aktuellen Aufsicht` sieht, steht getrennt davon unter `Sicht auf alle Räume`.",
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Welche Gruppen und laufenden Betreuungen Mitarbeitende sehen, steht getrennt davon unter `Sichtbereich für Mitarbeitende`.",
           "Was das moto-Team betreut: technische und grundlegende Einstellungen, darunter die Freischaltung der Web-Anwesenheit. Bei ausgeschalteter Web-Anwesenheit verschwinden An-/Abmeldeaktionen in der Web-App; NFC- und Systemvorgänge bleiben aktiv. Diese Einstellungen sind für Schul-Admins ausgeblendet.",
           "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
           "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",

@@ -283,6 +283,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		return nil, err
 	}
 	allOperational := s.operationalOverview(ctx, isAdmin, hasStaff)
+	adminActions := s.hasAdministrativeActionAccess(ctx, isAdmin)
 	if !hasStaff && (!allOperational || opts.Scope == PlannedNowScopeDay) {
 		return nil, ErrTimetableOperationForbidden
 	}
@@ -327,7 +328,8 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		if err != nil {
 			return nil, err
 		}
-		if (wholeDay || !allOperational) && !staffAssigned(staffRows, staffID) {
+		assigned := staffAssigned(staffRows, staffID)
+		if (wholeDay || !allOperational) && !assigned {
 			continue
 		}
 		studentRows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, inst.ID)
@@ -339,6 +341,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 			staffRows:   staffRows,
 			studentRows: studentRows,
 			roomName:    roomName,
+			canOperate:  hasStaff && (adminActions || assigned),
 		})
 		if opts.Limit > 0 && len(candidates) >= opts.Limit {
 			break
@@ -357,7 +360,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		// CanStart/StartAvailableAt/StartExpiresAt say so. The whole-day scope
 		// carries every state, so there the instance's own status decides —
 		// a running, finished or cancelled block is not startable either.
-		if !past && (!wholeDay || candidate.instance.Status == scheduleModel.InstanceStatusPlanned) {
+		if candidate.canOperate && !past && (!wholeDay || candidate.instance.Status == scheduleModel.InstanceStatusPlanned) {
 			availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
 			mapped.CanStart = availability.CanStart
 			mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
@@ -385,6 +388,7 @@ type plannedNowCandidate struct {
 	staffRows   []*scheduleModel.InstanceStaff
 	studentRows []*scheduleModel.InstanceStudent
 	roomName    *string
+	canOperate  bool
 }
 
 func plannedNowStudentIDs(candidates []plannedNowCandidate) []int64 {
@@ -464,7 +468,7 @@ func (s *timetableOperationsService) Reopen(ctx context.Context, accountID int64
 }
 
 func (s *timetableOperationsService) Roster(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*OperationRoster, error) {
-	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
+	if _, err := s.requireCanView(ctx, accountID, isAdmin, instanceID); err != nil {
 		return nil, err
 	}
 	return s.buildRoster(ctx, instanceID)
@@ -788,13 +792,42 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 	if err != nil {
 		return 0, err
 	}
-	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+	if s.hasAdministrativeActionAccess(ctx, isAdmin) {
 		return staffID, nil
 	}
 	if !hasStaff {
 		return 0, ErrTimetableOperationForbidden
 	}
 	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+func (s *timetableOperationsService) requireCanView(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
+	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	if s.operationalOverview(ctx, isAdmin, hasStaff) {
+		inst, err := s.loadInstance(ctx, instanceID)
+		if err != nil {
+			return 0, err
+		}
+		if inst.Status != scheduleModel.InstanceStatusActive || inst.ActiveGroupID == nil {
+			return 0, ErrTimetableOperationForbidden
+		}
+		return staffID, nil
+	}
+	if !hasStaff {
+		return 0, ErrTimetableOperationForbidden
+	}
+	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+func (s *timetableOperationsService) hasAdministrativeActionAccess(ctx context.Context, isAdmin bool) bool {
+	if isAssignmentBoundPortal(ctx) {
+		return false
+	}
+	claims := jwt.ClaimsFromCtx(ctx)
+	return isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }
 
 func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx context.Context, staffID, instanceID int64) (int64, error) {
@@ -1403,29 +1436,26 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 	})
 }
 
-// operationalOverview reports whether this caller may see and operate every
+// operationalOverview reports whether this caller may see every
 // running module of the school (#2380). It reuses the staff record this
 // service already resolved instead of looking it up a second time, but asks
 // the same setting as every other surface, so a module listed by PlannedNow
 // can never 403 on the detail call. Fails closed on a settings fault.
 func (s *timetableOperationsService) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	assignmentBound := claims.IsSchoolScope()
-	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings, assignmentBound)
+	allowed, err := authorize.HasOperationalOverviewForResolvedStaff(
+		ctx,
+		s.deps.Settings,
+		claims.IsSchoolScope(),
+		s.hasAdministrativeActionAccess(ctx, isAdmin),
+		hasStaff,
+	)
 	if err != nil {
 		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
 			slog.String("error", err.Error()))
 		return false
 	}
-	admin := isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
-	switch scope {
-	case configModel.OverviewScopeAllStaff:
-		return admin || hasStaff
-	case configModel.OverviewScopeAdmins:
-		return admin
-	default:
-		return false
-	}
+	return allowed
 }
 
 func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {

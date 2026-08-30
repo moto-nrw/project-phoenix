@@ -227,7 +227,7 @@ func TestHasOperationalOverviewAdmin(t *testing.T) {
 	}
 	broad, err = svc.hasOperationalOverview(ctx)
 	require.NoError(t, err)
-	assert.False(t, broad, "the own scope keeps even admins on their own supervisions")
+	assert.True(t, broad, "admins always have the school-wide overview")
 
 	settings.ResolveStringFn = func(context.Context, string) (string, error) { return "", errors.New("boom") }
 	_, err = svc.hasOperationalOverview(ctx)

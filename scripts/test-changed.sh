@@ -83,16 +83,24 @@ frontend_changes=$(
     git ls-files --others --exclude-standard -- frontend
   } | awk '!/\.md$/' | sort -u
 )
+run_frontend_vitest() {
+  (
+    cd frontend
+    pnpm install --frozen-lockfile
+    pnpm vitest run "$@"
+  )
+}
+
 if printf '%s\n' "$frontend_changes" | grep -qxE \
   'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)'; then
   echo "==> vitest (frontend test infrastructure changed)"
-  (cd frontend && pnpm vitest run)
+  run_frontend_vitest
 elif [ -n "$frontend_changes" ]; then
   # Vitest 4 includes committed, staged, unstaged, and untracked files in its
   # dependency traversal. A separate full-suite fallback only duplicates work
   # for new test files.
   echo "==> vitest --changed $BASE"
-  (cd frontend && pnpm vitest run --changed "$BASE")
+  run_frontend_vitest --changed "$BASE"
 else
   echo "==> frontend: keine Änderungen"
 fi

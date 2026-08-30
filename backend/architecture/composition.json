@@ -471,7 +471,7 @@
         },
         {
           "file": "api/server.go",
-          "line": 173,
+          "line": 195,
           "declaration": "configureSchedulerServices"
         }
       ]
@@ -27405,10 +27405,20 @@
     {
       "scope": "test",
       "file": "services/education/substitution_module_test.go",
-      "declaration": "TestGroupHandoverAuditFailureRollsBack",
+      "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
         177
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestGroupHandoverAuditFailureRollsBack",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        225
       ],
       "tables": []
     },
@@ -27440,7 +27450,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        255
+        303
       ],
       "tables": []
     },
@@ -27450,7 +27460,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        215
+        263
       ],
       "tables": []
     },

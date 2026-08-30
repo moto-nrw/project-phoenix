@@ -170,6 +170,54 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	testpkg.Tenant(t)
+	repos := repositories.NewFactory(db)
+	service := substitution.NewSubstitutionModule(substitution.SubstitutionDependencies{
+		Groups: repos.Group, Substitutions: repos.GroupSubstitution, Teachers: repos.Teacher, Staff: repos.Staff,
+		Audit: repos.SubstitutionChange, DB: db, Now: func() time.Time { return fixedNow },
+		CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return true, nil },
+	})
+	group := testpkg.CreateTestEducationGroup(t, db, "Visible foreign group")
+	owner, ownerAccountID := activeTeacher(t, db, "Olivia", "Owner")
+	_, observerAccountID := activeTeacher(t, db, "Vera", "Viewer")
+	target, _ := activeTeacher(t, db, "Toni", "Target")
+	testpkg.CreateTestGroupTeacher(t, db, group.ID, owner.ID)
+	ctx := testpkg.Ctx(t)
+
+	created, err := service.Assign(ctx, substitutionCaller(t, ownerAccountID, false), substitution.Assignment{
+		Type: substitution.TargetGroupHandover,
+		GroupHandover: &substitution.GroupHandoverAssignment{
+			GroupID: group.ID, TargetStaffID: target.StaffID,
+		},
+	})
+	require.NoError(t, err)
+
+	observerCaller := substitutionCaller(t, observerAccountID, false)
+	overview, err := service.Overview(ctx, observerCaller, substitution.OverviewQuery{GroupID: group.ID})
+	require.NoError(t, err)
+	require.Len(t, overview.GroupHandovers, 1)
+	require.False(t, overview.GroupHandovers[0].CanEnd)
+
+	_, err = service.Assign(ctx, observerCaller, substitution.Assignment{
+		Type: substitution.TargetGroupHandover,
+		GroupHandover: &substitution.GroupHandoverAssignment{
+			GroupID: group.ID, TargetStaffID: target.StaffID,
+		},
+	})
+	require.ErrorIs(t, err, substitution.ErrNotFound)
+	require.ErrorIs(t, service.End(ctx, observerCaller, substitution.EndRequest{
+		Type: substitution.TargetGroupHandover, ID: created.ID,
+	}), substitution.ErrNotFound)
+
+	schoolCaller := observerCaller
+	schoolCaller.Scope = "school"
+	_, err = service.Overview(ctx, schoolCaller, substitution.OverviewQuery{GroupID: group.ID})
+	require.ErrorIs(t, err, substitution.ErrForbidden)
+}
+
 func TestGroupHandoverAuditFailureRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

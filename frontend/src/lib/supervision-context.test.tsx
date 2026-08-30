@@ -636,8 +636,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
     vi.restoreAllMocks();
   });
 
-  it("should fetch from the overview endpoint when user is admin", async () => {
-    setOverviewScope("admins");
+  it("fetches from the overview endpoint for admins in own mode", async () => {
     setupFetchMock({
       adminAll: {
         success: true,
@@ -756,7 +755,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
 
   // Deactivation: back on the restrictive scope, the client stops asking for
   // the school-wide list entirely instead of collecting 403s.
-  it("never asks for the overview endpoint under the own scope", async () => {
+  it("never asks for the overview endpoint for staff under the own scope", async () => {
     setOverviewScope("own");
     setupFetchMock({
       supervised: {
@@ -772,7 +771,7 @@ describe("SupervisionProvider school-wide overview paths", () => {
     });
 
     const { result } = renderHook(() => useSupervision(), {
-      wrapper: createWrapper("test-token", ["admin"]),
+      wrapper: createWrapper("test-token", ["user"]),
     });
 
     await waitFor(() => {
