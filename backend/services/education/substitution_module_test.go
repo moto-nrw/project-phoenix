@@ -152,14 +152,8 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 	require.Empty(t, ownerOverview.GroupHandovers)
 	require.ErrorIs(t, service.End(ctx, caller, substitution.EndRequest{Type: substitution.TargetGroupHandover, ID: futureOwn.ID}), substitution.ErrNotRunning)
 
-	var otherTenant int64
-	require.NoError(t, db.NewSelect().TableExpr("platform.schools").ColumnExpr("id").
-		Where("id <> ?", testpkg.Tenant(t)).Limit(1).Scan(context.Background(), &otherTenant))
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, db, otherTenant, "Other tenant")
-	t.Cleanup(func() {
-		_, cleanupErr := db.NewDelete().TableExpr("education.groups").Where("id = ? AND tenant_id = ?", otherGroup.ID, otherTenant).Exec(context.Background())
-		require.NoError(t, cleanupErr)
-	})
 	_, err = service.Assign(ctx, adminCaller, substitution.Assignment{Type: substitution.TargetGroupHandover,
 		GroupHandover: &substitution.GroupHandoverAssignment{GroupID: otherGroup.ID, TargetStaffID: target.StaffID, StartDate: &tomorrow, EndDate: &tomorrow}})
 	require.ErrorIs(t, err, substitution.ErrNotFound)
