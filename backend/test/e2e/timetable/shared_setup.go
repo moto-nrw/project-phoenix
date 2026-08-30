@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -58,16 +59,16 @@ type scenario struct {
 	extraCleanup []func()
 }
 
-// newScenario returns a ready-to-use scenario with real DB + service factory
+// newScenario returns a ready-to-use scenario with real DB + timetable services
 // + fully mounted timetable router + JWT signer.
 func newScenario(t *testing.T) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupTimetableRoute(t)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
-	// SetupAPITest sets the viper defaults we need; NewTokenAuth reads them.
+	// The package init below seeds the viper values NewTokenAuth reads.
 	ta, err := jwt.NewTokenAuth()
 	require.NoError(t, err, "init JWT token auth")
 
@@ -442,9 +443,7 @@ func nextWeekday(from timezone.Date, isoWeekday, minDaysAhead int) timezone.Date
 }
 
 // ensureJWTSecret makes sure viper has a JWT secret set before NewTokenAuth
-// is called. testutil.SetupAPITest does this via viper.SetDefault, but if
-// the viper store has an empty "auth_jwt_secret" from a parent config file,
-// the default is overridden to empty.
+// is called, including when a parent config file explicitly sets it empty.
 func init() {
 	if viper.GetString("auth_jwt_secret") == "" {
 		viper.Set("auth_jwt_secret", "e2e-test-secret-abcdefghijklmnopqrstuvwxyz")

@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 
 	"github.com/go-chi/chi/v5"
@@ -30,7 +32,6 @@ import (
 	"github.com/uptrace/bun"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -72,7 +73,7 @@ func newTenantResolveScope(t *testing.T, db *bun.DB) (testpkg.TenantScope, strin
 func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -103,7 +104,7 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	ctx := scope.Context()
@@ -138,7 +139,7 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	ctx := scope.Context()
@@ -172,7 +173,7 @@ func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -194,7 +195,7 @@ func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
 func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -219,7 +220,7 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 func TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -252,7 +253,7 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 
 	for _, value := range []int{0, 14} {
 		t.Run("value_"+strconv.Itoa(value), func(t *testing.T) {
-			db, svc := testutil.SetupAPITest(t)
+			db, svc := testutil.SetupAuthRoute(t)
 			_, slug := newTenantResolveScope(t, db)
 
 			schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -282,7 +283,7 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 func TestResolveTenant_MissingSlug_400(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)

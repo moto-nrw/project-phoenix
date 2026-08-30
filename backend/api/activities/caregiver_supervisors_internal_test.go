@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/services"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resource) {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupActivitiesRoute(t)
 	resource := NewResource(svc.Activities, svc.Schedule, svc.Users, svc.UserContext, db)
 	return db, svc, resource
 }

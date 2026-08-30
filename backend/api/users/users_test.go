@@ -9,13 +9,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,7 +31,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupUsersRoute(t)
 	resource := usersAPI.NewResource(svc.Users, db)
 
 	return &testContext{

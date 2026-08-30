@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,7 +50,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
+	db, serviceFactory := testutil.SetupUserContextRoute(t)
 	repoFactory := repositories.NewFactory(db)
 
 	resource := usercontextAPI.NewResource(serviceFactory.UserContext, db)

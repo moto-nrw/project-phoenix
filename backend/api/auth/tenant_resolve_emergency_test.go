@@ -13,12 +13,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -51,7 +52,7 @@ type emergencyResolveResp struct {
 func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -77,7 +78,7 @@ func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	ctx := scope.Context()
@@ -109,7 +110,7 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -131,7 +132,7 @@ func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing
 func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	// Stored straight through the repository: SetValue would reject the

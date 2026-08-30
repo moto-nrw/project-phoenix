@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
 	"github.com/uptrace/bun"
@@ -16,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -35,7 +36,7 @@ type testContext struct {
 func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t, clocks...)
+	db, svc := testutil.SetupStudentsRoute(t, clocks...)
 	repoFactory := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 

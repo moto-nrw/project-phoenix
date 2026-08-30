@@ -10,12 +10,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -47,7 +48,7 @@ func resolveReasonPolicy(t *testing.T, slug string, resource *authAPI.Resource) 
 func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -71,7 +72,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
 	// Stored straight through the repository: SetValue would reject a value

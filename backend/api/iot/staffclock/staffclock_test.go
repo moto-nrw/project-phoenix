@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -14,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,7 +27,7 @@ type testContext struct {
 
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
-	db, serviceFactory := testutil.SetupAPITest(t)
+	db, serviceFactory := testutil.SetupIoTStaffClockRoute(t)
 	testDevice := testpkg.CreateTestDevice(t, db, "staff-clock-device")
 	return &testContext{db: db, services: serviceFactory, device: testDevice}
 }

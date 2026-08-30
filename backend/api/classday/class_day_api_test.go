@@ -27,7 +27,7 @@ import (
 
 func TestClassDayAPI(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupClassDayRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cd%d", time.Now().UnixNano()%100000)
@@ -78,7 +78,7 @@ func TestClassDayAPI(t *testing.T) {
 
 func TestClassDayAPINoAssignments(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupClassDayRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("Empty-%d", time.Now().UnixNano()))
 

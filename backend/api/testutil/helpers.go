@@ -11,7 +11,7 @@
 // Example:
 //
 //	func TestHandler(t *testing.T) {
-//	    db, services := testutil.SetupAPITest(t)
+//	    db, services := testutil.SetupAuthRoute(t)
 //
 //	    resource := NewResource(services.Auth, services.Invitation)
 //	    router := chi.NewRouter()
@@ -62,10 +62,10 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
-// SetupAPITest initializes test database and service factory for API tests.
-// Returns the shared package database pool and a service factory. Tests must
-// not close the pool — it is shared by every test in the binary. The optional
-// statistics clock pins calendar-day semantics in time-dependent API tests.
+// SetupAPITest is the temporary legacy graph behind the route-sized builders.
+// Tests outside this package use the named builders as the migration seam;
+// capability-specific follow-ups can replace their internals independently.
+// The returned pool is shared by every test in the binary and must not be closed.
 func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
 

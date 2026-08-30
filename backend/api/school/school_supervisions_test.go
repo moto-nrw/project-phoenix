@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -47,7 +48,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	clock := func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	}
-	db, factory := testutil.SetupAPITest(t, clock)
+	db, factory := testutil.SetupSchoolRoute(t, clock)
 	tenantID := testpkg.Tenant(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))

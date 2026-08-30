@@ -419,12 +419,13 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"repositories.",
 	}
 
-	// Patterns indicating SetupTestDB or SetupAPITest usage
+	// Patterns indicating direct or indirect shared test DB setup.
 	setupPatterns := []string{
 		"SetupTestDB",
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
+		"Route(t",                         // api/testutil route-sized builders
 		"setupTestContext",                // Indirect setup via shared helper (calls SetupAPITest)
 		"newScenario",                     // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",               // services/enrollment rollover integration tests — wraps SetupTestDB
@@ -855,10 +856,18 @@ func parallelGlobalStateViolations(files []globalStateFile, tainted map[string]b
 }
 
 // sharedPoolAssign captures the variable a file binds the SHARED pool to —
-// `db := testpkg.SetupTestDB(t)` or `db, svc := testutil.SetupAPITest(t)`.
+// `db := testpkg.SetupTestDB(t)` or a two-result api/testutil setup builder.
 // Only the first identifier can hold the pool in either signature.
 var sharedPoolAssign = regexp.MustCompile(
-	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest)\(`)
+	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest|Setup\w+Route)\(`)
+
+var routeSizedSetupCall = regexp.MustCompile(`\bSetup\w+Route\(`)
+
+func usesSharedDBSetup(content []byte) bool {
+	return bytes.Contains(content, []byte("SetupTestDB(")) ||
+		bytes.Contains(content, []byte("SetupAPITest(")) ||
+		routeSizedSetupCall.Match(content)
+}
 
 // privatePoolAssign captures variables bound to a PRIVATE pool, which the
 // owning test is allowed (and expected) to close: SetupClosableTestDB, plus
@@ -997,7 +1006,7 @@ func checkLeftoverGateOptIn(t *testing.T, root string) []string {
 		if !strings.HasSuffix(rel, "_test.go") || strings.HasPrefix(rel, "internal/testdb/") {
 			return
 		}
-		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+		if usesSharedDBSetup(content) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("testpkg.Run(m)")) || bytes.Contains(content, []byte("\tRun(m)")) {
@@ -1029,7 +1038,7 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 		if !strings.HasSuffix(rel, "_test.go") {
 			return
 		}
-		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+		if usesSharedDBSetup(content) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("PerTestTenants()")) {

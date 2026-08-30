@@ -223,21 +223,20 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(api, repoFactory, db, slog.Default())
+	api := setupAPIRootRoute(t)
 
 	require.NotNil(t, api.Auth)
 	require.NotNil(t, api.Operator)
-	assert.Same(t, serviceFactory.CaregiverCapability, api.Auth.CaregiverCapabilityService)
+	assert.Same(t, api.Services.CaregiverCapability, api.Auth.CaregiverCapabilityService)
+}
+
+func setupAPIRootRoute(t *testing.T) *API {
+	t.Helper()
+	db, serviceFactory := testutil.SetupAPITest(t)
+	repoFactory := repositories.NewFactory(db)
+	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
+	initializeAPIResources(api, repoFactory, db, slog.Default())
+	return api
 }
 
 func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
@@ -263,17 +262,7 @@ func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes(t *testing.T) {
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(api, repoFactory, db, slog.Default())
+	api := setupAPIRootRoute(t)
 
 	previousEnabled := viper.Get("rate_limit_enabled")
 	previousPerMinute := viper.Get("rate_limit_per_minute")
@@ -594,17 +583,7 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	a := setupAPIRootRoute(t)
 
 	// Mount the SetValue handler on a tenant-aware router
 	router := a.Settings.SettingsRouter()
@@ -624,17 +603,7 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	a := setupAPIRootRoute(t)
 
 	router := a.Settings.SettingsRouter()
 
@@ -652,17 +621,7 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	a := setupAPIRootRoute(t)
 
 	router := a.Settings.SettingsRouter()
 
@@ -702,16 +661,7 @@ func adminClaimsForCallback() jwt.AppClaims {
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	a := setupAPIRootRoute(t)
 
 	// Subscribe a fake SSE client to the real Hub so we can observe
 	// BroadcastToAll without mocking. UserID/TenantID are arbitrary —
@@ -812,16 +762,7 @@ func drainEvents(ch chan realtime.Event) {
 func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	t.Parallel()
 
-	db, serviceFactory := testutil.SetupAPITest(t)
-
-	repoFactory := repositories.NewFactory(db)
-	a := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
-		db:       db,
-		repos:    repoFactory,
-	}
-	initializeAPIResources(a, repoFactory, db, slog.Default())
+	a := setupAPIRootRoute(t)
 
 	client := &realtime.Client{
 		Channel:          make(chan realtime.Event, 8),

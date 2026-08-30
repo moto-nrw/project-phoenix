@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -21,7 +23,6 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // init seeds JWT viper defaults before any test (and before setupTestContext
@@ -46,7 +47,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupSchedulesRoute(t)
 
 	resource := schedulesAPI.NewResource(svc.Schedule, db)
 

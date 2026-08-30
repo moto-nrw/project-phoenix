@@ -16699,16 +16699,6 @@
     },
     {
       "scope": "test",
-      "file": "api/active/active_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/active/checkin_test.go",
       "declaration": "setupCheckinTestHandler",
       "target": "database/repositories.NewFactory",
@@ -16724,88 +16714,6 @@
       "target": "services.NewFactory",
       "lines": [
         225
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/activities/activities_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/activities/caregiver_supervisors_internal_test.go",
-      "declaration": "setupActivitiesResource",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        18
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/admin/grade_transitions_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        46
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/auth_test.go",
-      "declaration": "TestListTenants",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        1949
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/auth_test.go",
-      "declaration": "TestResolveTenant_DeletedSchool_ReturnsNotFound",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        2234
-      ],
-      "tables": [
-        "platform.schools"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/auth_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        54
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/auth_test.go",
-      "declaration": "setupTestContextWithSchoolRepo",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        2022
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/guardian_invitation_handlers_test.go",
-      "declaration": "setupGuardianInvitationRouter",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        18
       ],
       "tables": []
     },
@@ -16831,394 +16739,21 @@
     },
     {
       "scope": "test",
-      "file": "api/auth/tenant_resolve_care_offerings_test.go",
-      "declaration": "TestResolveTenant_CareOfferingsEnabled",
+      "file": "api/base_utility_test.go",
+      "declaration": "setupAPIRootRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        35
-      ],
-      "tables": [
-        "config.setting_audit",
-        "config.setting_values",
-        "platform.organizations",
-        "platform.schools"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_emergency_test.go",
-      "declaration": "TestResolveTenant_EmergencyHealthInfo_DefaultTrue",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        54
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_emergency_test.go",
-      "declaration": "TestResolveTenant_EmergencyHealthInfo_OverrideFalse",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        80
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_emergency_test.go",
-      "declaration": "TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        112
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_emergency_test.go",
-      "declaration": "TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        134
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_hidden_test.go",
-      "declaration": "TestResolveTenant_HiddenSchoolReturnsHiddenFlag",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        26
-      ],
-      "tables": [
-        "platform.schools"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_GradeLevelMax_Override",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        141
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_GradeLevelSettingsFailureIsGeneric500",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        197
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_MissingSlug_400",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        285
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_NilSettingsServiceFailsGradeMetadata",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        175
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_OutOfRangeGradeLevelIsGeneric500",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        255
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        222
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_StudentPhotosEnabled_DefaultFalse",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        75
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_photos_test.go",
-      "declaration": "TestResolveTenant_StudentPhotosEnabled_OverrideTrue",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        106
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_query_budget_test.go",
-      "declaration": "TestResolveTenant_IssuesOneSettingValuesQuery",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        48
-      ],
-      "tables": [
-        "config.setting_values"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_reason_policy_test.go",
-      "declaration": "TestTenantResolveEmitsReasonPolicy",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/auth/tenant_resolve_reason_policy_test.go",
-      "declaration": "TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        74
+        235
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "api/base_utility_test.go",
-      "declaration": "TestInitializeAPIResources_WiresCaregiverServices",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        226
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestInitializeAPIResources_WiresCaregiverServices",
+      "declaration": "setupAPIRootRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        228
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_FalseValueSkipsInfrastructure",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        655
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_FalseValueSkipsInfrastructure",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        657
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_SchulhofEnabled",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        627
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_SchulhofEnabled",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        629
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        705
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        707
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_TenantSettingsChangedBroadcasts",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        815
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_TenantSettingsChangedBroadcasts",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        817
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_WCEnabled",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        597
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestOnValueSetCallback_WCEnabled",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        599
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        266
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/base_utility_test.go",
-      "declaration": "TestRegisterRoutesWithRateLimiting_MountsOperatorInvitationRoutes",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        268
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/birthdays/api_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        43
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/classday/class_day_api_test.go",
-      "declaration": "TestClassDayAPI",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        30
-      ],
-      "tables": [
-        "education.class_teachers"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/classday/class_day_api_test.go",
-      "declaration": "TestClassDayAPINoAssignments",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        81
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/classlistentries/class_list_entries_api_test.go",
-      "declaration": "TestClassListEntriesAPI",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        27
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/classlistentries/class_list_entries_api_test.go",
-      "declaration": "TestClassListEntriesAppearInClassDay",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        99
-      ],
-      "tables": [
-        "education.class_teachers"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "api/classlistentries/class_list_entries_api_test.go",
-      "declaration": "TestClassListEntriesWhitespaceOnlyIs400",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        135
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/config/settings_integration_test.go",
-      "declaration": "setupSettingsTest",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        25
+        236
       ],
       "tables": []
     },
@@ -17295,46 +16830,6 @@
     },
     {
       "scope": "test",
-      "file": "api/feedback/feedback_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        37
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/filestore/api_test.go",
-      "declaration": "setupAPI",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        68
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/groups/groups_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        62
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/guardians/guardians_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/guardians/related_accounts_handlers_test.go",
       "declaration": "TestInviteGuardianToStudent_RestrictedContactRoundTrip",
       "target": "database/repositories.NewFactory",
@@ -17366,29 +16861,9 @@
       "scope": "test",
       "file": "api/import/import_test.go",
       "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        63
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/import/import_test.go",
-      "declaration": "setupTestContext",
       "target": "database/repositories.NewFactory",
       "lines": [
         64
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/checkin/attendance_test.go",
-      "declaration": "setupAttendanceTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        40
       ],
       "tables": []
     },
@@ -17414,111 +16889,11 @@
     },
     {
       "scope": "test",
-      "file": "api/iot/checkin/checkin_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        119
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/data/data_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        36
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/data/feedback_test.go",
-      "declaration": "setupFeedbackTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        58
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/data/rfid_test.go",
-      "declaration": "setupRFIDTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        36
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/devices_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/sessions/sessions_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        37
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/iot/staffclock/staffclock_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        29
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/notifications/api_internal_test.go",
-      "declaration": "TestTestNotificationRouteAllowsStaffWithoutConfigUpdate",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        173
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/operator/settings_integration_test.go",
       "declaration": "TestOperatorResetSchoolSettingValue_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
         267
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/operator/settings_integration_test.go",
-      "declaration": "setupOperatorSettingsTest",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        63
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/operator/settings_photo_paths_test.go",
-      "declaration": "setupOperatorSettingsTestWithSchoolRepo",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        58
       ],
       "tables": []
     },
@@ -17559,46 +16934,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         178
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/rooms/rooms_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        48
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/schedules/schedules_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/school/school_api_test.go",
-      "declaration": "setupSchoolTest",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        47
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/school/school_supervisions_test.go",
-      "declaration": "setupSupervisionFixture",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        50
       ],
       "tables": []
     },
@@ -17656,16 +16991,6 @@
     {
       "scope": "test",
       "file": "api/shift-types/api_test.go",
-      "declaration": "buildShiftTypeSetup",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        40
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/shift-types/api_test.go",
       "declaration": "shiftTypeTestSetup.shiftTypeIDOf",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -17690,26 +17015,6 @@
       "target": "services.NewFactory",
       "lines": [
         58
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/sse/sse_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        34
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/staff-shifts/overview_internal_test.go",
-      "declaration": "TestOverviewRoute_RequiresScheduleShiftAndUserPermissions",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        181
       ],
       "tables": []
     },
@@ -17796,26 +17101,6 @@
         "config.work_time_models",
         "users.staff"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "api/staff/staff_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        51
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/statistics/api_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        42
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -18029,16 +17314,6 @@
       "scope": "test",
       "file": "api/students/test_helpers_test.go",
       "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        38
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/students/test_helpers_test.go",
-      "declaration": "setupTestContext",
       "target": "database/repositories.NewFactory",
       "lines": [
         39
@@ -18077,6 +17352,316 @@
     },
     {
       "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupActiveRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        15
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupActivitiesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        18
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupAuthRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        20
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupBirthdaysRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        91
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupClassDayRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        23
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupClassListEntriesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        27
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupConfigRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        29
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupFeedbackRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        32
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupFileStoreRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        36
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupGradeTransitionsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        40
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupGroupsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        42
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupGuardiansRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        45
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupImportRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        47
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupIoTAttendanceRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        50
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupIoTCheckinRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        54
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupIoTDataRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        56
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupIoTDevicesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        59
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupIoTSessionsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        63
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupIoTStaffClockRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        67
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupOperatorSettingsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        71
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupRoomsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        73
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupSSERoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        82
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupSchedulesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        76
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupSchoolRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        95
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupShiftTypesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        80
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupStaffRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        99
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupStatisticsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        103
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupStudentsRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        107
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupTimetableRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        111
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupUserContextRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        85
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/testutil/route_builders.go",
+      "declaration": "SetupUsersRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        87
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/time-tracking/api_test.go",
       "declaration": "TestAbsenceMutations_RollBackWritesOnConflictResponses",
       "target": "database/repositories.NewFactory",
@@ -18106,16 +17691,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         1505
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/deviations_scoped_test.go",
-      "declaration": "buildScopedDevSetup",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        49
       ],
       "tables": []
     },
@@ -18176,16 +17751,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         231
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/instances_create_idempotency_test.go",
-      "declaration": "buildIdempotentCreateSetup",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        34
       ],
       "tables": []
     },
@@ -18268,16 +17833,6 @@
     {
       "scope": "test",
       "file": "api/timetable/shift_coverage_test.go",
-      "declaration": "TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        239
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/timetable/shift_coverage_test.go",
       "declaration": "createCoverageShift",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -18320,29 +17875,9 @@
       "scope": "test",
       "file": "api/usercontext/usercontext_test.go",
       "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        52
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/usercontext/usercontext_test.go",
-      "declaration": "setupTestContext",
       "target": "database/repositories.NewFactory",
       "lines": [
         53
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/users/users_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        33
       ],
       "tables": []
     },
@@ -29098,16 +28633,6 @@
     },
     {
       "scope": "test",
-      "file": "services/iot/checkin/checkin_service_test.go",
-      "declaration": "setupCheckinServiceTest",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        37
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/iot/iot_service_test.go",
       "declaration": "setupIoTService",
       "target": "database/repositories.NewFactory",
@@ -32710,36 +32235,6 @@
         30
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "test/e2e/timetable/shared_setup.go",
-      "declaration": "newScenario",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        66
-      ],
-      "tables": [
-        "active.group_supervisors",
-        "active.groups",
-        "active.visits",
-        "activities.categories",
-        "activities.groups",
-        "activities.schedules",
-        "activities.student_enrollments",
-        "activities.supervisors",
-        "audit.data_deletions",
-        "schedule.activity_exceptions",
-        "schedule.activity_instances",
-        "schedule.calendar_periods",
-        "schedule.instance_staff",
-        "schedule.instance_students",
-        "schedule.student_arrival_exceptions",
-        "schedule.student_arrival_schedules",
-        "schedule.student_pickup_exceptions",
-        "schedule.student_pickup_schedules",
-        "schedule.timeframes"
-      ]
     },
     {
       "scope": "test",

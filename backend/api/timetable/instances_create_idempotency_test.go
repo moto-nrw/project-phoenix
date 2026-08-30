@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/go-chi/chi/v5"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
@@ -31,7 +33,7 @@ type idempotentCreateSetup struct {
 
 func buildIdempotentCreateSetup(t *testing.T) *idempotentCreateSetup {
 	t.Helper()
-	db, serviceFactory := apiTest.SetupAPITest(t)
+	db, serviceFactory := testutil.SetupTimetableRoute(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Idempotent-Room-%d", suffix))

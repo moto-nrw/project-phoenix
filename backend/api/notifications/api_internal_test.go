@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -170,7 +171,7 @@ func TestSendTestNotificationNilService(t *testing.T) {
 func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
 	t.Parallel()
 
-	db, _ := testutil.SetupAPITest(t)
+	db := testpkg.SetupTestDB(t)
 
 	svc := &captureService{}
 	router := NewResource(svc, nil, nil, db).Router()

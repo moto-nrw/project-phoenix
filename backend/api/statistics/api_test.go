@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,7 +29,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,7 +40,7 @@ type testContext struct {
 
 func setupTestContext(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t, statisticsClocks...)
+	db, svc := testutil.SetupStatisticsRoute(t, statisticsClocks...)
 	return &testContext{
 		db:       db,
 		services: svc,

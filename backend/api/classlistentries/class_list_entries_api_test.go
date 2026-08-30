@@ -24,7 +24,7 @@ import (
 
 func TestClassListEntriesAPI(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupClassListEntriesRoute(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-api-%d@test.local", time.Now().UnixNano()))
 
@@ -96,7 +96,7 @@ func TestClassListEntriesAPI(t *testing.T) {
 
 func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupClassListEntriesRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CleDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cled%d", time.Now().UnixNano()%100000)
@@ -132,7 +132,7 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 // trims and rejects them before the service runs (#2399 review).
 func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupClassListEntriesRoute(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-ws-%d@test.local", time.Now().UnixNano()))
 

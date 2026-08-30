@@ -178,7 +178,7 @@ func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T
 // test binary shares.
 func TestOverviewRoute_RequiresScheduleShiftAndUserPermissions(t *testing.T) {
 	testutil.SeedTestJWTConfig()
-	db, _ := testutil.SetupAPITest(t)
+	db := testpkg.SetupTestDB(t)
 	from := timezone.NewDate(2070, time.November, 3)
 	to := from.AddDays(4)
 	resource := &Resource{

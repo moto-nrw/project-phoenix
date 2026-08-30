@@ -20,13 +20,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,7 @@ type apiContext struct {
 
 func setupAPI(t *testing.T) *apiContext {
 	t.Helper()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupFileStoreRoute(t)
 	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

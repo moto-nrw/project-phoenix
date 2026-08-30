@@ -55,7 +55,7 @@ func setupOperatorSettingsTestWithSchoolRepo(t *testing.T) *operatorSettingsTest
 	viper.Set("app_env", "test")
 	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupOperatorSettingsRoute(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := operatorAPI.NewSettingsResource(
 		svc.Settings, db, nil, platformSvc.NewSchoolService(schoolRepo), svc.Active, svc.CareLifecycle,

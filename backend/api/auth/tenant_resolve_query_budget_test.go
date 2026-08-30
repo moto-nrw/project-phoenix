@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +23,6 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -45,7 +46,7 @@ func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)

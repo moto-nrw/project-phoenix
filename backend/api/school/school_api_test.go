@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,14 +38,12 @@ import (
 
 const testPassword = "Test1234%" //nolint:gosec // test credential
 
-// setupSchoolTest wires the API stack and hands out a school nobody else in
-// the suite shares. Each SetupAPITest call opens its OWN connection pool, so
-// the close is registered first and therefore runs last — after every fixture
-// cleanup that still needs the handle.
+// setupSchoolTest wires the school route and hands out a school nobody else in
+// the suite shares.
 func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupSchoolRoute(t)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
 

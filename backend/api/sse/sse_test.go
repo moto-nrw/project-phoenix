@@ -10,13 +10,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // testContext holds shared test dependencies.
@@ -31,7 +32,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupSSERoute(t)
 
 	// Create realtime hub
 	hub := realtime.NewHub(slog.Default())

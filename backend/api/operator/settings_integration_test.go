@@ -60,7 +60,7 @@ func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
 	viper.Set("app_env", "test")
 	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupOperatorSettingsRoute(t)
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.

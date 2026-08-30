@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,7 +52,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
 
 	return &testContext{
@@ -1946,7 +1947,7 @@ func TestLogout(t *testing.T) {
 // TestListTenants tests the public GET /auth/tenants endpoint
 func TestListTenants(t *testing.T) {
 	t.Parallel()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
@@ -2019,7 +2020,7 @@ func TestListTenants(t *testing.T) {
 func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 
@@ -2231,7 +2232,7 @@ func TestLinkToTenant(t *testing.T) {
 // This ensures the frontend cannot resolve a decommissioned tenant via subdomain lookup.
 func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 
 	// Create a dedicated tenant for this test using a high ID to avoid collisions.
 	tenantID := testpkg.UniqueTestTenantID(t)

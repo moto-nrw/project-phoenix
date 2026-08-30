@@ -16,11 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ type shiftTypeTestSetup struct {
 
 func buildShiftTypeSetup(t *testing.T) *shiftTypeTestSetup {
 	t.Helper()
-	db, svcs := testutil.SetupAPITest(t)
+	db, svcs := testutil.SetupShiftTypesRoute(t)
 
 	res := NewResource(svcs.ShiftTypes, svcs.Activities, db, slog.Default())
 

@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 
 	"github.com/go-chi/chi/v5"
@@ -15,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -23,7 +24,7 @@ import (
 func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	t.Parallel()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupAuthRoute(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
