@@ -51,18 +51,13 @@ func substitutionChangesUp(ctx context.Context, db *bun.DB) error {
 		);
 		CREATE INDEX idx_substitution_changes_lookup
 			ON audit.substitution_changes (tenant_id, substitution_id, created_at);
-		ALTER TABLE audit.substitution_changes ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE audit.substitution_changes FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_substitution_changes ON audit.substitution_changes
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::BIGINT);
 		GRANT SELECT, INSERT ON audit.substitution_changes TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE audit.substitution_changes_id_seq TO phoenix_tenant;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("create substitution audit trail: %w", err)
 	}
-	return nil
+	return provisionTenantRLS(ctx, db, "audit.substitution_changes")
 }
 
 func substitutionChangesDown(ctx context.Context, db *bun.DB) error {

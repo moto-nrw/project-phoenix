@@ -8,6 +8,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -4323,6 +4324,53 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
       const lastCall = mockTransferModalProps.mock.calls.at(-1) as
         [{ loadError?: string }] | undefined;
       expect(lastCall?.[0].loadError).toBe(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    });
+  });
+
+  it("clears previously loaded transfer data when a modal reload fails", async () => {
+    vi.mocked(groupTransferService.getAllAvailableStaff)
+      .mockResolvedValueOnce([{ id: "s2", fullName: "Other Teacher" }])
+      .mockRejectedValueOnce(new Error("network failure"));
+    vi.mocked(groupTransferService.getActiveTransfersForGroup).mockResolvedValueOnce([
+      { substitutionId: "1", targetName: "Other Teacher" },
+    ] as never);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ students: [] }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+    fireEvent.click(await screen.findByLabelText("Gruppe übergeben"));
+
+    await waitFor(() => {
+      const props = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
+        availableUsers: Array<{ id: string }>;
+        existingTransfers: Array<{ substitutionId: string }>;
+      };
+      expect(props.availableUsers).toHaveLength(1);
+      expect(props.existingTransfers).toHaveLength(1);
+    });
+
+    const props = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
+      onClose: () => void;
+    };
+    act(() => props.onClose());
+    fireEvent.click(screen.getByLabelText("Gruppe übergeben"));
+
+    await waitFor(() => {
+      const reloadedProps = mockTransferModalProps.mock.calls.at(-1)?.[0] as {
+        availableUsers: Array<{ id: string }>;
+        existingTransfers: Array<{ substitutionId: string }>;
+        loadError?: string;
+      };
+      expect(reloadedProps.availableUsers).toEqual([]);
+      expect(reloadedProps.existingTransfers).toEqual([]);
+      expect(reloadedProps.loadError).toBe(
         "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
       );
     });

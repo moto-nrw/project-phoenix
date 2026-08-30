@@ -492,6 +492,8 @@ function OGSGroupPageContent() {
       logger.error("failed to load group handover modal", {
         error: error instanceof Error ? error.message : String(error),
       });
+      setAvailableUsers([]);
+      setActiveTransfers([]);
       setTransferLoadError(
         "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
       );

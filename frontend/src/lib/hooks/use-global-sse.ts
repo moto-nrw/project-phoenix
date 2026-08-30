@@ -690,6 +690,7 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("active-substitutions") ||
+            key.includes("group-handovers") ||
             key.includes("substitution-groups") ||
             key.includes("substitution-teachers") ||
             key.includes("user-context")),
