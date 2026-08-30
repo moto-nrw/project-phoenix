@@ -298,6 +298,9 @@ export default function AbsencesPage() {
           fromMin={minDate}
           toMax={maxDate}
           className="w-full sm:w-auto"
+          // Mobil ist die Aktion eine volle Zeile; der Chip muss sie auch
+          // füllen, sonst bleibt rechts toter Raum neben einem schmalen Knopf.
+          triggerClassName="w-full sm:w-auto"
         />
       }
       search={{
