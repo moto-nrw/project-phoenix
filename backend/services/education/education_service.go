@@ -291,17 +291,18 @@ func (s *service) deleteGroupTeacherRelations(ctx context.Context, groupID int64
 }
 
 // ListGroups retrieves groups with optional filtering
-func (s *service) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
-	// Now we can directly use the modern ListWithOptions method
-	groups, err := s.groupRepo.ListWithOptions(ctx, options)
+func (s *service) ListGroups(ctx context.Context, query *education.GroupListQuery) ([]*education.Group, error) {
+	groups, err := s.groupRepo.ListWithRooms(ctx, query)
 	if err != nil {
 		return nil, &EducationError{Op: "ListGroups", Err: err}
 	}
 	return groups, nil
 }
 
-// CountGroups counts groups matching the query options (filters only, no pagination)
-func (s *service) CountGroups(ctx context.Context, options *base.QueryOptions) (int, error) {
+// CountGroups counts groups matching the list filters, ignoring pagination.
+func (s *service) CountGroups(ctx context.Context, query *education.GroupListQuery) (int, error) {
+	options := base.NewQueryOptions()
+	options.Filter = query.Filter()
 	count, err := s.groupRepo.CountWithOptions(ctx, options)
 	if err != nil {
 		return 0, &EducationError{Op: "CountGroups", Err: err}

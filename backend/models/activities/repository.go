@@ -57,6 +57,8 @@ type CategoryRepository interface {
 // GroupRepository defines operations for managing activity groups
 type GroupRepository interface {
 	base.Repository[*Group]
+	// ListWithCategory returns groups and their category from one LEFT JOIN.
+	ListWithCategory(ctx context.Context, query *GroupListQuery) ([]*Group, error)
 
 	// FindByIDForUpdate locks the group until the surrounding transaction ends.
 	// It is used when modification authority must remain valid through a write.

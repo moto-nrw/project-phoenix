@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -409,35 +408,24 @@ func buildNoRoomResponse(students []*users.Student) map[string]interface{} {
 
 // listGroups handles listing all groups with optional filtering
 func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
 	// Add filters if provided
 	name := r.URL.Query().Get("name")
 	roomIDStr := r.URL.Query().Get("room_id")
-
-	// Create filter
-	filter := base.NewFilter()
-
-	// Apply filters
-	if name != "" {
-		filter.ILike("name", "%"+name+"%")
-	}
+	query := &education.GroupListQuery{NameContains: name}
 
 	if roomIDStr != "" {
 		roomID, err := strconv.ParseInt(roomIDStr, 10, 64)
 		if err == nil {
-			filter.Equal("room_id", roomID)
+			query.RoomID = &roomID
 		}
 	}
 
-	// Add pagination
 	page, pageSize := common.ParsePagination(r)
-	queryOptions.WithPagination(page, pageSize)
-	queryOptions.Filter = filter
+	query.Limit = pageSize
+	query.Offset = (page - 1) * pageSize
 
 	// Get all groups
-	groups, err := rs.EducationService.ListGroups(r.Context(), queryOptions)
+	groups, err := rs.EducationService.ListGroups(r.Context(), query)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -472,9 +460,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Count total for pagination (same filters, no LIMIT/OFFSET)
-	countOptions := base.NewQueryOptions()
-	countOptions.Filter = filter
-	total, countErr := rs.EducationService.CountGroups(r.Context(), countOptions)
+	total, countErr := rs.EducationService.CountGroups(r.Context(), query)
 	if countErr != nil {
 		total = len(responses)
 	}

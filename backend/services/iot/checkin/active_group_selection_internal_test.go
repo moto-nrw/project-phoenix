@@ -92,7 +92,7 @@ func (s *fixedRoomService) GetRoom(_ context.Context, _ int64) (*facilities.Room
 	return s.room, nil
 }
 
-func (s *rolloverActivityService) ListGroups(_ context.Context, _ *base.QueryOptions) ([]*activities.Group, error) {
+func (s *rolloverActivityService) ListGroups(_ context.Context, _ *activities.GroupListQuery) ([]*activities.Group, error) {
 	return []*activities.Group{s.group}, nil
 }
 
