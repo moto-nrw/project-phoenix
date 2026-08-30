@@ -31,10 +31,7 @@ var (
 
 	// strconv.ParseInt(chi.URLParam(...)) sites in api/ outside
 	// api/common/request.go (which implements the shared helper).
-	handRolledParseIntAllowlist = map[string]int{
-		// Parse is coupled with a token-emptiness check in the same condition.
-		"api/enrollment/change_request_handlers.go": 1,
-	}
+	handRolledParseIntAllowlist = map[string]int{}
 )
 
 var (

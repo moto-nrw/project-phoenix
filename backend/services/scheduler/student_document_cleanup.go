@@ -40,7 +40,7 @@ func (s *Scheduler) checkAndRunStudentDocumentFileCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := s.taskContext(5 * time.Minute)
 	defer cancel()
 	if err := s.forEachTenantIncludingInactive(ctx, "student-document-file-cleanup",
 		s.cleanupStudentDocumentFilesForTenant); err != nil {
