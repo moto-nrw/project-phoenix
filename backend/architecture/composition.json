@@ -16704,7 +16704,7 @@
       "declaration": "newRuntime",
       "target": "api.New",
       "lines": [
-        73
+        80
       ],
       "tables": []
     },
@@ -16714,7 +16714,7 @@
       "declaration": "newScheduler",
       "target": "services/scheduler.NewScheduler",
       "lines": [
-        139
+        146
       ],
       "tables": []
     },
@@ -17703,8 +17703,8 @@
       "declaration": "TestWithRuntimeRejectsMissingDependencies",
       "target": "api.WithRuntime",
       "lines": [
-        55,
-        66
+        73,
+        84
       ],
       "tables": []
     },

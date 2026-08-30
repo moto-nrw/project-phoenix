@@ -109,6 +109,8 @@ func TestRuntimeServeReturnsListenFailure(t *testing.T) {
 }
 
 func TestRuntimeShutdownWaitsForSchedulerBeforeReturning(t *testing.T) {
+	t.Parallel()
+
 	releaseScheduler := make(chan struct{})
 	runtime := &Runtime{
 		server:    &http.Server{},
