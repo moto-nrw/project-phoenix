@@ -134,10 +134,7 @@ func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller Subs
 	if err != nil {
 		return access, false, nil, timezone.Date{}, err
 	}
-	broad := false
-	if s.deps.CanSeeAll != nil {
-		broad, err = s.deps.CanSeeAll(ctx, caller.Scope == "school", access.admin, access.actor != nil)
-	}
+	broad, err := s.canSeeAll(ctx, caller, access)
 	today := timezone.DateFromTime(s.deps.Now())
 	visibleGroupIDs := access.ownedGroupIDs
 	if err == nil && !broad && query.GroupID == 0 {

@@ -60,7 +60,7 @@ interface BackendScheduleAppointment {
   status: string;
   staff: Array<{
     assignment_id: number;
-    staff: { id: number; full_name: string };
+    staff: { id: string; full_name: string };
     is_absent: boolean;
     is_substitute: boolean;
     can_end: boolean;
