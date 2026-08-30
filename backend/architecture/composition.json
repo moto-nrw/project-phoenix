@@ -17653,7 +17653,7 @@
       "declaration": "newGoldenAPI",
       "target": "api.NewServer",
       "lines": [
-        77
+        75
       ],
       "tables": []
     },
@@ -29509,7 +29509,7 @@
       "declaration": "buildCareScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        42
       ],
       "tables": []
     },
@@ -29519,7 +29519,7 @@
       "declaration": "careScheduleServiceWithSettings",
       "target": "services.NewFactory",
       "lines": [
-        62
+        63
       ],
       "tables": []
     },
