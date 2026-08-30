@@ -5,6 +5,7 @@
 package database_test
 
 import (
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -31,7 +32,7 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create database resource
-	resource := databaseAPI.NewResource(svc.Database, db)
+	resource := databaseAPI.NewResource(svc.Database, db, slog.Default())
 
 	return &testContext{
 		db:       db,
