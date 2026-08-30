@@ -199,7 +199,11 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	// token must never reach an inbox as a dead link. Outside a tenant tx
 	// the hook runs synchronously.
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.sendInvitationEmail(ctx, invitation, roleName, req.SchoolName, schoolPortal)
+		// The surrounding transaction is committed when this callback runs.
+		// Detach it before resolving the tenant mail identity so its settings
+		// lookup opens a fresh RLS transaction rather than using the closed one.
+		postCommitCtx := detachedTenantContext(s.withTenantRuntime(ctx))
+		s.sendInvitationEmail(postCommitCtx, invitation, roleName, req.SchoolName, schoolPortal)
 	})
 
 	return invitation, nil

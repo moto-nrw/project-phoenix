@@ -92,6 +92,22 @@ func TestResolveTenantMailIdentity_BlankSettingFallsThrough(t *testing.T) {
 	assert.Equal(t, "buero@schule.example", identity.Address)
 }
 
+// Existing school contact data can predate UI validation. It must not be
+// copied into Reply-To because SMTP header construction would then fail.
+func TestResolveTenantMailIdentity_InvalidSchoolEmailIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentityService(
+		schoolRepoReturning(&platformModels.School{Name: "OGS", Email: "not an email"}, nil),
+		settingsReturning("", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.True(t, identity.IsZero())
+}
+
 // A failing settings lookup must degrade to the school contact address, never
 // cost the mail. Losing the return path is bad; losing the invitation is worse.
 func TestResolveTenantMailIdentity_SettingsErrorFallsBackToSchool(t *testing.T) {

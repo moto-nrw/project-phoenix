@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"log/slog"
+	"net/mail"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
@@ -68,12 +69,12 @@ func (s *tenantMailIdentityService) ResolveReplyTo(
 		name = strings.TrimSpace(school.Name)
 	}
 
-	if addr := s.resolveConfiguredAddress(ctx, tenantID); addr != "" {
+	if addr := replyToAddress(s.resolveConfiguredAddress(ctx, tenantID)); addr != "" {
 		return email.ReplyToIdentity{Name: name, Address: addr}, nil
 	}
 
 	if school != nil {
-		if addr := strings.TrimSpace(school.Email); addr != "" {
+		if addr := replyToAddress(school.Email); addr != "" {
 			return email.ReplyToIdentity{Name: name, Address: addr}, nil
 		}
 	}
@@ -107,4 +108,16 @@ func (s *tenantMailIdentityService) resolveConfiguredAddress(ctx context.Context
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+// replyToAddress accepts only a bare mailbox address. School contact data can
+// predate the current UI validation, so an invalid legacy value must not make
+// a message fail during SMTP header construction.
+func replyToAddress(value string) string {
+	value = strings.TrimSpace(value)
+	parsed, err := mail.ParseAddress(value)
+	if err != nil || parsed.Address != value {
+		return ""
+	}
+	return parsed.Address
 }
