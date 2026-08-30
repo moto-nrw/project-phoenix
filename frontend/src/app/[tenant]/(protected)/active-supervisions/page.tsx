@@ -452,10 +452,10 @@ function MeinRaumPageContent() {
         onClearAllFilters={filters.clearAllFilters}
         onTabChange={handleTabChange}
         actionButton={
-          addSupervisorButton ||
+          additionalSupervisionActiveGroupId ||
           (isSchulhofTabSelected && schulhofStatus?.isUserSupervising) ? (
             <div className="flex items-center gap-2">
-              {addSupervisorButton}
+              {isDesktop ? addSupervisorButton : mobileAddSupervisorButton}
               {isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
                 <button
                   type="button"
