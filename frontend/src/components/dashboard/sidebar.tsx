@@ -29,6 +29,7 @@ import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
+import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -45,11 +46,14 @@ import {
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
 import {
+  COMMUNICATION_SECTION,
+  COMMUNICATION_SUB_PAGES,
   DATABASE_SECTION,
   DATABASE_SUB_PAGES,
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   getActiveEnrollmentSubPageHref,
+  getActiveCommunicationSubPageHref,
   getActiveParentSubPageHref,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
@@ -117,15 +121,6 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.teamChat,
-    // Kein eigenes moto-Konzept-Icon: der Team-Chat ist eine neue Fläche und
-    // teilt sich die Sprechblasen-Form mit den Eltern-Nachrichten, nur in der
-    // Mitarbeitenden-Farbe statt in Blau.
-    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-    activeColor: "text-moto-orange",
-    alwaysShow: true,
-  },
-  {
     ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
     concept: "calendar",
@@ -169,16 +164,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
     activeColor: "text-moto-green",
     requiresPermission: "users:read",
-  },
-  {
-    // Tagesinformationen (#2180): interne Hinweise der Leitung an das Team.
-    // Nur die Verwaltung steht hier — gelesen werden die Hinweise auf der
-    // Startseite, wo sie hingehören. Schreiben ist adminexklusiv (Backend
-    // api/staffnotice/api.go), also spiegelt der Eintrag genau das.
-    ...STAFF_FLAT_PAGES.staffNotices,
-    icon: "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z",
-    activeColor: "text-moto-orange",
-    requiresAdmin: true,
   },
   {
     // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
@@ -425,6 +410,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Ungelesene Team-Chat-Nachrichten (#2598). Eigener Zähler, damit eine
   // Eltern-Nachricht nie den Team-Badge hochzählt und umgekehrt.
   const { unreadCount: teamChatUnreadCount } = useStaffMessagesUnread();
+  // Tagesinformationen (#2180): heutige Hinweise, deren Kenntnisnahme noch
+  // aussteht. Ohne Startseite für alle ist das Badge der einzige Weg, wie ein
+  // Hinweis der Leitung einem begegnet, statt gesucht werden zu müssen.
+  const { unreadCount: staffNoticesPendingCount } = useStaffNoticesPending();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
   // scoped per child in the backend so the count reflects the caller's own
   // group's requests)
@@ -569,6 +558,28 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Top-Level-Eintrag "Anfragen", nicht mehr hier.
   const parentSectionBadgeCount = messagesUnreadCount;
 
+  // Kommunikation-Akkordeon: Team-Chat ist Opt-in (operations.
+  // staff_messaging_enabled, Default aus) und fällt fail-closed weg; die
+  // Tagesinformationen liest jede Mitarbeiterin.
+  const communicationSubPages = useMemo(
+    () =>
+      COMMUNICATION_SUB_PAGES.filter((page) => {
+        switch (page.feature) {
+          case "teamChat":
+            return staffMessagingEnabled;
+          case "staffNotices":
+            return true;
+        }
+      }),
+    [staffMessagingEnabled],
+  );
+  const communicationBadgeCounts: Record<string, number> = {
+    "/team-chat": teamChatUnreadCount,
+    "/tagesinformationen": staffNoticesPendingCount,
+  };
+  const communicationSectionBadgeCount =
+    teamChatUnreadCount + staffNoticesPendingCount;
+
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
@@ -584,9 +595,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
     // (gdpr.attendance_log_enabled, Opt-in, Default aus).
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
-    // Team-Chat (#2598) ist Opt-in (operations.staff_messaging_enabled,
-    // Default aus): ohne Einschalten taucht der Eintrag gar nicht erst auf.
-    if (!staffMessagingEnabled && item.href === "/team-chat") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -792,11 +800,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={
-            item.href === "/anfragen" || item.href === "/team-chat"
-              ? tenantPath(item.href)
-              : item.href
-          }
+          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -810,14 +814,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 count={requestsPendingCount}
                 tone="staff"
                 ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
-                className="ml-2"
-              />
-            )}
-            {item.href === "/team-chat" && (
-              <NotificationBadge
-                count={teamChatUnreadCount}
-                tone="staff"
-                ariaLabel={`${teamChatUnreadCount} ungelesene Nachrichten im Team-Chat`}
                 className="ml-2"
               />
             )}
@@ -1030,6 +1026,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
+  const activeCommunicationSubPageHref =
+    getActiveCommunicationSubPageHref(pathname);
+  const isOnCommunicationPage = activeCommunicationSubPageHref !== null;
+  // Kein Hub: der Bereichs-Klick landet auf der ersten sichtbaren Unterseite,
+  // wie bei Planung.
+  const communicationHubHref =
+    communicationSubPages[0]?.href ?? "/tagesinformationen";
+
+  const handleCommunicationToggle = useCallback(() => {
+    const onSection = getActiveCommunicationSubPageHref(pathname) !== null;
+    if (!onSection) {
+      toggle("kommunikation");
+      router.push(communicationHubHref);
+    } else if (pathname === communicationHubHref) {
+      toggle("kommunikation");
+    } else {
+      router.push(communicationHubHref);
+    }
+  }, [toggle, pathname, router, communicationHubHref]);
+
   // Caregivers see their own supervision. A successful overview request also
   // covers effective admins and verified staff under all_staff (#2380).
   // overviewEnabled avoids the synthetic Schulhof entry triggering the
@@ -1215,6 +1231,31 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {substitutionsItem &&
             !openCareGroupMode &&
             renderNavItem(substitutionsItem)}
+
+          {/* Kommunikation accordion — was intern bleibt: Team-Chat und
+              Tagesinformationen. Sichtbar für alle Mitarbeitenden, der Chat
+              per Schalter (#2598). */}
+          <SidebarAccordionSection
+            icon={navigationIcons.chat}
+            label={COMMUNICATION_SECTION.label}
+            activeColor="text-moto-orange"
+            isExpanded={expanded === "kommunikation"}
+            onToggle={handleCommunicationToggle}
+            isActive={isOnCommunicationPage}
+            isIconActive={isOnCommunicationPage}
+            hasChildren={communicationSubPages.length > 0}
+            badgeCount={communicationSectionBadgeCount}
+          >
+            {communicationSubPages.map((page) => (
+              <SidebarSubItem
+                key={page.href}
+                href={tenantPath(page.href)}
+                label={page.label}
+                isActive={activeCommunicationSubPageHref === page.href}
+                badgeCount={communicationBadgeCounts[page.href] ?? 0}
+              />
+            ))}
+          </SidebarAccordionSection>
 
           {/* Eltern accordion — bundles the parent-communication surfaces
               (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an

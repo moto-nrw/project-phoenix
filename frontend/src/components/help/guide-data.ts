@@ -1090,7 +1090,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Interne Hinweise der Leitung an das Team. Sie stehen auf der Startseite aller Mitarbeitenden — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
         steps: [
-          "In der Seitenleiste `Tagesinformationen` öffnen (nur für Admins sichtbar) und auf `Neue Tagesinformation` klicken.",
+          "In der Seitenleiste `Kommunikation` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
           "`Titel` und `Hinweis` eintragen. Der Titel ist das, was im Alltag gelesen wird; der Hinweis trägt die Einzelheiten.",
           "Unter `Wichtigkeit` zwischen `Information` und `Wichtig` wählen. `Wichtig` setzt auf der Startseite ein farbiges Kennzeichen — sparsam einsetzen, sonst verliert es seine Wirkung.",
           "Den Zeitraum festlegen: `Gilt ab` ist Pflicht, `Gilt bis` bleibt leer, wenn der Hinweis unbefristet gilt.",

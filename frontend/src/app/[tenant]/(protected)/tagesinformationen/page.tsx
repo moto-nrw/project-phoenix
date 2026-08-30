@@ -1,9 +1,11 @@
 "use client";
 
 import { Megaphone, Pencil, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 
 import { StaffNoticeModal } from "~/components/staff-notices/staff-notice-modal";
+import { TodayNoticeList } from "~/components/staff-notices/today-notice-list";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -11,14 +13,15 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Loading } from "~/components/ui/loading";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { getApiErrorMessage } from "~/lib/api-error-message";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { createLogger } from "~/lib/logger";
 import {
   createStaffNotice,
   deleteStaffNotice,
   describeRecurrence,
   fetchStaffNotices,
+  fetchTodaysNotices,
   updateStaffNotice,
 } from "~/lib/staff-notices-api";
 import type { StaffNotice, StaffNoticeInput } from "~/lib/staff-notices-api";
@@ -27,18 +30,29 @@ import { useSWRAuth } from "~/lib/swr";
 const logger = createLogger({ component: "TagesinformationenPage" });
 
 /**
- * Verwaltung der Tagesinformationen (#2180): interne Hinweise der Leitung an
- * das Team.
+ * Tagesinformationen (#2180): interne Hinweise der Leitung an das Team.
  *
- * Adminseite. Das Team liest die Hinweise auf der Startseite; hier entstehen
- * sie. Ein Hinweis ist EINE Zeile mit einer Wiederholungsregel, keine Reihe von
- * Tageseinträgen — deshalb zeigt die Liste die Regel im Klartext ("Di · Woche
- * B") statt einer Terminliste.
+ * Eine Seite, zwei Rollen. Oben steht für ALLE Mitarbeitenden, was heute gilt
+ * (mit Kenntnisnahme); darunter verwalten Admins den Bestand. Ein Hinweis ist
+ * EINE Zeile mit einer Wiederholungsregel, keine Reihe von Tageseinträgen —
+ * deshalb zeigt die Liste die Regel im Klartext ("Di · Woche B") statt einer
+ * Terminliste. Die Route /api/staff-notices (Liste, Anlegen) ist im Backend
+ * adminexklusiv; hier wird nur gespiegelt, was dort gilt.
  */
 export default function TagesinformationenPage() {
-  const { isReady } = useRequireAdmin();
+  const { data: session } = useSession();
+  const isAdmin = hasEffectiveAdminScope(session);
+
+  const {
+    data: todayData,
+    isLoading: todayLoading,
+    mutate: mutateToday,
+  } = useSWRAuth<StaffNotice[]>("staff-notices-today", fetchTodaysNotices, {
+    revalidateOnFocus: false,
+  });
+
   const { data, isLoading, mutate } = useSWRAuth<StaffNotice[]>(
-    "staff-notices",
+    isAdmin ? "staff-notices" : null,
     fetchStaffNotices,
     { revalidateOnFocus: false },
   );
@@ -50,8 +64,7 @@ export default function TagesinformationenPage() {
   const [deletePending, setDeletePending] = useState(false);
   const [listError, setListError] = useState("");
 
-  if (!isReady) return <Loading fullPage={false} />;
-
+  const todayNotices = todayData ?? [];
   const notices = data ?? [];
 
   const save = async (input: StaffNoticeInput) => {
@@ -60,7 +73,7 @@ export default function TagesinformationenPage() {
     } else {
       await createStaffNotice(input);
     }
-    await mutate();
+    await Promise.all([mutate(), mutateToday()]);
   };
 
   const confirmDelete = async () => {
@@ -69,7 +82,7 @@ export default function TagesinformationenPage() {
     setDeleteError("");
     try {
       await deleteStaffNotice(deleting.id);
-      await mutate();
+      await Promise.all([mutate(), mutateToday()]);
       setDeleting(null);
     } catch (err) {
       logger.error("staff_notice_delete_failed", {
@@ -100,34 +113,58 @@ export default function TagesinformationenPage() {
               Hinweise an das Team
             </h1>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Interne Hinweise, die auf der Startseite aller Mitarbeitenden
-              stehen. Einmalig, für einen Zeitraum oder wiederkehrend an
-              bestimmten Wochentagen.
+              Interne Hinweise der Leitung für das ganze Team. Einmalig, für
+              einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.
             </p>
           </div>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => {
-              setEditing(null);
-              setModalOpen(true);
-            }}
-          >
-            Neue Tagesinformation
-          </Button>
+          {isAdmin && (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+            >
+              Neue Tagesinformation
+            </Button>
+          )}
         </div>
       </header>
 
+      {/* Heute: das, was jede Mitarbeiterin braucht. Steht deshalb vor der
+          Verwaltung und ist die ganze Seite für Nicht-Admins. */}
+      <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm sm:p-5">
+        <h2 className="text-base font-semibold text-gray-900">Heute</h2>
+        {todayLoading && todayNotices.length === 0 ? (
+          <Loading fullPage={false} />
+        ) : todayNotices.length === 0 ? (
+          <p className="mt-1 text-sm text-gray-600">
+            Für heute liegen keine Hinweise vor.
+          </p>
+        ) : (
+          <div className="mt-3">
+            <TodayNoticeList notices={todayNotices} onChanged={mutateToday} />
+          </div>
+        )}
+      </section>
+
+      {isAdmin && (
+        <h2 className="mb-3 text-base font-semibold text-gray-900">
+          Alle Tagesinformationen
+        </h2>
+      )}
+
       {listError && <Alert type="error" message={listError} />}
 
-      {isLoading && notices.length === 0 ? (
+      {!isAdmin ? null : isLoading && notices.length === 0 ? (
         <Loading fullPage={false} />
       ) : notices.length === 0 ? (
         <EmptyState
           icon={<Megaphone className="h-6 w-6" />}
           title="Noch keine Tagesinformationen"
-          description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ stehen damit für alle sichtbar auf der Startseite."
+          description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Kommunikation -> Tagesinformationen und auf dem Dashboard."
         />
       ) : (
         <ul className="space-y-3">

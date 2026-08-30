@@ -61,6 +61,16 @@ export const PLANNING_SECTION: SectionRoot = {
   label: "Planung",
 };
 
+/**
+ * Kommunikation im Team: Team-Chat und Tagesinformationen. Keine Hub-Seite —
+ * der Klick auf den Bereich landet auf der ersten sichtbaren Unterseite,
+ * wie bei Planung. Bewusst getrennt vom Eltern-Akkordeon: dort steht, was
+ * die Einrichtung mit den Familien austauscht, hier, was intern bleibt.
+ */
+export const COMMUNICATION_SECTION: SectionRoot = {
+  label: "Kommunikation",
+};
+
 /** Unterseiten des Datenverwaltung-Akkordeons, in Anzeigereihenfolge. */
 export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/students", label: "Kinder" },
@@ -91,6 +101,27 @@ type ParentSubPageFeature =
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
 }
+
+type CommunicationSubPageFeature = "teamChat" | "staffNotices";
+
+export interface CommunicationSubPage extends SectionSubPage {
+  readonly feature: CommunicationSubPageFeature;
+}
+
+/** Unterseiten des Kommunikation-Akkordeons, in Anzeigereihenfolge. */
+export const COMMUNICATION_SUB_PAGES: readonly CommunicationSubPage[] = [
+  // OGS-interner Team-Chat (#2598). Bewusst NICHT „Nachrichten": so heißt der
+  // Eltern-Chat im Eltern-Akkordeon. Zwei gleich benannte Einträge waren genau
+  // der Grund, warum Schulen ihre Anfragen am falschen Ort gesucht haben.
+  { href: "/team-chat", label: "Team-Chat", feature: "teamChat" },
+  // Tagesinformationen (#2180): Hinweise der Leitung an das ganze Team.
+  // Lesen alle, anlegen nur Admins — die Seite selbst trennt das.
+  {
+    href: "/tagesinformationen",
+    label: "Tagesinformationen",
+    feature: "staffNotices",
+  },
+];
 
 /** Unterseiten des Eltern-Akkordeons, in Anzeigereihenfolge. */
 export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
@@ -145,10 +176,6 @@ export const STAFF_FLAT_PAGES = {
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },
-  // OGS-interner Team-Chat (#2598). Bewusst NICHT „Nachrichten": so heißt der
-  // Eltern-Chat im Eltern-Akkordeon. Zwei gleich benannte Einträge waren genau
-  // der Grund, warum Schulen ihre Anfragen am falschen Ort gesucht haben.
-  teamChat: { href: "/team-chat", label: "Team-Chat" },
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
   // an einem Ort, mit Reitern nach Herkunft.
   anfragen: { href: "/anfragen", label: "Anfragen" },
@@ -159,7 +186,6 @@ export const STAFF_FLAT_PAGES = {
   dateien: { href: "/dateien", label: "Dateien" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
-  staffNotices: { href: "/tagesinformationen", label: "Tagesinformationen" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
   // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.
@@ -221,6 +247,23 @@ export function getActiveParentSubPage(pathname: string): ParentSubPage | null {
 
 export function getActiveParentSubPageHref(pathname: string): string | null {
   return getActiveParentSubPage(pathname)?.href ?? null;
+}
+
+export function getActiveCommunicationSubPage(
+  pathname: string,
+): CommunicationSubPage | null {
+  return findActiveSubPage(COMMUNICATION_SUB_PAGES, pathname);
+}
+
+export function getActiveCommunicationSubPageHref(
+  pathname: string,
+): string | null {
+  return getActiveCommunicationSubPage(pathname)?.href ?? null;
+}
+
+/** Gehört der Pfad in den Kommunikation-Bereich (Team-Chat, Tagesinformationen)? */
+export function isCommunicationPath(pathname: string): boolean {
+  return getActiveCommunicationSubPage(pathname) !== null;
 }
 
 export function getActiveEnrollmentSubPage(
