@@ -30,12 +30,13 @@ type ServeConfig struct {
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
 // A Runtime may be served once.
 type Runtime struct {
-	server         *http.Server
-	api            *API
-	scheduler      backgroundScheduler
-	capacityLogger *capacityLogger
-	tracker        analytics.Tracker
-	logger         *slog.Logger
+	server          *http.Server
+	api             *API
+	scheduler       backgroundScheduler
+	capacityLogger  *capacityLogger
+	tracker         analytics.Tracker
+	logger          *slog.Logger
+	resourcesUnsafe bool
 }
 
 // backgroundScheduler is the lifecycle contract Runtime needs from its worker
@@ -316,8 +317,11 @@ func (runtime *Runtime) Serve(ctx context.Context) error {
 	}
 
 	capacityCtx, stopCapacityLogger := context.WithCancel(context.Background())
-	defer stopCapacityLogger()
-	runtime.startBackground(capacityCtx)
+	capacityStopped := runtime.startBackground(capacityCtx)
+	defer func() {
+		stopCapacityLogger()
+		<-capacityStopped
+	}()
 
 	serveErr := make(chan error, 1)
 	servingListener := &startupListener{Listener: listener, started: make(chan struct{})}
@@ -353,14 +357,21 @@ func (runtime *Runtime) handleServeExit(err error) error {
 	return errors.Join(fmt.Errorf("serve HTTP: %w", err), shutdownErr)
 }
 
-func (runtime *Runtime) startBackground(capacityCtx context.Context) {
+func (runtime *Runtime) startBackground(capacityCtx context.Context) <-chan struct{} {
+	capacityStopped := make(chan struct{})
 	if runtime.capacityLogger != nil {
 		runtime.capacityLogger.LogSnapshot()
-		go runtime.capacityLogger.Start(capacityCtx)
+		go func() {
+			runtime.capacityLogger.Start(capacityCtx)
+			close(capacityStopped)
+		}()
+	} else {
+		close(capacityStopped)
 	}
 	if runtime.scheduler != nil {
 		runtime.scheduler.Start()
 	}
+	return capacityStopped
 }
 
 func (runtime *Runtime) shutdown(reason error) error {
@@ -383,14 +394,19 @@ func (runtime *Runtime) shutdownWithTimeout(reason error, timeout time.Duration)
 	defer cancel()
 	if err := runtime.server.Shutdown(ctx); err != nil {
 		closeErr := runtime.server.Close()
-		<-schedulerStopped
+		runtime.resourcesUnsafe = true
 		return errors.Join(
 			fmt.Errorf("shutdown HTTP server: %w", err),
 			closeErr,
 		)
 	}
-	<-schedulerStopped
-	return nil
+	select {
+	case <-schedulerStopped:
+		return nil
+	case <-ctx.Done():
+		runtime.resourcesUnsafe = true
+		return fmt.Errorf("shutdown scheduler: %w", ctx.Err())
+	}
 }
 
 func (runtime *Runtime) stopScheduler() {
@@ -403,6 +419,12 @@ func (runtime *Runtime) stopScheduler() {
 }
 
 func (runtime *Runtime) closeResources() error {
+	if runtime.resourcesUnsafe {
+		// cmd.Execute exits after this fatal shutdown error, which stops the
+		// remaining handler or worker before the operating system releases its
+		// resources. Closing the pool here would race those goroutines.
+		return nil
+	}
 	var err error
 	if runtime.tracker != nil {
 		err = runtime.tracker.Close()

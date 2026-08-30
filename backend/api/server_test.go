@@ -102,7 +102,7 @@ func TestRuntimeServeReturnsListenFailure(t *testing.T) {
 	require.ErrorContains(t, err, "listen on")
 }
 
-func TestRuntimeShutdownWaitsForSchedulerBeforeReturning(t *testing.T) {
+func TestRuntimeShutdownReturnsDeadlineForStuckScheduler(t *testing.T) {
 	t.Parallel()
 
 	releaseScheduler := make(chan struct{})
@@ -116,14 +116,10 @@ func TestRuntimeShutdownWaitsForSchedulerBeforeReturning(t *testing.T) {
 		shutdownDone <- runtime.shutdownWithTimeout(errors.New("test shutdown"), 50*time.Millisecond)
 	}()
 
-	select {
-	case err := <-shutdownDone:
-		t.Fatalf("shutdown returned before scheduler stopped: %v", err)
-	case <-time.After(75 * time.Millisecond):
-	}
-
+	err := <-shutdownDone
 	close(releaseScheduler)
-	require.NoError(t, <-shutdownDone)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.True(t, runtime.resourcesUnsafe)
 }
 
 func TestRuntimeShutdownLetsServerCloseItsListener(t *testing.T) {
