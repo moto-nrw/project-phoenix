@@ -76,6 +76,12 @@ interface PlanningContextBarProps {
   /** Für Flächen, die nie eine Kontextzeile haben (Statistik, Zeiterfassung):
    *  lässt die reservierte zweite Zeile ganz weg. */
   readonly withoutContextRow?: boolean;
+  /** Setzt den `navigationSlot` ZWISCHEN die Pfeile, statt daneben. Für
+   *  Flächen, deren Zeitraum frei wählbar ist (Statistik): der Chip, den man
+   *  anklickt, und die Pfeile, die ihn verschieben, sind dann sichtbar EIN
+   *  Bedienelement. Der Heute-Knopf wandert dabei aus der Gruppe heraus und
+   *  erscheint nur, wenn es etwas zurückzusetzen gibt. */
+  readonly navigationInGroup?: boolean;
   readonly className?: string;
 }
 
@@ -92,6 +98,7 @@ export function PlanningContextBar({
   actions,
   children,
   withoutContextRow = false,
+  navigationInGroup = false,
   className,
 }: PlanningContextBarProps) {
   return (
@@ -103,22 +110,30 @@ export function PlanningContextBar({
             sitzt rechts. Ab md löst `contents` den Wrapper auf und die
             `md:order-*`-Klassen stellen die Zeile als Navigation, Datum,
             Aktionen zusammen. */}
-        <div className="flex min-w-0 flex-1 flex-col md:contents">
-          {navigationSlot ??
-            (dateLabel && (
-              // Unter md darf das Datum umbrechen: abgeschnitten („KW 36 ·
-              // 31.08.–04.09....") fehlte auf dem Telefon genau das Jahr.
-              <p className="min-w-0 text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:truncate md:text-base">
-                {dateLabel}
-              </p>
-            ))}
-        </div>
+        {!navigationInGroup && (
+          <div className="flex min-w-0 flex-1 flex-col md:contents">
+            {navigationSlot ??
+              (dateLabel && (
+                // Unter md darf das Datum umbrechen: abgeschnitten („KW 36 ·
+                // 31.08.–04.09....") fehlte auf dem Telefon genau das Jahr.
+                <p className="min-w-0 text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:truncate md:text-base">
+                  {dateLabel}
+                </p>
+              ))}
+          </div>
+        )}
 
         {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
             Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
             Mobil sitzt sie rechts neben dem Datumsblock, ab md rückt sie per
-            `order` wieder an den Anfang der Zeile. */}
-        <div className="inline-flex h-9 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1">
+            `order` wieder an den Anfang der Zeile. Mit `navigationInGroup`
+            steht der Slot selbst zwischen den Pfeilen und die Gruppe füllt
+            unter md die Zeile. */}
+        <div
+          className={`inline-flex h-9 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1 ${
+            navigationInGroup ? "w-full md:w-auto" : ""
+          }`}
+        >
           <Button
             type="button"
             size="icon"
@@ -130,16 +145,22 @@ export function PlanningContextBar({
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
-          <Button
-            type="button"
-            size="compact"
-            variant="ghost"
-            className="rounded-none px-3"
-            onClick={onToday}
-            disabled={!onToday}
-          >
-            {todayLabel}
-          </Button>
+          {navigationInGroup ? (
+            <div className="flex min-w-0 flex-1 items-stretch [&>*]:min-w-0 [&>*]:flex-1">
+              {navigationSlot}
+            </div>
+          ) : (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="rounded-none px-3"
+              onClick={onToday}
+              disabled={!onToday}
+            >
+              {todayLabel}
+            </Button>
+          )}
           <Button
             type="button"
             size="icon"
@@ -152,6 +173,20 @@ export function PlanningContextBar({
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
+
+        {/* Außerhalb der Gruppe ist „Heute" kein Dauergast: er steht nur da,
+            wenn er etwas tut. Rechts von der Gruppe kann nichts springen. */}
+        {navigationInGroup && onToday && (
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            className="h-9 px-3 text-gray-600 md:order-2"
+            onClick={onToday}
+          >
+            {todayLabel}
+          </Button>
+        )}
 
         {/* Umschalter und Aktionen: unter md eine eigene Zeile über die VOLLE
             Breite (`basis-full`), in der sich der Ansichtsumschalter breit
@@ -171,7 +206,7 @@ export function PlanningContextBar({
             braucht, und beide bleiben vollständig sichtbar. */}
         {(viewSwitcher ?? actions) && (
           <div
-            className={`flex basis-full flex-wrap items-center gap-2 md:order-3 md:ml-auto md:basis-auto md:flex-nowrap ${
+            className={`flex basis-full flex-wrap items-center gap-2 md:order-3 md:ml-auto md:basis-auto md:flex-nowrap max-md:[&>*]:min-w-0 max-md:[&>*]:flex-1 ${
               viewSwitcher
                 ? // Der Umschalter nimmt unter md die freie Breite, damit er
                   // nicht auf Textbreite links klebt; ab md steht er wieder in

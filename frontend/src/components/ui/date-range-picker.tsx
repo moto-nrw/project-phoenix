@@ -93,7 +93,9 @@ export function DateRangePicker({
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
           />
         </svg>
-        <span>{formatRangeLabel(value)}</span>
+        <span className="whitespace-nowrap tabular-nums">
+          {formatRangeLabel(value)}
+        </span>
       </button>
 
       {isOpen && (
@@ -123,10 +125,17 @@ function formatRangeLabel(range: DateRange | undefined): string {
     return format(range.from, "d. MMM yyyy", { locale: de });
   }
   const sameYear = range.from.getFullYear() === range.to.getFullYear();
-  if (sameYear) {
-    return `${format(range.from, "d. MMM", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  const sameMonth = sameYear && range.from.getMonth() === range.to.getMonth();
+  // Je kürzer, desto eher passt das Label in einen Chip neben den Pfeilen,
+  // ohne dass auf dem Telefon das Jahr in eine zweite Zeile rutscht:
+  // „1.–30. Aug. 2026" statt „1. Aug. – 30. Aug. 2026".
+  if (sameMonth) {
+    return `${format(range.from, "d.", { locale: de })}–${format(range.to, "d. MMM yyyy", { locale: de })}`;
   }
-  return `${format(range.from, "d. MMM yyyy", { locale: de })} - ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  if (sameYear) {
+    return `${format(range.from, "d. MMM", { locale: de })} – ${format(range.to, "d. MMM yyyy", { locale: de })}`;
+  }
+  return `${format(range.from, "d. MMM yyyy", { locale: de })} – ${format(range.to, "d. MMM yyyy", { locale: de })}`;
 }
 
 // The panel keeps its content width — a two-month grid with a preset column

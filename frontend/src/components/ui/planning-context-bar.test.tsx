@@ -56,6 +56,44 @@ describe("PlanningContextBar", () => {
     expect(onToday).toHaveBeenCalledTimes(1);
   });
 
+  it("puts the navigation slot between the arrows and shows the today button only when it does something", () => {
+    // Statistik: der Zeitraum-Chip und die Pfeile, die ihn verschieben, sind
+    // EIN Bedienelement. „Heute" steht dann außerhalb der Gruppe und nur,
+    // wenn es etwas zurückzusetzen gibt.
+    const { rerender } = render(
+      <PlanningContextBar
+        navigationInGroup
+        navigationSlot={<div data-testid="range-chip">1.–30. Aug. 2026</div>}
+        previousLabel="Vorheriger Zeitraum"
+        nextLabel="Nächster Zeitraum"
+        todayLabel="Letzte 30 Tage"
+      />,
+    );
+
+    const chip = screen.getByTestId("range-chip");
+    const previous = screen.getByRole("button", {
+      name: "Vorheriger Zeitraum",
+    });
+    const next = screen.getByRole("button", { name: "Nächster Zeitraum" });
+    expect(previous.parentElement).toBe(chip.parentElement?.parentElement);
+    expect(next.parentElement).toBe(chip.parentElement?.parentElement);
+    expect(
+      screen.queryByRole("button", { name: "Letzte 30 Tage" }),
+    ).not.toBeInTheDocument();
+
+    const onToday = vi.fn();
+    rerender(
+      <PlanningContextBar
+        navigationInGroup
+        navigationSlot={<div data-testid="range-chip">1.–30. Aug. 2026</div>}
+        todayLabel="Letzte 30 Tage"
+        onToday={onToday}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Letzte 30 Tage" }));
+    expect(onToday).toHaveBeenCalledTimes(1);
+  });
+
   it("renders the view-switcher and actions slots", () => {
     render(
       <PlanningContextBar
