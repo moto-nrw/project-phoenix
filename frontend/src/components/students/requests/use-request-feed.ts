@@ -56,7 +56,9 @@ export function useRequestSources(
   // Als Ref, damit ein neuer Callback die Quellen nicht neu erzeugt und damit
   // die ganze Liste neu lädt.
   const reportAccess = useRef(onReviewAccess);
-  reportAccess.current = onReviewAccess;
+  useEffect(() => {
+    reportAccess.current = onReviewAccess;
+  }, [onReviewAccess]);
   return useMemo<FeedSource<AnyItem>[]>(() => {
     const params: AggregatedRequestParams = {
       search: filters.search,

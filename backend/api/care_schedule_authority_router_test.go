@@ -49,7 +49,8 @@ func TestCareScheduleAuthorityHTTPFlow(t *testing.T) {
 	requestID := careSchedulePendingRequestID(t, created)
 
 	decisionPath := "/api/students/care-schedule-change-requests/" + strconv.FormatInt(requestID, 10) + "/decide"
-	decided := doCareScheduleJSON(t, apiInstance.Router, http.MethodPost, decisionPath, staffToken, map[string]any{"approve": true})
+	// #2267: reason policy defaults to "both", so a staff approval carries a reason.
+	decided := doCareScheduleJSON(t, apiInstance.Router, http.MethodPost, decisionPath, staffToken, map[string]any{"approve": true, "reason": "Passt so"})
 	require.Equal(t, http.StatusOK, decided.Code, decided.Body.String())
 	assert.Contains(t, decided.Body.String(), `"status":"approved"`)
 }
