@@ -20,18 +20,13 @@ const logger = createLogger({ component: "TodayNoticeList" });
  * der Hinweis IST der Inhalt. Wichtige stehen zuerst (Sortierung kommt aus dem
  * Backend) und tragen ein Kennzeichen. Bestätigt wird der Hinweis, nicht der
  * Tag: ein wiederkehrender Hinweis fragt nicht jeden Dienstag erneut.
- *
- * `compact` kürzt den Text auf zwei Zeilen (Dashboard-Karte); die Seite zeigt
- * ihn ganz.
  */
 export function TodayNoticeList({
   notices,
   onChanged,
-  compact = false,
 }: {
   readonly notices: readonly StaffNotice[];
   readonly onChanged: () => Promise<unknown>;
-  readonly compact?: boolean;
 }) {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +58,7 @@ export function TodayNoticeList({
   return (
     <>
       {error && <p className="text-moto-red-strong mb-3 text-sm">{error}</p>}
-      <ul className={compact ? "space-y-3" : "space-y-4"}>
+      <ul className="space-y-4">
         {notices.map((notice) => (
           <li key={notice.id}>
             <div className="flex flex-wrap items-center gap-2">
@@ -79,9 +74,7 @@ export function TodayNoticeList({
             </div>
 
             {notice.body && (
-              <p
-                className={`mt-1 max-w-3xl text-sm leading-6 whitespace-pre-line text-gray-600 ${compact ? "line-clamp-2" : ""}`}
-              >
+              <p className="mt-1 max-w-3xl text-sm leading-6 whitespace-pre-line text-gray-600">
                 {notice.body}
               </p>
             )}

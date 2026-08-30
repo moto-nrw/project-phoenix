@@ -1088,7 +1088,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Tagesinformationen",
         icon: Megaphone,
         summary:
-          "Interne Hinweise der Leitung an das Team. Sie stehen auf der Startseite aller Mitarbeitenden — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
+          "Interne Hinweise der Leitung an das Team. Alle Mitarbeitenden lesen sie unter `Kommunikation` -> `Tagesinformationen` — einmalig, für einen Zeitraum oder wiederkehrend an bestimmten Wochentagen.",
         steps: [
           "In der Seitenleiste `Kommunikation` -> `Tagesinformationen` öffnen. Die Seite sehen alle Mitarbeitenden; die Schaltfläche `Neue Tagesinformation` gibt es nur für Admins.",
           "`Titel` und `Hinweis` eintragen. Der Titel ist das, was im Alltag gelesen wird; der Hinweis trägt die Einzelheiten.",
@@ -1097,7 +1097,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Für einen wiederkehrenden Hinweis die `Wochentage` anhaken, zum Beispiel nur `Di` für „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“. Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.",
           "Arbeitet die Einrichtung mit einem Wochenrhythmus, unter `Woche` zwischen `Jede Woche`, `Nur Woche A` und `Nur Woche B` wählen. Die Wochen sind dieselben wie im Stundenplan und im Dienstplan.",
           "`Kenntnisnahme verlangen` anhaken, wenn das Team den Hinweis bestätigen soll. In der Liste steht dann, wie viele Personen bestätigt haben.",
-          "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen auf der Startseite aller Mitarbeitenden.",
+          "Über `Speichern` sichern. Der Hinweis erscheint ab sofort an den passenden Tagen unter `Kommunikation` -> `Tagesinformationen`; steht eine Kenntnisnahme aus, zeigt die Seitenleiste dort eine Zahl.",
           "Einen Hinweis, der vorübergehend nicht gelten soll, über das Stift-Symbol öffnen und den Haken bei `Aktiv` entfernen — so bleibt der Text erhalten und muss nicht neu getippt werden.",
         ],
         callout: {

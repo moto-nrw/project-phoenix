@@ -32,7 +32,6 @@ import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
-import { TagesinfoCard } from "~/components/staff-notices/tagesinfo-card";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DashboardPage" });
@@ -252,9 +251,6 @@ function DashboardContent() {
         </div>
       )}
 
-      <div className="mb-6 md:mb-8">
-        <TagesinfoCard />
-      </div>
       {canReadPhaseExpiryWarnings ? (
         <PhaseExpiryWarnings className="mb-6 md:mb-8" />
       ) : null}

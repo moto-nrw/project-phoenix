@@ -179,7 +179,7 @@ export default function TagesinformationenPage() {
         <EmptyState
           icon={<Megaphone className="h-6 w-6" />}
           title="Noch keine Tagesinformationen"
-          description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Kommunikation -> Tagesinformationen und auf dem Dashboard."
+          description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Kommunikation -> Tagesinformationen."
         />
       ) : (
         <ul className="space-y-3">
