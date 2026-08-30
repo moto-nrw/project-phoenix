@@ -265,6 +265,8 @@ type Factory struct {
 
 	// StaffMessaging (OGS-internal colleague chat, #2598)
 	StaffMessaging *staffmessaging.Service
+	// StaffNotice (Tagesinformationen: interne Hinweise der Leitung, #2180)
+	StaffNotice schedule.StaffNoticeService
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -2341,6 +2343,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Logger:      logger.With("service", "announcement"),
 	})
 
+	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
+		Repo:    repos.StaffNotice,
+		Periods: repos.CalendarPeriod,
+		Logger:  logger.With("service", "staffnotice"),
+	})
+
 	// The cancellation notice (#2601) rides on the announcement service, which
 	// is built after the instance service; inject it now that both exist.
 	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
@@ -2769,6 +2777,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Parent:              parentService,
 		Messaging:           messagingService,
 		StaffMessaging:      staffMessagingService,
+		StaffNotice:         staffNoticeService,
 		Calendar:            calendarSvc,
 		CalendarFeedCleanup: calendarSvc,
 		ParentAnnouncement:  parentAnnouncementService,
