@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { rosterPickupTimeLabel } from "./timetable-roster-helpers";
+import {
+  rosterPickupTimeLabel,
+  upcomingArrivalTime,
+} from "./timetable-roster-helpers";
+import type { TimetableRosterRow } from "./timetable-operations-types";
 
 describe("rosterPickupTimeLabel", () => {
   it("hides intentionally redacted pickup times without reporting a load error", () => {
@@ -9,5 +13,84 @@ describe("rosterPickupTimeLabel", () => {
   it("keeps failed and missing pickup times distinct", () => {
     expect(rosterPickupTimeLabel(null, false)).toBe("Nicht geladen");
     expect(rosterPickupTimeLabel(null, true)).toBe("—");
+  });
+});
+
+function arrivalWarnings(
+  expectedArrival: string | null,
+): TimetableRosterRow["warnings"] {
+  return [
+    {
+      kind: "arrival_after_slot_start",
+      message: "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+      expectedArrival,
+      slotStart: "13:00",
+      expectedGroupId: null,
+      expectedGroupName: null,
+      currentEducationGroupId: null,
+    },
+  ];
+}
+
+describe("upcomingArrivalTime", () => {
+  const today = "2026-08-31";
+  const at = (hours: number, minutes: number) =>
+    new Date(
+      `2026-08-31T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00+02:00`,
+    );
+
+  it("returns the expected arrival while it is still ahead", () => {
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0), today),
+    ).toBe("13:45");
+  });
+
+  it("returns null once the expected arrival is reached", () => {
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 45), today),
+    ).toBeNull();
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(14, 0), today),
+    ).toBeNull();
+  });
+
+  it("ignores other warning kinds and missing times", () => {
+    expect(
+      upcomingArrivalTime(arrivalWarnings(null), at(13, 0), today),
+    ).toBeNull();
+    expect(
+      upcomingArrivalTime(
+        [
+          {
+            kind: "missing_arrival_schedule",
+            message: "Für diesen Tag ist keine erwartete Ankunft hinterlegt.",
+            expectedArrival: null,
+            slotStart: "13:00",
+            expectedGroupId: null,
+            expectedGroupName: null,
+            currentEducationGroupId: null,
+          },
+        ],
+        at(13, 0),
+        today,
+      ),
+    ).toBeNull();
+  });
+
+  it("uses the Berlin clock instead of the browser clock", () => {
+    // 13:00 in Berlin, but 06:00 in Chicago on the same instant.
+    expect(
+      upcomingArrivalTime(
+        arrivalWarnings("13:45"),
+        new Date("2026-08-31T11:00:00Z"),
+        today,
+      ),
+    ).toBe("13:45");
+  });
+
+  it("does not classify arrivals on another roster date as late", () => {
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0), "2026-09-01"),
+    ).toBeNull();
   });
 });
