@@ -329,6 +329,21 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	// …while the same request for the sibling goes through.
 	sibling := env.postChangeRequest(t, env.changeRequestBody(1, 2))
 	assert.Equal(t, http.StatusCreated, sibling.Code, sibling.Body.String())
+
+	// Token lookup runs under admin scope, then the write switches to the
+	// resolved tenant transaction. The approved child stays untouched.
+	withdrawReq := httptest.NewRequest(
+		http.MethodPost,
+		fmt.Sprintf("/requests/%s/withdraw", env.token),
+		strings.NewReader(`{}`),
+	)
+	withdrawReq.Header.Set("Content-Type", "application/json")
+	withdrawn := httptest.NewRecorder()
+	env.router.ServeHTTP(withdrawn, withdrawReq)
+	require.Equal(t, http.StatusNoContent, withdrawn.Code, withdrawn.Body.String())
+	withdrawnStatus := decodeStatus(t, env.get(t, "/requests/"+env.token))
+	assert.Equal(t, enrollmentModels.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
 }
 
 // Deliberately NOT parallel: process-global state — the fixture sets viper

@@ -20,7 +20,7 @@ func (s seedCareWithdrawalsStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 	rt.SetTenantAuth(auth)
 	defer rt.SetTenantAuth(primaryAuth)
-	requests, err := s.seedDemoBookings(rt, auth, demo.TenantSlug)
+	requests, err := s.seedDemoBookings(rt, auth, demo.SchoolID, demo.TenantSlug)
 	if err != nil {
 		return err
 	}
@@ -107,18 +107,35 @@ func (s seedCareWithdrawalsStep) withdrawalDemoPassword() (string, error) {
 }
 
 func (s seedCareWithdrawalsStep) seedDemoBookings(
-	rt *Runtime, auth AuthRef, tenantSlug string,
+	rt *Runtime, auth AuthRef, schoolID int64, tenantSlug string,
 ) ([]SeedEnrollmentRequest, error) {
 	for key, value := range map[string]any{
 		"enrollment.enabled":         true,
 		"enrollment.require_captcha": false,
+		"operations.group_mode":      "open_care",
+		"checkout.schulhof_enabled":  false,
+		"checkout.wc_enabled":        true,
 	} {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
 			return nil, fmt.Errorf("configure withdrawal demo: %w", err)
 		}
 	}
+	if _, err := rt.Client.DeleteWithAuth(auth, "/api/settings/values/checkout.wc_enabled"); err != nil {
+		return nil, fmt.Errorf("reset withdrawal demo WC setting: %w", err)
+	}
+	if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/checkout.wc_enabled", map[string]any{"value": false}); err != nil {
+		return nil, fmt.Errorf("disable withdrawal demo WC: %w", err)
+	}
+	presencePath := fmt.Sprintf("/operator/schools/%d/settings/values/operations.presence_mode", schoolID)
+	if _, err := rt.Client.PutWithAuth(rt.OperatorAuth, presencePath, map[string]any{"value": "binary"}); err != nil {
+		return nil, fmt.Errorf("configure withdrawal demo presence mode: %w", err)
+	}
 	parentStep := parentEnrollmentSeedStep(s)
-	phaseID, err := parentStep.createEnrollmentPhase(rt, auth)
+	schemaID, err := parentStep.createEnrollmentSchema(rt, auth)
+	if err != nil {
+		return nil, err
+	}
+	phaseID, err := parentStep.createEnrollmentPhase(rt, auth, schemaID)
 	if err != nil {
 		return nil, err
 	}

@@ -65,6 +65,15 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 		case r.Method == simulationHTTPMethodDelete && r.URL.Path == "/api/timetable/instances/77":
 			deletedInstance = true
 			w.WriteHeader(simulationHTTPStatusNoContent)
+		case r.Method == simulationHTTPMethodPost && r.URL.Path == "/api/iot/checkin":
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
+				w.WriteHeader(404)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
 		default:
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
