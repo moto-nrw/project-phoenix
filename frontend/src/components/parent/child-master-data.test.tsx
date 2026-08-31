@@ -605,6 +605,62 @@ describe("ChildMasterDataView", () => {
     );
   });
 
+  it("requests only Monday to change from pickup to walking", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        allowed_departure_modes: {
+          mon: ["pickup"],
+          tue: ["pickup"],
+          wed: ["pickup"],
+          thu: ["pickup"],
+          fri: ["pickup"],
+        },
+      }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) {
+      throw new Error("departure section not found");
+    }
+
+    fireEvent.click(screen.getByLabelText("Mo Geht allein"));
+    fireEvent.click(screen.getByLabelText("Mo Wird abgeholt"));
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: {
+              mon: ["alone"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          },
+        ],
+        [],
+      ),
+    );
+  });
+
   it("keeps departure request success when the pending refresh fails", async () => {
     mockSubmit.mockResolvedValueOnce([
       {
