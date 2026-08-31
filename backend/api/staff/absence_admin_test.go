@@ -266,4 +266,17 @@ func TestAdminCompTimePreview_ReturnsProjection(t *testing.T) {
 	badRec := httptest.NewRecorder()
 	tc.router.ServeHTTP(badRec, badReq)
 	assert.Equal(t, http.StatusBadRequest, badRec.Code, badRec.Body.String())
+
+	// half_day accepts only true|false — anything else is a client error, not
+	// a silent full-day preview.
+	for _, halfDay := range []string{"1", "invalid"} {
+		hdReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+			"/staff/%d/time-tracking/comp-time-preview?date_start=%s&date_end=%s&half_day=%s",
+			subjectID, day.String(), day.String(), halfDay,
+		), nil)
+		hdReq.Header.Set("Authorization", "Bearer "+token)
+		hdRec := httptest.NewRecorder()
+		tc.router.ServeHTTP(hdRec, hdReq)
+		assert.Equal(t, http.StatusBadRequest, hdRec.Code, "half_day=%s: %s", halfDay, hdRec.Body.String())
+	}
 }

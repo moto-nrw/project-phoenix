@@ -671,7 +671,15 @@ func (rs *Resource) getCompTimeBalancePreview(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_end format, expected YYYY-MM-DD")))
 		return
 	}
-	halfDay := r.URL.Query().Get("half_day") == "true"
+	halfDay := false
+	switch r.URL.Query().Get("half_day") {
+	case "", "false":
+	case "true":
+		halfDay = true
+	default:
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid half_day value, expected true or false")))
+		return
+	}
 
 	preview, err := rs.StaffAbsenceService.PreviewCompTimeBalance(r.Context(), staffID, dateStart, dateEnd, halfDay)
 	if err != nil {

@@ -94,6 +94,10 @@ export function SickReportModal({
       return;
     }
     let stale = false;
+    // Sofort verwerfen: die alte Projektion darf während des Nachladens weder
+    // angezeigt werden noch über isOverdraft eine Buchung ohne Bestätigung
+    // durchlassen.
+    setPreview(null);
     setPreviewLoading(true);
     setOverdraftConfirmed(false);
     staffAbsenceService
@@ -222,6 +226,7 @@ export function SickReportModal({
           submitting ||
           !dateStart ||
           (!halfDay && !dateEnd) ||
+          (isCompTime && previewLoading) ||
           (isOverdraft && !overdraftConfirmed)
         }
       >

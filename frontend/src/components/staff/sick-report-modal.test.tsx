@@ -222,11 +222,13 @@ describe("SickReportModal", () => {
       screen.getByText(/andere Hälfte als Arbeitszeit erfasst/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Halber Tag" }));
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Freizeitausgleich eintragen",
-      }),
-    );
+    // Der Haken lädt die Saldo-Vorschau neu; solange sie lädt, ist der
+    // Submit gesperrt (#2885).
+    const submit = screen.getByRole("button", {
+      name: "Freizeitausgleich eintragen",
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
 
     await waitFor(() =>
       expect(mocks.createAbsence).toHaveBeenCalledWith(
@@ -313,13 +315,52 @@ describe("SickReportModal", () => {
     });
     renderModal({ absenceType: "comp_time" });
 
-    await waitFor(() => expect(mocks.getCompTimePreview).toHaveBeenCalled());
+    const submit = screen.getByRole("button", {
+      name: "Freizeitausgleich eintragen",
+    });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    await waitFor(() => expect(mocks.createAbsence).toHaveBeenCalled());
+  });
 
+  it("blocks the submit while a changed range's Vorschau reloads (#2885)", async () => {
+    renderModal({ absenceType: "comp_time" });
+
+    expect(await screen.findByText("Stundenkonto danach")).toBeInTheDocument();
     const submit = screen.getByRole("button", {
       name: "Freizeitausgleich eintragen",
     });
     expect(submit).toBeEnabled();
-    fireEvent.click(submit);
-    await waitFor(() => expect(mocks.createAbsence).toHaveBeenCalled());
+
+    // The reload hangs: the stale positive projection must disappear and the
+    // submit stay blocked — otherwise an overdrafting range could be booked
+    // without the explicit confirmation.
+    let resolvePreview!: (value: unknown) => void;
+    mocks.getCompTimePreview.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve;
+        }),
+    );
+    const [startInput] = screen.getAllByLabelText("Datum auswählen");
+    fireEvent.change(startInput!, { target: { value: "2026-07-21" } });
+
+    expect(
+      await screen.findByText(/Stundenkonto wird berechnet/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Stundenkonto danach")).not.toBeInTheDocument();
+    expect(submit).toBeDisabled();
+
+    resolvePreview({
+      currentBalanceMinutes: 600,
+      deductionMinutes: 960,
+      realizedDeductionMinutes: 0,
+      futureCommitmentMinutes: 0,
+      projectedBalanceMinutes: -360,
+    });
+    expect(
+      await screen.findByText(/fällt damit unter null/),
+    ).toBeInTheDocument();
+    expect(submit).toBeDisabled();
   });
 });
