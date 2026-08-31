@@ -2146,9 +2146,9 @@ describe("Sidebar", () => {
   });
 
   describe("collapsible sidebar (#2825)", () => {
-    // Umgeschaltet wird über den SidebarToggle in der Kopfzeile
-    // (header/sidebar-toggle.test.tsx); die Seitenleiste selbst folgt nur
-    // dem geteilten useSidebarCollapsed-Store.
+    // Umgeschaltet wird über den Toggle-Button in der Kopfzeile
+    // (header.test.tsx); die Seitenleiste selbst folgt nur dem geteilten
+    // useSidebarCollapsed-Store.
     it("renders expanded by default on wide viewports", () => {
       const { container } = render(<Sidebar />);
 

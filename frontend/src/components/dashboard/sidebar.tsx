@@ -46,6 +46,7 @@ import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { Button } from "~/components/ui/button";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
@@ -417,8 +418,8 @@ const ASIDE_WIDTH_TRANSITION =
 interface SidebarContentProps extends SidebarProps {
   // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
   // Wrapper (useSidebarCollapsed), damit auch der Suspense-Fallback die
-  // richtige Breite rendert. Umgeschaltet wird über den SidebarToggle in
-  // der Kopfzeile (header/sidebar-toggle.tsx), der denselben Store nutzt.
+  // richtige Breite rendert. Umgeschaltet wird über den Toggle-Button in
+  // der Kopfzeile (header.tsx), der denselben Store nutzt.
   readonly collapsed: boolean;
   readonly onExpandSidebar: () => void;
 }
@@ -1216,9 +1217,11 @@ function SidebarContent({
       : null;
     const ConceptIcon = conceptDefinition?.icon;
     return (
-      <button
+      <Button
         key={section.key}
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={() => {
           // Unterpunkte passen nicht in den Streifen: der Klick klappt die
           // Leiste auf und öffnet den Bereich mit derselben
@@ -1226,9 +1229,16 @@ function SidebarContent({
           onExpandSidebar();
           if (expanded !== section.accordion) section.onOpen();
         }}
-        className={`${railItemClasses(section.isActive)} cursor-pointer appearance-none border-0 bg-transparent`}
+        // Kit-Button liefert die standardisierten Fokus-Styles;
+        // railItemClasses überschreibt Maße und Zustandsfarben auf die
+        // 40px-Kachel des Streifens (twMerge, letzte Klasse gewinnt).
+        className={`${railItemClasses(section.isActive)} cursor-pointer`}
         title={section.label}
         aria-label={section.label}
+        // Im Streifen ist der Bereichsinhalt nie gerendert, deshalb meldet
+        // der Schalter im eingeklappten Zustand immer "zu" — erst nach dem
+        // Aufklappen übernimmt der Akkordeon-Header der breiten Leiste.
+        aria-expanded={!collapsed && expanded === section.accordion}
       >
         {conceptDefinition && ConceptIcon ? (
           section.isActive ? (
@@ -1271,7 +1281,7 @@ function SidebarContent({
             className="absolute -top-0.5 -right-0.5"
           />
         )}
-      </button>
+      </Button>
     );
   };
 

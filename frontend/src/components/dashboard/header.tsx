@@ -5,7 +5,10 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
@@ -19,7 +22,6 @@ import { matchesPathPrefix } from "~/lib/section-navigation";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
-import { SidebarToggle } from "./header/sidebar-toggle";
 import { RefreshButton } from "./header/refresh-button";
 import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
@@ -42,6 +44,20 @@ import {
   getPageTypeInfo,
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
+
+// Nur oberhalb von lg existiert die Desktop-Seitenleiste; darunter zeigt
+// die App die mobile Bottom-Nav und der Shortcut hätte nichts zu schalten.
+const SIDEBAR_VISIBLE_QUERY = "(min-width: 1024px)";
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
+}
 
 // Seitentitel des Schul-Portals. Beide Schreibweisen eines Pfades führen zum
 // selben Titel: auf dem Schul-Host zeigt die Adresszeile "/" und
@@ -109,6 +125,35 @@ export function Header() {
     homeUrl,
     profileUrl,
   } = useShellAuth();
+  // Ein-/Ausklappen der Desktop-Seitenleiste (#2825) — nur in den Portalen
+  // mit einklappbarer Leiste; das Eltern- und das Schul-Portal haben eigene
+  // Leisten ohne Klappzustand. Der Zustand syncht über den geteilten
+  // useSidebarCollapsed-Store mit der Seitenleiste selbst.
+  const hasCollapsibleSidebar = mode === "teacher" || mode === "operator";
+  const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebar } =
+    useSidebarCollapsed();
+
+  // Cmd+B (Mac) bzw. Strg+B (Windows/Linux) schaltet zusätzlich um — der
+  // etablierte Standard (VS Code, shadcn). In Eingabefeldern und Editoren
+  // bleibt die Tastenkombination unangetastet (dort heißt sie „fett").
+  useEffect(() => {
+    if (!hasCollapsibleSidebar) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "b") return;
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.altKey || event.shiftKey) return;
+      if (isEditableTarget(event.target)) return;
+      if (!globalThis.matchMedia(SIDEBAR_VISIBLE_QUERY).matches) return;
+      event.preventDefault();
+      toggleSidebar();
+    };
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
+  }, [hasCollapsibleSidebar, toggleSidebar]);
+
+  const sidebarToggleLabel = sidebarCollapsed
+    ? "Seitenleiste ausklappen"
+    : "Seitenleiste einklappen";
   // getPageTitle() is a pure helper and can't read the locale, so the
   // parent-portal page titles it returns ("Meine Kinder", "Kinderprofil", …)
   // would render German even on a localized portal. Override them here, where
@@ -239,10 +284,32 @@ export function Header() {
           <div className="flex min-w-0 flex-1 items-center space-x-4">
             {/* Seitenleisten-Toggle (#2825): erstes Element der Kopfzeile,
                 links vom Logo — die Standardposition (Gmail, GitHub) für
-                Layouts mit vollbreiter Topbar. Nur in den Portalen mit
-                einklappbarer Desktop-Seitenleiste; das Eltern- und das
-                Schul-Portal haben eigene Leisten ohne Klappzustand. */}
-            {(mode === "teacher" || mode === "operator") && <SidebarToggle />}
+                Layouts mit vollbreiter Topbar. */}
+            {hasCollapsibleSidebar && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                title={sidebarToggleLabel}
+                aria-label={sidebarToggleLabel}
+                aria-expanded={!sidebarCollapsed}
+                aria-keyshortcuts="Control+B Meta+B"
+                // -ml-4 zieht den Button aus dem Header-Padding (lg:px-8)
+                // nach links, sodass die Icon-Mitte (48px Button-Mitte -
+                // 16px = 32px) exakt über der Icon-Spalte der eingeklappten
+                // Seitenleiste (w-16, Mitte 32px) sitzt — der Toggle liest
+                // sich als Kopf der Leiste, nicht als freischwebendes
+                // Header-Element.
+                className="-ml-4 hidden shrink-0 lg:inline-flex"
+              >
+                {sidebarCollapsed ? (
+                  <PanelLeftOpen size={18} aria-hidden="true" />
+                ) : (
+                  <PanelLeftClose size={18} aria-hidden="true" />
+                )}
+              </Button>
+            )}
             {mode === "teacher" ? (
               // Brand doubles as tenant switcher when the account has
               // multiple tenants; renders a plain BrandLink otherwise.
