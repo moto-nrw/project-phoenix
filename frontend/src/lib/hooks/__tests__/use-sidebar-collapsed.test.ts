@@ -76,6 +76,28 @@ describe("useSidebarCollapsed", () => {
     expect(localStorage.getItem("sidebar-collapsed")).toBe("false");
   });
 
+  it("keeps the toggled state when reads succeed but writes fail", () => {
+    const setItem = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("quota exceeded");
+    });
+
+    const { result } = renderHook(() => useSidebarCollapsed());
+
+    act(() => {
+      result.current.toggleCollapsed();
+    });
+
+    expect(result.current.collapsed).toBe(true);
+
+    // Aufräumen: ein erfolgreicher Schreibvorgang löscht den modulweiten
+    // In-Memory-Fallback, damit spätere Tests sauber starten.
+    setItem.mockRestore();
+    act(() => {
+      result.current.expandSidebar();
+    });
+    expect(result.current.collapsed).toBe(false);
+  });
+
   it("stays in sync across multiple consumers in the same document", () => {
     const first = renderHook(() => useSidebarCollapsed());
     const second = renderHook(() => useSidebarCollapsed());

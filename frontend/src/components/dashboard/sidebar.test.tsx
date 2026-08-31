@@ -2202,5 +2202,18 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Notfall")).toBeInTheDocument();
       expect(screen.getByLabelText("Hilfe")).toBeInTheDocument();
     });
+
+    it("keeps Tagesplan reachable as an icon in the rail (#2383)", () => {
+      // Betreuungskraft mit schedules:read: ausgeklappt steht Tagesplan ganz
+      // oben — der Streifen darf den Einstieg nicht verlieren.
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+      localStorage.setItem("sidebar-collapsed", "true");
+
+      render(<Sidebar />);
+
+      expect(screen.getByLabelText("Tagesplan")).toBeInTheDocument();
+    });
   });
 });

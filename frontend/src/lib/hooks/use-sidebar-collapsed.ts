@@ -14,19 +14,22 @@ const LOCAL_CHANGE_EVENT = "sidebar-collapsed-change";
 // (jsdom-Stub: immer false), bleiben beim Server-Default "ausgeklappt".
 const NARROW_VIEWPORT_QUERY = "(max-width: 1279.98px)";
 
-// Fallback when localStorage is unavailable (private mode, blocked site
-// data): the toggle still works for the lifetime of the document.
+// Fallback when localStorage is not writable (private mode, blocked site
+// data, full quota): the toggle still works for the lifetime of the document.
+// A write that failed to persist is fresher than anything localStorage still
+// holds, so it wins until the next successful write clears it.
 let memoryValue: boolean | null = null;
 
 const getServerSnapshot = () => false;
 
 function getSnapshot(): boolean {
+  if (memoryValue !== null) return memoryValue;
   try {
     const stored = globalThis.localStorage.getItem(STORAGE_KEY);
     if (stored === "true") return true;
     if (stored === "false") return false;
   } catch {
-    if (memoryValue !== null) return memoryValue;
+    // localStorage unreadable — fall through to the viewport default.
   }
   if (typeof globalThis.matchMedia !== "function") return false;
   return globalThis.matchMedia(NARROW_VIEWPORT_QUERY).matches;
@@ -55,6 +58,7 @@ function subscribe(onStoreChange: () => void) {
 function writeCollapsed(value: boolean) {
   try {
     globalThis.localStorage.setItem(STORAGE_KEY, String(value));
+    memoryValue = null;
   } catch {
     memoryValue = value;
   }

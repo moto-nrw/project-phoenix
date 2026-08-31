@@ -1293,8 +1293,13 @@ function SidebarContent({
           ) : (
             <>
               <nav className="scrollbar-hidden flex flex-1 flex-col items-center gap-1 overflow-y-auto p-2">
+                {/* Home (Admins) und Tagesplan (Betreuungskräfte, #2383) —
+                    ganz oben, in derselben Reihenfolge wie ausgeklappt. */}
                 {beforeAccordionItems
-                  .filter((item) => item.href === "/dashboard")
+                  .filter(
+                    (item) =>
+                      item.href === "/dashboard" || item.href === "/tagesplan",
+                  )
                   .map(renderRailNavItem)}
                 {showGroupAccordion &&
                   !openCareGroupMode &&
