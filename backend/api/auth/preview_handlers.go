@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 
@@ -24,15 +25,18 @@ func (req *StaffPreviewStartRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// StaffPreviewEndRequest names the previewed account for the audit trail.
+// StaffPreviewEndRequest carries the preview token that is being closed. The
+// previewed account is read from that signed token, never from a number the
+// client picks — otherwise any admin could stamp the audit trail with a
+// preview of a colleague they never opened.
 type StaffPreviewEndRequest struct {
-	AccountID int64 `json:"account_id"`
+	PreviewToken string `json:"preview_token"`
 }
 
 // Bind validates the staff-preview end payload.
 func (req *StaffPreviewEndRequest) Bind(_ *http.Request) error {
-	if req.AccountID <= 0 {
-		return errors.New("account_id is required")
+	if strings.TrimSpace(req.PreviewToken) == "" {
+		return errors.New("preview_token is required")
 	}
 	return nil
 }
@@ -83,10 +87,13 @@ func (rs *Resource) endStaffPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	rs.AuthService.EndStaffPreview(
-		r.Context(), int64(claims.ID), req.AccountID,
+	if _, err := rs.AuthService.EndStaffPreview(
+		r.Context(), int64(claims.ID), claims.TenantID, req.PreviewToken,
 		getClientIP(r), r.Header.Get(headerUserAgent),
-	)
+	); err != nil {
+		renderStaffPreviewError(w, r, err)
+		return
+	}
 	common.Respond(w, r, http.StatusOK, nil, "Preview ended")
 }
 
@@ -117,6 +124,8 @@ func renderStaffPreviewError(w http.ResponseWriter, r *http.Request, err error) 
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, "preview_target_not_previewable"))
 		case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, "preview_target_school_portal"))
+		case errors.Is(authErr.Err, authService.ErrPreviewTokenInvalid):
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(authService.ErrPreviewTokenInvalid, "preview_token_invalid"))
 		case errors.Is(authErr.Err, authService.ErrPreviewSelf):
 			common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPreviewSelf))
 		case errors.Is(authErr.Err, authService.ErrTenantNotFound):

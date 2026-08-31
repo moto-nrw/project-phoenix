@@ -208,6 +208,35 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 	return tokenString, err
 }
 
+// ParseAccessJWT verifies an access token's signature, decodes it into
+// AppClaims, and rejects expired tokens. Mirrors ParseMFAChallengeJWT for the
+// access-token shape: callers that receive a token in a request BODY (rather
+// than through the Verifier middleware) need the same guarantees the
+// middleware gives — the staff-view preview end call (#2893) proves with it
+// which preview token the admin actually held.
+func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {
+	jwtToken, err := a.JwtAuth.Decode(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	raw := make(map[string]any)
+	for _, key := range jwtToken.Keys() {
+		var value any
+		if jwtToken.Get(key, &value) == nil {
+			raw[key] = value
+		}
+	}
+	var claims AppClaims
+	if err := claims.ParseClaims(raw); err != nil {
+		return nil, err
+	}
+	claims.ExpiresAt = expiryFromClaims(raw)
+	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
+		return nil, errors.New("access token expired")
+	}
+	return &claims, nil
+}
+
 // GetRefreshExpiry returns the refresh token expiration duration
 func (a *TokenAuth) GetRefreshExpiry() time.Duration {
 	return a.JwtRefreshExpiry

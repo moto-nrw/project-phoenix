@@ -43,6 +43,10 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 
 	_, target := testpkg.CreateTestCalendarStaff(t, tc.db, "Ziel", "Person")
 
+	// Filled by the minting subtest and consumed by the end subtests below —
+	// the end call proves with the real token which preview it closes.
+	var mintedPreviewToken string
+
 	t.Run("non-admin cannot start a preview", func(t *testing.T) {
 		claims := jwt.AppClaims{
 			ID:          int(target.ID),
@@ -73,6 +77,7 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 		assert.Equal(t, target.ID, resp.TargetAccountID)
 		assert.Equal(t, "Ziel Person", resp.TargetName)
 		assert.Positive(t, resp.ExpiresIn)
+		mintedPreviewToken = resp.AccessToken
 
 		parts := strings.Split(resp.AccessToken, ".")
 		require.Len(t, parts, 3)
@@ -100,7 +105,7 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 			{http.MethodPost, "/auth/switch-tenant", `{"tenant_slug":"t1"}`},
 			{http.MethodPost, "/auth/password", `{"current_password":"a","new_password":"b"}`},
 			{http.MethodPost, "/auth/staff-preview", fmt.Sprintf(`{"account_id":%d}`, admin.ID)},
-			{http.MethodPost, "/auth/staff-preview/end", fmt.Sprintf(`{"account_id":%d}`, target.ID)},
+			{http.MethodPost, "/auth/staff-preview/end", `{"preview_token":"irrelevant"}`},
 		}
 		for _, w := range writes {
 			req := httptest.NewRequest(w.method, w.path, strings.NewReader(w.body))
@@ -114,6 +119,48 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/auth/account/tenants", nil)
 		rec := testutil.ExecuteWithAuth(t, router, req, previewClaims)
 		assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	})
+
+	t.Run("end accepts the admin's own preview token", func(t *testing.T) {
+		require.NotEmpty(t, mintedPreviewToken, "minting subtest must run first")
+		body := fmt.Sprintf(`{"preview_token":%q}`, mintedPreviewToken)
+		req := httptest.NewRequest(http.MethodPost, "/auth/staff-preview/end", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := testutil.ExecuteWithAuth(t, router, req, adminClaims)
+		assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	})
+
+	// The previewed account is read from the signed token, so an admin cannot
+	// name a colleague they never previewed in the audit trail.
+	t.Run("end rejects a token that is not this admin's preview", func(t *testing.T) {
+		foreign := testutil.MintTestJWT(t, jwt.AppClaims{
+			ID:            int(target.ID),
+			TenantID:      testpkg.Tenant(t),
+			Sub:           target.Email,
+			Roles:         []string{"user"},
+			ReadOnly:      true,
+			ActingAdminID: admin.ID + 1000,
+		})
+		cases := map[string]string{
+			"another admin's preview": foreign,
+			"a regular session token": testutil.MintTestJWT(t, adminClaims),
+			"garbage":                 "not-a-token",
+		}
+		for name, token := range cases {
+			body := fmt.Sprintf(`{"preview_token":%q}`, token)
+			req := httptest.NewRequest(http.MethodPost, "/auth/staff-preview/end", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := testutil.ExecuteWithAuth(t, router, req, adminClaims)
+			assert.Equalf(t, http.StatusForbidden, rec.Code, "%s must be refused", name)
+			assert.Containsf(t, rec.Body.String(), "preview_token_invalid", "%s", name)
+		}
+	})
+
+	t.Run("end refuses an empty payload", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/auth/staff-preview/end", strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		rec := testutil.ExecuteWithAuth(t, router, req, adminClaims)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 
 	t.Run("admin lists candidates, caller and guardian-only excluded", func(t *testing.T) {

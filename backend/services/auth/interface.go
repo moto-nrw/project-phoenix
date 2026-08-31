@@ -144,9 +144,11 @@ type AuthService interface {
 	// sees the tenant portal exactly as the target staff member. Start mints
 	// (and re-mints) the token, End records the audit trail, the candidate
 	// list feeds the picker. The route layer restricts all three to
-	// effective admins.
+	// effective admins. End is given the preview token it closes and reads
+	// the previewed account from it, so the audit trail cannot be stamped
+	// with a preview that never happened.
 	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, ipAddress, userAgent string) (*StaffPreviewSession, error)
-	EndStaffPreview(ctx context.Context, adminAccountID, targetAccountID int64, ipAddress, userAgent string)
+	EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error)
 	ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error)
 
 	// Multi-Tenant Account Linking

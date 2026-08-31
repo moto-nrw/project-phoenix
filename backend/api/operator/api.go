@@ -216,6 +216,7 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(RequiresOperatorScope)
 		r.Use(common.SecurityPrincipalMiddleware)
 		r.Use(RequiresActiveOperator(rs.operatorLookup))

@@ -97,6 +97,11 @@ var (
 	// ErrPreviewTargetNotStaff: the target has no tenant-portal surface at
 	// this school (guardian-only, or no role at all).
 	ErrPreviewTargetNotStaff = errors.New("account is not a staff member at this school")
+	// ErrPreviewTokenInvalid: the token presented when ending a preview is
+	// not a valid preview token of the calling admin at this school. The end
+	// call proves which preview it closes with that token, so a client cannot
+	// name an arbitrary account in the audit trail.
+	ErrPreviewTokenInvalid = errors.New("not a preview token of this session")
 
 	// Invitation errors
 	ErrInvitationNotFound            = errors.New("invitation not found")

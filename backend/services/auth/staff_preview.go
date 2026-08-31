@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -57,7 +59,16 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 	}
 
 	account, err := s.repos.Account.FindByID(ctx, targetAccountID)
-	if err != nil || account == nil {
+	if err != nil {
+		// Only a genuine miss is a 404. A database or infrastructure error
+		// must stay a 5xx so the admin retries instead of being told the
+		// colleague does not exist.
+		if errors.Is(err, modelBase.ErrNotFound) {
+			return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
+		}
+		return nil, &AuthError{Op: op, Err: err}
+	}
+	if account == nil {
 		return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
 	}
 	if !account.Active {
@@ -140,25 +151,54 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 
 // EndStaffPreview records that the admin left the preview. Called with the
 // RESTORED admin session — the preview token itself cannot reach this route
-// (POST, blocked by the read-only middleware). Purely an audit affair: the
-// preview token simply expires, nothing is revoked.
-func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, targetAccountID int64, ipAddress, userAgent string) {
+// (POST, blocked by the read-only middleware), so it travels in the body as
+// PROOF instead: the previewed account is read from the signed token, never
+// from a client-supplied number. Only a token this admin was actually handed
+// at this school is accepted, so nobody can stamp the audit trail with a
+// preview that never happened. Purely an audit affair otherwise — the preview
+// token simply expires, nothing is revoked.
+//
+// Returns the previewed account id for the caller's response and logs.
+func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error) {
+	const op = "end staff preview"
+
+	claims, err := s.tokenAuth.ParseAccessJWT(previewToken)
+	if err != nil {
+		s.getLogger().Warn("staff preview end: token not parseable",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.String("error", err.Error()),
+		)
+		return 0, &AuthError{Op: op, Err: ErrPreviewTokenInvalid}
+	}
+	if !claims.IsReadOnlyPreview() || claims.ActingAdminID != adminAccountID ||
+		claims.TenantID != tenantID || claims.ID <= 0 {
+		s.getLogger().Warn("staff preview end: token does not belong to this session",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.Int64("tenant_id", tenantID),
+		)
+		return 0, &AuthError{Op: op, Err: ErrPreviewTokenInvalid}
+	}
+	targetAccountID := int64(claims.ID)
+
 	s.logAuthEventWithMetadata(ctx, adminAccountID, audit.EventTypeStaffPreviewEnded, true, ipAddress, userAgent, "",
 		map[string]interface{}{"target_account_id": targetAccountID})
 	s.getLogger().Info("staff preview ended",
 		slog.Int64("admin_account_id", adminAccountID),
 		slog.Int64("target_account_id", targetAccountID),
 	)
+	return targetAccountID, nil
 }
 
 // ListStaffPreviewCandidates returns the staff members an admin can preview
 // at tenantID, excluding the caller. Runs inside the route's tenant
 // transaction (RLS-scoped).
 //
-// The role filter here works on aggregated role NAMES (that is what the
-// listing query returns), so a tenant-scoped custom role that happens to be
-// called "lehrkraft" drops out of the picker although StartStaffPreview
-// would accept it — the list is UX, the start call is the authority.
+// The listing query returns aggregated role NAMES, and a name alone cannot
+// tell the lehrkraft SYSTEM role from a school's own custom role carrying the
+// same label. So the name check is only a prefilter: a candidate it would drop
+// gets its actual role assignments loaded and decided by the same
+// IsSchoolPortalOnlyForTenant the start path uses — the picker and
+// StartStaffPreview never disagree.
 func (s *Service) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error) {
 	infos, err := s.repos.AccountTenant.ListAccountsByTenantID(ctx, tenantID)
 	if err != nil {
@@ -174,8 +214,17 @@ func (s *Service) ListStaffPreviewCandidates(ctx context.Context, tenantID, excl
 			continue
 		}
 		roles := splitAggregatedRoleNames(info.RoleName)
-		if len(roles) == 0 || IsGuardianOnlyForTenant(roles) || isLehrkraftOnlyByName(roles) {
+		if len(roles) == 0 || IsGuardianOnlyForTenant(roles) {
 			continue
+		}
+		if isLehrkraftOnlyByName(roles) {
+			schoolPortalOnly, err := s.isSchoolPortalOnlyAtTenant(ctx, info.AccountID, tenantID)
+			if err != nil {
+				return nil, &AuthError{Op: "list staff preview candidates", Err: err}
+			}
+			if schoolPortalOnly {
+				continue
+			}
 		}
 		candidates = append(candidates, StaffPreviewCandidate{
 			AccountID: info.AccountID,
@@ -202,9 +251,32 @@ func splitAggregatedRoleNames(aggregated string) []string {
 	return names
 }
 
-// isLehrkraftOnlyByName is the name-based picker approximation of
-// IsSchoolPortalOnlyForTenant (which needs loaded role objects to check the
-// system flag).
+// isSchoolPortalOnlyAtTenant answers the start path's question for a listing
+// row: does this account hold ONLY school-portal roles at the tenant? Loads
+// the assignments with their role objects (the listing query carries names
+// only) and decides with IsSchoolPortalOnlyForTenant. An account with no
+// assignment row is not school-portal-only — the caller already knows it has
+// roles, so that case belongs to the start call, not to a silent drop.
+func (s *Service) isSchoolPortalOnlyAtTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenant(ctx, accountID, tenantID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	roles := make([]*authModels.Role, 0, len(accountRoles))
+	for _, accountRole := range accountRoles {
+		if accountRole.Role != nil {
+			roles = append(roles, accountRole.Role)
+		}
+	}
+	return IsSchoolPortalOnlyForTenant(roles), nil
+}
+
+// isLehrkraftOnlyByName is the cheap name-based prefilter in front of
+// isSchoolPortalOnlyAtTenant: it decides nothing on its own, it only marks
+// the rows worth one extra role lookup.
 func isLehrkraftOnlyByName(roleNames []string) bool {
 	if len(roleNames) == 0 {
 		return false

@@ -115,20 +115,25 @@ export async function performStartStaffPreview(
 /**
  * Full end sequence: restore the admin session, then record the end for the
  * audit trail (best effort — the preview token simply expires either way).
+ *
+ * The preview token travels with that call as proof of which preview is being
+ * closed: the backend reads the previewed person from the signed token, so no
+ * client can write an audit entry about a preview it never held. It is
+ * therefore captured BEFORE the session swaps back to the admin.
  */
 export async function performEndStaffPreview(
-  targetAccountId: string | undefined,
+  previewToken: string | undefined,
   update: SessionUpdate,
   swrMutate: SwrMutateAll,
 ): Promise<void> {
   await update({ previewEnd: true });
   clearSessionCache();
-  if (targetAccountId) {
+  if (previewToken) {
     try {
       await sessionFetch("/api/auth/staff-preview/end", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account_id: Number(targetAccountId) }),
+        body: JSON.stringify({ preview_token: previewToken }),
       });
     } catch {
       // Audit only — ending the preview must never fail on this call.

@@ -3,6 +3,7 @@ package jwt
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
@@ -125,6 +126,26 @@ func getOptionalInt64(claims map[string]any, key string) int64 {
 		return 0
 	}
 	return int64(f)
+}
+
+// expiryFromClaims reads the "exp" claim as a unix timestamp. The decoder
+// hands it over as a number for a raw claim map and as a time.Time for a
+// token decoded by jwx, so every caller has to handle both shapes; 0 means
+// the token carries no expiry.
+func expiryFromClaims(claims map[string]any) int64 {
+	exp, ok := claims["exp"]
+	if !ok {
+		return 0
+	}
+	switch v := exp.(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case time.Time:
+		return v.Unix()
+	}
+	return 0
 }
 
 func getRequiredStringSlice(claims map[string]any, key string) ([]string, error) {

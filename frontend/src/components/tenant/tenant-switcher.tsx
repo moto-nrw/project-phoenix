@@ -101,11 +101,7 @@ export function BrandTenantSwitcher({
         // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
         // — das Vorschau-Token selbst darf den Wechsel nicht ausführen.
         if (session?.user?.isPreview) {
-          await performEndStaffPreview(
-            session.user.previewTargetAccountId?.toString(),
-            update,
-            mutate,
-          );
+          await performEndStaffPreview(session.user.token, update, mutate);
         }
         // The backend resolves the switch target by SUBDOMAIN (same as
         // login), so pass targetTenant.subdomain — the slug column can

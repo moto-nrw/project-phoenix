@@ -404,7 +404,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
-  const { mode } = useShellAuth();
+  const { mode, isPreview } = useShellAuth();
+  // Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
+  // schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
+  // dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
+  // über ihre obersten Einträge.
+  const sidebarStickyClasses = isPreview
+    ? "sticky top-[121px] h-[calc(100vh-121px)]"
+    : "sticky top-[73px] h-[calc(100vh-73px)]";
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -1143,7 +1150,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       <aside
         className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
       >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+        <div className={`${sidebarStickyClasses} flex flex-col`}>
           <nav className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
             {resolvedOperatorSections.map((section, index) => (
               <div
@@ -1168,7 +1175,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     <aside
       className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
     >
-      <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+      <div className={`${sidebarStickyClasses} flex flex-col`}>
         {/* Main navigation, scrollable */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
           {/* Home (admin only) */}

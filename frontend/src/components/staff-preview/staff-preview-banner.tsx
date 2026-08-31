@@ -25,32 +25,25 @@ export function StaffPreviewBanner() {
   const shellAuth = useShellAuthSafe();
   if (shellAuth?.isPreview !== true) return null;
   return (
-    <ActivePreviewBanner
-      previewTargetName={shellAuth.previewTargetName}
-      previewTargetAccountId={shellAuth.previewTargetAccountId}
-    />
+    <ActivePreviewBanner previewTargetName={shellAuth.previewTargetName} />
   );
 }
 
 function ActivePreviewBanner({
   previewTargetName,
-  previewTargetAccountId,
 }: {
   readonly previewTargetName?: string;
-  readonly previewTargetAccountId?: number;
 }) {
-  const { update } = useSession();
+  const { data: session, update } = useSession();
   const [isEnding, setIsEnding] = useState(false);
 
   const handleEnd = async () => {
     if (isEnding) return;
     setIsEnding(true);
     try {
-      await performEndStaffPreview(
-        previewTargetAccountId?.toString(),
-        update,
-        mutate,
-      );
+      // Das aktive Token IST das Vorschau-Token — vor dem Zurückschalten
+      // gelesen, weil der Server damit prüft, welche Vorschau endet.
+      await performEndStaffPreview(session?.user?.token, update, mutate);
     } catch (err) {
       logger.error("staff_preview_end_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -73,15 +66,19 @@ function ActivePreviewBanner({
           weight="bold"
           className="h-4 w-4 shrink-0"
         />
-        <span className="truncate">
-          {/* Kleine Bildschirme: kurz, damit der Name nie abgeschnitten wird. */}
-          <span className="sm:hidden">
-            Vorschau:{" "}
-            <span className="font-semibold">
-              {previewTargetName ?? "Mitarbeitende Person"}
+        <span className="min-w-0">
+          {/* Kleine Bildschirme: zweizeilig statt gekürzt. Der Schreibschutz
+              ist der Grund für den Streifen und darf nirgends wegfallen. */}
+          <span className="flex flex-col leading-tight sm:hidden">
+            <span className="truncate text-xs">
+              Vorschau:{" "}
+              <span className="font-semibold">
+                {previewTargetName ?? "Mitarbeitende Person"}
+              </span>
             </span>
+            <span className="text-xs">Sie können nur lesen.</span>
           </span>
-          <span className="hidden sm:inline">
+          <span className="hidden truncate sm:inline">
             Vorschau: Sie sehen moto wie{" "}
             <span className="font-semibold">
               {previewTargetName ?? "diese Person"}

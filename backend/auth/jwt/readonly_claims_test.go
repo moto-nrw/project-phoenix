@@ -3,6 +3,7 @@ package jwt
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,4 +86,51 @@ func TestRefreshClaimsRejectReadOnlyPreviewToken(t *testing.T) {
 	err := refresh.ParseClaims(claims)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "read-only preview")
+}
+
+// ParseAccessJWT is how the staff-preview end call (#2893) proves which
+// preview a request closes: the token arrives in the request BODY, so it must
+// be verified as strictly as one that came through the Verifier middleware.
+func TestParseAccessJWTVerifiesPreviewTokens(t *testing.T) {
+	t.Parallel()
+
+	tokenAuth, err := NewTokenAuthWithSecret("parse-access-jwt-test-secret")
+	require.NoError(t, err)
+	tokenAuth.JwtExpiry = time.Hour
+
+	minted := AppClaims{
+		ID:            42,
+		Sub:           "target@example.com",
+		Roles:         []string{"user"},
+		TenantID:      77,
+		ReadOnly:      true,
+		ActingAdminID: 99,
+	}
+	token, err := tokenAuth.CreateJWT(minted)
+	require.NoError(t, err)
+
+	parsed, err := tokenAuth.ParseAccessJWT(token)
+	require.NoError(t, err)
+	assert.True(t, parsed.IsReadOnlyPreview())
+	assert.EqualValues(t, 99, parsed.ActingAdminID)
+	assert.Equal(t, 42, parsed.ID)
+	assert.EqualValues(t, 77, parsed.TenantID)
+
+	t.Run("rejects a token signed with another secret", func(t *testing.T) {
+		other, otherErr := NewTokenAuthWithSecret("a-different-secret")
+		require.NoError(t, otherErr)
+		_, parseErr := other.ParseAccessJWT(token)
+		require.Error(t, parseErr)
+	})
+
+	t.Run("rejects an expired token", func(t *testing.T) {
+		expiring, expErr := NewTokenAuthWithSecret("parse-access-jwt-test-secret")
+		require.NoError(t, expErr)
+		expiring.JwtExpiry = -time.Minute
+		expired, createErr := expiring.CreateJWT(minted)
+		require.NoError(t, createErr)
+
+		_, parseErr := tokenAuth.ParseAccessJWT(expired)
+		require.Error(t, parseErr)
+	})
 }

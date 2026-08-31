@@ -39,6 +39,28 @@ func assignSeededRoleForTenant(t *testing.T, db *bun.DB, accountID, tenantID int
 	require.NoError(t, err, "failed to assign role")
 }
 
+// assignCustomRoleNamed creates a tenant-scoped CUSTOM role with exactly the
+// given name (no unique suffix — the point is the name collision with a system
+// role) and assigns it to the account.
+func assignCustomRoleNamed(t *testing.T, db *bun.DB, accountID, tenantID int64, roleName string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var roleID int64
+	err := db.QueryRowContext(ctx, `
+		INSERT INTO auth.roles (name, description, is_system, base_role, tenant_id, created_at, updated_at)
+		VALUES (?, 'Eigene Rolle der Schule', false, 'user', ?, NOW(), NOW())
+		RETURNING id`, roleName, tenantID).Scan(&roleID)
+	require.NoError(t, err, "failed to create custom role")
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		VALUES (?, ?, ?, NOW(), NOW())
+		ON CONFLICT DO NOTHING`, accountID, roleID, tenantID)
+	require.NoError(t, err, "failed to assign custom role")
+}
+
 func decodePreviewTokenPayload(t *testing.T, token string) map[string]any {
 	t.Helper()
 	parts := strings.Split(token, ".")
@@ -201,4 +223,88 @@ func TestAuthService_ListStaffPreviewCandidates(t *testing.T) {
 	assert.NotContains(t, ids, guardianOnly.ID, "guardian-only accounts have no tenant-portal surface")
 	assert.NotContains(t, ids, lehrkraftOnly.ID, "Lehrkraft-only accounts live in moto schule")
 	assert.NotContains(t, ids, roleless.ID, "accounts without a role cannot be previewed")
+}
+
+// A school's own role may carry the label "Lehrkraft" without being the
+// lehrkraft SYSTEM role. StartStaffPreview accepts such an account, so the
+// picker must list it — otherwise the admin sees a colleague in the staff list
+// that the preview simply refuses to offer.
+func TestAuthService_ListStaffPreviewCandidates_CustomLehrkraftRoleIsListed(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	admin := testpkg.CreateTestAccount(t, db, "custom-lehrkraft-admin")
+	assignSeededRoleForTenant(t, db, admin.ID, tenantID, "admin")
+
+	customLehrkraft := testpkg.CreateTestAccount(t, db, "custom-lehrkraft-target")
+	assignCustomRoleNamed(t, db, customLehrkraft.ID, tenantID, "Lehrkraft")
+
+	candidates, err := service.ListStaffPreviewCandidates(ctx, tenantID, admin.ID)
+	require.NoError(t, err)
+
+	listed := false
+	for _, candidate := range candidates {
+		if candidate.AccountID == customLehrkraft.ID {
+			listed = true
+		}
+	}
+	assert.True(t, listed, "an account with a school-defined role named Lehrkraft must be selectable")
+
+	// And the picker agrees with the start path.
+	_, err = service.StartStaffPreview(ctx, admin.ID, tenantID, customLehrkraft.ID, "", "")
+	require.NoError(t, err)
+}
+
+func TestAuthService_EndStaffPreview(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	admin := testpkg.CreateTestAccount(t, db, "preview-end-admin")
+	_, target := testpkg.CreateTestCalendarStaff(t, db, "Ende", "Person")
+
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "")
+	require.NoError(t, err)
+
+	t.Run("reads the previewed account from the token and audits it", func(t *testing.T) {
+		endedTarget, endErr := service.EndStaffPreview(ctx, admin.ID, tenantID, session.AccessToken, "127.0.0.1", "go-test")
+		require.NoError(t, endErr)
+		assert.Equal(t, target.ID, endedTarget)
+
+		require.Eventually(t, func() bool {
+			var count int
+			countErr := db.NewSelect().
+				ColumnExpr("COUNT(*)").
+				TableExpr("audit.auth_events").
+				Where("account_id = ?", admin.ID).
+				Where("event_type = ?", "staff_preview_ended").
+				Where("metadata->>'target_account_id' = ?", fmt.Sprint(target.ID)).
+				Scan(ctx, &count)
+			return countErr == nil && count == 1
+		}, 5*time.Second, 100*time.Millisecond, "staff_preview_ended audit event missing")
+	})
+
+	// Without this, an admin could stamp the audit trail with a preview of a
+	// colleague they never opened.
+	t.Run("refuses a token that is not this admin's preview at this school", func(t *testing.T) {
+		otherAdmin := testpkg.CreateTestAccount(t, db, "preview-end-other-admin")
+		foreign, foreignErr := service.StartStaffPreview(ctx, otherAdmin.ID, tenantID, target.ID, "", "")
+		require.NoError(t, foreignErr)
+
+		_, endErr := service.EndStaffPreview(ctx, admin.ID, tenantID, foreign.AccessToken, "", "")
+		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+
+		_, endErr = service.EndStaffPreview(ctx, admin.ID, tenantID+1, session.AccessToken, "", "")
+		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+
+		_, endErr = service.EndStaffPreview(ctx, admin.ID, tenantID, "not-a-token", "", "")
+		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+	})
 }

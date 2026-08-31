@@ -47,4 +47,22 @@ describe("StaffPreviewBanner", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
+
+  // Der Schreibschutz ist der Grund für den Streifen. Die schmale Fassung für
+  // kleine Bildschirme darf ihn deshalb nicht weglassen.
+  it("says on every screen size that only reading is possible", () => {
+    mockShellAuth.value = {
+      isPreview: true,
+      previewTargetName: "Erika Beispiel",
+      previewTargetAccountId: 42,
+    };
+    render(<StaffPreviewBanner />);
+
+    // Kurzfassung (mobil) und Langfassung (ab sm) tragen den Hinweis je einmal.
+    const readOnlyHints = screen
+      .getAllByText(/Sie können nur lesen\./)
+      .filter((element) => element.children.length === 0);
+    expect(readOnlyHints.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Sie können nur lesen.")).toBeInTheDocument();
+  });
 });
