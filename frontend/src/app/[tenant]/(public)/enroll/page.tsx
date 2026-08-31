@@ -72,9 +72,9 @@ export default function EnrollPhasePickerPage() {
     return (
       <PublicEnrollmentPageShell withInlineSwitcher>
         <PhasePickerHeader tenant={tenant} />
-        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-3xl border shadow-sm">
+        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-2xl border shadow-sm">
           <div
-            className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
+            className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
             role="status"
             aria-live="polite"
           >
@@ -99,7 +99,7 @@ export default function EnrollPhasePickerPage() {
         </div>
       )}
 
-      <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="p-5 sm:p-8 lg:p-10">
             <div className="max-w-3xl">
@@ -116,7 +116,7 @@ export default function EnrollPhasePickerPage() {
 
             <div className="mt-8">
               {!phases || phases.length === 0 ? (
-                <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-2xl border p-5 text-sm leading-6">
+                <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border p-5 text-sm leading-6">
                   {enrollmentDisabled ? t("disabled") : t("noPhase")}
                 </div>
               ) : (

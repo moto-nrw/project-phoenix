@@ -57,7 +57,7 @@ const StatCard: React.FC<StatCardProps> = ({
   href,
 }) => {
   const cardContent = (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
       <div className="relative p-4 md:p-6">
         <div className="mb-3 flex items-start justify-between">
           <div className="p-0.5">
@@ -84,7 +84,7 @@ const StatCard: React.FC<StatCardProps> = ({
     return (
       <Link
         href={href}
-        className="focus-visible:ring-moto-blue group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="focus-visible:ring-moto-blue group block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
@@ -111,7 +111,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
   linkText,
 }) => {
   const cardContent = (
-    <div className="moto-content-surface relative h-full overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
+    <div className="moto-content-surface relative h-full overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
       <div className="relative p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -150,7 +150,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
     return (
       <Link
         href={href}
-        className="focus-visible:ring-moto-blue group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="focus-visible:ring-moto-blue group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>

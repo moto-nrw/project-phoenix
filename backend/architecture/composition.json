@@ -16594,7 +16594,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        235
+        236
       ],
       "tables": []
     },
@@ -16604,7 +16604,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        238
+        239
       ],
       "tables": []
     },
