@@ -445,7 +445,15 @@ export function StudentCreateModal({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Neues Kind">
+      <Modal
+        // Ausgeblendet, solange ein Unter-Dialog (Erziehungsberechtigte,
+        // Wochenplan) offen ist — nie zwei eigenständige Dialoge
+        // übereinander (#2774). Der Formular-State bleibt erhalten, weil er
+        // in dieser Komponente liegt.
+        isOpen={isOpen && !guardianModalOpen && !carePlanModalOpen}
+        onClose={onClose}
+        title="Neues Kind"
+      >
         <form
           ref={formRef}
           onSubmit={handleSubmit}
