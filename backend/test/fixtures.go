@@ -1298,6 +1298,33 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 	return account
 }
 
+// OwnTestAccount registers exact-ID teardown for an account created through a
+// service or repository path. Accounts have no tenant_id of their own, so a
+// test must own their lifecycle even when the surrounding identity is scoped.
+func OwnTestAccount(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+	tb.Cleanup(func() { CleanupAuthFixtures(tb, db, accountID) })
+}
+
+// OwnTestAccountWithIdentity registers teardown for an account and the school
+// identity provisioned for it by registration or invitation service paths.
+func OwnTestAccountWithIdentity(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+	tb.Cleanup(func() { CleanupAccountWithIdentity(tb, db, accountID) })
+}
+
+// OwnTestPasswordResetTokensForEmail registers teardown for reset tokens a
+// password-reset service path creates without returning their IDs.
+func OwnTestPasswordResetTokensForEmail(tb testing.TB, db *bun.DB, email string) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		cleanupDelete(tb, db.NewDelete().
+			Table("auth.password_reset_tokens").
+			Where("account_id IN (SELECT id FROM auth.accounts WHERE email = ?)", email),
+			"auth.password_reset_tokens")
+	})
+}
+
 // claimAccountForTest maps a fixture account to the tenant of the test that
 // created it. An account carries no tenant_id of its own — the link to a
 // school lives in auth.account_tenants — so without this row every test
@@ -1710,9 +1737,16 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 	// auth.permissions is part of the clone-wide RBAC catalog and carries no
 	// tenant, so this row is shared state: the fixture takes it back itself
 	// (#2419).
-	tb.Cleanup(func() { CleanupPermissionRecords(tb, db, permission.ID) })
+	OwnTestPermission(tb, db, permission.ID)
 
 	return permission
+}
+
+// OwnTestPermission registers exact-ID teardown for a permission created
+// through a service or repository path.
+func OwnTestPermission(tb testing.TB, db *bun.DB, permissionID int64) {
+	tb.Helper()
+	tb.Cleanup(func() { CleanupPermissionRecords(tb, db, permissionID) })
 }
 
 // CreateTestToken creates an auth token for testing.

@@ -37,9 +37,16 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 		Exec(context.Background())
 	require.NoError(tb, err, "Failed to create test operator")
 
-	tb.Cleanup(func() { CleanupOperator(tb, db, op.ID) })
+	OwnTestOperator(tb, db, op.ID)
 
 	return op
+}
+
+// OwnTestOperator registers exact-ID teardown for an operator created through
+// a service or repository path.
+func OwnTestOperator(tb testing.TB, db *bun.DB, operatorID int64) {
+	tb.Helper()
+	tb.Cleanup(func() { CleanupOperator(tb, db, operatorID) })
 }
 
 // CleanupOperator removes an operator and its audit-log rows. All other

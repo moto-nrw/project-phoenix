@@ -79,8 +79,8 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	staff := testpkg.CreateTestStaff(t, db, "Auto", "Staff")
 	room := testpkg.CreateTestRoom(t, db, "Auto excusal room")
 
-	// A fixed future Monday keeps the exception inside FindUpcomingByStudentID
-	// without tying this suite to the day it happens to run.
+	// A fixed far-future Monday keeps the exception inside
+	// FindUpcomingByStudentID (today onwards) without consulting the live clock.
 	date := timezone.NewDate(2099, 1, 1)
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)

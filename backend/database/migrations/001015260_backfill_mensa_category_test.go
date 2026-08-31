@@ -45,10 +45,10 @@ func TestBackfillMensaCategory(t *testing.T) {
 
 	// A school provisioned via the operator portal: it got the hard-coded
 	// default list, which never contained Mensa.
-	const withoutMensa int64 = 21311
+	withoutMensa := testpkg.UniqueTestTenantID(t)
 	// A school that already has one, spelled differently — the migration must
 	// not add a second.
-	const withMensa int64 = 21312
+	withMensa := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, withoutMensa)
 	testpkg.EnsureTestTenant(t, db, withMensa)

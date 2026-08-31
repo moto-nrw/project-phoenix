@@ -240,10 +240,7 @@ func TestListHistory_LegacyDecidedRowFallsBackToRequested(t *testing.T) {
 func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
-	setter, ok := f.svc.(interface{ SetTodayDate(func() timezone.Date) })
-	require.True(t, ok)
-	setter.SetTodayDate(func() timezone.Date { return timezone.NewDate(2026, 8, 24) })
+	f := newPickupChangeFixture(t)
 	upsertMondayPickup(t, f, 15, 0)
 
 	// A fixed future Monday lets the exception's weekday fallback (the live

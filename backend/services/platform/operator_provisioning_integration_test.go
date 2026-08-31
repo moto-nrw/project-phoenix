@@ -149,8 +149,9 @@ func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 
 	// Use a school ID that exists but has no persons
 	// Create a second school for this test
-	testpkg.EnsureTestTenant(t, db, int64(999))
-	result, err := service.ListSchoolPersons(ctx, int64(999))
+	emptySchoolID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, emptySchoolID)
+	result, err := service.ListSchoolPersons(ctx, emptySchoolID)
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
