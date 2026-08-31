@@ -18452,7 +18452,7 @@
       "declaration": "TestGroupSupervisorRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        74
+        75
       ],
       "tables": []
     },
@@ -18462,7 +18462,7 @@
       "declaration": "TestGroupSupervisorRepository_Create_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        681
+        750
       ],
       "tables": []
     },
@@ -18472,7 +18472,7 @@
       "declaration": "TestGroupSupervisorRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        186
+        187
       ],
       "tables": []
     },
@@ -18482,7 +18482,7 @@
       "declaration": "TestGroupSupervisorRepository_EndAllActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        787
+        856
       ],
       "tables": []
     },
@@ -18492,7 +18492,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        917
+        997
       ],
       "tables": []
     },
@@ -18502,7 +18502,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        463
+        464
       ],
       "tables": []
     },
@@ -18512,7 +18512,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_AlreadyEnded",
       "target": "database/repositories.NewFactory",
       "lines": [
-        740
+        809
       ],
       "tables": []
     },
@@ -18522,7 +18522,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        768
+        837
       ],
       "tables": []
     },
@@ -18532,7 +18532,7 @@
       "declaration": "TestGroupSupervisorRepository_FindActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        291
+        292
       ],
       "tables": []
     },
@@ -18542,7 +18542,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        333
+        334
       ],
       "tables": []
     },
@@ -18552,8 +18552,8 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        403,
-        404
+        404,
+        405
       ],
       "tables": []
     },
@@ -18563,7 +18563,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        125
       ],
       "tables": []
     },
@@ -18573,7 +18573,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1015
+        1095
       ],
       "tables": []
     },
@@ -18583,7 +18583,7 @@
       "declaration": "TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        496
+        565
       ],
       "tables": []
     },
@@ -18593,7 +18593,7 @@
       "declaration": "TestGroupSupervisorRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        218
+        219
       ],
       "tables": []
     },
@@ -18603,7 +18603,7 @@
       "declaration": "TestGroupSupervisorRepository_List_WithQueryOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        713
+        782
       ],
       "tables": []
     },
@@ -18613,7 +18613,7 @@
       "declaration": "TestGroupSupervisorRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        156
+        157
       ],
       "tables": []
     },
@@ -18623,7 +18623,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_NilSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        638
+        707
       ],
       "tables": []
     },
@@ -18633,7 +18633,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        653
+        722
       ],
       "tables": []
     },
@@ -18643,7 +18643,7 @@
       "declaration": "createSupervisorTestData",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
+        44
       ],
       "tables": []
     },
@@ -27002,10 +27002,78 @@
     {
       "scope": "test",
       "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionAuditFailureRollsBack",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        221
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionAuthorizationMatrix",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        137
+      ],
+      "tables": [
+        "active.groups"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionExternalInterface",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        51
+      ],
+      "tables": [
+        "audit.substitution_changes"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionRejectsConcurrentSessionEnd",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        307
+      ],
+      "tables": [
+        "active.groups"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionSignalsOnlyAfterCommit",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        278
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
+      "declaration": "TestAdditionalSupervisionTreatsFutureEndDateAsActive",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        247
+      ],
+      "tables": [
+        "active.group_supervisors"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "services/education/substitution_module_test.go",
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        177
+        516
       ],
       "tables": []
     },
@@ -27015,7 +27083,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        564
       ],
       "tables": []
     },
@@ -27025,7 +27093,7 @@
       "declaration": "TestGroupHandoverExternalInterface",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        366
       ],
       "tables": [
         "audit.substitution_changes"
@@ -27037,7 +27105,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        420
       ],
       "tables": []
     },
@@ -27047,7 +27115,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        303
+        642
       ],
       "tables": []
     },
@@ -27057,7 +27125,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        263
+        602
       ],
       "tables": []
     },

@@ -450,31 +450,29 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	// handler renders as 4xx — and the tenant middleware only rolls back on its
 	// own for 5xx, so bridging first would commit a completed instance beside
 	// that rejection.
-	group, err := s.GroupRepo.FindByID(ctx, id)
-	if err != nil || group == nil {
-		return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupNotFound}
-	}
-	if !group.IsActive() {
-		return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupAlreadyEnded}
-	}
-
 	// Both writes are one transition (#1747 review). runInSessionTx joins the
 	// caller's transaction when there is one (the HTTP path) and opens its own
 	// when there is none — the Schulhof sweep calls this straight from the
 	// scheduler, where a committed bridge write beside a failed session end
 	// would leave a completed instance next to an open group that no later run
 	// repairs.
-	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		// Ordered ahead of the session end for the same reason as everywhere
-		// else: EndActivitySession emits its checkout and activity-ended SSE
-		// events eagerly, so the failure-prone half has to run before the
-		// announcing one.
+	var visitsToNotify []visitSSEData
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, id)
+		if err != nil || group == nil {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupNotFound}
+		}
+		if !group.IsActive() {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupAlreadyEnded}
+		}
+		// Complete the failure-prone timetable half before mutating the active
+		// session. Broadcasts are queued only after both halves succeed.
 		if err := s.completeTimetableMirrorsForEndedSessions(txCtx, []int64{id}); err != nil {
 			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
 		}
 
-		// Delegate to EndActivitySession which properly ends visits and broadcasts SSE
-		if err := s.EndActivitySession(txCtx, id); err != nil {
+		visitsToNotify, err = s.endActivitySessionLocked(txCtx, id)
+		if err != nil {
 			// The bridge already completed the mirrored instance, so the
 			// transaction has to go. Joining the request's transaction means
 			// nothing here can roll it back, and the tenant middleware only
@@ -489,6 +487,11 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.queueActivitySessionEndBroadcasts(ctx, id, visitsToNotify)
+	return nil
 }
 
 func (s *service) GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error) {
@@ -1368,25 +1371,43 @@ func (s *service) UpdateGroupSupervisor(ctx context.Context, supervisor *active.
 	if supervisor == nil || supervisor.Validate() != nil {
 		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrInvalidData}
 	}
-
-	if s.SupervisorRepo.Update(ctx, supervisor) != nil {
-		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
+	original, err := s.SupervisorRepo.FindByID(ctx, supervisor.ID)
+	if err != nil || original == nil {
+		return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrGroupSupervisorNotFound}
 	}
-
-	return nil
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockGroupRows(txCtx, original.GroupID, supervisor.GroupID); err != nil {
+			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, supervisor.ID)
+		if err != nil || current == nil || current.GroupID != original.GroupID {
+			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrGroupSupervisorNotFound}
+		}
+		if err := s.SupervisorRepo.Update(txCtx, supervisor); err != nil {
+			return &ActiveError{Op: "UpdateGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		return nil
+	})
 }
 
 func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
-	_, err := s.SupervisorRepo.FindByID(ctx, id)
-	if err != nil {
+	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
+	if err != nil || supervision == nil {
 		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrGroupSupervisorNotFound}
 	}
-
-	if s.SupervisorRepo.Delete(ctx, id) != nil {
-		return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
-	}
-
-	return nil
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockGroupRows(txCtx, supervision.GroupID); err != nil {
+			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, id)
+		if err != nil || current == nil || current.GroupID != supervision.GroupID {
+			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrGroupSupervisorNotFound}
+		}
+		if err := s.SupervisorRepo.Delete(txCtx, id); err != nil {
+			return &ActiveError{Op: "DeleteGroupSupervisor", Err: ErrDatabaseOperation}
+		}
+		return nil
+	})
 }
 
 func (s *service) ListGroupSupervisors(ctx context.Context, options *base.QueryOptions) ([]*active.GroupSupervisor, error) {
@@ -1422,19 +1443,36 @@ func (s *service) FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGro
 }
 
 func (s *service) EndSupervision(ctx context.Context, id int64) error {
-	// Verify supervision exists first
-	_, err := s.SupervisorRepo.FindByID(ctx, id)
+	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
 		}
 		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("failed to verify supervision: %w", err)}
 	}
-
-	if err := s.SupervisorRepo.EndSupervision(ctx, id); err != nil {
-		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("end supervision failed: %w", err)}
+	if supervision == nil {
+		return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
 	}
-	return nil
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, supervision.GroupID)
+		if err != nil {
+			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("lock active group: %w", err)}
+		}
+		if group == nil {
+			return &ActiveError{Op: "EndSupervision", Err: ErrActiveGroupNotFound}
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, id)
+		if err != nil {
+			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("recheck supervision: %w", err)}
+		}
+		if current == nil || current.GroupID != supervision.GroupID {
+			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
+		}
+		if err := s.SupervisorRepo.EndSupervision(txCtx, id); err != nil {
+			return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("end supervision failed: %w", err)}
+		}
+		return nil
+	})
 }
 
 func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {

@@ -155,6 +155,8 @@ describe("GET /api/active-supervision-dashboard", () => {
             room_id: "10",
             room_name: "Raum 101",
             room_color: "#83CD2D",
+            is_current_user_supervising: true,
+            can_assign: true,
           },
         ],
         selected_group_id: "7",
@@ -275,6 +277,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       ApiResponse<{
         supervisedGroups: Array<{
           id: string;
+          canAssign: boolean;
+          isCurrentUserSupervising: boolean;
           room_id?: string;
           room?: { id: string; name: string; color?: string | null };
         }>;
@@ -332,6 +336,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       {
         id: "7",
         name: "Malen",
+        canAssign: true,
+        isCurrentUserSupervising: true,
         room_id: "10",
         room: { id: "10", name: "Raum 101", color: "#83CD2D" },
       },
