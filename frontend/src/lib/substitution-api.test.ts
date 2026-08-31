@@ -248,6 +248,25 @@ describe("substitutionService", () => {
     expect(result.id).toBe("5");
   });
 
+  it("preserves a group-handover creation error for the transfer modal", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Diese Gruppenübergabe besteht bereits." }),
+    });
+
+    await expect(
+      substitutionService.createSubstitution(
+        "12",
+        "34",
+        "2026-08-29",
+        "2026-08-30",
+      ),
+    ).rejects.toMatchObject({
+      name: "TransferError",
+      message: "Diese Gruppenübergabe besteht bereits.",
+    });
+  });
+
   it("loads one running supervision with its available targets", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,
@@ -342,6 +361,20 @@ describe("substitutionService", () => {
         type: "group_handover",
         id: "9007199254740993",
       }),
+    });
+  });
+
+  it("preserves a group-handover cancellation error for the transfer modal", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Die Übergabe wurde bereits beendet." }),
+    });
+
+    await expect(
+      substitutionService.deleteSubstitution("9007199254740993"),
+    ).rejects.toMatchObject({
+      name: "CancelTransferError",
+      message: "Die Übergabe wurde bereits beendet.",
     });
   });
 });

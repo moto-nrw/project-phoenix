@@ -215,9 +215,11 @@ class SubstitutionService {
     });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
-      throw new Error(
+      const error = new Error(
         body.error ?? "Gruppenübergabe konnte nicht erstellt werden.",
       );
+      error.name = "TransferError";
+      throw error;
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendGroupHandover>;
@@ -236,9 +238,11 @@ class SubstitutionService {
     });
     if (!response.ok) {
       const body = (await response.json()) as { error?: string };
-      throw new Error(
+      const error = new Error(
         body.error ?? "Gruppenübergabe konnte nicht beendet werden.",
       );
+      error.name = "CancelTransferError";
+      throw error;
     }
   }
 }
