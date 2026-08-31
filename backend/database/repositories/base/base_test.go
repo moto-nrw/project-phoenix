@@ -154,6 +154,22 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot be nil or zero value")
 }
 
+func TestRepository_RejectsNilInterfaceEntity(t *testing.T) {
+	t.Parallel()
+
+	repo := NewRepository[any](nil, baseTestTable, baseTestEntityName)
+	var entity any
+
+	err := repo.Create(context.Background(), entity)
+	require.EqualError(t, err, "SettingValue cannot be nil or zero value")
+
+	err = repo.Update(context.Background(), entity)
+	require.EqualError(t, err, "SettingValue cannot be nil or zero value")
+
+	_, err = repo.UpdateColumns(context.Background(), entity, "value")
+	require.EqualError(t, err, "SettingValue cannot be nil or zero value")
+}
+
 // TestRepository_FindByID tests the FindByID method
 func TestRepository_FindByID(t *testing.T) {
 	t.Parallel()
@@ -192,6 +208,19 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 
 	_, err := repo.FindByID(ctx, 999999)
 	require.Error(t, err)
+}
+
+func TestRepository_FindByIDRejectsValueEntity(t *testing.T) {
+	t.Parallel()
+
+	repo := NewRepository[testSettingValue](nil, baseTestTable, baseTestEntityName)
+	var valueEntity testSettingValue
+
+	_, err := repo.FindByID(context.Background(), valueEntity.ID)
+	require.EqualError(t, err, "SettingValue repository requires a pointer entity type")
+
+	_, err = repo.FindByIDForUpdate(context.Background(), valueEntity.ID)
+	require.EqualError(t, err, "SettingValue repository requires a pointer entity type")
 }
 
 // TestRepository_Update tests the Update method
