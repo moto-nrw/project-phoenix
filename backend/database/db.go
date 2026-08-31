@@ -22,7 +22,7 @@ func DBConn() (*bun.DB, error) {
 	return openPool(GetDatabaseDSN(), "database pool configured")
 }
 
-// openPool opens a connection pool for dsn with the shared viper-driven pool
+// openPool opens a connection pool for dsn with the required environment pool
 // sizing and verifies connectivity. logMsg distinguishes the superuser pool
 // from the phoenix_auth serve pool in startup logs.
 func openPool(dsn, logMsg string) (*bun.DB, error) {
@@ -68,6 +68,9 @@ func poolConfigFromEnv() (poolConfig, error) {
 	maxIdle, err := requiredPositiveInt("DB_MAX_IDLE_CONNS")
 	if err != nil {
 		return poolConfig{}, err
+	}
+	if maxIdle > maxOpen {
+		return poolConfig{}, fmt.Errorf("DB_MAX_IDLE_CONNS must not exceed DB_MAX_OPEN_CONNS")
 	}
 	maxLifetime, err := requiredPositiveDuration("DB_CONN_MAX_LIFETIME")
 	if err != nil {

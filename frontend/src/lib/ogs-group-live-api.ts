@@ -4,7 +4,6 @@
 // one supervised group in a single backend request. The wire DTO is minimal by
 // contract — it must never grow personal fields the page does not display.
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { GroupTransfer } from "~/lib/group-transfer-api";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 
@@ -62,6 +61,14 @@ interface OgsLiveWireTransfer {
   substitute_staff_id: string;
   substitute_name?: string;
   end_date: string;
+}
+
+export interface GroupTransfer {
+  substitutionId: string;
+  groupId: string;
+  targetStaffId: string;
+  targetName: string;
+  validUntil: string;
 }
 
 export interface OgsGroupLiveWireResponse {
