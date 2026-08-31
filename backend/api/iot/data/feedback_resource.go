@@ -1,6 +1,7 @@
 package data
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
@@ -41,10 +42,7 @@ func NewFeedbackResource(usersService FeedbackStudentReader, feedbackService Fee
 }
 
 func (rs *FeedbackResource) getLogger() *slog.Logger {
-	if rs.Logger != nil {
-		return rs.Logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }
 
 // Router returns a configured router for feedback submission endpoints
