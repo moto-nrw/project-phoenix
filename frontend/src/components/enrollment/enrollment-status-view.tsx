@@ -597,7 +597,7 @@ function EnrollmentStatusHero({
     : "moto-content-surface border text-gray-600 shadow-sm";
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="p-5 sm:p-8 lg:p-10">
           <div
