@@ -1703,7 +1703,7 @@ func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *scheduleSv
 	}
 	at := *arrival.ArrivalTime
 	start := time.Date(
-		date.Year, date.Month, date.Day,
+		date.Year(), date.Month(), date.Day(),
 		at.Hour(), at.Minute(), at.Second(), at.Nanosecond(),
 		timezone.Berlin,
 	)
@@ -1712,12 +1712,12 @@ func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *scheduleSv
 
 func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Time) {
 	start := time.Date(
-		inst.Date.Year, inst.Date.Month, inst.Date.Day,
+		inst.Date.Year(), inst.Date.Month(), inst.Date.Day(),
 		inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), inst.StartTime.Nanosecond(),
 		timezone.Berlin,
 	)
 	end := time.Date(
-		inst.Date.Year, inst.Date.Month, inst.Date.Day,
+		inst.Date.Year(), inst.Date.Month(), inst.Date.Day(),
 		inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), inst.EndTime.Nanosecond(),
 		timezone.Berlin,
 	)

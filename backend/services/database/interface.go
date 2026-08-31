@@ -35,12 +35,25 @@ type StatsPermissions struct {
 	CanViewGradeTransitions bool `json:"canViewGradeTransitions"`
 }
 
+type StatsCapabilities interface {
+	ViewStudents() bool
+	ViewTeachers() bool
+	ViewRooms() bool
+	ViewActivities() bool
+	ViewGroups() bool
+	ViewRoles() bool
+	ViewDevices() bool
+	ViewPermissionCatalog() bool
+	ViewTimetables() bool
+	ViewGradeTransitions() bool
+}
+
 // StatsGetter defines operations for database statistics and management
 // Named following Go single-method interface conventions (method name + er suffix)
 type StatsGetter interface {
 	// GetStats returns aggregated counts of all database entities
 	// Counts are filtered based on user permissions - returns 0 for entities user cannot access
-	GetStats(ctx context.Context) (*StatsResponse, error)
+	GetStats(ctx context.Context, capabilities StatsCapabilities) (*StatsResponse, error)
 }
 
 // DatabaseService is an alias for backward compatibility (deprecated - use StatsGetter)

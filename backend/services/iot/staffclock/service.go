@@ -171,7 +171,7 @@ func (s *Service) GetState(ctx context.Context, rawTag string) (*State, error) {
 func (s *Service) clockDay(ctx context.Context, staffID int64, now time.Time) (timezone.Date, error) {
 	open, err := s.workSessions.GetLatestOpenSession(ctx, staffID)
 	if err != nil {
-		return timezone.Date{}, fmt.Errorf("look up running work session: %w", err)
+		return timezone.Date(""), fmt.Errorf("look up running work session: %w", err)
 	}
 	if open != nil {
 		return open.Date, nil

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
@@ -148,14 +147,8 @@ func (s *CheckinService) systemActivityGroup(ctx context.Context, sp systemSpace
 		}
 	}
 
-	// WithTableAlias("group") is applied in the repository, so use the
-	// unqualified field name.
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", sp.activityName)
-	options.Filter = filter
-
-	groups, err := s.activities.ListGroups(ctx, options)
+	query := &activities.GroupListQuery{Name: sp.activityName}
+	groups, err := s.activities.ListGroups(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query %s activity: %w", sp.label, err)
 	}
@@ -206,11 +199,7 @@ func (s *CheckinService) systemActivityGroup(ctx context.Context, sp systemSpace
 	createdActivity, err := s.activities.CreateGroup(ctx, newActivity, []int64{}, []*activities.Schedule{})
 	if err != nil {
 		// Retry: concurrent request may have created it
-		retryOptions := base.NewQueryOptions()
-		retryFilter := base.NewFilter()
-		retryFilter.Equal("name", sp.activityName)
-		retryOptions.Filter = retryFilter
-		retryGroups, retryErr := s.activities.ListGroups(ctx, retryOptions)
+		retryGroups, retryErr := s.activities.ListGroups(ctx, query)
 		if retryErr == nil {
 			if existingActivity := selectExisting(retryGroups); existingActivity != nil {
 				return existingActivity, nil

@@ -21,6 +21,8 @@ type GroupRepository interface {
 	// tenant (issue #584: moved from api/timetable template validation).
 	Exists(ctx context.Context, id int64) (bool, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Group, error)
+	// ListWithRooms returns groups and their optional room from one LEFT JOIN.
+	ListWithRooms(ctx context.Context, query *GroupListQuery) ([]*Group, error)
 	FindByName(ctx context.Context, name string) (*Group, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*Group, error)
 	FindWithRoom(ctx context.Context, groupID int64) (*Group, error)

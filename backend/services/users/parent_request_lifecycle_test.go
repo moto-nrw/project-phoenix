@@ -21,5 +21,5 @@ func TestParentRequestIsPast(t *testing.T) {
 	assert.True(t, ParentRequestIsPast(today.AddDays(-1), today))
 
 	// No effective scope (weekly care plan, Stammdaten) is never past.
-	assert.False(t, ParentRequestIsPast(timezone.Date{}, today))
+	assert.False(t, ParentRequestIsPast(timezone.Date(""), today))
 }

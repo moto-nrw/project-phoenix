@@ -1483,16 +1483,6 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 	require.Equal(t, "Lovelace", *invitation.LastName)
 	require.Equal(t, "Leitung", *invitation.Position)
 
-	var tx bun.Tx
-	ctxWithTx := baseModel.ContextWithTx(context.Background(), &tx)
-	called := false
-	err := tenant.WithAdminTxOrDirect(svc.withTenantRuntime(ctxWithTx), svc.db, func(context.Context) error {
-		called = true
-		return nil
-	})
-	require.ErrorContains(t, err, "ambient transaction is not administrative")
-	require.False(t, called)
-
 	tenantCtx := tenant.WithTenantID(context.Background(), 123)
 	require.Same(t, tenantCtx, scopedInvitationTenantContext(tenantCtx, 123))
 

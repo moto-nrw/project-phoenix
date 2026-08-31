@@ -12,7 +12,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -29,6 +28,7 @@ type CaregiverCapabilityServiceDependencies struct {
 	RoleRepo               authModels.RoleRepository
 	PersonRepo             userModels.PersonRepository
 	StaffRepo              userModels.StaffRepository
+	CaregiverBindingLock   userModels.CaregiverBindingLocker
 	TeacherRepo            userModels.TeacherRepository
 	GroupTeacherRepo       educationModels.GroupTeacherRepository
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
@@ -40,7 +40,7 @@ type CaregiverCapabilityServiceDependencies struct {
 
 type caregiverCapabilityService struct {
 	CaregiverCapabilityServiceDependencies
-	txHandler *modelBase.TxHandler
+	txHandler *tenant.TransactionRunner
 }
 
 type caregiverRoleFlags struct {
@@ -48,13 +48,6 @@ type caregiverRoleFlags struct {
 	hasUserRole          bool
 	hasLegacyTeacherRole bool
 	hasOtherUsableRole   bool
-}
-
-var caregiverCapabilityBindingTables = []string{
-	"education.group_teacher",
-	"education.group_substitution",
-	"active.group_supervisors",
-	"activities.supervisors",
 }
 
 const caregiverCapabilityAuditIP = "0.0.0.0"
@@ -65,7 +58,7 @@ func NewCaregiverCapabilityService(
 ) CaregiverCapabilityService {
 	return &caregiverCapabilityService{
 		CaregiverCapabilityServiceDependencies: deps,
-		txHandler:                              modelBase.NewTxHandler(deps.DB),
+		txHandler:                              tenant.NewTransactionRunner(),
 	}
 }
 
@@ -94,7 +87,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 	input.Position = strings.TrimSpace(input.Position)
 
 	var result *userModels.CaregiverCapabilityState
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		beforeState, _, err := s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
 		if err != nil {
 			return err
@@ -222,8 +215,14 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 				return err
 			}
 		}
-		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
-			return err
+		if s.CaregiverBindingLock == nil {
+			return &UsersError{Op: "disable caregiver capability", Err: errors.New("caregiver binding lock repository is not configured")}
+		}
+		if err := s.CaregiverBindingLock.LockCaregiverCapabilityBindings(txCtx); err != nil {
+			return &UsersError{
+				Op:  "disable caregiver capability",
+				Err: fmt.Errorf("lock caregiver capability bindings: %w", err),
+			}
 		}
 
 		state, roleFlags, err := s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
@@ -287,42 +286,24 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	// an ambient request transaction is already aborted after a deadlock and
 	// cannot be replayed. Its after-commit hooks also belong to that request,
 	// not to this independently committed operation.
-	retryCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	retryCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	err = tenant.WithinTenantRetry(retryCtx, tenantID, func(txCtx context.Context) error {
-		tx, ok := modelBase.TxFromContext(txCtx)
+		raw, ok := tenant.TransactionFromContext(txCtx)
 		if !ok {
 			return fmt.Errorf("disable caregiver capability: unit of work did not provide a transaction")
 		}
-		return work(txCtx, *tx)
+		tx, ok := raw.(bun.Tx)
+		if !ok {
+			return fmt.Errorf("disable caregiver capability: unsupported transaction type %T", raw)
+		}
+		return work(txCtx, tx)
 	})
-	if errors.Is(err, tenant.ErrRuntimeRequired) {
-		err = s.txHandler.RunInTxWithRetry(retryCtx, work)
-	}
 	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
-func (s *caregiverCapabilityService) lockCaregiverCapabilityBindings(
-	ctx context.Context,
-	tx bun.Tx,
-) error {
-	for _, tableName := range caregiverCapabilityBindingTables {
-		if _, err := tx.ExecContext(
-			ctx,
-			fmt.Sprintf("LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE", tableName),
-		); err != nil {
-			return &UsersError{
-				Op:  "disable caregiver capability",
-				Err: fmt.Errorf("lock %s: %w", tableName, err),
-			}
-		}
-	}
-
-	return nil
-}
-
 func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
 	ctx context.Context,
 	accountID int64,

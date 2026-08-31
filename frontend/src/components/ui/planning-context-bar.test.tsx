@@ -123,9 +123,30 @@ describe("PlanningContextBar", () => {
     expect(screen.getByText("2 Lücken")).toBeInTheDocument();
   });
 
+  it("shows that the mobile context row can scroll horizontally", () => {
+    // Den Seitennamen trägt die Kopfkarte, die Bar hat keinen `title` mehr.
+    const { container } = render(
+      <PlanningContextBar>
+        <span>Mo</span>
+        <span>Di</span>
+      </PlanningContextBar>,
+    );
+
+    const contextRow = container.querySelector(".overflow-x-auto");
+    expect(contextRow).toHaveClass(
+      "scrollbar-thin",
+      "planning-context-scrollbar",
+    );
+    expect(contextRow).not.toHaveClass(
+      "[scrollbar-width:none]",
+      "[&::-webkit-scrollbar]:hidden",
+    );
+  });
+
   it("nimmt den SegmentedControl-Umschalter der Planungsflächen auf", () => {
     // Die Ansicht ist eine Wertauswahl, kein Inhaltsreiter: alle drei
-    // Planungsflächen nutzen dafür dasselbe Bauteil.
+    // Planungsflächen nutzen dafür dasselbe Bauteil (ui/Tabs als
+    // Wertumschalter ist per Ratsche gesperrt).
     const onChange = vi.fn();
     render(
       <PlanningContextBar
@@ -188,6 +209,7 @@ describe("PlanningDayChip", () => {
     );
 
     expect(screen.getByRole("button")).toHaveClass("bg-gray-900", "text-white");
+    expect(screen.getByRole("button")).toHaveClass("scroll-mx-1");
   });
 
   it("fires onClick when clicked", () => {
@@ -203,5 +225,28 @@ describe("PlanningDayChip", () => {
 
     fireEvent.click(screen.getByRole("button"));
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("scrolls the context row horizontally when a selected day is clipped", () => {
+    const { rerender } = render(
+      <PlanningDayChip weekdayLabel="Do" dateLabel="16.07." />,
+    );
+    const chip = screen.getByRole("button");
+    const contextRow = chip.parentElement!;
+    const scrollTo = vi.fn();
+    Object.defineProperty(contextRow, "scrollTo", { value: scrollTo });
+    vi.spyOn(chip, "getBoundingClientRect").mockReturnValue({
+      left: 282,
+      right: 355,
+    } as DOMRect);
+    vi.spyOn(contextRow, "getBoundingClientRect").mockReturnValue({
+      left: 29,
+      right: 338,
+    } as DOMRect);
+
+    rerender(<PlanningDayChip weekdayLabel="Do" dateLabel="16.07." selected />);
+    expect(scrollTo).toHaveBeenCalledWith({
+      left: 21,
+    });
   });
 });

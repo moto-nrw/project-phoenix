@@ -961,7 +961,7 @@ func TestNormalizeShiftCoverageQuery_ValidationBounds(t *testing.T) {
 		mutate func(*ShiftCoverageQuery)
 	}{
 		{name: "dates required", mutate: func(query *ShiftCoverageQuery) { query.Dates = nil }},
-		{name: "calendar date required", mutate: func(query *ShiftCoverageQuery) { query.Dates = []timezone.Date{{}} }},
+		{name: "calendar date required", mutate: func(query *ShiftCoverageQuery) { query.Dates = []timezone.Date{""} }},
 		{name: "date count bounded", mutate: func(query *ShiftCoverageQuery) {
 			query.Dates = make([]timezone.Date, 367)
 			for day := range query.Dates {

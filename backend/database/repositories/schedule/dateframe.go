@@ -49,7 +49,7 @@ func (r *DateframeRepository) FindByName(ctx context.Context, name string) (*sch
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -77,7 +77,7 @@ func (r *DateframeRepository) FindByDate(ctx context.Context, date time.Time) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -106,7 +106,7 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find overlapping",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -115,25 +115,9 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 
 // List retrieves dateframes matching the provided query options
 func (r *DateframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Dateframe, error) {
-	dateframes := make([]*schedule.Dateframe, 0)
-	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&dateframes).ModelTableExpr(tableExprDateframesAsDF)
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "dateframe"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: repoBase.DatabaseErrorCause(err)}
 	}
-
-	return dateframes, nil
+	return rows, nil
 }

@@ -26,26 +26,13 @@ func NewStaffVacationQuotaRepository(db *bun.DB) active.StaffVacationQuotaReposi
 	return &StaffVacationQuotaRepository{Repository: repo, db: db}
 }
 
-// List uses unaliased table reference + plain column WHERE clauses. The
-// previous version used `AS "quota"` but Bun's SELECT column expansion
-// for Model(&rows) does not honour custom aliases and emits the bun-tag
-// table name in the column list, leading to "missing FROM-clause entry"
-// errors against Postgres.
 func (r *StaffVacationQuotaRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffVacationQuota, error) {
-	var rows []*active.StaffVacationQuota
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(tableStaffVacationQuota)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+	rows, err := r.ListWithOptions(ctx, options)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list vacation quotas", Err: base.DatabaseErrorCause(err)}
 	}
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list vacation quotas", Err: err}
+	if len(rows) == 0 {
+		return nil, nil
 	}
 	return rows, nil
 }
@@ -75,7 +62,7 @@ func (r *StaffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, st
 		if err.Error() == "sql: no rows in result set" {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get vacation quota by staff+year", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get vacation quota by staff+year", Err: base.TranslateNotFound(err)}
 	}
 	return quota, nil
 }
@@ -97,7 +84,7 @@ func (r *StaffVacationQuotaRepository) Upsert(ctx context.Context, quota *active
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert vacation quota", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert vacation quota", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -126,7 +113,7 @@ func (r *StaffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context,
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get vacation quotas by staff IDs+year", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get vacation quotas by staff IDs+year", Err: base.TranslateNotFound(err)}
 	}
 	for _, quota := range quotas {
 		result[quota.StaffID] = quota

@@ -122,7 +122,7 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by person ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -148,7 +148,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -188,7 +188,7 @@ func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64)
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find read scope by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -216,7 +216,7 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -247,7 +247,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -278,7 +278,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by school class",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -316,7 +316,7 @@ func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context,
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "exists enrolled by name and birthday",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return count > 0, nil
@@ -351,7 +351,7 @@ func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(ctx context.C
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find enrolled student id by name and birthday",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	if len(ids) != 1 {
@@ -377,7 +377,7 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 	if err := query.Scan(ctx, &classes); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list school classes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -392,7 +392,7 @@ func (r *StudentRepository) ListIDs(ctx context.Context) ([]int64, error) {
 		OrderExpr(`"student".id`)
 	query = base.WithTenantFilter(ctx, query, "student")
 	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list student ids", Err: base.TranslateNotFound(err)}
 	}
 	return ids, nil
 }
@@ -924,7 +924,7 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update student departure days",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1139,21 +1139,6 @@ func applyStudentStringLikeFilter(filter *modelBase.Filter, column string, value
 
 // ListWithOptions provides a type-safe way to list students with query options
 func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	// Apply query options with table alias
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("student")
-		}
-		query = options.ApplyToQuery(query)
-	}
-
 	// Without an ORDER BY, PostgreSQL is free to return the same rows in a
 	// different order for every execution, so two LIMIT/OFFSET requests over the
 	// same selection can hand back the same child twice and never mention
@@ -1162,16 +1147,23 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	// total order, so fall back to the primary key when the caller did not ask
 	// for a specific one. An explicit Sorting wins: it is then the caller's job
 	// to make it total.
+	listOptions := &modelBase.QueryOptions{}
+	if options != nil {
+		*listOptions = *options
+	}
 	if options == nil || options.Sorting == nil {
-		query = query.OrderExpr(`"student".id ASC`)
+		listOptions.Sorting = &modelBase.Sorting{Fields: []modelBase.SortField{{
+			Field:     "id",
+			Direction: modelBase.SortAsc,
+		}}}
 	}
 
-	err := query.Scan(ctx)
+	students, err := r.Repository.ListWithOptions(ctx, listOptions)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
+		return nil, err
+	}
+	if len(students) == 0 {
+		return nil, nil
 	}
 
 	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
@@ -1208,7 +1200,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count by group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1234,7 +1226,7 @@ func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by guardian email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1256,7 +1248,7 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by guardian phone",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1400,7 +1392,7 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "hydrate student weekday days",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1459,7 +1451,7 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by teacher ID with groups",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1484,7 +1476,7 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find all with groups",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1539,7 +1531,7 @@ func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from,
 		OrderExpr(`"person".last_name, "person".first_name`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find students overlapping range with groups", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find students overlapping range with groups", Err: base.TranslateNotFound(err)}
 	}
 	return mapStudentGroupResults(results), nil
 }
@@ -1571,7 +1563,7 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 		NewRaw("SELECT pg_advisory_xact_lock(?, ?)", studentPhotoFeatureLockClass, int32(tenantID)).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "lock_photo_feature", Err: err}
+		return &modelBase.DatabaseError{Op: "lock_photo_feature", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -1626,7 +1618,7 @@ func (r *StudentRepository) lockClassWrites(ctx context.Context, shared bool) er
 	if _, err := base.GetDB(ctx, r.db).
 		NewRaw("SELECT "+lockFn+"(?, ?)", studentClassWritesLockClass, int32(tenantID)).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: op, Err: err}
+		return &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -1689,7 +1681,7 @@ func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noW
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: op, Err: err}
+		return nil, &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
 		return nil, err
@@ -1724,7 +1716,7 @@ func (r *StudentRepository) FindByIDsForUpdate(ctx context.Context, ids []int64)
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find_by_ids_for_update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find_by_ids_for_update", Err: base.TranslateNotFound(err)}
 	}
 	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
 		return nil, err
@@ -1764,7 +1756,7 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		FROM users.student_companions
 		WHERE student_low_id = ? OR student_high_id = ?
 	`, student.ID, student.ID).Scan(ctx, &weekdays); err != nil {
-		return &modelBase.DatabaseError{Op: "check student companion links", Err: err}
+		return &modelBase.DatabaseError{Op: "check student companion links", Err: base.TranslateNotFound(err)}
 	}
 
 	for _, weekday := range weekdays {
@@ -1846,7 +1838,7 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 			Scan(ctx, &rows)
 	}
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "purge_all_photos", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "purge_all_photos", Err: base.TranslateNotFound(err)}
 	}
 
 	if len(rows) == 0 {
@@ -1891,7 +1883,7 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name and class",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1914,7 +1906,7 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update student status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1952,14 +1944,14 @@ func (r *StudentRepository) TransitionStatus(
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "transition student status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "transition student status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return affected == 1, nil
@@ -1982,7 +1974,7 @@ func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asO
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find pending students due for activation",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -2006,7 +1998,7 @@ func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, as
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active students due for deactivation",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -2031,11 +2023,11 @@ func (r *StudentRepository) SetEnrolledUntilByIDs(
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: base.TranslateNotFound(err)}
 	}
 	return affected, nil
 }
@@ -2057,7 +2049,7 @@ func (r *StudentRepository) SetEnrollmentWindowByID(
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set enrollment window", Err: err}
+		return &modelBase.DatabaseError{Op: "set enrollment window", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "set enrollment window")
 }
@@ -2084,7 +2076,7 @@ func (r *StudentRepository) FindCareBoundsByIDs(
 		Where(`"student".enrolled_until IS NOT NULL`)
 	query = base.WithTenantFilter(ctx, query, "student")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find care bounds by ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find care bounds by ids", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		bounds[row.ID] = row.EnrolledUntil

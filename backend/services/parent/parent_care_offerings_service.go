@@ -215,7 +215,7 @@ func (s *service) GetChildOfferingCatalog(
 	ctx context.Context,
 	accountID, studentID int64,
 ) (*enrollmentSvc.OfferingChangeCatalog, error) {
-	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, timezone.Date{})
+	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, timezone.Date(""))
 }
 
 func (s *service) GetChildOfferingCatalogAt(

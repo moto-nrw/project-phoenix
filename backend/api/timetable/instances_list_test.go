@@ -185,7 +185,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, &mockMaterializationService{})
+	s := buildTemplateModule(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Empty-Reason-Period")
 	roomID := s.roomID

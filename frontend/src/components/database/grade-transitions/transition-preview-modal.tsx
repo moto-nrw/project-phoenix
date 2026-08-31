@@ -150,7 +150,9 @@ export function TransitionPreviewModal({
   return (
     <>
       <SlideOver
-        open
+        // Ausgeblendet, solange die Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        open={!confirmOpen}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}

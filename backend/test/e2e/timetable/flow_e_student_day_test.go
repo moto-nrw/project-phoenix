@@ -28,8 +28,7 @@ import (
 // package pool and asserts a query budget, so any test running beside it is
 // counted too.
 func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
-	s := newScenario(t)
-	defer s.teardown()
+	s := setupTimetableScenarioModule(t)
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).
 	target := nextWeekday(timezone.TodayDate(), 5, 7) // Friday
@@ -38,14 +37,10 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-E-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowE-Room")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowE", "Staff")
 	studentA := testpkg.CreateTestStudent(t, s.db, "Alice", "FlowE", "3a")
 	studentB := testpkg.CreateTestStudent(t, s.db, "Bob", "FlowE", "3a")
-	s.extraCleanup = append(s.extraCleanup, func() {
-	})
 
 	// Two templates on the target weekday. studentA is enrolled in both,
 	// studentB is enrolled only in tmplX.
@@ -75,7 +70,6 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 
 	instX := fetchOneInstance(t, s, tmplX.group.ID, target)
 	instY := fetchOneInstance(t, s, tmplY.group.ID, target)
-	s.registerCleanup("schedule.activity_instances", instX.ID, instY.ID)
 
 	startX := startInstance(t, s, instX.ID)
 	startY := startInstance(t, s, instY.ID)
@@ -92,12 +86,12 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 		ActiveGroupID: startX.ActiveGroupID,
 		EntryTime:     time.Now(),
 	}
-	require.NoError(t, s.factory.Active.CreateVisit(ctx, v1), "visit B→X (enrolled)")
+	require.NoError(t, s.createActiveVisit(ctx, v1), "visit B→X (enrolled)")
 
 	// End that visit, so B can enter the next active.group.
 	exit := time.Now().Add(time.Second)
 	v1.ExitTime = &exit
-	require.NoError(t, s.factory.Active.EndVisit(ctx, v1.ID), "end visit B→X")
+	require.NoError(t, s.endActiveVisit(ctx, v1.ID), "end visit B→X")
 
 	// Second visit: B into Y (not enrolled) → surfaces as is_unplanned=true.
 	v2 := &activeModel.Visit{
@@ -105,7 +99,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 		ActiveGroupID: startY.ActiveGroupID,
 		EntryTime:     time.Now(),
 	}
-	require.NoError(t, s.factory.Active.CreateVisit(ctx, v2), "visit B→Y (unplanned)")
+	require.NoError(t, s.createActiveVisit(ctx, v2), "visit B→Y (unplanned)")
 
 	// --- /student/{B}/day → expect both instances surfaced ----------------
 	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.primaryAdminClaims())

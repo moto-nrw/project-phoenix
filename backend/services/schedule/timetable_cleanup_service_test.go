@@ -15,7 +15,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -573,7 +572,7 @@ func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
 	f.attachStudent(t, inst2, stud.ID, nil)
 
 	rollbackErr := errors.New("simulated caller-side failure after cleanup")
-	txCtx := tenant.WithTenantID(context.Background(), f.tenantID)
+	txCtx := testpkg.TenantContext(f.tenantID)
 	err := testpkg.WithTenantTx(t, txCtx, f.db, f.tenantID, func(innerCtx context.Context, _ bun.Tx) error {
 		// Cleanup succeeds inside the tx: audit row is written, both
 		// instances are DELETEd (CASCADE removes the instance_students rows).

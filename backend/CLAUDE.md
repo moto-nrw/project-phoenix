@@ -84,7 +84,7 @@ err := r.db.NewSelect().
 ```
 
 ### Transactions and Filters
-Transactions propagate via context (`base.ContextWithTx` / `base.TxFromContext`); repositories pick them up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
+Open tenant transactions through `tenant.TransactionRunner` (or the composition root's `tenant.UnitOfWork`). The runtime propagates the active transaction through context; repositories pick it up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
 
 ### Soft Delete
 `users.Person`, `users.Staff`, and `users.Teacher` carry `deleted_at` with bun's `soft_delete` tag: normal queries auto-filter soft-deleted rows. Staff deletion runs an offboarding service (not a bare delete). Keep this in mind when counting rows or writing raw SQL against these tables.

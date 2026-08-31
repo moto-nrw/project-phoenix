@@ -27,7 +27,7 @@ type service struct {
 	staffRepo        users.StaffRepository
 	studentRepo      users.StudentRepository
 	substitutionRepo education.GroupSubstitutionRepository
-	txHandler        *base.TxHandler
+	txHandler        *tenant.TransactionRunner
 
 	// broadcaster announces group_access_changed after a write to either table
 	// that decides group access (#2084). Optional: services constructed without
@@ -80,7 +80,7 @@ func NewService(
 		staffRepo:        staffRepo,
 		studentRepo:      studentRepo,
 		substitutionRepo: substitutionRepo,
-		txHandler:        base.NewTxHandler(db),
+		txHandler:        tenant.NewTransactionRunner(),
 	}
 }
 
@@ -216,7 +216,7 @@ func roomIDHasChanged(oldRoomID, newRoomID *int64) bool {
 // DeleteGroup deletes an education group by ID
 func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 	removedTeacherLinks := false
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		var deleteErr error
 		removedTeacherLinks, deleteErr = s.deleteGroupInTx(txCtx, id)
 		return deleteErr
@@ -291,17 +291,18 @@ func (s *service) deleteGroupTeacherRelations(ctx context.Context, groupID int64
 }
 
 // ListGroups retrieves groups with optional filtering
-func (s *service) ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error) {
-	// Now we can directly use the modern ListWithOptions method
-	groups, err := s.groupRepo.ListWithOptions(ctx, options)
+func (s *service) ListGroups(ctx context.Context, query *education.GroupListQuery) ([]*education.Group, error) {
+	groups, err := s.groupRepo.ListWithRooms(ctx, query)
 	if err != nil {
 		return nil, &EducationError{Op: "ListGroups", Err: err}
 	}
 	return groups, nil
 }
 
-// CountGroups counts groups matching the query options (filters only, no pagination)
-func (s *service) CountGroups(ctx context.Context, options *base.QueryOptions) (int, error) {
+// CountGroups counts groups matching the list filters, ignoring pagination.
+func (s *service) CountGroups(ctx context.Context, query *education.GroupListQuery) (int, error) {
+	options := base.NewQueryOptions()
+	options.Filter = query.Filter()
 	count, err := s.groupRepo.CountWithOptions(ctx, options)
 	if err != nil {
 		return 0, &EducationError{Op: "CountGroups", Err: err}
@@ -331,7 +332,7 @@ func (s *service) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map
 
 // RemoveTeacherFromGroup removes a teacher from a group
 func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.removeTeacherFromGroupInTx(txCtx, groupID, teacherID)
 	})
 	if err != nil {
@@ -377,7 +378,7 @@ func (s *service) removeTeacherFromGroupInTx(ctx context.Context, groupID, teach
 // UpdateGroupTeachers updates the teacher assignments for a group
 func (s *service) UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error {
 	changed := false
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		var updateErr error
 		changed, updateErr = s.updateGroupTeachersInTx(txCtx, groupID, teacherIDs)
 		return updateErr

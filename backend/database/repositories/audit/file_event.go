@@ -34,7 +34,7 @@ func (r *fileEventRepository) Create(ctx context.Context, event *audit.FileEvent
 		ModelTableExpr(fileEventTableExpr).
 		Returning("*").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create file event", Err: err}
+		return &modelBase.DatabaseError{Op: "create file event", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -51,7 +51,7 @@ func (r *fileEventRepository) ListRecent(ctx context.Context, limit int) ([]*aud
 		Limit(limit)
 	query = base.WithTenantFilter(ctx, query, "file_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list file events", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list file events", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

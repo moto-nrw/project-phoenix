@@ -76,7 +76,7 @@ func TestForEachTenantSettings_Wired_ListerError_IsLogged(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	// Real repo provides the embedded type plus TxFromContext wiring; the
+	// Real repo provides the embedded type plus transaction-context wiring; the
 	// lister error comes from our override.
 	s := unitScheduler(&Scheduler{
 		db: db,

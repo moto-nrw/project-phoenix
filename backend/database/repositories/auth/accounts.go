@@ -115,7 +115,7 @@ func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*a
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
-		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: base.TranslateNotFound(err)}
 	}
 	return account, nil
 }
@@ -145,7 +145,7 @@ func (r *AccountRepository) ListEffectiveAdminAccountIDs(ctx context.Context) ([
 	query = base.WithTenantFilter(ctx, query, "account_tenant")
 
 	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list effective admin account IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list effective admin account IDs", Err: base.TranslateNotFound(err)}
 	}
 
 	return ids, nil
@@ -176,7 +176,7 @@ func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*
 		Where(predicate, args...).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find by id", Err: base.TranslateNotFound(err)}
 	}
 	return account, nil
 }
@@ -194,7 +194,7 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -220,7 +220,7 @@ func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, tokenHa
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	return account, nil
 }
@@ -242,7 +242,7 @@ func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, account
 		Where("(calendar_feed_token IS NULL OR calendar_feed_token = '')").
 		Exec(ctx)
 	if err != nil {
-		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	if n, err := res.RowsAffected(); err == nil && n > 0 {
 		return newTokenHash, nil
@@ -257,7 +257,7 @@ func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, account
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
-		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	if account.CalendarFeedToken == nil {
 		return "", nil
@@ -276,7 +276,7 @@ func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID 
 		Where(whereID, accountID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: err}
+		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -294,7 +294,7 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by username",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -348,7 +348,7 @@ func (r *AccountRepository) IncrementMFAAttempts(ctx context.Context, id int64, 
 	if err != nil {
 		return auth.MFAAttemptResult{}, &modelBase.DatabaseError{
 			Op:  "increment mfa attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return auth.MFAAttemptResult{
@@ -371,7 +371,7 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "reset mfa attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -408,7 +408,7 @@ func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, 
 	if err != nil {
 		return auth.PINAttemptResult{}, &modelBase.DatabaseError{
 			Op:  "increment pin attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return auth.PINAttemptResult{
@@ -431,7 +431,7 @@ func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "reset pin attempts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -450,7 +450,7 @@ func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "set active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -480,7 +480,7 @@ func (r *AccountRepository) ListManageable(ctx context.Context, filters map[stri
 func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
 	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
 		var accounts []*auth.Account
-		err := tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
+		err := tenant.WithAdminTx(tenant.ContextWithoutTransaction(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
 			var err error
 			accounts, err = r.list(adminCtx, map[string]interface{}{"role": role}, true)
 			return err
@@ -510,7 +510,7 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -605,7 +605,7 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find accounts with roles and permissions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -634,7 +634,7 @@ func (r *AccountRepository) FindEmailsByAccountIDs(ctx context.Context, accountI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find emails by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -670,7 +670,7 @@ func (r *AccountRepository) FindAvatarsByAccountIDs(ctx context.Context, account
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find avatars by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -850,7 +850,7 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	if manageable {
@@ -859,7 +859,7 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 			return &modelBase.DatabaseError{Op: "update account", Err: rowsErr}
 		}
 		if affected == 0 {
-			return &modelBase.DatabaseError{Op: "update account", Err: sql.ErrNoRows}
+			return &modelBase.DatabaseError{Op: "update account", Err: base.TranslateNotFound(sql.ErrNoRows)}
 		}
 	}
 	return base.AssertRowsAffected(result, 1, "update account")
@@ -880,7 +880,7 @@ func (r *AccountRepository) AnonymizeForDeletion(ctx context.Context, accountID 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "anonymize account for deletion",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

@@ -90,6 +90,8 @@ type Factory struct {
 	ParentRequestShare  userModels.ParentRequestShareEventRepository
 	ParentRequestEvent  userModels.ParentRequestEventRepository
 
+	CaregiverBindingLock userModels.CaregiverBindingLocker
+
 	// Staff Stammdaten (#1423)
 	StaffMasterData    userModels.StaffMasterDataRepository
 	StaffQualification userModels.StaffQualificationRepository
@@ -173,6 +175,8 @@ type Factory struct {
 	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
+
+	SessionStartLock activeModels.SessionStartLocker
 
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
@@ -285,6 +289,9 @@ type Factory struct {
 
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
+
+	// Staff notices (Tagesinformationen: interne Hinweise der Leitung, #2180)
+	StaffNotice userModels.StaffNoticeRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -341,6 +348,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		FamilyProtection:    users.NewFamilyProtectionEventRepository(db),
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
+
+		CaregiverBindingLock: users.NewCaregiverBindingLocker(db),
 
 		// Staff Stammdaten (#1423)
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),
@@ -424,6 +433,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
 		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
+
+		SessionStartLock: active.NewSessionStartLocker(db),
 
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
@@ -530,6 +541,7 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
 		CalendarStaffFeedTombstone:        calendarRepo.NewStaffFeedTombstoneRepository(db),
 		ParentAnnouncement:                parentAnnouncement,
+		StaffNotice:                       schedule.NewStaffNoticeRepository(db),
 	}
 }
 

@@ -69,6 +69,17 @@ vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
   })),
 }));
 
+// Tagesinformationen-Badge (#2180): der echte Hook würde /api/staff-notices/today
+// laden; hier zählt nur, dass die Seitenleiste ihn einbindet.
+vi.mock("~/lib/hooks/use-staff-notices-pending", () => ({
+  useStaffNoticesPending: () => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  }),
+  STAFF_NOTICES_REFRESH_EVENT: "staff-notices-refresh",
+}));
+
 vi.mock("~/lib/hooks/use-messages-unread", () => ({
   useMessagesUnread: vi.fn(() => ({
     unreadCount: 0,
@@ -284,7 +295,7 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Home")).toBeInTheDocument();
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
@@ -292,7 +303,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretung")).toBeInTheDocument();
+      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
     });
 
@@ -423,6 +434,14 @@ describe("Sidebar", () => {
       );
     });
 
+    it("hides Kommunikation when no child page is accessible", () => {
+      mockHasPermission.mockReturnValue(false);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Kommunikation")).not.toBeInTheDocument();
+    });
+
     it("hides admin-only items for staff", () => {
       render(<Sidebar />);
 
@@ -431,7 +450,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
     });
 
     it("shows student search when staff has groups", () => {
@@ -1891,7 +1910,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
@@ -2046,7 +2065,7 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("Gruppenzugriff gating (#1940)", () => {
+  describe("Vertretungen navigation (#2806)", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -2056,18 +2075,27 @@ describe("Sidebar", () => {
       mockUseOpenCareGroupMode.mockReturnValue(false);
     });
 
-    it("hides Gruppenübergaben for open-care tenants", () => {
+    it("keeps Vertretungen for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Gruppenübergaben")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
 
-    it("shows Gruppenübergaben for fixed-groups tenants", () => {
+    it("shows Vertretungen for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+    });
+
+    it("shows Vertretungen to staff", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
   });
 

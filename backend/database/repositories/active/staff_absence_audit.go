@@ -32,7 +32,7 @@ func (r *StaffAbsenceAuditRepository) Create(ctx context.Context, audit *active.
 		ModelTableExpr("active.staff_absence_audit").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "create staff absence audit", Err: err}
+		return &modelBase.DatabaseError{Op: "create staff absence audit", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

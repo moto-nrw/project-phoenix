@@ -39,7 +39,7 @@ func (r *StatisticsRepository) AttendanceDays(ctx context.Context, from, to time
 		GroupExpr(`"attendance".student_id, "attendance".date`)
 	query = base.WithTenantFilter(ctx, query, "attendance")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "statistics attendance days", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "statistics attendance days", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -56,7 +56,7 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 		Where(`("status_day".cleared_at IS NULL OR "status_day".source = ?)`, active.StudentStatusSourceEndOfDay)
 	query = base.WithTenantFilter(ctx, query, "status_day")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "statistics status days", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "statistics status days", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -205,7 +205,7 @@ GROUP BY s.room_id, d.days_used, p.peak_occupancy
 ORDER BY s.room_id`
 	var rows []active.RoomUtilizationRow
 	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "statistics room utilization", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "statistics room utilization", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

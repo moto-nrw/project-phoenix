@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -32,7 +31,7 @@ import (
 // assignment-bound surface reads.
 type supervisionFixture struct {
 	db       *bun.DB
-	factory  *services.Factory
+	resource *school.Resource
 	tenantID int64
 	router   chi.Router
 	claims   jwt.AppClaims
@@ -47,7 +46,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	clock := func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	}
-	db, factory := testutil.SetupAPITest(t, clock)
+	db, resource, _, _ := setupSchoolRoute(t, clock)
 	tenantID := testpkg.Tenant(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
@@ -56,12 +55,12 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	// provisioning service gives every real school.
 	testpkg.EnsureWebManualDevice(t, db)
 
-	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	router := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory, clock), nil, nil).Router()
+	classDayResource := classday.NewResource(resource.ClassDay.ReportService, resource.ClassDay.UserContextService, db, nil)
+	router := school.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource, clock), nil, nil).Router()
 
 	return &supervisionFixture{
 		db:       db,
-		factory:  factory,
+		resource: resource,
 		tenantID: tenantID,
 		router:   router,
 		staffID:  staff.ID,
@@ -240,7 +239,7 @@ func TestSchoolSupervisionsIgnoreOperationalOverview(t *testing.T) {
 	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.tenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
 	testpkg.CreateTestInstanceStaff(t, f.db, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
-	require.NoError(t, f.factory.Settings.SetValue(
+	require.NoError(t, f.resource.Timetable.SettingsService.SetValue(
 		testpkg.TenantContext(f.tenantID),
 		configModel.KeyOperationalOverviewScope,
 		configModel.OverviewScopeAllStaff,

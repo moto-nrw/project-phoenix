@@ -10,7 +10,7 @@
 //   - POST /templates/{id}/split rejects series_roster_from outright.
 //
 // Hermetic: real repos + real split service against the test DB, fixtures via
-// buildTemplateSetup, driven through the same router the split tests use.
+// buildTemplateModule, driven through the same router the split tests use.
 package timetable
 
 import (
@@ -49,7 +49,7 @@ func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 	clock := func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	}
-	s := buildTemplateSetup(t, mat, clock)
+	s := buildTemplateModule(t, mat, clock)
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 

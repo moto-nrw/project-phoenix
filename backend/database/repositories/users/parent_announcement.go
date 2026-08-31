@@ -178,7 +178,7 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 	}
 	query = base.WithTenantFilter(ctx, query, "parent_announcement")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: base.TranslateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return rows, nil
@@ -199,7 +199,7 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 		OrderExpr("pat.id ASC")
 	tq = base.WithTenantFilter(ctx, tq, "pat")
 	if err := tq.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets for tenant", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets for tenant", Err: base.TranslateNotFound(err)}
 	}
 	for _, t := range targets {
 		if a, ok := byID[t.AnnouncementID]; ok {
@@ -250,11 +250,11 @@ func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.Pare
 		Where("published_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update parent announcement draft", Err: err}
+		return &modelBase.DatabaseError{Op: "update parent announcement draft", Err: base.TranslateNotFound(err)}
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update parent announcement draft rows affected", Err: err}
+		return &modelBase.DatabaseError{Op: "update parent announcement draft rows affected", Err: base.TranslateNotFound(err)}
 	}
 	if n == 0 {
 		return users.ErrAnnouncementPublished
@@ -281,7 +281,7 @@ func (r *ParentAnnouncementRepository) clearResponses(ctx context.Context, annou
 		ModelTableExpr("users.parent_announcement_responses").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement responses", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement responses", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -295,7 +295,7 @@ func (r *ParentAnnouncementRepository) clearReads(ctx context.Context, announcem
 		ModelTableExpr("users.parent_announcement_reads").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement reads", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement reads", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -310,7 +310,7 @@ func (r *ParentAnnouncementRepository) SetPublished(ctx context.Context, id int6
 		Where("id = ?", id).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set parent announcement published_at", Err: err}
+		return &modelBase.DatabaseError{Op: "set parent announcement published_at", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -331,11 +331,11 @@ func (r *ParentAnnouncementRepository) PublishIfDraft(ctx context.Context, id in
 		Where("published_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "publish parent announcement", Err: err}
+		return false, &modelBase.DatabaseError{Op: "publish parent announcement", Err: base.TranslateNotFound(err)}
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "publish parent announcement rows affected", Err: err}
+		return false, &modelBase.DatabaseError{Op: "publish parent announcement rows affected", Err: base.TranslateNotFound(err)}
 	}
 	return n > 0, nil
 }
@@ -362,7 +362,7 @@ func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		Where("tenant_id = ?", tenantID).
 		For("UPDATE").
 		Scan(ctx, &publishedAt); err != nil {
-		return &modelBase.DatabaseError{Op: "lock parent announcement for target replace", Err: err}
+		return &modelBase.DatabaseError{Op: "lock parent announcement for target replace", Err: base.TranslateNotFound(err)}
 	}
 	if publishedAt != nil {
 		return users.ErrAnnouncementPublished
@@ -372,7 +372,7 @@ func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		ModelTableExpr("users.parent_announcement_targets").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement targets", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement targets", Err: base.TranslateNotFound(err)}
 	}
 	if len(targets) == 0 {
 		return nil
@@ -385,7 +385,7 @@ func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		Model(&targets).
 		ModelTableExpr("users.parent_announcement_targets").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "insert parent announcement targets", Err: err}
+		return &modelBase.DatabaseError{Op: "insert parent announcement targets", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -400,7 +400,7 @@ func (r *ParentAnnouncementRepository) ListTargets(ctx context.Context, announce
 		OrderExpr("pat.id ASC")
 	query = base.WithTenantFilter(ctx, query, "pat")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -451,7 +451,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count parent announcement audience", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count parent announcement audience", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -469,7 +469,7 @@ func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Co
 	// the args below follow the textual `?` order of the rendered string.
 	args := reachedArgs(announcementID, tenantID, accountID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &matched); err != nil {
-		return false, &modelBase.DatabaseError{Op: "check parent announcement audience match", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check parent announcement audience match", Err: base.TranslateNotFound(err)}
 	}
 	return matched, nil
 }
@@ -574,7 +574,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience emails", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience emails", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -663,7 +663,7 @@ func (r *ParentAnnouncementRepository) LetterChildStatuses(ctx context.Context, 
 	sqlArgs := append(append([]any{}, args...), tenantID, announcementID, tenantID, tenantID)
 	var rows []*users.AnnouncementLetterChildStatus
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement letter child statuses", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement letter child statuses", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -722,7 +722,7 @@ func (r *ParentAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Con
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement delivery recipients", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement delivery recipients", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -733,7 +733,7 @@ func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID 
 	if err := base.GetDB(ctx, r.DB).NewRaw(
 		`SELECT COALESCE(name, '') FROM platform.schools WHERE id = ?`, tenantID,
 	).Scan(ctx, &name); err != nil {
-		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: err}
+		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: base.TranslateNotFound(err)}
 	}
 	return name, nil
 }
@@ -805,7 +805,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 		tenantID,       // guardian locale
 		announcementID, // reads join
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience recipients", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience recipients", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -846,7 +846,7 @@ func (r *ParentAnnouncementRepository) CountReachableGuardiansForStudents(ctx co
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, bun.List(studentIDs),
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -886,7 +886,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -924,7 +924,7 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -974,7 +974,7 @@ func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, a
 		announcementID, tenantID, expectedPublishedAt, // guard CTE
 		tenantID, announcementID, accountID, now, // insert values
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: base.TranslateNotFound(err)}
 	}
 	return live, nil
 }
@@ -999,7 +999,7 @@ func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, ten
 		announcementID, tenantID, expectedPublishedAt, // guard CTE
 		tenantID, announcementID, accountID, now, now, // upsert values
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: base.TranslateNotFound(err)}
 	}
 	return live, nil
 }
@@ -1060,7 +1060,7 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 		announcementID, tenantID, // read_count
 		announcementID, tenantID, // acknowledged_count
 	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement stats", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement stats", Err: base.TranslateNotFound(err)}
 	}
 	return stats, nil
 }

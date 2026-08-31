@@ -78,6 +78,8 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   // oder eine Konto-ID — der Thread-Parameter bleibt als :threadID stehen.
   "/team-chat",
   "/team-chat/:threadID",
+  "/tagesinformationen",
+  "/tagesplan",
   "/time-tracking",
   "/timetables",
   "/vertretung",

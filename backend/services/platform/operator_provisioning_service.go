@@ -170,7 +170,7 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 
 type operatorProvisioningService struct {
 	OperatorProvisioningServiceConfig
-	txHandler     *modelBase.TxHandler
+	txHandler     *tenant.TransactionRunner
 	tenantRuntime *tenant.UnitOfWork
 }
 
@@ -188,7 +188,11 @@ func (s *operatorProvisioningService) withTenantRuntime(ctx context.Context) con
 }
 
 func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	return tenant.WithAdminTxOrDirect(s.withTenantRuntime(ctx), s.adminDB(), fn)
+	ctx = s.withTenantRuntime(ctx)
+	if s.txHandler == nil {
+		return fn(tenant.ContextWithoutTenant(ctx))
+	}
+	return tenant.WithinAdmin(ctx, fn)
 }
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
@@ -223,10 +227,13 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 	if cfg.SummariesRepo == nil {
 		panic("operator provisioning service: SummariesRepo is required")
 	}
-	return &operatorProvisioningService{
+	service := &operatorProvisioningService{
 		OperatorProvisioningServiceConfig: cfg,
-		txHandler:                         modelBase.NewTxHandler(cfg.DB),
 	}
+	if cfg.DB != nil {
+		service.txHandler = tenant.NewTransactionRunner()
+	}
+	return service
 }
 
 func (s *operatorProvisioningService) getLogger() *slog.Logger {
@@ -1551,16 +1558,6 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 		slog.String("device_id", iotModels.WebManualDeviceID),
 	)
 	return nil
-}
-
-// adminDB returns the underlying *bun.DB, or nil when no tx handler is wired
-// (unit-test construction via &operatorProvisioningService{}). Passing nil to
-// WithAdminTxOrDirect makes it run fn directly, preserving the old shim's guard.
-func (s *operatorProvisioningService) adminDB() *bun.DB {
-	if s.txHandler == nil {
-		return nil
-	}
-	return s.txHandler.DB
 }
 
 func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) {

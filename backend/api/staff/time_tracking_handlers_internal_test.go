@@ -17,5 +17,5 @@ func TestParseYearQuery_DefaultsToBerlinCalendarYear(t *testing.T) {
 	year, err := parseYearQuery(req, timezone.NewDate(2026, 8, 24))
 
 	require.NoError(t, err)
-	assert.Equal(t, timezone.NewDate(2026, 8, 24).Year, year)
+	assert.Equal(t, timezone.NewDate(2026, 8, 24).Year(), year)
 }

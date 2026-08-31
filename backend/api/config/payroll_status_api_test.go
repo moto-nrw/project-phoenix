@@ -14,7 +14,7 @@ import (
 func TestPayrollStatusAPI_ManageOnly(t *testing.T) {
 	t.Parallel()
 
-	ctx := setupSettingsTest(t)
+	ctx := setupSettingsModule(t)
 	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/payroll-status", nil,

@@ -99,8 +99,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(materializeDate.Year-1, 8, 1),
-		EndDate:         timezone.NewDate(materializeDate.Year+1, 7, 31),
+		StartDate:       timezone.NewDate(materializeDate.Year()-1, 8, 1),
+		EndDate:         timezone.NewDate(materializeDate.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

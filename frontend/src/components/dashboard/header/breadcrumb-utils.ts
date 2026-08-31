@@ -3,8 +3,10 @@
 
 import { getActivePlanningSubPage } from "~/lib/planning-navigation";
 import {
+  COMMUNICATION_SECTION,
   DATABASE_SECTION,
   ENROLLMENT_SECTION,
+  getActiveCommunicationSubPage,
   getActiveDatabaseSubPage,
   getActiveEnrollmentSubPage,
   getActiveParentSubPage,
@@ -32,16 +34,6 @@ const detailRouteTitles: Array<{
     basePath: "/staff/",
     rootPath: "/staff",
     title: "Mitarbeiter Details",
-  },
-  // Eine Unterhaltung im Team-Chat (#2598). Ohne diesen Eintrag fiele
-  // /team-chat/{id} auf den "Home"-Fallback zurück, obwohl die Übersicht
-  // /team-chat ihren Titel aus STAFF_FLAT_PAGES bekommt. Bewusst derselbe
-  // Titel wie die Übersicht: der Name des Gegenübers steht schon in der
-  // Seitenüberschrift, ein zweites Mal in der Kopfzeile wäre doppelt.
-  {
-    basePath: "/team-chat/",
-    rootPath: "/team-chat",
-    title: STAFF_FLAT_PAGES.teamChat.label,
   },
 ];
 
@@ -150,6 +142,7 @@ const BREADCRUMB_SECTIONS: readonly {
   },
   { root: PLANNING_SECTION, getActivePage: getActivePlanningSubPage },
   { root: PARENT_SECTION, getActivePage: getActiveParentSubPage },
+  { root: COMMUNICATION_SECTION, getActivePage: getActiveCommunicationSubPage },
 ];
 
 /**

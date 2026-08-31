@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -242,12 +241,7 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 // Schulhof room. Activity names are not unique, so a normal staff activity
 // with the same name must not be adopted or block provisioning.
 func (s *schulhofService) findSchulhofActivity(ctx context.Context, room *facilities.Room) (*activityModels.Group, error) {
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-	filter.Equal("name", constants.SchulhofActivityName)
-	options.Filter = filter
-
-	groups, err := s.activityService.ListGroups(ctx, options)
+	groups, err := s.activityService.ListGroups(ctx, &activityModels.GroupListQuery{Name: constants.SchulhofActivityName})
 	if err != nil {
 		return nil, fmt.Errorf("failed to query Schulhof activity: %w", err)
 	}

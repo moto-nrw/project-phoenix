@@ -47,13 +47,18 @@ func newTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	return tenant.NewUnitOfWork(
+	runtime, err := tenant.NewUnitOfWork(
 		postgresRuntime.WithinTenant,
 		postgresRuntime.WithinAdmin,
 		tenant.SavepointFunc(postgresRuntime),
 		database.IsRetryableTransactionError,
 		postgresRuntime.AcquireLock,
 	)
+	if err != nil {
+		return tenant.UnitOfWork{}, err
+	}
+	runtime = runtime.WithTransactionDetacher(postgresRuntime.ContextWithoutTransaction)
+	return runtime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction), nil
 }
 
 func bindPackageTenantRuntime(db *bun.DB) error {

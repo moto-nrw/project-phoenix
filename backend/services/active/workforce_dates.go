@@ -9,7 +9,7 @@ func workforceDate(date timezone.Date) configModels.CalendarDate {
 	if date.IsZero() {
 		return ""
 	}
-	return configModels.NewCalendarDate(date.Year, date.Month, date.Day)
+	return configModels.NewCalendarDate(date.Year(), date.Month(), date.Day())
 }
 
 func workforceDatePointer(date *timezone.Date) *configModels.CalendarDate {
@@ -22,7 +22,7 @@ func workforceDatePointer(date *timezone.Date) *configModels.CalendarDate {
 
 func calendarDate(date configModels.CalendarDate) timezone.Date {
 	if date.IsZero() {
-		return timezone.Date{}
+		return timezone.Date("")
 	}
 	value := date.UTCMidnight()
 	return timezone.NewDate(value.Year(), value.Month(), value.Day())

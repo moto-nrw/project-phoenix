@@ -138,7 +138,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 	if err := query.Scan(ctx, &scans); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find instances with attendance by student and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -216,7 +216,7 @@ func (r *InstanceStudentRepository) HasPlannedSlotsInRange(
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "check planned slots in range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return exists, nil
@@ -242,7 +242,7 @@ func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Cont
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find planned student ids by date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

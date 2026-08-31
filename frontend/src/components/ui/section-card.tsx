@@ -105,8 +105,12 @@ export function SectionCard({
       }
     >
       {hasHeader && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 gap-3">
+        // `flex-wrap` + `flex-1` am Titelblock: der Einklapp-Pfeil bleibt auf
+        // dem Telefon in der Titelzeile, nur die Aktionen brechen als volle
+        // Zeile um (dev-Fix "keep SectionCard collapse chevron on the title
+        // row on mobile").
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex min-w-0 flex-1 gap-3">
             {leading ??
               (Icon && (
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
@@ -137,33 +141,34 @@ export function SectionCard({
               )}
             </div>
           </div>
-          {(headerActions != null || collapsible) && (
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {headerActions != null && (
+            <div className="order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0">
               {headerActions}
-              {collapsible && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={
-                    collapsed
-                      ? `${title ?? "Abschnitt"} ausklappen`
-                      : `${title ?? "Abschnitt"} einklappen`
-                  }
-                  aria-expanded={!collapsed}
-                  onClick={() => {
-                    const next = !collapsed;
-                    setCollapsed(next);
-                    onCollapsedChange?.(next);
-                  }}
-                >
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-                    aria-hidden="true"
-                  />
-                </Button>
-              )}
             </div>
+          )}
+          {collapsible && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              aria-label={
+                collapsed
+                  ? `${title ?? "Abschnitt"} ausklappen`
+                  : `${title ?? "Abschnitt"} einklappen`
+              }
+              aria-expanded={!collapsed}
+              onClick={() => {
+                const next = !collapsed;
+                setCollapsed(next);
+                onCollapsedChange?.(next);
+              }}
+            >
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+                aria-hidden="true"
+              />
+            </Button>
           )}
         </div>
       )}

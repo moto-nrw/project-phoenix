@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,54 +36,51 @@ import (
 
 const testPassword = "Test1234%" //nolint:gosec // test credential
 
-// setupSchoolTest wires the API stack and hands out a school nobody else in
-// the suite shares. Each SetupAPITest call opens its OWN connection pool, so
-// the close is registered first and therefore runs last — after every fixture
-// cleanup that still needs the handle.
-func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
+// setupSchoolRoute wires the school route and hands out a school nobody else in
+// the suite shares.
+func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *school.Resource, int64, string) {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t)
+	db, services := testutil.SetupAPITest(t, clocks...)
+	classDayResource := classday.NewResource(services.EnrollmentReport, services.UserContext, db, nil)
+	timetableResource := timetable.NewResource(timetable.Dependencies{
+		OperationsService: services.TimetableOperations,
+		ReportService:     services.EnrollmentReport, SettingsService: services.Settings,
+		Now: firstSchoolClock(clocks), DB: db,
+	})
+	resource := school.NewResource(
+		services.Auth, services.MFA, classDayResource, timetableResource,
+		staffmessaging.NewResource(services.StaffMessaging, db),
+		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences, db),
+	)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
 
-	return db, factory, tenantID, subdomain
+	return db, resource, tenantID, subdomain
 }
 
 // newSchoolRouter builds the school portal router, optionally with a stubbed
-// MFA service (pass nil for the real one from the factory).
-func newSchoolRouter(db *bun.DB, factory *services.Factory, mfa authService.MFAService) http.Handler {
-	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	timetableResource := newSchoolTimetableResource(db, factory)
-	staffMessagingResource := staffmessaging.NewResource(factory.StaffMessaging, db)
+// MFA service (pass nil for the real one from the resource).
+func newSchoolRouter(resource *school.Resource, mfa authService.MFAService) http.Handler {
 	if mfa == nil {
-		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource, staffMessagingResource, nil).Router()
+		return resource.Router()
 	}
-	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource, staffMessagingResource, nil).Router()
+	return school.NewResource(resource.AuthService, mfa, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.Notifications).Router()
 }
 
 // newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
 // the testutil helpers that want a chi.Router.
-func newSchoolChiRouter(db *bun.DB, factory *services.Factory) chi.Router {
-	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	return school.NewResource(
-		factory.Auth, factory.MFA, classDayResource,
-		newSchoolTimetableResource(db, factory),
-		staffmessaging.NewResource(factory.StaffMessaging, db),
-		notifications.NewResource(factory.Notifications, factory.PushSubscriptions, factory.NotificationPreferences, db),
-	).Router()
+func newSchoolChiRouter(resource *school.Resource) chi.Router {
+	return resource.Router()
 }
 
 // newSchoolTimetableResource builds the timetable resource behind
 // /school/supervisions (#2527) with the deps that surface actually consumes.
-func newSchoolTimetableResource(db *bun.DB, factory *services.Factory, clocks ...func() time.Time) *timetable.Resource {
-	return timetable.NewResource(timetable.Dependencies{
-		OperationsService: factory.TimetableOperations,
-		ReportService:     factory.EnrollmentReport,
-		SettingsService:   factory.Settings,
-		Now:               firstSchoolClock(clocks),
-		DB:                db,
-	})
+func newSchoolTimetableResource(db *bun.DB, resource *school.Resource, clocks ...func() time.Time) *timetable.Resource {
+	dependencies := resource.Timetable.Dependencies
+	dependencies.DB = db
+	dependencies.Now = firstSchoolClock(clocks)
+	return timetable.NewResource(dependencies)
 }
 
 func firstSchoolClock(clocks []func() time.Time) func() time.Time {
@@ -109,12 +105,12 @@ func pushSubscriptionPortal(t *testing.T, db *bun.DB, tenantID int64, endpoint s
 
 // registerLehrkraft creates an account at the tenant carrying the lehrkraft
 // system role — the only role that opens the school portal today.
-func registerLehrkraft(t *testing.T, db *bun.DB, factory *services.Factory, tenantID int64, prefix string) (email string, accountID int64) {
+func registerLehrkraft(t *testing.T, db *bun.DB, resource *school.Resource, tenantID int64, prefix string) (email string, accountID int64) {
 	t.Helper()
 
 	unique := time.Now().UnixNano()
 	email = fmt.Sprintf("%s-%d@test.local", prefix, unique)
-	account, err := factory.Auth.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("%s-%d", prefix, unique), testPassword, nil, 0)
+	account, err := resource.AuthService.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("%s-%d", prefix, unique), testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
@@ -123,7 +119,7 @@ func registerLehrkraft(t *testing.T, db *bun.DB, factory *services.Factory, tena
 
 func TestSchoolPortalTokenMatrix(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "School", fmt.Sprintf("Matrix-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("sm%d", time.Now().UnixNano()%100000)
@@ -133,8 +129,8 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
-	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory), staffmessaging.NewResource(factory.StaffMessaging, db), nil).Router()
+	classDayResource := classday.NewResource(resource.ClassDay.ReportService, resource.ClassDay.UserContextService, db, nil)
+	schoolRouter := school.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource), staffmessaging.NewResource(resource.StaffMessaging.Service, db), nil).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,
@@ -183,12 +179,12 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 
 func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
-	schoolRouter := newSchoolRouter(db, factory, nil)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
+	schoolRouter := newSchoolRouter(resource, nil)
 
 	unique := time.Now().UnixNano()
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
-	account, err := factory.Auth.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("school-login-%d", unique), testPassword, nil, 0)
+	account, err := resource.AuthService.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("school-login-%d", unique), testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
@@ -229,10 +225,10 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 	// enrollment token minted for the tenant portal is refused at every
 	// school MFA endpoint — verify, resend (its code budget must not be
 	// burnable through this surface), and both enroll steps.
-	db, factory, tenantID, _ := setupSchoolTest(t)
-	schoolRouter := newSchoolRouter(db, factory, nil)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
+	schoolRouter := newSchoolRouter(resource, nil)
 
-	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-foreign-scope")
+	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-foreign-scope")
 
 	tokenAuth := jwt.MustNewTokenAuth()
 	tenantChallenge, err := tokenAuth.CreateMFAChallengeJWT(jwt.MFAChallengeClaims{
@@ -291,9 +287,9 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 // service for the school scope while doing it.
 func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
 
-	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-verify")
+	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-verify")
 
 	var requestedScope string
 	mfa := &authtest.MFAServiceMock{
@@ -302,7 +298,7 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 			return &authService.VerifiedChallenge{AccountID: accountID, Scope: scope, TenantID: tenantID}, nil
 		},
 	}
-	schoolRouter := newSchoolRouter(db, factory, mfa)
+	schoolRouter := newSchoolRouter(resource, mfa)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/verify",
 		strings.NewReader(`{"challenge_token":"school-challenge","code":"123456"}`))
@@ -333,9 +329,9 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 // the frontend to retry forever.
 func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
 
-	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-revoked")
+	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-revoked")
 
 	_, err := db.ExecContext(context.Background(),
 		"UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?",
@@ -347,7 +343,7 @@ func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
 			return &authService.VerifiedChallenge{AccountID: accountID, Scope: scope, TenantID: tenantID}, nil
 		},
 	}
-	schoolRouter := newSchoolRouter(db, factory, mfa)
+	schoolRouter := newSchoolRouter(resource, mfa)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/verify",
 		strings.NewReader(`{"challenge_token":"school-challenge","code":"123456"}`))
@@ -363,7 +359,7 @@ func TestSchoolMFAVerify_MembershipRevoked_Returns401(t *testing.T) {
 // foreign-portal challenge's code budget unburnable from here.
 func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
 	t.Parallel()
-	db, factory, _, _ := setupSchoolTest(t)
+	_, resource, _, _ := setupSchoolRoute(t)
 
 	var requestedScope string
 	mfa := &authtest.MFAServiceMock{
@@ -372,7 +368,7 @@ func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
 			return "renewed-school-challenge", nil
 		},
 	}
-	schoolRouter := newSchoolRouter(db, factory, mfa)
+	schoolRouter := newSchoolRouter(resource, mfa)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend",
 		strings.NewReader(`{"challenge_token":"school-challenge"}`))
@@ -395,9 +391,9 @@ func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
 // have worked a second later.
 func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
 
-	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-unavailable")
+	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-unavailable")
 
 	enrollmentToken, err := jwt.MustNewTokenAuth().CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
 		AccountID: accountID,
@@ -414,7 +410,7 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 			return "", authService.ErrMFAStatusUnavailable
 		},
 	}
-	schoolRouter := newSchoolRouter(db, factory, mfa)
+	schoolRouter := newSchoolRouter(resource, mfa)
 
 	resend := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend",
 		strings.NewReader(`{"challenge_token":"school-challenge"}`))
@@ -438,9 +434,9 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 // and must reject a challenge belonging to another account or school.
 func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 	t.Parallel()
-	db, factory, tenantID, _ := setupSchoolTest(t)
+	db, resource, tenantID, _ := setupSchoolRoute(t)
 
-	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-enroll")
+	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-enroll")
 
 	enrollmentToken, err := jwt.MustNewTokenAuth().CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
 		AccountID: accountID,
@@ -494,7 +490,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 		},
 		EnrollFn: func(context.Context, int64) error { return nil },
 	}
-	schoolRouter := newSchoolRouter(db, factory, mfa)
+	schoolRouter := newSchoolRouter(resource, mfa)
 
 	// enroll/start must hand the challenge token back — the confirm is bound
 	// to it, so swallowing it would leave the client nothing to send.

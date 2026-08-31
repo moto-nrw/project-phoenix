@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +54,7 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })
-	txCtx := modelBase.ContextWithTx(ctx, &tx)
+	txCtx := tenant.WithTransactionForTest(ctx, &tx)
 	repo := repositories.NewFactory(db).StudentDeletion
 	require.NoError(t, repo.LockMessageThreads(txCtx, target.ID))
 

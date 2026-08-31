@@ -640,6 +640,31 @@ func (m *wsMockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Cont
 	return 0, nil
 }
 
+func TestCheckoutSupervisionCleanupLocksGroupsInOrder(t *testing.T) {
+	t.Parallel()
+	locked := make([]int64, 0, 2)
+	supervisors := &wsMockGroupSupervisorRepository{
+		findActiveByStaffIDFunc: func(context.Context, int64) ([]*activeModels.GroupSupervisor, error) {
+			return []*activeModels.GroupSupervisor{{GroupID: 9}, {GroupID: 3}, {GroupID: 9}}, nil
+		},
+		endAllActiveByStaffIDFunc: func(context.Context, int64) (int, error) {
+			require.Equal(t, []int64{3, 9}, locked)
+			return 3, nil
+		},
+	}
+	service := &workSessionService{
+		supervisorRepo: supervisors,
+		groupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(_ context.Context, id int64) (*activeModels.Group, error) {
+			locked = append(locked, id)
+			return &activeModels.Group{Model: base.Model{ID: id}}, nil
+		}},
+	}
+
+	ended, err := service.endActiveSupervisionsWithGroupLocks(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, 3, ended)
+}
+
 func (m *wsMockGroupSupervisorRepository) CreateBulk(ctx context.Context, supervisors []*activeModels.GroupSupervisor) error {
 	return nil
 }
@@ -3526,7 +3551,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
 		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 240},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date("")))
 
 	assert.Equal(t, workforceDate(timezone.NewDate(2026, 8, 24)), written, "rotational rows must carry the version's own anchor")
 	require.NotNil(t, staff.RotationAnchorDate)
@@ -3553,7 +3578,7 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	entries := []*configModels.StaffWorkSchedule{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date("")))
 
 	assert.True(t, written.IsZero(), "single-week rows have no parity to anchor")
 	assert.Nil(t, staff.RotationAnchorDate)
@@ -3581,7 +3606,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	entries := []*configModels.StaffWorkSchedule{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date("")))
 
 	assert.Equal(t, workforceDate(existing), written)
 	require.NotNil(t, staff.RotationAnchorDate)
@@ -3665,8 +3690,8 @@ func (m *wsMockStaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(cont
 // wsClosedBlock builds a closed block on `day` between the given Berlin wall
 // clock hours, for overlap-guard tests.
 func wsClosedBlock(id int64, day timezone.Date, fromHour, toHour int) *activeModels.WorkSession {
-	checkIn := time.Date(day.Year, time.Month(day.Month), day.Day, fromHour, 0, 0, 0, timezone.Berlin)
-	checkOut := time.Date(day.Year, time.Month(day.Month), day.Day, toHour, 0, 0, 0, timezone.Berlin)
+	checkIn := time.Date(day.Year(), day.Month(), day.Day(), fromHour, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(day.Year(), day.Month(), day.Day(), toHour, 0, 0, 0, timezone.Berlin)
 	return &activeModels.WorkSession{
 		Model:        base.Model{ID: id},
 		StaffID:      100,

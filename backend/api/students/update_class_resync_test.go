@@ -34,7 +34,7 @@ func (r *recordingOfferingResyncer) ResyncOfferingSourcedTemplates(_ context.Con
 func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, fixedCalendarClock)
+	tc := setupStudentsRoute(t, fixedCalendarClock)
 	rec := &recordingOfferingResyncer{}
 	tc.resource.OfferingSourceResyncer = rec
 	tc.resource.LockTemplateRecurrence = func(ctx context.Context) error {

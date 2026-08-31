@@ -318,6 +318,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
+		"services/platform/outbox_worker_reply_to_test.go",       // Uses sqlmock + in-memory doubles; IDs are only outbox-state sentinels, not database fixtures
 		"api/enrollment/change_request_handlers_test.go",         // Pure handler unit tests against a service mock; int64 literals are URL parser sentinels, not DB rows
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
 		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
@@ -419,14 +420,13 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"repositories.",
 	}
 
-	// Patterns indicating SetupTestDB or SetupAPITest usage
+	// Patterns indicating direct or indirect shared test DB setup.
 	setupPatterns := []string{
 		"SetupTestDB",
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
 		"setupTestContext",                // Indirect setup via shared helper (calls SetupAPITest)
-		"newScenario",                     // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",               // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupRequestTest",                // services/enrollment request-service integration tests — wraps SetupTestDB
 		"setupDecisionTest",               // services/enrollment decision integration tests — wraps setupRolloverTest
@@ -437,7 +437,6 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"makeRosterChain",                 // services/schedule split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
 		"makeMoveSetup",                   // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                   // api/timetable deviations/protocol tests — wraps SetupTestDB
-		"setupCheckinServiceTest",         // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 		"setupAbsenceAdminTest",           // api/staff absence question tests (#1419) — wraps setupTestContext
 		"newOverviewFixture",              // services/active overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",                // api/staff overview/export tests (#1417) — wraps setupTestContext
@@ -523,6 +522,9 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 				usesSetup = true
 				break
 			}
+		}
+		if !usesSetup && routeSizedSetupCall.MatchString(contentStr) {
+			usesSetup = true
 		}
 
 		// Check if file uses mocks
@@ -855,10 +857,22 @@ func parallelGlobalStateViolations(files []globalStateFile, tainted map[string]b
 }
 
 // sharedPoolAssign captures the variable a file binds the SHARED pool to —
-// `db := testpkg.SetupTestDB(t)` or `db, svc := testutil.SetupAPITest(t)`.
+// `db := testpkg.SetupTestDB(t)` or a two-result api/testutil setup builder.
 // Only the first identifier can hold the pool in either signature.
 var sharedPoolAssign = regexp.MustCompile(
 	`(?m)^\s*(\w+)\s*(?:,\s*\w+\s*)?:?=\s*(?:\w+\.)?(?:SetupTestDB|SetupAPITest)\(`)
+
+// routeSizedSetupCall matches an actual builder invocation at the start of a
+// statement. It deliberately does not match function declarations or test
+// names that merely contain "Route(t".
+var routeSizedSetupCall = regexp.MustCompile(
+	`(?m)^\s*(?:[\w,\s]+:?=\s*|return\s+)?(?:setup|build)\w+(?:Route|Router|Module)\(t(?:,|\))`)
+
+func usesSharedDBSetup(content []byte) bool {
+	return bytes.Contains(content, []byte("SetupTestDB(")) ||
+		bytes.Contains(content, []byte("SetupAPITest(")) ||
+		routeSizedSetupCall.Match(content)
+}
 
 // privatePoolAssign captures variables bound to a PRIVATE pool, which the
 // owning test is allowed (and expected) to close: SetupClosableTestDB, plus
@@ -997,7 +1011,7 @@ func checkLeftoverGateOptIn(t *testing.T, root string) []string {
 		if !strings.HasSuffix(rel, "_test.go") || strings.HasPrefix(rel, "internal/testdb/") {
 			return
 		}
-		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+		if usesSharedDBSetup(content) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("testpkg.Run(m)")) || bytes.Contains(content, []byte("\tRun(m)")) {
@@ -1029,7 +1043,7 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 		if !strings.HasSuffix(rel, "_test.go") {
 			return
 		}
-		if bytes.Contains(content, []byte("SetupTestDB(")) || bytes.Contains(content, []byte("SetupAPITest(")) {
+		if usesSharedDBSetup(content) {
 			usesDB[pkg] = true
 		}
 		if bytes.Contains(content, []byte("PerTestTenants()")) {
@@ -1120,10 +1134,11 @@ var serialTestBaseline = map[string]int{
 	// new migration test necessarily adds one — 91 since 1.15.314.
 	"database/migrations":              91,
 	"database/repositories/audit":      2,
+	"database/repositories/active":     1,
 	"database/repositories/auth":       4,
 	"database/repositories/enrollment": 3,
 	"database/repositories/platform":   34,
-	"database/repositories/users":      1,
+	"database/repositories/users":      2,
 	"email":                            12,
 	"integration/phoenixapi":           25,
 	"models/config":                    12,

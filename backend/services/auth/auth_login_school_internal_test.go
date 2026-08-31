@@ -15,7 +15,6 @@ import (
 	"testing"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -806,7 +805,7 @@ func TestSchoolMintGuard_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
 	require.NoError(t, guardErr)
 	require.NotNil(t, claims)
 	require.Len(t, seen, 1, "the policy must be resolved exactly once per mint")
-	tx, ok := modelBase.TxFromContext(seen[0])
+	tx, ok := tenant.TransactionFromContext(seen[0])
 	assert.True(t, ok && tx != nil,
 		"the policy must be resolved on the mint transaction, not from a pre-transaction snapshot")
 }
@@ -954,7 +953,7 @@ func withRecordedPolicyLock(t *testing.T, service *Service, recorder *lockOrderR
 			// The real helper skips silently without an ambient transaction, so
 			// a mint that took the lock on the wrong context would look locked
 			// and be unprotected. Pin that it is the mint's own transaction.
-			tx, ok := modelBase.TxFromContext(ctx)
+			tx, ok := tenant.TransactionFromContext(ctx)
 			assert.True(t, ok && tx != nil,
 				"the policy lock must be taken on the mint transaction")
 			return lockErr

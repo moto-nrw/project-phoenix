@@ -121,7 +121,7 @@ func (rs *Resource) buildTemplateScheduleResponse(ctx context.Context, staff *us
 	}
 	anchor := model.RotationAnchorDate
 	if staff.RotationAnchorDate != nil {
-		anchor = config.NewCalendarDate(staff.RotationAnchorDate.Year, staff.RotationAnchorDate.Month, staff.RotationAnchorDate.Day)
+		anchor = config.NewCalendarDate(staff.RotationAnchorDate.Year(), staff.RotationAnchorDate.Month(), staff.RotationAnchorDate.Day())
 	}
 
 	rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
@@ -161,7 +161,7 @@ func (rs *Resource) buildCustomScheduleResponse(ctx context.Context, staff *user
 	earliest := earliestValidFrom(rows)
 	anchor := config.CalendarDate("")
 	if staff.RotationAnchorDate != nil {
-		anchor = config.NewCalendarDate(staff.RotationAnchorDate.Year, staff.RotationAnchorDate.Month, staff.RotationAnchorDate.Day)
+		anchor = config.NewCalendarDate(staff.RotationAnchorDate.Year(), staff.RotationAnchorDate.Month(), staff.RotationAnchorDate.Day())
 	} else if earliest != nil {
 		anchor = *earliest
 	}

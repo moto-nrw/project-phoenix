@@ -214,7 +214,7 @@ func (r *timeTrackingAuditLogRepository) ListEntries(ctx context.Context, filter
 
 	var entries []*auditModels.TimeTrackingAuditLogEntry
 	if err := base.GetDB(ctx, r.db).NewRaw(sb.String(), args...).Scan(ctx, &entries); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list time tracking audit log", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list time tracking audit log", Err: base.TranslateNotFound(err)}
 	}
 	return entries, nil
 }

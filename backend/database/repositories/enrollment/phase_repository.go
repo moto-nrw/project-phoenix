@@ -51,7 +51,7 @@ func (r *PhaseRepository) FindByID(ctx context.Context, id int64) (*enrollment.P
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("phase %d not found: %w", id, sql.ErrNoRows)
+			return nil, fmt.Errorf("phase %d not found: %w", id, base.TranslateNotFound(err))
 		}
 		return nil, fmt.Errorf("failed to find phase: %w", err)
 	}
@@ -109,7 +109,7 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("phase %d not found: %w", phase.ID, sql.ErrNoRows)
+		return fmt.Errorf("phase %d not found: %w", phase.ID, base.TranslateNotFound(sql.ErrNoRows))
 	}
 	return nil
 }

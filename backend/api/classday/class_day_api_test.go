@@ -25,9 +25,15 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+func setupClassDayRoute(t *testing.T) (*testpkg.DB, *classday.Resource) {
+	t.Helper()
+	db, factory := testutil.SetupAPITest(t)
+	return db, classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+}
+
 func TestClassDayAPI(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, resource := setupClassDayRoute(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cd%d", time.Now().UnixNano()%100000)
@@ -38,7 +44,6 @@ func TestClassDayAPI(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
-	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	router := resource.SchoolRouter()
 
 	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
@@ -78,11 +83,10 @@ func TestClassDayAPI(t *testing.T) {
 
 func TestClassDayAPINoAssignments(t *testing.T) {
 	t.Parallel()
-	db, factory := testutil.SetupAPITest(t)
+	db, resource := setupClassDayRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassDay", fmt.Sprintf("Empty-%d", time.Now().UnixNano()))
 
-	resource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	router := resource.SchoolRouter()
 	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 

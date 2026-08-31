@@ -287,6 +287,12 @@ type ClassListEntryRepository interface {
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*ClassListEntry, error)
 }
 
+// CaregiverBindingLocker serializes the caregiver blocker re-check with all
+// assignment tables that can retain caregiver capability.
+type CaregiverBindingLocker interface {
+	LockCaregiverCapabilityBindings(ctx context.Context) error
+}
+
 // StaffRepository defines operations for managing staff members
 type StaffRepository interface {
 	base.CRUDRepository[*Staff]

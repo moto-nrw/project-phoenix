@@ -56,7 +56,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activit
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -83,7 +83,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) ([]*activi
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find groups by ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return groups, nil
@@ -109,7 +109,7 @@ func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64)
 		OrderExpr(`"group".id ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find template series", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find template series", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
 }
@@ -130,7 +130,7 @@ func (r *GroupRepository) FindTemplatesBySourceOffering(ctx context.Context, off
 		OrderExpr(`"group".id ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find templates by source offering", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find templates by source offering", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
 }
@@ -179,7 +179,7 @@ func (r *GroupRepository) UpdateTemplateOfferingSource(ctx context.Context, id i
 		Where("id = ?", id).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update template offering source", Err: err}
+		return &modelBase.DatabaseError{Op: "update template offering source", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -200,7 +200,7 @@ func (r *GroupRepository) FindTemplatesWithOfferingSource(ctx context.Context) (
 		OrderExpr(`"group".id ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find templates with offering source", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find templates with offering source", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
 }
@@ -234,7 +234,7 @@ func (r *GroupRepository) ReplaceTargets(ctx context.Context, groupID int64, tar
 		normalized = append(normalized, &copy)
 	}
 
-	return modelBase.NewTxHandler(r.db).RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		db := base.GetDB(txCtx, r.db)
 		if _, err := db.NewDelete().
 			Model((*activities.GroupTarget)(nil)).
@@ -242,7 +242,7 @@ func (r *GroupRepository) ReplaceTargets(ctx context.Context, groupID int64, tar
 			Where(`"group_target".tenant_id = ?`, tenantID).
 			Where(`"group_target".activity_group_id = ?`, groupID).
 			Exec(txCtx); err != nil {
-			return &modelBase.DatabaseError{Op: "delete group targets", Err: err}
+			return &modelBase.DatabaseError{Op: "delete group targets", Err: base.TranslateNotFound(err)}
 		}
 		if len(normalized) == 0 {
 			return nil
@@ -251,7 +251,7 @@ func (r *GroupRepository) ReplaceTargets(ctx context.Context, groupID int64, tar
 			Model(&normalized).
 			ModelTableExpr(tableExprGroupTargets).
 			Exec(txCtx); err != nil {
-			return &modelBase.DatabaseError{Op: "create group targets", Err: err}
+			return &modelBase.DatabaseError{Op: "create group targets", Err: base.TranslateNotFound(err)}
 		}
 		return nil
 	})
@@ -275,7 +275,7 @@ func (r *GroupRepository) FindTargetsByGroupIDs(ctx context.Context, groupIDs []
 		OrderExpr(`"target".activity_group_id ASC, "target".id ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find group targets", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find group targets", Err: base.TranslateNotFound(err)}
 	}
 	for _, target := range targets {
 		result[target.ActivityGroupID] = append(result[target.ActivityGroupID], target)
@@ -326,7 +326,7 @@ func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, gr
 		ORDER BY target.activity_group_id ASC, student.id ASC
 	`, bun.List(groupIDs), tenantID, timezone.TodayDate()).Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find target students", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find target students", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.GroupID] = append(result[row.GroupID], row.StudentID)
@@ -351,7 +351,7 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by category",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -379,7 +379,7 @@ func (r *GroupRepository) CountByCategory(ctx context.Context) (map[int64]int, e
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count by category",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -412,7 +412,7 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find open groups",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -438,7 +438,7 @@ func (r *GroupRepository) FindAllTemplates(ctx context.Context) ([]*activities.G
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find all templates",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -461,7 +461,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	if err != nil {
 		return nil, nil, &modelBase.DatabaseError{
 			Op:  "find groups",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -498,7 +498,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 	if err != nil {
 		return nil, nil, &modelBase.DatabaseError{
 			Op:  "count enrollments",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -561,7 +561,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	if err != nil {
 		return nil, nil, &modelBase.DatabaseError{
 			Op:  "find group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -581,7 +581,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	if err != nil {
 		return nil, nil, &modelBase.DatabaseError{
 			Op:  "find supervisors",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -609,7 +609,7 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff supervisor",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -642,15 +642,20 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
 	return base.AssertRowsAffected(result, 1, "update group")
 }
 
-// List overrides the base List method to accept the new QueryOptions type
+// List implements the model repository's QueryOptions list contract.
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Group, error) {
+	return r.ListWithOptions(ctx, options)
+}
+
+// ListWithCategory lists groups and their category in one joined snapshot.
+func (r *GroupRepository) ListWithCategory(ctx context.Context, params *activities.GroupListQuery) ([]*activities.Group, error) {
 	groups := make([]*activities.Group, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
@@ -663,26 +668,24 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 		ColumnExpr(`"category"."description" AS "category__description"`).
 		ColumnExpr(`"category"."color" AS "category__color"`).
 		Join(`LEFT JOIN activities.categories AS "category" ON "category"."id" = "group"."category_id"`)
-
 	query = base.WithTenantFilter(ctx, query, "group")
-
-	// Apply query options with table alias to avoid ambiguous column references
-	// (both "group" and "category" have "id" columns)
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("group")
+	if params != nil {
+		if params.Name != "" {
+			query = query.Where(`"group".name = ?`, params.Name)
 		}
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
+		if params.CategoryID != nil {
+			query = query.Where(`"group".category_id = ?`, *params.CategoryID)
+		}
+		if params.IsSystem != nil {
+			query = query.Where(`"group".is_system = ?`, *params.IsSystem)
+		}
+		if len(params.IDs) > 0 {
+			query = query.Where(`"group".id IN (?)`, bun.List(params.IDs))
 		}
 	}
-
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list", Err: base.TranslateNotFound(err)}
+	}
 	return groups, nil
 }
 

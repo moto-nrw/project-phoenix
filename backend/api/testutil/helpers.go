@@ -10,10 +10,13 @@
 //
 // Example:
 //
-//	func TestHandler(t *testing.T) {
+//	func setupAuthRoute(t *testing.T) (*bun.DB, *Resource) {
 //	    db, services := testutil.SetupAPITest(t)
+//	    return db, NewResource(services.Auth, services.Invitation)
+//	}
 //
-//	    resource := NewResource(services.Auth, services.Invitation)
+//	func TestHandler(t *testing.T) {
+//	    db, resource := setupAuthRoute(t)
 //	    router := chi.NewRouter()
 //	    router.Mount("/auth", resource.Router())
 //
@@ -62,10 +65,9 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
-// SetupAPITest initializes test database and service factory for API tests.
-// Returns the shared package database pool and a service factory. Tests must
-// not close the pool — it is shared by every test in the binary. The optional
-// statistics clock pins calendar-day semantics in time-dependent API tests.
+// SetupAPITest constructs the legacy graph inside route- and module-sized
+// test builders. Callers must not expose the returned Factory.
+// The returned pool is shared by every test in the binary and must not be closed.
 func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
 	t.Helper()
 
@@ -325,7 +327,14 @@ func AuthenticationContext(ctx context.Context) (jwt.AppClaims, []string) {
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req.WithContext(testpkg.WithPackageTenantRuntime(req.Context())))
+	ctx := testpkg.WithPackageTenantRuntime(req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		// Request options inject identity before this helper installs the runtime.
+		// Reapply the tenant so the adapter-owned repository scope matches the
+		// production middleware order (runtime first, authentication second).
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 

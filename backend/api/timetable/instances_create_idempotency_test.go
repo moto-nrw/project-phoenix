@@ -29,7 +29,7 @@ type idempotentCreateSetup struct {
 	roomID   int64
 }
 
-func buildIdempotentCreateSetup(t *testing.T) *idempotentCreateSetup {
+func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 	t.Helper()
 	db, serviceFactory := apiTest.SetupAPITest(t)
 	ctx := testpkg.Ctx(t)
@@ -88,7 +88,7 @@ func createdInstanceID(t *testing.T, response *httptest.ResponseRecorder) int64 
 
 func TestCreateInstance_IdempotencyKeyDeduplicatesOnlyOneCreateOperation(t *testing.T) {
 	t.Parallel()
-	setup := buildIdempotentCreateSetup(t)
+	setup := setupIdempotentCreateRoute(t)
 	suffix := time.Now().UnixNano()
 	title := fmt.Sprintf("Idempotent manual instance %d", suffix)
 	body := map[string]any{
@@ -114,7 +114,7 @@ func TestCreateInstance_IdempotencyKeyDeduplicatesOnlyOneCreateOperation(t *test
 
 func TestCreateInstance_IdempotencyKeyRejectsDifferentCreateOperation(t *testing.T) {
 	t.Parallel()
-	setup := buildIdempotentCreateSetup(t)
+	setup := setupIdempotentCreateRoute(t)
 	suffix := time.Now().UnixNano()
 	body := map[string]any{
 		"date": nextCreateWorkday().String(), "start_time": "10:00", "end_time": "11:00",

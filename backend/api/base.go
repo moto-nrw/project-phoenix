@@ -121,6 +121,7 @@ type API struct {
 	metrics            *httpMetrics
 	tracer             *observability.Tracer
 	metricsBearerToken string
+	databaseLogger     *slog.Logger
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -160,6 +161,7 @@ type API struct {
 	StaffMessaging   *staffMessagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
+	StaffNotices     *staffAPI.StaffNoticeResource
 	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
@@ -288,6 +290,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		metrics:            httpMetrics,
 		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
+		databaseLogger:     logger.With("handler", "database"),
 	}
 
 	// Setup router middleware
@@ -674,6 +677,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
+	api.StaffNotices = staffAPI.NewStaffNoticeResource(api.Services.StaffNotice, db)
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
@@ -1047,6 +1051,8 @@ func (a *API) registerTenantRoutes() {
 		// separate surface from /messages (which is parent-facing).
 		r.Mount("/staff-messages", a.StaffMessaging.Router())
 		r.Mount("/parent-announcements", a.Announcements.Router())
+		// Tagesinformationen (#2180): lesen alle Mitarbeitenden, schreiben Admins.
+		r.Mount("/staff-notices", a.StaffNotices.Router())
 		r.Mount("/files", a.FileStore.Router())
 
 		// Mount guardian resources
@@ -1153,13 +1159,22 @@ func (a *API) databaseStatsRouter() chi.Router {
 }
 
 func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := a.Services.Database.GetStats(r.Context())
+	stats, err := a.Services.Database.GetStats(r.Context(), a.Services.DatabaseStatsCapabilities(r.Context()))
 	if err != nil {
-		slog.Default().Error("failed to get database stats", slog.String("error", err.Error()))
+		a.getDatabaseLogger().Error("failed to get database stats",
+			"error", err,
+		)
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
 		return
 	}
 	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
+}
+
+func (a *API) getDatabaseLogger() *slog.Logger {
+	if a.databaseLogger != nil {
+		return a.databaseLogger
+	}
+	return slog.Default()
 }
 
 // servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.

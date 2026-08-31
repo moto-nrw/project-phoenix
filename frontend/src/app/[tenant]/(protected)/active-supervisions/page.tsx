@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
-import { LogOut } from "lucide-react";
+import { LogOut, UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -20,6 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { isCaregiver } from "~/lib/auth-utils";
@@ -38,6 +39,7 @@ import { TransitStudentsSection } from "~/components/rooms/transit-students-sect
 import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
+  additionalSupervisionTarget,
   roomsOutsideSchulhofStatus,
   supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
@@ -49,6 +51,7 @@ import { useTimetableActions } from "~/components/active-supervisions/use-timeta
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
@@ -108,6 +111,7 @@ function MeinRaumPageContent() {
 
   const filters = useStudentFilters(students);
   const reopen = useReopenBanner();
+  const [showAddSupervisor, setShowAddSupervisor] = useState(false);
 
   const actions = useTimetableActions({
     allRooms,
@@ -325,6 +329,35 @@ function MeinRaumPageContent() {
     </div>
   ) : null;
 
+  // Zusätzliche Betreuer (#2806): auf der eigenen aktiven Aufsicht steht die
+  // Aktion in der Kopfkarte; das Gerüst regelt die mobile Darstellung, eine
+  // eigene Icon-Variante braucht es nicht mehr.
+  const additionalSupervisionActiveGroupId = additionalSupervisionTarget({
+    currentRoom,
+    isSchulhofTabSelected,
+    schulhofStatus,
+  });
+  const isCurrentSupervisionOwn = isSchulhofTabSelected
+    ? (schulhofStatus?.isUserSupervising ?? false)
+    : (currentRoom?.isCurrentUserSupervising ?? false);
+
+  const addSupervisorButton = additionalSupervisionActiveGroupId ? (
+    <>
+      {isCurrentSupervisionOwn ? (
+        <StatusBadge label="Eigene Aufsicht" tone="green" />
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => setShowAddSupervisor(true)}
+      >
+        <UserPlus className="h-4 w-4" aria-hidden="true" />
+        Betreuer hinzufügen
+      </Button>
+    </>
+  ) : null;
+
   // Keine eigene Aufsicht, kein Schulhof, nichts geplant: dieselbe Kopfkarte,
   // nur ein anderer Inhalt — keine zweite Seite.
   const showUnclaimedOnly =
@@ -391,7 +424,14 @@ function MeinRaumPageContent() {
     <TenantPage
       title="Aktuelle Aufsicht"
       stats={supervisionSummary}
-      actions={releaseAction}
+      actions={
+        (addSupervisorButton ?? releaseAction) ? (
+          <>
+            {addSupervisorButton}
+            {releaseAction}
+          </>
+        ) : undefined
+      }
       search={{
         value: filters.searchTerm,
         onChange: filters.setSearchTerm,
@@ -458,6 +498,14 @@ function MeinRaumPageContent() {
             }
             isConfirmLoading={schulhof.isReleasingSupervision}
           />
+          {showAddSupervisor ? (
+            <AddSupervisorModal
+              activeGroupId={additionalSupervisionActiveGroupId}
+              isOpen
+              onClose={() => setShowAddSupervisor(false)}
+              onAdded={mutateDashboard}
+            />
+          ) : null}
         </>
       }
     >

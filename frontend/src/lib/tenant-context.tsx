@@ -304,6 +304,15 @@ export function useShowTimetableCounts(): boolean {
   return ctx?.tenant?.showTimetableCounts !== false;
 }
 
+/**
+ * Whether the Betreuungsplan is enabled at this school (timetable.enabled,
+ * #2383). Missing tenant metadata reads as enabled — the registry default.
+ */
+export function useTimetableEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.timetableEnabled !== false;
+}
+
 export function useWaitlistEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.waitlistEnabled !== false;

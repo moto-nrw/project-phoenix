@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -333,15 +334,41 @@ func rejectedCleanupAmbientTx(t *testing.T) (context.Context, sqlmock.Sqlmock) {
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	return modelBase.ContextWithTx(context.Background(), &tx), mock
+	controller := rejectedCleanupSavepointController{tx: &tx}
+	uow, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error { return fn(ctx, tx) },
+		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, tx) },
+		tenant.SavepointFunc(controller),
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	ctx := tenant.WithUnitOfWork(context.Background(), uow)
+	return tenant.WithTransactionForTest(ctx, &tx), mock
+}
+
+type rejectedCleanupSavepointController struct{ tx *bun.Tx }
+
+func (c rejectedCleanupSavepointController) CreateSavepoint(ctx context.Context) error {
+	_, err := c.tx.ExecContext(ctx, "SAVEPOINT phoenix_operation")
+	return err
+}
+
+func (c rejectedCleanupSavepointController) RollbackSavepoint(ctx context.Context) error {
+	_, err := c.tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT phoenix_operation")
+	return err
+}
+
+func (c rejectedCleanupSavepointController) ReleaseSavepoint(ctx context.Context) error {
+	_, err := c.tx.ExecContext(ctx, "RELEASE SAVEPOINT phoenix_operation")
+	return err
 }
 
 func TestRejectedEnrollmentCleanupSavepointSuccess(t *testing.T) {
 	t.Parallel()
 
 	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 
 	called := false
 	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error {
@@ -358,9 +385,9 @@ func TestRejectedEnrollmentCleanupSavepointRollsBackCallbackFailure(t *testing.T
 	t.Parallel()
 
 	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 	expected := errors.New("delete failed")
 
 	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return expected })
@@ -373,16 +400,16 @@ func TestRejectedEnrollmentCleanupSavepointRollbackFailureJoinsErrors(t *testing
 	t.Parallel()
 
 	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 	rollbackErr := errors.New("rollback failed")
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnError(rollbackErr)
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnError(rollbackErr)
 	callbackErr := errors.New("delete failed")
 
 	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return callbackErr })
 
 	require.ErrorIs(t, err, callbackErr)
 	require.ErrorIs(t, err, rollbackErr)
-	assert.ErrorContains(t, err, "rollback rejected enrollment cleanup savepoint")
+	assert.ErrorContains(t, err, "savepoint control failed: rollback")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -390,17 +417,17 @@ func TestRejectedEnrollmentCleanupSavepointRollbackReleaseFailureJoinsErrors(t *
 	t.Parallel()
 
 	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
 	releaseErr := errors.New("release failed")
-	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnError(releaseErr)
+	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(releaseErr)
 	callbackErr := errors.New("delete failed")
 
 	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return callbackErr })
 
 	require.ErrorIs(t, err, callbackErr)
 	require.ErrorIs(t, err, releaseErr)
-	assert.ErrorContains(t, err, "release rejected enrollment cleanup savepoint")
+	assert.ErrorContains(t, err, "savepoint control failed: release after rollback")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -408,7 +435,7 @@ func TestRejectedEnrollmentCleanupSavepointCreationFailureSkipsCallback(t *testi
 	t.Parallel()
 
 	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnError(errors.New("savepoint unavailable"))
+	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnError(errors.New("savepoint unavailable"))
 
 	called := false
 	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error {
@@ -416,7 +443,7 @@ func TestRejectedEnrollmentCleanupSavepointCreationFailureSkipsCallback(t *testi
 		return nil
 	})
 
-	require.EqualError(t, err, "create rejected enrollment cleanup savepoint: savepoint unavailable")
+	require.EqualError(t, err, "savepoint control failed: create: savepoint unavailable")
 	assert.False(t, called)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -425,11 +452,11 @@ func TestRejectedEnrollmentCleanupSavepointReleaseFailureIsReturned(t *testing.T
 	t.Parallel()
 
 	ctx, mock := rejectedCleanupAmbientTx(t)
-	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnError(errors.New("release failed"))
+	mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(errors.New("release failed"))
 
 	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return nil })
 
-	require.EqualError(t, err, "release rejected enrollment cleanup savepoint: release failed")
+	require.EqualError(t, err, "savepoint control failed: release: release failed")
 	require.NoError(t, mock.ExpectationsWereMet())
 }

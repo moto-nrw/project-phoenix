@@ -58,7 +58,7 @@ func (r *StaffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Co
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get balance adjustments by staff+range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get balance adjustments by staff+range", Err: base.TranslateNotFound(err)}
 	}
 	return adjustments, nil
 }
@@ -87,7 +87,7 @@ func (r *StaffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get balance adjustments by staff IDs+range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get balance adjustments by staff IDs+range", Err: base.TranslateNotFound(err)}
 	}
 	for _, adjustment := range adjustments {
 		result[adjustment.StaffID] = append(result[adjustment.StaffID], adjustment)

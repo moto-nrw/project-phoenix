@@ -3,6 +3,8 @@ package substitutions
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -39,16 +41,37 @@ func (rs *Resource) Router() chi.Router {
 type assignmentRequest struct {
 	Type          substitution.TargetType `json:"type"`
 	GroupHandover *struct {
-		GroupID       int64  `json:"group_id"`
-		TargetStaffID int64  `json:"target_staff_id"`
-		StartDate     string `json:"start_date,omitempty"`
-		EndDate       string `json:"end_date,omitempty"`
+		GroupID       common.JSONID `json:"group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+		StartDate     string        `json:"start_date,omitempty"`
+		EndDate       string        `json:"end_date,omitempty"`
 	} `json:"group_handover"`
+	AdditionalSupervision *struct {
+		ActiveGroupID common.JSONID `json:"active_group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+	} `json:"additional_supervision"`
+	ScheduleSubstitution *scheduleAssignmentRequest `json:"schedule_substitution"`
+}
+
+type scheduleAssignmentRequest struct {
+	InstanceID           int64                                      `json:"instance_id"`
+	UnderstaffedAck      *bool                                      `json:"understaffed_ack,omitempty"`
+	UnderstaffedNote     *string                                    `json:"understaffed_note,omitempty"`
+	Absences             []substitution.ScheduleAbsenceChange       `json:"absences,omitempty"`
+	Substitutions        []substitution.ScheduleSubstitutionChange  `json:"substitutions,omitempty"`
+	SubstitutionRemovals []substitution.ScheduleSubstitutionRemoval `json:"substitution_removals,omitempty"`
+	Presences            []substitution.SchedulePresenceChange      `json:"presences,omitempty"`
+	WholeDays            *struct {
+		AbsentStaffID     int64           `json:"absent_staff_id"`
+		SubstituteStaffID *int64          `json:"substitute_staff_id,omitempty"`
+		Dates             []timezone.Date `json:"dates"`
+		Reason            *string         `json:"reason,omitempty"`
+	} `json:"whole_days,omitempty"`
 }
 
 type endRequest struct {
 	Type substitution.TargetType `json:"type"`
-	ID   int64                   `json:"id"`
+	ID   common.JSONID           `json:"id"`
 }
 
 func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +84,14 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 		}
 		query.GroupID = id
 	}
+	if raw := r.URL.Query().Get("active_group_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Gruppe ist ungültig.", "invalid_target"))
+			return
+		}
+		query.ActiveGroupID = id
+	}
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		date, err := timezone.ParseDate(raw)
 		if err != nil {
@@ -68,6 +99,9 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		query.On = &date
+	}
+	if !parseScheduleRange(w, r, &query) {
+		return
 	}
 	caller, err := callerFromContext(r.Context())
 	if err != nil {
@@ -79,23 +113,18 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 		renderModuleError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, result, "Gruppenübergaben geladen")
+	common.Respond(w, r, http.StatusOK, result, "Vertretungen geladen")
 }
 
 func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
-	var request assignmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.GroupHandover == nil {
+	request, err := decodeAssignment(r.Body)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Anfrage ist ungültig.", "invalid_target"))
 		return
 	}
-	start, err := optionalDate(request.GroupHandover.StartDate)
+	assignment, err := request.toAssignment()
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Das Startdatum ist ungültig.", "invalid_period"))
-		return
-	}
-	end, err := optionalDate(request.GroupHandover.EndDate)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Das Enddatum ist ungültig.", "invalid_period"))
+		renderModuleError(w, r, err)
 		return
 	}
 	caller, err := callerFromContext(r.Context())
@@ -103,18 +132,33 @@ func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
 		renderModuleError(w, r, err)
 		return
 	}
-	created, err := rs.Service.Assign(r.Context(), caller, substitution.Assignment{
-		Type: request.Type,
-		GroupHandover: &substitution.GroupHandoverAssignment{
-			GroupID: request.GroupHandover.GroupID, TargetStaffID: request.GroupHandover.TargetStaffID,
-			StartDate: start, EndDate: end,
-		},
-	})
+	created, err := rs.Service.Assign(r.Context(), caller, assignment)
 	if err != nil {
 		renderModuleError(w, r, err)
 		return
 	}
+	if created.ScheduleSubstitution != nil {
+		common.Respond(w, r, http.StatusCreated, created.ScheduleSubstitution, "Vertretung gespeichert")
+		return
+	}
+	if request.Type == substitution.TargetAdditionalSupervision {
+		common.Respond(w, r, http.StatusCreated, created, "Betreuer hinzugefügt")
+		return
+	}
 	common.Respond(w, r, http.StatusCreated, created, "Gruppe übergeben")
+}
+
+func decodeAssignment(body io.Reader) (assignmentRequest, error) {
+	var request assignmentRequest
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return assignmentRequest{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return assignmentRequest{}, errors.New("request body must contain one JSON object")
+	}
+	return request, nil
 }
 
 func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
@@ -128,11 +172,86 @@ func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
 		renderModuleError(w, r, err)
 		return
 	}
-	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID}); err != nil {
+	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID.Int64()}); err != nil {
 		renderModuleError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, map[string]bool{"ended": true}, "Gruppenübergabe beendet")
+	message := "Gruppenübergabe beendet"
+	if request.Type == substitution.TargetScheduleSubstitution {
+		message = "Vertretung beendet"
+	}
+	common.Respond(w, r, http.StatusOK, map[string]bool{"ended": true}, message)
+}
+
+func parseScheduleRange(w http.ResponseWriter, r *http.Request, query *substitution.OverviewQuery) bool {
+	fromRaw, toRaw := r.URL.Query().Get("from"), r.URL.Query().Get("to")
+	if fromRaw == "" && toRaw == "" {
+		return true
+	}
+	from, fromErr := timezone.ParseDate(fromRaw)
+	to, toErr := timezone.ParseDate(toRaw)
+	if fromErr != nil || toErr != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Der Zeitraum ist ungültig.", "invalid_period"))
+		return false
+	}
+	query.ScheduleFrom, query.ScheduleTo, query.IncludeScheduleTargets = &from, &to, true
+	return true
+}
+
+func (request assignmentRequest) toAssignment() (substitution.Assignment, error) {
+	assignment := substitution.Assignment{Type: request.Type}
+	switch request.Type {
+	case substitution.TargetGroupHandover:
+		if request.GroupHandover == nil {
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
+		}
+		start, err := optionalDate(request.GroupHandover.StartDate)
+		if err != nil {
+			return assignment, invalidAssignmentRequest("Das Startdatum ist ungültig.", substitution.ErrInvalidPeriod, "invalid_period")
+		}
+		end, err := optionalDate(request.GroupHandover.EndDate)
+		if err != nil {
+			return assignment, invalidAssignmentRequest("Das Enddatum ist ungültig.", substitution.ErrInvalidPeriod, "invalid_period")
+		}
+		assignment.GroupHandover = &substitution.GroupHandoverAssignment{
+			GroupID: request.GroupHandover.GroupID.Int64(), TargetStaffID: request.GroupHandover.TargetStaffID.Int64(),
+			StartDate: start, EndDate: end,
+		}
+	case substitution.TargetScheduleSubstitution:
+		return request.toScheduleAssignment(assignment)
+	case substitution.TargetAdditionalSupervision:
+		if request.AdditionalSupervision == nil {
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
+		}
+		assignment.AdditionalSupervision = &substitution.AdditionalSupervisionAssignment{ActiveGroupID: request.AdditionalSupervision.ActiveGroupID.Int64(), TargetStaffID: request.AdditionalSupervision.TargetStaffID.Int64()}
+	default:
+		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
+	}
+	return assignment, nil
+}
+
+func (request assignmentRequest) toScheduleAssignment(assignment substitution.Assignment) (substitution.Assignment, error) {
+	if request.ScheduleSubstitution == nil {
+		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
+	}
+	wire := request.ScheduleSubstitution
+	value := &substitution.ScheduleSubstitutionAssignment{
+		InstanceID: wire.InstanceID, UnderstaffedAck: wire.UnderstaffedAck, UnderstaffedNote: wire.UnderstaffedNote,
+		Absences: wire.Absences, Substitutions: wire.Substitutions,
+		SubstitutionRemovals: wire.SubstitutionRemovals, Presences: wire.Presences,
+	}
+	if wire.WholeDays != nil {
+		value.WholeDays = &substitution.ScheduleWholeDayAssignment{
+			AbsentStaffID: wire.WholeDays.AbsentStaffID, SubstituteStaffID: wire.WholeDays.SubstituteStaffID,
+			Dates: wire.WholeDays.Dates, Reason: wire.WholeDays.Reason,
+		}
+	}
+	assignment.ScheduleSubstitution = value
+	return assignment, nil
+}
+
+func invalidAssignmentRequest(message string, target error, code string) error {
+	return &substitution.OperationError{Target: target, Code: code, Message: message}
 }
 
 func optionalDate(raw string) (*timezone.Date, error) {
@@ -153,11 +272,16 @@ func callerFromContext(ctx context.Context) (substitution.SubstitutionCaller, er
 	}
 	return substitution.SubstitutionCaller{
 		AccountID: principal.AccountID(), TenantID: principal.TenantID(), Scope: string(principal.Scope()),
-		Roles: principal.Roles(), Admin: principal.HasAdminScope(),
+		Roles: principal.Roles(), Admin: principal.HasAdminScope(), HasPermission: principal.HasPermission,
 	}, nil
 }
 
 func renderModuleError(w http.ResponseWriter, r *http.Request, err error) {
+	var operation *substitution.OperationError
+	if errors.As(err, &operation) {
+		common.RenderError(w, r, moduleErrorResponse(operationErrorSpec(operation))(err))
+		return
+	}
 	common.RenderError(w, r, moduleErrorRenderer(err))
 }
 
@@ -175,6 +299,23 @@ var moduleErrorSpecs = []moduleErrorSpec{
 	{target: substitution.ErrInvalidPeriod, status: http.StatusBadRequest, code: "invalid_period", message: "Der Zeitraum ist ungültig."},
 	{target: substitution.ErrNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Gruppenübergabe ist nicht mehr aktiv."},
 	{target: substitution.ErrAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Gruppenübergabe besteht bereits."},
+	{target: substitution.ErrConflict, status: http.StatusConflict, code: "conflict", message: "Die Änderung steht im Konflikt mit der aktuellen Planung."},
+	{target: substitution.ErrSelfAssignment, status: http.StatusBadRequest, code: "self_assignment", message: "Sie können sich nicht selbst hinzufügen."},
+}
+
+func operationErrorSpec(operation *substitution.OperationError) moduleErrorSpec {
+	for _, spec := range moduleErrorSpecs {
+		if errors.Is(operation.Target, spec.target) {
+			if operation.Code != "" {
+				spec.code = operation.Code
+			}
+			if operation.Message != "" {
+				spec.message = operation.Message
+			}
+			return spec
+		}
+	}
+	return internalModuleError
 }
 
 var internalModuleError = moduleErrorSpec{

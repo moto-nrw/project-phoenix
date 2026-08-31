@@ -90,8 +90,11 @@ const {
 vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
     getWeek: mockGetWeek,
-    applyBulkSubstitution: mockApplyBulk,
   },
+}));
+
+vi.mock("~/lib/substitution-api", () => ({
+  substitutionService: { applyBulkSubstitution: mockApplyBulk },
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({

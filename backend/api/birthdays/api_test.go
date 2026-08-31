@@ -27,23 +27,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *birthdaysAPI.Resource
 }
 
-func setupTestContext(t *testing.T, clocks ...func() time.Time) *testContext {
+func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t, clocks...)
 	return &testContext{
-		db:       db,
-		services: svc,
+		db: db,
 		resource: birthdaysAPI.NewResource(
 			svc.Birthdays, svc.ListExport, svc.UserContext, svc.Settings, db, slog.Default(),
 		),
@@ -88,9 +85,9 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.D
 func setSetting(t *testing.T, tc *testContext, key string, value any) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, key, value, nil, nil), "set %s", key)
+	require.NoError(t, tc.resource.SettingsService.SetValue(ctx, key, value, nil, nil), "set %s", key)
 	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, key, nil, nil)
+		_ = tc.resource.SettingsService.ResetValue(ctx, key, nil, nil)
 	})
 }
 
@@ -143,7 +140,7 @@ func (p overviewPayload) names() []string {
 func TestOverviewRequiresUsersRead(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-overview@example.com")
 
 	t.Run("rejected without permissions", func(t *testing.T) {
@@ -165,7 +162,7 @@ func TestOverviewRequiresUsersRead(t *testing.T) {
 func TestOverviewRejectsUnauthenticated(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 
 	req, err := http.NewRequest("GET", "/", nil)
 	require.NoError(t, err)
@@ -179,7 +176,7 @@ func TestOverviewRejectsUnauthenticated(t *testing.T) {
 func TestOverviewListsTodaysChildren(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t, func() time.Time {
+	tc := setupBirthdaysRoute(t, func() time.Time {
 		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	})
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
@@ -190,7 +187,7 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 	celebrating := testpkg.CreateTestStudent(t, tc.db, "Lina", "Geburtstagskind", "1a")
 	_ = testpkg.CreateTestStudent(t, tc.db, "Ohne", "Datum", "1a")
 
-	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year-7, today.Month, today.Day))
+	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year()-7, today.Month(), today.Day()))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -216,14 +213,14 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 func TestOverviewDisabledReturnsNothing(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, false)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-off@example.com")
 
 	today := timezone.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Nicht", "Sichtbar", "2b")
-	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-6, today.Month, today.Day))
+	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year()-6, today.Month(), today.Day()))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -238,7 +235,7 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 func TestOverviewStaffVisibility(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-staff@example.com")
@@ -247,7 +244,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, tc.db, "Anna", "Kollegin")
 	optedOut := testpkg.CreateTestStaff(t, tc.db, "Bea", "Abgemeldet")
 
-	birthday := timezone.NewDate(today.Year-40, today.Month, today.Day)
+	birthday := timezone.NewDate(today.Year()-40, today.Month(), today.Day())
 	setPersonBirthday(t, tc.db, staff.PersonID, birthday)
 	setPersonBirthday(t, tc.db, optedOut.PersonID, birthday)
 
@@ -293,7 +290,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 func TestOptOutRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Clara", "Selbst")
 
@@ -323,7 +320,7 @@ func TestOptOutRoundTrip(t *testing.T) {
 func TestOptOutWithoutStaffRecord(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-no-staff@example.com")
 
 	req, err := http.NewRequest("GET", "/opt-out", nil)
@@ -338,7 +335,7 @@ func TestOptOutWithoutStaffRecord(t *testing.T) {
 func TestStaffExportPermissionGate(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 
 	request := func() *http.Request {
@@ -368,7 +365,7 @@ func TestStaffExportPermissionGate(t *testing.T) {
 func TestStaffExportRejectsInvalidMonth(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export-month@example.com")
 
 	req, err := http.NewRequest("POST", "/staff-export", strings.NewReader(`{"format":"xlsx","months":["13"]}`))
@@ -386,14 +383,14 @@ func TestStaffExportRejectsInvalidMonth(t *testing.T) {
 func TestOverviewAppliesStudentDataScope(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupBirthdaysRoute(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-scope@example.com")
 
 	today := timezone.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Fremdes", "Scopekind", "4a")
-	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-9, today.Month, today.Day))
+	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year()-9, today.Month(), today.Day()))
 
 	t.Run("plain users:read without a staff record sees no child", func(t *testing.T) {
 		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})

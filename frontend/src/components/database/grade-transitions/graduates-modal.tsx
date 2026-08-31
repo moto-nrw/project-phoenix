@@ -176,7 +176,9 @@ export function GraduatesModal({
   return (
     <>
       <SlideOver
-        open
+        // Ausgeblendet, solange die Lösch-Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        open={!confirmOpen}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) onClose();
         }}

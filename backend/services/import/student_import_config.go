@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -116,7 +115,7 @@ func MapGuardianRole(raw string) (string, bool) {
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
 	StudentImportDeps
-	txHandler *base.TxHandler
+	txHandler *tenant.TransactionRunner
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
@@ -139,7 +138,7 @@ type StudentImportDeps struct {
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
 		StudentImportDeps: deps,
-		txHandler:         base.NewTxHandler(db),
+		txHandler:         tenant.NewTransactionRunner(),
 	}
 }
 
@@ -737,20 +736,14 @@ func (c *StudentImportConfig) findStudentByNameAndBirthday(ctx context.Context, 
 // If any step fails (e.g. person created but student fails), ROLLBACK TO SAVEPOINT
 // cleans up partial records while keeping the outer tx alive for other rows.
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	tx, hasTx := base.TxFromContext(ctx)
-	if hasTx {
-		if _, err := tx.ExecContext(ctx, "SAVEPOINT import_row"); err != nil {
-			return 0, fmt.Errorf("savepoint: %w", err)
-		}
-
-		studentID, err := c.createAllEntities(ctx, row)
-		if err != nil {
-			_, _ = tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT import_row")
-			return 0, err
-		}
-
-		_, _ = tx.ExecContext(ctx, "RELEASE SAVEPOINT import_row")
-		return studentID, nil
+	if _, hasTx := tenant.TransactionFromContext(ctx); hasTx {
+		var studentID int64
+		err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+			var err error
+			studentID, err = c.createAllEntities(savepointCtx, row)
+			return err
+		})
+		return studentID, err
 	}
 
 	// Fallback: no outer tx (shouldn't happen in normal HTTP flow)

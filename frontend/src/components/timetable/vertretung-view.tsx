@@ -80,7 +80,7 @@ import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { getSettingValue } from "~/lib/settings-api";
 import { staffShiftService } from "~/lib/shift-api";
-import { staffService } from "~/lib/staff-api";
+import { substitutionService } from "~/lib/substitution-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timetableService } from "~/lib/timetable-api";
@@ -100,7 +100,7 @@ import type {
 
 const logger = createLogger({ component: "Vertretung" });
 const HOUR_HEIGHT_PX = 90;
-const VERTRETUNG_STAFF_LIST_KEY = "vertretung-staff-list";
+const VERTRETUNG_STAFF_LIST_KEY_PREFIX = "vertretung-staff-list-";
 // Das verbindliche URL-Vokabular. updateUrlParams baut die URL aus dieser
 // Allowlist neu auf, damit fremde Params (?utm_source=…) nicht jeden
 // Tageswechsel überleben. Muss mit ALLOWED_PARAMS in
@@ -239,6 +239,7 @@ function VertretungContent() {
   );
 
   const weekSwrKey = `${VERTRETUNG_WEEK_KEY_PREFIX}${fromISO}-${toISO}`;
+  const staffSwrKey = `${VERTRETUNG_STAFF_LIST_KEY_PREFIX}${fromISO}-${toISO}`;
   // Die Lücken-Erkennung ist vorwärtsgerichtet: der Endpunkt lehnt ein
   // vergangenes `date` ab, also den Fensterstart auf heute klemmen und für
   // vollständig vergangene Wochen den Abruf ganz überspringen.
@@ -266,10 +267,10 @@ function VertretungContent() {
     () => timetableService.getGaps(gapsFromISO, toISO),
   );
   const { data: staffData, error: staffError } = useSWRAuth(
-    status === "authenticated" ? VERTRETUNG_STAFF_LIST_KEY : null,
+    status === "authenticated" ? staffSwrKey : null,
     // strict: ein Backend-Fehler muss rejecten (nicht zu [] resolven), damit
     // staffError feuert und der Picker den Fehler statt "kein Personal" zeigt.
-    () => staffService.getAllStaff(undefined, { strict: true }),
+    () => substitutionService.fetchScheduleOverview(fromISO, toISO),
   );
   // Dienstplan-Abgleich für den Hinweis über der Liste. Bewusst NICHT strict
   // und ohne Toast: der Hinweis ist eine Zusatzinformation, sein Ausfall darf
@@ -364,11 +365,11 @@ function VertretungContent() {
     [visibleInstances],
   );
   const staffOptions = useMemo(
-    () => (staffData ?? []).map((s) => ({ id: s.id, name: s.name })),
+    () => (staffData?.staff ?? []).map((s) => ({ id: s.id, name: s.name })),
     [staffData],
   );
   const staffNames = useMemo(
-    () => new Map((staffData ?? []).map((s) => [s.id, s.name])),
+    () => new Map((staffData?.staff ?? []).map((s) => [s.id, s.name])),
     [staffData],
   );
   const selectedInstance = useMemo(
@@ -541,6 +542,7 @@ function VertretungContent() {
       await Promise.all([
         tenantMutate(weekSwrKey),
         tenantMutate(gapsSwrKey),
+        tenantMutate(staffSwrKey),
         ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
       ]);
     } catch (err) {
@@ -555,6 +557,7 @@ function VertretungContent() {
     coverageSwrKey,
     gapsSwrKey,
     loadCoverage,
+    staffSwrKey,
     weekSwrKey,
     tenantMutate,
     toast,
@@ -569,10 +572,17 @@ function VertretungContent() {
     void Promise.allSettled([
       tenantMutate(weekSwrKey),
       tenantMutate(gapsSwrKey),
-      tenantMutate(VERTRETUNG_STAFF_LIST_KEY),
+      tenantMutate(staffSwrKey),
       ...(loadCoverage ? [tenantMutate(coverageSwrKey)] : []),
     ]);
-  }, [coverageSwrKey, gapsSwrKey, loadCoverage, weekSwrKey, tenantMutate]);
+  }, [
+    coverageSwrKey,
+    gapsSwrKey,
+    loadCoverage,
+    staffSwrKey,
+    weekSwrKey,
+    tenantMutate,
+  ]);
 
   // Ein atomares Save für das gesamte Editor-Formular. Der Cache-Refresh läuft
   // NACH der committeten Mutation und kann ihren Erfolg nicht zurücknehmen.
@@ -581,10 +591,12 @@ function VertretungContent() {
       const instance = selectedInstance;
       if (!instance) return false;
       try {
-        const result = await timetableService.applyDeviations(
-          instance.id,
-          input,
-        );
+        const result = input.cancel
+          ? await timetableService.applyDeviations(instance.id, input)
+          : await substitutionService.applyScheduleSubstitution(
+              instance.id,
+              input,
+            );
         if (result.cancelled) {
           toast.success(
             cancelledToast("Block abgesagt", result.guardianNotice),

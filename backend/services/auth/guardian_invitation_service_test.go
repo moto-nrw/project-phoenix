@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -602,11 +602,15 @@ type constraintFailingEnrollmentBackfiller struct {
 }
 
 func (s *constraintFailingEnrollmentBackfiller) BackfillGuardianAccountID(ctx context.Context, _ int64, _ string) (int, error) {
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
 		return 0, errors.New("backfill transaction missing")
 	}
-	_, err := (*tx).NewRaw(`
+	tx, ok := raw.(bun.Tx)
+	if !ok {
+		return 0, fmt.Errorf("backfill transaction has type %T", raw)
+	}
+	_, err := tx.NewRaw(`
 		UPDATE enrollment.requests
 		SET guardian_account_id = -1
 		WHERE id = ?

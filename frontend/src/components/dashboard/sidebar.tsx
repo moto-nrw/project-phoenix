@@ -15,6 +15,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
@@ -34,6 +35,7 @@ import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
+import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -50,11 +52,14 @@ import {
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
 import {
+  COMMUNICATION_SECTION,
+  COMMUNICATION_SUB_PAGES,
   DATABASE_SECTION,
   DATABASE_SUB_PAGES,
   ENROLLMENT_SECTION,
   ENROLLMENT_SUB_PAGES,
   getActiveEnrollmentSubPageHref,
+  getActiveCommunicationSubPageHref,
   getActiveParentSubPageHref,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
@@ -95,6 +100,20 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
+    // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
+    // laufenden Tag. Für Admins versteckt — sie haben den vollen
+    // Betreuungsplan im Planungsbereich. schedules:read spiegelt das Gate
+    // der Route (/timetable/operations/planned-now); ohne das Recht wäre
+    // der Eintrag nur ein sicherer 403. Weiteres Gating (binary,
+    // timetable.enabled) siehe filteredNavItems.
+    ...STAFF_FLAT_PAGES.tagesplan,
+    icon: navigationIcons.betreuungsplan,
+    concept: "carePlan",
+    activeColor: "text-moto-green",
+    requiresPermission: "schedules:read",
+    hideForAdmin: true,
+  },
+  {
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: navigationIcons.userSingle,
     concept: "children",
@@ -122,15 +141,6 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    ...STAFF_FLAT_PAGES.teamChat,
-    // Kein eigenes moto-Konzept-Icon: der Team-Chat ist eine neue Fläche und
-    // teilt sich die Sprechblasen-Form mit den Eltern-Nachrichten, nur in der
-    // Mitarbeitenden-Farbe statt in Blau.
-    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-    activeColor: "text-moto-orange",
-    alwaysShow: true,
-  },
-  {
     ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
     concept: "calendar",
@@ -140,14 +150,12 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: "calendar:own",
   },
   {
-    // Gruppenübergaben ändern die Verantwortung, nicht die Sichtbarkeit von
-    // Kinderdaten. Nur relevant bei festen Gruppen (operations.group_mode);
-    // Gating siehe substitutionsItem-Rendering unten.
+    // Gemeinsame Übersicht für Gruppenübergaben, Terminvertretungen und
+    // zusätzliche Aufsichten. Einzelne Aktionen bleiben serverseitig geprüft.
     ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
-    requiresAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
@@ -336,7 +344,11 @@ const NFC_ONLY_HREFS = new Set<string>([
 // concepts with no operational meaning when the tenant only tracks
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
 // accordion is gated separately below (it's not in NAV_ITEMS).
-const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
+const BINARY_HIDDEN_HREFS = new Set<string>([
+  "/rooms",
+  "/activities",
+  "/tagesplan",
+]);
 const GROUP_NAV_ICON =
   "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
 
@@ -420,6 +432,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Ungelesene Team-Chat-Nachrichten (#2598). Eigener Zähler, damit eine
   // Eltern-Nachricht nie den Team-Badge hochzählt und umgekehrt.
   const { unreadCount: teamChatUnreadCount } = useStaffMessagesUnread();
+  // Tagesinformationen (#2180): heutige Hinweise, deren Kenntnisnahme noch
+  // aussteht. Ohne Startseite für alle ist das Badge der einzige Weg, wie ein
+  // Hinweis der Leitung einem begegnet, statt gesucht werden zu müssen.
+  const { unreadCount: staffNoticesPendingCount } = useStaffNoticesPending();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
   // scoped per child in the backend so the count reflects the caller's own
   // group's requests)
@@ -461,6 +477,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const nfcEnabled = useNFCEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
+  // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
+  // damit es auch für Betreuungskräfte ohne config:read aufgelöst ist.
+  const tagesplanEnabled = useTimetableEnabled();
   const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
@@ -569,6 +588,28 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Top-Level-Eintrag "Anfragen", nicht mehr hier.
   const parentSectionBadgeCount = messagesUnreadCount;
 
+  // Kommunikation-Akkordeon: Team-Chat ist Opt-in (operations.
+  // staff_messaging_enabled, Default aus) und fällt fail-closed weg; die
+  // Tagesinformationen liest jede Mitarbeiterin.
+  const communicationSubPages = useMemo(
+    () =>
+      COMMUNICATION_SUB_PAGES.filter((page) => {
+        switch (page.feature) {
+          case "teamChat":
+            return staffMessagingEnabled;
+          case "staffNotices":
+            return hasPermission(session, "users:read");
+        }
+      }),
+    [staffMessagingEnabled, session],
+  );
+  const communicationBadgeCounts: Record<string, number> = {
+    "/team-chat": teamChatUnreadCount,
+    "/tagesinformationen": staffNoticesPendingCount,
+  };
+  const communicationSectionBadgeCount =
+    teamChatUnreadCount + staffNoticesPendingCount;
+
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
@@ -584,9 +625,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
     // (gdpr.attendance_log_enabled, Opt-in, Default aus).
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
-    // Team-Chat (#2598) ist Opt-in (operations.staff_messaging_enabled,
-    // Default aus): ohne Einschalten taucht der Eintrag gar nicht erst auf.
-    if (!staffMessagingEnabled && item.href === "/team-chat") return false;
+    // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
+    // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
+    if (!tagesplanEnabled && item.href === "/tagesplan") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -792,11 +833,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={
-            item.href === "/anfragen" || item.href === "/team-chat"
-              ? tenantPath(item.href)
-              : item.href
-          }
+          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -813,14 +850,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 className="ml-2"
               />
             )}
-            {item.href === "/team-chat" && (
-              <NotificationBadge
-                count={teamChatUnreadCount}
-                tone="staff"
-                ariaLabel={`${teamChatUnreadCount} ungelesene Nachrichten im Team-Chat`}
-                className="ml-2"
-              />
-            )}
           </span>
         </Link>
       )}
@@ -828,11 +857,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
 
   // Determine which flat items come before / after the accordion insertion points
-  // Order: Home, groups, supervisions, search, activities, rooms, staff,
-  // substitutions, database, coming soon, bottom pinned.
+  // Order: Home, Tagesplan, groups, supervisions, search, activities, rooms,
+  // staff, substitutions, database, coming soon, bottom pinned.
   const beforeAccordionItems = mainNavItems.filter(
     (item) =>
       item.href === "/dashboard" ||
+      item.href === "/tagesplan" ||
       (item.href === "/students/search" && !item.comingSoon),
   );
 
@@ -841,11 +871,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     (item) =>
       !item.comingSoon &&
       item.href !== "/dashboard" &&
+      item.href !== "/tagesplan" &&
       item.href !== "/students/search" &&
       item.href !== "/substitutions",
   );
 
-  // Gruppenübergaben (admin only, flat) — nur bei festen Gruppen relevant
+  // Zentrale Vertretungsübersicht, für Admins und Mitarbeitende.
   const substitutionsItem = mainNavItems.find(
     (item) => item.href === "/substitutions",
   );
@@ -1054,6 +1085,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
+  const activeCommunicationSubPageHref =
+    getActiveCommunicationSubPageHref(pathname);
+  const isOnCommunicationPage = activeCommunicationSubPageHref !== null;
+  // Kein Hub: der Bereichs-Klick landet auf der ersten sichtbaren Unterseite,
+  // wie bei Planung.
+  const communicationHubHref =
+    communicationSubPages[0]?.href ?? "/tagesinformationen";
+
+  const handleCommunicationToggle = useCallback(() => {
+    const onSection = getActiveCommunicationSubPageHref(pathname) !== null;
+    if (!onSection) {
+      toggle("kommunikation");
+      router.push(communicationHubHref);
+    } else if (pathname === communicationHubHref) {
+      toggle("kommunikation");
+    } else {
+      router.push(communicationHubHref);
+    }
+  }, [toggle, pathname, router, communicationHubHref]);
+
   // Caregivers see their own supervision. A successful overview request also
   // covers effective admins and verified staff under all_staff (#2380).
   // overviewEnabled avoids the synthetic Schulhof entry triggering the
@@ -1123,6 +1174,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Home (admin only) */}
           {beforeAccordionItems
             .filter((item) => item.href === "/dashboard")
+            .map(renderNavItem)}
+
+          {/* Tagesplan (#2383): die Standardseite der Betreuungskräfte —
+              ganz oben, wie Home bei Admins. */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/tagesplan")
             .map(renderNavItem)}
 
           {/* Group navigation (tenant staff/admin; hidden in open-care mode). */}
@@ -1266,10 +1323,36 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
           {middleItems.map(renderNavItem)}
 
-          {/* Gruppenübergaben (admin, flat) — nur bei festen Gruppen (#1940) */}
-          {substitutionsItem &&
-            !openCareGroupMode &&
-            renderNavItem(substitutionsItem)}
+          {/* Zentrale Vertretungsübersicht. Der Gruppenbereich erklärt offene
+              Betreuung selbst; Termine und laufende Aufsichten bleiben nutzbar. */}
+          {substitutionsItem && renderNavItem(substitutionsItem)}
+
+          {/* Kommunikation accordion — was intern bleibt: Team-Chat und
+              Tagesinformationen. Sichtbar für alle Mitarbeitenden, der Chat
+              per Schalter (#2598). */}
+          {communicationSubPages.length > 0 && (
+            <SidebarAccordionSection
+              icon={navigationIcons.chat}
+              label={COMMUNICATION_SECTION.label}
+              activeColor="text-moto-orange"
+              isExpanded={expanded === "kommunikation"}
+              onToggle={handleCommunicationToggle}
+              isActive={isOnCommunicationPage}
+              isIconActive={isOnCommunicationPage}
+              hasChildren={communicationSubPages.length > 0}
+              badgeCount={communicationSectionBadgeCount}
+            >
+              {communicationSubPages.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={tenantPath(page.href)}
+                  label={page.label}
+                  isActive={activeCommunicationSubPageHref === page.href}
+                  badgeCount={communicationBadgeCounts[page.href] ?? 0}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
 
           {/* Eltern accordion — bundles the parent-communication surfaces
               (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an

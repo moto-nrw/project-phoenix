@@ -41,7 +41,7 @@ func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timef
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -66,7 +66,7 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -88,7 +88,7 @@ func (r *TimeframeRepository) FindByDescription(ctx context.Context, description
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by description",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

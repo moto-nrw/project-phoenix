@@ -1,7 +1,8 @@
 // UI-kit drift ratchet (issue #1629).
 //
-// Three rules that stop NEW drift away from the shared UI kit while tolerating
-// the existing stock via shrink-only, per-match baselines:
+// Four rules that stop drift away from the shared UI kit. Generic brand colors
+// and hand-rolled overlays tolerate existing stock via shrink-only baselines;
+// rounded-3xl and unlabeled checkboxes are hard-zero:
 //
 //   ui-kit/no-generic-brand-colors  — generic Tailwind hues (bg-green-500 …)
 //                                     used for brand semantics; use the brand
@@ -16,10 +17,9 @@
 //                                     label so its visible box is clickable
 //
 // The baselines below are SHRINK-ONLY: matches may be removed when a file is
-// migrated, but never added. Every existing utility is tracked by value and
-// count, so baselined files cannot accumulate more drift. Test/stories files
-// are exempt — several assert on the legacy classes and are governed by the
-// no-test-modifications rule.
+// migrated, but never added. Every baselined utility is tracked by value and
+// count, so those files cannot accumulate more drift. Test/stories files are
+// exempt from the class-string rules.
 
 const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/time-tracking/page.tsx",
@@ -123,28 +123,6 @@ const OVERLAY_BASELINE_FILES = new Set([
   "src/contexts/ToastContext.tsx",
 ]);
 
-const ROUNDED_3XL_BASELINE_FILES = new Set([
-  "src/app/[tenant]/(protected)/students/[id]/change-history/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page-skeleton.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/room-history/page-skeleton.tsx",
-  "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
-  "src/app/[tenant]/(public)/enroll/[phaseId]/page.tsx",
-  "src/app/[tenant]/(public)/enroll/page.tsx",
-  "src/app/[tenant]/(public)/enroll/preview/page.tsx",
-  "src/app/[tenant]/(public)/enroll/submitted/page.tsx",
-  "src/app/help/nfc/erste-schritte/page.tsx",
-  "src/app/operator/announcements/page.tsx",
-  "src/app/operator/provisioning/provisioning-shared.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/components/enrollment/enrollment-status-view.tsx",
-  "src/components/parent/child-detail.tsx",
-  "src/components/rooms/room-detail-content.tsx",
-  "src/components/rooms/students-in-room-section.tsx",
-  "src/components/rooms/transit-students-section.tsx",
-  "src/components/students/student-checkout-section.tsx",
-]);
-
 const OVERLAY_BASELINE = new Map([
   ["src/app/operator/devices/page.tsx", 1],
   ["src/app/operator/persons/page.tsx", 1],
@@ -155,22 +133,6 @@ const OVERLAY_BASELINE = new Map([
   ["src/components/dashboard/header/profile-dropdown.tsx", 1],
   ["src/components/enrollment/admin-enrollment-detail.tsx", 1],
   ["src/contexts/ToastContext.tsx", 2],
-]);
-
-const ROUNDED_3XL_BASELINE = new Map([
-  ["src/app/[tenant]/(public)/enroll/[phaseId]/page.tsx", 4],
-  ["src/app/[tenant]/(public)/enroll/page.tsx", 2],
-  ["src/app/[tenant]/(public)/enroll/preview/page.tsx", 4],
-  ["src/app/[tenant]/(public)/enroll/submitted/page.tsx", 1],
-  ["src/app/help/nfc/erste-schritte/page.tsx", 3],
-  ["src/app/operator/announcements/page.tsx", 2],
-  ["src/app/operator/provisioning/provisioning-shared.tsx", 1],
-  ["src/app/operator/provisioning/soft-delete-shared.tsx", 1],
-  ["src/components/enrollment/enrollment-status-view.tsx", 1],
-  ["src/components/rooms/room-detail-content.tsx", 1],
-  ["src/components/rooms/students-in-room-section.tsx", 1],
-  ["src/components/rooms/transit-students-section.tsx", 1],
-  ["src/components/students/student-checkout-section.tsx", 5],
 ]);
 
 const BRAND_COLOR_RE =
@@ -304,14 +266,6 @@ function consumeBaselineMatch(seenMatches, baseline, key, match) {
 
 function restrictMatchBaseline(baselineFiles, baseline) {
   return new Map([...baseline].filter(([file]) => baselineFiles.has(file)));
-}
-
-function expandCountBaseline(baselineFiles, baseline, match) {
-  return new Map(
-    [...baseline]
-      .filter(([file]) => baselineFiles.has(file))
-      .map(([file, count]) => [file, new Map([[match, count]])]),
-  );
 }
 
 /**
@@ -448,16 +402,12 @@ const noHandRolledOverlay = {
 
 const noRounded3xl = makeClassStringRule({
   regex: ROUNDED_3XL_RE,
-  baseline: expandCountBaseline(
-    ROUNDED_3XL_BASELINE_FILES,
-    ROUNDED_3XL_BASELINE,
-    "rounded-3xl",
-  ),
+  baseline: new Map(),
   skipUiKit: false,
   docs: "Disallow rounded-3xl surfaces; the canonical card radius is rounded-2xl (moto-content-surface).",
   messageId: "rounded3xl",
   message:
-    "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md). The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
+    "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md).",
 });
 
 // ui-kit/no-tiny-text — Schrift unter 12 px (text-[9px], text-[10px],

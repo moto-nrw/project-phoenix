@@ -44,7 +44,7 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 
 // ctxForTenant returns a background context with the given tenant ID set.
 func ctxForTenant(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
+	return tenant.WithTenantID(WithPackageTenantRuntime(context.Background()), tenantID)
 }
 
 // ============================================================================

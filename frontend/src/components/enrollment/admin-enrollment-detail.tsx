@@ -1563,7 +1563,10 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
-      {careOfferingsEnabled && open && portalRoot
+      {/* Ausgeblendet, solange die Abmelde-Bestätigung offen ist — nie zwei
+          eigenständige Dialoge übereinander (#2774). Auswahl und Begründung
+          bleiben erhalten, der State liegt in dieser Komponente. */}
+      {careOfferingsEnabled && open && !withdrawalConfirmationOpen && portalRoot
         ? createPortal(
             <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/40 p-4">
               <div className="mx-auto my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">

@@ -168,7 +168,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
 	ctx := testpkg.Ctx(t)
-	otherTenantCtx := tenant.WithTenantID(context.Background(), 2)
+	otherTenantCtx := testpkg.TenantContext(2)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-%d@example.com", time.Now().UnixNano()))
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
@@ -239,7 +239,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
 		defer cleanupPushSubscriptions(t, db, chain.AccountID)
 
-		chainCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+		chainCtx := testpkg.TenantContext(chain.TenantID)
 		childEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/child-%d", time.Now().UnixNano())
 		require.NoError(t, repo.Upsert(chainCtx, newSubscription(t, chain.AccountID, iotModels.PushPortalParent, childEndpoint)))
 
@@ -286,7 +286,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("parent endpoint cleanup spans tenants", func(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
-		otherSchoolCtx := tenant.WithTenantID(context.Background(), otherSchool.ID)
+		otherSchoolCtx := testpkg.TenantContext(otherSchool.ID)
 		sharedEndpoint := endpoint + "/shared-parent-device"
 		tenantOneSub := newSubscription(t, guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
 		tenantTwoSub := newSubscription(t, guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
@@ -309,7 +309,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("school endpoint cleanup spans tenants and leaves other portals alone", func(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
-		otherSchoolCtx := tenant.WithTenantID(context.Background(), otherSchool.ID)
+		otherSchoolCtx := testpkg.TenantContext(otherSchool.ID)
 		sharedEndpoint := endpoint + "/shared-school-device"
 
 		schoolHere := newSubscription(t, account.ID, iotModels.PushPortalSchool, sharedEndpoint)

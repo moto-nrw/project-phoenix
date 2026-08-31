@@ -142,11 +142,11 @@ func (rs *Resource) listStaffDocuments(w http.ResponseWriter, r *http.Request) {
 			"error", err,
 		)
 	} else {
-		tenantID := tenant.FromContext(r.Context())
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))
 		for _, document := range documents {
 			docID, storedName := document.ID, document.FilenameStored
 			tenant.RegisterAfterCommit(r.Context(), func() {
-				rs.cleanupStaffDocumentFile(tenantID, id, docID, storedName, "retry")
+				rs.cleanupStaffDocumentFile(cleanupCtx, id, docID, storedName, "retry")
 			})
 		}
 	}
@@ -176,11 +176,11 @@ func (rs *Resource) retryQueuedStaffDocumentCleanups(ctx context.Context, source
 		)
 		return
 	}
-	tenantID := tenant.FromContext(ctx)
+	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 	for _, cleanup := range cleanups {
 		staffID, cleanupID, storedName := cleanup.StaffID, cleanup.ID, cleanup.FilenameStored
 		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID, storedName, source)
+			rs.cleanupQueuedStaffDocumentFile(cleanupCtx, staffID, cleanupID, storedName, source)
 		})
 	}
 }
@@ -196,11 +196,11 @@ func (rs *Resource) retryOffboardedStaffDocumentCleanups(ctx context.Context, so
 		)
 		return
 	}
-	tenantID := tenant.FromContext(ctx)
+	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 	for _, document := range documents {
 		staffID, docID, storedName := document.StaffID, document.ID, document.FilenameStored
 		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupStaffDocumentFile(tenantID, staffID, docID, storedName, source)
+			rs.cleanupStaffDocumentFile(cleanupCtx, staffID, docID, storedName, source)
 		})
 	}
 }
@@ -341,9 +341,9 @@ func (rs *Resource) deleteStaffDocument(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if doc.FileDeletedAt == nil {
-		tenantID := tenant.FromContext(r.Context())
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))
 		tenant.RegisterAfterCommit(r.Context(), func() {
-			rs.cleanupStaffDocumentFile(tenantID, id, doc.ID, doc.FilenameStored, "delete")
+			rs.cleanupStaffDocumentFile(cleanupCtx, id, doc.ID, doc.FilenameStored, "delete")
 		})
 	}
 	common.Respond(w, r, http.StatusOK, &stammdatenAck{StaffID: id}, "Staff document deleted successfully")
@@ -430,7 +430,8 @@ func (rs *Resource) removeStoredDocumentForTenant(tenantID int64, storedName str
 	return nil
 }
 
-func (rs *Resource) cleanupStaffDocumentFile(tenantID, staffID, documentID int64, storedName, source string) {
+func (rs *Resource) cleanupStaffDocumentFile(ctx context.Context, staffID, documentID int64, storedName, source string) {
+	tenantID := tenant.FromContext(ctx)
 	if err := rs.removeStoredDocumentForTenant(tenantID, storedName); err != nil {
 		rs.getLogger().Warn("staff document cleanup failed",
 			"staff_id", staffID,
@@ -440,7 +441,6 @@ func (rs *Resource) cleanupStaffDocumentFile(tenantID, staffID, documentID int64
 		)
 		return
 	}
-	ctx := tenant.WithTenantID(context.Background(), tenantID)
 	if err := rs.StaffDocumentService.MarkStaffDocumentFileDeleted(ctx, documentID); err != nil {
 		rs.getLogger().Error("staff document cleanup status update failed",
 			"staff_id", staffID,
@@ -451,7 +451,8 @@ func (rs *Resource) cleanupStaffDocumentFile(tenantID, staffID, documentID int64
 	}
 }
 
-func (rs *Resource) cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID int64, storedName, source string) {
+func (rs *Resource) cleanupQueuedStaffDocumentFile(ctx context.Context, staffID, cleanupID int64, storedName, source string) {
+	tenantID := tenant.FromContext(ctx)
 	if err := rs.removeStoredDocumentForTenant(tenantID, storedName); err != nil {
 		rs.getLogger().Warn("staff document orphan cleanup failed",
 			"staff_id", staffID,
@@ -461,7 +462,6 @@ func (rs *Resource) cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID 
 		)
 		return
 	}
-	ctx := tenant.WithTenantID(context.Background(), tenantID)
 	if err := rs.StaffDocumentService.MarkQueuedStaffDocumentFileCleanupComplete(ctx, cleanupID); err != nil {
 		rs.getLogger().Error("staff document orphan cleanup status update failed",
 			"staff_id", staffID,

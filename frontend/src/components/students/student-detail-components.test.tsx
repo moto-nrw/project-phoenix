@@ -258,7 +258,9 @@ describe("Kopf der Kindakte", () => {
     expect(identitySlot).not.toBeNull();
     expect(identitySlot?.className).not.toMatch(/\bml-/);
 
-    const badgeSlot = container.querySelector(".shrink-0.flex-wrap");
+    // Seit dem Mobil-Fix der SectionCard (Einklapp-Pfeil bleibt in der
+    // Titelzeile) trägt der Aktionsbereich sm:shrink-0 statt shrink-0.
+    const badgeSlot = container.querySelector(".sm\\:shrink-0.flex-wrap");
     expect(badgeSlot).not.toBeNull();
     expect(badgeSlot?.className).not.toMatch(/\bmr-/);
   });

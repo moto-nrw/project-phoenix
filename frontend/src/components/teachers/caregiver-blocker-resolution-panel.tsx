@@ -14,9 +14,9 @@ import type {
   CaregiverCapabilityState,
 } from "~/lib/caregiver-capability-api";
 import {
-  groupTransferService,
+  fetchGroupLeaderCandidates,
   type StaffGroupLeaderCandidate,
-} from "~/lib/group-transfer-api";
+} from "~/lib/staff-role-api";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 
@@ -178,7 +178,7 @@ export function CaregiverBlockerResolutionPanel({
   const loadStaff = useCallback(async () => {
     try {
       setLoadingStaff(true);
-      const staff = await groupTransferService.getStaffByRole("user");
+      const staff = await fetchGroupLeaderCandidates();
       setAvailableStaff(staff.filter((s) => s.id !== state.staffId));
       setStaffLoadError("");
     } catch (error) {

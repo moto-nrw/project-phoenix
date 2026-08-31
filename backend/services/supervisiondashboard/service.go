@@ -92,11 +92,13 @@ func NewService(deps Dependencies) Getter {
 // session tab. The wire shape carries only what the page renders: the session
 // label, room label, color, and ids for selection.
 type Group struct {
-	ID        int64   `json:"id,string"`
-	Name      string  `json:"name"`
-	RoomID    *int64  `json:"room_id,string,omitempty"`
-	RoomName  string  `json:"room_name,omitempty"`
-	RoomColor *string `json:"room_color,omitempty"`
+	ID                       int64   `json:"id,string"`
+	Name                     string  `json:"name"`
+	RoomID                   *int64  `json:"room_id,string,omitempty"`
+	RoomName                 string  `json:"room_name,omitempty"`
+	RoomColor                *string `json:"room_color,omitempty"`
+	IsCurrentUserSupervising bool    `json:"is_current_user_supervising"`
+	CanAssign                bool    `json:"can_assign"`
 }
 
 type UnclaimedGroup struct {
@@ -224,7 +226,7 @@ func (s *service) Get(ctx context.Context, requestedGroupID int64) (*Projection,
 	}
 	projection.CurrentStaffID = staffID
 
-	groups, err := s.resolveGroups(ctx)
+	groups, err := s.resolveGroups(ctx, staffID)
 	if err != nil {
 		return nil, err
 	}
@@ -309,11 +311,13 @@ func (s *service) loadCurrentStaffID(ctx context.Context) (*int64, error) {
 // by the school-wide overview scope (#2380) see all running sessions,
 // otherwise their own supervised sessions. Errors propagate — the former BFF's
 // silent 403→fallback chain is replaced by one deterministic decision here.
-func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
+func (s *service) resolveGroups(ctx context.Context, staffID *int64) ([]Group, error) {
 	broad, err := s.hasOperationalOverview(ctx)
 	if err != nil {
 		return nil, err
 	}
+	principal, principalErr := permissions.PrincipalFromContext(ctx)
+	admin := principalErr == nil && principal.HasAdminScope()
 
 	var groups []*activeModels.Group
 	if broad {
@@ -337,6 +341,10 @@ func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 		}
 		groups = supervised
 	}
+	ownedGroupIDs, err := s.ownedGroupIDs(ctx, broad, staffID)
+	if err != nil {
+		return nil, err
+	}
 
 	rooms, err := s.loadRooms(ctx, groups)
 	if err != nil {
@@ -345,7 +353,11 @@ func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 
 	result := make([]Group, 0, len(groups))
 	for _, group := range groups {
-		item := Group{ID: group.ID}
+		item := Group{ID: group.ID, IsCurrentUserSupervising: !broad}
+		if broad {
+			_, item.IsCurrentUserSupervising = ownedGroupIDs[group.ID]
+		}
+		item.CanAssign = admin || item.IsCurrentUserSupervising
 		if group.ActualGroup != nil {
 			item.Name = group.ActualGroup.Name
 		}
@@ -365,6 +377,21 @@ func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 	sort.SliceStable(result, func(i, j int) bool {
 		return collation.CompareGerman(result[i].RoomName, result[j].RoomName) < 0
 	})
+	return result, nil
+}
+
+func (s *service) ownedGroupIDs(ctx context.Context, broad bool, staffID *int64) (map[int64]struct{}, error) {
+	result := make(map[int64]struct{})
+	if !broad || staffID == nil {
+		return result, nil
+	}
+	supervisions, err := s.deps.Active.GetStaffActiveSupervisions(ctx, *staffID)
+	if err != nil {
+		return nil, fmt.Errorf("load current staff supervisions: %w", err)
+	}
+	for _, supervision := range supervisions {
+		result[supervision.GroupID] = struct{}{}
+	}
 	return result, nil
 }
 

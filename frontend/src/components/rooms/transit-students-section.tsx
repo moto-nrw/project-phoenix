@@ -26,7 +26,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 const DETAIL_CARD_CLASS =
-  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
+  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
 
 function buildSessionLabel(group: ActiveGroup): string {
@@ -293,7 +293,7 @@ export function TransitStudentsSection({
         <>
           {attendanceWebEnabled ? (
             <div
-              className={`mt-4 mb-4 rounded-2xl border p-3 transition-shadow ${
+              className={`mt-4 mb-4 rounded-xl border p-3 transition-shadow ${
                 selectedVisibleCount > 0
                   ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
                   : "border-transparent bg-gray-50/80 shadow-none"
@@ -390,7 +390,7 @@ export function TransitStudentsSection({
                 return (
                   <div
                     key={student.id}
-                    className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-colors ${
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
                       checked
                         ? "border-gray-300 bg-gray-50"
                         : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
@@ -403,7 +403,7 @@ export function TransitStudentsSection({
                         aria-checked={checked}
                         aria-label={`${fullName} auswählen`}
                         onClick={() => toggleSelected(studentId)}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
                       >
                         <span
                           className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${

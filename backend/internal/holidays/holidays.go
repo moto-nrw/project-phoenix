@@ -100,7 +100,7 @@ func InRange(region string, from, to timezone.Date) ([]Holiday, error) {
 		return nil, fmt.Errorf("invalid holiday range: to %s before from %s", to, from)
 	}
 	var result []Holiday
-	for year := from.Year; year <= to.Year; year++ {
+	for year := from.Year(); year <= to.Year(); year++ {
 		yearHolidays, err := ForYear(region, year)
 		if err != nil {
 			return nil, err

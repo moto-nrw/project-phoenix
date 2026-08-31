@@ -36,8 +36,8 @@ import { useMinuteClock } from "~/lib/pickup-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
-import { groupTransferService } from "~/lib/group-transfer-api";
-import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
+import { substitutionService } from "~/lib/substitution-api";
+import type { Substitution } from "~/lib/substitution-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -63,6 +63,7 @@ import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
+  GroupTransfer,
   OgsLiveViewData,
   OgsLiveWireStudent,
   OgsPickupInfo,
@@ -82,9 +83,104 @@ import {
 import { createLogger } from "~/lib/logger";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { berlinTodayISO } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
+const EMPTY_GROUP_TRANSFERS: GroupTransfer[] = [];
+
+function groupTransfers(
+  handovers: Substitution[],
+  groupId: string,
+): GroupTransfer[] {
+  return handovers
+    .filter((handover) => handover.groupId === groupId)
+    .map((handover) => ({
+      substitutionId: handover.id,
+      groupId: handover.groupId,
+      targetStaffId: handover.substituteStaffId,
+      targetName: handover.substituteStaffName,
+      validUntil: handover.endDate,
+    }));
+}
+
+async function fetchGroupTransferContext(groupId: string) {
+  const overview = await substitutionService.fetchOverview();
+  return {
+    users: overview.targets,
+    transfers: groupTransfers(overview.groupHandovers, groupId),
+  };
+}
+
+async function assignGroupForToday(groupId: string, targetStaffId: string) {
+  const today = berlinTodayISO();
+  await substitutionService.createSubstitution(
+    groupId,
+    targetStaffId,
+    today,
+    today,
+  );
+}
+
+function useGroupTransferData(
+  groupId: string | undefined,
+  open: boolean,
+  initialTransfers: GroupTransfer[],
+) {
+  const [users, setUsers] = useState<Array<{ id: string; fullName: string }>>(
+    [],
+  );
+  const [transfers, setTransfers] = useState<GroupTransfer[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const reload = useCallback(async () => {
+    if (!groupId) return;
+    try {
+      const context = await fetchGroupTransferContext(groupId);
+      setUsers(context.users);
+      setTransfers(context.transfers);
+      setLoadError(null);
+    } catch (error) {
+      logger.error("failed to load group handover modal", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setUsers([]);
+      setTransfers([]);
+      setLoadError(
+        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+  }, [groupId]);
+  useEffect(() => {
+    if (open) void reload();
+  }, [open, reload]);
+  useEffect(() => setTransfers(initialTransfers), [initialTransfers]);
+  return { users, transfers, loadError, reload };
+}
+
+function useGroupTransferModal(
+  group: OGSGroup | null,
+  initialTransfers: GroupTransfer[],
+) {
+  const [open, setOpen] = useState(false);
+  const { success } = useToast();
+  const data = useGroupTransferData(group?.id, open, initialTransfers);
+  const transfer = async (targetStaffId: string, targetName: string) => {
+    if (!group) return;
+    await assignGroupForToday(group.id, targetStaffId);
+    await data.reload();
+    success(`Gruppe "${group.name}" an ${targetName} übergeben`);
+  };
+  const cancel = async (substitutionId: string) => {
+    if (!group) return;
+    const transfer = data.transfers.find(
+      (item) => item.substitutionId === substitutionId,
+    );
+    await substitutionService.deleteSubstitution(substitutionId);
+    await data.reload();
+    success(`Übergabe an ${transfer?.targetName ?? "Betreuer"} zurückgenommen`);
+  };
+  return { ...data, open, setOpen, transfer, cancel };
+}
 
 // Maps the aggregated live-view wire student (backend "last_name" naming) to
 // the frontend Student shape the shared card components consume.
@@ -187,7 +283,6 @@ function OGSGroupPageContent() {
     },
   });
 
-  const { success: showSuccessToast } = useToast();
   const { setGroupAttendanceCount } = useGroupAttendanceCounts();
   const canAdministerGroups = hasEffectiveAdminScope(session);
 
@@ -261,13 +356,6 @@ function OGSGroupPageContent() {
   // Current time for urgency calculation (updates every minute)
   const now = useMinuteClock();
 
-  // State for group transfer modal
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
-  const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
-  const [transferLoadError, setTransferLoadError] = useState<string | null>(
-    null,
-  );
   const tenantMutate = useTenantMutate();
 
   // Single aggregated live fetch (#2056): one backend request returns groups,
@@ -408,7 +496,6 @@ function OGSGroupPageContent() {
       setStudents(mappedStudents);
       setRoomStatus(liveData.roomStatus);
       setPickupTimes(liveData.pickupTimes);
-      setActiveTransfers(liveData.transfers);
       setError(null);
       setIsLoading(false);
     }
@@ -480,7 +567,12 @@ function OGSGroupPageContent() {
       allGroups.find((g) => g.id === selectedGroupId) ?? allGroups[0] ?? null,
     [allGroups, selectedGroupId],
   );
-  const currentGroupId = currentGroup?.id;
+  const groupTransfer = useGroupTransferModal(
+    currentGroup,
+    liveData && liveData.groupId === currentGroup?.id
+      ? liveData.transfers
+      : EMPTY_GROUP_TRANSFERS,
+  );
 
   // Set breadcrumb data
   useSetBreadcrumb({
@@ -497,102 +589,6 @@ function OGSGroupPageContent() {
   useEffect(() => {
     currentGroupRef.current = currentGroup;
   }, [currentGroup]);
-
-  const loadTransferModalData = useCallback(async (groupId: string) => {
-    try {
-      const [users, transfers] = await Promise.all([
-        groupTransferService.getAllAvailableStaff(),
-        groupTransferService.getActiveTransfersForGroup(groupId),
-      ]);
-      setAvailableUsers(users);
-      setActiveTransfers(transfers);
-      setTransferLoadError(null);
-    } catch (error) {
-      logger.error("failed to load group handover modal", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setAvailableUsers([]);
-      setActiveTransfers([]);
-      setTransferLoadError(
-        "Fachkräfte und Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
-    }
-  }, []);
-
-  // Check if current group has active transfers.
-  const checkActiveTransfers = useCallback(async (groupId: string) => {
-    try {
-      const transfers =
-        await groupTransferService.getActiveTransfersForGroup(groupId);
-      setActiveTransfers(transfers);
-      setTransferLoadError(null);
-    } catch (error) {
-      logger.error("failed to check active transfers", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      setTransferLoadError(
-        "Die Übergaben konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
-      );
-    }
-  }, []);
-
-  // Load users when modal opens
-  // IMPORTANT: Use currentGroupId as dependency, not currentGroup object
-  // Otherwise setAllGroups() creates new object references and triggers this effect again
-  useEffect(() => {
-    if (showTransferModal && currentGroupId) {
-      void loadTransferModalData(currentGroupId);
-    }
-  }, [showTransferModal, currentGroupId, loadTransferModalData]);
-
-  // Handle group transfer
-  const handleTransferGroup = async (
-    targetStaffId: string,
-    targetName: string,
-  ) => {
-    if (!currentGroup) return;
-
-    await groupTransferService.transferGroup(currentGroup.id, targetStaffId);
-
-    // Reload transfers for this group to show updated list
-    await checkActiveTransfers(currentGroup.id);
-
-    // NOTE: We intentionally do NOT reload groups here.
-    // A transfer only creates a substitution record - it doesn't change group data.
-    // Reloading groups could return them in a different order, causing the selection
-    // to point to a different group and making the modal switch unexpectedly.
-
-    // Show success toast
-    showSuccessToast(
-      `Gruppe "${currentGroup.name}" an ${targetName} übergeben`,
-    );
-
-    // Keep modal open to allow multiple transfers and show updated transfer list
-  };
-
-  // Handle cancel specific transfer by ID
-  const handleCancelTransfer = async (substitutionId: string) => {
-    if (!currentGroup) return;
-
-    // Find the transfer to get recipient name
-    const transfer = activeTransfers.find(
-      (t) => t.substitutionId === substitutionId,
-    );
-    const recipientName = transfer?.targetName ?? "Betreuer";
-
-    await groupTransferService.cancelTransferBySubstitutionId(substitutionId);
-
-    // Reload transfers for this group
-    await checkActiveTransfers(currentGroup.id);
-
-    // NOTE: We intentionally do NOT reload groups here.
-    // Canceling a transfer only deletes a substitution record - it doesn't change group data.
-    // Reloading groups could return them in a different order, causing the selection
-    // to point to a different group and making the modal switch unexpectedly.
-
-    // Show success toast
-    showSuccessToast(`Übergabe an ${recipientName} wurde zurückgenommen`);
-  };
 
   // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
@@ -870,8 +866,8 @@ function OGSGroupPageContent() {
     ? buildGroupOverflowItems({
         viaSubstitution: currentGroup.viaSubstitution ?? false,
         canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
-        activeTransfersCount: activeTransfers.length,
-        onOpenTransfer: () => setShowTransferModal(true),
+        activeTransfersCount: groupTransfer.transfers.length,
+        onOpenTransfer: () => groupTransfer.setOpen(true),
       })
     : [];
 
@@ -1144,8 +1140,8 @@ function OGSGroupPageContent() {
           <>
             {/* Group Transfer Modal */}
             <GroupTransferModal
-              isOpen={showTransferModal}
-              onClose={() => setShowTransferModal(false)}
+              isOpen={groupTransfer.open}
+              onClose={() => groupTransfer.setOpen(false)}
               group={
                 currentGroup
                   ? {
@@ -1155,11 +1151,11 @@ function OGSGroupPageContent() {
                     }
                   : null
               }
-              availableUsers={availableUsers}
-              loadError={transferLoadError}
-              onTransfer={handleTransferGroup}
-              existingTransfers={activeTransfers}
-              onCancelTransfer={handleCancelTransfer}
+              availableUsers={groupTransfer.users}
+              loadError={groupTransfer.loadError}
+              onTransfer={groupTransfer.transfer}
+              existingTransfers={groupTransfer.transfers}
+              onCancelTransfer={groupTransfer.cancel}
             />
           </>
         }

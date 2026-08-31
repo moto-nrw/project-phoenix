@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -926,7 +928,7 @@ func TestStudentRepository_LockPhotoFeature(t *testing.T) {
 	// it from a second tx while the first is still open.
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err, "begin tx 1")
-	holdCtx := modelBase.ContextWithTx(ctx, &tx)
+	holdCtx := tenant.WithTransactionForTest(ctx, &tx)
 	require.NoError(t, repo.LockPhotoFeature(holdCtx),
 		"first tx must acquire the per-tenant advisory lock")
 

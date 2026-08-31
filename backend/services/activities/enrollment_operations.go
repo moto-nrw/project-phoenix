@@ -482,21 +482,7 @@ func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([
 		return []*activities.Group{}, nil
 	}
 
-	// Create a filter to get groups by IDs
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	// Convert int64 slice to []interface{}
-	interfaceIDs := make([]interface{}, len(groupIDs))
-	for i, id := range groupIDs {
-		interfaceIDs[i] = id
-	}
-
-	filter.In("id", interfaceIDs...)
-	options.Filter = filter
-
-	// Get groups using List method
-	groups, err := s.groupRepo.List(ctx, options)
+	groups, err := s.groupRepo.ListWithCategory(ctx, &activities.GroupListQuery{IDs: groupIDs})
 	if err != nil {
 		return nil, &ActivityError{Op: "get student enrollments", Err: err}
 	}

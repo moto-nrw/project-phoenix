@@ -453,7 +453,11 @@ export function StudentCreateModal({
   return (
     <>
       <SlideOver
-        open={isOpen}
+        // Ausgeblendet, solange ein Unter-Dialog (Erziehungsberechtigte,
+        // Wochenplan) offen ist — nie zwei eigenständige Dialoge
+        // übereinander (#2774). Der Formular-State bleibt erhalten, weil er
+        // in dieser Komponente liegt.
+        open={isOpen && !guardianModalOpen && !carePlanModalOpen}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}

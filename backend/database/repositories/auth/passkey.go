@@ -39,7 +39,7 @@ func (r *PasskeyCredentialRepository) FindActiveByAccountID(ctx context.Context,
 		Order("created_at ASC").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active passkeys by account id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active passkeys by account id", Err: base.TranslateNotFound(err)}
 	}
 	return credentials, nil
 }
@@ -55,7 +55,7 @@ func (r *PasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx 
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active passkey by credential id and user handle", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active passkey by credential id and user handle", Err: base.TranslateNotFound(err)}
 	}
 	return credential, nil
 }
@@ -83,7 +83,7 @@ func (r *PasskeyCredentialRepository) Revoke(ctx context.Context, accountID, id 
 		Where("revoked_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "revoke passkey", Err: err}
+		return &modelBase.DatabaseError{Op: "revoke passkey", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(res, 1, "revoke passkey")
 }
@@ -113,7 +113,7 @@ func (r *PasskeySessionRepository) Consume(ctx context.Context, id, purpose stri
 		Returning("*").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "consume passkey session", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "consume passkey session", Err: base.TranslateNotFound(err)}
 	}
 	return session, nil
 }

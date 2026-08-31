@@ -202,13 +202,12 @@ export function GroupTransferModal({
             icon={<Clock className="h-full w-full" />}
           >
             <p className="text-sm text-gray-600">
-              Die ausgewählte pädagogische Fachkraft übernimmt{" "}
+              Die ausgewählte pädagogische Fachkraft ist{" "}
               <strong className="font-medium text-gray-900">
-                heute die Verantwortung
+                heute zusätzlich zuständig
               </strong>{" "}
               für diese Gruppe. Die Gruppe erscheint für diese Person unter
-              „Meine Gruppen“. Die Berechtigung für Kinderdaten ändert sich
-              nicht.
+              „Meine Gruppen“.
             </p>
           </InfoSection>
 
