@@ -33,6 +33,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { getSettingValue } from "~/lib/settings-api";
 import {
@@ -334,6 +335,17 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "group",
     concept: "groups",
     alwaysShow: true,
+  },
+  {
+    // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
+    // laufenden Tag. Gating unten in filteredAdditionalItems (binary-Modus,
+    // timetable.enabled); Admins haben den vollen Betreuungsplan.
+    href: "/betreuungsplan/tag",
+    label: "Tagesplan",
+    iconKey: "betreuungsplan",
+    concept: "carePlan",
+    alwaysShow: true,
+    hideForAdmin: true,
   },
   {
     href: "/activities",
@@ -640,6 +652,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
   const staffMessagingEnabled = useStaffMessagingEnabled();
+  // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
+  // damit es auch ohne config:read aufgelöst ist.
+  const tagesplanEnabled = useTimetableEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
   // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
@@ -672,6 +687,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
     if (item.href === "/anfragen") return canOpenRequestsPage(session);
+    // Tagesplan (#2383): nur im detaillierten Modus und nur an Schulen mit
+    // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne config:read).
+    if (
+      item.href === "/betreuungsplan/tag" &&
+      (presenceMode === "binary" || !tagesplanEnabled)
+    ) {
+      return false;
+    }
     if (
       item.href === "/ogs-groups" &&
       !userIsCaregiver &&

@@ -18,6 +18,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/admin/guardian-approvals",
   "/anfragen",
   "/betreuungsplan",
+  "/betreuungsplan/tag",
   "/calendar",
   "/calendar-periods",
   "/care-offerings",

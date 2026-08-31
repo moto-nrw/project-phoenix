@@ -179,6 +179,10 @@ export const STAFF_FLAT_PAGES = {
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
   // an einem Ort, mit Reitern nach Herkunft.
   anfragen: { href: "/anfragen", label: "Anfragen" },
+  // Tages-Betreuungsplan (#2383): der Einstieg der Betreuungskräfte in den
+  // laufenden Tag. Unterseite von /betreuungsplan, aber ein eigener flacher
+  // Eintrag — der Planungsbereich selbst bleibt Admins vorbehalten.
+  tagesplan: { href: "/betreuungsplan/tag", label: "Tagesplan" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
   // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
   // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
