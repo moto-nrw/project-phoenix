@@ -37,6 +37,7 @@ describe("ToastContext", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    document.documentElement.lang = "de";
   });
 
   describe("useToast hook", () => {
@@ -161,6 +162,41 @@ describe("ToastContext", () => {
           screen.queryByRole("dialog", { name: "Benachrichtigungen" }),
         ).not.toBeInTheDocument();
       });
+    });
+
+    it("uses the document language for mobile toast labels", async () => {
+      vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+      document.documentElement.lang = "en";
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.success("Saved", { duration: 0 });
+        }, [toast]);
+
+        return null;
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      expect(
+        await screen.findByRole("dialog", { name: "Notifications" }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Close")).toBeInTheDocument();
     });
 
     it("runs a toast action from the desktop toast", async () => {

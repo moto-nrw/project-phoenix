@@ -9,7 +9,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useTranslations } from "next-intl";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
@@ -46,6 +45,29 @@ interface ToastAPI {
 }
 
 const ToastContext = createContext<ToastAPI | undefined>(undefined);
+
+const mobileToastModalLabels = {
+  de: {
+    title: "Benachrichtigungen",
+    close: "Schließen",
+    backdrop: "Benachrichtigung schließen",
+  },
+  en: {
+    title: "Notifications",
+    close: "Close",
+    backdrop: "Close notification",
+  },
+  ru: {
+    title: "Уведомления",
+    close: "Закрыть",
+    backdrop: "Закрыть уведомление",
+  },
+  sq: {
+    title: "Njoftimet",
+    close: "Mbyll",
+    backdrop: "Mbyll njoftimin",
+  },
+} as const;
 
 export function useToast() {
   const ctx = useContext(ToastContext);
@@ -340,7 +362,12 @@ export function ToastProvider({
   const [items, setItems] = useState<ToastItemData[]>([]);
   const reducedMotion = useReducedMotion();
   const isMobile = useMediaQuery(BELOW_MD);
-  const t = useTranslations("parentNav");
+  const locale =
+    typeof document === "undefined" ? "de" : document.documentElement.lang;
+  const modalLabels =
+    mobileToastModalLabels[
+      locale as keyof typeof mobileToastModalLabels
+    ] ?? mobileToastModalLabels.de;
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
@@ -411,9 +438,10 @@ export function ToastProvider({
         onClose={() => {
           if (topmostItem) remove(topmostItem.id);
         }}
-        title={t("notifications")}
+        title={modalLabels.title}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-xs"
-        backdropLabel="Benachrichtigung schließen"
+        closeLabel={modalLabels.close}
+        backdropLabel={modalLabels.backdrop}
       >
         <div className="space-y-2">
           {items.map((item) => (

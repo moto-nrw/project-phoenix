@@ -83,6 +83,10 @@ describe("AnchoredPopover", () => {
   });
 
   it("right-aligns an end-aligned panel with its trigger", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1920,
+    });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       left: 1800,
       right: 1840,
