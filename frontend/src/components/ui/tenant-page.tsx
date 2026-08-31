@@ -334,12 +334,9 @@ export function TenantPage({
               <h1
                 className={cn(
                   "font-semibold tracking-tight text-balance text-gray-900",
-                  // Auf dem Telefon steht der Seitenname schon in der
-                  // Kopfzeile der Shell. Ein zweites Mal darunter kostete
-                  // 60 px pro Seite. Unterseiten (mit Zurück-Knopf) und
-                  // Objektseiten (mit Avatar) behalten ihren Titel: dort
-                  // nennt die Kopfzeile nur den Bereich.
-                  !back && leading == null && "max-sm:sr-only",
+                  // Auch auf dem Telefon sichtbar: unter lg gibt es keine
+                  // Shell-Kopfzeile mehr (wie in der Eltern-App), die
+                  // Kopfkarte ist die einzige Trägerin des Seitennamens.
                   prominent
                     ? "text-2xl leading-tight sm:text-[28px]"
                     : "text-xl leading-tight sm:text-2xl",

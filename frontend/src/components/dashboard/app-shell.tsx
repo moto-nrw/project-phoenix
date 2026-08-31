@@ -15,16 +15,23 @@ interface AppShellProps {
  * only the children (page content) swap.
  *
  * The frame itself lives in the shared `PortalShell`; this file only names
- * the staff portal's own navigation. The extra top layer is the white strip
- * that covers the page behind the mobile header.
+ * the staff portal's own navigation.
+ *
+ * Unter lg gibt es KEINE Kopfzeile — dieselbe Entscheidung wie in der
+ * Eltern-App: die „Bereich › Seite"-Zeile dort war eine zweite Überschrift
+ * über der Kopfkarte, die den Seitennamen ohnehin trägt. Statt ihrer bleibt
+ * nur ein transparenter Safe-Area-Streifen; Profil und Abmelden wohnen im
+ * „Mehr"-Menü der unteren Leiste.
  */
 export function AppShell({ children }: AppShellProps) {
   return (
     <PortalShell
       header={<Header />}
+      headerClassName="sticky top-0 z-40 hidden lg:block"
       topLayer={
         <div
-          className="pointer-events-none fixed inset-x-0 top-0 z-30 h-14 bg-white/95 backdrop-blur-md lg:hidden"
+          data-staff-safe-area-top
+          className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
           aria-hidden="true"
         />
       }

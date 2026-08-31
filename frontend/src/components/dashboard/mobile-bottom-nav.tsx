@@ -57,6 +57,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import { LogoutModal } from "~/components/ui/logout-modal";
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
@@ -489,6 +490,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
+  // Unter lg gibt es keine Shell-Kopfzeile mehr (Eltern-App-Muster), also
+  // auch keinen Avatar mit Profilmenü: Profil und Abmelden wohnen hier im
+  // „Mehr"-Menü, wie in der Eltern-App.
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
 
   // Refs for sliding indicator
   const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -871,11 +876,54 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   );
                 })}
               </div>
+              {/* Konto-Zeilen wie im „Mehr"-Menü der Eltern-App: ohne
+                  Shell-Kopfzeile gibt es mobil keinen Avatar mehr, Profil
+                  und Abmelden brauchen deshalb hier einen Platz. */}
+              <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+                <Link
+                  href={tenantPath("/profile")}
+                  onClick={closeOverflowMenu}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
+                    isActiveRoute("/profile")
+                      ? "bg-gray-100 font-semibold text-gray-900"
+                      : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
+                  }`}
+                >
+                  <MobileNavIcon
+                    item={{ iconKey: "profile" }}
+                    active={isActiveRoute("/profile")}
+                    className="h-5 w-5 text-gray-600"
+                  />
+                  <span className="text-base font-medium">Profil</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeOverflowMenu();
+                    setLogoutModalOpen(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left transition-all hover:bg-gray-100 active:bg-gray-200"
+                >
+                  <MobileNavIcon
+                    item={{ iconKey: "profile", concept: "logout" }}
+                    active={false}
+                    className="h-5 w-5 text-gray-600"
+                  />
+                  <span className="text-base font-medium text-gray-900">
+                    Abmelden
+                  </span>
+                </button>
+              </div>
             </div>
             <div className="pb-8" />
           </div>
         </DrawerContent>
       </Drawer>
+
+      <LogoutModal
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+      />
 
       {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
       <nav
