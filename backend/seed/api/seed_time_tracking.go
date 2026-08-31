@@ -60,6 +60,10 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	todayDate := todaySeedDate()
+	if err := seedTimeTrackingCoverage(rt, staffIDByEmail[staffOrder[0].Email], todayDate.Year()); err != nil {
+		return err
+	}
 	// One school-defined Abwesenheitsart (#2403), so the dropdown, the
 	// absence list and the exports show the mixed case a real school has:
 	// the five standard types plus a name of its own.
@@ -81,6 +85,9 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 
 	for idx, cred := range staffOrder {
 		staffID := staffIDByEmail[cred.Email]
+		if idx < len(DemoStaff) && DemoStaff[idx].Position == "Extern" {
+			continue
+		}
 		if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
 			return fmt.Errorf("login as %s: %w", cred.Email, err)
 		}
@@ -133,7 +140,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			// demo data renders as a complete two-week timeline. Random
 			// skips made the calendar look broken to first-time viewers.
 
-			created, err := seedSessionViaAPI(rt, rng, day, loc)
+			created, err := seedSessionViaAPI(rt, rng, day, loc, sessionCount == 0)
 			if err != nil {
 				return fmt.Errorf("seed session for staff %d on %s: %w", staffID, toDateKey(day), err)
 			}
@@ -217,7 +224,7 @@ func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (AuthRef, erro
 // open + close a fresh session today, then PUT to backdate it. Returns
 // whether a session was created (false when the staff already had an
 // open session that we couldn't safely close).
-func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Location) (bool, error) {
+func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Location, withBreak bool) (bool, error) {
 	status := "present"
 	if rng.Float64() < 0.1 {
 		status = "home_office"
@@ -232,6 +239,11 @@ func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Loc
 	sessionID, err := extractSessionID(checkInResp)
 	if err != nil {
 		return false, fmt.Errorf("parse check-in response: %w", err)
+	}
+	if withBreak {
+		if err := seedOneWorkSessionBreak(rt); err != nil {
+			return false, err
+		}
 	}
 
 	if _, err := rt.Client.Post("/api/time-tracking/check-out", nil); err != nil {
@@ -259,6 +271,50 @@ func seedSessionViaAPI(rt *Runtime, rng *rand.Rand, day time.Time, loc *time.Loc
 		return false, fmt.Errorf("put backdate: %w", err)
 	}
 	return true, nil
+}
+
+func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
+	rt.Client.BindAuth(rt.TenantAuth)
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/%d/vacation/quota", staffID), map[string]any{
+		"year": year, "entitled_days": 30, "carryover_days": 2,
+	}); err != nil {
+		return fmt.Errorf("seed vacation quota for staff %d: %w", staffID, err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/opening", staffID), map[string]any{
+		"effective_date":  todaySeedDate().UTCMidnight().AddDate(0, 0, -1).Format(time.DateOnly),
+		"balance_minutes": 600,
+		"note":            "Übertrag für die Demo",
+	}); err != nil {
+		return fmt.Errorf("seed opening balance for staff %d: %w", staffID, err)
+	}
+	adjustmentRaw, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments", staffID), map[string]any{
+		"type": "payout", "minutes_delta": -30,
+		"effective_date": todaySeedDate().String(),
+		"note":           "Korrigierter Demo-Ausgleich",
+	})
+	if err != nil {
+		return fmt.Errorf("seed removable balance adjustment for staff %d: %w", staffID, err)
+	}
+	adjustmentID, err := parseEnvelopeStringID(adjustmentRaw)
+	if err != nil {
+		return fmt.Errorf("parse balance adjustment for staff %d: %w", staffID, err)
+	}
+	if _, err := rt.Client.Delete(fmt.Sprintf("/api/staff/%d/time-tracking/adjustments/%d", staffID, adjustmentID)); err != nil {
+		return fmt.Errorf("delete demo balance adjustment for staff %d: %w", staffID, err)
+	}
+	return nil
+}
+
+func seedOneWorkSessionBreak(rt *Runtime) error {
+	if _, err := rt.Client.Post("/api/time-tracking/break/start", map[string]any{
+		"planned_duration_minutes": 30,
+	}); err != nil {
+		return fmt.Errorf("start demo work break: %w", err)
+	}
+	if _, err := rt.Client.Post("/api/time-tracking/break/end", nil); err != nil {
+		return fmt.Errorf("end demo work break: %w", err)
+	}
+	return nil
 }
 
 // seedCustomAbsenceType adds the school's own Abwesenheitsart as the admin and

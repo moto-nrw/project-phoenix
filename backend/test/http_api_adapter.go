@@ -85,6 +85,8 @@ func (e *APIRequestError) Error() string {
 	return fmt.Sprintf("%s %s failed: %d - %s", e.Method, e.Path, e.StatusCode, e.Body)
 }
 
+func (e *APIRequestError) HTTPStatusCode() int { return e.StatusCode }
+
 type HTTPAPIAdapter struct {
 	baseURL string
 	client  *http.Client

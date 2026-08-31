@@ -1,10 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMostRecentWeekday(t *testing.T) {
@@ -164,4 +166,33 @@ func TestExtractAbsenceID(t *testing.T) {
 		_, err := extractAbsenceID([]byte("not json"))
 		assert.Error(t, err)
 	})
+}
+
+func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"91"}}`)
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}}
+	require.NoError(t, seedTimeTrackingCoverage(rt, 17, 2026))
+	assert.Equal(t, []string{
+		"/api/staff/17/vacation/quota",
+		"/api/staff/17/time-tracking/opening",
+		"/api/staff/17/time-tracking/adjustments",
+		"/api/staff/17/time-tracking/adjustments/91",
+	}, paths)
+
+	paths = nil
+	rt.Client.BindAuth(AuthRef{Token: "staff"})
+	require.NoError(t, seedOneWorkSessionBreak(rt))
+	assert.Equal(t, []string{
+		"/api/time-tracking/break/start",
+		"/api/time-tracking/break/end",
+	}, paths)
 }
