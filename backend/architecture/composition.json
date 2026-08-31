@@ -16648,7 +16648,7 @@
       "declaration": "setupAbsenceTypesRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        76
+        77
       ],
       "tables": []
     },
@@ -17270,6 +17270,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         137
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/absence_admin_test.go",
+      "declaration": "TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        244
       ],
       "tables": []
     },
