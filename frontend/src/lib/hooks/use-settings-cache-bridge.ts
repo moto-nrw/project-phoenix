@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 import { useTenantMutate } from "~/lib/swr";
+import { CHANGE_REQUEST_ACCESS_SWR_KEY } from "./use-change-request-access";
 
 /**
  * Bridges cross-tab/cross-origin settings-change broadcasts to the active
@@ -23,6 +24,7 @@ export function useSettingsCacheBridge(): void {
   useEffect(() => {
     const invalidate = () => {
       void tenantMutate(SETTINGS_SCHEMA_SWR_KEY);
+      void tenantMutate(CHANGE_REQUEST_ACCESS_SWR_KEY);
     };
     const unsubscribeBroadcast = subscribeSettingsChanged(invalidate);
     if (typeof window !== "undefined") {

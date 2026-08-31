@@ -83,6 +83,10 @@ vi.mock("~/lib/shell-auth-context", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-change-request-access", () => ({
+  useChangeRequestAccess: vi.fn(),
+}));
+
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
@@ -99,6 +103,7 @@ import {
   isCaregiver,
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -118,6 +123,7 @@ const mockIsCaregiver = vi.mocked(isCaregiver);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
@@ -208,6 +214,9 @@ describe("MobileBottomNav", () => {
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
     mockUseTenantSlugSafe.mockReturnValue("test-tenant");
     mockUseStaffMessagingEnabled.mockReturnValue(false);
+    mockUseChangeRequestAccess.mockReturnValue({
+      canOpenRequestsPage: false,
+    } as ReturnType<typeof useChangeRequestAccess>);
   });
 
   describe("rendering", () => {
@@ -298,6 +307,9 @@ describe("MobileBottomNav", () => {
       mockHasPermission.mockImplementation(
         (_session, permission) => permission === "vacation:approve",
       );
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
 
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
@@ -306,6 +318,17 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/anfragen",
       );
+    });
+
+    it("hides Anfragen without a current effective review scope", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "users:update",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
     });
 
     it("prefixes the Team-Chat overflow link in path-routing mode", () => {

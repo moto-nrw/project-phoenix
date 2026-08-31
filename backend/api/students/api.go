@@ -232,6 +232,12 @@ func (rs *Resource) Router() chi.Router {
 		// permission counts excused requests and nothing else.
 		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
 
+		// Effective parent-request capability for shared navigation. This route
+		// is authenticated-only because callers with config:manage, users:delete
+		// or vacation:approve may open another part of the Anfragen module without
+		// holding the two permissions required by the aggregated parent queue.
+		r.With(withTx).Get("/change-requests/access", rs.changeRequestAccess)
+
 		// Aggregated Eltern request list (#2432): all four queues as ONE list
 		// (open or history) with search, filters and keyset pagination. Same
 		// route gate as the badge; inside, an absence-only caller is narrowed

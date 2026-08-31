@@ -44,6 +44,16 @@ describe("useSettingsCacheBridge", () => {
     expect(mockMutate).toHaveBeenCalledWith("test-tenant:settings-schema");
   });
 
+  it("revalidates effective request access when tenant settings change", () => {
+    renderHook(() => useSettingsCacheBridge());
+
+    subscribers[0]!();
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      "test-tenant:change-request-access",
+    );
+  });
+
   it("invalidates the schema SWR cache on phoenix:tenant-settings-stale", () => {
     renderHook(() => useSettingsCacheBridge());
 

@@ -27,8 +27,8 @@ import {
   hasRole,
   isCaregiver,
 } from "~/lib/auth-utils";
-import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
@@ -440,6 +440,7 @@ function SidebarContent({
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
+  const changeRequestAccess = useChangeRequestAccess();
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -647,10 +648,12 @@ function SidebarContent({
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
-    // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
-    // deckt users:update, das Paar users:absence+users:read und
-    // vacation:approve ab — als requiresPermission nicht ausdrückbar.
-    if (item.href === "/anfragen") return canOpenRequestsPage(session);
+    // Anfragen (#2429/#2911): JWT-Rechte allein reichen nicht. Für
+    // Elternanfragen muss zusätzlich der aktuelle serverseitige Prüfbereich
+    // (Admin, Gruppenleitung oder Vertretung) gelten.
+    if (item.href === "/anfragen") {
+      return changeRequestAccess.canOpenRequestsPage;
+    }
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;

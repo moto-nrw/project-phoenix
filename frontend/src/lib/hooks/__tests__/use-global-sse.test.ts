@@ -2146,6 +2146,20 @@ describe("useGlobalSSE", () => {
       ]);
     });
 
+    it("refreshes effective request access after a group assignment changes", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "group_access_changed",
+        data: { source: "substitution_create" },
+      });
+      act(() => vi.advanceTimersByTime(500));
+
+      expect(matchedKeys(["tenant:change-request-access"])).toEqual([
+        "tenant:change-request-access",
+      ]);
+    });
+
     it("does not drag unrelated cache families into a handover", () => {
       // A handover changes access, not attendance, staff hours or timetable
       // blocks. Refetching those would re-create the request herd #2083 removed.

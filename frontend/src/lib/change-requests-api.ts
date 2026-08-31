@@ -5,6 +5,8 @@
  * sidebar badge.
  */
 
+import type { ParentRequestReviewAccess } from "~/lib/change-request-access";
+
 interface Envelope<T> {
   readonly data?: T;
 }
@@ -23,4 +25,23 @@ export async function fetchPendingChangeRequestCount(): Promise<number> {
   if (!response.ok) return 0;
   const json = (await response.json()) as Envelope<{ pending_count: number }>;
   return json.data?.pending_count ?? 0;
+}
+
+export async function fetchChangeRequestAccess(): Promise<ParentRequestReviewAccess> {
+  const response = await fetch("/api/students/change-requests/access", {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Change request access failed: ${response.status}`);
+  }
+  const json = (await response.json()) as Envelope<{
+    review_access?: unknown;
+  }>;
+  const access = json.data?.review_access;
+  if (access !== "admin" && access !== "group_leader" && access !== "none") {
+    throw new Error("Change request access response is invalid");
+  }
+  return access;
 }

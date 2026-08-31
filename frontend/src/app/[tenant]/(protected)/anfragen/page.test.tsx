@@ -3,17 +3,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnfragenPage from "./page";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
-import { canOpenRequestsPage } from "~/lib/change-request-access";
-import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { resolveChangeRequestAccess } from "~/lib/change-request-access";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 
-const { mockUseSession } = vi.hoisted(() => ({ mockUseSession: vi.fn() }));
+const { mockUseSession, mockRedirect } = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+  mockRedirect: vi.fn(),
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: (path: string) => mockRedirect(path),
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: (): ReturnType<typeof mockUseSession> => mockUseSession(),
 }));
 
-vi.mock("~/lib/hooks/use-require-permission", () => ({
-  useRequirePermission: vi.fn(),
+vi.mock("~/lib/hooks/use-change-request-access", () => ({
+  useChangeRequestAccess: vi.fn(),
+}));
+
+vi.mock("~/lib/tenant-path", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-path")>()),
+  useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
 }));
 
 // Die aggregierte Liste ist separat getestet; hier zählt nur, mit welcher
@@ -60,7 +73,7 @@ class MockResizeObserver {
 }
 vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
-const mockUseRequirePermission = vi.mocked(useRequirePermission);
+const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 
 /** Sitzung mit den angegebenen Rechten, ohne Admin-Rolle. */
 function sessionWith(permissions: readonly string[]) {
@@ -99,18 +112,26 @@ function umschalten(label: "Offen" | "Historie") {
 describe("AnfragenPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseRequirePermission.mockReturnValue({
-      isReady: true,
-      isLoading: false,
-    });
     mockUseSession.mockReturnValue(sessionWith(["users:update"]));
+    mockUseChangeRequestAccess.mockImplementation(
+      () =>
+        ({
+          ...resolveChangeRequestAccess(
+            mockUseSession().data ?? null,
+            "group_leader",
+          ),
+          isLoading: false,
+          error: undefined,
+          refresh: vi.fn(),
+        }) as ReturnType<typeof useChangeRequestAccess>,
+    );
   });
 
   it("shows a loading state until the permission check is ready", () => {
-    mockUseRequirePermission.mockReturnValue({
-      isReady: false,
+    mockUseChangeRequestAccess.mockReturnValue({
+      ...resolveChangeRequestAccess(mockUseSession().data, "none"),
       isLoading: true,
-    });
+    } as ReturnType<typeof useChangeRequestAccess>);
 
     render(<AnfragenPage />);
 
@@ -119,13 +140,15 @@ describe("AnfragenPage", () => {
     ).toBeInTheDocument();
   });
 
-  // Der Zugriff hängt an der geteilten Regel, nicht an einer zweiten
-  // Aufzählung in der Seite — dieselbe Regel tragen Sidebar-Eintrag, mobile
-  // Navigation und Zähler-Badge.
-  it("öffnet die Seite über canOpenRequestsPage", () => {
+  it("leitet ohne aktuellen effektiven Prüfbereich zum Dashboard", () => {
+    mockUseChangeRequestAccess.mockReturnValue({
+      ...resolveChangeRequestAccess(mockUseSession().data, "none"),
+      isLoading: false,
+    } as ReturnType<typeof useChangeRequestAccess>);
+
     render(<AnfragenPage />);
 
-    expect(mockUseRequirePermission).toHaveBeenCalledWith(canOpenRequestsPage);
+    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/dashboard");
   });
 
   it("rendert die aggregierte Liste in der Offen-Ansicht", () => {
