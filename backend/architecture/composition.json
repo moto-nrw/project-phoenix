@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 594,
+          "line": 596,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 235,
+          "line": 236,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 238,
+          "line": 239,
           "declaration": "New"
         }
       ]
