@@ -8,10 +8,10 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -96,32 +96,12 @@ func NewRejectedEnrollmentCleanupService(
 }
 
 func newRejectedEnrollmentCleanupTxRunner(db *bun.DB) func(context.Context, func(context.Context) error) error {
-	tx := modelBase.NewTxHandler(db)
 	return func(ctx context.Context, fn func(context.Context) error) error {
-		if ambient, ok := modelBase.TxFromContext(ctx); ok {
-			return runRejectedEnrollmentCleanupSavepoint(ctx, ambient, fn)
+		if _, ok := tenant.TransactionFromContext(ctx); ok {
+			return tenant.WithSavepoint(ctx, fn)
 		}
-		return tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+		return tenant.WithinCurrentTenant(ctx, fn)
 	}
-}
-
-func runRejectedEnrollmentCleanupSavepoint(ctx context.Context, ambient *bun.Tx, fn func(context.Context) error) error {
-	if _, err := ambient.ExecContext(ctx, "SAVEPOINT enrollment_rejected_cleanup"); err != nil {
-		return fmt.Errorf("create rejected enrollment cleanup savepoint: %w", err)
-	}
-	if err := fn(ctx); err != nil {
-		if _, rollbackErr := ambient.ExecContext(ctx, "ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup"); rollbackErr != nil {
-			return errors.Join(err, fmt.Errorf("rollback rejected enrollment cleanup savepoint: %w", rollbackErr))
-		}
-		if _, releaseErr := ambient.ExecContext(ctx, "RELEASE SAVEPOINT enrollment_rejected_cleanup"); releaseErr != nil {
-			return errors.Join(err, fmt.Errorf("release rejected enrollment cleanup savepoint: %w", releaseErr))
-		}
-		return err
-	}
-	if _, err := ambient.ExecContext(ctx, "RELEASE SAVEPOINT enrollment_rejected_cleanup"); err != nil {
-		return fmt.Errorf("release rejected enrollment cleanup savepoint: %w", err)
-	}
-	return nil
 }
 
 func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error) {

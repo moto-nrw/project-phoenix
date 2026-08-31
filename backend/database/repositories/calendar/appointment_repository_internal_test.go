@@ -28,7 +28,7 @@ func TestClaimReminderPushRejectsIncompleteClaims(t *testing.T) {
 	}{
 		"missing appointment":       {0, 3, occurrence, 7},
 		"negative revision":         {42, -1, occurrence, 7},
-		"missing occurrence date":   {42, 3, timezone.Date{}, 7},
+		"missing occurrence date":   {42, 3, timezone.Date(""), 7},
 		"missing guardian profile":  {42, 3, occurrence, 0},
 		"negative guardian profile": {42, 3, occurrence, -1},
 	}

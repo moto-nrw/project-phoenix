@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -232,7 +231,7 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 		// Wrap in transaction so partial writes are rolled back on error
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := base.ContextWithTx(ctx, &tx)
+		txCtx := tenant.WithTransactionForTest(ctx, &tx)
 
 		err = service.UpsertBulkStudentArrivalSchedules(txCtx, student.ID, schedules)
 

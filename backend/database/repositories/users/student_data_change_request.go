@@ -63,7 +63,7 @@ func (r *StudentDataChangeRequestRepository) ListByStudent(ctx context.Context, 
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student data change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list student data change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -90,7 +90,7 @@ func (r *StudentDataChangeRequestRepository) ListParentVisibleByStudent(ctx cont
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent-visible student data change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent-visible student data change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -110,7 +110,7 @@ func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Co
 	query = base.ApplyRequestQueueFilters(query, "student_data_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending student data change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending student data change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -135,7 +135,7 @@ func (r *StudentDataChangeRequestRepository) ListDecidedForTenant(ctx context.Co
 	query = base.ApplyRequestQueueFilters(query, "student_data_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list decided student data change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list decided student data change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -155,7 +155,7 @@ func (r *StudentDataChangeRequestRepository) HasPendingForField(ctx context.Cont
 
 	exists, err := query.Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check pending student data change request", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check pending student data change request", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -178,7 +178,7 @@ func (r *StudentDataChangeRequestRepository) FindPendingByIDForUpdate(ctx contex
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrChangeRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find pending student data change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find pending student data change request for update", Err: base.TranslateNotFound(err)}
 	}
 	if row.Status != users.DataChangeStatusPending {
 		return nil, ErrChangeRequestNotPending
@@ -203,7 +203,7 @@ func (r *StudentDataChangeRequestRepository) UpdatePending(ctx context.Context, 
 	q = base.WithTenantFilter(ctx, q, "student_data_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update pending student data change request", Err: err}
+		return &modelBase.DatabaseError{Op: "update pending student data change request", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return ErrChangeRequestNotPending
@@ -235,7 +235,7 @@ func (r *StudentDataChangeRequestRepository) Decide(ctx context.Context, id int6
 
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "decide student data change request", Err: err}
+		return &modelBase.DatabaseError{Op: "decide student data change request", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
@@ -261,7 +261,7 @@ func (r *StudentDataChangeRequestRepository) FindByIDForUpdate(ctx context.Conte
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrChangeRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find student data change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find student data change request for update", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -294,7 +294,7 @@ func (r *StudentDataChangeRequestRepository) Redecide(
 	q = base.WithTenantFilter(ctx, q, "student_data_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "correct student data change request", Err: err}
+		return &modelBase.DatabaseError{Op: "correct student data change request", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return ErrChangeRequestNotDecided

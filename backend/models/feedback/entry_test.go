@@ -61,7 +61,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Missing day",
 			entry: Entry{
 				Value:     "neutral",
-				Day:       timezone.Date{},
+				Day:       timezone.Date(""),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
 			},

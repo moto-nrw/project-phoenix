@@ -192,15 +192,15 @@ func parseDayLogDate(r *http.Request, today timezone.Date) (timezone.Date, error
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
 		parsed, err := timezone.ParseDate(raw)
 		if err != nil {
-			return timezone.Date{}, errors.New("invalid date format, expected YYYY-MM-DD")
+			return timezone.Date(""), errors.New("invalid date format, expected YYYY-MM-DD")
 		}
 		date = parsed
 	}
 	if date.After(today) {
-		return timezone.Date{}, errors.New("date must not be in the future")
+		return timezone.Date(""), errors.New("date must not be in the future")
 	}
 	if date.Before(today) {
-		return timezone.Date{}, errors.New("historical day logs require dated group assignments")
+		return timezone.Date(""), errors.New("historical day logs require dated group assignments")
 	}
 	return date, nil
 }

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TimetableRosterContent } from "./timetable-roster";
 import type {
@@ -60,7 +60,12 @@ function roster(
   };
 }
 
-function renderRoster(value: TimetableRoster, attendanceWebEnabled = false) {
+function renderRoster(
+  value: TimetableRoster,
+  attendanceWebEnabled = false,
+  onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void> = vi.fn(),
+  showTimetableCounts = false,
+) {
   render(
     <TimetableRosterContent
       addStudentResults={[]}
@@ -70,11 +75,11 @@ function renderRoster(value: TimetableRoster, attendanceWebEnabled = false) {
       isCompletingInstance={false}
       isConfirmingExpected={false}
       roster={value}
-      showTimetableCounts={false}
+      showTimetableCounts={showTimetableCounts}
       canAddUnplanned={false}
       onAddStudent={vi.fn()}
       onComplete={vi.fn()}
-      onConfirmExpected={vi.fn()}
+      onConfirmExpected={onConfirmExpected}
       onRosterAction={vi.fn()}
       onSearchChange={vi.fn()}
     />,
@@ -125,6 +130,203 @@ describe("TimetableRosterContent pickup times", () => {
     expect(screen.queryByText("Gehzeit: —")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Einchecken" }),
+    ).toBeInTheDocument();
+  });
+});
+
+function arrivalWarning(
+  expectedArrival: string,
+): TimetableRosterRow["warnings"] {
+  return [
+    {
+      kind: "arrival_after_slot_start",
+      message: "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+      expectedArrival,
+      slotStart: "12:45",
+      expectedGroupId: null,
+      expectedGroupName: null,
+      currentEducationGroupId: null,
+    },
+  ];
+}
+
+describe("TimetableRosterContent late arrivals", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const lateRoster = () =>
+    roster(
+      [
+        rosterRow("1", "Pünktlich Kind", null),
+        rosterRow("2", "Später Kind", null, {
+          warnings: arrivalWarning("13:45"),
+        }),
+      ],
+      true,
+    );
+
+  it("groups a child before the expected arrival under Kommt später", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    renderRoster(lateRoster(), true);
+
+    const laterSection = screen
+      .getByText("Kommt später")
+      .closest("section") as HTMLElement;
+    expect(within(laterSection).getByText("Später Kind")).toBeInTheDocument();
+    expect(
+      within(laterSection).getByText("Kommt um 13:45 Uhr"),
+    ).toBeInTheDocument();
+
+    const expectedSection = screen
+      .getByText("Erwartet")
+      .closest("section") as HTMLElement;
+    expect(
+      within(expectedSection).queryByText("Später Kind"),
+    ).not.toBeInTheDocument();
+
+    // Individual check-in stays available for a child who arrives early.
+    expect(
+      within(laterSection).getByRole("button", { name: "Einchecken" }),
+    ).toBeInTheDocument();
+  });
+
+  it("excludes late arrivals from the bulk expected confirmation", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    const onConfirmExpected = vi.fn().mockResolvedValue(undefined);
+    renderRoster(lateRoster(), true, onConfirmExpected);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Erwartete bestätigen/ }),
+    );
+
+    expect(onConfirmExpected).toHaveBeenCalledTimes(1);
+    const rows = onConfirmExpected.mock.calls[0]?.[0] as TimetableRosterRow[];
+    expect(rows.map((row) => row.studentId)).toEqual(["1"]);
+  });
+
+  it("counts late arrivals in their own header stat", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    renderRoster(lateRoster(), true, vi.fn(), true);
+
+    const statLabel = screen.getByText("Kommt später");
+    expect(
+      within(statLabel.parentElement as HTMLElement).getByText("1"),
+    ).toBeInTheDocument();
+    // The section header carries its own count, so the exact-match stat label
+    // above cannot be the section title ("Kommt später (1)").
+    expect(screen.getByText("Kommt später (1)")).toBeInTheDocument();
+  });
+
+  it("moves the child to Erwartet when the minute clock crosses the arrival", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 44));
+    renderRoster(lateRoster(), true);
+
+    expect(screen.getByText("Kommt später")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
+    const expectedSection = screen
+      .getByText("Erwartet")
+      .closest("section") as HTMLElement;
+    expect(
+      within(expectedSection).getByText("Später Kind"),
+    ).toBeInTheDocument();
+  });
+
+  it("moves the child to Erwartet once the expected arrival is reached", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 45));
+    renderRoster(lateRoster(), true);
+
+    expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
+    const expectedSection = screen
+      .getByText("Erwartet")
+      .closest("section") as HTMLElement;
+    expect(
+      within(expectedSection).getByText("Später Kind"),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the arrival line once the child checked in early", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    renderRoster(
+      roster(
+        [
+          rosterRow("2", "Früher da Kind", null, {
+            warnings: arrivalWarning("13:45"),
+            currentlyPresent: true,
+            status: "present",
+            visitId: "9",
+          }),
+        ],
+        true,
+      ),
+      true,
+    );
+
+    expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
+  });
+
+  it("does not show an arrival line for rows that are no longer expected", () => {
+    vi.setSystemTime(new Date("2026-08-31T11:00:00Z"));
+    renderRoster(
+      roster(
+        [
+          rosterRow("3", "Abwesend Kind", null, {
+            warnings: arrivalWarning("13:45"),
+            status: "absent",
+          }),
+          rosterRow("4", "Gegangen Kind", null, {
+            warnings: arrivalWarning("13:45"),
+            status: "present",
+            visitId: "10",
+          }),
+        ],
+        true,
+      ),
+      true,
+    );
+
+    expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
+  });
+
+  it("keeps other planning warnings visible in the started view", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    renderRoster(
+      roster(
+        [
+          rosterRow("3", "Falsche Gruppe Kind", null, {
+            warnings: [
+              {
+                kind: "template_class_mismatch",
+                message:
+                  "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
+                expectedArrival: null,
+                slotStart: null,
+                expectedGroupId: "12",
+                expectedGroupName: "Klasse 2a",
+                currentEducationGroupId: "13",
+              },
+            ],
+          }),
+        ],
+        true,
+      ),
+      true,
+    );
+
+    expect(
+      screen.getByText(
+        "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
+      ),
     ).toBeInTheDocument();
   });
 });

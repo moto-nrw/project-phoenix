@@ -345,7 +345,9 @@ export function AccountTenantAccessModal({
   return (
     <>
       <FormModal
-        isOpen={isOpen}
+        // Ausgeblendet, solange die Entzugs-Bestätigung offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        isOpen={isOpen && revokeTarget === null}
         onClose={onClose}
         title={`Schulzugänge: ${accountLabel}`}
         size="xl"

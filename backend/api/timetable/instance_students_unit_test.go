@@ -3,13 +3,12 @@
 // path and cross-field rule end-to-end; these tests close the coverage gap on
 // the branches SonarQube flagged as missing: repo-not-wired guard, path
 // parsing errors, body decode errors, response mapping, and the
-// DatabaseError-wrapped-ErrNoRows branch in isNotFoundDBError.
+// DatabaseError-wrapped not-found branch in isNotFoundDBError.
 package timetable
 
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -327,12 +326,12 @@ func (brokenReader) Close() error               { return nil }
 // Full handler flow via fake repo (no DB)
 // -----------------------------------------------------------------------------
 
-func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
+func TestPatchHandler_404_NotFound(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, sql.ErrNoRows
+			return nil, modelsBase.ErrNotFound
 		},
 	}
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}
@@ -346,11 +345,10 @@ func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
 func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
 	t.Parallel()
 
-	// DatabaseError wrapping sql.ErrNoRows — matches the wrapping style used
-	// by the repo layer. Covered by isNotFoundDBError's errors.As branch.
+	// Repositories expose the model-level sentinel through their error wrapper.
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
-			return nil, &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
+			return nil, &modelsBase.DatabaseError{Op: "find", Err: modelsBase.ErrNotFound}
 		},
 	}
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: repo})}}

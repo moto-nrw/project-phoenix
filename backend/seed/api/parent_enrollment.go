@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"path"
 	"slices"
@@ -74,6 +75,7 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[s
 		"guardians.parent_invite_mode":                  "direct",
 		"guardians.parent_can_remove":                   true,
 		"enrollment.require_captcha":                    false,
+		"enrollment.offering_changes_enabled":           true,
 	}
 	for key, value := range settings {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
@@ -194,14 +196,34 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		Settings:  make(map[string]any),
 	}
 
-	phaseID, err := s.createEnrollmentPhase(rt, adminAuth)
+	schemaID, err := s.createEnrollmentSchema(rt, adminAuth)
+	if err != nil {
+		return state, err
+	}
+	phaseID, err := s.createEnrollmentPhase(rt, adminAuth, schemaID)
 	if err != nil {
 		return state, err
 	}
 	state.PhaseID = phaseID
+	lateInviteRaw, err := rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/enrollment/phases/%d/late-invites", phaseID), map[string]any{
+		"guardian_email":      "spaete.anmeldung@example.test",
+		"guardian_first_name": "Miriam",
+		"guardian_last_name":  "Nachtrag",
+		"reason":              "Zuzug nach Anmeldeschluss",
+	})
+	if err != nil {
+		return state, fmt.Errorf("create late enrollment invite: %w", err)
+	}
+	lateInviteToken, err := parseLateInviteToken(lateInviteRaw)
+	if err != nil {
+		return state, fmt.Errorf("parse late enrollment invite: %w", err)
+	}
 
 	offerings, err := s.createCareOfferings(rt, adminAuth, phaseID)
 	if err != nil {
+		return state, err
+	}
+	if err := seedOfferingPlanningTemplate(rt, offerings["mittagessen"]); err != nil {
 		return state, err
 	}
 	state.Offerings = offerings
@@ -394,7 +416,16 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 			reason: "Demo-Zusage: vier Betreuungstage",
 		})
 	}
+	lateInviteBody := s.enrollmentSubmissionWithDays(phaseID, offerings, "Miriam", "Nachtrag", "2018-10-12", 2,
+		"Miriam", "Nachtrag", "spaete.anmeldung@example.test", "late-invite-submission",
+		[]int64{offerings["ogs-kurz"]}, map[int64][]string{offerings["ogs-kurz"]: {"tue", "thu"}},
+	)
+	lateInviteBody["late_invite_token"] = lateInviteToken
+	submissions = append(submissions, enrollmentSubmission{
+		source: "late_invite", path: "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit", body: lateInviteBody,
+	})
 
+	immediateSeeded, withdrawnSeeded := false, false
 	for index, submission := range submissions {
 		if submission.source == "parent" {
 			if _, err := rt.Client.GetWithAuth(submission.auth, "/parent/enrollments/"+rt.Bootstrap.TenantSlug+"/profile"); err != nil {
@@ -428,17 +459,183 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		request.ChildIDs = detail.ChildIDs
 		state.Requests = append(state.Requests, request)
 		if submission.status != "" {
-			if len(request.ChildIDs) == 0 {
-				return state, fmt.Errorf("submitted enrollment request %d has no child ids", request.RequestID)
-			}
-			childID := request.ChildIDs[0]
-			if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, submission.status, submission.reason); err != nil {
+			if err := s.decideSeedSubmission(rt, adminAuth, request, submission.status, submission.reason, &immediateSeeded); err != nil {
 				return state, err
 			}
 			state.Requests[len(state.Requests)-1].Status = submission.status
+		} else if !withdrawnSeeded && submission.source == "public" {
+			if _, err := rt.Client.PostPublic(fmt.Sprintf("/api/enrollment/requests/%s/withdraw", request.StatusToken), map[string]any{}); err != nil {
+				return state, fmt.Errorf("withdraw demo enrollment request: %w", err)
+			}
+			state.Requests[len(state.Requests)-1].Status = "withdrawn"
+			withdrawnSeeded = true
+		}
+		if submission.source == "parent" && submission.status == "approved" {
+			if err := s.seedOfferingChange(rt, adminAuth, submission.auth, request.RequestID, offerings); err != nil {
+				return state, err
+			}
+		}
+		if submission.status == "rejected" {
+			if err := seedEnrollmentChangeConversation(rt, adminAuth, submission.body, request); err != nil {
+				return state, err
+			}
 		}
 	}
+	if err := s.seedEnrollmentDeletion(rt, adminAuth, phaseID, offerings, len(submissions)); err != nil {
+		return state, err
+	}
 	return state, nil
+}
+
+func (s parentEnrollmentSeedStep) decideSeedSubmission(rt *Runtime, auth AuthRef, request SeedEnrollmentRequest, status, reason string, immediateSeeded *bool) error {
+	if len(request.ChildIDs) == 0 {
+		return fmt.Errorf("submitted enrollment request %d has no child ids", request.RequestID)
+	}
+	decide := func() error {
+		return s.decideEnrollmentChild(rt, auth, request.RequestID, request.ChildIDs[0], status, reason)
+	}
+	if status != "approved" || *immediateSeeded {
+		return decide()
+	}
+	if err := withTemporarySeedSetting(rt, auth, "enrollment.default_activation_mode", "immediate", "scheduled", decide); err != nil {
+		return err
+	}
+	*immediateSeeded = true
+	return nil
+}
+
+func (s parentEnrollmentSeedStep) seedOfferingChange(rt *Runtime, adminAuth, parentAuth AuthRef, requestID int64, offerings map[string]int64) error {
+	detail, err := s.loadEnrollmentRequestDetail(rt, adminAuth, requestID)
+	if err != nil {
+		return err
+	}
+	if len(detail.CreatedStudentIDs) == 0 {
+		return fmt.Errorf("approved enrollment request %d has no created student", requestID)
+	}
+	studentID := detail.CreatedStudentIDs[0]
+	effectiveFrom := todaySeedDate().AddDays(21).String()
+	raw, err := rt.Client.PostWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-offerings/requests", studentID), map[string]any{
+		"offerings":      []map[string]any{{"offering_id": strconv.FormatInt(offerings["ogs-kurz"], 10), "selected_days": []string{"mon", "tue", "wed", "thu"}}},
+		"effective_from": effectiveFrom,
+		"note":           "Bitte auf die längere Betreuung wechseln.",
+	})
+	if err != nil {
+		return fmt.Errorf("request offering change: %w", err)
+	}
+	changeID, err := parsePendingOfferingRequestID(raw)
+	if err != nil {
+		return fmt.Errorf("parse offering change request: %w", err)
+	}
+	_, err = rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/students/offering-change-requests/%d/decide", changeID), map[string]any{
+		"approve": true, "effective_from": effectiveFrom, "reason": "Demo-Zusage zum Angebotswechsel",
+	})
+	if err != nil {
+		return fmt.Errorf("approve offering change: %w", err)
+	}
+	return nil
+}
+
+func seedEnrollmentChangeConversation(rt *Runtime, adminAuth AuthRef, original map[string]any, request SeedEnrollmentRequest) error {
+	if len(request.ChildIDs) == 0 {
+		return fmt.Errorf("rejected enrollment request %d has no child ids", request.RequestID)
+	}
+	body := maps.Clone(original)
+	children, ok := body["children"].([]map[string]any)
+	if !ok || len(children) == 0 {
+		return fmt.Errorf("rejected enrollment request %d has no seed child body", request.RequestID)
+	}
+	children = slices.Clone(children)
+	children[0] = maps.Clone(children[0])
+	children[0]["id"] = strconv.FormatInt(request.ChildIDs[0], 10)
+	body["children"] = children
+	body["parent_note"] = "Wir haben die Angaben ergänzt und bitten um erneute Prüfung."
+	raw, err := rt.Client.PostPublic(fmt.Sprintf("/api/enrollment/requests/%s/change-requests", request.StatusToken), body)
+	if err != nil {
+		return fmt.Errorf("create enrollment change request: %w", err)
+	}
+	changeID, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("parse enrollment change request: %w", err)
+	}
+	if _, err := rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/enrollment/admin/change-requests/%d/question", changeID), map[string]any{
+		"body": "Bitte bestätigen Sie die aktualisierten Betreuungstage.",
+	}); err != nil {
+		return fmt.Errorf("ask enrollment change question: %w", err)
+	}
+	if _, err := rt.Client.PostPublic(fmt.Sprintf("/api/enrollment/requests/%s/change-requests/%d/messages", request.StatusToken, changeID), map[string]any{
+		"body": "Die Betreuungstage sind so richtig.",
+	}); err != nil {
+		return fmt.Errorf("reply to enrollment change question: %w", err)
+	}
+	return nil
+}
+
+func (s parentEnrollmentSeedStep) seedEnrollmentDeletion(rt *Runtime, auth AuthRef, phaseID int64, offerings map[string]int64, requestIndex int) error {
+	body := s.enrollmentSubmissionWithDays(
+		phaseID, offerings, "Tilda", "Löschdemo", "2019-08-13", 1,
+		"Mara", "Löschdemo", "mara.loeschdemo@example.test", "deletion-audit",
+		[]int64{offerings["ogs-kurz"]}, map[int64][]string{offerings["ogs-kurz"]: {"wed"}},
+	)
+	raw, err := rt.Client.PostPublicWithHeaders(
+		"/api/enrollment/"+rt.Bootstrap.TenantSlug+"/submit", body, publicEnrollmentSeedHeaders(requestIndex),
+	)
+	if err != nil {
+		return fmt.Errorf("submit enrollment deletion demo: %w", err)
+	}
+	request, err := parseEnrollmentSubmitResponse(raw, "deletion-audit")
+	if err != nil {
+		return err
+	}
+	requestPath := fmt.Sprintf("/api/enrollment/admin/requests/%d", request.RequestID)
+	if _, err := rt.Client.GetWithAuth(auth, requestPath+"/delete-impact"); err != nil {
+		return fmt.Errorf("preview enrollment deletion: %w", err)
+	}
+	if _, err := rt.Client.DeleteWithAuthBody(auth, requestPath, map[string]any{
+		"reason": "Demo-Löschung zur Dokumentation des Datenschutz-Ablaufs",
+	}); err != nil {
+		return fmt.Errorf("delete enrollment demo request: %w", err)
+	}
+	return nil
+}
+
+func parseLateInviteToken(raw []byte) (string, error) {
+	var envelope struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &envelope); err != nil {
+		return "", err
+	}
+	if envelope.Data.Token == "" {
+		return "", fmt.Errorf("late invite token missing")
+	}
+	return envelope.Data.Token, nil
+}
+
+func seedOfferingPlanningTemplate(rt *Runtime, offeringID int64) error {
+	if rt.FixedSeeder == nil || offeringID == 0 {
+		return fmt.Errorf("offering planning prerequisites not available")
+	}
+	roomID := rt.FixedSeeder.roomIDs["Mensa"]
+	categoryID := rt.FixedSeeder.categoryIDs["Mensa"]
+	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
+	if roomID == 0 || categoryID == 0 || len(staffIDs) == 0 {
+		return fmt.Errorf("offering planning references not available")
+	}
+	today := todaySeedDate()
+	_, err := rt.Client.Post("/api/timetable/templates", map[string]any{
+		"name": "Mittagessen", "type": "care", "list_kind": "mensa",
+		"target_group_type": "angebot", "source_care_offering_ids": []int64{offeringID},
+		"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "12:00", "end_time": "13:00",
+		"room_id": roomID, "category_id": categoryID, "week_pattern": 0,
+		"staff_ids": staffIDs[:1], "primary_staff_id": staffIDs[0],
+		"materialize_from": today.String(), "materialize_to": today.AddDays(6).String(),
+	})
+	if err != nil {
+		return fmt.Errorf("create offering planning template: %w", err)
+	}
+	return nil
 }
 
 func publicEnrollmentSeedHeaders(index int) map[string]string {
@@ -447,12 +644,30 @@ func publicEnrollmentSeedHeaders(index int) map[string]string {
 	}
 }
 
-func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRef) (int64, error) {
+func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthRef) (int64, error) {
+	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
+		"name": "Demo-Anmeldeformular",
+		"fields": []map[string]any{
+			{"key": "allergies", "label": "Allergien und Unverträglichkeiten", "type": "textarea", "sort_order": 10},
+			{"key": "swimming_permission", "label": "Mein Kind darf schwimmen.", "type": "boolean", "sort_order": 20},
+		},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create enrollment form schema: %w", err)
+	}
+	id, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse enrollment form schema: %w", err)
+	}
+	return id, nil
+}
+
+func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRef, schemaID int64) (int64, error) {
 	now := time.Now().UTC()
 	openAt := now.Add(-24 * time.Hour).Format(time.RFC3339)
 	closeAt := now.AddDate(0, 2, 0).Format(time.RFC3339)
 	serviceStart := now.AddDate(0, -10, 0).Format("2006-01-02")
-	serviceEnd := now.AddDate(0, 0, 20).Format("2006-01-02")
+	serviceEnd := now.AddDate(1, 0, 0).Format("2006-01-02")
 	body := map[string]any{
 		"name":                         fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1),
 		"kind":                         "school_year",
@@ -464,6 +679,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 		"care_overflow_mode":           "waitlist",
 		"care_offering_selection_mode": "at_least_one",
 		"is_active":                    true,
+		"form_schema_id":               strconv.FormatInt(schemaID, 10),
 	}
 	respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/phases", body)
 	if err != nil {
@@ -646,8 +862,9 @@ func parseEnrollmentSubmitResponse(respBody []byte, source string) (SeedEnrollme
 }
 
 type enrollmentRequestDetail struct {
-	StatusToken string
-	ChildIDs    []int64
+	StatusToken       string
+	ChildIDs          []int64
+	CreatedStudentIDs []int64
 }
 
 func (s parentEnrollmentSeedStep) loadEnrollmentRequestDetail(rt *Runtime, auth AuthRef, requestID int64) (enrollmentRequestDetail, error) {
@@ -659,7 +876,8 @@ func (s parentEnrollmentSeedStep) loadEnrollmentRequestDetail(rt *Runtime, auth 
 		Data struct {
 			StatusToken string `json:"status_token"`
 			Children    []struct {
-				ID string `json:"id"`
+				ID               string `json:"id"`
+				CreatedStudentID any    `json:"created_student_id"`
 			} `json:"children"`
 		} `json:"data"`
 	}
@@ -673,8 +891,35 @@ func (s parentEnrollmentSeedStep) loadEnrollmentRequestDetail(rt *Runtime, auth 
 			return enrollmentRequestDetail{}, fmt.Errorf("enrollment request %d has invalid child id %q", requestID, child.ID)
 		}
 		detail.ChildIDs = append(detail.ChildIDs, childID)
+		if child.CreatedStudentID != nil {
+			createdID, parseErr := parseSeedID(child.CreatedStudentID)
+			if parseErr == nil && createdID > 0 {
+				detail.CreatedStudentIDs = append(detail.CreatedStudentIDs, createdID)
+			}
+		}
 	}
 	return detail, nil
+}
+
+func parsePendingOfferingRequestID(raw []byte) (int64, error) {
+	var envelope struct {
+		Data struct {
+			PendingRequest *struct {
+				ID string `json:"id"`
+			} `json:"pending_request"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &envelope); err != nil {
+		return 0, err
+	}
+	if envelope.Data.PendingRequest == nil {
+		return 0, fmt.Errorf("pending_request missing")
+	}
+	id, err := strconv.ParseInt(envelope.Data.PendingRequest.ID, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("invalid pending request id")
+	}
+	return id, nil
 }
 
 func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth AuthRef, requestID, childID int64, status, reason string) error {

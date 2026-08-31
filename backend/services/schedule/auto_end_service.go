@@ -8,7 +8,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // AutoEndService completes due active care-plan instances through the same
@@ -76,13 +76,12 @@ func (s *autoEndService) RunForTenant(ctx context.Context, now time.Time, grace 
 // already running in a tenant transaction. bun maps nested transactions to
 // savepoints, so a failed instance does not abort the surrounding tenant batch.
 func (s *autoEndService) completeIfDueIsolated(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time, grace time.Duration, result *AutoEndResult) error {
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return s.completeIfDue(ctx, instance, now, grace, result)
 	}
 
-	return tx.RunInTx(ctx, nil, func(savepointCtx context.Context, savepoint bun.Tx) error {
-		return s.completeIfDue(modelBase.ContextWithTx(savepointCtx, &savepoint), instance, now, grace, result)
+	return tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		return s.completeIfDue(savepointCtx, instance, now, grace, result)
 	})
 }
 

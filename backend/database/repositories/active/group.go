@@ -56,7 +56,7 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by room ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -81,7 +81,7 @@ func (r *GroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context, roo
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by room ID and device ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -103,7 +103,7 @@ func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -129,7 +129,7 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -151,7 +151,7 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -172,7 +172,7 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end session",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -200,7 +200,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with supervisors - group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -220,7 +220,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 		if err != sql.ErrNoRows {
 			return nil, &modelBase.DatabaseError{
 				Op:  "find with supervisors - supervisors",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 	}
@@ -265,7 +265,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by device ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -331,7 +331,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by device ID with names",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -396,7 +396,7 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 		}
 		return false, nil, &modelBase.DatabaseError{
 			Op:  "check room conflict",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -420,7 +420,7 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update last activity",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -428,7 +428,7 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update last activity - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -494,7 +494,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active sessions older than",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -556,7 +556,7 @@ func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active groups",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -605,7 +605,7 @@ func (r *GroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*act
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group by ID for update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return group, nil
@@ -623,7 +623,7 @@ func (r *GroupRepository) queryGroupsByIDs(ctx context.Context, ids []int64) ([]
 
 	err := query.Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find groups by IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find groups by IDs", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
 }
@@ -667,7 +667,7 @@ func (r *GroupRepository) queryRoomsByIDs(ctx context.Context, ids []int64, op s
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Where(`"room".id IN (?)`, bun.List(ids)).
 		Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: op, Err: err}
+		return nil, &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return rooms, nil
 }
@@ -729,7 +729,7 @@ func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.G
 		Scan(ctx)
 
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find unclaimed groups", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find unclaimed groups", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
 }
@@ -807,7 +807,7 @@ func (r *GroupRepository) queryActivityGroupsByIDs(ctx context.Context, ids []in
 		ModelTableExpr(`activities.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.List(ids)).
 		Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "batch load activity groups for unclaimed groups", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "batch load activity groups for unclaimed groups", Err: base.TranslateNotFound(err)}
 	}
 	return groups, nil
 }
@@ -851,7 +851,7 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get occupied room IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -885,7 +885,7 @@ func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (in
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end sessions by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -893,7 +893,7 @@ func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (in
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end sessions by IDs (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -924,7 +924,7 @@ func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, group
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get occupied activity group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1045,7 +1045,7 @@ func (r *GroupRepository) AggregateRoomSessions(
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "aggregate room sessions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

@@ -315,7 +315,7 @@ func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if body.Year == 0 {
-		body.Year = timezone.TodayDate().Year
+		body.Year = timezone.TodayDate().Year()
 	}
 	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
 		if errors.Is(err, activeSvc.ErrVacationQuotaInvalid) {
@@ -344,7 +344,7 @@ func parseInt64Param(r *http.Request, name string) (int64, error) {
 func parseYearQuery(r *http.Request, today timezone.Date) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
-		return today.Year, nil
+		return today.Year(), nil
 	}
 	year, err := strconv.Atoi(yearStr)
 	if err != nil || year < 2000 || year > 2100 {

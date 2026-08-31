@@ -1,10 +1,12 @@
 package api
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMostRecentWeekday(t *testing.T) {
@@ -106,6 +108,15 @@ func TestToDateKey(t *testing.T) {
 	assert.Equal(t, "2026-05-04", toDateKey(d))
 }
 
+func TestShouldSeedTimeTrackingDaySkipsTodayForStatisticsSupervisor(t *testing.T) {
+	t.Parallel()
+
+	today := time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)
+	assert.False(t, shouldSeedTimeTrackingDay(today, today, true))
+	assert.True(t, shouldSeedTimeTrackingDay(today, today, false))
+	assert.True(t, shouldSeedTimeTrackingDay(today.AddDate(0, 0, -3), today, true))
+}
+
 func TestExtractSessionID(t *testing.T) {
 	t.Parallel()
 
@@ -164,4 +175,58 @@ func TestExtractAbsenceID(t *testing.T) {
 		_, err := extractAbsenceID([]byte("not json"))
 		assert.Error(t, err)
 	})
+}
+
+func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"91"}}`)
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}}
+	require.NoError(t, seedTimeTrackingCoverage(rt, 17, 2026))
+	assert.Equal(t, []string{
+		"/api/staff/17/vacation/quota",
+		"/api/staff/17/time-tracking/opening",
+		"/api/staff/17/time-tracking/adjustments",
+		"/api/staff/17/time-tracking/adjustments/91",
+	}, paths)
+
+	paths = nil
+	rt.Client.BindAuth(AuthRef{Token: "staff"})
+	require.NoError(t, seedOneWorkSessionBreak(rt))
+	assert.Equal(t, []string{
+		"/api/time-tracking/break/start",
+		"/api/time-tracking/break/end",
+	}, paths)
+}
+
+func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{}}`)
+	})
+	defer srv.Close()
+
+	staff := []StaffCredentials{
+		{Email: "teacher@example.test", Position: "Pädagogische Fachkraft"},
+		{Email: "external@example.test", Position: "Extern"},
+	}
+	count, err := seedSchedulesViaAPI(
+		&Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}},
+		staff,
+		map[string]int64{"teacher@example.test": 11, "external@example.test": 22},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 5, count)
+	assert.Equal(t, []string{"/api/staff/11/schedule"}, paths)
 }

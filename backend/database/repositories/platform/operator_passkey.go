@@ -39,7 +39,7 @@ func (r *OperatorPasskeyCredentialRepository) FindActiveByOperatorID(ctx context
 		Order("created_at ASC").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active operator passkeys by operator id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active operator passkeys by operator id", Err: base.TranslateNotFound(err)}
 	}
 	return credentials, nil
 }
@@ -55,7 +55,7 @@ func (r *OperatorPasskeyCredentialRepository) FindActiveByCredentialIDAndUserHan
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active operator passkey by credential id and user handle", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active operator passkey by credential id and user handle", Err: base.TranslateNotFound(err)}
 	}
 	return credential, nil
 }
@@ -83,7 +83,7 @@ func (r *OperatorPasskeyCredentialRepository) Revoke(ctx context.Context, operat
 		Where("revoked_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "revoke operator passkey", Err: err}
+		return &modelBase.DatabaseError{Op: "revoke operator passkey", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(res, 1, "revoke operator passkey")
 }
@@ -113,7 +113,7 @@ func (r *OperatorPasskeySessionRepository) Consume(ctx context.Context, id, purp
 		Returning("*").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "consume operator passkey session", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "consume operator passkey session", Err: base.TranslateNotFound(err)}
 	}
 	return session, nil
 }

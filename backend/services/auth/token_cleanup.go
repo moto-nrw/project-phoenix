@@ -9,7 +9,6 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,7 +33,7 @@ func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
 	if s.db == nil {
 		return nil
 	}
-	return tenant.WithAdminTx(s.withTenantRuntime(modelBase.ContextWithoutTx(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(s.withTenantRuntime(tenant.ContextWithoutTransaction(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		seen := map[int64]struct{}{}
 		queue := func(ids []int64) {
 			for _, id := range ids {

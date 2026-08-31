@@ -93,47 +93,17 @@ func TestDate_Comparisons(t *testing.T) {
 	}
 }
 
-// TestDate_ValueScanRoundtrip pins the driver-facing contract.
-func TestDate_ValueScanRoundtrip(t *testing.T) {
+// TestDate_StorageRepresentation pins the persistence-neutral representation
+// consumed by the PostgreSQL adapter.
+func TestDate_StorageRepresentation(t *testing.T) {
 	t.Parallel()
 
 	d := NewDate(2026, 6, 10)
-
-	v, err := d.Value()
-	if err != nil || v != "2026-06-10" {
-		t.Fatalf("Value() = %v, %v; want \"2026-06-10\"", v, err)
+	if string(d) != "2026-06-10" {
+		t.Fatalf("storage value = %q; want 2026-06-10", d)
 	}
-
-	// Zero Date binds as NULL — pinned behavior. NULL in WHERE position
-	// matches nothing; optional dates are *Date, never a zero sentinel.
-	zv, err := Date{}.Value()
-	if err != nil || zv != nil {
-		t.Fatalf("zero Value() = %v, %v; want nil", zv, err)
-	}
-
-	var s Date
-	if err := s.Scan("2026-06-10"); err != nil || s != d {
-		t.Fatalf("Scan(string) = %v, %v", s, err)
-	}
-	if err := s.Scan([]byte("2026-03-29")); err != nil || s != NewDate(2026, 3, 29) {
-		t.Fatalf("Scan([]byte) = %v, %v", s, err)
-	}
-	// time.Time defensively, interpreted in Berlin: a UTC-midnight DATE
-	// artifact stays on the same calendar day (Berlin is always UTC+1/+2).
-	if err := s.Scan(time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)); err != nil || s != d {
-		t.Fatalf("Scan(UTC midnight) = %v, %v", s, err)
-	}
-	if err := s.Scan(time.Date(2026, 6, 10, 0, 0, 0, 0, Berlin)); err != nil || s != d {
-		t.Fatalf("Scan(Berlin midnight) = %v, %v", s, err)
-	}
-	if err := s.Scan(nil); err != nil || !s.IsZero() {
-		t.Fatalf("Scan(nil) = %v, %v; want zero", s, err)
-	}
-	if err := s.Scan(42); err == nil {
-		t.Fatal("Scan(int) should error")
-	}
-	if err := s.Scan("garbage"); err == nil {
-		t.Fatal("Scan(garbage) should error")
+	if !Date("").IsZero() {
+		t.Fatal("empty storage value should be the zero Date")
 	}
 }
 
@@ -146,7 +116,7 @@ func TestDate_JSON(t *testing.T) {
 	if err != nil || string(b) != `"2026-06-10"` {
 		t.Fatalf("Marshal = %s, %v", b, err)
 	}
-	b, err = json.Marshal(Date{})
+	b, err = json.Marshal(Date(""))
 	if err != nil || string(b) != "null" {
 		t.Fatalf("Marshal zero = %s, %v", b, err)
 	}

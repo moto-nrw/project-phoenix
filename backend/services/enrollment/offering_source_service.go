@@ -834,7 +834,7 @@ func sourcedRosterWindow(
 		}
 	}
 	if !validFrom.Before(validUntil) {
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	return validFrom, validUntil, true
 }

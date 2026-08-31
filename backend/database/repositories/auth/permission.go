@@ -43,7 +43,7 @@ func (r *PermissionRepository) FindByName(ctx context.Context, name string) (*au
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -99,7 +99,7 @@ func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, acc
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -148,7 +148,7 @@ func (r *PermissionRepository) LockAccountPermissionSourcesForTenant(ctx context
 		Scan(ctx, &lockedDirect); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock direct account permissions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -161,7 +161,7 @@ func (r *PermissionRepository) LockAccountPermissionSourcesForTenant(ctx context
 		Scan(ctx, &lockedFromRoles); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock role permissions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -184,7 +184,7 @@ func (r *PermissionRepository) FindDirectByAccountID(ctx context.Context, accoun
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find direct permissions by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -204,7 +204,7 @@ func (r *PermissionRepository) FindByRoleID(ctx context.Context, roleID int64) (
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by role ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -224,7 +224,7 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "check permission assignment to role",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -245,7 +245,7 @@ func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleI
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "assign permission to role",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -262,7 +262,7 @@ func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, rol
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "remove permission from role",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -289,7 +289,7 @@ func (r *PermissionRepository) Update(ctx context.Context, permission *auth.Perm
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -314,7 +314,7 @@ func (r *PermissionRepository) List(ctx context.Context, filters map[string]inte
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

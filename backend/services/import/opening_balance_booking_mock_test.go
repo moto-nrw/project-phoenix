@@ -98,7 +98,7 @@ func (b *recordingVacationBooker) SetVacationOpening(_ context.Context, staffID,
 	}
 	return &activeModels.StaffVacationOpening{
 		StaffID:              staffID,
-		Year:                 req.EffectiveDate.Year,
+		Year:                 req.EffectiveDate.Year(),
 		EffectiveDate:        req.EffectiveDate,
 		EnteredRemainingDays: req.RemainingDays,
 		DecidedBy:            decidedBy,

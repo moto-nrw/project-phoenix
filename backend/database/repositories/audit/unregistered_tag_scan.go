@@ -36,7 +36,7 @@ func (r *unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find unregistered tag scan", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find unregistered tag scan", Err: base.TranslateNotFound(err)}
 	}
 	return &scan, nil
 }
@@ -48,7 +48,7 @@ func (r *unregisteredTagScanRepository) ListForOperator(ctx context.Context, fil
 	query = query.OrderExpr(`"scan".scanned_at DESC`).Limit(500)
 
 	if err := query.Scan(ctx, &scans); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list unregistered tag scans", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list unregistered tag scans", Err: base.TranslateNotFound(err)}
 	}
 	if scans == nil {
 		scans = []*auditModels.UnregisteredTagScan{}
@@ -69,7 +69,7 @@ func (r *unregisteredTagScanRepository) Resolve(ctx context.Context, id, operato
 		Where(`"scan".resolved_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve unregistered tag scan", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve unregistered tag scan", Err: base.TranslateNotFound(err)}
 	}
 	if err := base.AssertRowsAffected(result, 1, "resolve unregistered tag scan"); err != nil {
 		return nil, err

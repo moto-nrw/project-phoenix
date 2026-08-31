@@ -60,8 +60,8 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	// Anchor summary and list windows to resetDate, not today: on the 1st of a
 	// month (or Jan 1) the adjustments land in the previous month/year and a
 	// today-based window would miss them.
-	summaryPath := fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=%d&month=%d", subject.ID, resetDate.Year, int(resetDate.Month))
-	listPath := fmt.Sprintf("%s?from=%d-01-01&to=%d-12-31", adjustmentsPath, resetDate.Year, today.Year)
+	summaryPath := fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=%d&month=%d", subject.ID, resetDate.Year(), int(resetDate.Month()))
+	listPath := fmt.Sprintf("%s?from=%d-01-01&to=%d-12-31", adjustmentsPath, resetDate.Year(), today.Year())
 	var payoutID int64
 
 	t.Run("requires manage permission", func(t *testing.T) {
@@ -144,7 +144,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	// Adjustments are effective at the start of their date, so fund the
 	// payout with work completed on the preceding day.
 	accrualDate := resetDate.AddDays(-1)
-	checkIn := time.Date(accrualDate.Year, accrualDate.Month, accrualDate.Day, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(accrualDate.Year(), accrualDate.Month(), accrualDate.Day(), 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(4 * time.Hour)
 	accrualSession := &activeModels.WorkSession{
 		StaffID:      subject.ID,

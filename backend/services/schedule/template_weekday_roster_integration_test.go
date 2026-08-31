@@ -1027,8 +1027,8 @@ func makeWeekdayRosterScenario(t *testing.T, anchor timezone.Date) *weekdayRoste
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year+1, 7, 31),
+		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

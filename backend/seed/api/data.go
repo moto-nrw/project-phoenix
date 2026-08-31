@@ -69,7 +69,7 @@ var DemoRooms = []DemoRoom{
 
 // DemoStaff defines staff members for the demo environment
 // Position must match frontend dropdown values in teacher-form.tsx and invitation-form.tsx
-// Demo accounts: 10 OGS-Büro (admin) + 10 Pädagogische Fachkraft (betreuer)
+// Demo accounts: 10 OGS-Büro, 9 Pädagogische Fachkraft and 1 externer Gast.
 // All use email: demo{n}@mail.de and password: sdlXK26%
 var DemoStaff = []DemoStaffMember{
 	// 10 OGS-Büro accounts (admin role)
@@ -93,7 +93,7 @@ var DemoStaff = []DemoStaffMember{
 	{FirstName: "Birgit", LastName: "Braun", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Jörg", LastName: "Krüger", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Heike", LastName: "Hartmann", Position: "Pädagogische Fachkraft", IsTeacher: true},
-	{FirstName: "Uwe", LastName: "Lange", Position: "Pädagogische Fachkraft", IsTeacher: true},
+	{FirstName: "Uwe", LastName: "Lange", Position: "Extern", IsTeacher: false},
 }
 
 // DemoStudents defines the 100 students across 10 groups (10 each)
@@ -208,7 +208,7 @@ var DemoStudents = []DemoStudent{
 	{FirstName: "Robin", LastName: "Walther", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
 	{FirstName: "Nina", LastName: "Weiß", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
 
-	// Wiesengruppe (10 students) - Betreuer: Uwe Lange - Mix of Klasse 3a, 4b
+	// Wiesengruppe (10 students) - Betreuerin: Anna Müller - Mix of Klasse 3a, 4b
 	{FirstName: "Sebastian", LastName: "Wendt", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
 	{FirstName: "Annika", LastName: "Winkler", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
 	{FirstName: "Tobias", LastName: "Winter", Class: "Klasse 3a", GroupKey: "wiesengruppe"},

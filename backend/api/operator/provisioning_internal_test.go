@@ -319,7 +319,7 @@ func withMockAdminRuntime(t *testing.T, req *http.Request, db *bun.DB) *http.Req
 				if _, execErr := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); execErr != nil {
 					return execErr
 				}
-				return fn(modelBase.ContextWithTx(txCtx, &tx), tx)
+				return fn(tenant.WithTransactionForTest(txCtx, &tx), tx)
 			})
 		},
 		func(context.Context, tenant.SavepointAction) error { return nil },
@@ -2699,7 +2699,7 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 			enableFn: func(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				tx, ok := modelBase.TxFromContext(ctx)
+				tx, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok)
 				require.NotNil(t, tx)
 				assert.Equal(t, userModels.EnableCaregiverCapabilityInput{
@@ -2765,7 +2765,7 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 			disableFn: func(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error) {
 				assert.Equal(t, int64(12), tenant.FromContext(ctx))
 				assert.Equal(t, int64(34), accountID)
-				tx, ok := modelBase.TxFromContext(ctx)
+				tx, ok := tenant.TransactionFromContext(ctx)
 				require.True(t, ok)
 				require.NotNil(t, tx)
 				return nil, &usersSvc.CaregiverCapabilityBlockedError{

@@ -339,7 +339,7 @@ type monthKey struct {
 	Month int
 }
 
-func monthOf(d timezone.Date) monthKey { return monthKey{Year: d.Year, Month: int(d.Month)} }
+func monthOf(d timezone.Date) monthKey { return monthKey{Year: d.Year(), Month: int(d.Month())} }
 
 func (k monthKey) firstDay() timezone.Date { return timezone.NewDate(k.Year, time.Month(k.Month), 1) }
 
@@ -882,7 +882,7 @@ func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, l
 	}
 	value, err := settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
 	if err != nil {
-		return timezone.Date{}, fmt.Errorf("failed to resolve account start date setting: %w", err)
+		return timezone.Date(""), fmt.Errorf("failed to resolve account start date setting: %w", err)
 	}
 	if value == "" {
 		return fallback, nil
@@ -1711,11 +1711,11 @@ func excludedByAccountStart(d, anchor timezone.Date) bool {
 func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, timezone.Date, error) {
 	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
 	if err != nil {
-		return nil, timezone.Date{}, err
+		return nil, timezone.Date(""), err
 	}
 	anchor, err := s.chainAnchor(ctx, monthOf(from))
 	if err != nil {
-		return nil, timezone.Date{}, err
+		return nil, timezone.Date(""), err
 	}
 	return resolver, anchor, nil
 }

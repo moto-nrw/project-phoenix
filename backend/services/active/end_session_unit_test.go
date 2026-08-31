@@ -587,7 +587,8 @@ func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
 		SupervisorRepo: supervisorRepo, Broadcaster: broadcaster,
 	}}
 
-	require.ErrorContains(t, svc.EndActivitySession(context.Background(), 1), "commit failed")
+	ctx := withSessionTestRuntime(t, context.Background(), db)
+	require.ErrorContains(t, svc.EndActivitySession(ctx, 1), "commit failed")
 	require.Empty(t, broadcaster.Events())
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -615,7 +616,8 @@ func TestEndActiveGroupSessionDoesNotBroadcastWhenOuterCommitFails(t *testing.T)
 		Broadcaster: broadcaster,
 	}}
 
-	require.ErrorContains(t, svc.EndActiveGroupSession(context.Background(), 1), "outer commit failed")
+	ctx := withSessionTestRuntime(t, context.Background(), db)
+	require.ErrorContains(t, svc.EndActiveGroupSession(ctx, 1), "outer commit failed")
 	require.Empty(t, broadcaster.Events())
 	require.NoError(t, mock.ExpectationsWereMet())
 }

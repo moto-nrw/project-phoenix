@@ -100,7 +100,6 @@ type invitationService struct {
 	invitationExpiry  time.Duration
 	mailIdentity      email.ReplyToResolver
 	db                *bun.DB
-	txHandler         *modelBase.TxHandler
 	logger            *slog.Logger
 	tenantRuntime     *tenant.UnitOfWork
 }
@@ -140,7 +139,6 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		mailIdentity:      config.MailIdentity,
 		invitationExpiry:  config.InvitationExpiry,
 		db:                config.DB,
-		txHandler:         modelBase.NewTxHandler(config.DB),
 		logger:            logger,
 	}
 }
@@ -397,18 +395,16 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 			return &AuthError{Op: opAcceptInvitation, Err: tenantErr}
 		}
 		invitationCtx := tenant.WithTenant(adminCtx, invitationTenantID)
-		return s.txHandler.RunInTx(invitationCtx, func(txCtx context.Context, tx bun.Tx) error {
-			account, accountErr := s.findExistingAccountByEmail(txCtx, invitation.Email)
-			if accountErr != nil {
-				return &AuthError{Op: opAcceptInvitation, Err: accountErr}
-			}
-			created, txErr := s.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
-			if txErr != nil {
-				return txErr
-			}
-			createdAccount = created
-			return nil
-		})
+		account, accountErr := s.findExistingAccountByEmail(invitationCtx, invitation.Email)
+		if accountErr != nil {
+			return &AuthError{Op: opAcceptInvitation, Err: accountErr}
+		}
+		created, txErr := s.createAccountWithRole(invitationCtx, invitation, passwordHash, firstName, lastName, account)
+		if txErr != nil {
+			return txErr
+		}
+		createdAccount = created
+		return nil
 	})
 	if err != nil {
 		return nil, err

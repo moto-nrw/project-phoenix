@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -53,7 +55,7 @@ func TestOrganizationRepository_LockingContract(t *testing.T) {
 		tx1, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx1.Rollback() }()
-		tx1Ctx := modelBase.ContextWithTx(ctx, &tx1)
+		tx1Ctx := tenant.WithTransactionForTest(ctx, &tx1)
 
 		got, err := repo.FindByIDForShare(tx1Ctx, org.ID)
 		require.NoError(t, err)
@@ -85,7 +87,7 @@ func TestOrganizationRepository_LockingContract(t *testing.T) {
 		tx1, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx1.Rollback() }()
-		tx1Ctx := modelBase.ContextWithTx(ctx, &tx1)
+		tx1Ctx := tenant.WithTransactionForTest(ctx, &tx1)
 
 		got, err := repo.FindByIDForUpdate(tx1Ctx, org.ID)
 		require.NoError(t, err)
@@ -105,7 +107,7 @@ func TestOrganizationRepository_LockingContract(t *testing.T) {
 		tx1, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx1.Rollback() }()
-		tx1Ctx := modelBase.ContextWithTx(ctx, &tx1)
+		tx1Ctx := tenant.WithTransactionForTest(ctx, &tx1)
 		_, err = repo.FindByIDForShare(tx1Ctx, org.ID)
 		require.NoError(t, err)
 
@@ -139,7 +141,7 @@ func runWithLockTimeout(ctx context.Context, db *bun.DB, timeout string, fn func
 		return err
 	}
 
-	txCtx := modelBase.ContextWithTx(ctx, &tx)
+	txCtx := tenant.WithTransactionForTest(ctx, &tx)
 	return fn(txCtx)
 }
 

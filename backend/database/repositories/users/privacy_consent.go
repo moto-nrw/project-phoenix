@@ -42,7 +42,7 @@ func (r *PrivacyConsentRepository) FindByStudentID(ctx context.Context, studentI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -65,7 +65,7 @@ func (r *PrivacyConsentRepository) FindActiveByStudentID(ctx context.Context, st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -90,7 +90,7 @@ func (r *PrivacyConsentRepository) ListAcceptedRetentionSettings(ctx context.Con
 	if err := query.Scan(ctx, &settings); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list accepted retention settings",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -112,7 +112,7 @@ func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, accepte
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "accept",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -133,7 +133,7 @@ func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "revoke",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -163,7 +163,7 @@ func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.Pr
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

@@ -41,7 +41,7 @@ func (r *CareExitRepository) FindByStudentIDs(ctx context.Context, studentIDs []
 		Where(`"care_exit".student_id IN (?)`, bun.List(studentIDs))
 	query = base.WithTenantFilter(ctx, query, "care_exit")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find care exits by student ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find care exits by student ids", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.StudentID] = row
@@ -65,7 +65,7 @@ func (r *CareExitRepository) Upsert(ctx context.Context, exit *userModels.CareEx
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert care exit", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert care exit", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -80,7 +80,7 @@ func (r *CareExitRepository) DeleteByStudentIDs(ctx context.Context, studentIDs 
 		Where(`"care_exit".student_id IN (?)`, bun.List(studentIDs))
 	query = base.WithTenantFilter(ctx, query, "care_exit")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete care exits", Err: err}
+		return &modelBase.DatabaseError{Op: "delete care exits", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -119,7 +119,7 @@ func (r *CareExitRepository) ListEnded(
 
 	total, err := build().Count(ctx)
 	if err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "count ended care", Err: err}
+		return nil, 0, &modelBase.DatabaseError{Op: "count ended care", Err: base.TranslateNotFound(err)}
 	}
 
 	var rows []*userModels.EndedCare
@@ -145,7 +145,7 @@ func (r *CareExitRepository) ListEnded(
 		}
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "list ended care", Err: err}
+		return nil, 0, &modelBase.DatabaseError{Op: "list ended care", Err: base.TranslateNotFound(err)}
 	}
 	return rows, total, nil
 }

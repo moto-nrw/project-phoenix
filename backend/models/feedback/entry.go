@@ -86,7 +86,7 @@ func (e *Entry) GetTimestamp() time.Time {
 	hour, min, sec := e.Time.Clock()
 
 	// Combine into a single timestamp
-	return time.Date(e.Day.Year, e.Day.Month, e.Day.Day, hour, min, sec, 0, time.UTC)
+	return time.Date(e.Day.Year(), e.Day.Month(), e.Day.Day(), hour, min, sec, 0, time.UTC)
 }
 
 // GetFormattedDate returns the day in a formatted string

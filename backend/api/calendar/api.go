@@ -387,17 +387,17 @@ func parseRange(w http.ResponseWriter, r *http.Request) (timezone.Date, timezone
 	toRaw := r.URL.Query().Get("to")
 	if fromRaw == "" || toRaw == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query params are required")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	from, err := timezone.ParseDate(fromRaw)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	to, err := timezone.ParseDate(toRaw)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	return from, to, true
 }

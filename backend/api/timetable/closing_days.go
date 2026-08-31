@@ -70,18 +70,18 @@ func parseClosingDayDates(w http.ResponseWriter, r *http.Request, req *ClosingDa
 	startDate, err = timezone.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	endDate, err = timezone.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	if endDate.Before(startDate) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must not be before start_date")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	return startDate, endDate, true

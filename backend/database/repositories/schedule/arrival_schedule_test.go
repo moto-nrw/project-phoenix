@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -613,7 +614,7 @@ func TestStudentArrivalExceptionRepository_FindByStudentIDsAndDate_MatchesDateIn
 	// timezone can no longer shift the stored or queried day. The SET LOCAL
 	// stays to pin exactly that: the roundtrip is session-TZ-independent.
 	err := db.RunInTx(ctx, nil, func(_ context.Context, tx bun.Tx) error {
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
+		txCtx := tenant.WithTransactionForTest(ctx, &tx)
 		_, err := tx.NewRaw(`SET LOCAL timezone = 'Europe/Berlin'`).Exec(txCtx)
 		if err != nil {
 			return err

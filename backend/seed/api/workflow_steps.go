@@ -171,6 +171,12 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			operatorLoginStep{},
 			bootstrapTenantStep{seeder: seeder},
 			seedMasterDataStep{seeder: seeder},
+			seedPlanningDemoStep{},
+			seedStudentStatusVariantsStep{},
+			seedOperationsDemoStep{},
+			seedStaffMasterDataStep{},
+			seedImportAuditStep{},
+			seedAuditLifecycleStep{},
 			seedPrivacyConsentsStep{},
 			seedFamilyProtectionStep{},
 			markStudentsSickStep{},
@@ -179,14 +185,18 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedStaffMessagingStep{},
 			seedStaffNoticesStep{},
 			seedFileStorageStep{},
-			seedTimeTrackingHistoryStep{},
-			// Nach der Zeiterfassungs-Historie: der Sitzungsstart stempelt die
-			// Aufsicht per NFC ein, und ein Arbeitsblock von heute würde sonst
-			// mit dem heutigen Block der Historie kollidieren.
+			// Vor der App-Historie: der IoT-Sitzungsstart erzeugt den echten
+			// NFC-Arbeitsblock. Nach einem App-Checkout am selben Tag verhindert
+			// die Zeiterfassung bewusst einen erneuten Auto-Check-in.
 			seedStatisticsDemoStep{},
+			seedTimeTrackingHistoryStep{},
+			seedDataAccessAuditStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
+			seedParentEngagementStep{},
+			seedGradeTransitionStep{},
 			seedParentLetterStep{},
 			seedCareWithdrawalsStep{seeder: seeder},
+			seedInactiveAccountStep{},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},
 		},

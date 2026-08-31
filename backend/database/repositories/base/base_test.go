@@ -1,40 +1,42 @@
-package base_test
+package base
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
-// Generic infrastructure test for base.Repository[T].
+// Generic infrastructure test for  Repository[T].
 // Uses a test-local setting value as the sample tenant-scoped entity because
 // it has a real DB table (config.setting_values), implements modelBase.Entity,
 // and exercises every code path. Choice of sample entity is incidental — the
-// behavior under test is base.Repository[T] generic CRUD.
+// behavior under test is  Repository[T] generic CRUD.
 
 const (
 	baseTestTable      = "config.setting_values"
 	baseTestEntityName = "SettingValue"
 )
 
+type settingValueTable struct{} //nolint:unused // BUN consumes this table marker through reflection.
+
 type settingValue struct {
-	ID         int64           `bun:"id,pk,autoincrement"`
-	TenantID   int64           `bun:"tenant_id,notnull"`
-	SettingKey string          `bun:"setting_key,notnull"`
-	Value      json.RawMessage `bun:"value,type:jsonb,notnull"`
-	UpdatedBy  *int64          `bun:"updated_by"`
-	CreatedAt  time.Time       `bun:"created_at,notnull,default:now()"`
-	UpdatedAt  time.Time       `bun:"updated_at,notnull,default:now()"`
+	//nolint:unused // BUN consumes this table metadata through reflection.
+	settingValueTable `bun:"table:config.setting_values,alias:setting_value"`
+	ID                int64           `bun:"id,pk,autoincrement"`
+	TenantID          int64           `bun:"tenant_id,notnull"`
+	SettingKey        string          `bun:"setting_key,notnull"`
+	Value             json.RawMessage `bun:"value,type:jsonb,notnull"`
+	UpdatedBy         *int64          `bun:"updated_by"`
+	CreatedAt         time.Time       `bun:"created_at,notnull,default:now()"`
+	UpdatedAt         time.Time       `bun:"updated_at,notnull,default:now()"`
 }
 
 type testSettingValue = settingValue
@@ -92,7 +94,7 @@ func TestAcquireXactLockReportsContendedWait(t *testing.T) {
 	release := time.AfterFunc(20*time.Millisecond, func() { _ = holder.Rollback() })
 	defer release.Stop()
 
-	require.NoError(t, base.AcquireXactLock(ctx, db, key))
+	require.NoError(t, AcquireXactLock(ctx, db, key))
 
 	events := evidence()
 	require.Len(t, events, 1)
@@ -106,7 +108,7 @@ func TestNewRepository(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	require.NotNil(t, repo)
 	assert.Equal(t, baseTestTable, repo.TableName)
 	assert.Equal(t, baseTestEntityName, repo.EntityName)
@@ -119,7 +121,7 @@ func TestRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	sv := newSettingValue(t, uniqueKey("create"), "test_value", nil)
@@ -143,7 +145,7 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	var nilSV *testSettingValue
@@ -158,7 +160,7 @@ func TestRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert a test row using schema-qualified table
@@ -185,7 +187,7 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	_, err := repo.FindByID(ctx, 999999)
@@ -198,7 +200,7 @@ func TestRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert a test row
@@ -232,7 +234,7 @@ func TestRepository_Update_NilEntity(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	var nilSV *testSettingValue
@@ -247,7 +249,7 @@ func TestRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert a test row
@@ -281,7 +283,7 @@ func TestRepository_List(t *testing.T) {
 	acct := testpkg.CreateTestAccount(t, db, "base_repo_list")
 	updatedBy := acct.ID
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert two test rows tagged with this test's account
@@ -313,7 +315,7 @@ func TestRepository_List_NoFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	// Insert one row so the result slice is non-nil even on a freshly reset DB.
@@ -343,14 +345,14 @@ func TestRepository_List_NoFilters(t *testing.T) {
 // newTenantScopedRepo builds a base repository with the tenant_id
 // defense-in-depth filter enabled, matching how domain repositories
 // (students, groups, ...) construct their embedded generic.
-func newTenantScopedRepo(db *bun.DB) *base.Repository[*testSettingValue] {
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+func newTenantScopedRepo(db *testpkg.DB) *Repository[*testSettingValue] {
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	repo.TenantScoped = true
 	return repo
 }
 
 // createSettingValueForTenant inserts a row for the given tenant and returns it.
-func createSettingValueForTenant(t *testing.T, db *bun.DB, tenantID int64, key, value string) *testSettingValue {
+func createSettingValueForTenant(t *testing.T, db *testpkg.DB, tenantID int64, key, value string) *testSettingValue {
 	t.Helper()
 	sv := &testSettingValue{
 		SettingKey: key,
@@ -364,7 +366,7 @@ func createSettingValueForTenant(t *testing.T, db *bun.DB, tenantID int64, key, 
 
 // setSettingValueCreatedAt overwrites created_at so date-window tests have
 // deterministic timestamps (the column default is current_timestamp).
-func setSettingValueCreatedAt(t *testing.T, db *bun.DB, id int64, createdAt time.Time) {
+func setSettingValueCreatedAt(t *testing.T, db *testpkg.DB, id int64, createdAt time.Time) {
 	t.Helper()
 	_, err := db.NewUpdate().
 		TableExpr(baseTestTable).
@@ -394,27 +396,30 @@ func TestRepository_CountWithOptions(t *testing.T) {
 	// Same key prefix under another tenant — must not be counted.
 	createSettingValueForTenant(t, db, otherTenantID, prefix+"_other", "v4")
 
-	t.Run("nil options counts all tenant rows", func(t *testing.T) {
-		count, err := repo.CountWithOptions(ctx, nil)
-		require.NoError(t, err)
-		assert.Equal(t, 3, count)
-	})
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, tenantID, func(txCtx context.Context) error {
+		t.Run("nil options counts all tenant rows", func(t *testing.T) {
+			count, err := repo.CountWithOptions(txCtx, nil)
+			require.NoError(t, err)
+			assert.Equal(t, 3, count)
+		})
 
-	t.Run("like filter", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter = modelBase.NewFilter().Like("setting_key", prefix+"%")
-		count, err := repo.CountWithOptions(ctx, options)
-		require.NoError(t, err)
-		assert.Equal(t, 3, count)
-	})
+		t.Run("like filter", func(t *testing.T) {
+			options := modelBase.NewQueryOptions()
+			options.Filter = modelBase.NewFilter().Like("setting_key", prefix+"%")
+			count, err := repo.CountWithOptions(txCtx, options)
+			require.NoError(t, err)
+			assert.Equal(t, 3, count)
+		})
 
-	t.Run("equal filter", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter = modelBase.NewFilter().Equal("setting_key", first.SettingKey)
-		count, err := repo.CountWithOptions(ctx, options)
-		require.NoError(t, err)
-		assert.Equal(t, 1, count)
-	})
+		t.Run("equal filter", func(t *testing.T) {
+			options := modelBase.NewQueryOptions()
+			options.Filter = modelBase.NewFilter().Equal("setting_key", first.SettingKey)
+			count, err := repo.CountWithOptions(txCtx, options)
+			require.NoError(t, err)
+			assert.Equal(t, 1, count)
+		})
+		return nil
+	}))
 }
 
 func TestRepository_OldestBefore(t *testing.T) {
@@ -437,27 +442,30 @@ func TestRepository_OldestBefore(t *testing.T) {
 	setSettingValueCreatedAt(t, db, first.ID, older)
 	setSettingValueCreatedAt(t, db, second.ID, newer)
 
-	t.Run("nil cutoff returns absolute minimum", func(t *testing.T) {
-		oldest, err := repo.OldestBefore(ctx, "created_at", nil)
-		require.NoError(t, err)
-		require.NotNil(t, oldest)
-		assert.Equal(t, timezone.DateFromTime(older), *oldest)
-	})
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, tenantID, func(txCtx context.Context) error {
+		t.Run("nil cutoff returns absolute minimum", func(t *testing.T) {
+			oldest, err := repo.OldestBefore(txCtx, "created_at", nil)
+			require.NoError(t, err)
+			require.NotNil(t, oldest)
+			assert.Equal(t, "2020-01-15", *oldest)
+		})
 
-	t.Run("cutoff between rows returns only the older one", func(t *testing.T) {
-		cutoff := timezone.NewDate(2020, 6, 1)
-		oldest, err := repo.OldestBefore(ctx, "created_at", &cutoff)
-		require.NoError(t, err)
-		require.NotNil(t, oldest)
-		assert.Equal(t, timezone.DateFromTime(older), *oldest)
-	})
+		t.Run("cutoff between rows returns only the older one", func(t *testing.T) {
+			cutoff := "2020-06-01"
+			oldest, err := repo.OldestBefore(txCtx, "created_at", &cutoff)
+			require.NoError(t, err)
+			require.NotNil(t, oldest)
+			assert.Equal(t, "2020-01-15", *oldest)
+		})
 
-	t.Run("cutoff before all rows returns nil", func(t *testing.T) {
-		cutoff := timezone.NewDate(2019, 1, 1)
-		oldest, err := repo.OldestBefore(ctx, "created_at", &cutoff)
-		require.NoError(t, err)
-		assert.Nil(t, oldest)
-	})
+		t.Run("cutoff before all rows returns nil", func(t *testing.T) {
+			cutoff := "2019-01-01"
+			oldest, err := repo.OldestBefore(txCtx, "created_at", &cutoff)
+			require.NoError(t, err)
+			assert.Nil(t, oldest)
+		})
+		return nil
+	}))
 }
 
 func TestRepository_DeleteOlderThan(t *testing.T) {
@@ -484,20 +492,27 @@ func TestRepository_DeleteOlderThan(t *testing.T) {
 	setSettingValueCreatedAt(t, db, kept.ID, newer)
 	setSettingValueCreatedAt(t, db, foreign.ID, older)
 
-	cutoff := timezone.NewDate(2020, 12, 31)
-	deleted, err := repo.DeleteOlderThan(ctx, "created_at", cutoff)
-	require.NoError(t, err)
-	assert.EqualValues(t, 1, deleted)
+	cutoff := "2020-12-31"
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, tenantID, func(txCtx context.Context) error {
+		deleted, err := repo.DeleteOlderThan(txCtx, "created_at", cutoff)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, deleted)
 
-	// The newer row survives.
-	remaining, err := repo.CountWithOptions(ctx, nil)
-	require.NoError(t, err)
-	assert.Equal(t, 1, remaining)
+		// The newer row survives.
+		remaining, err := repo.CountWithOptions(txCtx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, 1, remaining)
+		return nil
+	}))
 
 	// The other tenant's expired row is untouched despite matching the cutoff.
-	foreignCount, err := repo.CountWithOptions(testpkg.TenantContext(otherTenantID), nil)
-	require.NoError(t, err)
-	assert.Equal(t, 1, foreignCount)
+	foreignCtx := testpkg.TenantContext(otherTenantID)
+	require.NoError(t, testpkg.WithinTenantContext(t, foreignCtx, db, otherTenantID, func(txCtx context.Context) error {
+		foreignCount, err := repo.CountWithOptions(txCtx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, 1, foreignCount)
+		return nil
+	}))
 }
 
 func TestRepository_UpdateColumns(t *testing.T) {
@@ -505,7 +520,7 @@ func TestRepository_UpdateColumns(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := base.NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
+	repo := NewRepository[*testSettingValue](db, baseTestTable, baseTestEntityName)
 	ctx := testpkg.Ctx(t)
 
 	sv := newSettingValue(t, uniqueKey("update_columns"), "original", nil)
@@ -600,8 +615,8 @@ func TestDatabaseErrorCause(t *testing.T) {
 
 	cause := errors.New("driver failure")
 	databaseErr := &modelBase.DatabaseError{Op: "update columns", Err: cause}
-	assert.Same(t, cause, base.DatabaseErrorCause(databaseErr))
+	assert.Same(t, cause, DatabaseErrorCause(databaseErr))
 
 	plainErr := errors.New("plain failure")
-	assert.Same(t, plainErr, base.DatabaseErrorCause(plainErr))
+	assert.Same(t, plainErr, DatabaseErrorCause(plainErr))
 }

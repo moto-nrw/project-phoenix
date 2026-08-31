@@ -9,8 +9,8 @@ import (
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,7 +54,7 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 		DB:   db,
 		ValidateCareOfferingChange: func(callCtx context.Context, gotPeriodID int64, replacement *scheduleModel.CalendarPeriod) error {
 			require.Equal(t, period.ID, gotPeriodID)
-			_, hasTx := modelBase.TxFromContext(callCtx)
+			_, hasTx := tenant.TransactionFromContext(callCtx)
 			require.True(t, hasTx, "preflight must run under the mutation transaction")
 			replacements = append(replacements, replacement)
 			return scheduleModel.ErrCalendarPeriodCareOfferingConflict

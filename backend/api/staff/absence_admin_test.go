@@ -185,7 +185,7 @@ func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
 	tc := setupStaffRoute(t)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
 	token := authToken(t, "time_tracking:manage")
-	year := timezone.TodayDate().Year
+	year := timezone.TodayDate().Year()
 
 	paths := []string{
 		fmt.Sprintf("/staff/%d/absences?from=%d-01-01&to=%d-12-31", staff.ID, year, year),

@@ -57,7 +57,7 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to tim
 	if err := q.
 		OrderExpr(`"deviation_event".occurred_at DESC, "deviation_event".id DESC`).
 		Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list deviation events", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list deviation events", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -71,7 +71,7 @@ func (r *deviationEventRepository) DeleteOlderThan(ctx context.Context, cutoff t
 	if err := base.GetDB(ctx, r.db).NewRaw(
 		`SELECT audit.delete_expired_deviation_events(?, ?)`, tenantID, cutoff,
 	).Scan(ctx, &deleted); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired deviation events", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete expired deviation events", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
