@@ -37,7 +37,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 func setupServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
 
-	factory, err := services.NewFactory(repositories.NewFactory(db), db, slog.Default())
+	factory, err := services.NewFactoryForTests(repositories.NewFactory(db), db, slog.Default())
 	require.NoError(t, err)
 	return factory
 }

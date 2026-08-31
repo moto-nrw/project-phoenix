@@ -14,8 +14,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
-	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,11 +35,16 @@ func mealPlanSettings(enabled bool, resolveErr error) parentSettingsStub {
 func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub) parentService.Service {
 	t.Helper()
 	repos := repositories.NewFactory(db)
+	enabled := settings.boolValues[configModels.KeyMealPlanEnabled]
+	mealPlan := &fakeMealPlan{available: enabled, err: settings.boolErr, entries: []mealplanModule.Entry{
+		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti"},
+		{Date: mealplanModule.Date("2026-08-24"), Position: 1, Dish: "Salat"},
+	}}
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
-		MealPlanRepo:  repos.MealPlanEntry,
+		MealPlan:      mealPlan,
 		Settings:      settings,
 		Broadcaster:   testpkg.NewRecordingBroadcaster(),
 		DB:            db,
@@ -49,16 +53,23 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub)
 	})
 }
 
-// seedMealPlanWeek writes dishes for the Monday of the given week under tenant 1.
-func seedMealPlanWeek(t *testing.T, db *bun.DB, monday timezone.Date) {
-	t.Helper()
-	repo := repositories.NewFactory(db).MealPlanEntry
-	ctx := testpkg.Ctx(t)
-	require.NoError(t, repo.ReplaceDay(ctx, monday, []*mealplanModels.MealPlanEntry{
-		{Date: monday, Position: 0, Dish: "Spaghetti"},
-		{Date: monday, Position: 1, Dish: "Salat"},
-	}))
-	t.Cleanup(func() { _ = repo.DeleteByDate(ctx, monday) })
+type fakeMealPlan struct {
+	available bool
+	err       error
+	entries   []mealplanModule.Entry
+}
+
+func availableMealPlan(enabled bool) *fakeMealPlan { return &fakeMealPlan{available: enabled} }
+
+func (f *fakeMealPlan) Available(context.Context) (bool, error) { return f.available, f.err }
+func (f *fakeMealPlan) Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if !f.available {
+		return nil, mealplanModule.ErrDisabled
+	}
+	return f.entries, nil
 }
 
 func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
@@ -67,8 +78,7 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
-	seedMealPlanWeek(t, db, currentMonday)
+	currentMonday := timezone.NewDate(2026, 8, 24)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	rows, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
@@ -84,9 +94,8 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
+	currentMonday := timezone.NewDate(2026, 8, 24)
 	nextMonday := currentMonday.AddDays(7)
-	seedMealPlanWeek(t, db, nextMonday)
 
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	rows, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, nextMonday)
@@ -100,7 +109,7 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
+	currentMonday := timezone.NewDate(2026, 8, 24)
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.ErrorIs(t, err, parentService.ErrMealPlanDisabled)
@@ -114,7 +123,7 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
+	currentMonday := timezone.NewDate(2026, 8, 24)
 	lastWeek := currentMonday.AddDays(-7)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, lastWeek)
@@ -127,7 +136,7 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
+	currentMonday := timezone.NewDate(2026, 8, 24)
 	weekAfterNext := currentMonday.AddDays(14)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, weekAfterNext)
@@ -141,7 +150,7 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
+	currentMonday := timezone.NewDate(2026, 8, 24)
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID, currentMonday)
 	require.Error(t, err)
@@ -154,7 +163,7 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	currentMonday, _ := mealplanService.WeekRange(timezone.NewDate(2026, 8, 24))
+	currentMonday := timezone.NewDate(2026, 8, 24)
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
 	_, err := svc.MealPlanWeek(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, currentMonday)
 	require.Error(t, err)

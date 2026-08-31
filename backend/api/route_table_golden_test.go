@@ -139,62 +139,58 @@ func TestRouteTableGolden(t *testing.T) {
 			require.Equalf(t, http.StatusUnauthorized, rec.Code, "%s %s must be routed to the staff-notice resource", tc.method, tc.path)
 		}
 	})
-}
 
-// TestReadOnlyPreviewGuardsEveryAuthenticatedRoute pins the write block for
-// admin staff-view preview tokens (#2893) to EVERY authenticated WRITE route,
-// not just the ones the feature was built against. Each api sub-package
-// assembles its own JWT chain, so a group that authenticates without
-// ReadOnlyPreviewMiddleware would let a preview token write through calendar,
-// import, enrollment, or any future router — silently, because the route still
-// answers 200. Walking the assembled production router is the only place that
-// sees all of them at once.
-//
-// Read-only methods are exempt: the middleware lets GET/HEAD/OPTIONS through
-// anyway, so a purely reading group (the SSE streams, which may not import
-// api/common under the architecture policy) needs nothing.
-//
-// Deliberately NOT parallel: shares the process-global golden API.
-func TestReadOnlyPreviewGuardsEveryAuthenticatedRoute(t *testing.T) {
-	apiInstance := newGoldenAPI(t)
-
-	const (
-		authenticator = "auth/jwt.Authenticator"
-		readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
-	)
-	safeMethods := map[string]bool{
-		http.MethodGet:     true,
-		http.MethodHead:    true,
-		http.MethodOptions: true,
-	}
-
-	var unguarded []string
-	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		if safeMethods[method] {
-			return nil
+	// Pins the write block for admin staff-view preview tokens (#2893) to
+	// EVERY authenticated WRITE route, not just the ones the feature was built
+	// against. Each api sub-package assembles its own JWT chain, so a group
+	// that authenticates without ReadOnlyPreviewMiddleware would let a preview
+	// token write through calendar, import, enrollment, or any future router —
+	// silently, because the route still answers 200. Walking the assembled
+	// production router is the only place that sees all of them at once.
+	//
+	// Read-only methods are exempt: the middleware lets GET/HEAD/OPTIONS
+	// through anyway (minus its own denylist), so a purely reading group (the
+	// SSE streams, which may not import api/common under the architecture
+	// policy) needs nothing.
+	t.Run("every authenticated write route carries the read-only preview guard", func(t *testing.T) {
+		const (
+			authenticator = "auth/jwt.Authenticator"
+			readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
+		)
+		safeMethods := map[string]bool{
+			http.MethodGet:     true,
+			http.MethodHead:    true,
+			http.MethodOptions: true,
 		}
-		var authenticated, guarded bool
-		for _, middleware := range middlewares {
-			name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
-			name = strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/")
-			switch {
-			case strings.HasPrefix(name, authenticator):
-				authenticated = true
-			case strings.HasPrefix(name, readOnlyGuard):
-				guarded = true
+
+		var unguarded []string
+		walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+			if safeMethods[method] {
+				return nil
 			}
-		}
-		if authenticated && !guarded {
-			unguarded = append(unguarded, method+" "+route)
-		}
-		return nil
-	})
-	require.NoError(t, walkErr)
-	sort.Strings(unguarded)
+			var authenticated, guarded bool
+			for _, middleware := range middlewares {
+				name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
+				name = strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/")
+				switch {
+				case strings.HasPrefix(name, authenticator):
+					authenticated = true
+				case strings.HasPrefix(name, readOnlyGuard):
+					guarded = true
+				}
+			}
+			if authenticated && !guarded {
+				unguarded = append(unguarded, method+" "+route)
+			}
+			return nil
+		})
+		require.NoError(t, walkErr)
+		sort.Strings(unguarded)
 
-	require.Emptyf(t, unguarded,
-		"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after jwt.Authenticator in the group that mounts them:\n%s",
-		strings.Join(unguarded, "\n"))
+		require.Emptyf(t, unguarded,
+			"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after jwt.Authenticator in the group that mounts them:\n%s",
+			strings.Join(unguarded, "\n"))
+	})
 }
 
 var compilerGeneratedNamePart = regexp.MustCompile(`func[0-9]+|\.[0-9]+`)

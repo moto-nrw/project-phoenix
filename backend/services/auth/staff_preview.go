@@ -31,7 +31,9 @@ type StaffPreviewSession struct {
 // picker: an active account with an active mapping and at least one
 // tenant-portal role at the admin's school.
 type StaffPreviewCandidate struct {
-	AccountID int64    `json:"account_id"`
+	// AccountID travels as a JSON string — an int64 ID must never pass
+	// through a JavaScript number (see api/auth.StaffPreviewStartRequest).
+	AccountID int64    `json:"account_id,string"`
 	FirstName string   `json:"first_name"`
 	LastName  string   `json:"last_name"`
 	Email     string   `json:"email"`

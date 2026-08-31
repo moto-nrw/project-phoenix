@@ -7,7 +7,7 @@ const mockShellAuth = vi.hoisted(() => ({
     | {
         isPreview?: boolean;
         previewTargetName?: string;
-        previewTargetAccountId?: number;
+        previewTargetAccountId?: string;
       }
     | undefined,
 }));
@@ -37,7 +37,7 @@ describe("StaffPreviewBanner", () => {
     mockShellAuth.value = {
       isPreview: true,
       previewTargetName: "Erika Beispiel",
-      previewTargetAccountId: 42,
+      previewTargetAccountId: "42",
     };
     render(<StaffPreviewBanner />);
 
@@ -54,7 +54,7 @@ describe("StaffPreviewBanner", () => {
     mockShellAuth.value = {
       isPreview: true,
       previewTargetName: "Erika Beispiel",
-      previewTargetAccountId: 42,
+      previewTargetAccountId: "42",
     };
     render(<StaffPreviewBanner />);
 

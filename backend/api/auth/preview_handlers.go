@@ -13,8 +13,11 @@ import (
 )
 
 // StaffPreviewStartRequest selects the staff account to preview (#2893).
+// The ID travels as a JSON STRING: account IDs are int64, and a JavaScript
+// client silently rounds numbers beyond 2^53 — which would preview the wrong
+// person. Strings keep the ID exact end to end.
 type StaffPreviewStartRequest struct {
-	AccountID int64 `json:"account_id"`
+	AccountID int64 `json:"account_id,string"`
 }
 
 // Bind validates the staff-preview start payload.
@@ -47,7 +50,7 @@ func (req *StaffPreviewEndRequest) Bind(_ *http.Request) error {
 type StaffPreviewStartResponse struct {
 	AccessToken     string `json:"access_token"`
 	ExpiresIn       int64  `json:"expires_in"`
-	TargetAccountID int64  `json:"target_account_id"`
+	TargetAccountID int64  `json:"target_account_id,string"`
 	TargetName      string `json:"target_name"`
 }
 

@@ -20,7 +20,8 @@ import (
 
 func previewStartBody(t *testing.T, accountID int64) *bytes.Reader {
 	t.Helper()
-	payload, err := json.Marshal(map[string]int64{"account_id": accountID})
+	// account_id is a JSON string on the wire (int64-safe for JS clients).
+	payload, err := json.Marshal(map[string]string{"account_id": fmt.Sprint(accountID)})
 	require.NoError(t, err)
 	return bytes.NewReader(payload)
 }
@@ -70,11 +71,13 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 		var resp struct {
 			AccessToken     string `json:"access_token"`
 			ExpiresIn       int64  `json:"expires_in"`
-			TargetAccountID int64  `json:"target_account_id"`
+			TargetAccountID int64  `json:"target_account_id,string"`
 			TargetName      string `json:"target_name"`
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		assert.Equal(t, target.ID, resp.TargetAccountID)
+		// The ID must reach the JS client as a string, never as a number.
+		assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"target_account_id":"%d"`, target.ID))
 		assert.Equal(t, "Ziel Person", resp.TargetName)
 		assert.Positive(t, resp.ExpiresIn)
 		mintedPreviewToken = resp.AccessToken
@@ -104,7 +107,7 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 		writes := []struct{ method, path, body string }{
 			{http.MethodPost, "/auth/switch-tenant", `{"tenant_slug":"t1"}`},
 			{http.MethodPost, "/auth/password", `{"current_password":"a","new_password":"b"}`},
-			{http.MethodPost, "/auth/staff-preview", fmt.Sprintf(`{"account_id":%d}`, admin.ID)},
+			{http.MethodPost, "/auth/staff-preview", fmt.Sprintf(`{"account_id":"%d"}`, admin.ID)},
 			{http.MethodPost, "/auth/staff-preview/end", `{"preview_token":"irrelevant"}`},
 		}
 		for _, w := range writes {
@@ -170,7 +173,7 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 
 		var resp struct {
 			Data []struct {
-				AccountID int64  `json:"account_id"`
+				AccountID int64  `json:"account_id,string"`
 				FirstName string `json:"first_name"`
 			} `json:"data"`
 		}

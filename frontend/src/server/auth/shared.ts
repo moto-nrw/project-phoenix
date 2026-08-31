@@ -65,7 +65,7 @@ declare module "next-auth" {
       // banner and the end-of-preview audit call.
       isPreview?: boolean;
       previewTargetName?: string;
-      previewTargetAccountId?: number;
+      previewTargetAccountId?: string;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
@@ -102,7 +102,7 @@ declare module "next-auth" {
     // `token`/`tokenExpiry` hold the READ-ONLY preview token and the admin's
     // own access token is parked in previewAdminToken; `refreshToken` stays
     // the admin's — no refresh token ever exists in the target's name.
-    previewTargetAccountId?: number;
+    previewTargetAccountId?: string;
     previewTargetName?: string;
     previewAdminToken?: string;
     previewAdminTokenExpiry?: number;
@@ -673,7 +673,9 @@ const PREVIEW_REMINT_TIMEOUT_MS = 5_000;
 interface PreviewStartUpdate {
   accessToken: string;
   expiresIn: number;
-  targetAccountId: number;
+  // Account IDs are int64 on the backend and stay strings on this side —
+  // a JavaScript number would round IDs beyond 2^53.
+  targetAccountId: string;
   targetName: string;
 }
 
@@ -683,13 +685,14 @@ function isPreviewStartUpdate(value: unknown): value is PreviewStartUpdate {
   return (
     typeof v.accessToken === "string" &&
     typeof v.expiresIn === "number" &&
-    typeof v.targetAccountId === "number" &&
+    typeof v.targetAccountId === "string" &&
+    v.targetAccountId.length > 0 &&
     typeof v.targetName === "string"
   );
 }
 
 function isPreviewActive(token: Record<string, unknown>): boolean {
-  return typeof token.previewTargetAccountId === "number";
+  return typeof token.previewTargetAccountId === "string";
 }
 
 /** Swap the session onto the preview token, parking the admin's own state. */
@@ -1351,7 +1354,7 @@ export const sharedSessionCallback: NonNullable<
       isPreview: isPreviewActive(token),
       previewTargetName: token.previewTargetName as string | undefined,
       previewTargetAccountId: token.previewTargetAccountId as
-        number | undefined,
+        string | undefined,
     },
   };
 };

@@ -44,7 +44,7 @@ interface ShellAuthContextType {
   // staff member; canStartStaffPreview: the signed-in admin may open one.
   isPreview?: boolean;
   previewTargetName?: string;
-  previewTargetAccountId?: number;
+  previewTargetAccountId?: string;
   canStartStaffPreview?: boolean;
 }
 

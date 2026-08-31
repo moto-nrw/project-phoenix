@@ -19,7 +19,9 @@ export interface StaffPreviewCandidate {
 }
 
 interface BackendStaffPreviewCandidate {
-  account_id: number;
+  // int64 on the backend, serialized as a string so no ID passes through a
+  // JavaScript number.
+  account_id: string;
   first_name: string;
   last_name: string;
   email: string;
@@ -29,14 +31,14 @@ interface BackendStaffPreviewCandidate {
 export interface StaffPreviewSession {
   accessToken: string;
   expiresIn: number;
-  targetAccountId: number;
+  targetAccountId: string;
   targetName: string;
 }
 
 interface BackendStaffPreviewStartResponse {
   access_token: string;
   expires_in: number;
-  target_account_id: number;
+  target_account_id: string;
   target_name: string;
 }
 
@@ -60,7 +62,7 @@ export async function fetchStaffPreviewCandidates(): Promise<
     data?: BackendStaffPreviewCandidate[] | null;
   };
   return (envelope.data ?? []).map((candidate) => ({
-    accountId: candidate.account_id.toString(),
+    accountId: candidate.account_id,
     firstName: candidate.first_name,
     lastName: candidate.last_name,
     email: candidate.email,
@@ -74,7 +76,7 @@ async function startStaffPreview(
   const response = await sessionFetch("/api/auth/staff-preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ account_id: Number(accountId) }),
+    body: JSON.stringify({ account_id: accountId }),
   });
   if (!response.ok) {
     throw new Error(`Failed to start preview: ${response.status}`);

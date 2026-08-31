@@ -528,7 +528,7 @@ func TestWebManualDeviceCode(t *testing.T) {
 
 func setupVisitHelperService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...)
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

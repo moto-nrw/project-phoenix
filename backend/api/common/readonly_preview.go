@@ -59,9 +59,20 @@ var readOnlyPOSTAllowlist = []string{
 	"/api/timetable/lists/preview",
 }
 
+// readOnlyGETDenylist names the GET routes that DO change state despite the
+// method, so a read-only preview must not call them. Today that is the staff
+// calendar feed: reading the URL creates and persists a subscription token on
+// the target's account when none exists yet — a write in the previewed
+// person's name. TestReadOnlyGETDenylistMatchesRouteTable pins every entry
+// against api/testdata/route_table.golden so a stale one cannot linger.
+var readOnlyGETDenylist = []string{
+	"/api/calendar/feed",
+}
+
 // ReadOnlyPreviewMiddleware enforces the write block for admin staff-view
 // preview tokens (#2893). Requests without a read-only claim pass untouched;
-// with one, only safe methods (GET/HEAD/OPTIONS) and the allowlisted
+// with one, only safe methods (GET/HEAD/OPTIONS, minus the denylisted
+// state-changing GETs) and the allowlisted
 // read-only POST routes go through. Mounted group-wide right after
 // jwt.Authenticator: it reads only the parsed claims, does no DB work, and
 // rejecting here means no tenant transaction is ever opened for a blocked
@@ -78,20 +89,21 @@ func ReadOnlyPreviewMiddleware(next http.Handler) http.Handler {
 }
 
 // isReadOnlySafeRequest reports whether the request cannot change state:
-// a safe HTTP method, or one of the allowlisted read-only POST routes.
+// a safe HTTP method that is not one of the denylisted state-changing GETs,
+// or one of the allowlisted read-only POST routes.
 func isReadOnlySafeRequest(r *http.Request) bool {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return true
+		return !matchesPatterns(r.URL.Path, readOnlyGETDenylist)
 	case http.MethodPost:
-		return matchesReadOnlyPOSTAllowlist(r.URL.Path)
+		return matchesPatterns(r.URL.Path, readOnlyPOSTAllowlist)
 	default:
 		return false
 	}
 }
 
-func matchesReadOnlyPOSTAllowlist(path string) bool {
-	for _, pattern := range readOnlyPOSTAllowlist {
+func matchesPatterns(path string, patterns []string) bool {
+	for _, pattern := range patterns {
 		if pathMatchesPattern(path, pattern) {
 			return true
 		}

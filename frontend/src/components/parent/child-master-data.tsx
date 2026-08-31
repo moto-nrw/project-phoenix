@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
@@ -49,6 +57,15 @@ interface Props {
   /** Der Name des Kindes fuer die Ueberschrift "Angaben zu {Name}". */
   readonly childName: string;
   readonly area?: "details" | "departure" | "contact";
+  readonly masterData?: ChildMasterDataState;
+}
+
+export interface ChildMasterDataState {
+  readonly data: ChildMasterData | null;
+  readonly features: ChildFeatures | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly setData: Dispatch<SetStateAction<ChildMasterData | null>>;
 }
 
 /**
@@ -61,38 +78,12 @@ export function ChildMasterDataView({
   studentId,
   childName,
   area = "details",
+  masterData,
 }: Props) {
+  const loadedMasterData = useChildMasterData(studentId, !masterData);
+  const { data, features, loading, error, setData } =
+    masterData ?? loadedMasterData;
   const t = useTranslations("parentMasterData");
-  const [data, setData] = useState<ChildMasterData | null>(null);
-  const [features, setFeatures] = useState<ChildFeatures | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [md, feats] = await Promise.all([
-        getChildMasterData(studentId),
-        getChildFeatures(studentId),
-      ]);
-      setData(md);
-      setFeatures(feats);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn("child_master_data_load_failed", {
-        error: message,
-        student_id: studentId,
-      });
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [studentId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   if (loading) {
     if (area === "details") {
@@ -132,6 +123,45 @@ export function ChildMasterDataView({
       }
     />
   );
+}
+
+export function useChildMasterData(
+  studentId: string,
+  enabled = true,
+): ChildMasterDataState {
+  const [data, setData] = useState<ChildMasterData | null>(null);
+  const [features, setFeatures] = useState<ChildFeatures | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [md, feats] = await Promise.all([
+        getChildMasterData(studentId),
+        getChildFeatures(studentId),
+      ]);
+      setData(md);
+      setFeatures(feats);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("child_master_data_load_failed", {
+        error: message,
+        student_id: studentId,
+      });
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    void load();
+  }, [enabled, load]);
+
+  return { data, features, loading, error, setData };
 }
 
 function ChildMasterDataContent({
@@ -537,6 +567,9 @@ function DepartureSection({
   const hasAccompanied = hasDepartureAccompanied(data.allowed_departure_modes);
   const requestable =
     features.master_data_request_enabled && !pending && !hasAccompanied;
+  const displayedModes = hasAccompanied
+    ? [...DEPARTURE_REQUEST_MODES, "accompanied"]
+    : DEPARTURE_REQUEST_MODES;
 
   useEffect(() => {
     const previous = departureBase.current;
@@ -621,6 +654,11 @@ function DepartureSection({
           isSelf={pending.is_self === true}
         />
       )}
+      {hasAccompanied && (
+        <p className="text-sm text-gray-600">
+          {t("departureReadOnlyAccompanied")}
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {DEPARTURE_DAYS.map((day) => (
           <fieldset
@@ -631,16 +669,26 @@ function DepartureSection({
               {t(`departureDays.${day}`)}
             </legend>
             <div className="mt-1 space-y-1">
-              {DEPARTURE_REQUEST_MODES.map((mode) => (
+              {displayedModes.map((mode) => (
                 <label
                   key={mode}
                   htmlFor={`departure-${day}-${mode}`}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                  className={
+                    hasAccompanied
+                      ? "flex min-h-11 cursor-default items-center gap-3 rounded-lg px-2 text-sm text-gray-700"
+                      : "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                  }
                 >
                   <Checkbox
                     id={`departure-${day}-${mode}`}
                     aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                    checked={(modes[day] ?? []).includes(mode)}
+                    checked={
+                      mode === "accompanied"
+                        ? (data.allowed_departure_modes?.[day] ?? []).includes(
+                            mode,
+                          )
+                        : (modes[day] ?? []).includes(mode)
+                    }
                     disabled={!requestable}
                     onChange={() => toggle(day, mode)}
                   />

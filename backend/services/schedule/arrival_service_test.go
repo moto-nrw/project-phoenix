@@ -24,7 +24,7 @@ import (
 // setupArrivalScheduleService creates an ArrivalScheduleService with real database connection
 func setupArrivalScheduleService(t *testing.T, db *bun.DB) schedule.ArrivalScheduleService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ArrivalSchedule
 }

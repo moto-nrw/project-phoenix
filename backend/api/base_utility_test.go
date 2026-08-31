@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -269,6 +271,13 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	repoFactory := repositories.NewFactory(db)
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	initializeAPIResources(api, repoFactory, db, slog.Default())
+	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB:       db,
+		Settings: mealplanCompose.SettingsFunc(func(context.Context) (bool, error) { return true, nil }),
+		Observe:  func(mealplanCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	api.MealPlan = newMealPlanResource(mealPlan, db)
 	api.registerRoutesWithRateLimiting()
 	return api.Router
 }

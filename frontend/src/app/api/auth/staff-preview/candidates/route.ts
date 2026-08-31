@@ -2,7 +2,8 @@ import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 
 interface BackendStaffPreviewCandidate {
-  account_id: number;
+  // int64 on the backend, serialized as a string (see staff-preview-api.ts).
+  account_id: string;
   first_name: string;
   last_name: string;
   email: string;

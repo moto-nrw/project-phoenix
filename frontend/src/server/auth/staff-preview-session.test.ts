@@ -98,7 +98,7 @@ async function startPreview(token: Record<string, unknown>) {
     previewStart: {
       accessToken: previewJwt(),
       expiresIn: 900,
-      targetAccountId: 42,
+      targetAccountId: "42",
       targetName: "Erika Beispiel",
     },
   });
@@ -124,7 +124,7 @@ describe("JWT callback — staff preview (#2893)", () => {
 
     expect(result.token).not.toBe(parkedAccess);
     expect(result.previewAdminToken).toBe(parkedAccess);
-    expect(result.previewTargetAccountId).toBe(42);
+    expect(result.previewTargetAccountId).toBe("42");
     expect(result.previewTargetName).toBe("Erika Beispiel");
     // the session now carries the TARGET's identity and permissions
     expect(result.id).toBe("42");
@@ -145,7 +145,7 @@ describe("JWT callback — staff preview (#2893)", () => {
       previewStart: {
         accessToken: previewJwt({ read_only: undefined }),
         expiresIn: 900,
-        targetAccountId: 42,
+        targetAccountId: "42",
         targetName: "Erika Beispiel",
       },
     });
@@ -184,7 +184,7 @@ describe("JWT callback — staff preview (#2893)", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(result.token).toBe(started.token);
-    expect(result.previewTargetAccountId).toBe(42);
+    expect(result.previewTargetAccountId).toBe("42");
   });
 
   it("re-mints an expiring preview token with the fresh admin token", async () => {
@@ -214,7 +214,7 @@ describe("JWT callback — staff preview (#2893)", () => {
       `Bearer ${started.previewAdminToken as string}`,
     );
     expect(result.token).toBe(remintedJwt);
-    expect(result.previewTargetAccountId).toBe(42);
+    expect(result.previewTargetAccountId).toBe("42");
     expect((result.tokenExpiry as number) > Date.now()).toBe(true);
   });
 
@@ -254,7 +254,7 @@ describe("JWT callback — staff preview (#2893)", () => {
     expect(refreshUrl).toBe("http://server:8080/auth/refresh");
     expect(mintUrl).toBe("http://server:8080/auth/staff-preview");
     expect(result.previewAdminToken).toBe(newAdminAccess);
-    expect(result.previewTargetAccountId).toBe(42);
+    expect(result.previewTargetAccountId).toBe("42");
     // the rotated refresh token replaced the old one
     expect(result.refreshToken).not.toBe(adminToken().refreshToken);
   });
@@ -309,7 +309,7 @@ describe("JWT callback — staff preview (#2893)", () => {
     >;
 
     expect(result.token).toBe(previousToken);
-    expect(result.previewTargetAccountId).toBe(42);
+    expect(result.previewTargetAccountId).toBe("42");
     expect(result.error).toBeUndefined();
   });
 
@@ -323,7 +323,7 @@ describe("JWT callback — staff preview (#2893)", () => {
 
     expect(session.user.isPreview).toBe(true);
     expect(session.user.previewTargetName).toBe("Erika Beispiel");
-    expect(session.user.previewTargetAccountId).toBe(42);
+    expect(session.user.previewTargetAccountId).toBe("42");
     expect(session.user.roles).toEqual(["user"]);
   });
 

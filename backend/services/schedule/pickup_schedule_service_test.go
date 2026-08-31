@@ -25,7 +25,7 @@ import (
 // setupPickupScheduleService creates a PickupScheduleService with real database connection
 func setupPickupScheduleService(t *testing.T, db *bun.DB) schedule.PickupScheduleService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.PickupSchedule
 }
@@ -389,7 +389,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Guardian", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "1a")

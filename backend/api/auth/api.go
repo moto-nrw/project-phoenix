@@ -172,6 +172,11 @@ func (rs *Resource) Router() chi.Router {
 		// deliberately run WITHOUT the tenant transaction — like
 		// /switch-tenant they open their own admin transaction inside the
 		// service; the candidate list is a plain RLS read and gets one.
+		// chi's Route mounts the subrouter under BOTH "/staff-preview" and
+		// "/staff-preview/" (mux.Mount registers the pattern and pattern+"/"),
+		// so the client's slash-less POST /auth/staff-preview lands on the
+		// "/" handler below — pinned by TestStaffPreviewEndpoints, which
+		// drives exactly that path against the production router.
 		r.Route("/staff-preview", func(r chi.Router) {
 			r.With(common.RequiresPermission("admin:*")).Post("/", rs.startStaffPreview)
 			r.With(common.RequiresPermission("admin:*")).Post("/end", rs.endStaffPreview)
