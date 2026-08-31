@@ -15,6 +15,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
@@ -97,6 +98,20 @@ const NAV_ITEMS: NavItem[] = [
     concept: "dashboard",
     activeColor: "text-moto-blue",
     requiresAdmin: true,
+  },
+  {
+    // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
+    // laufenden Tag. Für Admins versteckt — sie haben den vollen
+    // Betreuungsplan im Planungsbereich. schedules:read spiegelt das Gate
+    // der Route (/timetable/operations/planned-now); ohne das Recht wäre
+    // der Eintrag nur ein sicherer 403. Weiteres Gating (binary,
+    // timetable.enabled) siehe filteredNavItems.
+    ...STAFF_FLAT_PAGES.tagesplan,
+    icon: navigationIcons.betreuungsplan,
+    concept: "carePlan",
+    activeColor: "text-moto-green",
+    requiresPermission: "schedules:read",
+    hideForAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.studentSearch,
@@ -329,7 +344,11 @@ const NFC_ONLY_HREFS = new Set<string>([
 // concepts with no operational meaning when the tenant only tracks
 // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
 // accordion is gated separately below (it's not in NAV_ITEMS).
-const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
+const BINARY_HIDDEN_HREFS = new Set<string>([
+  "/rooms",
+  "/activities",
+  "/tagesplan",
+]);
 const GROUP_NAV_ICON =
   "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
 
@@ -458,6 +477,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const nfcEnabled = useNFCEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
+  // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
+  // damit es auch für Betreuungskräfte ohne config:read aufgelöst ist.
+  const tagesplanEnabled = useTimetableEnabled();
   const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
@@ -603,6 +625,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
     // (gdpr.attendance_log_enabled, Opt-in, Default aus).
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
+    // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
+    // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
+    if (!tagesplanEnabled && item.href === "/tagesplan") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -832,11 +857,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
 
   // Determine which flat items come before / after the accordion insertion points
-  // Order: Home, groups, supervisions, search, activities, rooms, staff,
-  // substitutions, database, coming soon, bottom pinned.
+  // Order: Home, Tagesplan, groups, supervisions, search, activities, rooms,
+  // staff, substitutions, database, coming soon, bottom pinned.
   const beforeAccordionItems = mainNavItems.filter(
     (item) =>
       item.href === "/dashboard" ||
+      item.href === "/tagesplan" ||
       (item.href === "/students/search" && !item.comingSoon),
   );
 
@@ -845,6 +871,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     (item) =>
       !item.comingSoon &&
       item.href !== "/dashboard" &&
+      item.href !== "/tagesplan" &&
       item.href !== "/students/search" &&
       item.href !== "/substitutions",
   );
@@ -1147,6 +1174,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Home (admin only) */}
           {beforeAccordionItems
             .filter((item) => item.href === "/dashboard")
+            .map(renderNavItem)}
+
+          {/* Tagesplan (#2383): die Standardseite der Betreuungskräfte —
+              ganz oben, wie Home bei Admins. */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/tagesplan")
             .map(renderNavItem)}
 
           {/* Group navigation (tenant staff/admin; hidden in open-care mode). */}

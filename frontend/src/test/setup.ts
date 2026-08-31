@@ -158,6 +158,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   useOpenCareGroupMode: vi.fn(() => false),
   useOperationalOverviewScope: vi.fn(() => "own"),
   useShowTimetableCounts: vi.fn(() => true),
+  // Betreuungsplan (timetable.enabled) defaults ON like the registry default
+  // (#2383). Tests covering the switched-off branch override this locally.
+  useTimetableEnabled: vi.fn(() => true),
   useWaitlistEnabled: vi.fn(() => true),
   // The health column on the printed Notfallliste (#2609) defaults ON, like
   // the registry default. Tests covering the switched-off branch override

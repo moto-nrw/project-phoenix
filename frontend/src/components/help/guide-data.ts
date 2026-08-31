@@ -840,6 +840,32 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/meine-gruppen.webp",
       },
       {
+        id: "tagesplan",
+        title: "Tagesplan",
+        searchTerms: ["Tages-Betreuungsplan", "Einstieg", "Startseite"],
+        icon: Clock3,
+        summary:
+          "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
+        steps: [
+          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Er ist Ihre Startseite: `Tagesplan` steht ganz oben in der Seitenleiste, am Handy ist es der erste Reiter unten. Auch ein Tipp auf das Schul-Logo führt hierher.",
+          "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
+          "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
+          "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",
+          "Einen eigenen, noch nicht gestarteten Block starten Sie mit `Starten`. Danach öffnet sich seine Kinderliste.",
+          "Abgesagte Blöcke tragen `Fällt aus` mit dem Grund. Beendete Blöcke tragen `Beendet`. Beide sind nur zur Ansicht.",
+          "Mit den Pfeilen oben blättern Sie zu anderen Schultagen; `Heute` führt zurück zum aktuellen Tag.",
+          "Über die Zurück-Taste kommen Sie aus einer Kinderliste wieder zum gewählten Tag zurück.",
+        ],
+        callout: {
+          title: "Wer sieht welche Blöcke?",
+          body: "Das entscheidet Ihre Schule mit dem `Sichtbereich für Mitarbeitende` in den Einstellungen: bei `Ganzes Team` sehen Sie alle Blöcke des Tages, bei `Eigene Zuständigkeiten` nur die Termine, für die Sie eingeteilt sind. Nutzt Ihre Schule den Betreuungsplan nicht oder erfasst sie Anwesenheit ohne Raumzuordnung, gibt es den Tagesplan nicht – der bisherige Einstieg bleibt dann bestehen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tagesplan mit chronologischen Betreuungsblöcken, der grünen Jetzt-Linie und einem laufenden Block mit Etikett Läuft.",
+        image: "/help/screens/tagesplan.webp",
+      },
+      {
         id: "aktuelle-aufsicht",
         title: "Aktuelle Aufsicht",
         icon: Eye,

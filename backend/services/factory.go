@@ -1269,6 +1269,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		EducationGroupRepo: repos.Group,
 		RoomRepo:           repos.Room,
 		PersonService:      usersService,
+		PlanningTrackRepo:  repos.PlanningTrack,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,
 		DB:                 db,

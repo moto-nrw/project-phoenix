@@ -96,7 +96,13 @@ type TenantResolveResponse struct {
 	// strictest value, on any resolution error.
 	ParentRequestReasonPolicy string `json:"parent_request_reason_policy"`
 	ShowTimetableCounts       bool   `json:"show_timetable_counts"`
-	WaitlistEnabled           bool   `json:"waitlist_enabled"`
+	// TimetableEnabled is the tenant's resolved timetable.enabled setting.
+	// Shell metadata: the post-login redirect sends Betreuungskräfte (no
+	// config:read, so no settings-schema access) to the Tagesplan only at
+	// schools that actually use the Betreuungsplan (#2383). Defaults to true,
+	// the registry default.
+	TimetableEnabled bool `json:"timetable_enabled"`
+	WaitlistEnabled  bool `json:"waitlist_enabled"`
 	// EmergencyHealthInfoEnabled is the tenant's resolved
 	// operations.emergency_list_health_info setting (#2609). Shell metadata
 	// like the flags above: the Notfall page describes what the printed list
@@ -110,6 +116,7 @@ type TenantResolveResponse struct {
 
 type tenantShellSettings struct {
 	presenceMode           string
+	timetableEnabled       bool
 	studentPhotosEnabled   bool
 	nfcEnabled             bool
 	parentMessagingEnabled bool

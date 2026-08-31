@@ -79,6 +79,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/team-chat",
   "/team-chat/:threadID",
   "/tagesinformationen",
+  "/tagesplan",
   "/time-tracking",
   "/timetables",
   "/vertretung",
