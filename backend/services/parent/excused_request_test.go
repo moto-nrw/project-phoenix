@@ -202,7 +202,7 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 
 	// The absence list (status days) stays empty — the child is still expected.
 	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a pending excused request must not appear as a confirmed absence")
@@ -279,7 +279,7 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 
 	// The approved absence now shows as a confirmed excused status day.
 	from := timezone.NewDate(2026, 8, 24)
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, absences, 1, "approving the request writes the excused status day")
@@ -313,7 +313,7 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a rejected request must not write a status day")
@@ -397,7 +397,7 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 
 	// The status-day view (today..+1 month here) does NOT include the far date.
 	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "the confirmed day is outside the parent's status-day window")

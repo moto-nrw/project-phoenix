@@ -14,6 +14,43 @@ import (
 type tenantTxKey struct{}
 type adminTxKey struct{}
 
+type databaseTransactionKey struct{}
+
+func transactionFromContext(ctx context.Context) (*bun.Tx, bool) {
+	tx, ok := ctx.Value(databaseTransactionKey{}).(*bun.Tx)
+	return tx, ok && tx != nil
+}
+
+func contextWithTransaction(ctx context.Context, tx *bun.Tx) context.Context {
+	return context.WithValue(ctx, databaseTransactionKey{}, tx)
+}
+
+func (r *PostgresUnitOfWork) ContextWithTenant(ctx context.Context, tenantID int64) context.Context {
+	return modelBase.WithRepositoryTenantID(ctx, tenantID)
+}
+
+func (r *PostgresUnitOfWork) ContextWithTransaction(ctx context.Context, transaction any) context.Context {
+	switch tx := transaction.(type) {
+	case nil:
+		return modelBase.WithoutRepositoryTransaction(ctx)
+	case bun.Tx:
+		return modelBase.WithRepositoryContext(ctx, modelBase.RepositoryTenantID(ctx), tx)
+	case *bun.Tx:
+		if tx != nil {
+			return modelBase.WithRepositoryContext(ctx, modelBase.RepositoryTenantID(ctx), tx)
+		}
+		return modelBase.WithoutRepositoryTransaction(ctx)
+	default:
+		panic(fmt.Sprintf("unit of work: unsupported repository transaction type %T", transaction))
+	}
+}
+
+// ContextWithoutTransaction masks both adapter-owned transaction values.
+func (r *PostgresUnitOfWork) ContextWithoutTransaction(ctx context.Context) context.Context {
+	ctx = context.WithValue(ctx, databaseTransactionKey{}, nil)
+	return modelBase.WithoutRepositoryTransaction(ctx)
+}
+
 type transactionStartError struct{ err error }
 
 func (e *transactionStartError) Error() string {
@@ -49,7 +86,8 @@ func NewPostgresUnitOfWork(db *bun.DB, observePoolWait func(context.Context, tim
 // serialization failures. The UnitOfWork uses it only when the outer command
 // explicitly opts into replay.
 func IsRetryableTransactionError(err error) bool {
-	return modelBase.IsRetryableTxError(err)
+	var state interface{ Field(byte) string }
+	return errors.As(err, &state) && (state.Field('C') == "40P01" || state.Field('C') == "40001")
 }
 
 func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context, any) error) error {
@@ -60,12 +98,12 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 		return fmt.Errorf("tenant runtime: callback is required")
 	}
 
-	if tx, ok := modelBase.TxFromContext(ctx); ok {
+	if tx, ok := transactionFromContext(ctx); ok {
 		activeTenantID, active := ctx.Value(tenantTxKey{}).(int64)
 		if !active || activeTenantID != tenantID {
 			return fmt.Errorf("tenant runtime: ambient transaction has no matching tenant")
 		}
-		return fn(modelBase.ContextWithTx(ctx, tx), *tx)
+		return fn(ctx, *tx)
 	}
 
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
@@ -80,7 +118,8 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 		}
 
 		txCtx = context.WithValue(txCtx, tenantTxKey{}, tenantID)
-		txCtx = modelBase.ContextWithTx(txCtx, &tx)
+		txCtx = contextWithTransaction(txCtx, &tx)
+		txCtx = modelBase.WithRepositoryContext(txCtx, tenantID, tx)
 		return fn(txCtx, tx)
 	})
 }
@@ -89,18 +128,20 @@ func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Co
 	if fn == nil {
 		return fmt.Errorf("tenant runtime: callback is required")
 	}
-	if tx, ok := modelBase.TxFromContext(ctx); ok {
+	if tx, ok := transactionFromContext(ctx); ok {
 		if active, _ := ctx.Value(adminTxKey{}).(bool); !active {
 			return fmt.Errorf("tenant runtime: ambient transaction is not administrative")
 		}
-		return fn(modelBase.ContextWithTx(ctx, tx), *tx)
+		return fn(ctx, *tx)
 	}
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); err != nil {
 			return fmt.Errorf("tenant runtime: set admin role: %w", err)
 		}
 		txCtx = context.WithValue(txCtx, adminTxKey{}, true)
-		return fn(modelBase.ContextWithTx(txCtx, &tx), tx)
+		txCtx = contextWithTransaction(txCtx, &tx)
+		txCtx = modelBase.WithRepositoryContext(txCtx, 0, tx)
+		return fn(txCtx, tx)
 	})
 }
 
@@ -173,7 +214,7 @@ func (r *PostgresUnitOfWork) ReleaseSavepoint(ctx context.Context) error {
 // AcquireLock takes a transaction-scoped advisory lock through the active
 // PostgreSQL transaction.
 func (r *PostgresUnitOfWork) AcquireLock(ctx context.Context, key string, shared bool) error {
-	tx, ok := modelBase.TxFromContext(ctx)
+	tx, ok := transactionFromContext(ctx)
 	if !ok {
 		return fmt.Errorf("tenant runtime: transaction is required")
 	}
@@ -186,7 +227,7 @@ func (r *PostgresUnitOfWork) AcquireLock(ctx context.Context, key string, shared
 }
 
 func savepointTx(ctx context.Context) (*bun.Tx, error) {
-	tx, ok := modelBase.TxFromContext(ctx)
+	tx, ok := transactionFromContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("tenant runtime: transaction is required")
 	}

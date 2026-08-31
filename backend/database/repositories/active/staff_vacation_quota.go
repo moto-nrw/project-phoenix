@@ -62,7 +62,7 @@ func (r *StaffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, st
 		if err.Error() == "sql: no rows in result set" {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get vacation quota by staff+year", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get vacation quota by staff+year", Err: base.TranslateNotFound(err)}
 	}
 	return quota, nil
 }
@@ -84,7 +84,7 @@ func (r *StaffVacationQuotaRepository) Upsert(ctx context.Context, quota *active
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert vacation quota", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert vacation quota", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -113,7 +113,7 @@ func (r *StaffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context,
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get vacation quotas by staff IDs+year", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get vacation quotas by staff IDs+year", Err: base.TranslateNotFound(err)}
 	}
 	for _, quota := range quotas {
 		result[quota.StaffID] = quota

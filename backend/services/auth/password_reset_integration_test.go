@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -75,7 +76,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		frontendURL:         "http://localhost:3000",
 		parentsURL:          "http://parents.localhost:3000",
 		passwordResetExpiry: 30 * time.Minute,
-		txHandler:           modelBase.NewTxHandler(bunDB),
+		txHandler:           tenant.NewTransactionRunner(),
 		db:                  bunDB,
 		tenantRuntime:       newMockTenantRuntime(t, bunDB),
 	}
@@ -114,8 +115,7 @@ func TestInitiatePasswordResetSendsEmail(t *testing.T) {
 
 	ctx := context.Background()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -153,8 +153,7 @@ func TestInitiateParentPasswordResetSendsParentPortalLink(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 
 	token, err := service.InitiateParentPasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -313,8 +312,7 @@ func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {
 
 	ctx := context.Background()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
@@ -342,8 +340,7 @@ func TestResetPasswordWithValidToken(t *testing.T) {
 
 	ctx := context.Background()
 
-	mock.ExpectBegin()
-	mock.ExpectCommit()
+	expectAdminTx(mock)
 	token, err := service.InitiatePasswordReset(ctx, "user@example.com")
 	require.NoError(t, err)
 
@@ -395,8 +392,7 @@ func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 
 	ctx := context.Background()
 	for i := 0; i < 3; i++ {
-		mock.ExpectBegin()
-		mock.ExpectCommit()
+		expectAdminTx(mock)
 		_, err := service.InitiatePasswordReset(ctx, "user@example.com")
 		require.NoError(t, err)
 	}

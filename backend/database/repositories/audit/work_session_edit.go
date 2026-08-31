@@ -42,7 +42,7 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 		if err := edit.Validate(); err != nil {
 			return &modelBase.DatabaseError{
 				Op:  "validate",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 		base.EnsureTenantID(ctx, edit)
@@ -55,7 +55,7 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -74,7 +74,7 @@ func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get by session ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -91,7 +91,7 @@ func (r *WorkSessionEditRepository) CountBySessionID(ctx context.Context, sessio
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count by session ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -120,7 +120,7 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count by session IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -163,7 +163,7 @@ func (r *WorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context,
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count manual by session IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

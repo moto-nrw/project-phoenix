@@ -396,10 +396,12 @@ describe("PlusIcon", () => {
 });
 
 describe("CardSkeletons", () => {
-  it("should render 3 skeleton cards", () => {
+  it("should render 3 canonical card surfaces", () => {
     const { container } = render(<CardSkeletons />);
 
-    const cards = container.querySelectorAll(".rounded-3xl");
+    const cards = container.querySelectorAll(
+      ".moto-content-surface.rounded-2xl",
+    );
     expect(cards).toHaveLength(3);
   });
 

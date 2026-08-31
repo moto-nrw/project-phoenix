@@ -185,7 +185,7 @@ func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
 	tc := setupStaffRoute(t)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
 	token := authToken(t, "time_tracking:manage")
-	year := timezone.TodayDate().Year
+	year := timezone.TodayDate().Year()
 
 	paths := []string{
 		fmt.Sprintf("/staff/%d/absences?from=%d-01-01&to=%d-12-31", staff.ID, year, year),
@@ -226,4 +226,57 @@ func TestAdminCreateStaffAbsence_RejectsVacationType(t *testing.T) {
 		"date_end":     tomorrow.String(),
 	})
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// #2873: the comp-time preview endpoint returns the Stundenkonto projection
+// for the modal. The subject has no schedule targets, so every value is zero
+// — the point here is the wire contract and the manager permission gate.
+func TestAdminCompTimePreview_ReturnsProjection(t *testing.T) {
+	t.Parallel()
+
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	day := timezone.NewDate(2026, 9, 7)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+		"/staff/%d/time-tracking/comp-time-preview?date_start=%s&date_end=%s&half_day=false",
+		subjectID, day.String(), day.String(),
+	), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	tc.router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var body struct {
+		Data struct {
+			CurrentBalanceMinutes   int `json:"current_balance_minutes"`
+			DeductionMinutes        int `json:"deduction_minutes"`
+			ProjectedBalanceMinutes int `json:"projected_balance_minutes"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, 0, body.Data.DeductionMinutes)
+	assert.Equal(t, body.Data.CurrentBalanceMinutes, body.Data.ProjectedBalanceMinutes)
+
+	// Malformed dates are a client error, not a 500.
+	badReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+		"/staff/%d/time-tracking/comp-time-preview?date_start=heute&date_end=%s",
+		subjectID, day.String(),
+	), nil)
+	badReq.Header.Set("Authorization", "Bearer "+token)
+	badRec := httptest.NewRecorder()
+	tc.router.ServeHTTP(badRec, badReq)
+	assert.Equal(t, http.StatusBadRequest, badRec.Code, badRec.Body.String())
+
+	// half_day accepts only true|false — anything else is a client error, not
+	// a silent full-day preview.
+	for _, halfDay := range []string{"1", "invalid"} {
+		hdReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf(
+			"/staff/%d/time-tracking/comp-time-preview?date_start=%s&date_end=%s&half_day=%s",
+			subjectID, day.String(), day.String(), halfDay,
+		), nil)
+		hdReq.Header.Set("Authorization", "Bearer "+token)
+		hdRec := httptest.NewRecorder()
+		tc.router.ServeHTTP(hdRec, hdReq)
+		assert.Equal(t, http.StatusBadRequest, hdRec.Code, "half_day=%s: %s", halfDay, hdRec.Body.String())
+	}
 }

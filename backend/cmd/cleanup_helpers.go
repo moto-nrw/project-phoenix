@@ -155,6 +155,8 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	tenantRuntime = tenantRuntime.WithTransactionDetacher(postgresRuntime.ContextWithoutTransaction)
+	tenantRuntime = tenantRuntime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction)
 
 	return &cleanupContext{
 		DB:            db,

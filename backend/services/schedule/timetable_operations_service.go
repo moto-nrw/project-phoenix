@@ -532,7 +532,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	staff.ID = staffID
 	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
 	var createErr error
-	if _, inTx := modelBase.TxFromContext(visitCtx); inTx {
+	if _, inTx := tenant.TransactionFromContext(visitCtx); inTx {
 		createErr = tenant.WithSavepoint(visitCtx, func(savepointCtx context.Context) error {
 			return s.deps.ActiveService.CreateVisit(savepointCtx, visit)
 		})
@@ -1530,7 +1530,7 @@ func plannedPastToday(inst *scheduleModel.ActivityInstance, now time.Time) bool 
 }
 
 func instanceEndAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
-	return time.Date(inst.Date.Year, inst.Date.Month, inst.Date.Day, inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
+	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
 }
 
 func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time, currentStaffID int64, roomName *string, careDay map[int64]CareDayStatus) OperationPlannedInstance {
@@ -1620,7 +1620,7 @@ func (s *timetableOperationsService) roomNameMap(ctx context.Context) (map[int64
 }
 
 func instanceStartAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
-	return time.Date(inst.Date.Year, inst.Date.Month, inst.Date.Day, inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
+	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
 }
 
 func staffAssigned(rows []*scheduleModel.InstanceStaff, staffID int64) bool {

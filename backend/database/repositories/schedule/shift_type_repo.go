@@ -40,7 +40,7 @@ func (r *ShiftTypeRepository) ListAll(ctx context.Context) ([]*schedule.ShiftTyp
 	query = base.WithTenantFilter(ctx, query, "shift_type")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list all shift types", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list all shift types", Err: base.TranslateNotFound(err)}
 	}
 	return shiftTypes, nil
 }
@@ -91,12 +91,12 @@ func (r *ShiftTypeRepository) CreateIfAbsent(ctx context.Context, shiftType *sch
 		On("CONFLICT (tenant_id, LOWER(name)) DO NOTHING").
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "create shift type if absent", Err: err}
+		return false, &modelBase.DatabaseError{Op: "create shift type if absent", Err: base.TranslateNotFound(err)}
 	}
 
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "create shift type if absent (rows affected)", Err: err}
+		return false, &modelBase.DatabaseError{Op: "create shift type if absent (rows affected)", Err: base.TranslateNotFound(err)}
 	}
 	return affected == 1, nil
 }
@@ -122,7 +122,7 @@ func (r *ShiftTypeRepository) Update(ctx context.Context, shiftType *schedule.Sh
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update shift type", Err: err}
+		return &modelBase.DatabaseError{Op: "update shift type", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "update shift type")
 }
@@ -144,7 +144,7 @@ func (r *ShiftTypeRepository) Delete(ctx context.Context, id any) error {
 	}
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete shift type", Err: err}
+		return &modelBase.DatabaseError{Op: "delete shift type", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

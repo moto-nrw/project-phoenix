@@ -52,7 +52,7 @@ func (r *VisitRepository) FindActiveByStudentID(ctx context.Context, studentID i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -73,7 +73,7 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -100,7 +100,7 @@ func (r *VisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -121,7 +121,7 @@ func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.T
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -163,7 +163,7 @@ func (r *VisitRepository) FindByStudentAndTimeRange(ctx context.Context, student
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and time range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -200,7 +200,7 @@ func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end visit",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -235,7 +235,7 @@ func (r *VisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at ti
 		if errors.Is(err, sql.ErrNoRows) {
 			return []*active.Visit{}, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "end visits by ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "end visits by ids", Err: base.TranslateNotFound(err)}
 	}
 	return ended, nil
 }
@@ -266,7 +266,7 @@ func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "transfer visits from recent sessions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -274,7 +274,7 @@ func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get affected rows from visit transfer",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -300,7 +300,7 @@ func (r *VisitRepository) TransferActiveVisitsBetweenGroups(ctx context.Context,
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "transfer active visits between groups",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -308,7 +308,7 @@ func (r *VisitRepository) TransferActiveVisitsBetweenGroups(ctx context.Context,
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get affected rows from active visit transfer",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -332,7 +332,7 @@ func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired visits",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -340,7 +340,7 @@ func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -370,7 +370,7 @@ func (r *VisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get visit retention stats",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -397,7 +397,7 @@ func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count expired visits",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -423,7 +423,7 @@ func (r *VisitRepository) OldestExpiredVisitDate(ctx context.Context) (*time.Tim
 	if err := query.Scan(ctx, &oldest); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "oldest expired visit date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -455,7 +455,7 @@ func (r *VisitRepository) ExpiredVisitMonthlyCounts(ctx context.Context) (map[st
 	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "expired visit monthly counts",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -483,7 +483,7 @@ func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -550,7 +550,7 @@ func (r *VisitRepository) GetCurrentByStudentIDWithRoom(ctx context.Context, stu
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by student ID with room",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -643,7 +643,7 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by student IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -668,7 +668,7 @@ func (r *VisitRepository) CountActiveByRoomID(ctx context.Context, roomID int64)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count active by room ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -694,7 +694,7 @@ func (r *VisitRepository) ListActiveStudentIDsByRoomID(ctx context.Context, room
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active student IDs by room ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return ids, nil
@@ -731,7 +731,7 @@ func (r *VisitRepository) ListOpenVisitStudentIDsByRoom(ctx context.Context) (ma
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list open visit student IDs by room",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -753,7 +753,7 @@ func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupI
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count active by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -787,7 +787,7 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end visits by active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -795,7 +795,7 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end visits by active group IDs (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -847,7 +847,7 @@ func (r *VisitRepository) GetTodayVisitNamesForStudents(ctx context.Context, stu
 	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get today visit names for students",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -893,7 +893,7 @@ func (r *VisitRepository) FindByStudentAndActiveGroupIDs(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return visits, nil
@@ -914,7 +914,7 @@ func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active visits",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -955,7 +955,7 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current room names for students",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -404,7 +403,7 @@ func (s *service) notifyGuardianDevices(ctx context.Context, appointment *calMod
 		return
 	}
 	appointmentCopy := *appointment
-	postCommitCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	postCommitCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.dispatchGuardianDevicesAfterCommit(postCommitCtx, &appointmentCopy, kind)
 	})

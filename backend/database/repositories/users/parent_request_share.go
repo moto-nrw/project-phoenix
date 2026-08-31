@@ -38,7 +38,7 @@ func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *u
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create parent request share event", Err: err}
+		return &modelBase.DatabaseError{Op: "create parent request share event", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -55,7 +55,7 @@ func (r *ParentRequestShareEventRepository) CurrentForStudent(ctx context.Contex
 		OrderExpr(`"parent_request_share_event".request_type, "parent_request_share_event".request_id, "parent_request_share_event".id DESC`)
 	query = base.WithTenantFilter(ctx, query, "parent_request_share_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list current parent request shares", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list current parent request shares", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

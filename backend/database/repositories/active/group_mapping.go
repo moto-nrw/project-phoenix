@@ -50,7 +50,7 @@ func (r *GroupMappingRepository) FindByActiveCombinedGroupID(ctx context.Context
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active combined group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -71,7 +71,7 @@ func (r *GroupMappingRepository) FindByActiveGroupID(ctx context.Context, active
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -92,7 +92,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "check mapping existence",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -121,7 +121,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "add group to combination",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -143,7 +143,7 @@ func (r *GroupMappingRepository) RemoveGroupFromCombination(ctx context.Context,
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "remove group from combination",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -176,7 +176,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with relations",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

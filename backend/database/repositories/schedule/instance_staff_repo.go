@@ -46,7 +46,7 @@ func (r *InstanceStaffRepository) FindByID(ctx context.Context, id any) (*schedu
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  opFindByID,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &row, nil
@@ -72,7 +72,7 @@ func (r *InstanceStaffRepository) FindByInstanceID(ctx context.Context, instance
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by instance id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -102,7 +102,7 @@ func (r *InstanceStaffRepository) FindByInstanceIDs(ctx context.Context, instanc
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by instance ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -126,7 +126,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -155,7 +155,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, s
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -182,7 +182,7 @@ func (r *InstanceStaffRepository) DeleteUpcomingByStaffID(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete upcoming by staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := result.RowsAffected()
@@ -215,7 +215,7 @@ func (r *InstanceStaffRepository) CountNonAbsentByInstanceIDs(ctx context.Contex
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count non-absent by instance ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -240,7 +240,7 @@ func (r *InstanceStaffRepository) DeleteByInstanceID(ctx context.Context, instan
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by instance id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

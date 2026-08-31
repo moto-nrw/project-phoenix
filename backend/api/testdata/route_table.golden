@@ -342,6 +342,7 @@ GET /api/staff/{id}/school-classes
 GET /api/staff/{id}/stammdaten
 GET /api/staff/{id}/stammdaten/bank-steuer
 GET /api/staff/{id}/time-tracking/adjustments
+GET /api/staff/{id}/time-tracking/comp-time-preview
 GET /api/staff/{id}/time-tracking/export
 GET /api/staff/{id}/time-tracking/history
 GET /api/staff/{id}/time-tracking/month-summary

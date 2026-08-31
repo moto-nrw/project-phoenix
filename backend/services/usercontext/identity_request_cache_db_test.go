@@ -41,7 +41,9 @@ var identityStageMatchers = map[string]func(string) bool{
 	// Two SQL shapes exist: the hand-written finder emits
 	// `.substitute_staff_id = ?`, the Filter-based one `"substitute_staff_id" = ?`.
 	"substitutions": func(q string) bool {
-		return strings.Contains(q, "education.group_substitution") &&
+		hasTable := strings.Contains(q, "education.group_substitution") ||
+			strings.Contains(q, `"education"."group_substitution"`)
+		return hasTable &&
 			(strings.Contains(q, "substitute_staff_id = ") || strings.Contains(q, `substitute_staff_id" = `))
 	},
 }

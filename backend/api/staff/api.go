@@ -233,6 +233,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Admin absence writes (#1843): file or delete an absence on a staff
 		// member's behalf; sick reports cascade into the plans in the same tx.
+		// The comp-time preview (#2873) feeds the Saldo projection the
+		// Freizeitausgleich modal shows before the create.
+		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/comp-time-preview", rs.getCompTimeBalancePreview)
 		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/absences", rs.adminCreateStaffAbsence)
 		r.With(common.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/absences/{absenceId}", rs.adminDeleteStaffAbsence)
 

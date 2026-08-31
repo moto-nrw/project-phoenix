@@ -923,7 +923,7 @@ func TestParamsRejectMissingDates(t *testing.T) {
 	t.Parallel()
 
 	params := defaultParams()
-	params.From = timezone.Date{}
+	params.From = timezone.Date("")
 	if err := params.validate(TemplatesForDienstplan); err == nil {
 		t.Fatal("expected a missing from-date to be refused")
 	}

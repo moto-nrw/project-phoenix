@@ -614,7 +614,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
 	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
 	assert.Equal(t, 59, checkOutInBerlin.Second(), "second should be 59")
-	assert.Equal(t, yesterday.Day, checkOutInBerlin.Day(),
+	assert.Equal(t, yesterday.Day(), checkOutInBerlin.Day(),
 		"date should be the same day as the attendance record, not the next day")
 }
 

@@ -25,7 +25,7 @@ func (r *PWAStandaloneUsageRepository) RecordSeen(ctx context.Context, tenantID,
 		tenantID, accountID, portal,
 	).Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "record pwa standalone usage", Err: err}
+		return &modelBase.DatabaseError{Op: "record pwa standalone usage", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -37,7 +37,7 @@ func (r *PWAStandaloneUsageRepository) DeleteLastSeenBefore(ctx context.Context,
 		tenantID, cutoff,
 	).Scan(ctx, &affected)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired pwa standalone usage", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete expired pwa standalone usage", Err: base.TranslateNotFound(err)}
 	}
 	return affected, nil
 }

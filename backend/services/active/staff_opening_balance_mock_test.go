@@ -304,7 +304,7 @@ func TestStaffBalanceAdjustmentService_OpeningRejectsInvalidRequests(t *testing.
 		},
 		{
 			name: "missing Stichtag", staffID: staffID, decidedBy: decidedBy,
-			effectiveDate: timezone.Date{}, minutes: 600, note: "Übernahme",
+			effectiveDate: timezone.Date(""), minutes: 600, note: "Übernahme",
 			wantMsg: "effective_date is required",
 		},
 		{

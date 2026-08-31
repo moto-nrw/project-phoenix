@@ -14,9 +14,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -71,7 +71,7 @@ type studentDeletionService struct {
 	auditRepo      auditModels.StudentDeletionRepository
 	documentRepo   userModels.StudentDocumentRepository
 	withdrawalRepo userModels.CareWithdrawalCompletionRepository
-	txHandler      *modelBase.TxHandler
+	txHandler      *tenant.TransactionRunner
 }
 
 // WireStudentDocumentCleanup attaches the child-document repository to a
@@ -154,7 +154,7 @@ func NewStudentDeletionService(
 		transitionRepo: transitionRepo,
 		dataAuditRepo:  dataAuditRepo,
 		auditRepo:      auditRepo,
-		txHandler:      modelBase.NewTxHandler(db),
+		txHandler:      tenant.NewTransactionRunner(),
 	}
 }
 
@@ -181,7 +181,7 @@ func (s *studentDeletionService) Delete(ctx context.Context, input StudentDeleti
 	}
 
 	result := new(StudentDeletionResult)
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if err := s.studentService.LockCompanionGraph(txCtx, []int64{input.StudentID}, nil); err != nil {
 			return err
 		}

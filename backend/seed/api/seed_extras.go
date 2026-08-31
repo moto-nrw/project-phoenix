@@ -39,10 +39,24 @@ func (seedAnnouncementsStep) Run(ctx context.Context, rt *Runtime) error {
 		},
 	}
 
+	var firstAnnouncementID int64
 	for _, a := range announcements {
-		if _, err := rt.Client.Post("/operator/announcements", a); err != nil {
+		raw, err := rt.Client.Post("/operator/announcements", a)
+		if err != nil {
 			fmt.Printf("  WARNING: failed to create announcement %q: %v\n", a["title"], err)
 			continue
+		}
+		if firstAnnouncementID == 0 {
+			firstAnnouncementID, err = parseEnvelopeStringID(raw)
+			if err != nil {
+				return fmt.Errorf("parse operator announcement: %w", err)
+			}
+		}
+	}
+	if firstAnnouncementID != 0 {
+		rt.Client.BindAuth(rt.TenantAuth)
+		if _, err := rt.Client.Post(fmt.Sprintf("/api/platform/announcements/%d/seen", firstAnnouncementID), nil); err != nil {
+			return fmt.Errorf("mark operator announcement seen: %w", err)
 		}
 	}
 
@@ -79,11 +93,44 @@ func seedParentLetter(rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("parse parent letter response: %w", err)
 	}
-	if _, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil); err != nil {
+	publishedRaw, err := rt.Client.Post(fmt.Sprintf("/api/parent-announcements/%d/publish", id), nil)
+	if err != nil {
 		return fmt.Errorf("publish parent letter: %w", err)
+	}
+	publishedAt, err := parseEnvelopePublishedAt(publishedRaw)
+	if err != nil {
+		return fmt.Errorf("parse published parent letter: %w", err)
+	}
+	if len(rt.Parents) > 0 && rt.Adapter != nil {
+		parent := rt.Parents[0]
+		auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
+		if err != nil {
+			return fmt.Errorf("login parent to read parent letter: %w", err)
+		}
+		if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/news/%d/read", id), map[string]any{
+			"published_at": publishedAt,
+		}); err != nil {
+			return fmt.Errorf("mark parent letter read: %w", err)
+		}
+		rt.Client.BindAuth(rt.TenantAuth)
 	}
 	fmt.Println("  1 parent letter published")
 	return nil
+}
+
+func parseEnvelopePublishedAt(raw []byte) (time.Time, error) {
+	var envelope struct {
+		Data struct {
+			PublishedAt time.Time `json:"published_at"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return time.Time{}, err
+	}
+	if envelope.Data.PublishedAt.IsZero() {
+		return time.Time{}, fmt.Errorf("published_at missing")
+	}
+	return envelope.Data.PublishedAt, nil
 }
 
 // seedPrivacyConsentsStep creates privacy consent records for all students.
@@ -140,7 +187,13 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	deviceKey := rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID]
 	activityID := rt.FixedSeeder.activityIDs[DemoActivities[0].Name]
 	roomID := rt.FixedSeeder.activityRoomIDs[activityID]
-	staffID := rt.FixedSeeder.staffIDs[rt.FixedSeeder.staffCredentials[0].Name]
+	// The final account is a guest and cannot use staff time tracking. The
+	// penultimate account is regular staff, so the IoT session can create a
+	// genuine NFC work-session block and the cleanup can close it through the
+	// normal staff API. Small test fixtures contain only regular staff.
+	supervisorIndex := max(0, len(rt.FixedSeeder.staffCredentials)-2)
+	supervisor := rt.FixedSeeder.staffCredentials[supervisorIndex]
+	staffID := rt.FixedSeeder.staffIDs[supervisor.Name]
 	if deviceKey == "" || activityID == 0 || roomID == 0 || staffID == 0 {
 		return fmt.Errorf("statistics demo prerequisites not available")
 	}
@@ -184,7 +237,7 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 // Mandanten stehen. Hat die Zeiterfassungs-Historie den heutigen Block schon
 // geschrieben, unterbleibt der NFC-Stempel und es gibt nichts auszubuchen.
 func checkOutStatisticsSupervisor(rt *Runtime) error {
-	cred := rt.FixedSeeder.staffCredentials[0]
+	cred := rt.FixedSeeder.staffCredentials[max(0, len(rt.FixedSeeder.staffCredentials)-2)]
 	previous := rt.Client.auth
 	defer rt.Client.BindAuth(previous)
 

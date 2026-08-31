@@ -187,7 +187,7 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 	celebrating := testpkg.CreateTestStudent(t, tc.db, "Lina", "Geburtstagskind", "1a")
 	_ = testpkg.CreateTestStudent(t, tc.db, "Ohne", "Datum", "1a")
 
-	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year-7, today.Month, today.Day))
+	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year()-7, today.Month(), today.Day()))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -220,7 +220,7 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 
 	today := timezone.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Nicht", "Sichtbar", "2b")
-	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-6, today.Month, today.Day))
+	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year()-6, today.Month(), today.Day()))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -244,7 +244,7 @@ func TestOverviewStaffVisibility(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, tc.db, "Anna", "Kollegin")
 	optedOut := testpkg.CreateTestStaff(t, tc.db, "Bea", "Abgemeldet")
 
-	birthday := timezone.NewDate(today.Year-40, today.Month, today.Day)
+	birthday := timezone.NewDate(today.Year()-40, today.Month(), today.Day())
 	setPersonBirthday(t, tc.db, staff.PersonID, birthday)
 	setPersonBirthday(t, tc.db, optedOut.PersonID, birthday)
 
@@ -390,7 +390,7 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 
 	today := timezone.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Fremdes", "Scopekind", "4a")
-	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-9, today.Month, today.Day))
+	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year()-9, today.Month(), today.Day()))
 
 	t.Run("plain users:read without a staff record sees no child", func(t *testing.T) {
 		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})

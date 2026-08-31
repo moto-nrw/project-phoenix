@@ -9,8 +9,8 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -33,7 +33,7 @@ type enrollmentDeletionService struct {
 	children enrollmentModels.RequestChildRepository
 	deletion enrollmentModels.DeletionRepository
 	audit    auditModels.EnrollmentDeletionRepository
-	tx       *modelBase.TxHandler
+	tx       *tenant.TransactionRunner
 	logger   *slog.Logger
 }
 
@@ -53,7 +53,7 @@ func NewEnrollmentDeletionService(
 		children: children,
 		deletion: deletion,
 		audit:    audit,
-		tx:       modelBase.NewTxHandler(db),
+		tx:       tenant.NewTransactionRunner(),
 		logger:   logger,
 	}
 }
@@ -105,7 +105,7 @@ func (s *enrollmentDeletionService) DeleteRequest(ctx context.Context, requestID
 		return nil, err
 	}
 	var impact *enrollmentModels.DeletionImpact
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		if lockErr := s.lockRequestForDeletion(txCtx, requestID); lockErr != nil {
 			return lockErr
 		}
@@ -146,7 +146,7 @@ func (s *enrollmentDeletionService) DeleteChild(ctx context.Context, requestID, 
 		return nil, err
 	}
 	var impact *enrollmentModels.DeletionImpact
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		if lockErr := s.lockRequestForDeletion(txCtx, requestID); lockErr != nil {
 			return lockErr
 		}

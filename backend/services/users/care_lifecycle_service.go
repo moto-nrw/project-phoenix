@@ -15,8 +15,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -207,7 +207,7 @@ type careLifecycleService struct {
 	auditService          StudentAuditService
 	lockCareBookingWrites func(context.Context) error
 	studentDeletion       StudentDeletionService
-	txHandler             *modelBase.TxHandler
+	txHandler             *tenant.TransactionRunner
 	logger                *slog.Logger
 	today                 func() timezone.Date
 }
@@ -250,7 +250,7 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		auditService:          deps.AuditService,
 		studentDeletion:       deps.StudentDeletion,
 		lockCareBookingWrites: deps.LockCareBookingWrites,
-		txHandler:             modelBase.NewTxHandler(deps.DB),
+		txHandler:             tenant.NewTransactionRunner(),
 		logger:                deps.Logger,
 		today:                 deps.Today,
 	}
@@ -286,7 +286,7 @@ func (s *careLifecycleService) DeleteWithdrawal(ctx context.Context, completionI
 		return nil, errors.New("care lifecycle: student deletion service is not configured")
 	}
 	var result *StudentDeletionResult
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for deletion: %w", err)
@@ -366,7 +366,7 @@ func (s *careLifecycleService) confirm(
 	if err != nil {
 		return nil, err
 	}
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.applyCareExitConfirmation(txCtx, state)
 	})
 	if err != nil {
@@ -609,7 +609,7 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 	}
 
 	cancelled := 0
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for cancellation: %w", err)
@@ -695,7 +695,7 @@ func (s *careLifecycleService) Resume(ctx context.Context, input CareResumeInput
 		return ErrCareResumeStartInPast
 	}
 
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		locked, err := s.studentRepo.FindByIDsForUpdate(txCtx, []int64{input.StudentID})
 		if err != nil {
 			return err
@@ -1049,7 +1049,7 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 	closedPresence := 0
 	closedRequests := 0
 	var releasedTags map[int64]string
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for due effects: %w", err)
@@ -1116,7 +1116,7 @@ func (s *careLifecycleService) reconcileExpiredCareBookings(ctx context.Context,
 	if s.bookingsAuthoritative == nil {
 		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
 	}
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		if s.lockCareBookingWrites != nil {
 			if err := s.lockCareBookingWrites(txCtx); err != nil {
 				return fmt.Errorf("care lifecycle: lock care booking writes for booking expiry: %w", err)

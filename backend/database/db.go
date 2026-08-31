@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strconv"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -22,26 +22,26 @@ func DBConn() (*bun.DB, error) {
 	return openPool(GetDatabaseDSN(), "database pool configured")
 }
 
-// openPool opens a connection pool for dsn with the shared viper-driven pool
+// openPool opens a connection pool for dsn with the required environment pool
 // sizing and verifies connectivity. logMsg distinguishes the superuser pool
 // from the phoenix_auth serve pool in startup logs.
 func openPool(dsn, logMsg string) (*bun.DB, error) {
-	config, err := resolvePoolConfig()
+	pool, err := poolConfigFromEnv()
 	if err != nil {
 		return nil, err
 	}
-
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
-	sqldb.SetMaxOpenConns(config.maxOpen)
-	sqldb.SetMaxIdleConns(config.maxIdle)
-	sqldb.SetConnMaxLifetime(config.lifetime)
-	sqldb.SetConnMaxIdleTime(config.idleTime)
+
+	sqldb.SetMaxOpenConns(pool.maxOpen)
+	sqldb.SetMaxIdleConns(pool.maxIdle)
+	sqldb.SetConnMaxLifetime(pool.maxLifetime)
+	sqldb.SetConnMaxIdleTime(pool.maxIdleTime)
 
 	slog.Info(logMsg,
-		"max_open_conns", config.maxOpen,
-		"max_idle_conns", config.maxIdle,
-		"conn_max_lifetime", config.lifetime.String(),
-		"conn_max_idle_time", config.idleTime.String(),
+		"max_open_conns", pool.maxOpen,
+		"max_idle_conns", pool.maxIdle,
+		"conn_max_lifetime", pool.maxLifetime.String(),
+		"conn_max_idle_time", pool.maxIdleTime.String(),
 	)
 
 	db := bun.NewDB(sqldb, pgdialect.New())
@@ -54,49 +54,49 @@ func openPool(dsn, logMsg string) (*bun.DB, error) {
 }
 
 type poolConfig struct {
-	maxOpen  int
-	maxIdle  int
-	lifetime time.Duration
-	idleTime time.Duration
+	maxOpen     int
+	maxIdle     int
+	maxLifetime time.Duration
+	maxIdleTime time.Duration
 }
 
-func resolvePoolConfig() (poolConfig, error) {
-	maxOpen, err := requiredPositiveInt("db_max_open_conns", "DB_MAX_OPEN_CONNS")
+func poolConfigFromEnv() (poolConfig, error) {
+	maxOpen, err := requiredPositiveInt("DB_MAX_OPEN_CONNS")
 	if err != nil {
 		return poolConfig{}, err
 	}
-	maxIdle, err := requiredPositiveInt("db_max_idle_conns", "DB_MAX_IDLE_CONNS")
+	maxIdle, err := requiredPositiveInt("DB_MAX_IDLE_CONNS")
 	if err != nil {
 		return poolConfig{}, err
 	}
 	if maxIdle > maxOpen {
 		return poolConfig{}, fmt.Errorf("DB_MAX_IDLE_CONNS must not exceed DB_MAX_OPEN_CONNS")
 	}
-	lifetime, err := requiredPositiveDuration("db_conn_max_lifetime", "DB_CONN_MAX_LIFETIME")
+	maxLifetime, err := requiredPositiveDuration("DB_CONN_MAX_LIFETIME")
 	if err != nil {
 		return poolConfig{}, err
 	}
-	idleTime, err := requiredPositiveDuration("db_conn_max_idle_time", "DB_CONN_MAX_IDLE_TIME")
+	maxIdleTime, err := requiredPositiveDuration("DB_CONN_MAX_IDLE_TIME")
 	if err != nil {
 		return poolConfig{}, err
 	}
-	return poolConfig{maxOpen: maxOpen, maxIdle: maxIdle, lifetime: lifetime, idleTime: idleTime}, nil
+	return poolConfig{maxOpen: maxOpen, maxIdle: maxIdle, maxLifetime: maxLifetime, maxIdleTime: maxIdleTime}, nil
 }
 
-func requiredPositiveInt(key, envName string) (int, error) {
-	raw := viper.GetString(key)
+func requiredPositiveInt(name string) (int, error) {
+	raw := os.Getenv(name)
 	value, err := strconv.Atoi(raw)
-	if err != nil || value <= 0 {
-		return 0, fmt.Errorf("%s must be a positive integer", envName)
+	if raw == "" || err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
 	}
 	return value, nil
 }
 
-func requiredPositiveDuration(key, envName string) (time.Duration, error) {
-	raw := viper.GetString(key)
+func requiredPositiveDuration(name string) (time.Duration, error) {
+	raw := os.Getenv(name)
 	value, err := time.ParseDuration(raw)
-	if err != nil || value <= 0 {
-		return 0, fmt.Errorf("%s must be a positive duration", envName)
+	if raw == "" || err != nil || value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", name)
 	}
 	return value, nil
 }

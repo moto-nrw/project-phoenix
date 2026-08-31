@@ -50,7 +50,7 @@ func (r *StaffNoticeRepository) List(ctx context.Context, includeInactive bool) 
 	}
 	query = base.WithTenantFilter(ctx, query, "staff_notice")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff notices", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff notices", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -73,7 +73,7 @@ func (r *StaffNoticeRepository) ListValidOn(ctx context.Context, date timezone.D
 			users.StaffNoticePriorityImportant)
 	query = base.WithTenantFilter(ctx, query, "staff_notice")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff notices valid on date", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff notices valid on date", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -92,7 +92,7 @@ func (r *StaffNoticeRepository) Acknowledge(ctx context.Context, noticeID, accou
 		ModelTableExpr("users.staff_notice_acks").
 		On("CONFLICT (notice_id, account_id) DO NOTHING").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "acknowledge staff notice", Err: err}
+		return &modelBase.DatabaseError{Op: "acknowledge staff notice", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -112,7 +112,7 @@ func (r *StaffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID
 		Where(`"sna".notice_id IN (?)`, bun.List(noticeIDs))
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load own staff notice acknowledgements", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "load own staff notice acknowledgements", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.NoticeID] = row.AcknowledgedAt
@@ -140,7 +140,7 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		GroupExpr(`"sna".notice_id`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "count staff notice acknowledgements", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "count staff notice acknowledgements", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.NoticeID] = row.Count

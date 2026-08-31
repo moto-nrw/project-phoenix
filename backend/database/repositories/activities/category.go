@@ -71,7 +71,7 @@ func (r *CategoryRepository) findByName(ctx context.Context, name string, includ
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -91,7 +91,7 @@ func (r *CategoryRepository) FindByIDForShare(ctx context.Context, id int64) (*a
 
 	query = base.WithTenantFilter(ctx, query, "category")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find category by id for share", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find category by id for share", Err: base.TranslateNotFound(err)}
 	}
 	return category, nil
 }
@@ -121,11 +121,11 @@ func (r *CategoryRepository) UpdateIfActive(ctx context.Context, category *activ
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "update active category", Err: err}
+		return false, &modelBase.DatabaseError{Op: "update active category", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "update active category", Err: err}
+		return false, &modelBase.DatabaseError{Op: "update active category", Err: base.TranslateNotFound(err)}
 	}
 	return rows == 1, nil
 }
@@ -147,7 +147,7 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -183,7 +183,7 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 			Where("tenant_id = ?", tenantID).
 			Where("id IN (?)", bun.List(distinctIDs)).
 			Scan(ctx, &found); err != nil {
-			return &modelBase.DatabaseError{Op: "validate category ids", Err: err}
+			return &modelBase.DatabaseError{Op: "validate category ids", Err: base.TranslateNotFound(err)}
 		}
 		if found != len(distinctIDs) {
 			return activities.ErrUnknownCategoryIDs
@@ -201,7 +201,7 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 		clear = clear.Where("id NOT IN (?)", bun.List(distinctIDs))
 	}
 	if _, err := clear.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear category shift type", Err: err}
+		return &modelBase.DatabaseError{Op: "clear category shift type", Err: base.TranslateNotFound(err)}
 	}
 
 	if len(distinctIDs) == 0 {
@@ -214,7 +214,7 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 		Where("tenant_id = ?", tenantID).
 		Where("id IN (?)", bun.List(distinctIDs)).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "set category shift type", Err: err}
+		return &modelBase.DatabaseError{Op: "set category shift type", Err: base.TranslateNotFound(err)}
 	}
 
 	return nil
@@ -263,7 +263,7 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

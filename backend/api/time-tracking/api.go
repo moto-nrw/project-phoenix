@@ -177,19 +177,19 @@ func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.D
 
 	if fromStr == "" || toStr == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	to, err = timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 
 	return from, to, true

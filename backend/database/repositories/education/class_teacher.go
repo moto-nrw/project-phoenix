@@ -40,7 +40,7 @@ func (r *ClassTeacherRepository) FindByStaff(ctx context.Context, staffID int64)
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -62,7 +62,7 @@ func (r *ClassTeacherRepository) DeleteByStaffID(ctx context.Context, staffID in
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete by staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := result.RowsAffected()

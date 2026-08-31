@@ -18,7 +18,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1288,7 +1287,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	require.NoError(t, err)
 	assert.False(t, preview.ArrivalExpectationsFollowBookings)
 
-	otherTenantCtx := tenant.WithTenantID(context.Background(), testpkg.Tenant(t)+1)
+	otherTenantCtx := testpkg.TenantContext(testpkg.Tenant(t) + 1)
 	foreignRows, err := env.repos.OfferingChangeImpact.ListManualPlanningOccurrences(
 		otherTenantCtx, fx.studentID, fx.switchDate, env.sourcePhase.ServiceEndDate,
 	)

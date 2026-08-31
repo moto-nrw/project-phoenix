@@ -280,7 +280,7 @@ func TestMonthClose_RejectsUnfinishedMonth(t *testing.T) {
 	f := newSnapshotFixture(t)
 	today := timezone.TodayDate()
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, today.Year, int(today.Month), "zu früh")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, today.Year(), int(today.Month()), "zu früh")
 	require.ErrorIs(t, err, active.ErrMonthNotClosable)
 }
 

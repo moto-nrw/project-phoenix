@@ -50,7 +50,7 @@ func RegisterAfterCommit(ctx context.Context, fn func()) {
 }
 
 // ContextWithoutAfterCommitHooks masks hooks inherited from an ambient
-// transaction. Use it with ContextWithoutTx before starting an independently
+// transaction. Use it with ContextWithoutTransaction before starting an independently
 // committed transaction, so its callbacks cannot drain the caller's hooks.
 func ContextWithoutAfterCommitHooks(ctx context.Context) context.Context {
 	return context.WithValue(ctx, afterCommitKey{}, (*afterCommitHooks)(nil))

@@ -94,3 +94,14 @@ func TestIsUniqueViolation_NonUniqueErrorsRemainDistinct(t *testing.T) {
 		})
 	}
 }
+
+func TestIsNoRowsUsesRepositorySentinelIdentity(t *testing.T) {
+	t.Parallel()
+
+	if !IsNoRows(fmt.Errorf("lookup: %w", ErrNotFound)) {
+		t.Fatal("wrapped ErrNotFound must classify as not found")
+	}
+	if IsNoRows(errors.New(ErrNotFound.Error())) {
+		t.Fatal("an unrelated error with the same text must not classify as not found")
+	}
+}

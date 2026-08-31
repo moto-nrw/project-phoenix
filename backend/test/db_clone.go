@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -77,6 +78,9 @@ func initPackageTestDB() error {
 	packageClone = clone
 	packageCloneCfg = templateCfg
 
+	if err := applyDatabaseTestConfig(clone.DSN); err != nil {
+		return fmt.Errorf("configure package test database: %w", err)
+	}
 	applyViperTestConfig()
 	sharedTestDB, err = openBootstrappedPackageDB(ctx, clone)
 	if err != nil {
@@ -87,6 +91,25 @@ func initPackageTestDB() error {
 	}
 	if err := testdb.SnapshotSharedBaseline(ctx, clone.DSN); err != nil {
 		return fmt.Errorf("snapshot clone baseline: %w", err)
+	}
+	return nil
+}
+
+// applyDatabaseTestConfig points database.DBConn at this package's clone and
+// supplies the explicit pool configuration required by the production
+// database boundary. These are test-process settings, not runtime fallbacks.
+func applyDatabaseTestConfig(dsn string) error {
+	settings := map[string]string{
+		"TEST_DB_DSN":           dsn,
+		"DB_MAX_OPEN_CONNS":     strconv.Itoa(poolSize()),
+		"DB_MAX_IDLE_CONNS":     strconv.Itoa(poolSize()),
+		"DB_CONN_MAX_LIFETIME":  "30m",
+		"DB_CONN_MAX_IDLE_TIME": "10m",
+	}
+	for name, value := range settings {
+		if err := os.Setenv(name, value); err != nil {
+			return fmt.Errorf("set %s: %w", name, err)
+		}
 	}
 	return nil
 }
@@ -189,19 +212,11 @@ func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (
 // the package clone. APP_ENV=test deliberately resolves only test_db_dsn;
 // setting db_dsn would be ignored and would silently send integration tests
 // to the shared template database.
-//
-// Pool budget: one pool per test binary, sized from the binary's OWN
-// parallelism (poolSize), with idle == open so the pool holds what it opens
-// instead of re-dialing per test.
 func applyViperTestConfig() {
 	viper.AutomaticEnv()
 	applyStaticViperTestConfig()
 	viper.Set("test_db_dsn", packageClone.DSN)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
-	viper.Set("db_max_open_conns", poolSize())
-	viper.Set("db_max_idle_conns", poolSize())
-	viper.Set("db_conn_max_lifetime", "5m")
-	viper.Set("db_conn_max_idle_time", "1m")
 }
 
 func applyStaticViperTestConfig() {

@@ -654,7 +654,7 @@ func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
 	start := timezone.NewDate(2026, 1, 5)
 	ctx := context.TODO()
 
-	err := validateWindow(timezone.Date{}, start)
+	err := validateWindow(timezone.Date(""), start)
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
 	assert.Contains(t, err.Error(), "from and to are required")
 

@@ -280,7 +280,7 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Create-Dupe-Period-%d", suffix),
-		timezone.NewDate(2026, 8, 24).AddDays(-1), timezone.NewDate(2026, 8, 24).AddDays(7))
+		instanceDate.AddDays(-1), instanceDate.AddDays(7))
 	testpkg.SetCalendarPeriodActive(t, db, period, true)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().

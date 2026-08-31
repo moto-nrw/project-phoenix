@@ -248,7 +248,7 @@ func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
 
 	assert.False(t, info.Document.CreatedAt.IsZero())
 	require.NotNil(t, info.RetainUntil)
-	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year+10, info.RetainUntil.Year)
+	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year()+10, info.RetainUntil.Year())
 }
 
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
@@ -274,17 +274,17 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	lohn := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, admin)
 	uploaded := timezone.DateFromTime(lohn.Document.CreatedAt)
 	require.NotNil(t, lohn.RetainUntil)
-	assert.Equal(t, timezone.NewDate(uploaded.Year+10, uploaded.Month, uploaded.Day), *lohn.RetainUntil)
+	assert.Equal(t, timezone.NewDate(uploaded.Year()+10, uploaded.Month(), uploaded.Day()), *lohn.RetainUntil)
 	assert.Nil(t, lohn.ReviewDue)
 
 	au := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, admin)
 	require.NotNil(t, au.RetainUntil)
-	assert.Equal(t, uploaded.Year+4, au.RetainUntil.Year)
+	assert.Equal(t, uploaded.Year()+4, au.RetainUntil.Year())
 
 	bewerbung := s.create(t, userModels.StaffDocumentCategoryBewerbung, admin)
 	assert.Nil(t, bewerbung.RetainUntil)
 	require.NotNil(t, bewerbung.ReviewDue)
-	assert.Equal(t, timezone.NewDate(uploaded.Year, uploaded.Month+6, uploaded.Day), *bewerbung.ReviewDue)
+	assert.Equal(t, timezone.NewDate(uploaded.Year(), uploaded.Month()+6, uploaded.Day()), *bewerbung.ReviewDue)
 
 	// Arbeitsvertrag: open without a contract end, contract end + 6 years
 	// once the Stammdaten row carries one.

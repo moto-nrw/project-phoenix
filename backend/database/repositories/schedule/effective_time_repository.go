@@ -91,7 +91,7 @@ func (r *studentScheduleRepository[T]) FindByStudentID(
 	query = base.WithTenantFilter(ctx, query, r.config.alias)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: opFindByStudentID, Err: err}
+		return nil, &modelBase.DatabaseError{Op: opFindByStudentID, Err: base.TranslateNotFound(err)}
 	}
 	return schedules, nil
 }
@@ -117,7 +117,7 @@ func (r *studentScheduleRepository[T]) FindByStudentIDAndWeekday(
 		var zero T
 		return zero, &modelBase.DatabaseError{
 			Op:  "find by student id and weekday",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return schedule, nil
@@ -143,7 +143,7 @@ func (r *studentScheduleRepository[T]) FindByStudentIDsAndWeekday(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ids and weekday",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return schedules, nil
@@ -168,7 +168,7 @@ func (r *studentScheduleRepository[T]) FindByStudentIDs(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return schedules, nil
@@ -197,7 +197,7 @@ func (r *studentScheduleRepository[T]) UpsertSchedule(ctx context.Context, sched
 		Returning("id").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: r.upsertOp, Err: err}
+		return &modelBase.DatabaseError{Op: r.upsertOp, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -214,7 +214,7 @@ func (r *studentScheduleRepository[T]) DeleteByStudentID(
 	query = base.WithTenantFilter(ctx, query, r.config.alias)
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: opDeleteByStudentID, Err: err}
+		return &modelBase.DatabaseError{Op: opDeleteByStudentID, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -263,7 +263,7 @@ func (r *studentExceptionRepository[T]) FindByStudentID(
 	query = base.WithTenantFilter(ctx, query, r.config.alias)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: opFindByStudentID, Err: err}
+		return nil, &modelBase.DatabaseError{Op: opFindByStudentID, Err: base.TranslateNotFound(err)}
 	}
 	return exceptions, nil
 }
@@ -284,7 +284,7 @@ func (r *studentExceptionRepository[T]) FindUpcomingByStudentID(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find upcoming by student id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return exceptions, nil
@@ -311,7 +311,7 @@ func (r *studentExceptionRepository[T]) FindByStudentIDAndDate(
 		var zero T
 		return zero, &modelBase.DatabaseError{
 			Op:  "find by student id and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return exception, nil
@@ -337,7 +337,7 @@ func (r *studentExceptionRepository[T]) FindByStudentIDsAndDate(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ids and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return exceptions, nil
@@ -362,7 +362,7 @@ func (r *studentExceptionRepository[T]) FindByStudentIDAndDateRange(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student id and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return exceptions, nil
@@ -391,7 +391,7 @@ func (r *studentExceptionRepository[T]) FindByStudentIDsAndDateRange(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ids and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return exceptions, nil
@@ -409,7 +409,7 @@ func (r *studentExceptionRepository[T]) DeleteByStudentID(
 	query = base.WithTenantFilter(ctx, query, r.config.alias)
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: opDeleteByStudentID, Err: err}
+		return &modelBase.DatabaseError{Op: opDeleteByStudentID, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -427,7 +427,7 @@ func (r *studentExceptionRepository[T]) DeletePastExceptions(
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete past exceptions", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete past exceptions", Err: base.TranslateNotFound(err)}
 	}
 	return result.RowsAffected()
 }
@@ -476,7 +476,7 @@ func (r *studentNoteRepository[T]) FindByStudentID(
 	query = base.WithTenantFilter(ctx, query, r.config.alias)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: opFindByStudentID, Err: err}
+		return nil, &modelBase.DatabaseError{Op: opFindByStudentID, Err: base.TranslateNotFound(err)}
 	}
 	return notes, nil
 }
@@ -498,7 +498,7 @@ func (r *studentNoteRepository[T]) FindByStudentIDAndDate(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student id and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return notes, nil
@@ -525,7 +525,7 @@ func (r *studentNoteRepository[T]) FindByStudentIDsAndDate(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ids and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return notes, nil
@@ -543,7 +543,7 @@ func (r *studentNoteRepository[T]) DeleteByStudentID(
 	query = base.WithTenantFilter(ctx, query, r.config.alias)
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: opDeleteByStudentID, Err: err}
+		return &modelBase.DatabaseError{Op: opDeleteByStudentID, Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -561,7 +561,7 @@ func (r *studentNoteRepository[T]) DeletePastNotes(
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete past notes", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete past notes", Err: base.TranslateNotFound(err)}
 	}
 	return result.RowsAffected()
 }
