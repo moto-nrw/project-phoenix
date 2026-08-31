@@ -6,13 +6,13 @@
 // (with #4a7a15 text for AA contrast on the tinted background).
 
 // Single skeleton card that matches the populated room card's outer
-// shell: same rounded-3xl, same min-h-[180px], same flex layout so the
+// shell: same rounded-2xl, same min-h-[180px], same flex layout so the
 // page doesn't reshuffle on swap. Pulse blocks stand in for title row,
 // meta line, status pill, two middle rows, and the footer hint.
 function RoomCardSkeleton() {
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md">
-      <div className="bg-moto-blue absolute inset-0 rounded-3xl opacity-[0.03]"></div>
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <div className="bg-moto-blue absolute inset-0 rounded-2xl opacity-[0.03]"></div>
       <div className="relative flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">
           <div className="min-w-0 flex-1 space-y-2">

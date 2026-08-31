@@ -147,7 +147,7 @@ export default function NfcQuickstartPage() {
                     </span>
                     <div
                       className={[
-                        "bg-moto-green/16 text-moto-green-strong flex h-16 w-16 items-center justify-center rounded-3xl print:h-12 print:w-12 print:rounded-2xl",
+                        "bg-moto-green/16 text-moto-green-strong flex h-16 w-16 items-center justify-center rounded-2xl print:h-12 print:w-12",
                         isRight ? "order-1" : "order-2",
                       ].join(" ")}
                     >
@@ -180,7 +180,7 @@ export default function NfcQuickstartPage() {
 
                     <div
                       className={[
-                        "relative w-full rounded-3xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:rounded-2xl print:p-4",
+                        "relative w-full rounded-2xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:p-4",
                         isRight ? "md:mr-0 print:mr-0" : "",
                       ].join(" ")}
                     >
@@ -208,7 +208,7 @@ export default function NfcQuickstartPage() {
                         <p className="mt-3 text-[15px] leading-6 text-gray-700 print:mt-2 print:text-[13px] print:leading-5">
                           {step.text}
                         </p>
-                        <p className="mt-3 rounded-2xl bg-[#F9FAFB] px-4 py-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:rounded-xl print:px-3 print:py-2 print:text-xs print:leading-4">
+                        <p className="mt-3 rounded-xl bg-gray-50 px-4 py-3 text-sm leading-5 font-medium text-gray-700 print:mt-2 print:px-3 print:py-2 print:text-xs print:leading-4">
                           {step.detail}
                         </p>
                       </div>
@@ -225,7 +225,7 @@ export default function NfcQuickstartPage() {
                 return (
                   <div
                     key={hint}
-                    className="rounded-2xl border border-gray-200 bg-[#F9FAFB] p-4 print:rounded-xl print:p-3"
+                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4 print:rounded-xl print:p-3"
                   >
                     <Icon
                       className="text-moto-green-strong h-5 w-5"
@@ -239,9 +239,9 @@ export default function NfcQuickstartPage() {
               })}
             </section>
 
-            <section className="mt-6 rounded-3xl border border-gray-200 bg-[#F9FAFB] p-5 print:mt-4 print:rounded-2xl print:p-4">
+            <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5 print:mt-4 print:p-4">
               <div className="flex items-start gap-4 print:gap-3">
-                <span className="bg-moto-green/16 text-moto-green-strong flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl print:h-10 print:w-10 print:rounded-xl">
+                <span className="bg-moto-green/16 text-moto-green-strong flex h-12 w-12 shrink-0 items-center justify-center rounded-xl print:h-10 print:w-10">
                   <BookOpen
                     className="h-6 w-6 print:h-5 print:w-5"
                     aria-hidden="true"
