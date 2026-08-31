@@ -442,6 +442,7 @@ func (r *RequestRepository) updateGuardianData(ctx context.Context, req *enrollm
 		Set("guardian_last_name = ?", req.GuardianLastName).
 		Set("guardian_phone = ?", req.GuardianPhone).
 		Set("consent_flags = ?", req.ConsentFlags).
+		Set("legal_blocks_snapshot = ?", req.LegalBlocksSnapshot).
 		Set("custom_data = ?", req.CustomData).
 		Set("updated_at = NOW()").
 		Where(`"request".id = ?`, req.ID)

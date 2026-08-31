@@ -865,6 +865,14 @@ func (b *FormLegalBlock) Validate() error {
 	if b.Kind == LegalBlockKindNotice && b.Required {
 		return fmt.Errorf("notice legal block %q cannot be required", b.Key)
 	}
+	// Consent is only valid when freely given (Art. 7 Abs. 4 DSGVO), so a
+	// consent block must never gate the submit. A required checkbox is a
+	// terms/acknowledgement block, not a consent — the editor converts
+	// accordingly. Already-persisted schema versions are only read, never
+	// re-validated, so legacy consent+required rows keep resolving.
+	if b.Kind == LegalBlockKindConsent && b.Required {
+		return fmt.Errorf("consent legal block %q cannot be required", b.Key)
+	}
 	if b.DisplayMode == "" {
 		b.DisplayMode = LegalBlockDisplayModeText
 	}
