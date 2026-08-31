@@ -43,7 +43,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -68,7 +68,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -96,7 +96,7 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by teacher",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -142,7 +142,7 @@ func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, g
 	if err := assignedQuery.Scan(ctx, &assigned); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list staff IDs by education group IDs (assigned)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	appendRows(assigned)
@@ -161,7 +161,7 @@ func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, g
 	if err := substitutedQuery.Scan(ctx, &substituted); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list staff IDs by education group IDs (substitutions)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	appendRows(substituted)
@@ -197,7 +197,7 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with room",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -241,7 +241,7 @@ func (r *GroupRepository) FindByIDsWithRooms(ctx context.Context, ids []int64) (
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs with rooms",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -313,7 +313,7 @@ func (r *GroupRepository) ListWithRooms(ctx context.Context, params *education.G
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`)
 	query = base.WithTenantFilter(ctx, query, "group")
 	filter := params.Filter().WithTableAlias("group")
-	query = filter.ApplyToQuery(query)
+	query = base.ApplyFilter(query, filter)
 	if params != nil {
 		if params.SortByName {
 			if params.Descending {
@@ -327,7 +327,7 @@ func (r *GroupRepository) ListWithRooms(ctx context.Context, params *education.G
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list with options", Err: base.TranslateNotFound(err)}
 	}
 
 	groups := make([]*education.Group, len(results))

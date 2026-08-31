@@ -533,6 +533,6 @@ func newStaffDocumentInfo(doc *userModels.StaffDocument, contractEnd *timezone.D
 // addToDate returns d shifted by whole years and months, normalized the way
 // time.Date normalizes out-of-range components (Feb 29 + 1y → Mar 1).
 func addToDate(d timezone.Date, years int, months int) *timezone.Date {
-	shifted := timezone.NewDate(d.Year+years, d.Month+time.Month(months), d.Day)
+	shifted := timezone.NewDate(d.Year()+years, d.Month()+time.Month(months), d.Day())
 	return &shifted
 }

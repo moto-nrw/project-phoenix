@@ -891,10 +891,10 @@ func TestShiftService_ListRejectsMissingRangeDates(t *testing.T) {
 
 	svc, _, _ := shiftServiceFixture()
 
-	_, err := svc.ListShifts(context.Background(), timezone.Date{}, timezone.NewDate(2026, time.July, 6))
+	_, err := svc.ListShifts(context.Background(), timezone.Date(""), timezone.NewDate(2026, time.July, 6))
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 
-	_, err = svc.ListShifts(context.Background(), timezone.NewDate(2026, time.July, 6), timezone.Date{})
+	_, err = svc.ListShifts(context.Background(), timezone.NewDate(2026, time.July, 6), timezone.Date(""))
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
 

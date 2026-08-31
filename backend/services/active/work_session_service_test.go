@@ -3551,7 +3551,7 @@ func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
 		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 240},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date("")))
 
 	assert.Equal(t, workforceDate(timezone.NewDate(2026, 8, 24)), written, "rotational rows must carry the version's own anchor")
 	require.NotNil(t, staff.RotationAnchorDate)
@@ -3578,7 +3578,7 @@ func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
 	entries := []*configModels.StaffWorkSchedule{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date("")))
 
 	assert.True(t, written.IsZero(), "single-week rows have no parity to anchor")
 	assert.Nil(t, staff.RotationAnchorDate)
@@ -3606,7 +3606,7 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	entries := []*configModels.StaffWorkSchedule{
 		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
 	}
-	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date("")))
 
 	assert.Equal(t, workforceDate(existing), written)
 	require.NotNil(t, staff.RotationAnchorDate)
@@ -3690,8 +3690,8 @@ func (m *wsMockStaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(cont
 // wsClosedBlock builds a closed block on `day` between the given Berlin wall
 // clock hours, for overlap-guard tests.
 func wsClosedBlock(id int64, day timezone.Date, fromHour, toHour int) *activeModels.WorkSession {
-	checkIn := time.Date(day.Year, time.Month(day.Month), day.Day, fromHour, 0, 0, 0, timezone.Berlin)
-	checkOut := time.Date(day.Year, time.Month(day.Month), day.Day, toHour, 0, 0, 0, timezone.Berlin)
+	checkIn := time.Date(day.Year(), day.Month(), day.Day(), fromHour, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(day.Year(), day.Month(), day.Day(), toHour, 0, 0, 0, timezone.Berlin)
 	return &activeModels.WorkSession{
 		Model:        base.Model{ID: id},
 		StaffID:      100,

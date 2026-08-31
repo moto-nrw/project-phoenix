@@ -2151,7 +2151,7 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 		maxEmpty := 4*(12/gcdInt(interval, 12)) + 12
 		empty := 0
 		for k := 0; len(out) < limit; k++ {
-			year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+			year, month := addMonthsTo(start.Year(), int(start.Month()), k*interval)
 			if past(timezone.NewDate(year, time.Month(month), 1)) {
 				break
 			}
@@ -2188,15 +2188,15 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 		const maxEmpty = 400
 		empty := 0
 		for k := 0; len(out) < limit; k++ {
-			year := start.Year + k*interval
-			if daysInMonth(year, int(start.Month)) < start.Day {
+			year := start.Year() + k*interval
+			if daysInMonth(year, int(start.Month())) < start.Day() {
 				empty++
 				if empty > maxEmpty {
 					break
 				}
 				continue
 			}
-			d := timezone.NewDate(year, start.Month, start.Day)
+			d := timezone.NewDate(year, start.Month(), start.Day())
 			if past(d) {
 				break
 			}
@@ -2212,7 +2212,7 @@ func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.
 // is exactly what matchesRule compares against).
 func monthlyCandidateDays(rule *calModels.RecurrenceRule, start timezone.Date) []int {
 	if len(rule.MonthDays) == 0 {
-		return []int{start.Day}
+		return []int{start.Day()}
 	}
 	// De-duplicate: a repeated month day would emit that occurrence twice and
 	// exhaust occurrence_count early.
@@ -2368,7 +2368,7 @@ func firstMatchingOccurrence(start timezone.Date, interval int, rule *calModels.
 	}
 }
 
-// firstMonthlyOccurrence finds the first reachable month (start.Month + k·interval)
+// firstMonthlyOccurrence finds the first reachable month (start.Month() + k·interval)
 // that contains a requested month-day valid for that month and on/after start.
 // The (month-of-year, leap-phase) pattern of reachable months repeats within a
 // bounded number of steps, so scanning that many steps proves impossibility
@@ -2380,7 +2380,7 @@ func firstMonthlyOccurrence(start timezone.Date, interval int, monthDays []int) 
 	// (+buffer) covers up to four leap cycles for a February-only day-29 rule.
 	maxSteps := 4*(12/gcdInt(interval, 12)) + 12
 	for k := 0; k <= maxSteps; k++ {
-		year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+		year, month := addMonthsTo(start.Year(), int(start.Month()), k*interval)
 		dim := daysInMonth(year, month)
 		for _, day := range days {
 			if day < 1 || day > dim {
@@ -2473,22 +2473,22 @@ func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule)
 		}
 		return containsString(weekdays, strings.ToLower(candidate.Weekday().String()))
 	case calModels.RecurrenceFrequencyMonthly:
-		months := (candidate.Year-start.Year)*12 + int(candidate.Month-start.Month)
+		months := (candidate.Year()-start.Year())*12 + int(candidate.Month()-start.Month())
 		if months < 0 || months%rule.IntervalCount != 0 {
 			return false
 		}
 		if len(rule.MonthDays) == 0 {
-			return candidate.Day == start.Day
+			return candidate.Day() == start.Day()
 		}
 		for _, day := range rule.MonthDays {
-			if candidate.Day == day {
+			if candidate.Day() == day {
 				return true
 			}
 		}
 		return false
 	case calModels.RecurrenceFrequencyYearly:
-		years := candidate.Year - start.Year
-		return years >= 0 && years%rule.IntervalCount == 0 && candidate.Month == start.Month && candidate.Day == start.Day
+		years := candidate.Year() - start.Year()
+		return years >= 0 && years%rule.IntervalCount == 0 && candidate.Month() == start.Month() && candidate.Day() == start.Day()
 	default:
 		return false
 	}

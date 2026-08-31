@@ -33,7 +33,7 @@ func TestStaffShiftValidate(t *testing.T) {
 	assert.Error(t, missingStaff.Validate())
 
 	missingDate := testShift(8, 16)
-	missingDate.Date = timezone.Date{}
+	missingDate.Date = timezone.Date("")
 	assert.Error(t, missingDate.Validate())
 
 	inverted := testShift(16, 8)

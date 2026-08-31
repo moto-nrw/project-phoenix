@@ -341,7 +341,7 @@ func TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedErro
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	repo := repositories.NewFactory(db).GuardianInvitation
 	rowsErr := errors.New("rows affected failed")
-	mock.ExpectExec(`UPDATE auth\.guardian_invitations AS "guardian_invitation"`).
+	mock.ExpectExec(`UPDATE "auth"\."guardian_invitations" AS "guardian_invitation"`).
 		WillReturnResult(sqlmock.NewErrorResult(rowsErr))
 
 	err = repo.UpdateEmailStatus(context.Background(), 42, nil, nil, 1)

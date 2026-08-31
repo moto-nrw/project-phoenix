@@ -88,7 +88,7 @@ func TestShiftTypeService_CreateDefaultsIsIdempotent(t *testing.T) {
 	// Fresh tenant so the count is deterministic.
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 
 	first, err := svc.CreateDefaultShiftTypes(ctx)
 	require.NoError(t, err)

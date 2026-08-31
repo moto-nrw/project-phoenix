@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	emailpkg "github.com/moto-nrw/project-phoenix/email"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -103,7 +102,7 @@ func (s *operatorAuthService) withTenantRuntime(ctx context.Context) context.Con
 
 func detachedOperatorContext(ctx context.Context) context.Context {
 	ctx = context.WithoutCancel(ctx)
-	ctx = modelBase.ContextWithoutTx(ctx)
+	ctx = tenant.ContextWithoutTransaction(ctx)
 	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 

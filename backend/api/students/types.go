@@ -710,11 +710,11 @@ func validateStudentStatusDayDates(dates []string) error {
 func normalizeStudentStatusDayDate(rawDate string) (string, timezone.Date, error) {
 	date := strings.TrimSpace(rawDate)
 	if date == "" {
-		return "", timezone.Date{}, errors.New("date cannot be empty")
+		return "", timezone.Date(""), errors.New("date cannot be empty")
 	}
 	parsed, err := timezone.ParseDate(date)
 	if err != nil {
-		return "", timezone.Date{}, errors.New("invalid date format, expected YYYY-MM-DD")
+		return "", timezone.Date(""), errors.New("invalid date format, expected YYYY-MM-DD")
 	}
 	return date, parsed, nil
 }

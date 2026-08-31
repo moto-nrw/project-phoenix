@@ -272,7 +272,7 @@ func TestSubmitCareException_TooFarDate(t *testing.T) {
 	// One day past the two-calendar-month cap is rejected; the boundary itself
 	// stays allowed.
 	today := careFixtureToday()
-	maxDate := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	maxDate := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
 		maxDate.AddDays(1), wallClock(15, 0), nil)

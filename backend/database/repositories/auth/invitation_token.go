@@ -48,7 +48,7 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitation by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -68,7 +68,7 @@ func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitation by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return entity, nil
@@ -91,7 +91,7 @@ func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update invitation",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -114,7 +114,7 @@ func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find valid invitation by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -135,7 +135,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find invitations by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return tokens, nil
@@ -157,7 +157,7 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark invitation as used",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -181,7 +181,7 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "invalidate invitations by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -206,7 +206,7 @@ func (r *InvitationTokenRepository) InvalidateByTenantID(ctx context.Context, te
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "invalidate invitations by tenant ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	count, err := res.RowsAffected()
@@ -232,7 +232,7 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired invitations",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -279,7 +279,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list invitation tokens",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

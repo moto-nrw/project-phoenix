@@ -1,22 +1,30 @@
-package base_test
+package base
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // accountTableAlias is the schema-qualified table expression for auth.accounts
 const accountTableAlias = `auth.accounts AS "account"`
+
+type queryAccountTable struct{} //nolint:unused // BUN consumes this table marker through reflection.
+
+type account struct {
+	//nolint:unused // BUN consumes this table metadata through reflection.
+	queryAccountTable `bun:"table:auth.accounts,alias:account"`
+	ID                int64      `bun:"id"`
+	Email             string     `bun:"email"`
+	Active            bool       `bun:"active"`
+	LastLogin         *time.Time `bun:"last_login"`
+}
 
 // =============================================================================
 // FILTER APPLY TO QUERY TESTS
@@ -30,15 +38,14 @@ func TestFilter_ApplyToQuery_Equal(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Create filter with Equal condition using table alias
-	filter := base.NewFilter().WithTableAlias("account").Equal("active", true)
+	filter := modelBase.NewFilter().WithTableAlias("account").Equal("active", true)
 
-	// Build and execute query using real auth.Account model with explicit table
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -56,14 +63,14 @@ func TestFilter_ApplyToQuery_ILike(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").ILike("email", "%@example.com")
+	filter := modelBase.NewFilter().WithTableAlias("account").ILike("email", "%@example.com")
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -81,14 +88,14 @@ func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").IsNull("last_login")
+	filter := modelBase.NewFilter().WithTableAlias("account").IsNull("last_login")
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -106,14 +113,14 @@ func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").IsNotNull("email")
+	filter := modelBase.NewFilter().WithTableAlias("account").IsNotNull("email")
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -131,14 +138,14 @@ func TestFilter_ApplyToQuery_In(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").In("active", true, false)
+	filter := modelBase.NewFilter().WithTableAlias("account").In("active", true, false)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -153,16 +160,16 @@ func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Use filter with explicit table alias
-	filter := base.NewFilter().
+	filter := modelBase.NewFilter().
 		WithTableAlias("account").
 		Equal("active", true)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -179,17 +186,17 @@ func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().
+	filter := modelBase.NewFilter().
 		WithTableAlias("account").
 		Equal("active", true).
 		ILike("email", "%@example.com")
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -208,14 +215,14 @@ func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Test GreaterThan on id field
-	filter := base.NewFilter().WithTableAlias("account").GreaterThan("id", 0)
+	filter := modelBase.NewFilter().WithTableAlias("account").GreaterThan("id", 0)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -232,14 +239,14 @@ func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").LessThan("id", 999999)
+	filter := modelBase.NewFilter().WithTableAlias("account").LessThan("id", 999999)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -265,30 +272,30 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 	testpkg.CreateTestAccount(t, db, "pagination-test-2")
 
 	// Test page 1 with size 1
-	pagination := base.NewPagination(1, 1)
+	pagination := modelBase.NewPagination(1, 1)
 
-	var page1Records []*auth.Account
+	var page1Records []*account
 	query := db.NewSelect().
 		Model(&page1Records).
 		ModelTableExpr(accountTableAlias).
 		Order("id ASC")
 
-	query = pagination.ApplyToQuery(query)
+	query = ApplyPagination(query, pagination)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
 	assert.Len(t, page1Records, 1, "Page 1 should have 1 record")
 
 	// Test page 2 with size 1
-	pagination2 := base.NewPagination(2, 1)
+	pagination2 := modelBase.NewPagination(2, 1)
 
-	var page2Records []*auth.Account
+	var page2Records []*account
 	query2 := db.NewSelect().
 		Model(&page2Records).
 		ModelTableExpr(accountTableAlias).
 		Order("id ASC")
 
-	query2 = pagination2.ApplyToQuery(query2)
+	query2 = ApplyPagination(query2, pagination2)
 
 	err = query2.Scan(ctx)
 	require.NoError(t, err)
@@ -308,14 +315,14 @@ func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Test with large page size
-	pagination := base.NewPagination(1, 1000)
+	pagination := modelBase.NewPagination(1, 1000)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = pagination.ApplyToQuery(query)
+	query = ApplyPagination(query, pagination)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -334,15 +341,15 @@ func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	sorting := &base.Sorting{}
-	sorting.AddField("id", base.SortAsc)
+	sorting := &modelBase.Sorting{}
+	sorting.AddField("id", modelBase.SortAsc)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = sorting.ApplyToQuery(query)
+	query = ApplySorting(query, *sorting)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -360,15 +367,15 @@ func TestSorting_ApplyToQuery_Descending(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	sorting := &base.Sorting{}
-	sorting.AddField("id", base.SortDesc)
+	sorting := &modelBase.Sorting{}
+	sorting.AddField("id", modelBase.SortDesc)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = sorting.ApplyToQuery(query)
+	query = ApplySorting(query, *sorting)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -386,15 +393,15 @@ func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	sorting := &base.Sorting{}
-	sorting.AddField("active", base.SortDesc).AddField("id", base.SortAsc)
+	sorting := &modelBase.Sorting{}
+	sorting.AddField("active", modelBase.SortDesc).AddField("id", modelBase.SortAsc)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = sorting.ApplyToQuery(query)
+	query = ApplySorting(query, *sorting)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -412,15 +419,15 @@ func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	qo := base.NewQueryOptions()
+	qo := modelBase.NewQueryOptions()
 	qo.Filter.WithTableAlias("account").Equal("active", true)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = qo.ApplyToQuery(query)
+	query = ApplyQueryOptions(query, qo)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -437,14 +444,14 @@ func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	qo := base.NewQueryOptions()
+	qo := modelBase.NewQueryOptions()
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = qo.ApplyToQuery(query)
+	query = ApplyQueryOptions(query, qo)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -463,19 +470,19 @@ func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Create main filter
-	mainFilter := base.NewFilter().WithTableAlias("account").Equal("active", true)
+	mainFilter := modelBase.NewFilter().WithTableAlias("account").Equal("active", true)
 
 	// Create OR filter
-	orFilter := base.Filter{}
+	orFilter := modelBase.Filter{}
 	orFilter.WithTableAlias("account").Equal("active", false)
 	mainFilter.Or(orFilter)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = mainFilter.ApplyToQuery(query)
+	query = ApplyFilter(query, mainFilter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -492,16 +499,16 @@ func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
 		Name   string `bun:"name"`
 	}
 
-	filter := base.NewFilter().WithTableAlias("item").Equal("active", true)
-	filter.Or(*base.NewFilter().Equal("name", "drop"))
-	filter.And(*base.NewFilter().Equal("name", "drop"))
+	filter := modelBase.NewFilter().WithTableAlias("item").Equal("active", true)
+	filter.Or(*modelBase.NewFilter().Equal("name", "drop"))
+	filter.And(*modelBase.NewFilter().Equal("name", "drop"))
 
 	var rows []logicalRow
 	query := db.NewSelect().
 		TableExpr(`(VALUES (TRUE, 'keep'), (FALSE, 'drop')) AS "item"("active", "name")`).
 		ColumnExpr(`"item"."active"`).
 		ColumnExpr(`"item"."name"`)
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	require.NoError(t, query.Scan(context.Background(), &rows))
 	require.Len(t, rows, 1, "(A OR B) AND C must not degrade to A OR (B AND C)")
@@ -515,14 +522,14 @@ func TestFilter_ApplyToQuery_Like(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").Like("email", "%@%")
+	filter := modelBase.NewFilter().WithTableAlias("account").Like("email", "%@%")
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -539,14 +546,14 @@ func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").GreaterThanOrEqual("id", 1)
+	filter := modelBase.NewFilter().WithTableAlias("account").GreaterThanOrEqual("id", 1)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -563,14 +570,14 @@ func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
 
 	ctx := testpkg.Ctx(t)
 
-	filter := base.NewFilter().WithTableAlias("account").LessThanOrEqual("id", 999999)
+	filter := modelBase.NewFilter().WithTableAlias("account").LessThanOrEqual("id", 999999)
 
-	var records []*auth.Account
+	var records []*account
 	query := db.NewSelect().
 		Model(&records).
 		ModelTableExpr(accountTableAlias)
 
-	query = filter.ApplyToQuery(query)
+	query = ApplyFilter(query, filter)
 
 	err := query.Scan(ctx)
 	require.NoError(t, err)
@@ -580,161 +587,6 @@ func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// TRANSACTION TESTS
-// =============================================================================
-
-func TestTxHandler_NewTxHandler(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	handler := base.NewTxHandler(db)
-	require.NotNil(t, handler)
-}
-
-func TestTxHandler_RunInTx_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
-	handler := base.NewTxHandler(db)
-
-	executed := false
-	err := handler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		executed = true
-		// Verify tx is usable - use schema-qualified table
-		var count int
-		err := tx.NewSelect().
-			TableExpr("auth.accounts").
-			ColumnExpr("COUNT(*)").
-			Scan(ctx, &count)
-		return err
-	})
-
-	require.NoError(t, err)
-	assert.True(t, executed, "Transaction function should have been executed")
-}
-
-func TestTxHandler_RunInTx_Rollback(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
-	handler := base.NewTxHandler(db)
-
-	expectedErr := errors.New("intentional error for rollback")
-	err := handler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		return expectedErr
-	})
-
-	require.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-}
-
-func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
-	handler := base.NewTxHandler(db)
-
-	tx, isNew, err := handler.GetTx(ctx)
-	require.NoError(t, err)
-	assert.True(t, isNew, "Should create a new transaction")
-
-	// Clean up - rollback the transaction
-	_ = tx.Rollback()
-}
-
-func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
-	tx, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback() }()
-
-	ctxWithTx := base.ContextWithTx(ctx, &tx)
-	handler := base.NewTxHandler(db)
-
-	err = handler.RunInTx(ctxWithTx, func(runCtx context.Context, runTx bun.Tx) error {
-		contextTx, ok := base.TxFromContext(runCtx)
-		require.True(t, ok)
-		require.NotNil(t, contextTx)
-		assert.Same(t, tx.Tx, contextTx.Tx)
-
-		var count int
-		return runTx.NewSelect().
-			TableExpr("auth.accounts").
-			ColumnExpr("COUNT(*)").
-			Scan(runCtx, &count)
-	})
-
-	require.NoError(t, err)
-}
-
-func TestContextWithTx_NoTxInContext(t *testing.T) {
-	t.Parallel()
-
-	// Test that TxFromContext returns false when no tx in context
-	ctx := testpkg.Ctx(t)
-	tx, ok := base.TxFromContext(ctx)
-	assert.False(t, ok, "Should return false when no tx in context")
-	assert.Nil(t, tx)
-}
-
-func TestIsRetryableTxError(t *testing.T) {
-	t.Parallel()
-
-	assert.False(t, base.IsRetryableTxError(nil), "nil is not retryable")
-	assert.False(t, base.IsRetryableTxError(errors.New("some error")), "plain errors are not retryable")
-	assert.False(t, base.IsRetryableTxError(fmt.Errorf("wrap: %w", errors.New("inner"))), "non-pg wrapped errors are not retryable")
-}
-
-func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	handler := base.NewTxHandler(db)
-	calls := 0
-
-	err := handler.RunInTxWithRetry(testpkg.Ctx(t), func(context.Context, bun.Tx) error {
-		calls++
-		return nil
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, calls)
-}
-
-func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	handler := base.NewTxHandler(db)
-	expected := errors.New("business rule violation")
-	calls := 0
-
-	err := handler.RunInTxWithRetry(testpkg.Ctx(t), func(context.Context, bun.Tx) error {
-		calls++
-		return expected
-	})
-
-	require.ErrorIs(t, err, expected)
-	assert.Equal(t, 1, calls)
-}
-
-// The grade filter is the reason FirstNumberIn exists: a school year is the
-// first number inside a free-text class name, and both the aliased and the
-// unaliased rendering must answer it in SQL. An operator missing from one of
-// the two switches does not fail to compile — it drops the WHERE clause and
-// answers with every row, so both paths are exercised here (#2218 review).
 func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 	t.Parallel()
 
@@ -760,10 +612,10 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 		query := db.NewSelect().
 			ColumnExpr(`"student".id`).
 			TableExpr(`users.students AS "student"`)
-		query = base.NewFilter().
+		filter := modelBase.NewFilter().
 			WithTableAlias("student").
-			FirstNumberIn("school_class", "3").
-			ApplyToQuery(query)
+			FirstNumberIn("school_class", "3")
+		query = ApplyFilter(query, filter)
 
 		var ids []int64
 		require.NoError(t, query.Scan(ctx, &ids))
@@ -774,9 +626,8 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 		query := db.NewSelect().
 			ColumnExpr("id").
 			TableExpr("users.students")
-		query = base.NewFilter().
-			FirstNumberIn("school_class", "3").
-			ApplyToQuery(query)
+		filter := modelBase.NewFilter().FirstNumberIn("school_class", "3")
+		query = ApplyFilter(query, filter)
 
 		var ids []int64
 		require.NoError(t, query.Scan(ctx, &ids))
@@ -787,10 +638,10 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 		query := db.NewSelect().
 			ColumnExpr(`"student".id`).
 			TableExpr(`users.students AS "student"`)
-		query = base.NewFilter().
+		filter := modelBase.NewFilter().
 			WithTableAlias("student").
-			FirstNumberIn("school_class", "3", "13").
-			ApplyToQuery(query)
+			FirstNumberIn("school_class", "3", "13")
+		query = ApplyFilter(query, filter)
 
 		var ids []int64
 		require.NoError(t, query.Scan(ctx, &ids))
@@ -798,4 +649,27 @@ func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
 		assert.Contains(t, ids, thirteenth.ID)
 		assert.NotContains(t, ids, named.ID)
 	})
+}
+
+func TestFilter_ApplyToQuery_TrimOperatorsUseDatabaseNormalization(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	first := testpkg.CreateTestStudent(t, db, "Trim", "First", "  MiXeD-"+suffix+"  ")
+	second := testpkg.CreateTestStudent(t, db, "Trim", "Second", "Other-"+suffix)
+
+	selectIDs := func(filter *modelBase.Filter) []int64 {
+		t.Helper()
+		query := db.NewSelect().ColumnExpr("id").TableExpr("users.students")
+		var ids []int64
+		require.NoError(t, ApplyFilter(query, filter).Scan(ctx, &ids))
+		return ids
+	}
+
+	assert.Contains(t, selectIDs(modelBase.NewFilter().TrimEqual("school_class", "mixed-"+suffix)), first.ID)
+	ids := selectIDs(modelBase.NewFilter().TrimIn("school_class", "absent", " OTHER-"+suffix+" "))
+	assert.Contains(t, ids, second.ID)
+	assert.NotContains(t, ids, first.ID)
 }

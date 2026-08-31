@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -590,7 +589,7 @@ type RequestServiceConfig struct {
 
 type requestService struct {
 	RequestServiceConfig
-	txHandler *modelBase.TxHandler
+	txHandler *tenant.TransactionRunner
 }
 
 // NewRequestService builds the service. A nil logger falls back to
@@ -606,7 +605,7 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 	}
 	return &requestService{
 		RequestServiceConfig: cfg,
-		txHandler:            modelBase.NewTxHandler(cfg.DB),
+		txHandler:            tenant.NewTransactionRunner(),
 	}
 }
 
@@ -814,7 +813,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		createdChildren []*enrollmentModels.RequestChild
 		warnings        []SubmissionWarning
 	)
-	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		// Serialize concurrent submits for the same (phase, guardian
 		// email) so two parallel requests can't both pass the dedup
 		// check and then both insert. The lock auto-releases at tx
@@ -4830,7 +4829,7 @@ func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest
 	}
 
 	if s.DB != nil {
-		rateCtx := modelBase.ContextWithoutTx(ctx)
+		rateCtx := tenant.ContextWithoutTransaction(ctx)
 		var limitErr error
 		err := tenant.WithTenantTx(rateCtx, s.DB, req.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 			limitErr = s.enforceRateLimitBuckets(txCtx, req)

@@ -47,7 +47,7 @@ func (r *AnnouncementViewRepository) MarkSeen(ctx context.Context, userID, annou
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark announcement seen",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -74,7 +74,7 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "mark announcement dismissed",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -158,7 +158,7 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get unread announcements for user",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -178,7 +178,7 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count unread announcements",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -212,7 +212,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get announcement targeting criteria",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -272,7 +272,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count target users",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -288,7 +288,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get announcement view stats",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -325,7 +325,7 @@ func (r *AnnouncementViewRepository) GetViewDetails(ctx context.Context, announc
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get announcement view details",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

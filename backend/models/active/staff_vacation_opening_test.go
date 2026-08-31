@@ -68,7 +68,7 @@ func TestStaffVacationOpeningValidate_Rejects(t *testing.T) {
 		},
 		{
 			name:   "missing effective date",
-			mutate: func(o *StaffVacationOpening) { o.EffectiveDate = timezone.Date{} },
+			mutate: func(o *StaffVacationOpening) { o.EffectiveDate = timezone.Date("") },
 			errMsg: "effective_date is required",
 		},
 		{

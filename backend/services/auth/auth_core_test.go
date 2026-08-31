@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -1215,9 +1214,9 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
 		sentinelErr := errors.New("force outer rollback")
-		txHandler := modelBase.NewTxHandler(db)
+		txHandler := tenant.NewTransactionRunner()
 
-		err = txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		err = txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 			if err := service.AssignRoleToAccount(txCtx, int(account.ID), int(role.ID)); err != nil {
 				return err
 			}

@@ -120,7 +120,7 @@ type phaseService struct {
 	// after this one, mirroring the care-offering service.
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
 	settings                PhaseSettingsResolver
-	txHandler               *modelBase.TxHandler
+	txHandler               *tenant.TransactionRunner
 	logger                  *slog.Logger
 }
 
@@ -134,9 +134,9 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	var txHandler *modelBase.TxHandler
+	var txHandler *tenant.TransactionRunner
 	if cfg.DB != nil {
-		txHandler = modelBase.NewTxHandler(cfg.DB)
+		txHandler = tenant.NewTransactionRunner()
 	}
 	return &phaseService{
 		repo:                            cfg.Repo,
@@ -664,7 +664,7 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 
 	var err error
 	if s.txHandler != nil {
-		err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		err = s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 			return run(txCtx)
 		})
 	} else {

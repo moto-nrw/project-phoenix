@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -92,7 +91,7 @@ func TestGetVisitLookupErrorClassification(t *testing.T) {
 	t.Run("returns visit not found when lookup misses", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-				return nil, sql.ErrNoRows
+				return nil, base.ErrNotFound
 			},
 		}}}
 
@@ -155,7 +154,7 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	t.Run("returns visit not found when preload misses", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-				return nil, sql.ErrNoRows
+				return nil, base.ErrNotFound
 			},
 		}},
 		}
@@ -187,7 +186,7 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 			},
 		}, GroupRepo: &mockGroupRepository{
 			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return nil, sql.ErrNoRows
+				return nil, base.ErrNotFound
 			},
 		}},
 		}

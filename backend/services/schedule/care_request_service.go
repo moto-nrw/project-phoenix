@@ -390,7 +390,7 @@ func validatePickupChangeInput(
 		(reason == "" && reasonRequired) || utf8.RuneCountInString(reason) > 255 {
 		return "", ErrInvalidCareRequestPayload
 	}
-	if date.Before(today) || date.After(timezone.NewDate(today.Year, today.Month+2, today.Day)) {
+	if date.Before(today) || date.After(timezone.NewDate(today.Year(), today.Month()+2, today.Day())) {
 		return "", ErrInvalidCareRequestPayload
 	}
 	return reason, nil
@@ -1252,7 +1252,7 @@ func parsePickupChangePayload(payload map[string]any) (timezone.Date, time.Time,
 	pickup, pickupErr := parseCareWallClock(pickupRaw)
 	reason = strings.TrimSpace(reason)
 	if !dateOK || !pickupOK || !reasonOK || dateErr != nil || pickupErr != nil || reason == "" || utf8.RuneCountInString(reason) > 255 {
-		return timezone.Date{}, time.Time{}, "", ErrInvalidCareRequestPayload
+		return timezone.Date(""), time.Time{}, "", ErrInvalidCareRequestPayload
 	}
 	return date, pickup, reason, nil
 }
@@ -2218,12 +2218,12 @@ const parentRequestDoneBody = "Anfrage abgeschlossen"
 // has no end, so it is never past.
 func careRequestScopeEnd(req *scheduleModels.CareScheduleChangeRequest) timezone.Date {
 	if req.RequestKind != scheduleModels.CareRequestKindPickupChange {
-		return timezone.Date{}
+		return timezone.Date("")
 	}
 	raw, _ := req.Payload["date"].(string)
 	date, err := timezone.ParseDate(raw)
 	if err != nil {
-		return timezone.Date{}
+		return timezone.Date("")
 	}
 	return date
 }

@@ -84,7 +84,7 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -127,7 +127,7 @@ func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staf
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get latest open by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -150,7 +150,7 @@ func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "lock open session by ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -184,7 +184,7 @@ func (r *WorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, st
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list overlapping by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -212,7 +212,7 @@ func (r *WorkSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, s
 	}
 	query = base.WithTenantFilter(ctx, query, "work_session")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list overlapping by staff IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list overlapping by staff IDs", Err: base.TranslateNotFound(err)}
 	}
 	for _, session := range sessions {
 		result[session.StaffID] = append(result[session.StaffID], session)
@@ -237,7 +237,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get history by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -259,7 +259,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get open sessions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -306,7 +306,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get today presence map",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -365,7 +365,7 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "close session",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -373,7 +373,7 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "close session",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -405,7 +405,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffI
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get history by staff IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	for _, session := range sessions {

@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -254,7 +255,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	holder, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = holder.Rollback() }()
-	holderCtx := modelBase.ContextWithTx(ctx, &holder)
+	holderCtx := tenant.WithTransactionForTest(ctx, &holder)
 	require.NoError(t, repo.LockForMessageAppend(holderCtx, thread.ID))
 
 	contender, err := db.BeginTx(ctx, nil)
@@ -262,7 +263,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	defer func() { _ = contender.Rollback() }()
 	_, err = contender.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
 	require.NoError(t, err)
-	contenderCtx := modelBase.ContextWithTx(ctx, &contender)
+	contenderCtx := tenant.WithTransactionForTest(ctx, &contender)
 	err = repo.LockForMessageAppend(contenderCtx, thread.ID)
 	require.Error(t, err, "a second append must wait for the first transaction")
 	assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
@@ -272,7 +273,7 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 	followUp, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = followUp.Rollback() }()
-	followUpCtx := modelBase.ContextWithTx(ctx, &followUp)
+	followUpCtx := tenant.WithTransactionForTest(ctx, &followUp)
 	require.NoError(t, repo.LockForMessageAppend(followUpCtx, thread.ID))
 }
 

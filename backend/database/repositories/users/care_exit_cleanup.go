@@ -79,7 +79,7 @@ func (r *CareExitCleanupRepository) CountOpenRequests(
 			WHERE tenant_id = ? AND student_id IN (?) AND status = ?
 			GROUP BY student_id`
 		if err := base.GetDB(ctx, r.db).NewRaw(sql, tenantID, bun.List(studentIDs), queue.Pending).Scan(ctx, &rows); err != nil {
-			return nil, &modelBase.DatabaseError{Op: "count open parent requests", Err: err}
+			return nil, &modelBase.DatabaseError{Op: "count open parent requests", Err: base.TranslateNotFound(err)}
 		}
 		for _, row := range rows {
 			counts[row.StudentID] += row.Total
@@ -96,7 +96,7 @@ func (r *CareExitCleanupRepository) LockOpenRequestsForCareExit(ctx context.Cont
 	for _, queue := range openRequestQueues {
 		sql := `SELECT id FROM ` + queue.Table + ` WHERE tenant_id = ? AND student_id IN (?) AND status = ? FOR UPDATE`
 		if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, sql, tenantID, bun.List(studentIDs), queue.Pending); err != nil {
-			return &modelBase.DatabaseError{Op: "lock open parent requests for care exit", Err: err}
+			return &modelBase.DatabaseError{Op: "lock open parent requests for care exit", Err: base.TranslateNotFound(err)}
 		}
 	}
 	return nil
@@ -155,7 +155,7 @@ func (r *CareExitCleanupRepository) CloseOpenRequests(
 	for _, statement := range statements {
 		result, err := base.GetDB(ctx, r.db).ExecContext(ctx, statement.SQL, statement.Args...)
 		if err != nil {
-			return 0, &modelBase.DatabaseError{Op: "close open parent requests", Err: err}
+			return 0, &modelBase.DatabaseError{Op: "close open parent requests", Err: base.TranslateNotFound(err)}
 		}
 		affected, _ := result.RowsAffected() // nil-driver-safe: fall through with 0
 		total += int(affected)
@@ -188,7 +188,7 @@ func (r *CareExitCleanupRepository) FindOpenPresence(
 	`, tenant.FromContext(ctx), bun.List(studentIDs),
 		tenant.FromContext(ctx), bun.List(studentIDs),
 		tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		present[row.StudentID] = true
@@ -217,7 +217,7 @@ func (r *CareExitCleanupRepository) LockImpactRowsForCareExit(ctx context.Contex
 	}
 	for _, statement := range statements {
 		if _, err := db.ExecContext(ctx, statement.sql, tenantID, bun.List(studentIDs)); err != nil {
-			return &modelBase.DatabaseError{Op: statement.op, Err: err}
+			return &modelBase.DatabaseError{Op: statement.op, Err: base.TranslateNotFound(err)}
 		}
 	}
 	return nil
@@ -245,7 +245,7 @@ func (r *CareExitCleanupRepository) LatestAttendanceDate(ctx context.Context, st
 	`, tenant.FromContext(ctx), studentID,
 		tenant.FromContext(ctx), studentID,
 		tenant.FromContext(ctx), studentID).Scan(ctx, &day); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find latest attendance before care exit", Err: base.TranslateNotFound(err)}
 	}
 	return day, nil
 }
@@ -272,7 +272,7 @@ func (r *CareExitCleanupRepository) CloseOpenPresence(
 	} {
 		result, err := base.GetDB(ctx, r.db).ExecContext(ctx, statement, at, at, tenantID, bun.List(studentIDs))
 		if err != nil {
-			return 0, &modelBase.DatabaseError{Op: "close open presence", Err: err}
+			return 0, &modelBase.DatabaseError{Op: "close open presence", Err: base.TranslateNotFound(err)}
 		}
 		affected, _ := result.RowsAffected() // nil-driver-safe: fall through with 0
 		total += int(affected)
@@ -350,7 +350,7 @@ func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(
 		bun.List(studentIDs), after, tenantID,
 		tenantID, bun.List(studentIDs), after,
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "count planned roster rows after care end", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		counts[row.StudentID] = row.Total
@@ -402,7 +402,7 @@ func (r *CareExitCleanupRepository) DeletePlannedByStudentIDsAfter(
 		bun.List(studentIDs), after, tenantID,
 	)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete planned roster rows after care end", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected() // nil-driver-safe: fall through with 0
 	return int(affected), nil
@@ -425,7 +425,7 @@ func (r *CareExitCleanupRepository) LockPlanningForCareExit(
 		JOIN schedule.activity_instances AS ai ON ai.id = s.instance_id AND ai.tenant_id = s.tenant_id
 		WHERE s.student_id IN (?)`+carePlannedRosterPredicate+`
 		FOR UPDATE OF s`, bun.List(studentIDs), after, tenantID); err != nil {
-		return &modelBase.DatabaseError{Op: "lock planned roster rows for care exit", Err: err}
+		return &modelBase.DatabaseError{Op: "lock planned roster rows for care exit", Err: base.TranslateNotFound(err)}
 	}
 	if _, err := db.ExecContext(ctx, `
 		SELECT e.id
@@ -433,7 +433,7 @@ func (r *CareExitCleanupRepository) LockPlanningForCareExit(
 		WHERE e.tenant_id = ? AND e.student_id IN (?)
 		  AND (e.valid_until IS NULL OR e.valid_until > ?)
 		FOR UPDATE OF e`, tenantID, bun.List(studentIDs), after.AddDays(1)); err != nil {
-		return &modelBase.DatabaseError{Op: "lock bookings for care exit", Err: err}
+		return &modelBase.DatabaseError{Op: "lock bookings for care exit", Err: base.TranslateNotFound(err)}
 	}
 	if _, err := db.ExecContext(ctx, `
 		SELECT rco.id
@@ -444,7 +444,7 @@ func (r *CareExitCleanupRepository) LockPlanningForCareExit(
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 		FOR UPDATE OF rco
 	`, tenantID, bun.List(studentIDs), after.AddDays(1)); err != nil {
-		return &modelBase.DatabaseError{Op: "lock source bookings for care exit", Err: err}
+		return &modelBase.DatabaseError{Op: "lock source bookings for care exit", Err: base.TranslateNotFound(err)}
 	}
 	for _, statement := range []string{
 		`SELECT id FROM schedule.student_pickup_schedules WHERE tenant_id = ? AND student_id IN (?) FOR UPDATE`,
@@ -457,7 +457,7 @@ func (r *CareExitCleanupRepository) LockPlanningForCareExit(
 			args = append(args, after)
 		}
 		if _, err := db.ExecContext(ctx, statement, args...); err != nil {
-			return &modelBase.DatabaseError{Op: "lock weekly plan for care exit", Err: err}
+			return &modelBase.DatabaseError{Op: "lock weekly plan for care exit", Err: base.TranslateNotFound(err)}
 		}
 	}
 	return nil
@@ -520,7 +520,7 @@ func (r *CareExitCleanupRepository) CountRunningByStudentIDsAfter(
 		GROUP BY student_id
 	`, tenantID, bun.List(studentIDs), validUntil, validUntil,
 		tenantID, bun.List(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "count running bookings after care end", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "count running bookings after care end", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		counts[row.StudentID] = row.Total
@@ -554,7 +554,7 @@ func (r *CareExitCleanupRepository) ListSourceOfferingsAfter(
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 		ORDER BY rc.created_student_id, co.sort_order, co.id
 	`, tenant.FromContext(ctx), bun.List(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list source offerings for care exit preview", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list source offerings for care exit preview", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.StudentID] = append(result[row.StudentID], userModels.CareExitSourceOffering{Name: row.Name, Days: row.Days})
@@ -590,7 +590,7 @@ func (r *CareExitCleanupRepository) ListWeeklyPlanPatterns(ctx context.Context, 
 			WHERE tenant_id = ? AND student_id IN (?)
 		) AS patterns ORDER BY student_id, pattern
 	`, tenant.FromContext(ctx), bun.List(studentIDs), tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list recurring weekly plans for care exit preview", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list recurring weekly plans for care exit preview", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		patterns[row.StudentID] = append(patterns[row.StudentID], row.Pattern)
@@ -637,7 +637,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 		ON CONFLICT DO NOTHING
 	`, tenantID, bun.List(studentIDs), validUntil, validUntil)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete future bookings after care end", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete future bookings after care end", Err: base.TranslateNotFound(err)}
 	}
 	deletedRows, _ := deleted.RowsAffected() // nil-driver-safe: fall through with 0
 
@@ -661,7 +661,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 		FROM activities.student_enrollments AS e
 		WHERE `+capPredicate+`
 		ON CONFLICT DO NOTHING`, capArgs...); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "record capped bookings after care end", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "record capped bookings after care end", Err: base.TranslateNotFound(err)}
 	}
 
 	capped, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
@@ -669,7 +669,7 @@ func (r *CareExitCleanupRepository) CapByStudentIDs(
 		SET valid_until = ?, updated_at = NOW()
 		WHERE `+capPredicate, append([]any{validUntil}, capArgs...)...)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "cap bookings after care end", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "cap bookings after care end", Err: base.TranslateNotFound(err)}
 	}
 	cappedRows, _ := capped.RowsAffected()
 	return deletedRows + cappedRows, nil
@@ -752,7 +752,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 		GROUP BY rc.created_student_id, rco.valid_until, rco.request_child_id
 	`, tenant.FromContext(ctx)).Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: base.TranslateNotFound(err)}
 	}
 	for index := range rows {
 		rows[index].WasCompleteWithdrawal = true
@@ -808,7 +808,7 @@ func (r *CareExitCleanupRepository) listCareBookingStudents(
 			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, on)
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list current care students for booking evaluation", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list current care students for booking evaluation", Err: base.TranslateNotFound(err)}
 	}
 	return facts, nil
 }
@@ -865,7 +865,7 @@ func (r *CareExitCleanupRepository) listCareBookingPeriods(
 		ORDER BY COALESCE(rc.created_student_id, rc.matched_student_id), rco.valid_from NULLS FIRST, rco.valid_until NULLS LAST, rco.id
 	`, tenant.FromContext(ctx), bun.List(studentIDs), enrollmentModels.ChildStatusApproved).Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list care booking periods for evaluation", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list care booking periods for evaluation", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -884,7 +884,7 @@ func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, 
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 		ON CONFLICT DO NOTHING
 	`, validUntil, tenantID, bun.List(studentIDs), sourceRequestChildID, sourceRequestChildID, validUntil); err != nil {
-		return &modelBase.DatabaseError{Op: "snapshot source bookings before care exit", Err: err}
+		return &modelBase.DatabaseError{Op: "snapshot source bookings before care exit", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -901,7 +901,7 @@ func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, st
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 	`, tenantID, bun.List(studentIDs), sourceRequestChildID, sourceRequestChildID, validUntil, validUntil)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete future source bookings after care exit", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete future source bookings after care exit", Err: base.TranslateNotFound(err)}
 	}
 	deletedRows, _ := deleted.RowsAffected()
 	capped, err := db.ExecContext(ctx, `
@@ -915,7 +915,7 @@ func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, st
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 	`, validUntil, tenantID, bun.List(studentIDs), sourceRequestChildID, sourceRequestChildID, validUntil, validUntil)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "cap source bookings after care exit", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "cap source bookings after care exit", Err: base.TranslateNotFound(err)}
 	}
 	cappedRows, _ := capped.RowsAffected()
 	return deletedRows + cappedRows, nil
@@ -937,12 +937,12 @@ func (r *CareExitCleanupRepository) endCarePlanRows(ctx context.Context, student
 			FROM ` + item.Table + ` AS plan
 			WHERE tenant_id = ? AND student_id IN (?)` + datePredicate + ` ON CONFLICT DO NOTHING`
 		if _, err := db.ExecContext(ctx, snapshotSQL, args...); err != nil {
-			return 0, &modelBase.DatabaseError{Op: "snapshot " + item.Kind + " before care exit", Err: err}
+			return 0, &modelBase.DatabaseError{Op: "snapshot " + item.Kind + " before care exit", Err: base.TranslateNotFound(err)}
 		}
 		deleteSQL := `DELETE FROM ` + item.Table + ` WHERE tenant_id = ? AND student_id IN (?)` + datePredicate
 		deleted, err := db.ExecContext(ctx, deleteSQL, args...)
 		if err != nil {
-			return 0, &modelBase.DatabaseError{Op: "delete " + item.Kind + " after care exit", Err: err}
+			return 0, &modelBase.DatabaseError{Op: "delete " + item.Kind + " after care exit", Err: base.TranslateNotFound(err)}
 		}
 		rows, _ := deleted.RowsAffected()
 		total += rows
@@ -1004,7 +1004,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		ON CONFLICT DO NOTHING
 	`, tenantID, bun.List(studentIDs))
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "restore roster rows after care exit change", Err: base.TranslateNotFound(err)}
 	}
 	rosterRows, _ := rosterResult.RowsAffected() // nil-driver-safe: fall through with 0
 	restored += int(rosterRows)
@@ -1022,7 +1022,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		  AND rm.student_id IN (?)
 	`, tenantID, bun.List(studentIDs))
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore capped bookings after care exit change", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "restore capped bookings after care exit change", Err: base.TranslateNotFound(err)}
 	}
 	cappedRows, _ := cappedResult.RowsAffected()
 	restored += int(cappedRows)
@@ -1055,7 +1055,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		ON CONFLICT DO NOTHING
 	`, tenantID, bun.List(studentIDs))
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore deleted bookings after care exit change", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "restore deleted bookings after care exit change", Err: base.TranslateNotFound(err)}
 	}
 	deletedRows, _ := deletedResult.RowsAffected()
 	restored += int(deletedRows)
@@ -1070,7 +1070,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		  AND rm.tenant_id = ? AND rm.student_id IN (?)
 		  AND rco.tenant_id = rm.tenant_id AND rco.id = rm.source_row_id
 	`, tenantID, bun.List(studentIDs)); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "restore capped source bookings after care exit", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "restore capped source bookings after care exit", Err: base.TranslateNotFound(err)}
 	}
 
 	// Deleted source and weekly rows retain their original ids. This preserves
@@ -1086,7 +1086,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 			ON CONFLICT DO NOTHING`
 		result, err := db.ExecContext(ctx, sql, item.Kind, tenantID, bun.List(studentIDs))
 		if err != nil {
-			return 0, &modelBase.DatabaseError{Op: "restore " + item.Kind + " after care exit", Err: err}
+			return 0, &modelBase.DatabaseError{Op: "restore " + item.Kind + " after care exit", Err: base.TranslateNotFound(err)}
 		}
 		rows, _ := result.RowsAffected()
 		restored += int(rows)
@@ -1108,7 +1108,7 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		  AND live.instance_id = rm.instance_id
 		  AND live.student_id = rm.student_id
 	`, tenantID, bun.List(studentIDs)); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "reconnect restored roster pickup exception", Err: base.TranslateNotFound(err)}
 	}
 
 	if err := r.DiscardRemovals(ctx, studentIDs); err != nil {
@@ -1133,7 +1133,7 @@ func (r *CareExitCleanupRepository) DiscardRemovals(
 		DELETE FROM users.student_care_exit_source_removals
 		WHERE tenant_id = ? AND student_id IN (?)
 	`, tenant.FromContext(ctx), bun.List(studentIDs), tenant.FromContext(ctx), bun.List(studentIDs)); err != nil {
-		return &modelBase.DatabaseError{Op: "discard care exit removals", Err: err}
+		return &modelBase.DatabaseError{Op: "discard care exit removals", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
@@ -72,12 +71,12 @@ func (s *service) EnqueueDueAppointmentReminders(ctx context.Context, from, to t
 	var queued int
 	var dispatchErr error
 	var deliveries []reminderPushDelivery
-	independentCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(ctx))
+	independentCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	err := tenant.WithTenantTx(independentCtx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var enqueueErr error
 		queued, enqueueErr = s.enqueueDueAppointmentReminders(txCtx, from, to, &deliveries)
 		if enqueueErr == nil && len(deliveries) > 0 {
-			postCommitCtx := tenant.ContextWithoutAfterCommitHooks(modelBase.ContextWithoutTx(txCtx))
+			postCommitCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(txCtx))
 			tenant.RegisterAfterCommit(txCtx, func() {
 				dispatchErr = s.dispatchReminderPushes(postCommitCtx, deliveries)
 			})
@@ -659,7 +658,7 @@ func (s *service) claimReminderPush(ctx context.Context, appointment *calModels.
 }
 
 func (s *service) releaseReminderPush(ctx context.Context, appointment *calModels.Appointment, occurrence timezone.Date, profileID int64) error {
-	cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(ctx))
+	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 	cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 	return tenant.WithTenantTx(cleanupCtx, s.cfg.DB, appointment.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return s.cfg.RecipientRepo.ReleaseReminderPush(txCtx, appointment.ID, appointment.Revision, occurrence, profileID)

@@ -487,11 +487,12 @@ func (rs *Resource) offboardStaffAndQueueDocumentCleanup(ctx context.Context, te
 		if err := rs.StaffOffboardingService.OffboardStaff(ctx, staffID, deletedByStaffID, deletedBy); err != nil {
 			return err
 		}
-		return rs.queueOffboardedStaffDocumentCleanup(ctx, tenantID, staffID)
+		return rs.queueOffboardedStaffDocumentCleanup(ctx, staffID)
 	})
 }
 
-func (rs *Resource) queueOffboardedStaffDocumentCleanup(ctx context.Context, tenantID, staffID int64) error {
+func (rs *Resource) queueOffboardedStaffDocumentCleanup(ctx context.Context, staffID int64) error {
+	cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 	documents, err := rs.StaffDocumentService.ListStaffDocumentsPendingFileCleanup(ctx, staffID)
 	if err != nil {
 		return err
@@ -499,7 +500,7 @@ func (rs *Resource) queueOffboardedStaffDocumentCleanup(ctx context.Context, ten
 	for _, document := range documents {
 		docID, storedName := document.ID, document.FilenameStored
 		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupStaffDocumentFile(tenantID, staffID, docID, storedName, "offboarding")
+			rs.cleanupStaffDocumentFile(cleanupCtx, staffID, docID, storedName, "offboarding")
 		})
 	}
 	cleanups, err := rs.StaffDocumentService.ListQueuedStaffDocumentFileCleanup(ctx, staffID)
@@ -509,7 +510,7 @@ func (rs *Resource) queueOffboardedStaffDocumentCleanup(ctx context.Context, ten
 	for _, cleanup := range cleanups {
 		cleanupID, storedName := cleanup.ID, cleanup.FilenameStored
 		tenant.RegisterAfterCommit(ctx, func() {
-			rs.cleanupQueuedStaffDocumentFile(tenantID, staffID, cleanupID, storedName, "offboarding")
+			rs.cleanupQueuedStaffDocumentFile(cleanupCtx, staffID, cleanupID, storedName, "offboarding")
 		})
 	}
 	return nil

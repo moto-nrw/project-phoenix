@@ -22,7 +22,7 @@ func (r *substitutionChangeRepository) Create(ctx context.Context, change *audit
 		ModelTableExpr(`audit.substitution_changes AS "substitution_change"`).
 		Returning("*").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create substitution change", Err: err}
+		return &modelBase.DatabaseError{Op: "create substitution change", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

@@ -49,7 +49,7 @@ func (r *RecurrenceRuleRepository) FindByFrequency(ctx context.Context, frequenc
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by frequency",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -80,7 +80,7 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by weekday",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -105,7 +105,7 @@ func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by month day",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -130,7 +130,7 @@ func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDat
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date range",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 

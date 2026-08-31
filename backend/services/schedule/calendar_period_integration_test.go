@@ -603,8 +603,8 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 		// Independent re-derivation of the expected school year — keeps the
 		// test honest against the production helper.
 		today := timezone.NewDate(2026, 8, 24)
-		startYear := today.Year
-		if today.Month < time.August {
+		startYear := today.Year()
+		if today.Month() < time.August {
 			startYear--
 		}
 		assert.Equal(t, fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1), p.Name)
@@ -733,8 +733,8 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 
 	// Same bounds as the default school year so the two inserts overlap.
 	today := timezone.NewDate(2026, 8, 24)
-	startYear := today.Year
-	if today.Month < time.August {
+	startYear := today.Year()
+	if today.Month() < time.August {
 		startYear--
 	}
 	explicit := &scheduleModels.CalendarPeriod{

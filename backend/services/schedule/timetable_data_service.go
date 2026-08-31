@@ -16,7 +16,6 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -717,7 +716,7 @@ func (s *TimetableDataService) acquireSpontaneousLock(ctx context.Context, key s
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
 	}
-	if tx, ok := modelBase.TxFromContext(ctx); !ok || tx == nil {
+	if tx, ok := tenant.TransactionFromContext(ctx); !ok || tx == nil {
 		if s.deps.DB == nil {
 			return nil
 		}

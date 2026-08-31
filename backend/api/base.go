@@ -1159,7 +1159,7 @@ func (a *API) databaseStatsRouter() chi.Router {
 }
 
 func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := a.Services.Database.GetStats(r.Context())
+	stats, err := a.Services.Database.GetStats(r.Context(), a.Services.DatabaseStatsCapabilities(r.Context()))
 	if err != nil {
 		a.getDatabaseLogger().Error("failed to get database stats",
 			"error", err,

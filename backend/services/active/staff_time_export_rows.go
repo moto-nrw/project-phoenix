@@ -24,7 +24,7 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 	if month < 0 || month > 12 {
 		return nil, fmt.Errorf("%w: month out of range", ErrTimeExportInvalid)
 	}
-	if year > today.Year {
+	if year > today.Year() {
 		return nil, fmt.Errorf("%w: year %d lies in the future", ErrTimeExportInvalid, year)
 	}
 	if month != 0 && monthOf(today).before(monthKey{Year: year, Month: month}) {
@@ -36,7 +36,7 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 	if month == 0 {
 		firstKey = monthKey{Year: year, Month: 1}
 		lastKey = monthKey{Year: year, Month: 12}
-		if todayKey := monthOf(today); todayKey.before(lastKey) && year == today.Year {
+		if todayKey := monthOf(today); todayKey.before(lastKey) && year == today.Year() {
 			lastKey = todayKey
 		}
 	}

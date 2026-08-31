@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1057,7 +1055,7 @@ func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 		sup := createSup(t, data.ActiveGroup.ID, data.Staff1.ID)
 
 		// Call from a different tenant context: must match zero rows.
-		otherTenantCtx := tenant.WithTenantID(context.Background(), 999)
+		otherTenantCtx := testpkg.TenantContext(999)
 		n, err := repo.EndByActiveGroupAndStaffID(otherTenantCtx, data.ActiveGroup.ID, data.Staff1.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 0, n)

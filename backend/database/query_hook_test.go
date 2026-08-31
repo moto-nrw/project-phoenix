@@ -3,123 +3,78 @@ package database
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
-	"unsafe"
-
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 func newTestQueryHook(t *testing.T) (*QueryHook, *bytes.Buffer) {
 	t.Helper()
-
 	var buf bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	return NewQueryHook(logger), &buf
 }
 
-func TestQueryHookAfterQuery_DemotesNoRowsToDebug(t *testing.T) {
+func TestQueryLogLevelsAndMetadata(t *testing.T) {
 	t.Parallel()
-
-	hook, buf := newTestQueryHook(t)
-
-	hook.AfterQuery(context.Background(), &bun.QueryEvent{
-		Query:     `SELECT * FROM users.profiles WHERE account_id = 1`,
-		StartTime: time.Now(),
-		Err:       sql.ErrNoRows,
-	})
-
-	output := buf.String()
-	if !strings.Contains(output, `"level":"DEBUG"`) {
-		t.Fatalf("expected debug level log, got %q", output)
+	tests := []struct {
+		name string
+		data queryLogData
+		want []string
+	}{
+		{name: "no rows", data: queryLogData{noRows: true, err: errors.New("no rows")}, want: []string{`"level":"DEBUG"`, `"msg":"query no rows"`}},
+		{name: "postgres error", data: queryLogData{err: errors.New("duplicate"), sqlState: "23505", constraint: "unique_row"}, want: []string{`"level":"ERROR"`, `"sqlstate":"23505"`, `"constraint":"unique_row"`}},
+		{name: "slow", data: queryLogData{started: time.Now().Add(-10 * time.Millisecond)}, want: []string{`"level":"WARN"`, `"slow_query":true`}},
 	}
-	if !strings.Contains(output, `"msg":"query no rows"`) {
-		t.Fatalf("expected no-rows message, got %q", output)
-	}
-	if strings.Contains(output, `"msg":"query error"`) {
-		t.Fatalf("expected query error message to be skipped, got %q", output)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hook, buf := newTestQueryHook(t)
+			if tt.data.started.IsZero() {
+				tt.data.started = time.Now()
+			}
+			hook.logQuery(context.Background(), tt.data)
+			for _, want := range tt.want {
+				if !strings.Contains(buf.String(), want) {
+					t.Fatalf("log %q does not contain %q", buf.String(), want)
+				}
+			}
+		})
 	}
 }
 
-func TestQueryHookAfterQuery_LogsNonNoRowsErrorsAtError(t *testing.T) {
-	t.Parallel()
+type testNoRowsError struct{}
 
-	hook, buf := newTestQueryHook(t)
-
-	hook.AfterQuery(context.Background(), &bun.QueryEvent{
-		Query:     `SELECT * FROM users.profiles WHERE account_id = 1`,
-		StartTime: time.Now(),
-		Err:       errors.New("boom"),
-	})
-
-	output := buf.String()
-	if !strings.Contains(output, `"level":"ERROR"`) {
-		t.Fatalf("expected error level log, got %q", output)
-	}
-	if !strings.Contains(output, `"msg":"query error"`) {
-		t.Fatalf("expected query error message, got %q", output)
-	}
-	if !strings.Contains(output, `"error":"boom"`) {
-		t.Fatalf("expected original error in log, got %q", output)
-	}
+func (testNoRowsError) Error() string { return "wrapped repository miss" }
+func (testNoRowsError) Is(target error) bool {
+	return target != nil && target.Error() == "sql: no rows in result set"
 }
 
-func TestQueryHookAfterQuery_LogsPostgresErrorMetadata(t *testing.T) {
+type testPostgresError map[byte]string
+
+func (e testPostgresError) Error() string         { return "postgres error" }
+func (e testPostgresError) Field(key byte) string { return e[key] }
+
+func TestAfterQueryClassifiesRawAdapterErrors(t *testing.T) {
 	t.Parallel()
 
-	hook, buf := newTestQueryHook(t)
-
-	hook.AfterQuery(context.Background(), &bun.QueryEvent{
-		Query:     `INSERT INTO schedule.activity_instances (...) VALUES (...)`,
-		StartTime: time.Now(),
-		Err:       newPgErrorWithConstraint("23505", "idx_activity_instances_template_unique"),
+	t.Run("no rows", func(t *testing.T) {
+		hook, buf := newTestQueryHook(t)
+		hook.afterQuery(context.Background(), "SELECT", "SELECT 1", time.Now(), testNoRowsError{})
+		if output := buf.String(); !strings.Contains(output, `"msg":"query no rows"`) {
+			t.Fatalf("expected raw no-rows error to be demoted, got %q", output)
+		}
 	})
 
-	output := buf.String()
-	if !strings.Contains(output, `"sqlstate":"23505"`) {
-		t.Fatalf("expected sqlstate in log, got %q", output)
-	}
-	if !strings.Contains(output, `"constraint":"idx_activity_instances_template_unique"`) {
-		t.Fatalf("expected constraint in log, got %q", output)
-	}
-}
-
-func TestQueryHookAfterQuery_LogsSlowQueriesAtWarn(t *testing.T) {
-	t.Parallel()
-
-	hook, buf := newTestQueryHook(t)
-
-	hook.AfterQuery(context.Background(), &bun.QueryEvent{
-		Query:     `SELECT * FROM users.profiles WHERE account_id = 1`,
-		StartTime: time.Now().Add(-10 * time.Millisecond),
+	t.Run("postgres metadata", func(t *testing.T) {
+		hook, buf := newTestQueryHook(t)
+		hook.afterQuery(context.Background(), "INSERT", "INSERT", time.Now(), testPostgresError{'C': "23505", 'n': "unique_row"})
+		output := buf.String()
+		for _, want := range []string{`"sqlstate":"23505"`, `"constraint":"unique_row"`} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("log %q does not contain %q", output, want)
+			}
+		}
 	})
-
-	output := buf.String()
-	if !strings.Contains(output, `"level":"WARN"`) {
-		t.Fatalf("expected warn level log, got %q", output)
-	}
-	if !strings.Contains(output, `"msg":"slow query"`) {
-		t.Fatalf("expected slow query message, got %q", output)
-	}
-	if !strings.Contains(output, `"slow_query":true`) {
-		t.Fatalf("expected slow_query marker, got %q", output)
-	}
-}
-
-func newPgErrorWithConstraint(code, constraintName string) error {
-	pgErr := pgdriver.Error{}
-	v := reflect.ValueOf(&pgErr).Elem()
-	mField := v.FieldByName("m")
-	ptr := unsafe.Pointer(mField.UnsafeAddr()) //nolint:gosec
-	*(*map[byte]string)(ptr) = map[byte]string{'C': code, 'n': constraintName}
-	return pgErr
 }

@@ -499,7 +499,7 @@ func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	if tenantID <= 0 {
 		return nil, &ScheduleError{Op: "split template", Err: errors.New("no tenant in context")}
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok && s.runInTx != nil {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok && s.runInTx != nil {
 		var result *TemplateSplitResult
 		err := s.runInTx(ctx, func(txCtx context.Context) error {
 			var err error
@@ -762,7 +762,7 @@ func (s *TemplateSplitService) EndFromDate(ctx context.Context, in TemplateEndIn
 	if tenantID <= 0 {
 		return nil, &ScheduleError{Op: "end template", Err: errors.New("no tenant in context")}
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok && s.runInTx != nil {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok && s.runInTx != nil {
 		return s.endFromDateWithTransaction(ctx, in, tenantID)
 	}
 	return s.endFromDateInTransaction(ctx, in, tenantID)
@@ -1154,17 +1154,17 @@ func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
 ) (timezone.Date, *timezone.Date, error) {
 	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return timezone.Date{}, nil, &ScheduleError{Op: op + ": load schedule envelope", Err: err}
+		return timezone.Date(""), nil, &ScheduleError{Op: op + ": load schedule envelope", Err: err}
 	}
 	validFrom, validUntil, err := commonScheduleValidityEnvelope(schedules)
 	if err != nil {
-		return timezone.Date{}, nil, &ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
+		return timezone.Date(""), nil, &ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
 	}
 	if validFrom != nil && effectiveDate.Before(*validFrom) {
 		if clampBeforeStart {
 			effectiveDate = *validFrom
 		} else {
-			return timezone.Date{}, nil, fmt.Errorf(
+			return timezone.Date(""), nil, fmt.Errorf(
 				"%w: effective_date %s is before segment valid_from %s",
 				ErrSplitInvalidInput,
 				effectiveDate.String(),
@@ -1173,7 +1173,7 @@ func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
 		}
 	}
 	if validUntil != nil && !effectiveDate.Before(*validUntil) {
-		return timezone.Date{}, nil, fmt.Errorf(
+		return timezone.Date(""), nil, fmt.Errorf(
 			"%w: effective_date %s must be before segment valid_until %s",
 			ErrSplitInvalidInput,
 			effectiveDate.String(),
@@ -1808,7 +1808,7 @@ func (s *TemplateSplitService) materializeWindow(ctx context.Context, in Templat
 // split date because the predecessor remains authoritative before that date.
 func splitMaterializationWindow(in TemplateSplitInput) (timezone.Date, timezone.Date, bool) {
 	if in.MaterializeFrom == nil || in.MaterializeTo == nil {
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	from := *in.MaterializeFrom
 	if from.Before(in.EffectiveDate) {
@@ -1816,7 +1816,7 @@ func splitMaterializationWindow(in TemplateSplitInput) (timezone.Date, timezone.
 	}
 	to := *in.MaterializeTo
 	if from.After(to) {
-		return timezone.Date{}, timezone.Date{}, false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	return from, to, true
 }
