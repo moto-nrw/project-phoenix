@@ -73,7 +73,7 @@ func (m *Module) Week(ctx context.Context, weekStart Date) ([]Entry, error) {
 	if err != nil {
 		return nil, ErrInvalidMealDate
 	}
-	monday := date.AddDays(-((int(date.Weekday()) + 6) % 7))
+	monday := date.StartOfISOWeek()
 	return m.engine.Week(ctx, monday.String())
 }
 

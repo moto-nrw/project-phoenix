@@ -30,78 +30,84 @@ func New(database Database) *Store {
 	return &Store{database: database}
 }
 
-func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.Entry, int64, error) {
-	db, _, err := s.database(ctx)
+func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.Entry, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, domain.OperationStats{}, err
 	}
+	stats := domain.OperationStats{Queries: 1}
 	var rows []row
 	err = db.NewSelect().Model(&rows).
 		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
+		Where(`"meal_plan_entry".tenant_id = ?`, tenantID).
 		Where(`"meal_plan_entry".date >= ?`, start).
 		Where(`"meal_plan_entry".date <= ?`, end).
 		OrderExpr(`"meal_plan_entry".date ASC`).
 		OrderExpr(`"meal_plan_entry".position ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, 1, fmt.Errorf("meal plan postgres: find week: %w", err)
+		return nil, stats, fmt.Errorf("meal plan postgres: find week: %w", err)
 	}
 	entries := make([]domain.Entry, 0, len(rows))
 	for _, value := range rows {
 		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note})
 	}
-	return entries, 1, nil
+	return entries, stats, nil
 }
 
-func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domain.Dish) (int64, int64, time.Duration, error) {
+func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domain.Dish) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return 0, 0, 0, err
+		return domain.OperationStats{}, err
 	}
-	started := time.Now()
-	deleted, err := deleteDay(ctx, db, date)
-	lockWait := time.Since(started)
+	stats, err := deleteDay(ctx, db, tenantID, date)
 	if err != nil || len(dishes) == 0 {
-		return deleted, 1, lockWait, err
+		return stats, err
 	}
 	rows := make([]row, 0, len(dishes))
 	for position, dish := range dishes {
 		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note})
 	}
-	started = time.Now()
-	result, err := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_plan_entries`).Exec(ctx)
-	lockWait += time.Since(started)
+	query := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_plan_entries`)
+	started := time.Now()
+	result, err := query.Exec(ctx)
+	stats.Queries++
+	stats.StatementDuration += time.Since(started)
 	if err != nil {
-		return deleted, 2, lockWait, fmt.Errorf("meal plan postgres: insert day: %w", err)
+		return stats, fmt.Errorf("meal plan postgres: insert day: %w", err)
 	}
 	inserted, err := result.RowsAffected()
 	if err != nil {
-		return deleted, 2, lockWait, fmt.Errorf("meal plan postgres: count inserted rows: %w", err)
+		return stats, fmt.Errorf("meal plan postgres: count inserted rows: %w", err)
 	}
-	return deleted + inserted, 2, lockWait, nil
+	stats.Rows += inserted
+	return stats, nil
 }
 
-func (s *Store) ClearDay(ctx context.Context, date domain.Date) (int64, int64, time.Duration, error) {
-	db, _, err := s.database(ctx)
+func (s *Store) ClearDay(ctx context.Context, date domain.Date) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return 0, 0, 0, err
+		return domain.OperationStats{}, err
 	}
-	started := time.Now()
-	rows, err := deleteDay(ctx, db, date)
-	return rows, 1, time.Since(started), err
+	return deleteDay(ctx, db, tenantID, date)
 }
 
-func deleteDay(ctx context.Context, db bun.IDB, date domain.Date) (int64, error) {
-	result, err := db.NewDelete().Model((*row)(nil)).
+func deleteDay(ctx context.Context, db bun.IDB, tenantID int64, date domain.Date) (domain.OperationStats, error) {
+	stats := domain.OperationStats{Queries: 1}
+	query := db.NewDelete().Model((*row)(nil)).
 		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
-		Where(`"meal_plan_entry".date = ?`, date).
-		Exec(ctx)
+		Where(`"meal_plan_entry".tenant_id = ?`, tenantID).
+		Where(`"meal_plan_entry".date = ?`, date)
+	started := time.Now()
+	result, err := query.Exec(ctx)
+	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		return 0, fmt.Errorf("meal plan postgres: delete day: %w", err)
+		return stats, fmt.Errorf("meal plan postgres: delete day: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, fmt.Errorf("meal plan postgres: count deleted rows: %w", err)
+		return stats, fmt.Errorf("meal plan postgres: count deleted rows: %w", err)
 	}
-	return rows, nil
+	stats.Rows = rows
+	return stats, nil
 }

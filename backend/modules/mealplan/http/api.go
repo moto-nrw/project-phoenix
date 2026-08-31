@@ -20,10 +20,11 @@ const (
 )
 
 type Runtime struct {
-	Protected  func(chi.Router, func(chi.Router, Middleware))
-	Permission func(Access) Middleware
-	Success    func(http.ResponseWriter, *http.Request, int, any, string)
-	Failure    func(http.ResponseWriter, *http.Request, int, error)
+	Protected      func(chi.Router, func(chi.Router, Middleware))
+	Permission     func(Access) Middleware
+	Success        func(http.ResponseWriter, *http.Request, int, any, string)
+	InvalidRequest func(http.ResponseWriter, *http.Request, error)
+	ModuleFailure  func(http.ResponseWriter, *http.Request, error, string)
 }
 
 type Resource struct {
@@ -32,7 +33,7 @@ type Resource struct {
 }
 
 func NewResource(module *mealplanModule.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.Failure == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -76,12 +77,12 @@ func (rs *Resource) getWeek(w http.ResponseWriter, r *http.Request) {
 	weekStart := r.URL.Query().Get("week_start")
 	parsed, err := mealplanModule.ParseDate(weekStart)
 	if err != nil {
-		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New("week_start must be in YYYY-MM-DD format"))
+		rs.runtime.InvalidRequest(w, r, errors.New("week_start must be in YYYY-MM-DD format"))
 		return
 	}
 	entries, err := rs.module.Week(r.Context(), parsed)
 	if err != nil {
-		rs.renderModuleError(w, r, err, "failed to load meal plan")
+		rs.runtime.ModuleFailure(w, r, err, "failed to load meal plan")
 		return
 	}
 	responses := make([]MealPlanEntryResponse, 0, len(entries))
@@ -97,12 +98,12 @@ func (rs *Resource) setDay(w http.ResponseWriter, r *http.Request) {
 	date := chi.URLParam(r, "date")
 	parsed, err := mealplanModule.ParseDate(date)
 	if err != nil {
-		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New("date must be in YYYY-MM-DD format"))
+		rs.runtime.InvalidRequest(w, r, errors.New("date must be in YYYY-MM-DD format"))
 		return
 	}
 	request := &SetDayRequest{}
 	if err := render.Bind(r, request); err != nil {
-		rs.runtime.Failure(w, r, http.StatusBadRequest, err)
+		rs.runtime.InvalidRequest(w, r, err)
 		return
 	}
 	dishes := make([]mealplanModule.Dish, 0, len(*request.Dishes))
@@ -110,7 +111,7 @@ func (rs *Resource) setDay(w http.ResponseWriter, r *http.Request) {
 		dishes = append(dishes, mealplanModule.Dish{Dish: dish.Dish, Note: dish.Note})
 	}
 	if err := rs.module.ReplaceDay(r.Context(), mealplanModule.ReplaceDay{Date: parsed, Dishes: dishes}); err != nil {
-		rs.renderModuleError(w, r, err, "failed to save meal")
+		rs.runtime.ModuleFailure(w, r, err, "failed to save meal")
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, nil, "Meal plan day saved successfully")
@@ -120,25 +121,12 @@ func (rs *Resource) deleteDay(w http.ResponseWriter, r *http.Request) {
 	date := chi.URLParam(r, "date")
 	parsed, err := mealplanModule.ParseDate(date)
 	if err != nil {
-		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New("date must be in YYYY-MM-DD format"))
+		rs.runtime.InvalidRequest(w, r, errors.New("date must be in YYYY-MM-DD format"))
 		return
 	}
 	if err := rs.module.ClearDay(r.Context(), parsed); err != nil {
-		rs.renderModuleError(w, r, err, "failed to delete meal")
+		rs.runtime.ModuleFailure(w, r, err, "failed to delete meal")
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, nil, "Meal deleted successfully")
-}
-
-func (rs *Resource) renderModuleError(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
-	switch {
-	case errors.Is(err, mealplanModule.ErrDisabled):
-		rs.runtime.Failure(w, r, http.StatusForbidden, errors.New("feature_disabled"))
-	case errors.Is(err, mealplanModule.ErrInvalidMealDate):
-		rs.runtime.Failure(w, r, http.StatusBadRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))
-	case errors.Is(err, mealplanModule.ErrInvalidDishes):
-		rs.runtime.Failure(w, r, http.StatusBadRequest, err)
-	default:
-		rs.runtime.Failure(w, r, http.StatusInternalServerError, errors.Join(errors.New(internalMessage), err))
-	}
 }
