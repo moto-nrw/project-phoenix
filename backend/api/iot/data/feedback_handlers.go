@@ -12,8 +12,7 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/feedback"
+	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 )
 
 // deviceSubmitFeedback handles feedback submission from RFID devices
@@ -26,6 +25,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
+		rs.ObserveResponse(http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -34,15 +34,22 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		slog.Int64("device_db_id", deviceCtx.ID),
 	)
 
-	// Check if feedback is enabled for this tenant (defense in depth)
-	if rs.SettingsService != nil {
-		if enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyFeedbackEnabled); err == nil && !enabled {
-			common.Respond(w, r, http.StatusOK, map[string]interface{}{
-				"status": "skipped",
-				"reason": "feedback_disabled",
-			}, "Feedback is disabled for this tenant")
-			return
-		}
+	// Check if feedback is enabled for this tenant (defense in depth).
+	// Resolution failures are operational failures, not permission to write.
+	enabled, err := rs.FeedbackService.Available(r.Context())
+	if err != nil {
+		slog.Default().ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if !enabled {
+		common.Respond(w, r, http.StatusOK, map[string]interface{}{
+			"status": "skipped",
+			"reason": "feedback_disabled",
+		}, "Feedback is disabled for this tenant")
+		rs.ObserveResponse(http.StatusOK, "feedback_disabled")
+		return
 	}
 
 	// Parse request
@@ -53,6 +60,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 			slog.String("error", err.Error()),
 		)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		rs.ObserveResponse(http.StatusBadRequest, "invalid_parameters")
 		return
 	}
 
@@ -78,6 +86,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 			slog.String("error", err.Error()),
 		)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
 		return
 	}
 
@@ -86,6 +95,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 			slog.Int64("student_id", req.StudentID),
 		)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		rs.ObserveResponse(http.StatusNotFound, "student_not_found")
 		return
 	}
 
@@ -101,6 +111,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 			slog.Int64("student_id", req.StudentID),
 		)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		rs.ObserveResponse(http.StatusNotFound, "student_not_found")
 		return
 	}
 
@@ -110,20 +121,27 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
-	entry := &feedback.Entry{
+	input := feedbackModule.CreateEntry{
 		StudentID:       req.StudentID,
 		Value:           req.Value,
-		Day:             timezone.DateFromTime(now), // Calendar day (Berlin)
-		Time:            now,                        // Full timestamp
+		Day:             feedbackModule.Date(timezone.DateFromTime(now).String()),
+		Time:            now.Format("15:04:05"),
 		IsMensaFeedback: false,
 	}
 
 	// Create feedback entry (validation happens in service layer)
-	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
+	entry, err := rs.FeedbackService.Submit(r.Context(), input)
+	if err != nil {
 		slog.Default().ErrorContext(r.Context(), "failed to create feedback entry",
 			slog.String("error", err.Error()),
 		)
-		common.RenderError(w, r, shared.ErrorRenderer(err))
+		renderer := shared.ErrorRenderer(err)
+		status := http.StatusInternalServerError
+		if response, ok := renderer.(*common.ErrResponse); ok {
+			status = response.HTTPStatusCode
+		}
+		common.RenderError(w, r, renderer)
+		rs.ObserveResponse(status, feedbackModule.ErrorCode(err))
 		return
 	}
 
@@ -137,10 +155,11 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		"id":         entry.ID,
 		"student_id": entry.StudentID,
 		"value":      entry.Value,
-		"day":        entry.GetFormattedDate(),
-		"time":       entry.GetFormattedTime(),
+		"day":        string(entry.Day),
+		"time":       entry.Time,
 		"created_at": entry.CreatedAt,
 	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Feedback submitted successfully")
+	rs.ObserveResponse(http.StatusCreated, "none")
 }

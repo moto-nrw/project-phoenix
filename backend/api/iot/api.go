@@ -23,7 +23,6 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
@@ -43,25 +42,26 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
-	IoTService            iotSvc.Service
-	StaffPINAuthenticator authSvc.StaffPINAuthenticator
-	CheckinService        *checkinSvc.CheckinService
-	StaffClockService     *staffclockSvc.Service
-	UsersService          usersSvc.PersonService
-	ActiveService         activeSvc.Service
-	ActivitiesService     activitiesSvc.ActivityService
-	SettingsService       configSvc.SettingsService
-	FacilityService       facilitiesSvc.Service
-	EducationService      educationSvc.Service
-	FeedbackService       feedbackSvc.Service
-	PickupScheduleService scheduleSvc.PickupScheduleService
-	SchoolService         platformSvc.SchoolService
-	TimetableDataService  *scheduleSvc.TimetableDataService
-	TimetableBridge       *scheduleSvc.TimetableBridgeService
-	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
-	Broadcaster           realtime.Broadcaster
-	Logger                *slog.Logger
-	DB                    *bun.DB
+	IoTService               iotSvc.Service
+	StaffPINAuthenticator    authSvc.StaffPINAuthenticator
+	CheckinService           *checkinSvc.CheckinService
+	StaffClockService        *staffclockSvc.Service
+	UsersService             usersSvc.PersonService
+	ActiveService            activeSvc.Service
+	ActivitiesService        activitiesSvc.ActivityService
+	SettingsService          configSvc.SettingsService
+	FacilityService          facilitiesSvc.Service
+	EducationService         educationSvc.Service
+	FeedbackService          dataAPI.Feedback
+	FeedbackResponseObserver func(int, string)
+	PickupScheduleService    scheduleSvc.PickupScheduleService
+	SchoolService            platformSvc.SchoolService
+	TimetableDataService     *scheduleSvc.TimetableDataService
+	TimetableBridge          *scheduleSvc.TimetableBridgeService
+	UnregisteredTagScans     auditSvc.UnregisteredTagScanService
+	Broadcaster              realtime.Broadcaster
+	Logger                   *slog.Logger
+	DB                       *bun.DB
 }
 
 // Resource defines the IoT API resource
@@ -171,7 +171,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/staff-clock/state", staffClockHandler)
 
 		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := dataAPI.NewFeedbackResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
+		feedbackResource := dataAPI.NewFeedbackResource(rs.UsersService, rs.FeedbackService, rs.FeedbackResponseObserver)
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)

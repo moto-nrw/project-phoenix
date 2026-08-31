@@ -70,6 +70,7 @@ func newUnitScheduler(
 		InvitationCleanup:         invitationService,
 		EmailChangeCleanup:        emailChangeCleaner,
 		OperatorInvitationCleanup: operatorInvitationCleaner,
+		FeedbackCleaner:           &fakeFeedbackCleaner{},
 	})
 	jobs := scheduler.jobDefinitions()
 	required := make([]JobID, 0, len(jobs))
@@ -115,6 +116,9 @@ func unitScheduler(scheduler *Scheduler) *Scheduler {
 	}
 	if scheduler.registry == nil {
 		scheduler.registry = configured.registry
+	}
+	if scheduler.feedbackCleaner == nil {
+		scheduler.feedbackCleaner = configured.feedbackCleaner
 	}
 	return scheduler
 }

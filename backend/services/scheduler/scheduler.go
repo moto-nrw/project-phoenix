@@ -93,7 +93,7 @@ type CalendarFeedCleaner interface {
 
 // FeedbackCleaner exposes the cleanup routine for old feedback entries.
 type FeedbackCleaner interface {
-	DeleteEntriesOlderThan(ctx context.Context, days int) (int, error)
+	DeleteExpired(ctx context.Context) (int, error)
 }
 
 type UnregisteredTagScanCleaner interface {
@@ -831,21 +831,21 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 		}
 	}
 
-	// Cleanup old feedback entries based on data retention setting
-	if s.feedbackCleaner != nil {
-		retentionDays := s.resolveIntSetting(ctx, configModel.KeyFeedbackDataRetentionDays, "", 90)
-		if deleted, err := s.feedbackCleaner.DeleteEntriesOlderThan(ctx, retentionDays); err != nil {
-			s.getLogger().Error("feedback cleanup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-		} else if deleted > 0 {
-			s.getLogger().Info("feedback cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("records_deleted", deleted),
-				slog.Int("retention_days", retentionDays),
-			)
-		}
+	// The Feedback owner resolves and enforces its retention setting. A failed
+	// cleanup aborts the tenant transaction instead of being logged and ignored.
+	deleted, err := s.feedbackCleaner.DeleteExpired(ctx)
+	if err != nil {
+		s.getLogger().Error("feedback cleanup failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	if deleted > 0 {
+		s.getLogger().Info("feedback cleanup completed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("records_deleted", deleted),
+		)
 	}
 
 	if s.unregisteredTagScanCleaner != nil {
