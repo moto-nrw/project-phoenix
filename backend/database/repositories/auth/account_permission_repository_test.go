@@ -51,21 +51,21 @@ func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
 		Exec(ctx)
 }
 
-func hasEffectivePermission(
+func findAccountPermission(
 	t *testing.T,
-	repo auth.PermissionRepository,
+	repo auth.AccountPermissionRepository,
 	ctx context.Context,
 	accountID, permissionID int64,
-) bool {
+) *auth.AccountPermission {
 	t.Helper()
 	permissions, err := repo.FindByAccountID(ctx, accountID)
 	require.NoError(t, err)
 	for _, permission := range permissions {
-		if permission.ID == permissionID {
-			return true
+		if permission.PermissionID == permissionID {
+			return permission
 		}
 	}
-	return false
+	return nil
 }
 
 // ============================================================================
@@ -111,8 +111,7 @@ func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
-	repo := repos.AccountPermission
+	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds permissions by account ID", func(t *testing.T) {
@@ -154,8 +153,7 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
-	repo := repos.AccountPermission
+	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("grants new permission", func(t *testing.T) {
@@ -168,7 +166,9 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify granted
-		assert.True(t, hasEffectivePermission(t, repos.Permission, ctx, account.ID, permission.ID))
+		mapping := findAccountPermission(t, repo, ctx, account.ID, permission.ID)
+		require.NotNil(t, mapping)
+		assert.True(t, mapping.Granted)
 	})
 
 	t.Run("updates existing permission to granted", func(t *testing.T) {
@@ -186,7 +186,9 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify granted
-		assert.True(t, hasEffectivePermission(t, repos.Permission, ctx, account.ID, permission.ID))
+		mapping := findAccountPermission(t, repo, ctx, account.ID, permission.ID)
+		require.NotNil(t, mapping)
+		assert.True(t, mapping.Granted)
 	})
 }
 
@@ -195,8 +197,7 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
-	repo := repos.AccountPermission
+	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("denies new permission", func(t *testing.T) {
@@ -209,7 +210,9 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify denied
-		assert.False(t, hasEffectivePermission(t, repos.Permission, ctx, account.ID, permission.ID))
+		mapping := findAccountPermission(t, repo, ctx, account.ID, permission.ID)
+		require.NotNil(t, mapping)
+		assert.False(t, mapping.Granted)
 	})
 
 	t.Run("updates existing permission to denied", func(t *testing.T) {
@@ -227,7 +230,9 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify denied
-		assert.False(t, hasEffectivePermission(t, repos.Permission, ctx, account.ID, permission.ID))
+		mapping := findAccountPermission(t, repo, ctx, account.ID, permission.ID)
+		require.NotNil(t, mapping)
+		assert.False(t, mapping.Granted)
 	})
 }
 
@@ -236,8 +241,7 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
-	repo := repos.AccountPermission
+	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes existing permission", func(t *testing.T) {
@@ -255,7 +259,7 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify removed
-		assert.False(t, hasEffectivePermission(t, repos.Permission, ctx, account.ID, permission.ID))
+		assert.Nil(t, findAccountPermission(t, repo, ctx, account.ID, permission.ID))
 	})
 
 	t.Run("does not error when removing non-existent permission", func(t *testing.T) {
@@ -277,8 +281,7 @@ func TestAccountPermissionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
-	repo := repos.AccountPermission
+	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account permission granted status", func(t *testing.T) {
@@ -302,7 +305,9 @@ func TestAccountPermissionRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify update
-		assert.False(t, hasEffectivePermission(t, repos.Permission, ctx, account.ID, permission.ID))
+		mapping := findAccountPermission(t, repo, ctx, account.ID, permission.ID)
+		require.NotNil(t, mapping)
+		assert.False(t, mapping.Granted)
 	})
 
 	t.Run("rejects nil account permission", func(t *testing.T) {
@@ -321,8 +326,7 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
-	repo := repos.AccountPermission
+	repo := repositories.NewFactory(db).AccountPermission
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all account permissions", func(t *testing.T) {
@@ -408,16 +412,16 @@ func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify both exist
-		assert.True(t, hasEffectivePermission(t, repos.Permission, ctx, account1.ID, permission.ID))
-		assert.True(t, hasEffectivePermission(t, repos.Permission, ctx, account2.ID, permission.ID))
+		assert.NotNil(t, findAccountPermission(t, repo, ctx, account1.ID, permission.ID))
+		assert.NotNil(t, findAccountPermission(t, repo, ctx, account2.ID, permission.ID))
 
 		// Delete by permission ID
 		err = repo.DeleteByPermissionID(ctx, permission.ID)
 		require.NoError(t, err)
 
 		// Verify all deleted
-		assert.False(t, hasEffectivePermission(t, repos.Permission, ctx, account1.ID, permission.ID))
-		assert.False(t, hasEffectivePermission(t, repos.Permission, ctx, account2.ID, permission.ID))
+		assert.Nil(t, findAccountPermission(t, repo, ctx, account1.ID, permission.ID))
+		assert.Nil(t, findAccountPermission(t, repo, ctx, account2.ID, permission.ID))
 	})
 
 	t.Run("does not error when deleting non-existent permission mappings", func(t *testing.T) {
