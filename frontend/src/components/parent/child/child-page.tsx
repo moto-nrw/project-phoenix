@@ -436,6 +436,11 @@ function ChildAreaTabs({
           enrolledUntil={child.enrolled_until}
           reasonRequired={reasonRequired}
         />
+        <ChildMasterDataView
+          studentId={child.student_id}
+          childName={childName}
+          area="departure"
+        />
       </TabsContent>
 
       <TabsContent

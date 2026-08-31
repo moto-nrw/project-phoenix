@@ -256,6 +256,10 @@ describe("ChildPage", () => {
     expect(screen.getByText("Abholung heute um 15:00 Uhr")).toBeInTheDocument();
 
     expect(screen.getByTestId("section-care")).toBeInTheDocument();
+    expect(screen.getByTestId("section-departure")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("section-departure").closest('[role="tabpanel"]'),
+    ).toHaveAttribute("data-state", "active");
     expect(
       screen.getByTestId("section-details").closest('[role="tabpanel"]'),
     ).toHaveAttribute("data-state", "inactive");
@@ -282,7 +286,7 @@ describe("ChildPage", () => {
     expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
   });
 
-  it("laedt Angaben und Kontakte beim erneuten Tabwechsel nicht neu", async () => {
+  it("laedt Heimweg und Angaben beim erneuten Tabwechsel nicht neu", async () => {
     const user = userEvent.setup();
     renderPage("42");
     await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
@@ -291,7 +295,7 @@ describe("ChildPage", () => {
     await user.click(screen.getByRole("tab", { name: "Kontakte & Abholung" }));
     await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
 
-    expect(mockMasterDataMount).toHaveBeenCalledTimes(1);
+    expect(mockMasterDataMount).toHaveBeenCalledTimes(2);
   });
 
   it("nennt die geplante Abholung im Klartext", async () => {
