@@ -94,15 +94,10 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 	var entity T
 
-	// Create a new instance of entity type
-	entityType := reflect.TypeFor[T]()
-
-	// If it's a pointer type, get the element type
-	if entityType.Kind() == reflect.Pointer {
-		entityType = entityType.Elem()
+	entityVal, err := r.newScannableEntity()
+	if err != nil {
+		return entity, err
 	}
-
-	entityVal := reflect.New(entityType).Interface().(T)
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
@@ -112,7 +107,7 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
-	err := query.Scan(ctx)
+	err = query.Scan(ctx)
 	if err != nil {
 		err = TranslateNotFound(err)
 		return entity, &modelBase.DatabaseError{
@@ -129,11 +124,10 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 // mutation must be atomic.
 func (r *Repository[T]) FindByIDForUpdate(ctx context.Context, id any) (T, error) {
 	var entity T
-	entityType := reflect.TypeFor[T]()
-	if entityType.Kind() == reflect.Pointer {
-		entityType = entityType.Elem()
+	entityVal, err := r.newScannableEntity()
+	if err != nil {
+		return entity, err
 	}
-	entityVal := reflect.New(entityType).Interface().(T)
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), entityVal, r.TableName, entityName).
 		Where("? = ?", bun.Ident(entityName+".id"), id).
@@ -144,6 +138,18 @@ func (r *Repository[T]) FindByIDForUpdate(ctx context.Context, id any) (T, error
 		return entity, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
 	}
 	return entityVal, nil
+}
+
+// newScannableEntity allocates the pointer target required by Bun scan queries.
+// Repository lookup methods return pointer model values, so using a value type
+// is a configuration error rather than a database failure.
+func (r *Repository[T]) newScannableEntity() (T, error) {
+	var zero T
+	entityType := reflect.TypeFor[T]()
+	if entityType.Kind() != reflect.Pointer {
+		return zero, fmt.Errorf("%s repository requires a pointer entity type", r.EntityName)
+	}
+	return reflect.New(entityType.Elem()).Interface().(T), nil
 }
 
 // FindByIDOrNil behaves like FindByID but returns the zero value and a nil error
