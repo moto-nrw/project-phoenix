@@ -49,7 +49,7 @@ export interface PlannedTimetableInstance {
   staffNames?: PlannedInstanceStaffName[];
 }
 
-export interface PlannedInstanceStaffName {
+interface PlannedInstanceStaffName {
   staffId: string;
   displayName: string;
   isSubstitute: boolean;
