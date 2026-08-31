@@ -858,11 +858,11 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	assert.Equal(t, "Beispiel", names[0].LastName)
 }
 
-// ambiguousNameTenantID is a third school, kept apart from the target so the
-// disagreement is between two schools that are neither the target.
+// ambiguousNameTenantID is a third school in a range separate from the target
+// range, so parallel tests with consecutive primary tenant IDs cannot collide.
 func ambiguousNameTenantID(t *testing.T) int64 {
 	t.Helper()
-	return testpkg.Tenant(t) + 500_000_001
+	return testpkg.Tenant(t) + 600_000_000
 }
 
 func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) *userModels.Person {
