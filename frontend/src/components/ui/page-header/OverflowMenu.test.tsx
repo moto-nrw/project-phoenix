@@ -26,7 +26,10 @@ describe("OverflowMenu", () => {
     const defaultTrigger = screen.getByRole("button", {
       name: /Weitere Aktionen/i,
     });
-    expect(defaultTrigger.className).toContain("size-9");
+    // Breite folgt per aspect-square der Höhe, damit der Kreis unter der
+    // erzwungenen Bedienhöhe der Kopfkarte rund bleibt.
+    expect(defaultTrigger.className).toContain("h-9");
+    expect(defaultTrigger.className).toContain("aspect-square");
     expect(defaultTrigger.className).toContain("text-gray-600");
 
     rerender(

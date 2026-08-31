@@ -63,7 +63,9 @@ function buttonClassName({
     // Apple HIG (44pt) und Material (48dp).
     touch: "min-h-12 rounded-xl px-5 text-[17px] font-semibold",
     compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
-    icon: "h-8 w-8 rounded-md disabled:cursor-not-allowed",
+    // `aspect-square` statt `w-8`: erzwingt die Kopfkarte ihre Bedienhöhe
+    // (40/44 px), folgt die Breite — sonst wird der quadratische Knopf oval.
+    icon: "aspect-square h-8 rounded-md disabled:cursor-not-allowed",
     card: "w-full rounded-2xl p-4",
   };
   const variantStyles: Record<ButtonVariant, string> = {

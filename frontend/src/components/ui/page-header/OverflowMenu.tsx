@@ -125,7 +125,14 @@ export function OverflowMenu({
   // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
   // that class-string order would not resolve).
   const triggerSizeClass =
-    triggerContent != null ? "" : triggerSize === "sm" ? "size-6" : "size-9";
+    // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
+    // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
+    // (40/44 px) per Nachfahren-Selektor erzwingt.
+    triggerContent != null
+      ? ""
+      : triggerSize === "sm"
+        ? "size-6"
+        : "aspect-square h-9";
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
