@@ -48,7 +48,6 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-lifecycle")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	enrolled, err := svc.HasEnrollment(ctx, acc.ID)
 	require.NoError(t, err)
@@ -74,7 +73,6 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-trusted")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	// Trust is per-(account, tenant) as of #1430 review item #9 — every
 	// IssueTrustedDevice / VerifyTrustedDevice call needs a real tenant
@@ -108,7 +106,6 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 	svc, repos, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-challenge")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	require.NoError(t, svc.Enroll(ctx, acc.ID))
 
@@ -134,7 +131,6 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-admin-target")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, target.ID) })
 
 	// Map target to a tenant so the new cross-tenant guard (#1430 Item #2)
 	// doesn't reject this permission-gate test before the permission check

@@ -400,7 +400,11 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 
 	var auditCount int
 	require.NoError(t, db.NewSelect().TableExpr(`audit.substitution_changes AS "change"`).
-		ColumnExpr("COUNT(*)").Where(`"change".substitution_id = ?`, created.ID).Scan(ctx, &auditCount))
+		ColumnExpr("COUNT(*)").
+		Where(`"change".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"change".target_type = ?`, substitution.TargetGroupHandover).
+		Where(`"change".substitution_id = ?`, created.ID).
+		Scan(ctx, &auditCount))
 	require.Equal(t, 1, auditCount)
 
 	_, err = service.Assign(ctx, caller, substitution.Assignment{
@@ -410,7 +414,11 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 	require.ErrorIs(t, err, substitution.ErrAlreadyAssigned)
 	require.NoError(t, service.End(ctx, caller, substitution.EndRequest{Type: substitution.TargetGroupHandover, ID: created.ID}))
 	require.NoError(t, db.NewSelect().TableExpr(`audit.substitution_changes AS "change"`).
-		ColumnExpr("COUNT(*)").Where(`"change".substitution_id = ?`, created.ID).Scan(ctx, &auditCount))
+		ColumnExpr("COUNT(*)").
+		Where(`"change".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"change".target_type = ?`, substitution.TargetGroupHandover).
+		Where(`"change".substitution_id = ?`, created.ID).
+		Scan(ctx, &auditCount))
 	require.Equal(t, 2, auditCount)
 }
 

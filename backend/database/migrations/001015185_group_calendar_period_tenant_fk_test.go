@@ -17,11 +17,11 @@ func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
+	testpkg.OwnTenantRows(t, db, tenantB)
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
-		testpkg.CleanupTenantTestData(t, db, tenantA)
-		testpkg.CleanupTenantTestData(t, db, tenantB)
 		_, err := db.NewDelete().TableExpr("schedule.calendar_periods").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(cleanupCtx)
 		require.NoError(t, err)
 		// School + organization stay: their IDs come from the test band, so

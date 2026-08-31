@@ -17320,11 +17320,21 @@
     },
     {
       "scope": "test",
+      "file": "api/staff/school_classes_api_test.go",
+      "declaration": "TestSchoolClassesAPI_UnknownStaff",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        73
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/staff/staff_test.go",
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1454
+        1450
       ],
       "tables": []
     },
@@ -17334,12 +17344,25 @@
       "declaration": "TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1385,
-        1424
+        1381,
+        1420
       ],
       "tables": [
         "config.work_time_models",
         "users.staff"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/staff_test.go",
+      "declaration": "assignSystemRoleToAccount",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        134
+      ],
+      "tables": [
+        "auth.account_roles",
+        "auth.roles"
       ]
     },
     {
@@ -20643,7 +20666,7 @@
       "declaration": "TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        40
       ],
       "tables": []
     },
@@ -20653,7 +20676,7 @@
       "declaration": "TestAccountRepository_ResetMFAAttempts_ClearsCounterAndLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        101
+        99
       ],
       "tables": []
     },
@@ -20745,7 +20768,7 @@
       "declaration": "TestAccountPermissionRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        80
+        40
       ],
       "tables": []
     },
@@ -20755,7 +20778,7 @@
       "declaration": "TestAccountPermissionRepository_DeleteByPermissionID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        396
+        330
       ],
       "tables": []
     },
@@ -20765,7 +20788,7 @@
       "declaration": "TestAccountPermissionRepository_DenyPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        200
+        149
       ],
       "tables": []
     },
@@ -20775,7 +20798,7 @@
       "declaration": "TestAccountPermissionRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        114
+        71
       ],
       "tables": []
     },
@@ -20785,7 +20808,7 @@
       "declaration": "TestAccountPermissionRepository_GrantPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        156
+        109
       ],
       "tables": []
     },
@@ -20795,7 +20818,7 @@
       "declaration": "TestAccountPermissionRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        329
+        269
       ],
       "tables": []
     },
@@ -20805,7 +20828,7 @@
       "declaration": "TestAccountPermissionRepository_RemovePermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        189
       ],
       "tables": []
     },
@@ -20815,7 +20838,7 @@
       "declaration": "TestAccountPermissionRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        284
+        226
       ],
       "tables": []
     },
@@ -20825,7 +20848,7 @@
       "declaration": "TestAccountRepository_IncrementPINAttempts_AtomicUnderRace",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        38
       ],
       "tables": []
     },
@@ -20835,7 +20858,7 @@
       "declaration": "TestAccountRepository_ResetPINAttempts_ClearsCounterAndLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        97
+        95
       ],
       "tables": []
     },
@@ -20845,7 +20868,7 @@
       "declaration": "TestAccountRepository_CalendarFeedToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        620
+        596
       ],
       "tables": []
     },
@@ -20865,7 +20888,7 @@
       "declaration": "TestAccountRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        590
+        566
       ],
       "tables": []
     },
@@ -20875,7 +20898,7 @@
       "declaration": "TestAccountRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        186
+        180
       ],
       "tables": []
     },
@@ -20885,7 +20908,7 @@
       "declaration": "TestAccountRepository_EnsureCalendarFeedToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        659
+        634
       ],
       "tables": []
     },
@@ -20895,7 +20918,7 @@
       "declaration": "TestAccountRepository_FindAccountsWithRolesAndPermissions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        370
+        356
       ],
       "tables": [
         "auth.account_roles"
@@ -20907,7 +20930,7 @@
       "declaration": "TestAccountRepository_FindByEmail",
       "target": "database/repositories.NewFactory",
       "lines": [
-        93
+        90
       ],
       "tables": []
     },
@@ -20917,7 +20940,7 @@
       "declaration": "TestAccountRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        69
+        67
       ],
       "tables": []
     },
@@ -20927,7 +20950,7 @@
       "declaration": "TestAccountRepository_FindByRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        227
+        220
       ],
       "tables": [
         "auth.account_roles"
@@ -20939,7 +20962,7 @@
       "declaration": "TestAccountRepository_FindByUsername",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        112
       ],
       "tables": []
     },
@@ -20949,7 +20972,7 @@
       "declaration": "TestAccountRepository_FindEmailsByAccountIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        548
+        526
       ],
       "tables": []
     },
@@ -20959,7 +20982,7 @@
       "declaration": "TestAccountRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        209
+        203
       ],
       "tables": []
     },
@@ -20969,7 +20992,7 @@
       "declaration": "TestAccountRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        386
       ],
       "tables": [
         "auth.account_roles"
@@ -20981,7 +21004,7 @@
       "declaration": "TestAccountRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        150
+        146
       ],
       "tables": []
     },
@@ -20991,7 +21014,7 @@
       "declaration": "TestAccountRepository_UpdateAvatar",
       "target": "database/repositories.NewFactory",
       "lines": [
-        344
+        331
       ],
       "tables": []
     },
@@ -21001,7 +21024,7 @@
       "declaration": "TestAccountRepository_UpdateLastLogin",
       "target": "database/repositories.NewFactory",
       "lines": [
-        288
+        277
       ],
       "tables": []
     },
@@ -21011,7 +21034,7 @@
       "declaration": "TestAccountRepository_UpdatePassword",
       "target": "database/repositories.NewFactory",
       "lines": [
-        321
+        309
       ],
       "tables": []
     },
@@ -21021,7 +21044,7 @@
       "declaration": "TestAccountRepository_UpdateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        605
+        581
       ],
       "tables": []
     },
@@ -21031,7 +21054,7 @@
       "declaration": "TestAccountRoleRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        22
       ],
       "tables": []
     },
@@ -21041,7 +21064,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByAccountAndRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        213
+        196
       ],
       "tables": []
     },
@@ -21051,7 +21074,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        295
+        272
       ],
       "tables": []
     },
@@ -21061,7 +21084,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByAccountRoleAndTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        252
+        232
       ],
       "tables": []
     },
@@ -21071,7 +21094,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        336
+        309
       ],
       "tables": []
     },
@@ -21081,7 +21104,7 @@
       "declaration": "TestAccountRoleRepository_FindByAccountAndRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        136
+        124
       ],
       "tables": []
     },
@@ -21091,7 +21114,7 @@
       "declaration": "TestAccountRoleRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        51
       ],
       "tables": []
     },
@@ -21101,7 +21124,7 @@
       "declaration": "TestAccountRoleRepository_FindByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        98
+        90
       ],
       "tables": []
     },
@@ -21111,7 +21134,7 @@
       "declaration": "TestAccountRoleRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        383
+        353
       ],
       "tables": []
     },
@@ -21121,7 +21144,7 @@
       "declaration": "TestAccountRoleRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        171
+        157
       ],
       "tables": []
     },
@@ -21246,11 +21269,10 @@
       "declaration": "TestInvitationTokenRepository_DeleteExpired_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        388
+        355
       ],
       "tables": [
-        "auth.invitation_tokens",
-        "auth.roles"
+        "auth.invitation_tokens"
       ]
     },
     {
@@ -21259,11 +21281,9 @@
       "declaration": "TestInvitationTokenRepository_FindByEmail_CaseInsensitive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        283
+        259
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21271,11 +21291,9 @@
       "declaration": "TestInvitationTokenRepository_FindByEmail_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        254
+        233
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21283,7 +21301,7 @@
       "declaration": "TestInvitationTokenRepository_FindByID_NotFound",
       "target": "database/repositories.NewFactory",
       "lines": [
-        136
+        124
       ],
       "tables": []
     },
@@ -21293,11 +21311,9 @@
       "declaration": "TestInvitationTokenRepository_FindByID_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        108
+        99
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21305,7 +21321,7 @@
       "declaration": "TestInvitationTokenRepository_FindByToken_NotFound",
       "target": "database/repositories.NewFactory",
       "lines": [
-        89
+        80
       ],
       "tables": []
     },
@@ -21315,11 +21331,9 @@
       "declaration": "TestInvitationTokenRepository_FindByToken_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        60
+        54
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21327,11 +21341,10 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Expired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        183
+        168
       ],
       "tables": [
-        "auth.invitation_tokens",
-        "auth.roles"
+        "auth.invitation_tokens"
       ]
     },
     {
@@ -21340,11 +21353,10 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Used",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        198
       ],
       "tables": [
-        "auth.invitation_tokens",
-        "auth.roles"
+        "auth.invitation_tokens"
       ]
     },
     {
@@ -21353,11 +21365,9 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Valid",
       "target": "database/repositories.NewFactory",
       "lines": [
-        155
+        143
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21365,11 +21375,9 @@
       "declaration": "TestInvitationTokenRepository_InvalidateByEmail_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        349
+        319
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21377,11 +21385,9 @@
       "declaration": "TestInvitationTokenRepository_InvalidateByTenantID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        662
+        608
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21389,11 +21395,9 @@
       "declaration": "TestInvitationTokenRepository_List_NoFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        438
+        402
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21401,11 +21405,9 @@
       "declaration": "TestInvitationTokenRepository_List_WithEmailFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        465
+        426
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21413,11 +21415,9 @@
       "declaration": "TestInvitationTokenRepository_List_WithPendingFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        498
+        456
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21425,11 +21425,9 @@
       "declaration": "TestInvitationTokenRepository_MarkAsUsed_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        314
+        287
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21437,11 +21435,9 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        534
+        489
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21449,11 +21445,9 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_WithError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        568
+        520
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21461,7 +21455,7 @@
       "declaration": "TestInvitationTokenRepository_Update_NilReturnsError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        642
+        588
       ],
       "tables": []
     },
@@ -21471,11 +21465,9 @@
       "declaration": "TestInvitationTokenRepository_Update_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        606
+        555
       ],
-      "tables": [
-        "auth.roles"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21569,9 +21561,7 @@
       "lines": [
         24
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21579,11 +21569,9 @@
       "declaration": "TestPasswordResetTokenRepository_DeleteExpiredTokens",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        270
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21591,11 +21579,9 @@
       "declaration": "TestPasswordResetTokenRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        125
+        119
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21603,11 +21589,9 @@
       "declaration": "TestPasswordResetTokenRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        57
+        55
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21615,11 +21599,9 @@
       "declaration": "TestPasswordResetTokenRepository_FindByToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        91
+        87
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21627,11 +21609,9 @@
       "declaration": "TestPasswordResetTokenRepository_FindValidByToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        171
+        156
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21639,11 +21619,9 @@
       "declaration": "TestPasswordResetTokenRepository_InvalidateTokensByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        255
+        234
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21651,11 +21629,9 @@
       "declaration": "TestPasswordResetTokenRepository_MarkAsUsed",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        205
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21663,11 +21639,9 @@
       "declaration": "TestPasswordResetTokenRepository_UpdateDeliveryResult",
       "target": "database/repositories.NewFactory",
       "lines": [
-        352
+        321
       ],
-      "tables": [
-        "auth.password_reset_tokens"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -21675,7 +21649,7 @@
       "declaration": "TestPermissionRepository_AssignPermissionToRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
+        296
       ],
       "tables": []
     },
@@ -21695,7 +21669,7 @@
       "declaration": "TestPermissionRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        138
+        133
       ],
       "tables": []
     },
@@ -21705,7 +21679,7 @@
       "declaration": "TestPermissionRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        215
+        207
       ],
       "tables": [
         "auth.account_roles",
@@ -21718,7 +21692,7 @@
       "declaration": "TestPermissionRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        69
+        67
       ],
       "tables": []
     },
@@ -21728,7 +21702,7 @@
       "declaration": "TestPermissionRepository_FindByName",
       "target": "database/repositories.NewFactory",
       "lines": [
-        93
+        90
       ],
       "tables": []
     },
@@ -21738,7 +21712,7 @@
       "declaration": "TestPermissionRepository_FindByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        179
+        173
       ],
       "tables": [
         "auth.role_permissions"
@@ -21750,7 +21724,7 @@
       "declaration": "TestPermissionRepository_FindDirectByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        268
+        256
       ],
       "tables": [
         "auth.account_permissions"
@@ -21762,7 +21736,7 @@
       "declaration": "TestPermissionRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        161
+        156
       ],
       "tables": []
     },
@@ -21772,7 +21746,7 @@
       "declaration": "TestPermissionRepository_RemovePermissionFromRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        318
       ],
       "tables": [
         "auth.role_permissions"
@@ -21784,7 +21758,7 @@
       "declaration": "TestPermissionRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        112
       ],
       "tables": []
     },
@@ -21794,7 +21768,7 @@
       "declaration": "TestRolePermissionRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        34
+        22
       ],
       "tables": []
     },
@@ -21804,7 +21778,7 @@
       "declaration": "TestRolePermissionRepository_DeleteByPermissionID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        195
       ],
       "tables": []
     },
@@ -21814,7 +21788,7 @@
       "declaration": "TestRolePermissionRepository_DeleteByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        179
+        153
       ],
       "tables": []
     },
@@ -21824,7 +21798,7 @@
       "declaration": "TestRolePermissionRepository_FindByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        93
+        76
       ],
       "tables": []
     },
@@ -21834,7 +21808,7 @@
       "declaration": "TestRolePermissionRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        270
+        237
       ],
       "tables": []
     },
@@ -21844,7 +21818,7 @@
       "declaration": "TestRolePermissionRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        131
+        110
       ],
       "tables": []
     },
@@ -21854,7 +21828,7 @@
       "declaration": "TestRoleRepository_AssignRoleToAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        298
+        243
       ],
       "tables": []
     },
@@ -21864,7 +21838,7 @@
       "declaration": "TestRoleRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        67
+        25
       ],
       "tables": []
     },
@@ -21874,7 +21848,7 @@
       "declaration": "TestRoleRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        175
+        126
       ],
       "tables": []
     },
@@ -21884,7 +21858,7 @@
       "declaration": "TestRoleRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        166
       ],
       "tables": [
         "auth.account_roles"
@@ -21896,7 +21870,7 @@
       "declaration": "TestRoleRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        106
+        60
       ],
       "tables": []
     },
@@ -21906,7 +21880,7 @@
       "declaration": "TestRoleRepository_FindByName",
       "target": "database/repositories.NewFactory",
       "lines": [
-        130
+        83
       ],
       "tables": []
     },
@@ -21916,7 +21890,7 @@
       "declaration": "TestRoleRepository_FindRoleNamesByAccountIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        342
+        283
       ],
       "tables": [
         "auth.account_roles"
@@ -21928,7 +21902,7 @@
       "declaration": "TestRoleRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        198
+        149
       ],
       "tables": []
     },
@@ -21938,7 +21912,7 @@
       "declaration": "TestRoleRepository_RemoveRoleFromAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        318
+        261
       ],
       "tables": []
     },
@@ -21948,7 +21922,7 @@
       "declaration": "TestRoleRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        153
+        105
       ],
       "tables": []
     },
@@ -21958,7 +21932,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        516
+        499
       ],
       "tables": [
         "auth.tokens"
@@ -21970,7 +21944,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        708
+        687
       ],
       "tables": []
     },
@@ -21980,7 +21954,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown",
       "target": "database/repositories.NewFactory",
       "lines": [
-        753
+        731
       ],
       "tables": []
     },
@@ -21990,7 +21964,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        591
+        573
       ],
       "tables": []
     },
@@ -22000,7 +21974,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg",
       "target": "database/repositories.NewFactory",
       "lines": [
-        669
+        649
       ],
       "tables": []
     },
@@ -22010,7 +21984,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated",
       "target": "database/repositories.NewFactory",
       "lines": [
-        627
+        608
       ],
       "tables": []
     },
@@ -22030,7 +22004,7 @@
       "declaration": "TestTokenRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        937
+        910
       ],
       "tables": []
     },
@@ -22040,7 +22014,7 @@
       "declaration": "TestTokenRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        143
+        138
       ],
       "tables": []
     },
@@ -22050,7 +22024,7 @@
       "declaration": "TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        400
+        386
       ],
       "tables": [
         "auth.tokens"
@@ -22062,7 +22036,7 @@
       "declaration": "TestTokenRepository_DeleteByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338
+        326
       ],
       "tables": []
     },
@@ -22072,7 +22046,7 @@
       "declaration": "TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor",
       "target": "database/repositories.NewFactory",
       "lines": [
-        429
+        414
       ],
       "tables": [
         "auth.tokens"
@@ -22084,7 +22058,7 @@
       "declaration": "TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx",
       "target": "database/repositories.NewFactory",
       "lines": [
-        364
+        351
       ],
       "tables": [
         "auth.tokens"
@@ -22096,7 +22070,7 @@
       "declaration": "TestTokenRepository_DeleteByFamilyID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        471
+        455
       ],
       "tables": []
     },
@@ -22106,7 +22080,7 @@
       "declaration": "TestTokenRepository_DeleteByTenantID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        956
+        929
       ],
       "tables": []
     },
@@ -22116,7 +22090,7 @@
       "declaration": "TestTokenRepository_DeleteExpiredRotatedForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        781
+        758
       ],
       "tables": []
     },
@@ -22126,7 +22100,7 @@
       "declaration": "TestTokenRepository_DeleteExpiredTokens",
       "target": "database/repositories.NewFactory",
       "lines": [
-        228
+        219
       ],
       "tables": [
         "auth.tokens"
@@ -22138,7 +22112,7 @@
       "declaration": "TestTokenRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        187
+        180
       ],
       "tables": []
     },
@@ -22148,7 +22122,7 @@
       "declaration": "TestTokenRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        68
       ],
       "tables": []
     },
@@ -22158,7 +22132,7 @@
       "declaration": "TestTokenRepository_FindByToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        94
+        91
       ],
       "tables": []
     },
@@ -22168,7 +22142,7 @@
       "declaration": "TestTokenRepository_GetLatestTokenInFamily",
       "target": "database/repositories.NewFactory",
       "lines": [
-        824
+        800
       ],
       "tables": []
     },
@@ -22178,7 +22152,7 @@
       "declaration": "TestTokenRepository_HasLiveTokensCreatedAfter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        269
+        259
       ],
       "tables": []
     },
@@ -22188,7 +22162,7 @@
       "declaration": "TestTokenRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        168
+        162
       ],
       "tables": []
     },
@@ -22198,7 +22172,7 @@
       "declaration": "TestTokenRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        882
+        857
       ],
       "tables": []
     },
@@ -22208,7 +22182,7 @@
       "declaration": "TestTokenRepository_RotationHandoffLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        290
+        279
       ],
       "tables": []
     },
@@ -22218,7 +22192,7 @@
       "declaration": "TestTokenRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        118
+        114
       ],
       "tables": []
     },
@@ -22801,7 +22775,7 @@
       "declaration": "TestDeviceRepository_ArchivedDevicesAreHistoricalOnly",
       "target": "database/repositories.NewFactory",
       "lines": [
-        106
+        105
       ],
       "tables": [
         "iot.devices"
@@ -22813,7 +22787,7 @@
       "declaration": "TestDeviceRepository_CountDevicesByType",
       "target": "database/repositories.NewFactory",
       "lines": [
-        605
+        604
       ],
       "tables": []
     },
@@ -22833,7 +22807,7 @@
       "declaration": "TestDeviceRepository_Create_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        233
+        232
       ],
       "tables": []
     },
@@ -22843,7 +22817,7 @@
       "declaration": "TestDeviceRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        158
+        157
       ],
       "tables": []
     },
@@ -22853,7 +22827,7 @@
       "declaration": "TestDeviceRepository_FindByAPIKey",
       "target": "database/repositories.NewFactory",
       "lines": [
-        289
+        288
       ],
       "tables": []
     },
@@ -22883,7 +22857,7 @@
       "declaration": "TestDeviceRepository_FindByRegisteredBy",
       "target": "database/repositories.NewFactory",
       "lines": [
-        395
+        394
       ],
       "tables": []
     },
@@ -22893,7 +22867,7 @@
       "declaration": "TestDeviceRepository_FindByStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        362
+        361
       ],
       "tables": []
     },
@@ -22903,7 +22877,7 @@
       "declaration": "TestDeviceRepository_FindByStatus_Active",
       "target": "database/repositories.NewFactory",
       "lines": [
-        198
+        197
       ],
       "tables": []
     },
@@ -22913,7 +22887,7 @@
       "declaration": "TestDeviceRepository_FindByStatus_Maintenance",
       "target": "database/repositories.NewFactory",
       "lines": [
-        500
+        499
       ],
       "tables": []
     },
@@ -22923,7 +22897,7 @@
       "declaration": "TestDeviceRepository_FindByType",
       "target": "database/repositories.NewFactory",
       "lines": [
-        322
+        321
       ],
       "tables": []
     },
@@ -22933,7 +22907,7 @@
       "declaration": "TestDeviceRepository_FindOfflineDevices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        531
       ],
       "tables": [
         "iot.devices"
@@ -22945,7 +22919,7 @@
       "declaration": "TestDeviceRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        181
+        180
       ],
       "tables": []
     },
@@ -22955,7 +22929,7 @@
       "declaration": "TestDeviceRepository_List_WithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        718
+        717
       ],
       "tables": []
     },
@@ -22965,7 +22939,7 @@
       "declaration": "TestDeviceRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        137
+        136
       ],
       "tables": []
     },
@@ -22975,7 +22949,7 @@
       "declaration": "TestDeviceRepository_UpdateLastSeen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        443
+        442
       ],
       "tables": []
     },
@@ -22985,7 +22959,7 @@
       "declaration": "TestDeviceRepository_UpdateRoomID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        645
+        644
       ],
       "tables": []
     },
@@ -22995,7 +22969,7 @@
       "declaration": "TestDeviceRepository_UpdateStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        465
+        464
       ],
       "tables": []
     },
@@ -23005,7 +22979,7 @@
       "declaration": "TestDeviceRepository_Update_Validation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        270
+        269
       ],
       "tables": []
     },
@@ -23065,7 +23039,7 @@
       "declaration": "TestDateframeRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        154
+        152
       ],
       "tables": []
     },
@@ -23075,11 +23049,9 @@
       "declaration": "TestDateframeRepository_FindByDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        271
+        266
       ],
-      "tables": [
-        "schedule.dateframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23089,9 +23061,7 @@
       "lines": [
         82
       ],
-      "tables": [
-        "schedule.dateframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23099,11 +23069,9 @@
       "declaration": "TestDateframeRepository_FindByName",
       "target": "database/repositories.NewFactory",
       "lines": [
-        219
+        216
       ],
-      "tables": [
-        "schedule.dateframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23111,11 +23079,9 @@
       "declaration": "TestDateframeRepository_FindOverlapping",
       "target": "database/repositories.NewFactory",
       "lines": [
-        360
+        352
       ],
-      "tables": [
-        "schedule.dateframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23123,11 +23089,9 @@
       "declaration": "TestDateframeRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        186
+        184
       ],
-      "tables": [
-        "schedule.dateframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23135,11 +23099,9 @@
       "declaration": "TestDateframeRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        115
+        114
       ],
-      "tables": [
-        "schedule.dateframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23147,7 +23109,7 @@
       "declaration": "TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1367
+        1358
       ],
       "tables": []
     },
@@ -23157,7 +23119,7 @@
       "declaration": "TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence",
       "target": "database/repositories.NewFactory",
       "lines": [
-        752
+        746
       ],
       "tables": []
     },
@@ -23167,7 +23129,7 @@
       "declaration": "TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        667
+        661
       ],
       "tables": [
         "schedule.activity_instances"
@@ -23259,7 +23221,7 @@
       "declaration": "TestRecurrenceRuleRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        201
+        199
       ],
       "tables": []
     },
@@ -23269,11 +23231,9 @@
       "declaration": "TestRecurrenceRuleRepository_FindByDateRange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        389
+        381
       ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23281,11 +23241,9 @@
       "declaration": "TestRecurrenceRuleRepository_FindByFrequency",
       "target": "database/repositories.NewFactory",
       "lines": [
-        258
+        255
       ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23295,9 +23253,7 @@
       "lines": [
         134
       ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23305,11 +23261,9 @@
       "declaration": "TestRecurrenceRuleRepository_FindByWeekday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        328
       ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23317,11 +23271,9 @@
       "declaration": "TestRecurrenceRuleRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        229
+        227
       ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23329,11 +23281,9 @@
       "declaration": "TestRecurrenceRuleRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        165
+        164
       ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23521,7 +23471,7 @@
       "declaration": "TestTimeframeRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        131
+        129
       ],
       "tables": []
     },
@@ -23531,11 +23481,9 @@
       "declaration": "TestTimeframeRepository_FindActive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        186
+        183
       ],
-      "tables": [
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23545,9 +23493,7 @@
       "lines": [
         69
       ],
-      "tables": [
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23555,11 +23501,9 @@
       "declaration": "TestTimeframeRepository_FindByTimeRange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        233
+        229
       ],
-      "tables": [
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23567,11 +23511,9 @@
       "declaration": "TestTimeframeRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        161
+        159
       ],
-      "tables": [
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23579,11 +23521,9 @@
       "declaration": "TestTimeframeRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        100
+        99
       ],
-      "tables": [
-        "schedule.timeframes"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -25702,7 +25642,7 @@
       "declaration": "setupCleanupService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        40
+        39
       ],
       "tables": []
     },
@@ -25732,7 +25672,7 @@
       "declaration": "TestEndDailySessionsConsistency",
       "target": "database/repositories.NewFactory",
       "lines": [
-        162
+        160
       ],
       "tables": []
     },
@@ -25742,7 +25682,7 @@
       "declaration": "TestEndDailySessionsVisitLookupFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        78
+        76
       ],
       "tables": []
     },
@@ -25782,10 +25722,10 @@
       "declaration": "TestForceStartActivitySessionWithSupervisors",
       "target": "database/repositories.NewFactory",
       "lines": [
-        515,
-        539,
-        548,
-        602
+        511,
+        535,
+        544,
+        598
       ],
       "tables": [
         "active.group_supervisors"
@@ -25797,7 +25737,7 @@
       "declaration": "setupActiveService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        111
+        107
       ],
       "tables": []
     },
@@ -26093,7 +26033,7 @@
       "declaration": "TestActivityService_EnrollStudent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        632
+        630
       ],
       "tables": []
     },
@@ -26103,8 +26043,8 @@
       "declaration": "TestActivityService_SetCategoryShiftTypeLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2998,
-        2999
+        2995,
+        2996
       ],
       "tables": []
     },
@@ -26255,14 +26195,13 @@
       "declaration": "TestAcceptInvitationRollsBackAccountMappingAndRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        50
       ],
       "tables": [
         "auth.account_roles",
         "auth.account_tenants",
         "auth.accounts",
         "auth.invitation_tokens",
-        "auth.roles",
         "users.persons"
       ]
     },
@@ -26272,7 +26211,7 @@
       "declaration": "TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        242
+        241
       ],
       "tables": []
     },
@@ -26324,7 +26263,7 @@
       "declaration": "TestMFAService_VerifyCodeForAccount_RaceLoserRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        123
       ],
       "tables": [
         "auth.mfa_email_challenges"
@@ -26368,11 +26307,23 @@
     },
     {
       "scope": "test",
+      "file": "services/auth/role_assignment_policy_test.go",
+      "declaration": "createPlatformRole",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        139
+      ],
+      "tables": [
+        "auth.roles"
+      ]
+    },
+    {
+      "scope": "test",
       "file": "services/auth/token_revocation_audit_test.go",
       "declaration": "TestRevocationRollsBackWhenAuditInsertFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        86
+        78
       ],
       "tables": [
         "auth.tokens"
@@ -26707,7 +26658,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        521
+        529
       ],
       "tables": []
     },
@@ -26717,7 +26668,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        570
+        578
       ],
       "tables": []
     },
@@ -26739,7 +26690,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        421
+        429
       ],
       "tables": []
     },
@@ -26749,7 +26700,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        648
+        656
       ],
       "tables": []
     },
@@ -26759,7 +26710,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        608
+        616
       ],
       "tables": []
     },
@@ -29793,7 +29744,7 @@
       "declaration": "TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully",
       "target": "database/repositories.NewFactory",
       "lines": [
-        393
+        392
       ],
       "tables": []
     },
@@ -29803,7 +29754,7 @@
       "declaration": "TestMaterializeForTenant_NoTemplates_ReturnsWarning",
       "target": "database/repositories.NewFactory",
       "lines": [
-        431
+        430
       ],
       "tables": [
         "platform.organizations",
@@ -29817,7 +29768,7 @@
       "declaration": "makeScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        69
       ],
       "tables": [
         "activities.groups",
@@ -31331,6 +31282,19 @@
         203
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/users/person_service_test.go",
+      "declaration": "TestPersonService_LinkStudentToRFIDCard",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        722
+      ],
+      "tables": [
+        "users.persons",
+        "users.students"
+      ]
     },
     {
       "scope": "test",

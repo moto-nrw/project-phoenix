@@ -75,7 +75,7 @@ func TestRepairSchulhofIsSystemBackfill_FlagsStaffProvisionedRows(t *testing.T) 
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Schulhof", "Supervisor")
 

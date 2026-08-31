@@ -191,8 +191,6 @@ func TestPersonService_Create(t *testing.T) {
 
 		// ACT
 		err := service.Create(ctx, person)
-		defer func() {
-		}()
 
 		// ASSERT
 		require.NoError(t, err)
@@ -721,7 +719,8 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
 		// Deleting the student is this test's ARRANGE step, not a teardown:
 		// the point is what the service does when the row is gone.
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
+		repos := repositories.NewFactory(db)
+		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT
 		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
@@ -1023,8 +1022,6 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 
 		// ACT
 		err := service.Create(ctx, person)
-		defer func() {
-		}()
 
 		// ASSERT
 		require.NoError(t, err)

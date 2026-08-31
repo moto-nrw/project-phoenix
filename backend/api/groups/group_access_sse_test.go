@@ -136,11 +136,7 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Candidate")
 
-	missing := testpkg.CreateTestTeacher(t, tc.db, "SSERollback", "Missing")
-	missingID := missing.ID
-	// Deleting the second teacher is the ARRANGE step: the request must fail
-	// on the missing ID and roll back. Not a teardown (#2419).
-	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
+	missingID := testpkg.ReserveMissingTeacherID(t, tc.db)
 
 	body := map[string]interface{}{
 		"name":        fmt.Sprintf("SSETeacherRollback-renamed-%d", groupID),
@@ -170,11 +166,7 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Candidate")
 
-	missing := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Missing")
-	missingID := missing.ID
-	// Deleting the second teacher is the ARRANGE step: the request must fail
-	// on the missing ID and roll back. Not a teardown (#2419).
-	testpkg.CleanupTeacherFixtures(t, tc.db, missingID)
+	missingID := testpkg.ReserveMissingTeacherID(t, tc.db)
 
 	groupName := fmt.Sprintf("SSECreateRollback-%d", candidate.ID)
 	claims := testutil.DefaultTestClaims()
