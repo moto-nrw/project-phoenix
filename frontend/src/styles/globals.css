@@ -379,7 +379,11 @@
   inset: 3.5rem 0 0;
 }
 
-.moto-dotted-background--parent {
+/* Vollhöhe für Portale ohne mobile Kopfzeile (Eltern-App und seit dem
+   Kopfzeilen-Aus auch das Personal-Portal): ohne die Überschreibung stünde
+   über dem Muster ein 56-px-weißer-Balken, wo früher die Kopfzeile saß. */
+.moto-dotted-background--parent,
+.moto-dotted-background--full {
   inset: 0;
 }
 

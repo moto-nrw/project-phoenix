@@ -28,6 +28,7 @@ export function AppShell({ children }: AppShellProps) {
     <PortalShell
       header={<Header />}
       headerClassName="sticky top-0 z-40 hidden lg:block"
+      backgroundClassName="moto-dotted-background--full"
       topLayer={
         <div
           data-staff-safe-area-top
