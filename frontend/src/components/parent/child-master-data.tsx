@@ -654,6 +654,11 @@ function DepartureSection({
           isSelf={pending.is_self === true}
         />
       )}
+      {hasAccompanied && (
+        <p className="text-sm text-gray-600">
+          {t("departureReadOnlyAccompanied")}
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {DEPARTURE_DAYS.map((day) => (
           <fieldset
@@ -668,7 +673,11 @@ function DepartureSection({
                 <label
                   key={mode}
                   htmlFor={`departure-${day}-${mode}`}
-                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                  className={
+                    hasAccompanied
+                      ? "flex min-h-11 cursor-default items-center gap-3 rounded-lg px-2 text-sm text-gray-700"
+                      : "flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
+                  }
                 >
                   <Checkbox
                     id={`departure-${day}-${mode}`}

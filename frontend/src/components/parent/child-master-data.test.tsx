@@ -826,6 +826,14 @@ describe("ChildMasterDataView", () => {
     expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeDisabled();
     expect(screen.getByLabelText("Mo Geht allein")).toBeDisabled();
     expect(
+      screen.getByText(
+        "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mo Geht allein").closest("label"),
+    ).toHaveClass("cursor-default");
+    expect(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     ).toBeDisabled();
   });
