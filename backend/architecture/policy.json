@@ -1030,6 +1030,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "database/repositories/workforce",
+      "owner": "workforce",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "email",
       "owner": "delivery-platform",
       "role": "adapter",
@@ -1774,6 +1781,8 @@
     {"name": "active.groups", "write_owner": "student-presence"},
     {"name": "active.scheduled_checkouts", "write_owner": "student-presence"},
     {"name": "active.staff_absence_audit", "write_owner": "workforce"},
+    {"name": "active.staff_absence_type_allowance_changes", "write_owner": "workforce"},
+    {"name": "active.staff_absence_type_allowances", "write_owner": "workforce"},
     {"name": "active.staff_absence_types", "write_owner": "workforce"},
     {"name": "active.staff_absences", "write_owner": "workforce"},
     {"name": "active.staff_balance_adjustments", "write_owner": "workforce"},
@@ -4513,6 +4522,50 @@
       "source_role": "compose",
       "target_owner": "meal-plan",
       "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.workforce-postgres",
+      "description": "The legacy repository factory constructs the candidate workforce Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "postgres"
+    },
+    {
+      "id": "workforce.postgres.student-presence-domain",
+      "description": "The candidate workforce allowance adapter implements the existing absence model contracts during the active-domain migration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.postgres.transaction-domain",
+      "description": "The candidate workforce allowance adapter embeds the shared tenant-aware persistence models.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.postgres.transaction-postgres",
+      "description": "The candidate workforce allowance adapter reuses the shared tenant-scoped repository implementation.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
     },
     {
       "id": "workflow-decision-test.domain",

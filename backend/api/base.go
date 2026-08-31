@@ -794,6 +794,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
+	api.AbsenceTypes.SetActorResolver(api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -988,6 +989,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
 	})
+}
+
+func (a *API) currentStaffID(ctx context.Context) (int64, error) {
+	staff, err := a.Services.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if staff == nil {
+		return 0, errors.New("current staff member not found")
+	}
+	return staff.ID, nil
 }
 
 // ServeHTTP implements the http.Handler interface for the API

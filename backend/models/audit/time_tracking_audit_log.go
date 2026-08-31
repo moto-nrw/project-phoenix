@@ -11,14 +11,15 @@ import (
 // Time-tracking audit log sources (#1417). One value per change trail that
 // feeds the cross-staff audit view.
 const (
-	AuditLogSourceSessionEdit     = "session_edit"
-	AuditLogSourceAbsence         = "absence"
-	AuditLogSourceAdjustment      = "adjustment"
-	AuditLogSourceMonthClose      = "month_close"
-	AuditLogSourceMonthReopen     = "month_reopen"
-	AuditLogSourceDeletion        = "deletion"
-	AuditLogSourcePersonnelNumber = "personnel_number"
-	AuditLogSourceVacationOpening = "vacation_opening"
+	AuditLogSourceSessionEdit          = "session_edit"
+	AuditLogSourceAbsence              = "absence"
+	AuditLogSourceAdjustment           = "adjustment"
+	AuditLogSourceMonthClose           = "month_close"
+	AuditLogSourceMonthReopen          = "month_reopen"
+	AuditLogSourceDeletion             = "deletion"
+	AuditLogSourcePersonnelNumber      = "personnel_number"
+	AuditLogSourceVacationOpening      = "vacation_opening"
+	AuditLogSourceAbsenceTypeAllowance = "absence_type_allowance"
 )
 
 // ValidAuditLogSources lists every accepted `sources` filter value.
@@ -31,6 +32,7 @@ var ValidAuditLogSources = []string{
 	AuditLogSourceDeletion,
 	AuditLogSourcePersonnelNumber,
 	AuditLogSourceVacationOpening,
+	AuditLogSourceAbsenceTypeAllowance,
 }
 
 // TimeTrackingAuditLogEntry is one event in the merged feed: the common

@@ -102,6 +102,7 @@ DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
 GET /api/absence-types/
+GET /api/absence-types/{id}/allowances/{staffId}
 GET /api/active/analytics/dashboard
 GET /api/active/combined/
 GET /api/active/combined/active
@@ -888,6 +889,7 @@ POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in
 POST /school/supervisions/{id}/students/{student_id}/check-out
 PUT /api/absence-types/{id}
+PUT /api/absence-types/{id}/allowances/{staffId}
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
