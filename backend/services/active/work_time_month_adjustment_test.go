@@ -557,3 +557,54 @@ func TestWTMAbsences_HalfDayCompTimeRequiresWorkedHalf(t *testing.T) {
 	assert.Equal(t, 240, vacationSummary.CreditedVacationMinutes)
 	assert.Equal(t, vacationSummary.BalanceMinutes-240, compTimeSummary.BalanceMinutes)
 }
+
+// #2873: the comp-time preview subtracts every already planned future
+// Freizeitausgleich. Multiple future bookings sum; entries up to today are
+// already realized in the closing balance and stay out.
+func TestWTMAdjustments_FutureCompTimeCommitmentSumsFutureBookings(t *testing.T) {
+	t.Parallel()
+
+	f := newWTMFixture()
+	wtmCompTime := func(start, end timezone.Date) *activeModels.StaffAbsence {
+		return &activeModels.StaffAbsence{
+			StaffID:     wtmStaffID,
+			AbsenceType: activeModels.AbsenceTypeCompTime,
+			DateStart:   start,
+			DateEnd:     end,
+			Status:      activeModels.AbsenceStatusReported,
+		}
+	}
+	// today = 2026-07-15; Mondays carry the 480-minute target. July 13 is
+	// past (realized), July 20 and 27 are two separate future bookings.
+	f.absences.absences = []*activeModels.StaffAbsence{
+		wtmCompTime(timezone.NewDate(2026, time.July, 13), timezone.NewDate(2026, time.July, 13)),
+		wtmCompTime(timezone.NewDate(2026, time.July, 20), timezone.NewDate(2026, time.July, 20)),
+		wtmCompTime(timezone.NewDate(2026, time.July, 27), timezone.NewDate(2026, time.July, 27)),
+	}
+
+	minutes, err := f.svc.GetFutureCompTimeCommitmentMinutes(context.Background(), wtmStaffID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 960, minutes)
+}
+
+// A booking spanning today only commits its future days.
+func TestWTMAdjustments_FutureCompTimeCommitmentClipsRangeAtToday(t *testing.T) {
+	t.Parallel()
+
+	f := newWTMFixture()
+	// July 13 (Monday, past) through July 20 (Monday, future): only the
+	// future Monday counts.
+	f.absences.absences = []*activeModels.StaffAbsence{{
+		StaffID:     wtmStaffID,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   timezone.NewDate(2026, time.July, 13),
+		DateEnd:     timezone.NewDate(2026, time.July, 20),
+		Status:      activeModels.AbsenceStatusReported,
+	}}
+
+	minutes, err := f.svc.GetFutureCompTimeCommitmentMinutes(context.Background(), wtmStaffID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 480, minutes)
+}

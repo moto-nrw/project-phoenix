@@ -16,6 +16,7 @@ export interface BackendGroupHandover {
 }
 
 export interface BackendSubstitutionOverview {
+  groups?: Array<{ id: string; name: string }>;
   group_handovers: BackendGroupHandover[];
   targets: Array<{ id: string; full_name: string }>;
   schedule_appointments?: BackendScheduleAppointment[];
@@ -48,6 +49,13 @@ export interface RunningSupervision {
   availableTargets: Array<{ id: string; fullName: string }>;
   isCurrentUserSupervising: boolean;
   canAssign: boolean;
+}
+
+export interface SubstitutionOverview {
+  groups: Array<{ id: string; name: string }>;
+  groupHandovers: Substitution[];
+  targets: Array<{ id: string; fullName: string }>;
+  runningSupervisions: RunningSupervision[];
 }
 
 interface BackendScheduleAppointment {
@@ -151,6 +159,52 @@ export function mapSubstitutionsResponse(
   return backendSubstitutions.map(mapSubstitutionResponse);
 }
 
+export function mapRunningSupervision(
+  backend: BackendRunningSupervision,
+): RunningSupervision {
+  return {
+    id: backend.id.toString(),
+    name: backend.name,
+    roomName: backend.room_name,
+    supervisors: backend.supervisors.map((staff) => ({
+      id: staff.id.toString(),
+      fullName: staff.full_name,
+    })),
+    availableTargets: backend.available_targets.map((staff) => ({
+      id: staff.id.toString(),
+      fullName: staff.full_name,
+    })),
+    isCurrentUserSupervising: backend.is_current_user_supervising,
+    canAssign: backend.can_assign,
+  };
+}
+
+export function mapSubstitutionOverview(
+  backend: BackendSubstitutionOverview,
+): SubstitutionOverview {
+  if (
+    !Array.isArray(backend.groups) ||
+    !Array.isArray(backend.targets) ||
+    !Array.isArray(backend.running_supervisions)
+  ) {
+    throw new Error("Ungültige Antwort für Vertretungen.");
+  }
+  return {
+    groups: backend.groups.map((group) => ({
+      id: group.id.toString(),
+      name: group.name,
+    })),
+    groupHandovers: mapSubstitutionsResponse(backend.group_handovers),
+    targets: backend.targets.map((staff) => ({
+      id: staff.id.toString(),
+      fullName: staff.full_name,
+    })),
+    runningSupervisions: backend.running_supervisions.map(
+      mapRunningSupervision,
+    ),
+  };
+}
+
 export function mapScheduleSubstitutionOverview(
   backend: BackendSubstitutionOverview,
 ): ScheduleSubstitutionOverview {
@@ -214,8 +268,4 @@ export function prepareSubstitutionForBackend(
 // Helper functions
 export function formatDateForBackend(date: Date): string {
   return toISODate(date); // YYYY-MM-DD format
-}
-
-export function formatTeacherName(teacher: TeacherAvailability): string {
-  return `${teacher.firstName} ${teacher.lastName}`.trim();
 }

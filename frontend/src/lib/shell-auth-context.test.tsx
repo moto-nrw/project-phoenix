@@ -70,6 +70,9 @@ describe("TeacherShellProvider", () => {
           name: "John Doe",
           email: "john@example.com",
           roles: ["teacher", "admin"],
+          // schedules:read: das Gate der Tagesplan-Route — ohne das Recht
+          // bleibt /dashboard das Logo-Ziel (eigener Test unten).
+          permissions: ["schedules:read"],
         },
       },
       status: "authenticated",
@@ -85,8 +88,45 @@ describe("TeacherShellProvider", () => {
     expect(result.current.status).toBe("authenticated");
     expect(result.current.isSessionExpired).toBe(false);
     expect(result.current.mode).toBe("teacher");
-    expect(result.current.homeUrl).toBe("/dashboard");
+    // Betreuungskräfte (auch mit Doppelrolle) haben den Tagesplan als Home
+    // (#2383) — dieselbe Priorität wie der Login-Redirect.
+    expect(result.current.homeUrl).toBe("/tagesplan");
     expect(result.current.profileUrl).toBe("/profile");
+  });
+
+  it("keeps /dashboard as home for admin-only accounts (#2383)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Admin Only",
+          email: "admin@example.com",
+          roles: ["admin"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/dashboard");
+  });
+
+  it("keeps /dashboard as home for caregivers without schedules:read (#2383)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Ohne Recht",
+          email: "user@example.com",
+          roles: ["user"],
+          permissions: [],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/dashboard");
   });
 
   it("provides profile data from context", () => {

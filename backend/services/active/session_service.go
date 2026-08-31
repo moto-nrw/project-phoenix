@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -124,11 +122,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		tx, err := transactionFromContext(txCtx)
-		if err != nil {
-			return err
-		}
-		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
 			return err
 		}
 
@@ -152,30 +146,14 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 	return markRollbackOnRoomCapacity(ctx, err)
 }
 
-func (s *service) acquireActivitySessionLock(ctx context.Context, tx bun.Tx, activityID int64, operation string) error {
-	// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts.
-	// The two-argument form scopes locks per tenant; PostgreSQL releases it when the tx ends.
-	tenantID := tenant.FromContext(ctx)
-	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
+func (s *service) acquireActivitySessionLock(ctx context.Context, activityID int64, operation string) error {
+	if s.SessionStartLock == nil {
+		return &ActiveError{Op: operation, Err: errors.New("session start lock repository is not configured")}
+	}
+	if err := s.SessionStartLock.LockSessionStart(ctx, tenant.FromContext(ctx), activityID); err != nil {
 		return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 	}
 	return nil
-}
-
-func transactionFromContext(ctx context.Context) (bun.Tx, error) {
-	raw, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return bun.Tx{}, tenant.ErrRuntimeRequired
-	}
-	switch tx := raw.(type) {
-	case bun.Tx:
-		return tx, nil
-	case *bun.Tx:
-		if tx != nil {
-			return *tx, nil
-		}
-	}
-	return bun.Tx{}, fmt.Errorf("active service: unsupported transaction type %T", raw)
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
@@ -377,11 +355,7 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
 	const operation = "ForceStartActivitySessionWithSupervisors"
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		tx, err := transactionFromContext(txCtx)
-		if err != nil {
-			return err
-		}
-		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+		if err := s.acquireActivitySessionLock(txCtx, activityID, operation); err != nil {
 			return err
 		}
 

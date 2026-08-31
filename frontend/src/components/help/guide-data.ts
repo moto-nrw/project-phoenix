@@ -136,7 +136,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     icon: LayoutDashboard,
     points: [
       "Alle Kinder, Aufsicht, Räume, Mitarbeiter",
-      "Planung: Betreuungsplan, Dienstplan und Vertretung",
+      "Planung: Betreuungsplan, Dienstplan und Terminvertretungen",
       "Datenverwaltung, Anmeldungen, Einstellungen",
     ],
   },
@@ -840,6 +840,32 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/meine-gruppen.webp",
       },
       {
+        id: "tagesplan",
+        title: "Tagesplan",
+        searchTerms: ["Tages-Betreuungsplan", "Einstieg", "Startseite"],
+        icon: Clock3,
+        summary:
+          "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
+        steps: [
+          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Er ist Ihre Startseite: `Tagesplan` steht ganz oben in der Seitenleiste, am Handy ist es der erste Reiter unten. Auch ein Tipp auf das Schul-Logo führt hierher.",
+          "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
+          "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
+          "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",
+          "Einen eigenen, noch nicht gestarteten Block starten Sie mit `Starten`. Danach öffnet sich seine Kinderliste.",
+          "Abgesagte Blöcke tragen `Fällt aus` mit dem Grund. Beendete Blöcke tragen `Beendet`. Beide sind nur zur Ansicht.",
+          "Mit den Pfeilen oben blättern Sie zu anderen Schultagen; `Heute` führt zurück zum aktuellen Tag.",
+          "Über die Zurück-Taste kommen Sie aus einer Kinderliste wieder zum gewählten Tag zurück.",
+        ],
+        callout: {
+          title: "Wer sieht welche Blöcke?",
+          body: "Das entscheidet Ihre Schule mit dem `Sichtbereich für Mitarbeitende` in den Einstellungen: bei `Ganzes Team` sehen Sie alle Blöcke des Tages, bei `Eigene Zuständigkeiten` nur die Termine, für die Sie eingeteilt sind. Nutzt Ihre Schule den Betreuungsplan nicht oder erfasst sie Anwesenheit ohne Raumzuordnung, gibt es den Tagesplan nicht – der bisherige Einstieg bleibt dann bestehen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tagesplan mit chronologischen Betreuungsblöcken, der grünen Jetzt-Linie und einem laufenden Block mit Etikett Läuft.",
+        image: "/help/screens/tagesplan.webp",
+      },
+      {
         id: "aktuelle-aufsicht",
         title: "Aktuelle Aufsicht",
         icon: Eye,
@@ -851,6 +877,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Dort können Sie `Betreuer hinzufügen` wählen. Schon eingetragene Personen stehen nicht noch einmal zur Auswahl.",
           "Person auswählen und mit `Hinzufügen` bestätigen. Die Person betreut diese Aufsicht ab sofort mit.",
           "Bereich `Erwartet` prüfen.",
+          "Kinder mit späterer Ankunft stehen unter `Kommt später`. Dort steht die Uhrzeit, zum Beispiel `Kommt um 13:45 Uhr`.",
+          "`Erwartete bestätigen` checkt alle Kinder unter `Erwartet` ein. Kinder unter `Kommt später` sind nicht dabei.",
+          "Ab der angegebenen Uhrzeit wechselt das Kind zu `Erwartet`.",
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
@@ -987,9 +1016,9 @@ export const appChapters: readonly GuideChapter[] = [
   },
   {
     id: "raeume-team-vertretung",
-    title: "Räume, Team und Gruppenübergaben",
+    title: "Räume, Team und Vertretungen",
     description:
-      "Den Überblick über Angebote, Räume und das Team behalten und Gruppen vorübergehend übergeben.",
+      "Den Überblick über Angebote, Räume und personelle Vertretungen behalten.",
     icon: Building2,
     tone: "blue",
     steps: [
@@ -1147,6 +1176,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
           "Beim Umstieg auf moto den Resturlaub über die `Urlaubs-Übernahme` erfassen: Stichtag und Resturlaub zum Stichtag eintragen; moto errechnet daraus die vor der Einführung bereits genommenen Tage. Der Jahresanspruch bleibt unverändert, spätere Anspruchskorrekturen wirken sich weiterhin korrekt auf den Rest aus. Auch ein überzogenes Konto (negativer Rest) lässt sich abbilden.",
           "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
+          "Vor dem Speichern zeigt das Fenster den aktuellen Stand des Stundenkontos, den Abzug für den Eintrag und den Stand danach. Bereits geplanter Freizeitausgleich ist eingerechnet. Fällt das Konto unter null, warnt moto und fragt nach einer Bestätigung per Häkchen. Nach Absprache mit dem Träger ist die Buchung trotzdem möglich, das Konto darf ins Minus laufen.",
           'Eigene Bezeichnungen für Abwesenheiten legt die Leitung direkt im Feld `Art der Abwesenheit` an: den gewünschten Namen eintippen und `„…" hinzufügen` wählen. Die Bezeichnung ist danach sofort ausgewählt und steht für alle weiteren Abwesenheiten dieser Einrichtung zur Verfügung. Über die Symbole neben einem eigenen Eintrag lässt er sich umbenennen oder deaktivieren; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.',
           "Eine eigene Bezeichnung ist eine benannte Unterart von `Sonstige` und wird genauso berechnet: Sie verändert weder den Urlaubsanspruch noch die Sollzeit oder das Stundenkonto. Für Urlaubstage bleibt also `Urlaub` die richtige Wahl.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
@@ -1256,25 +1286,27 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungen",
-        title: "Gruppenübergaben",
+        title: "Vertretungen",
         icon: Repeat,
         summary:
-          "Überträgt die Verantwortung für eine feste OGS-Gruppe vorübergehend an eine andere Betreuungskraft.",
+          "Bündelt Gruppenübergaben, Terminvertretungen und zusätzliche Aufsichten.",
         steps: [
-          "`Gruppenübergaben` öffnen. Admins können alle Gruppen planen. Betreuungskräfte können nur ihre eigene Gruppe und nur den heutigen Tag übergeben.",
-          "Filter `Verfügbar` wählen und eine Person suchen.",
-          "In der Zeile der Person auf `Zuweisen` klicken.",
-          "Admins wählen `Startdatum` und `OGS-Gruppe`. Unter `Dauer` stehen `1 Tag`, `3 Tage`, `1 Woche` und `Individuell` zur Auswahl. Unter der Auswahl steht, bis wann die Übergabe gilt.",
-          "Mit `Zuweisen` speichern.",
-          "Die ursprüngliche Gruppenleitung oder ein Admin kann die Übergabe mit `Beenden` löschen.",
+          "`Vertretungen` öffnen. Die Seite zeigt `Laufende Betreuungen`, `Termine` und `Gruppen` getrennt.",
+          "Unter `Laufende Betreuungen` sehen Sie zuerst die aktuellen Aufsichten. Bei einer eigenen Aufsicht können Sie `Betreuer hinzufügen` wählen.",
+          "Unter `Termine` stehen die heutigen Terminvertretungen. Mit `Vertretung eintragen` öffnen Sie den Termin.",
+          "Unter `Gruppen` wählen Sie `Gruppe übergeben`. Danach wählen Sie die Gruppe und die Betreuungskraft.",
+          "Betreuungskräfte können nur eigene Gruppen für heute übergeben. Admins können den Zeitraum festlegen.",
+          "Mit `Zuweisen` speichern. Eine erlaubte Übergabe können Sie mit `Beenden` beenden.",
+          "Der Sichtbereich filtert Gruppen und laufende Betreuungen. Er erlaubt keine zusätzlichen Aktionen.",
+          "Admins sehen alle drei Bereiche. Ihre Rechte gelten unabhängig vom Sichtbereich.",
         ],
         callout: {
-          title: "Verantwortung statt Datenzugriff",
-          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Die Berechtigung für Kinderdaten ändert sich nicht. Für Personalausfälle in geplanten Betreuungsblöcken nutzen Sie `Planung` -> `Vertretung`. Bei offener Betreuung wird dieser Bereich nicht angezeigt.",
+          title: "Wirkung einer Gruppenübergabe",
+          body: "Die Gruppe erscheint für die ausgewählte Betreuungskraft unter `Meine Gruppen`. Andere Zuständigkeiten bleiben bestehen. Bei offener Betreuung ist keine Gruppenübergabe nötig.",
           tone: "blue",
         },
         screenshot:
-          "Gruppenübergaben mit verfügbaren Fachkräften und dem Dialog `Gruppe übergeben`.",
+          "Vertretungen mit den getrennten Bereichen Laufende Betreuungen, Termine und Gruppen.",
       },
       {
         id: "abrechnung-vorbereiten",
@@ -1374,13 +1406,13 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
           "Hinterlegte Schließtage sind in Wochen- und Monatsansicht als graue Spalte bzw. Zelle mit dem Vermerk `Schließtag` und dem Grund erkennbar. Ein Termin lässt sich trotzdem darauf legen (z. B. Ferien- oder Notbetreuung): Der Assistent weist im Formular darauf hin und fragt beim Speichern einmal nach. Bei Regelterminen prüft die Rückfrage alle passenden Termine im gewählten Planungszeitraum.",
-          "Öffnen Sie einen Termin, der eine Abwesenheit oder eine offene Personal-Lücke hat, zeigt der Termin-Editor unten `Vertretung bearbeiten`; der Link springt direkt zur Tagesansicht des Vertretungsplans für diesen Termin.",
+          "Öffnen Sie einen Termin mit einer Abwesenheit oder Personal-Lücke. `Vertretung eintragen` öffnet den passenden Tag im Vertretungsplan.",
           "Über `Drucken` (oben rechts) die angezeigte Woche als PDF drucken oder als PDF- bzw. XLSX-Datei speichern. Der Ausdruck stellt jedes Angebot in eine eigene Zeile, Montag bis Freitag als Spalten, mit Uhrzeit, Raum, eingeteiltem Personal und Kinderzahl. Samstag und Sonntag kommen als Spalten dazu, sobald im gewählten Zeitraum etwas darauf geplant ist. Unter `Zeitraum` lassen sich mehrere Wochen wählen (höchstens acht, je Woche ein Blatt). In der Monats- und in der Serienansicht steht keine Woche im Bild: Der Umschalter heißt dort `Einzelne Woche`, und der Hinweis darunter nennt die Woche, die gedruckt wird. `Aushang` nennt abgesagte Blöcke mit dem Vermerk `entfällt`, aber ohne Grund; `Interne Fassung` ergänzt Gründe, abwesendes Personal und Hinweise.",
           "Über `Person hinzuziehen` im Abschnitt `Personal` der Termin-Detailansicht öffnet sich der Personalpool: Er zeigt für das Zeitfenster des Termins, wer laut Dienstplan frei im Dienst ist, wer zeitgleich auf einem anderen Block eingeplant ist, wer bereits hier zugeordnet ist und wer abwesend ist. Mit `Hierher verschieben` wechselt eine Person in einem Schritt von ihrem bisherigen Block auf diesen Termin (z. B. `Mensa nimmt eine Person vom Schulhof`); mit `Zuweisen` kommt eine freie Person dazu. Entnahme und Zuordnung werden zusammen gespeichert, der Vorgang erscheint als `Person verschoben` im Änderungsprotokoll, und Hinweise zu Unterbesetzung oder fehlender Schichtabdeckung erscheinen direkt nach dem Speichern.",
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Vertretung verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Terminvertretungen verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
           tone: "blue",
         },
         screenshot:
@@ -1389,12 +1421,12 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungsplan",
-        title: "Vertretung",
+        title: "Terminvertretungen",
         icon: Users,
         summary:
           "Zeigt Störungen im Betreuungsplan und erlaubt Abwesenheit und Vertretung für bestimmte Termine oder für alle noch offenen Termine eines Tages (nur für Admins).",
         steps: [
-          "In der Seitenleiste den Bereich `Planung` aufklappen und `Vertretung` öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
+          "Unter `Planung` den Bereich `Terminvertretungen` öffnen. Die Seite zeigt zunächst den heutigen Tag. Am Wochenende zeigt sie den nächsten Montag.",
           "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Darunter steht je abwesender Person `Name abwesend` und blockweit die Zeile `Ersatzkräfte:` mit den Namen oder `keine`. Eine bewusst unbesetzte Position ist mit `bewusst unbesetzt` gekennzeichnet, ein abgesagter Termin mit `abgesagt` und Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Im Kopfbereich steht links die Zeitnavigation (`Zurück`, `Heute`, `Weiter`) und daneben die angezeigte Kalenderwoche. `Heute` ist ausgegraut, solange bereits der heutige Tag gezeigt wird. Darunter steht die Wochenleiste Montag bis Freitag: ein Klick wechselt den Tag, ein orangefarbener Punkt mit Zahl markiert Tage mit offenen Lücken. Rechts daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` über der Liste zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",

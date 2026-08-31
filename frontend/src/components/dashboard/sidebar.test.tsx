@@ -301,7 +301,7 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Home")).toBeInTheDocument();
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
       // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
@@ -309,7 +309,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretung")).toBeInTheDocument();
+      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
     });
 
@@ -456,7 +456,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
     });
 
     it("shows student search when staff has groups", () => {
@@ -1916,7 +1916,7 @@ describe("Sidebar", () => {
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
@@ -2071,7 +2071,7 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("Gruppenzugriff gating (#1940)", () => {
+  describe("Vertretungen navigation (#2806)", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -2081,18 +2081,27 @@ describe("Sidebar", () => {
       mockUseOpenCareGroupMode.mockReturnValue(false);
     });
 
-    it("hides Gruppenübergaben for open-care tenants", () => {
+    it("keeps Vertretungen for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Gruppenübergaben")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
 
-    it("shows Gruppenübergaben for fixed-groups tenants", () => {
+    it("shows Vertretungen for fixed-groups tenants", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+    });
+
+    it("shows Vertretungen to staff", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
   });
 

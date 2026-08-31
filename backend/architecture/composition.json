@@ -17641,7 +17641,7 @@
       "declaration": "TestAbsenceMutations_RollBackWritesOnConflictResponses",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1682
+        1686
       ],
       "tables": []
     },
@@ -23441,10 +23441,20 @@
     {
       "scope": "test",
       "file": "database/repositories/schedule/planning_track_repo_test.go",
-      "declaration": "TestPlanningTrackRepositoryRejectsPartialOrder",
+      "declaration": "TestPlanningTrackRepositoryFindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
         74
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/planning_track_repo_test.go",
+      "declaration": "TestPlanningTrackRepositoryRejectsPartialOrder",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        116
       ],
       "tables": []
     },
@@ -23464,7 +23474,7 @@
       "declaration": "TestPlanningTrackServiceNameConflictAndArchiveLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        106
+        148
       ],
       "tables": []
     },
@@ -25941,7 +25951,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        180
+        181
       ],
       "tables": []
     },
@@ -27048,7 +27058,7 @@
       "declaration": "TestGroupHandoverAllStaffVisibilityDoesNotGrantActions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        516
+        521
       ],
       "tables": []
     },
@@ -27058,7 +27068,7 @@
       "declaration": "TestGroupHandoverAuditFailureRollsBack",
       "target": "database/repositories.NewFactory",
       "lines": [
-        564
+        570
       ],
       "tables": []
     },
@@ -27080,7 +27090,7 @@
       "declaration": "TestGroupHandoverPermissionsAndPeriod",
       "target": "database/repositories.NewFactory",
       "lines": [
-        420
+        421
       ],
       "tables": []
     },
@@ -27090,7 +27100,7 @@
       "declaration": "TestGroupHandoverRechecksOwnershipAfterGroupLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        642
+        648
       ],
       "tables": []
     },
@@ -27100,7 +27110,7 @@
       "declaration": "TestGroupHandoverSignalsOnlyAfterCommit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        602
+        608
       ],
       "tables": []
     },

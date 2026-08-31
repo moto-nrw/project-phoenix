@@ -33,6 +33,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { getSettingValue } from "~/lib/settings-api";
 import {
@@ -167,6 +168,16 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
+  {
+    // Tagesplan (#2383): die Standardseite der Betreuungskräfte, deshalb der
+    // erste Tab. Gating (binary-Modus, timetable.enabled) unten in
+    // filteredMainItemsByMode.
+    href: "/tagesplan",
+    label: "Tagesplan",
+    iconKey: "betreuungsplan",
+    concept: "carePlan",
+    alwaysShow: true,
+  },
   {
     href: "/ogs-groups",
     label: "Gruppe",
@@ -394,12 +405,11 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
-    // Gruppenübergaben sind nur bei festen Gruppen relevant (Filter unten).
+    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge.
     href: "/substitutions",
-    label: "Gruppenübergaben",
+    label: "Vertretungen",
     iconKey: "substitutions",
     concept: "groupAccess",
-    requiresAdmin: true,
   },
   // Planning is flattened in the mobile drawer. The shared catalog omits the
   // desktop-only calendar-period editor and supplies all legacy active paths.
@@ -640,6 +650,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
   const staffMessagingEnabled = useStaffMessagingEnabled();
+  // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
+  // damit es auch ohne config:read aufgelöst ist.
+  const tagesplanEnabled = useTimetableEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
   // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
@@ -665,7 +678,17 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         userHasEffectiveAdminScope) &&
       // Bei offener Betreuung gibt es keine "meine Gruppe" — der
       // gruppenbasierte Einstieg entfällt (#1544).
-      !(openCareGroupMode && item.href === "/ogs-groups"),
+      !(openCareGroupMode && item.href === "/ogs-groups") &&
+      // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
+      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
+      // config:read) und nur mit schedules:read — das Gate der Route
+      // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
+      !(
+        item.href === "/tagesplan" &&
+        (presenceMode === "binary" ||
+          !tagesplanEnabled ||
+          !hasPermission(session, "schedules:read"))
+      ),
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
@@ -694,7 +717,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
       return false;
     }
-    if (item.href === "/substitutions" && openCareGroupMode) return false;
     // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
     // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
     // Seitenleiste.

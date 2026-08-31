@@ -140,7 +140,7 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 		opts.Limit = value
 	}
 	if raw := query.Get("scope"); raw != "" {
-		if raw != scheduleSvc.PlannedNowScopePast {
+		if raw != scheduleSvc.PlannedNowScopePast && raw != scheduleSvc.PlannedNowScopeDay {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid scope")))
 			return opts, false
 		}
