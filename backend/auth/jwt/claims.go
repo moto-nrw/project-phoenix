@@ -34,7 +34,23 @@ type AppClaims struct {
 	// Push subscriptions stamp it so family-scoped logout can revoke the
 	// same device's server-side subscription.
 	FamilyID string `json:"family_id,omitempty"`
+	// ReadOnly marks an admin staff-view preview token (#2893): the token
+	// carries the TARGET account's identity, roles, and permissions so every
+	// read evaluates exactly as that person, while
+	// common.ReadOnlyPreviewMiddleware blocks every write. Preview tokens are
+	// access-only — no refresh token is ever minted in the target's name.
+	ReadOnly bool `json:"read_only,omitempty"`
+	// ActingAdminID is the admin account that started the read-only preview.
+	// Zero on every regular token. Kept in the claims so the preview can
+	// never be mistaken for a real session of the target account.
+	ActingAdminID int64 `json:"acting_admin_id,omitempty"`
 	CommonClaims
+}
+
+// IsReadOnlyPreview reports whether this token is an admin staff-view
+// preview token (#2893). Such tokens are read-only by contract.
+func (c *AppClaims) IsReadOnlyPreview() bool {
+	return c.ReadOnly
 }
 
 // IsPlatformScope returns true if this is a platform/operator token
@@ -211,6 +227,8 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	c.TenantID = getOptionalInt64(claims, "tenant_id")
 	c.OrgID = getOptionalInt64(claims, "org_id")
 	c.FamilyID = getOptionalString(claims, "family_id")
+	c.ReadOnly = getOptionalBool(claims, "read_only")
+	c.ActingAdminID = getOptionalInt64(claims, "acting_admin_id")
 
 	return nil
 }
@@ -245,6 +263,12 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 	}
 	if getOptionalBool(claims, "mfa_enrollment_pending") {
 		return errors.New("token is a pending-MFA-enrollment token, not a refresh token")
+	}
+	// Preview tokens are access-only by contract (#2893). Today they carry no
+	// `token` claim so the parse below would fail anyway — this gate keeps
+	// that deliberate, not incidental, mirroring the MFA gates above.
+	if getOptionalBool(claims, "read_only") {
+		return errors.New("token is a read-only preview token, not a refresh token")
 	}
 
 	// Parse ID field

@@ -91,6 +91,13 @@ var (
 	// unchanged — same rule as the guardian split above.
 	ErrMustUseSchoolPortal = errors.New("school portal accounts must log in at the school portal")
 
+	// Admin staff-view preview (#2893)
+	// ErrPreviewSelf: previewing your own account is pointless and refused.
+	ErrPreviewSelf = errors.New("cannot preview your own account")
+	// ErrPreviewTargetNotStaff: the target has no tenant-portal surface at
+	// this school (guardian-only, or no role at all).
+	ErrPreviewTargetNotStaff = errors.New("account is not a staff member at this school")
+
 	// Invitation errors
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")

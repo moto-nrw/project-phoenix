@@ -175,6 +175,14 @@ func ParseStructToMap(c any) (map[string]any, error) {
 		if appClaims.FamilyID != "" {
 			claims["family_id"] = appClaims.FamilyID
 		}
+		// Admin staff-view preview claims (#2893) — explicit like the fields
+		// above so the allowlist stays the single source of truth.
+		if appClaims.ReadOnly {
+			claims["read_only"] = true
+		}
+		if appClaims.ActingAdminID != 0 {
+			claims["acting_admin_id"] = appClaims.ActingAdminID
+		}
 
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt

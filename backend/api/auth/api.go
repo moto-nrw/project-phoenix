@@ -157,11 +157,26 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		// Write block for admin staff-view preview tokens (#2893): a preview
+		// token must not switch tenants, change passwords, manage roles, or
+		// start another preview. Same placement as in ProtectedTenantGroup.
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.TenantMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Tenant switching
 		r.Post("/switch-tenant", rs.switchTenant)
+
+		// Admin staff-view preview (#2893). "admin:*" matches the admin
+		// wildcard (precedent: DELETE /auth/tokens/expired below). start/end
+		// deliberately run WITHOUT the tenant transaction — like
+		// /switch-tenant they open their own admin transaction inside the
+		// service; the candidate list is a plain RLS read and gets one.
+		r.Route("/staff-preview", func(r chi.Router) {
+			r.With(common.RequiresPermission("admin:*")).Post("/", rs.startStaffPreview)
+			r.With(common.RequiresPermission("admin:*")).Post("/end", rs.endStaffPreview)
+			r.With(common.RequiresPermission("admin:*"), common.TenantTxMiddleware).Get("/candidates", rs.listStaffPreviewCandidates)
+		})
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)

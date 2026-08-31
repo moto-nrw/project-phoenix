@@ -173,7 +173,17 @@ func (s *Service) GetActiveTokens(ctx context.Context, accountID int) ([]*auth.T
 
 // logAuthEvent logs an authentication event for audit purposes
 func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string) {
+	s.logAuthEventWithMetadata(ctx, accountID, eventType, success, ipAddress, userAgent, errorMessage, nil)
+}
+
+// logAuthEventWithMetadata is logAuthEvent plus structured metadata on the
+// event row (jsonb). Used where the event needs a second party recorded —
+// e.g. the staff-view preview stamps the previewed account (#2893).
+func (s *Service) logAuthEventWithMetadata(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string, metadata map[string]interface{}) {
 	event := audit.NewAuthEvent(accountID, eventType, success, ipAddress)
+	for key, value := range metadata {
+		event.SetMetadata(key, value)
+	}
 
 	// Login/refresh/logout are public routes — tenant.FromContext is 0.
 	// Resolve from account_tenants so audit events get the correct tenant.
