@@ -1,3 +1,4 @@
+import { berlinTodayISO } from "./date-helpers";
 import type { TimetableRosterRow } from "./timetable-operations-types";
 
 const berlinTimeFormatter = new Intl.DateTimeFormat("en-GB", {
@@ -5,9 +6,6 @@ const berlinTimeFormatter = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   hourCycle: "h23",
-});
-const berlinDateFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Europe/Berlin",
 });
 
 /**
@@ -20,8 +18,7 @@ export function upcomingArrivalTime(
   now: Date,
   rosterDate: string,
 ): string | null {
-  const nowDate = berlinDateFormatter.format(now);
-  if (rosterDate !== nowDate) return null;
+  if (rosterDate !== berlinTodayISO(now)) return null;
   const nowClock = berlinTimeFormatter.format(now);
   for (const warning of warnings ?? []) {
     if (warning.kind !== "arrival_after_slot_start") continue;
