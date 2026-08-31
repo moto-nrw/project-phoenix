@@ -65,12 +65,17 @@ type LegalBlockSnapshot struct {
 }
 
 // LegalBlocksSnapshotEntry records one parent-facing (re)submission:
-// which legal blocks were shown, in which wording, at what time.
-// Entries are never rewritten or deleted while the request lives; they
-// share the request's retention.
+// which legal blocks were shown, in which wording, which checkboxes the
+// guardian ticked, at what time. ConsentFlags is the filtered flag map
+// as persisted for that submission — without it a later edit that
+// overwrites Request.ConsentFlags would erase the proof of the earlier
+// answer (e.g. photo consent false → true). Entries are never rewritten
+// or deleted while the request lives; they share the request's
+// retention.
 type LegalBlocksSnapshotEntry struct {
-	SnapshotAt time.Time            `json:"snapshot_at"`
-	Blocks     []LegalBlockSnapshot `json:"blocks"`
+	SnapshotAt   time.Time            `json:"snapshot_at"`
+	Blocks       []LegalBlockSnapshot `json:"blocks"`
+	ConsentFlags map[string]any       `json:"consent_flags"`
 }
 
 // Consent-flag keys stored in Request.ConsentFlags. These are the

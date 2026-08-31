@@ -896,7 +896,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			StatusTokenExpires: &statusExpiresAt,
 			SubmittedAt:        time.Now(),
 			LegalBlocksSnapshot: []enrollmentModels.LegalBlocksSnapshotEntry{
-				legalBlocksSnapshotEntry(legalBlocks, time.Now()),
+				legalBlocksSnapshotEntry(legalBlocks, req.ConsentFlags, time.Now()),
 			},
 		}
 		if err := s.RequestRepo.Create(txCtx, request); err != nil {
@@ -2474,9 +2474,11 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		req.CustomData = editReq.CustomData
 		// Append-only evidence: a guardian edit re-confirms the legal
 		// blocks in force at edit time, so it gets its own entry next to
-		// the original submit entry — never a rewrite.
+		// the original submit entry — never a rewrite. The entry carries
+		// the edited flags, so the pre-edit answers stay provable in the
+		// earlier entries even though Request.ConsentFlags is replaced.
 		req.LegalBlocksSnapshot = append(req.LegalBlocksSnapshot,
-			legalBlocksSnapshotEntry(legalBlocks, time.Now()))
+			legalBlocksSnapshotEntry(legalBlocks, editReq.ConsentFlags, time.Now()))
 		if err := s.RequestRepo.UpdateGuardianData(txCtx, req); err != nil {
 			return err
 		}
@@ -3694,12 +3696,14 @@ func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schem
 	return texts.Blocks, nil
 }
 
-// legalBlocksSnapshotEntry freezes the resolved legal blocks into the
-// append-only evidence entry stored on the request (Art. 5 Abs. 2,
-// Art. 7 Abs. 1 DSGVO). It runs on every parent-facing (re)submission —
-// settings-sourced blocks have no other versioning, so this entry is
-// the only reliable record of the wording the family saw.
-func legalBlocksSnapshotEntry(blocks []LegalBlock, at time.Time) enrollmentModels.LegalBlocksSnapshotEntry {
+// legalBlocksSnapshotEntry freezes the resolved legal blocks and the
+// guardian's filtered consent flags into the append-only evidence entry
+// stored on the request (Art. 5 Abs. 2, Art. 7 Abs. 1 DSGVO). It runs
+// on every parent-facing (re)submission — settings-sourced blocks have
+// no other versioning, and Request.ConsentFlags is overwritten on edit,
+// so this entry is the only reliable record of the wording the family
+// saw and the answers they gave at that moment.
+func legalBlocksSnapshotEntry(blocks []LegalBlock, flags map[string]any, at time.Time) enrollmentModels.LegalBlocksSnapshotEntry {
 	snapshot := make([]enrollmentModels.LegalBlockSnapshot, 0, len(blocks))
 	for _, block := range blocks {
 		snapshot = append(snapshot, enrollmentModels.LegalBlockSnapshot{
@@ -3712,7 +3716,13 @@ func legalBlocksSnapshotEntry(blocks []LegalBlock, at time.Time) enrollmentModel
 			Source:   block.Source,
 		})
 	}
-	return enrollmentModels.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot}
+	// Copy the flags: the caller keeps mutating the live request map,
+	// and the evidence entry must not alias it.
+	frozenFlags := make(map[string]any, len(flags))
+	for k, v := range flags {
+		frozenFlags[k] = v
+	}
+	return enrollmentModels.LegalBlocksSnapshotEntry{SnapshotAt: at, Blocks: snapshot, ConsentFlags: frozenFlags}
 }
 
 // requiredConsentKeys extracts the keys the parent must accept from the

@@ -731,9 +731,11 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 
 	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
+	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
+	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Foto-Einwilligungstext"
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{"agb": true}
+	req.ConsentFlags = map[string]any{"agb": true, "photo": false}
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, result.Request)
@@ -743,15 +745,22 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	require.Len(t, result.Request.LegalBlocksSnapshot, 1)
 	entry := result.Request.LegalBlocksSnapshot[0]
 	assert.False(t, entry.SnapshotAt.IsZero())
-	require.Len(t, entry.Blocks, 1)
+	require.Len(t, entry.Blocks, 2)
 	assert.Equal(t, "agb", entry.Blocks[0].Key)
 	assert.Equal(t, "terms", entry.Blocks[0].Kind)
 	assert.Equal(t, "Ganztag Info-Brief", entry.Blocks[0].Text)
 	assert.True(t, entry.Blocks[0].Required)
+	assert.Equal(t, "photo", entry.Blocks[1].Key)
+	assert.Equal(t, "consent", entry.Blocks[1].Kind)
+	assert.False(t, entry.Blocks[1].Required)
+	// The entry also freezes the guardian's answers at submit time.
+	assert.Equal(t, map[string]any{"agb": true, "photo": false}, entry.ConsentFlags)
 
-	// A guardian edit appends a second entry instead of rewriting the first.
+	// A guardian edit appends a second entry instead of rewriting the
+	// first; the pre-edit photo answer stays provable in entry 0 even
+	// though Request.ConsentFlags now holds the edited values.
 	replace := validSubmission(t, env.phaseID)
-	replace.ConsentFlags = map[string]any{"agb": true}
+	replace.ConsentFlags = map[string]any{"agb": true, "photo": true}
 	_, err = env.svc.ReplaceEditable(ctx, result.Request.StatusToken, replace)
 	require.NoError(t, err)
 
@@ -760,6 +769,8 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	require.Len(t, stored.LegalBlocksSnapshot, 2)
 	assert.Equal(t, entry.Blocks, stored.LegalBlocksSnapshot[0].Blocks)
 	assert.Equal(t, entry.Blocks, stored.LegalBlocksSnapshot[1].Blocks)
+	assert.Equal(t, map[string]any{"agb": true, "photo": false}, stored.LegalBlocksSnapshot[0].ConsentFlags)
+	assert.Equal(t, map[string]any{"agb": true, "photo": true}, stored.LegalBlocksSnapshot[1].ConsentFlags)
 }
 
 func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {

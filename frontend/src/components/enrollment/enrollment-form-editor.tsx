@@ -2382,6 +2382,15 @@ function LegalBlocksSection({
           abschicken.
         </p>
       ) : null}
+      {block.kind === "terms" &&
+      block.source !== "standard" &&
+      !standardByKey.has(block.key) ? (
+        <p className="mt-2 text-xs leading-5 text-gray-500">
+          Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
+          sie das Formular nicht abschicken. Das ist keine freiwillige
+          Einwilligung.
+        </p>
+      ) : null}
     </div>
   );
 

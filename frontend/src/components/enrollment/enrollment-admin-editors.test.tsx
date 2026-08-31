@@ -3855,6 +3855,14 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Muss bestätigt werden" }),
     );
+
+    // Der Wechsel zur Pflicht-Bestätigung erklärt sich direkt am Schalter.
+    expect(
+      screen.getByText(
+        "Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können sie das Formular nicht abschicken. Das ist keine freiwillige Einwilligung.",
+      ),
+    ).toBeInTheDocument();
+
     fireEvent.click(
       screen.getByRole("button", { name: "Formularvorlage erstellen" }),
     );
