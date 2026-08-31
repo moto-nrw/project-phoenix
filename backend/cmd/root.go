@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -61,6 +62,23 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if viper.ReadInConfig() == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
+	propagateDatabaseConfig()
+}
+
+// propagateDatabaseConfig makes the effective local Viper configuration
+// available to persistence adapters, which intentionally depend only on the
+// process environment.
+func propagateDatabaseConfig() {
+	for _, key := range []string{
+		"app_env", "db_dsn", "test_db_dsn", "phoenix_auth_password",
+		"db_max_open_conns", "db_max_idle_conns", "db_conn_max_lifetime", "db_conn_max_idle_time",
+	} {
+		if value := viper.GetString(key); value != "" {
+			if err := os.Setenv(strings.ToUpper(key), value); err != nil {
+				panic(fmt.Errorf("propagate %s configuration: %w", key, err))
+			}
+		}
 	}
 }
 

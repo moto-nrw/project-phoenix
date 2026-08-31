@@ -241,12 +241,13 @@ func (r *GradeTransitionRepository) LockLatestApplied(ctx context.Context) (*edu
 
 	err := query.Scan(ctx)
 	if err != nil {
+		err = base.TranslateNotFound(err)
 		if modelBase.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "lock latest applied grade transition",
-			Err: base.TranslateNotFound(err),
+			Err: err,
 		}
 	}
 

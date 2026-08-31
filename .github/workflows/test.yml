@@ -115,6 +115,10 @@ jobs:
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          DB_MAX_OPEN_CONNS: "40"
+          DB_MAX_IDLE_CONNS: "40"
+          DB_CONN_MAX_LIFETIME: 30m
+          DB_CONN_MAX_IDLE_TIME: 10m
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: go run main.go migrate
 
