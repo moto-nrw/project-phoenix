@@ -15,7 +15,7 @@ import (
 )
 
 // Repository provides a generic implementation of common CRUD operations
-type Repository[T modelBase.Entity] struct {
+type Repository[T any] struct {
 	DB           *bun.DB
 	TableName    string
 	EntityName   string
@@ -23,7 +23,7 @@ type Repository[T modelBase.Entity] struct {
 }
 
 // NewRepository creates a new base repository instance
-func NewRepository[T modelBase.Entity](db *bun.DB, tableName, entityName string) *Repository[T] {
+func NewRepository[T any](db *bun.DB, tableName, entityName string) *Repository[T] {
 	return &Repository[T]{
 		DB:         db,
 		TableName:  tableName,

@@ -17,13 +17,12 @@ import (
 // PR A1 of the 2026-07-05 code-reduction audit deleted 255 shadow getters and
 // 117 TableName methods; this ratchet keeps them from growing back.
 //
-// Two patterns, scanned over models/ excluding models/base (which hosts the
+// Three patterns, scanned over models/ excluding models/base (which hosts the
 // one canonical getter set):
 //
-//	M1 — GetID/GetCreatedAt/GetUpdatedAt method declarations. The allowlist
-//	     holds exactly the load-bearing shadows: structs that do NOT embed
-//	     base.Model, or audit models with intentionally different semantics
-//	     (GetUpdatedAt returning AccessedAt/ChangedAt).
+//	M1 — GetID/GetCreatedAt/GetUpdatedAt method declarations. Zero tolerated;
+//	     conventional models embed a base shape, while audit models keep their
+//	     explicit AccessedAt/DeletedAt/OccurredAt/ChangedAt fields.
 //	M2 — TableName() method declarations. Zero tolerated.
 //	M3 — bun-incompatible BeforeAppendModel(query any) hook declarations.
 //	     bun dispatches only the two-arg (ctx, query) interface via reflection;
@@ -38,19 +37,9 @@ var (
 	modelDeadHookPattern   = regexp.MustCompile(`^func \([^)]*\) BeforeAppendModel\(\w+ (any|interface\{\})\)`)
 )
 
-// M1 — load-bearing getter declarations (structs without base.Model embed or
-// with divergent semantics). Seeded 2026-07-05 from the audit's keep list.
-var modelGetterAllowlist = map[string]int{
-	"models/audit/auth_event.go":                     3,
-	"models/audit/data_access_log.go":                3,
-	"models/audit/data_deletion.go":                  3,
-	"models/audit/deviation_event.go":                3,
-	"models/audit/enrollment_offering_adjustment.go": 3,
-	"models/audit/guardian_change.go":                3,
-	"models/auth/passkey.go":                         3,
-	"models/config/setting_audit.go":                 3,
-	"models/platform/operator_passkey.go":            3,
-}
+// M1 — model entities use the shared base shapes or semantic audit fields;
+// no per-entity GetID/GetCreatedAt/GetUpdatedAt declarations remain.
+var modelGetterAllowlist = map[string]int{}
 
 // M2 — TableName() declarations in models/. Empty: bun never calls them.
 var modelTableNameAllowlist = map[string]int{}
@@ -80,7 +69,7 @@ func TestModelCeremonyRatchet(t *testing.T) {
 			name:      "M1 trivial getter declarations in models/",
 			pattern:   modelGetterDeclPattern,
 			allowlist: modelGetterAllowlist,
-			fix:       "base.Model / base.StringIDModel already provide GetID/GetCreatedAt/GetUpdatedAt (Rule 3) — delete the shadow; only genuinely different semantics belong in the allowlist",
+			fix:       "embed the matching base identity/timestamp shape, or keep the audit timestamp's domain name; per-model generic getters are not allowed (Rule 3)",
 		},
 		{
 			name:      "M2 TableName() declarations in models/",

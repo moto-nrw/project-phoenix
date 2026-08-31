@@ -95,21 +95,6 @@ func (ae *AuthEvent) Validate() error {
 	return nil
 }
 
-// GetID implements the base.Entity interface
-func (ae *AuthEvent) GetID() interface{} {
-	return ae.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (ae *AuthEvent) GetCreatedAt() time.Time {
-	return ae.CreatedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (ae *AuthEvent) GetUpdatedAt() time.Time {
-	return ae.CreatedAt
-}
-
 // GetMetadata returns the metadata map
 func (ae *AuthEvent) GetMetadata() map[string]interface{} {
 	if ae.Metadata == nil {

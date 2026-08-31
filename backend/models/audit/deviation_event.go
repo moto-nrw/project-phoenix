@@ -92,18 +92,6 @@ type DeviationEvent struct {
 	OccurredAt time.Time `bun:"occurred_at,notnull,default:now()" json:"occurred_at"`
 }
 
-func (e *DeviationEvent) GetID() interface{} {
-	return e.ID
-}
-
-func (e *DeviationEvent) GetCreatedAt() time.Time {
-	return e.OccurredAt
-}
-
-func (e *DeviationEvent) GetUpdatedAt() time.Time {
-	return e.OccurredAt
-}
-
 // Validate checks the minimal invariants before an insert.
 func (e *DeviationEvent) Validate() error {
 	if (e.ActivityGroupID == nil || *e.ActivityGroupID <= 0) &&
