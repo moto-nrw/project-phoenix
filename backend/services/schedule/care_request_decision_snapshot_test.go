@@ -240,7 +240,7 @@ func TestListHistory_LegacyDecidedRowFallsBackToRequested(t *testing.T) {
 func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 	t.Parallel()
 
-	f := newCareFixture(t)
+	f := newPickupChangeFixture(t)
 	upsertMondayPickup(t, f, 15, 0)
 
 	// Next Monday (always in the future), so the exception's weekday fallback

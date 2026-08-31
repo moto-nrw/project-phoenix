@@ -273,7 +273,7 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
-	tenantID := int64(600000) + time.Now().UnixNano()%50000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().

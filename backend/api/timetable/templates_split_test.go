@@ -577,7 +577,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-Split-Update-Quelle")
-	effective := timezone.NewDate(2026, 8, 24).AddDays(7)
+	effective := timezone.NewDate(2099, 1, 12)
 	splitW := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID),
 		splitBody(s, "Tpl-Split-Update-Nachfolger", effective))
@@ -745,7 +745,7 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 
 	created := createSourceTemplate(t, router, s, "Tpl-End-Quelle")
-	effective := timezone.NewDate(2026, 8, 24).AddDays(7)
+	effective := timezone.NewDate(2099, 1, 12)
 
 	w := doTemplateJSON(t, router, http.MethodPost,
 		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))
