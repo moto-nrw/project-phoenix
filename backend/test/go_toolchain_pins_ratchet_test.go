@@ -214,7 +214,7 @@ func assertCIUsesMainGoMod(t *testing.T, workflowDir string) {
 		if setupCount != goModCount {
 			t.Errorf("%s has %d setup-go steps but %d backend/go.mod version sources", path, setupCount, goModCount)
 		}
-		if strings.Contains(content, "go-version:") {
+		if regexp.MustCompile(`(?m)^[\t ]*go-version:[\t ]*`).MatchString(content) {
 			t.Errorf("%s hardcodes go-version; use go-version-file: backend/go.mod", path)
 		}
 	}

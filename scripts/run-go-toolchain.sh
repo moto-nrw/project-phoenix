@@ -21,8 +21,6 @@ if [[ -z "$expected_version" || "$actual_version" != "$expected_version" ]]; the
 fi
 
 export PATH="$tool_bin:$PATH"
-export GOPATH="$repo_root/.devbox/go"
-export CGO_ENABLED=0
 export GOTOOLCHAIN=local
 unset GOBIN
 

@@ -72,7 +72,7 @@ docker compose run server go run . migrate
 docker compose run server go run . migrate reset
 docker compose run server go run . migrate status
 docker compose run server go run . migrate validate
-docker compose run server go run . seed --email <op-email> --password '<pw>' --pin 1234
+docker compose run server go run . seed --email <op-email> --password '<pw>' --pin 1234 --url http://server:8080
 docker compose run server go run . cleanup visits
 docker compose run server go run . cleanup preview
 docker compose run server go run . cleanup stats
