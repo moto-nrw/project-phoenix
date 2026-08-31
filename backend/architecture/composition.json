@@ -436,12 +436,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 166,
+          "line": 172,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 644,
+          "line": 650,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -451,7 +451,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 283,
+          "line": 289,
           "declaration": "New"
         }
       ]
@@ -466,7 +466,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 163,
+          "line": 169,
           "declaration": "type API"
         }
       ]
@@ -16594,7 +16594,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        283
+        289
       ],
       "tables": []
     },
@@ -16718,7 +16718,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        243
+        280
       ],
       "tables": []
     },
@@ -16728,7 +16728,7 @@
       "declaration": "setupCaregiverCompositionModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        281
       ],
       "tables": []
     },
@@ -16738,7 +16738,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        270
+        307
       ],
       "tables": []
     },
@@ -16748,7 +16748,7 @@
       "declaration": "setupOperatorInvitationRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        271
+        308
       ],
       "tables": []
     },
@@ -16758,7 +16758,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        261
+        298
       ],
       "tables": []
     },
@@ -16768,7 +16768,7 @@
       "declaration": "setupSettingsCallbackRoute",
       "target": "database/repositories.NewFactory",
       "lines": [
-        262
+        299
       ],
       "tables": []
     },

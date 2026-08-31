@@ -14,9 +14,13 @@ Install these before cloning:
 git clone git@github.com:moto-nrw/project-phoenix.git
 cd project-phoenix
 direnv allow
+devbox run bootstrap
 ```
 
-Wait for devbox to install all dependencies (Go, Node, pnpm, etc.). This only happens once.
+Wait for Devbox to install the pinned tools, then let bootstrap install the
+frontend and browser dependencies. This only happens once. The Devbox lock
+supports Apple Silicon macOS and Linux on arm64 or amd64; Intel macOS is not
+supported by the current Nixpkgs package set.
 
 Then run the setup script:
 
@@ -72,7 +76,7 @@ After seeding, you get 20 staff accounts, 100 students, rooms, groups, and activ
 | View logs | `docker compose logs -f server` |
 | Rebuild backend after Go changes | `docker compose build server && docker compose up -d server` |
 | Reset database | `docker compose run server go run . migrate reset` |
-| Run backend tests | `cd backend && go test ./...` |
+| Run backend tests | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Run frontend checks | `cd frontend && pnpm run check` |
 
 ## Troubleshooting

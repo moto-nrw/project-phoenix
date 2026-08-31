@@ -952,13 +952,13 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 		return nil, err
 	}
 
-	monday := mealPlanWeekMonday(weekStart)
+	monday := weekStart.StartOfISOWeek()
 	// Parents may only read the current and next work week. Staff can plan
 	// arbitrary future (and past) weeks on the staff page; those are drafts and
 	// must not be reachable through the parent proxy by supplying a crafted
 	// week_start. Compare on the normalized Monday so any day within an allowed
 	// week resolves the same.
-	currentMonday := mealPlanWeekMonday(s.todayDate())
+	currentMonday := s.todayDate().StartOfISOWeek()
 	if monday != currentMonday && monday != currentMonday.AddDays(7) {
 		return nil, ErrMealPlanWeekOutOfRange
 	}
@@ -995,11 +995,6 @@ func (s *service) mealPlanAvailableForTenant(ctx context.Context, tenantID int64
 		return resolveErr
 	})
 	return available, err
-}
-
-func mealPlanWeekMonday(date timezone.Date) timezone.Date {
-	offset := (int(date.Weekday()) + 6) % 7
-	return date.AddDays(-offset)
 }
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override
