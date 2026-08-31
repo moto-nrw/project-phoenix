@@ -8,9 +8,9 @@ import (
 )
 
 type Store interface {
-	FindWeek(context.Context, domain.Date, domain.Date) ([]domain.Entry, int64, error)
-	ReplaceDay(context.Context, domain.Date, []domain.Dish) (int64, int64, time.Duration, error)
-	ClearDay(context.Context, domain.Date) (int64, int64, time.Duration, error)
+	FindWeek(context.Context, domain.Date, domain.Date) ([]domain.Entry, domain.OperationStats, error)
+	ReplaceDay(context.Context, domain.Date, []domain.Dish) (domain.OperationStats, error)
+	ClearDay(context.Context, domain.Date) (domain.OperationStats, error)
 }
 
 type Settings interface {
@@ -24,9 +24,7 @@ type Transaction interface {
 type Observation struct {
 	Operation string
 	Duration  time.Duration
-	Queries   int64
-	Rows      int64
-	LockWait  time.Duration
+	Stats     domain.OperationStats
 	Err       error
 }
 

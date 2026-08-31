@@ -1,6 +1,10 @@
 package domain
 
-import "github.com/moto-nrw/project-phoenix/internal/timezone"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+)
 
 type Date = timezone.Date
 
@@ -16,4 +20,10 @@ type Entry struct {
 	Position int
 	Dish     string
 	Note     *string
+}
+
+type OperationStats struct {
+	Queries           int64
+	Rows              int64
+	StatementDuration time.Duration
 }
