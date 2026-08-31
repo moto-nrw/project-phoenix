@@ -30,7 +30,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  opName,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -38,7 +38,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  opName + " - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -90,7 +90,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tag ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -116,7 +116,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -141,7 +141,7 @@ func (r *PersonRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -169,7 +169,7 @@ func (r *PersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*us
 	query = base.WithTenantFilter(ctx, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: base.TranslateNotFound(err)}
 	}
 	return person, nil
 }
@@ -193,7 +193,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -221,7 +221,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to account",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -229,7 +229,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to account - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -266,7 +266,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to RFID card",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -274,7 +274,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "link to RFID card - check rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -360,7 +360,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with account",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -408,7 +408,7 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with RFID card",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -489,7 +489,7 @@ func (r *PersonRepository) AnonymizeAndSoftDelete(ctx context.Context, personID 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "anonymize and soft delete person",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

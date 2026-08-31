@@ -257,176 +257,180 @@ export function CaregiverCapabilityModal({
   const showEnableButton = !state?.isActiveCaregiver || needsNames;
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={`Betreuung verwalten: ${accountLabel}`}
-      size="lg"
-      footer={
-        <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            Schließen
-          </button>
-          {canDisable ? (
+    <>
+      <FormModal
+        // Ausgeblendet, solange der Auflösungs-Dialog offen ist — nie zwei
+        // eigenständige Dialoge übereinander (#2774).
+        isOpen={isOpen && !resolutionOpen}
+        onClose={onClose}
+        title={`Betreuung verwalten: ${accountLabel}`}
+        size="lg"
+        footer={
+          <>
             <button
               type="button"
-              onClick={() => void handleDisable()}
-              disabled={saving || loading || state?.disableBlocked}
-              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
             >
-              Betreuung deaktivieren
+              Schließen
             </button>
-          ) : null}
-          {showEnableButton ? (
-            <button
-              type="button"
-              onClick={() => void handleEnable()}
-              disabled={saving || loading}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
-            </button>
-          ) : null}
-        </>
-      }
-    >
-      {loading ? (
-        <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
-      ) : state ? (
-        <div className="space-y-4">
-          {/* Current role overview */}
-          <InfoSection
-            title="Aktuelle Rolle"
-            icon={
-              <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.roles.icon}
-                tone={MOTO_CONCEPTS.roles.tone}
-                size={18}
-              />
-            }
-            accentColor={state.isActiveCaregiver ? "green" : "gray"}
-          >
-            <DataGrid>
-              <DataField label="Status">{getRoleSummary(state)}</DataField>
-              <DataField label="E-Mail">
-                {state.email || "Nicht verknüpft"}
-              </DataField>
-              {scope === "operator" && schoolName ? (
-                <DataField label="Schule">{schoolName}</DataField>
-              ) : null}
-            </DataGrid>
-          </InfoSection>
-
-          {/* Name fields — only when no person profile exists yet */}
-          {needsNames ? (
+            {canDisable ? (
+              <button
+                type="button"
+                onClick={() => void handleDisable()}
+                disabled={saving || loading || state?.disableBlocked}
+                className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Betreuung deaktivieren
+              </button>
+            ) : null}
+            {showEnableButton ? (
+              <button
+                type="button"
+                onClick={() => void handleEnable()}
+                disabled={saving || loading}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
+              </button>
+            ) : null}
+          </>
+        }
+      >
+        {loading ? (
+          <div className="py-8 text-sm text-gray-500">Wird geladen...</div>
+        ) : state ? (
+          <div className="space-y-4">
+            {/* Current role overview */}
             <InfoSection
-              title="Personaldaten anlegen"
+              title="Aktuelle Rolle"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.staff.icon}
-                  tone={MOTO_CONCEPTS.staff.tone}
+                  icon={MOTO_CONCEPTS.roles.icon}
+                  tone={MOTO_CONCEPTS.roles.tone}
                   size={18}
                 />
               }
-              accentColor="orange"
+              accentColor={state.isActiveCaregiver ? "green" : "gray"}
             >
-              <p className="mb-3 text-xs text-gray-600">
-                Für dieses Konto existiert noch kein Personalprofil. Bitte Name
-                und optional eine pädagogische Rolle angeben.
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input
-                  label="Vorname"
-                  name="firstName"
-                  value={firstName}
-                  onChange={(event) => setFirstName(event.target.value)}
-                  placeholder="Vorname"
-                />
-                <Input
-                  label="Nachname"
-                  name="lastName"
-                  value={lastName}
-                  onChange={(event) => setLastName(event.target.value)}
-                  placeholder="Nachname"
-                />
-              </div>
-              <div className="mt-3">
-                <Input
-                  label="Pädagogische Rolle (optional)"
-                  name="position"
-                  value={position}
-                  onChange={(event) => setPosition(event.target.value)}
-                  placeholder="z.B. Gruppenleitung, Ergänzungskraft"
-                />
-              </div>
+              <DataGrid>
+                <DataField label="Status">{getRoleSummary(state)}</DataField>
+                <DataField label="E-Mail">
+                  {state.email || "Nicht verknüpft"}
+                </DataField>
+                {scope === "operator" && schoolName ? (
+                  <DataField label="Schule">{schoolName}</DataField>
+                ) : null}
+              </DataGrid>
             </InfoSection>
-          ) : null}
 
-          {/* Blocker warnings */}
-          {state.isActiveCaregiver && state.disableBlockers.length > 0 ? (
-            <InfoSection
-              title="Offene Zuordnungen"
-              icon={
-                <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
-                  size={18}
-                />
-              }
-              accentColor="amber"
-            >
-              <p className="mb-2 text-xs text-gray-600">
-                Die Betreuung kann erst deaktiviert werden, wenn folgende
-                Zuordnungen entfernt oder an andere Betreuungskräfte übertragen
-                wurden:
-              </p>
-              <ul className="space-y-1.5">
-                {state.disableBlockers.map((blocker) => (
-                  <li
-                    key={blocker}
-                    className="text-moto-amber-strong flex items-start gap-2 text-sm"
+            {/* Name fields — only when no person profile exists yet */}
+            {needsNames ? (
+              <InfoSection
+                title="Personaldaten anlegen"
+                icon={
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.staff.icon}
+                    tone={MOTO_CONCEPTS.staff.tone}
+                    size={18}
+                  />
+                }
+                accentColor="orange"
+              >
+                <p className="mb-3 text-xs text-gray-600">
+                  Für dieses Konto existiert noch kein Personalprofil. Bitte
+                  Name und optional eine pädagogische Rolle angeben.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Input
+                    label="Vorname"
+                    name="firstName"
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    placeholder="Vorname"
+                  />
+                  <Input
+                    label="Nachname"
+                    name="lastName"
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    placeholder="Nachname"
+                  />
+                </div>
+                <div className="mt-3">
+                  <Input
+                    label="Pädagogische Rolle (optional)"
+                    name="position"
+                    value={position}
+                    onChange={(event) => setPosition(event.target.value)}
+                    placeholder="z.B. Gruppenleitung, Ergänzungskraft"
+                  />
+                </div>
+              </InfoSection>
+            ) : null}
+
+            {/* Blocker warnings */}
+            {state.isActiveCaregiver && state.disableBlockers.length > 0 ? (
+              <InfoSection
+                title="Offene Zuordnungen"
+                icon={
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.groups.icon}
+                    tone={MOTO_CONCEPTS.groups.tone}
+                    size={18}
+                  />
+                }
+                accentColor="amber"
+              >
+                <p className="mb-2 text-xs text-gray-600">
+                  Die Betreuung kann erst deaktiviert werden, wenn folgende
+                  Zuordnungen entfernt oder an andere Betreuungskräfte
+                  übertragen wurden:
+                </p>
+                <ul className="space-y-1.5">
+                  {state.disableBlockers.map((blocker) => (
+                    <li
+                      key={blocker}
+                      className="text-moto-amber-strong flex items-start gap-2 text-sm"
+                    >
+                      <span className="text-moto-amber mt-1 h-3 w-3 flex-shrink-0">
+                        {DetailIcons.x}
+                      </span>
+                      {blocker}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setResolutionOpen(true)}
+                    className="border-moto-amber/40 bg-moto-amber/20 text-moto-amber-strong hover:bg-moto-amber/30 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
                   >
-                    <span className="text-moto-amber mt-1 h-3 w-3 flex-shrink-0">
-                      {DetailIcons.x}
-                    </span>
-                    {blocker}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setResolutionOpen(true)}
-                  className="border-moto-amber/40 bg-moto-amber/20 text-moto-amber-strong hover:bg-moto-amber/30 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
-                >
-                  Zuordnungen auflösen
-                </button>
-              </div>
-            </InfoSection>
-          ) : null}
+                    Zuordnungen auflösen
+                  </button>
+                </div>
+              </InfoSection>
+            ) : null}
 
-          {state.isActiveCaregiver && state.disableBlocked ? (
-            <CaregiverBlockerResolutionModal
-              isOpen={resolutionOpen}
-              onClose={() => setResolutionOpen(false)}
-              state={state}
-              onResolved={() => void loadState()}
-            />
-          ) : null}
+            {/* Error display */}
+            <Alert type="error" message={errorMessage} />
+          </div>
+        ) : (
+          <Alert
+            type="error"
+            message="Die Betreuerfähigkeit konnte nicht geladen werden."
+          />
+        )}
+      </FormModal>
 
-          {/* Error display */}
-          <Alert type="error" message={errorMessage} />
-        </div>
-      ) : (
-        <Alert
-          type="error"
-          message="Die Betreuerfähigkeit konnte nicht geladen werden."
+      {state?.isActiveCaregiver && state.disableBlocked ? (
+        <CaregiverBlockerResolutionModal
+          isOpen={isOpen && resolutionOpen}
+          onClose={() => setResolutionOpen(false)}
+          state={state}
+          onResolved={() => void loadState()}
         />
-      )}
-    </FormModal>
+      ) : null}
+    </>
   );
 }

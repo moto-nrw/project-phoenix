@@ -193,13 +193,13 @@ func mapStatusDayOverviewEntries(overview *activeService.StatusDayOverview) []st
 func parseStatusDayOverviewRange(r *http.Request, today timezone.Date) (timezone.Date, timezone.Date, error) {
 	from, to, err := parseStatusDayRangeAt(r, today)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, err
+		return timezone.Date(""), timezone.Date(""), err
 	}
 	if from.Before(today) {
-		return timezone.Date{}, timezone.Date{}, errors.New("from must not be in the past")
+		return timezone.Date(""), timezone.Date(""), errors.New("from must not be in the past")
 	}
 	if to.After(from.AddDays(maxStatusDayOverviewRangeDays - 1)) {
-		return timezone.Date{}, timezone.Date{}, errors.New("date range cannot exceed 366 days")
+		return timezone.Date(""), timezone.Date(""), errors.New("date range cannot exceed 366 days")
 	}
 	return from, to, nil
 }

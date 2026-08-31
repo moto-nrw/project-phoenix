@@ -79,7 +79,7 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	}
 	date, err := timezone.ParseDate(trimmed)
 	if err != nil {
-		return timezone.Date{}, false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
+		return timezone.Date(""), false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
 	}
 	// Planning is future-only. The pipeline projects the current recurring
 	// schedule definitions onto the requested day; for a past day that is a
@@ -88,13 +88,13 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	// page treats past dates as unsupported. Reject them at the boundary so a
 	// direct or stale client cannot bypass the UI and obtain such a plan (#1939).
 	if date.Before(today) {
-		return timezone.Date{}, false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
+		return timezone.Date(""), false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
 	}
 	// Mirror of the past guard at the far end: reject days beyond the
 	// materialization-backed horizon so a direct or stale client cannot obtain
 	// a plan the timetable signal cannot answer for (see maxPlanningDate).
 	if maxDate := maxPlanningDate(today); date.After(maxDate) {
-		return timezone.Date{}, false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
+		return timezone.Date(""), false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
 	}
 	return date, date == today, nil
 }

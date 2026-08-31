@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -246,11 +245,11 @@ func (s *Service) queuePushCleanup(ctx context.Context, accountID int64, tokens 
 }
 
 func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(modelBase.ContextWithoutTx(ctx)))
+	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
 }
 
 func hasAmbientTx(ctx context.Context) bool {
-	_, ok := modelBase.TxFromContext(ctx)
+	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
 }
 
@@ -272,7 +271,7 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 		}
 		return s.markAccountWideWipeCompleted(ctx, accountID)
 	}
-	adminCtx := tenant.ContextWithoutTenant(modelBase.ContextWithoutTx(ctx))
+	adminCtx := tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx))
 	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
 	var tokens []*authModels.Token
 	err := tenant.WithAdminTx(s.withTenantRuntime(adminCtx), s.db, func(txCtx context.Context, _ bun.Tx) error {
@@ -512,10 +511,10 @@ func (s *Service) withStaffPushAdminTx(ctx context.Context, fn func(context.Cont
 	}
 	// Reuse any ambient transaction. Opening a second AdminTx while the
 	// caller still holds a connection deadlocks on the 3-conn test pool.
-	if _, ok := modelBase.TxFromContext(ctx); ok {
+	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return fn(ctx)
 	}
-	return tenant.WithAdminTx(s.withTenantRuntime(modelBase.ContextWithoutTx(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(s.withTenantRuntime(tenant.ContextWithoutTransaction(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return fn(adminCtx)
 	})
 }

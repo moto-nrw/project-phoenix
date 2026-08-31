@@ -52,7 +52,7 @@ func (r *WorkSessionBreakRepository) GetBySessionID(ctx context.Context, session
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get breaks by session ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -75,7 +75,7 @@ func (r *WorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessio
 		OrderExpr(`"work_session_break".session_id ASC, "work_session_break".started_at ASC`)
 	query = base.WithTenantFilter(ctx, query, "work_session_break")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get breaks by session IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get breaks by session IDs", Err: base.TranslateNotFound(err)}
 	}
 	for _, brk := range breaks {
 		result[brk.SessionID] = append(result[brk.SessionID], brk)
@@ -101,7 +101,7 @@ func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, s
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "get active break by session ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -145,7 +145,7 @@ func (r *WorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, befor
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get expired breaks",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

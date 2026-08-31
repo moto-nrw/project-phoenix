@@ -14,7 +14,6 @@ package filestore
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -234,7 +233,7 @@ func (s *service) requireVisible(ctx context.Context, folderID int64, actor Acto
 		return nil, err
 	}
 	if !visible {
-		return nil, &modelBase.DatabaseError{Op: "find folder", Err: sql.ErrNoRows}
+		return nil, &modelBase.DatabaseError{Op: "find folder", Err: modelBase.ErrNotFound}
 	}
 	return folder, nil
 }

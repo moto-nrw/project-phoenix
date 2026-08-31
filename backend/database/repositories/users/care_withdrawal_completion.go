@@ -56,7 +56,7 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert pending care withdrawal completion", Err: err}
+		return &modelBase.DatabaseError{Op: "upsert pending care withdrawal completion", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (r *CareWithdrawalCompletionRepository) ListPending(
 	}
 	total, err := build().Count(ctx)
 	if err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "count pending care withdrawal completions", Err: err}
+		return nil, 0, &modelBase.DatabaseError{Op: "count pending care withdrawal completions", Err: base.TranslateNotFound(err)}
 	}
 	var rows []*userModels.CareWithdrawalCompletion
 	query := build().
@@ -125,7 +125,7 @@ func (r *CareWithdrawalCompletionRepository) ListPending(
 		}
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "list pending care withdrawal completions", Err: err}
+		return nil, 0, &modelBase.DatabaseError{Op: "list pending care withdrawal completions", Err: base.TranslateNotFound(err)}
 	}
 	return rows, total, nil
 }
@@ -144,7 +144,7 @@ func (r *CareWithdrawalCompletionRepository) ListPendingByStudentIDs(
 		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.List(studentIDs))
 	query = base.WithTenantFilter(ctx, query, "care_withdrawal_completion")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal completions by students", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal completions by students", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		if row.StudentID != nil {
@@ -178,7 +178,7 @@ func (r *CareWithdrawalCompletionRepository) ListResolved(
 	}
 	total, err := build().Count(ctx)
 	if err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "count resolved care withdrawal completions", Err: err}
+		return nil, 0, &modelBase.DatabaseError{Op: "count resolved care withdrawal completions", Err: base.TranslateNotFound(err)}
 	}
 	var rows []*userModels.CareWithdrawalCompletion
 	query := build().
@@ -190,7 +190,7 @@ func (r *CareWithdrawalCompletionRepository) ListResolved(
 		Limit(filter.PageSize).
 		Offset((filter.Page - 1) * filter.PageSize)
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "list resolved care withdrawal completions", Err: err}
+		return nil, 0, &modelBase.DatabaseError{Op: "list resolved care withdrawal completions", Err: base.TranslateNotFound(err)}
 	}
 	return rows, total, nil
 }
@@ -223,7 +223,7 @@ func (r *CareWithdrawalCompletionRepository) ListParticipationBoundaries(
 	`, userModels.CareWithdrawalStatePending, userModels.CareWithdrawalTriggerBookingExpired,
 		includeBookingBoundaries, tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list care participation boundaries", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list care participation boundaries", Err: base.TranslateNotFound(err)}
 	}
 	for _, item := range rows {
 		boundaries[item.StudentID] = item.FirstBookinglessDay
@@ -248,7 +248,7 @@ func (r *CareWithdrawalCompletionRepository) ListPendingStudentIDs(
 		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.List(studentIDs)).
 		Scan(ctx, &ids)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal student ids", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal student ids", Err: base.TranslateNotFound(err)}
 	}
 	for _, id := range ids {
 		result[id] = true
@@ -272,7 +272,7 @@ func (r *CareWithdrawalCompletionRepository) MarkResolved(ctx context.Context, i
 		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "resolve care withdrawal completion", Err: err}
+		return false, &modelBase.DatabaseError{Op: "resolve care withdrawal completion", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected()
 	return affected == 1, nil
@@ -298,7 +298,7 @@ func (r *CareWithdrawalCompletionRepository) MarkDeleted(ctx context.Context, id
 		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "resolve and redact deleted care withdrawal completion", Err: err}
+		return false, &modelBase.DatabaseError{Op: "resolve and redact deleted care withdrawal completion", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected()
 	return affected == 1, nil
@@ -327,7 +327,7 @@ func (r *CareWithdrawalCompletionRepository) MarkStudentDeleted(ctx context.Cont
 		Where(`"care_withdrawal_completion".student_id = ?`, studentID).
 		Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "redact care withdrawal completions for deleted student", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "redact care withdrawal completions for deleted student", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected()
 	return int(affected), nil
@@ -353,7 +353,7 @@ func (r *CareWithdrawalCompletionRepository) MarkObsoleteForRebooking(
 		Where(`? <= "care_withdrawal_completion".first_bookingless_day`, careStartsOn).
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "obsolete care withdrawal completion after rebooking", Err: err}
+		return false, &modelBase.DatabaseError{Op: "obsolete care withdrawal completion after rebooking", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected()
 	return affected == 1, nil
@@ -374,7 +374,7 @@ func (r *CareWithdrawalCompletionRepository) MarkPendingObsoleteForWeeklyPlans(c
 		Where(`"care_withdrawal_completion".trigger = ?`, userModels.CareWithdrawalTriggerBookingExpired).
 		Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "obsolete pending care withdrawal completions for weekly plans", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "obsolete pending care withdrawal completions for weekly plans", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected()
 	return int(affected), nil
@@ -413,7 +413,7 @@ func (r *CareWithdrawalCompletionRepository) ReopenAfterCancelledExit(
 			updated_at = EXCLUDED.updated_at
 	`, at, at, tenant.FromContext(ctx), completionID, studentID)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "reopen care withdrawal after cancelled exit", Err: err}
+		return false, &modelBase.DatabaseError{Op: "reopen care withdrawal after cancelled exit", Err: base.TranslateNotFound(err)}
 	}
 	affected, _ := result.RowsAffected()
 	return affected == 1, nil

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -150,7 +152,7 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	require.NoError(t, err)
 	_, err = probeTx.ExecContext(ctx, `SET LOCAL lock_timeout = '500ms'`)
 	require.NoError(t, err)
-	probeCtx := modelBase.ContextWithTx(ctx, &probeTx)
+	probeCtx := tenant.WithTransactionForTest(ctx, &probeTx)
 	lockedToken, err := service.repos.Token.FindByTokenForUpdate(probeCtx, tokens[0].Token)
 	require.NoError(t, err)
 	require.NotNil(t, lockedToken)

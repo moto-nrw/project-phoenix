@@ -162,7 +162,7 @@ func TestMonthCloseAPI(t *testing.T) {
 	ctx := setupOverviewAPI(t)
 	today := timezone.TodayDate()
 
-	rec := ctx.get(fmt.Sprintf("/staff/time-tracking/month-close?year=%d&month=%d", today.Year, int(today.Month)), "time_tracking:manage")
+	rec := ctx.get(fmt.Sprintf("/staff/time-tracking/month-close?year=%d&month=%d", today.Year(), int(today.Month())), "time_tracking:manage")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = ctx.get("/staff/time-tracking/month-close?year=2026&month=13", "time_tracking:manage")
@@ -172,7 +172,7 @@ func TestMonthCloseAPI(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// The current month is not over: 400, not a silently wrong snapshot.
-	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year, int(today.Month))
+	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year(), int(today.Month()))
 	rec = ctx.post("/staff/time-tracking/month-close", body, "time_tracking:manage")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
@@ -196,7 +196,7 @@ func TestMonthCloseAPI_StableErrorCodes(t *testing.T) {
 	today := timezone.TodayDate()
 
 	// Closing the current month: it is not over yet.
-	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year, int(today.Month))
+	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year(), int(today.Month()))
 	rec := ctx.post("/staff/time-tracking/month-close", body, "time_tracking:manage")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"code":"month_not_closable"`)

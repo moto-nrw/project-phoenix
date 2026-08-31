@@ -85,25 +85,25 @@ func (s *offeringChangeRequestService) WriteStaffValue(
 func parseStaffOfferingValue(value map[string]any) (timezone.Date, []OfferingChangeSelection, error) {
 	inner, ok := value["value"].(map[string]any)
 	if !ok {
-		return timezone.Date{}, nil, fmt.Errorf("%w: staff value is missing", ErrOfferingChangeInvalid)
+		return timezone.Date(""), nil, fmt.Errorf("%w: staff value is missing", ErrOfferingChangeInvalid)
 	}
 	rawDate, ok := inner["effective_from"].(string)
 	if !ok {
-		return timezone.Date{}, nil, fmt.Errorf("%w: effective_from is required", ErrOfferingChangeInvalid)
+		return timezone.Date(""), nil, fmt.Errorf("%w: effective_from is required", ErrOfferingChangeInvalid)
 	}
 	effectiveFrom, err := timezone.ParseDate(rawDate)
 	if err != nil {
-		return timezone.Date{}, nil, fmt.Errorf("%w: effective_from is not a date", ErrOfferingChangeInvalid)
+		return timezone.Date(""), nil, fmt.Errorf("%w: effective_from is not a date", ErrOfferingChangeInvalid)
 	}
 	rawSelections, ok := inner["selections"].([]any)
 	if !ok {
-		return timezone.Date{}, nil, fmt.Errorf("%w: selections are required", ErrOfferingChangeInvalid)
+		return timezone.Date(""), nil, fmt.Errorf("%w: selections are required", ErrOfferingChangeInvalid)
 	}
 	selections := make([]OfferingChangeSelection, 0, len(rawSelections))
 	for _, entry := range rawSelections {
 		selection, err := parseStaffOfferingSelection(entry)
 		if err != nil {
-			return timezone.Date{}, nil, err
+			return timezone.Date(""), nil, err
 		}
 		selections = append(selections, selection)
 	}

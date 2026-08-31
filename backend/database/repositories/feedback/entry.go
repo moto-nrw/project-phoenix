@@ -59,7 +59,7 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -81,7 +81,7 @@ func (r *EntryRepository) FindByDay(ctx context.Context, day timezone.Date) ([]*
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by day",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -106,7 +106,7 @@ func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDat
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -131,7 +131,7 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find mensa feedback",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -156,7 +156,7 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -174,7 +174,7 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	query = query.Order(orderDayDesc).Order(orderTimeDesc)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list", Err: base.TranslateNotFound(err)}
 	}
 
 	return entries, nil
@@ -183,7 +183,7 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 // DeleteOlderThan deletes feedback entries older than the specified number of days.
 // Uses tenant scoping for GDPR-compliant per-tenant cleanup.
 func (r *EntryRepository) DeleteOlderThan(ctx context.Context, days int) (int, error) {
-	deleted, err := r.Repository.DeleteOlderThan(ctx, "day", timezone.TodayDate().AddDays(-days))
+	deleted, err := r.Repository.DeleteOlderThan(ctx, "day", string(timezone.TodayDate().AddDays(-days)))
 	return int(deleted), err
 }
 

@@ -2,7 +2,6 @@ package enrollment
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
@@ -263,7 +263,7 @@ func TestListBookingStats_ClassifiesAMissingPhaseAsInvalid(t *testing.T) {
 
 	service := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
 		Repo:                     bookingStatsOfferingRepo{},
-		PhaseRepo:                bookingStatsPhaseRepo{err: sql.ErrNoRows},
+		PhaseRepo:                bookingStatsPhaseRepo{err: modelBase.ErrNotFound},
 		RequestChildOfferingRepo: &bookingStatsLinkRepo{},
 	}}
 

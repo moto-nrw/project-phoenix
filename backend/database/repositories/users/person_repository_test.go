@@ -73,7 +73,7 @@ func TestPersonRepository_Create(t *testing.T) {
 
 		assert.NotZero(t, person.ID)
 		require.NotNil(t, person.Birthday)
-		assert.Equal(t, birthday.Year, person.Birthday.Year)
+		assert.Equal(t, birthday.Year(), person.Birthday.Year())
 	})
 
 	t.Run("create with nil person should fail", func(t *testing.T) {

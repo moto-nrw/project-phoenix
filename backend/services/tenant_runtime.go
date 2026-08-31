@@ -22,13 +22,28 @@ func BindTenantRuntime(
 	if lockController != nil {
 		acquireLock = lockController.AcquireLock
 	}
-	return tenant.NewUnitOfWork(
+	runtime, err := tenant.NewUnitOfWork(
 		withinTenant,
 		withinAdmin,
 		tenant.SavepointFunc(savepoints),
 		retryable,
 		acquireLock,
 	)
+	if err != nil {
+		return tenant.UnitOfWork{}, err
+	}
+	if detacher, ok := savepoints.(interface {
+		ContextWithoutTransaction(context.Context) context.Context
+	}); ok {
+		runtime = runtime.WithTransactionDetacher(detacher.ContextWithoutTransaction)
+	}
+	if adapter, ok := savepoints.(interface {
+		ContextWithTenant(context.Context, int64) context.Context
+		ContextWithTransaction(context.Context, any) context.Context
+	}); ok {
+		runtime = runtime.WithContextAdapters(adapter.ContextWithTenant, adapter.ContextWithTransaction)
+	}
+	return runtime, nil
 }
 
 // ObserveUnitOfWorkPoolWait bridges the PostgreSQL adapter to the transaction

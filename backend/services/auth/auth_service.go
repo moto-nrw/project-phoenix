@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -81,7 +80,7 @@ type Service struct {
 	passwordResetExpiry time.Duration
 	jwtExpiry           time.Duration
 	jwtRefreshExpiry    time.Duration
-	txHandler           *base.TxHandler
+	txHandler           *tenant.TransactionRunner
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
@@ -106,7 +105,7 @@ func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
 // asynchronous work from the request transaction and its commit hooks.
 func detachedTenantContext(ctx context.Context) context.Context {
 	ctx = context.WithoutCancel(ctx)
-	ctx = base.ContextWithoutTx(ctx)
+	ctx = tenant.ContextWithoutTransaction(ctx)
 	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 
@@ -148,7 +147,7 @@ func NewService(
 		passwordResetExpiry: config.PasswordResetExpiry,
 		jwtExpiry:           tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
-		txHandler:           base.NewTxHandler(db),
+		txHandler:           tenant.NewTransactionRunner(),
 		db:                  db,
 		logger:              logger,
 		settings:            config.Settings,
@@ -170,17 +169,16 @@ func (s *Service) runInTx(
 	ctx context.Context,
 	fn func(txCtx context.Context) error,
 ) error {
+	ctx = s.withTenantRuntime(ctx)
 	if s.txHandler == nil {
 		return fn(ctx)
 	}
 
-	if s.txHandler.DB == nil {
-		if _, ok := base.TxFromContext(ctx); !ok {
-			return fn(ctx)
-		}
+	if tenant.FromContext(ctx) == 0 && tenant.ScopeFromContext(ctx) != "" {
+		return tenant.WithinAdmin(ctx, fn)
 	}
 
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return fn(txCtx)
 	})
 }

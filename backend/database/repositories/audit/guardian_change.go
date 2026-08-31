@@ -35,7 +35,7 @@ func (r *guardianChangeRepository) ListByStudentID(ctx context.Context, studentI
 		OrderExpr(`"guardian_change".changed_at DESC, "guardian_change".id DESC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian changes", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list guardian changes", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

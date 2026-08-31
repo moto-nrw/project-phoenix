@@ -14,6 +14,13 @@ type runtimeKey struct{}
 type runtimeObserverKey struct{}
 type transactionKey struct{}
 
+func withTransaction(ctx context.Context, transaction any) context.Context {
+	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withTransaction != nil {
+		ctx = uow.withTransaction(ctx, transaction)
+	}
+	return context.WithValue(ctx, transactionKey{}, transaction)
+}
+
 type UnitOfWorkEventKind string
 
 const (
@@ -55,11 +62,31 @@ const (
 // Its functions are supplied by the composition root; this package does not
 // know which database or transaction adapter backs them.
 type UnitOfWork struct {
-	withinTenant func(context.Context, int64, func(context.Context, any) error) error
-	withinAdmin  func(context.Context, func(context.Context, any) error) error
-	savepoint    func(context.Context, SavepointAction) error
-	retryable    func(error) bool
-	acquireLock  func(context.Context, string, bool) error
+	withinTenant    func(context.Context, int64, func(context.Context, any) error) error
+	withinAdmin     func(context.Context, func(context.Context, any) error) error
+	savepoint       func(context.Context, SavepointAction) error
+	retryable       func(error) bool
+	acquireLock     func(context.Context, string, bool) error
+	withoutTx       func(context.Context) context.Context
+	withTenant      func(context.Context, int64) context.Context
+	withTransaction func(context.Context, any) context.Context
+}
+
+// WithTransactionDetacher installs the persistence adapter operation used to
+// mask its private transaction context. It keeps context-key ownership inside
+// the adapter that reads the key.
+func (uow UnitOfWork) WithTransactionDetacher(detach func(context.Context) context.Context) UnitOfWork {
+	uow.withoutTx = detach
+	return uow
+}
+
+func (uow UnitOfWork) WithContextAdapters(
+	withTenant func(context.Context, int64) context.Context,
+	withTransaction func(context.Context, any) context.Context,
+) UnitOfWork {
+	uow.withTenant = withTenant
+	uow.withTransaction = withTransaction
+	return uow
 }
 
 // SavepointAction is private to this package's UnitOfWork protocol; the
@@ -169,6 +196,16 @@ func TransactionFromContext(ctx context.Context) (any, bool) {
 	return tx, tx != nil
 }
 
+// ContextWithoutTransaction masks an ambient adapter transaction while
+// preserving cancellation, deadlines, tenant identity, and other values.
+func ContextWithoutTransaction(ctx context.Context) context.Context {
+	ctx = withTransaction(ctx, nil)
+	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withoutTx != nil {
+		return uow.withoutTx(ctx)
+	}
+	return ctx
+}
+
 // AcquireLock delegates a transaction-scoped advisory lock to the active
 // unit-of-work adapter.
 func AcquireLock(ctx context.Context, key string, shared bool) error {
@@ -274,7 +311,7 @@ func withinTenant(ctx context.Context, id TenantID, retry bool, fn func(context.
 	scoped := WithTenant(ctx, id)
 	return runtime.execute(scoped, retry, func(attemptCtx context.Context) error {
 		return runtime.withinTenant(attemptCtx, id.Int64(), func(txCtx context.Context, tx any) error {
-			return fn(context.WithValue(txCtx, transactionKey{}, tx))
+			return fn(withTransaction(txCtx, tx))
 		})
 	})
 }
@@ -303,7 +340,7 @@ func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
 	ctx = ContextWithoutTenant(ctx)
 	return runtime.execute(ctx, false, func(attemptCtx context.Context) error {
 		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, tx any) error {
-			txCtx = context.WithValue(txCtx, transactionKey{}, tx)
+			txCtx = withTransaction(txCtx, tx)
 			return fn(withAdminTxFlag(txCtx))
 		})
 	})
@@ -337,7 +374,7 @@ func WithTenantTx[DB, TX any](ctx context.Context, _ DB, rawID int64, fn func(co
 			if !ok {
 				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
 			}
-			return fn(context.WithValue(txCtx, transactionKey{}, rawTX), tx)
+			return fn(withTransaction(txCtx, rawTX), tx)
 		})
 	})
 }
@@ -360,7 +397,7 @@ func WithAdminTx[DB, TX any](ctx context.Context, _ DB, fn func(context.Context,
 			if !ok {
 				return fmt.Errorf("tenant: unit of work returned transaction type %T", rawTX)
 			}
-			txCtx = context.WithValue(txCtx, transactionKey{}, rawTX)
+			txCtx = withTransaction(txCtx, rawTX)
 			return fn(withAdminTxFlag(txCtx), tx)
 		})
 	})

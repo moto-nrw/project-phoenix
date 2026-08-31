@@ -45,7 +45,7 @@ func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 		ColumnExpr(`"supervisor".is_primary AS "supervisor__is_primary"`).
 		// Validity window + period scope: callers feed these rows back into
 		// full-row Update (e.g. SetPrimarySupervisor), so omitting them here
-		// would NULL valid_from on write (zero timezone.Date binds as NULL).
+		// would overwrite valid_from with an invalid empty calendar date.
 		ColumnExpr(`"supervisor".valid_from AS "supervisor__valid_from"`).
 		ColumnExpr(`"supervisor".valid_until AS "supervisor__valid_until"`).
 		ColumnExpr(`"supervisor".calendar_period_id AS "supervisor__calendar_period_id"`).
@@ -124,7 +124,7 @@ func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, grou
 	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "supervisor_planned")
 	deletedResult, err := deleteQuery.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete future supervisors by group", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete future supervisors by group", Err: base.TranslateNotFound(err)}
 	}
 	total, _ := deletedResult.RowsAffected()
 
@@ -144,7 +144,7 @@ func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, grou
 		if err != nil {
 			return total, &modelBase.DatabaseError{
 				Op:  "cap active supervisors by group",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 		rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
@@ -166,7 +166,7 @@ func (r *SupervisorPlannedRepository) SetValidUntilByID(ctx context.Context, id 
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set supervisor valid_until", Err: err}
+		return &modelBase.DatabaseError{Op: "set supervisor valid_until", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "set supervisor valid_until")
 }
@@ -189,7 +189,7 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -224,7 +224,7 @@ func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -248,7 +248,7 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -271,7 +271,7 @@ func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "set primary",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -304,7 +304,7 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -327,7 +327,7 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -349,7 +349,7 @@ func (r *SupervisorPlannedRepository) DeleteByStaffID(ctx context.Context, staff
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete by staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := result.RowsAffected()
@@ -386,7 +386,7 @@ func (r *SupervisorPlannedRepository) ListPlannedSupervisionBlockers(ctx context
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list planned supervision blockers",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return results, nil

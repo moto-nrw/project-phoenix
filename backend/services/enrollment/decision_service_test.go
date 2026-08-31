@@ -441,7 +441,7 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 	ctx := testpkg.Ctx(t)
 	env.sourcePhase.ServiceStartDate = serviceStartDate
 	if !env.sourcePhase.ServiceEndDate.After(serviceStartDate) {
-		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year, serviceStartDate.Month+10, serviceStartDate.Day)
+		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year(), serviceStartDate.Month()+10, serviceStartDate.Day())
 	}
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
@@ -3881,7 +3881,7 @@ func TestBookingViewDate(t *testing.T) {
 
 	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
 		"inside or ahead of the period the reference date is simply today")
-	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date{}),
+	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.Date("")),
 		"a missing period end must not move the reference date")
 	assert.Equal(t, timezone.NewDate(2026, 7, 31),
 		enrollmentService.BookingViewDate(today, timezone.NewDate(2026, 7, 31)),

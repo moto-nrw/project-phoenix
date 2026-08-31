@@ -3,18 +3,24 @@ package database
 import (
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func clearDatabaseEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("APP_ENV", "")
+	t.Setenv("DB_DSN", "")
+	t.Setenv("TEST_DB_DSN", "")
+}
+
 // TestGetDatabaseDSN_ExplicitDSN verifies that an explicit DB_DSN is returned when set
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_ExplicitDSN(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
 	customDSN := "postgres://user:pass@custom-host:5555/custom_db?sslmode=verify-full"
-	viper.Set("db_dsn", customDSN)
+	t.Setenv("DB_DSN", customDSN)
 
 	result, err := resolveDatabaseDSN()
 
@@ -25,11 +31,11 @@ func TestGetDatabaseDSN_ExplicitDSN(t *testing.T) {
 // TestGetDatabaseDSN_TestEnv verifies that APP_ENV=test requires an explicit test database DSN.
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnv(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
 	testDSN := "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
-	viper.Set("app_env", "test")
-	viper.Set("test_db_dsn", testDSN)
+	t.Setenv("APP_ENV", "test")
+	t.Setenv("TEST_DB_DSN", testDSN)
 
 	result, err := resolveDatabaseDSN()
 
@@ -40,9 +46,8 @@ func TestGetDatabaseDSN_TestEnv(t *testing.T) {
 // TestGetDatabaseDSN_DevelopmentEnvRequiresDSN verifies that development no longer invents a localhost DSN.
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
-	defer viper.Reset()
-
-	viper.Set("app_env", "development")
+	clearDatabaseEnv(t)
+	t.Setenv("APP_ENV", "development")
 
 	result, err := resolveDatabaseDSN()
 
@@ -54,10 +59,10 @@ func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
 // TestGetDatabaseDSN_TestDSNRequiresTestEnv verifies that TEST_DB_DSN is not a fallback outside test mode.
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
 	legacyDSN := "postgres://legacy:legacy@legacy-host:6543/legacy_test?sslmode=disable"
-	viper.Set("test_db_dsn", legacyDSN)
+	t.Setenv("TEST_DB_DSN", legacyDSN)
 
 	result, err := resolveDatabaseDSN()
 
@@ -69,7 +74,7 @@ func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
 // TestGetDatabaseDSN_MissingConfigFails verifies that no localhost fallback is returned.
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
 	result, err := resolveDatabaseDSN()
 
@@ -83,13 +88,13 @@ func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 // because dev.env also contains DB_DSN.
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
 	developmentDSN := "postgres://development:development@localhost:5432/phoenix?sslmode=disable"
 	testDSN := "postgres://test:test@localhost:5433/phoenix_test?sslmode=disable"
-	viper.Set("db_dsn", developmentDSN)
-	viper.Set("test_db_dsn", testDSN)
-	viper.Set("app_env", "test")
+	t.Setenv("DB_DSN", developmentDSN)
+	t.Setenv("TEST_DB_DSN", testDSN)
+	t.Setenv("APP_ENV", "test")
 
 	result, err := resolveDatabaseDSN()
 
@@ -100,10 +105,10 @@ func TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
-	viper.Set("db_dsn", "postgres://development:development@localhost:5432/phoenix?sslmode=disable")
-	viper.Set("app_env", "test")
+	t.Setenv("DB_DSN", "postgres://development:development@localhost:5432/phoenix?sslmode=disable")
+	t.Setenv("APP_ENV", "test")
 
 	result, err := resolveDatabaseDSN()
 
@@ -115,12 +120,12 @@ func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t
 // TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy verifies that explicit DB_DSN takes precedence over TEST_DB_DSN
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy(t *testing.T) {
-	defer viper.Reset()
+	clearDatabaseEnv(t)
 
 	customDSN := "postgres://explicit:explicit@explicit-host:8888/explicit_db?sslmode=require"
 	legacyDSN := "postgres://legacy:legacy@legacy-host:6543/legacy_test?sslmode=disable"
-	viper.Set("db_dsn", customDSN)
-	viper.Set("test_db_dsn", legacyDSN) // Should be ignored
+	t.Setenv("DB_DSN", customDSN)
+	t.Setenv("TEST_DB_DSN", legacyDSN) // Should be ignored
 
 	result, err := resolveDatabaseDSN()
 

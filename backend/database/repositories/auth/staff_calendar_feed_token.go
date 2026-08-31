@@ -37,7 +37,7 @@ func (r *StaffCalendarFeedTokenRepository) FindOwnerByTokenHash(ctx context.Cont
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find staff calendar feed owner", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff calendar feed owner", Err: base.TranslateNotFound(err)}
 	}
 	return owner, nil
 }
@@ -55,7 +55,7 @@ func (r *StaffCalendarFeedTokenRepository) EnsureToken(ctx context.Context, acco
 		Where(`("account_tenant".staff_calendar_feed_token IS NULL OR "account_tenant".staff_calendar_feed_token = '')`).
 		Exec(ctx)
 	if err != nil {
-		return "", &modelBase.DatabaseError{Op: "ensure staff calendar feed token", Err: err}
+		return "", &modelBase.DatabaseError{Op: "ensure staff calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	if rows, rowsErr := result.RowsAffected(); rowsErr == nil && rows > 0 {
 		return tokenHash, nil
@@ -73,7 +73,7 @@ func (r *StaffCalendarFeedTokenRepository) EnsureToken(ctx context.Context, acco
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
-		return "", &modelBase.DatabaseError{Op: "read staff calendar feed token", Err: err}
+		return "", &modelBase.DatabaseError{Op: "read staff calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	return stored, nil
 }
@@ -89,7 +89,7 @@ func (r *StaffCalendarFeedTokenRepository) RotateToken(ctx context.Context, acco
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "rotate staff calendar feed token", Err: err}
+		return false, &modelBase.DatabaseError{Op: "rotate staff calendar feed token", Err: base.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	return err == nil && rows > 0, err

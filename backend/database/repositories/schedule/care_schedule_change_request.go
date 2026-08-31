@@ -63,7 +63,7 @@ func (r *CareScheduleChangeRequestRepository) GetPendingForStudentAndKind(ctx co
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get pending care schedule change request", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get pending care schedule change request", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -103,7 +103,7 @@ func (r *CareScheduleChangeRequestRepository) listPending(ctx context.Context, k
 	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -140,7 +140,7 @@ func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.C
 	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -156,7 +156,7 @@ func (r *CareScheduleChangeRequestRepository) ListRecentForStudentAndKind(ctx co
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
 	query = query.OrderExpr(`"care_schedule_change_request".created_at DESC`).OrderExpr(`"care_schedule_change_request".id DESC`)
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list recent care schedule change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list recent care schedule change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -179,7 +179,7 @@ func (r *CareScheduleChangeRequestRepository) FindPendingByIDForUpdate(ctx conte
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCareRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find pending care schedule change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find pending care schedule change request for update", Err: base.TranslateNotFound(err)}
 	}
 	if row.Status != schedule.CareRequestStatusPending {
 		return nil, ErrCareRequestNotPending
@@ -207,7 +207,7 @@ func (r *CareScheduleChangeRequestRepository) FindByIDForUpdate(ctx context.Cont
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCareRequestNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find care schedule change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find care schedule change request for update", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -230,7 +230,7 @@ func (r *CareScheduleChangeRequestRepository) UpdatePending(ctx context.Context,
 	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update pending care schedule change request", Err: err}
+		return &modelBase.DatabaseError{Op: "update pending care schedule change request", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return ErrCareRequestNotPending
@@ -259,7 +259,7 @@ func (r *CareScheduleChangeRequestRepository) Decide(ctx context.Context, id int
 
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "decide care schedule change request", Err: err}
+		return &modelBase.DatabaseError{Op: "decide care schedule change request", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
@@ -283,7 +283,7 @@ func (r *CareScheduleChangeRequestRepository) UpdateDecisionSnapshot(ctx context
 	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: err}
+		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return ErrCareRequestNotFound
@@ -321,7 +321,7 @@ func (r *CareScheduleChangeRequestRepository) Redecide(
 	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "correct care schedule change request", Err: err}
+		return &modelBase.DatabaseError{Op: "correct care schedule change request", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return ErrCareRequestNotDecided

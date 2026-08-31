@@ -337,7 +337,7 @@ func (rs *Resource) retryCleanups(ctx context.Context, folderID int64, actor fil
 	}
 	for _, file := range files {
 		fileID, storedName := file.ID, file.FilenameStored
-		cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(ctx))
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(ctx, func() {
 			coordinator.CleanupDocument(cleanupCtx, tenantID, folderID, fileID, storedName, source)
@@ -526,7 +526,7 @@ func (rs *Resource) deleteFile(w http.ResponseWriter, r *http.Request) {
 	if !file.IsFileDeleted() {
 		tenantID := tenant.FromContext(r.Context())
 		id, storedName := file.ID, file.FilenameStored
-		cleanupCtx := context.WithoutCancel(modelBase.ContextWithoutTx(r.Context()))
+		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))
 		cleanupCtx = tenant.ContextWithoutAfterCommitHooks(cleanupCtx)
 		tenant.RegisterAfterCommit(r.Context(), func() {
 			coordinator.CleanupDocument(cleanupCtx, tenantID, folderID, id, storedName, "delete")

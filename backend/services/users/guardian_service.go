@@ -84,7 +84,7 @@ type GuardianServiceDependencies struct {
 // invitations, and phone numbers.
 type GuardianService struct {
 	GuardianServiceDependencies
-	txHandler *base.TxHandler
+	txHandler *tenant.TransactionRunner
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -96,7 +96,7 @@ func NewGuardianService(deps GuardianServiceDependencies) *GuardianService {
 
 	return &GuardianService{
 		GuardianServiceDependencies: deps,
-		txHandler:                   base.NewTxHandler(deps.DB),
+		txHandler:                   tenant.NewTransactionRunner(),
 	}
 }
 
@@ -468,7 +468,7 @@ func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvita
 
 	// Send invitation email asynchronously, pass tenant context for DB calls
 	if s.Dispatcher != nil && profile.Email != nil {
-		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
+		tenantCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(ctx))
 		go s.sendInvitationEmail(tenantCtx, invitation, profile)
 	}
 
@@ -476,7 +476,7 @@ func (s *GuardianService) SendInvitation(ctx context.Context, req GuardianInvita
 }
 
 // sendInvitationEmail sends the invitation email (called asynchronously).
-// ctx should carry tenant context but NOT a transaction (use tenant.WithTenantID on Background).
+// ctx should carry tenant context but not an ambient request transaction.
 func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
 	if s.Dispatcher == nil || profile.Email == nil {
 		return

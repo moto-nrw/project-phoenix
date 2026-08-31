@@ -48,7 +48,7 @@ func (r *StaffRepository) FindByIDForUpdate(ctx context.Context, id int64) (*use
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find staff by id for update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return staff, nil
@@ -69,7 +69,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by person ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -92,7 +92,7 @@ func (r *StaffRepository) ClearWorkTimeModel(ctx context.Context, id int64) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "clear work time model",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -167,7 +167,7 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all with person",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -219,7 +219,7 @@ func (r *StaffRepository) GetStaffContactInfo(ctx context.Context, staffID int64
 	query = base.WithTenantFilter(ctx, query, "staff")
 
 	if err := query.Scan(ctx, &result); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "get staff contact info", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get staff contact info", Err: base.TranslateNotFound(err)}
 	}
 	return &result, nil
 }
@@ -260,7 +260,7 @@ func (r *StaffRepository) ListAccountIDsByStaffIDs(ctx context.Context, staffIDs
 	query = base.WithTenantFilter(ctx, query, "staff")
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list account IDs by staff IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list account IDs by staff IDs", Err: base.TranslateNotFound(err)}
 	}
 
 	accountsByStaff := make(map[int64]int64, len(rows))
@@ -303,7 +303,7 @@ func (r *StaffRepository) ListAllStaffAccountIDs(ctx context.Context) (map[int64
 	query = base.WithTenantFilter(ctx, query, "staff")
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list all staff account IDs", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list all staff account IDs", Err: base.TranslateNotFound(err)}
 	}
 
 	accountsByStaff := make(map[int64]int64, len(rows))
@@ -369,7 +369,7 @@ func (r *StaffRepository) ListStaffWithPermission(ctx context.Context, permissio
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff with permission", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff with permission", Err: base.TranslateNotFound(err)}
 	}
 
 	permissionsByStaff := make(map[int64][]string)
@@ -447,7 +447,7 @@ func (r *StaffRepository) FindReachableCalendarStaffIDs(ctx context.Context, ids
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find reachable calendar staff", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find reachable calendar staff", Err: base.TranslateNotFound(err)}
 	}
 
 	// Group each staff's effective permission names and apply the same
@@ -480,7 +480,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with person - staff",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -530,7 +530,7 @@ func (r *StaffRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -560,7 +560,7 @@ func (r *StaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with person by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -610,7 +610,7 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list staff by roles",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -641,7 +641,7 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "add notes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

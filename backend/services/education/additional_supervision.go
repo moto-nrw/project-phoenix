@@ -9,7 +9,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
 )
 
 const additionalSupervisorRole = "additional_supervisor"
@@ -164,7 +163,7 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	}
 
 	var result AssignmentResult
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		created, target, createErr := s.assignAdditionalSupervisionLocked(txCtx, caller, access, broad, request)
 		if createErr == nil {
 			result = AssignmentResult{

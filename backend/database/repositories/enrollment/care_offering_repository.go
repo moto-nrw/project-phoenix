@@ -52,7 +52,7 @@ func (r *CareOfferingRepository) FindByID(ctx context.Context, id int64) (*enrol
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("care offering %d not found: %w", id, sql.ErrNoRows)
+			return nil, fmt.Errorf("care offering %d not found: %w", id, base.TranslateNotFound(err))
 		}
 		return nil, fmt.Errorf("failed to find care offering: %w", err)
 	}

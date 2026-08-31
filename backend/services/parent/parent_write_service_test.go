@@ -592,7 +592,7 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	sick, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, sick, 1)
@@ -685,7 +685,7 @@ func TestListSickDays_NotOwned(t *testing.T) {
 
 	svc, _, _ := buildWriteService(t, true, true)
 	from := timezone.NewDate(2026, 8, 24)
-	_, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), 999999, 888888, from, timezone.NewDate(from.Year, from.Month+1, from.Day))
+	_, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), 999999, 888888, from, timezone.NewDate(from.Year(), from.Month()+1, from.Day()))
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -806,7 +806,7 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 	require.NoError(t, err)
 
 	from := timezone.NewDate(2026, 8, 24)
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, absences, 2, "both the sick and the excused absence must be listed")
@@ -851,7 +851,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	require.NoError(t, err)
 
 	from := timezone.NewDate(2026, 8, 24)
-	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	to := timezone.NewDate(from.Year(), from.Month()+1, from.Day())
 	absences, err := svc.ListSickDays(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	require.Len(t, absences, 1, "only the parent-reported excused day must be listed")

@@ -53,7 +53,7 @@ func TestActivityException_Validate(t *testing.T) {
 
 	t.Run("missing exception_date", func(t *testing.T) {
 		e := validActivityException()
-		e.ExceptionDate = timezone.Date{}
+		e.ExceptionDate = timezone.Date("")
 		err := e.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "exception_date is required")

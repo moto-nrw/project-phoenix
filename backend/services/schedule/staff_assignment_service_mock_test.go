@@ -98,7 +98,7 @@ func TestAssignmentService_RejectsInvalidRange(t *testing.T) {
 
 	svc := assignmentServiceFixture(&asInstanceStaffRepo{}, &asInstanceRepo{}, &asRoomRepo{}, &asGroupRepo{})
 
-	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, timezone.Date{}, timezone.NewDate(2026, time.March, 10))
+	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, timezone.Date(""), timezone.NewDate(2026, time.March, 10))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }

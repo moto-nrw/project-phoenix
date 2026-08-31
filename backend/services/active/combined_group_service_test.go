@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -852,7 +854,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		tx, err := db.BeginTx(txCtx, nil)
 		require.NoError(t, err)
 		defer func() { _ = tx.Rollback() }()
-		txCtx = base.ContextWithTx(txCtx, &tx)
+		txCtx = tenant.WithTransactionForTest(txCtx, &tx)
 
 		err = service.CreateCombinedGroupWithGroups(txCtx, combinedGroup, []int64{activeGroup1.ID, activeGroup2.ID})
 
@@ -882,7 +884,7 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 		txCtx := testpkg.Ctx(t)
 		tx, err := db.BeginTx(txCtx, nil)
 		require.NoError(t, err)
-		txCtx = base.ContextWithTx(txCtx, &tx)
+		txCtx = tenant.WithTransactionForTest(txCtx, &tx)
 
 		err = service.CreateCombinedGroupWithGroups(txCtx, combinedGroup, []int64{activeGroup.ID, 99999999})
 

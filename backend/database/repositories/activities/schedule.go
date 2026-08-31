@@ -55,7 +55,7 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -81,7 +81,7 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by weekday",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -123,7 +123,7 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find template start times by group ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	defer func() { _ = rows.Close() }()
@@ -136,14 +136,14 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 		if err := rows.Scan(&gid, &wd, &raw); err != nil {
 			return nil, &modelBase.DatabaseError{
 				Op:  "find template start times by group ids: scan",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 		startTime, err := parseSQLClock(raw)
 		if err != nil {
 			return nil, &modelBase.DatabaseError{
 				Op:  "find template start times by group ids: parse clock",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 		out = append(out, &activities.TemplateStartTime{
@@ -155,7 +155,7 @@ func (r *ScheduleRepository) FindTemplateStartTimesByGroupIDs(ctx context.Contex
 	if err := rows.Err(); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find template start times by group ids: rows",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return out, nil
@@ -189,7 +189,7 @@ func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "cap schedule valid_until",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
@@ -222,7 +222,7 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

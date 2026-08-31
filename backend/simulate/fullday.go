@@ -3,6 +3,7 @@ package simulate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"math/rand"
@@ -261,6 +262,15 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 	primaryDevice, err := rt.primaryDevice()
 	if err != nil {
 		return err
+	}
+	// Exercise the real kiosk failure path too. The endpoint intentionally
+	// returns 404, while recording the unknown tag for operator follow-up.
+	_, err = rt.Client.DevicePost("/api/iot/checkin", map[string]any{
+		"student_rfid": "DEMO-UNREGISTERED-TAG", "action": "checkin",
+	}, primaryDevice.APIKey, rt.State.DevicePIN)
+	var statusErr interface{ HTTPStatusCode() int }
+	if !errors.As(err, &statusErr) || statusErr.HTTPStatusCode() != 404 {
+		return fmt.Errorf("record unregistered tag scan: expected 404, got %w", err)
 	}
 
 	studentsToProcess := len(rt.State.Students)

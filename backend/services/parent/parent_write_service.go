@@ -1052,7 +1052,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if date.Before(today) {
 		return nil, ErrPastCareDate
 	}
-	if date.After(timezone.NewDate(today.Year, today.Month+2, today.Day)) {
+	if date.After(timezone.NewDate(today.Year(), today.Month()+2, today.Day())) {
 		return nil, ErrCareDateTooFar
 	}
 	if s.CareRequests == nil {
@@ -1220,7 +1220,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 	// Cap how far ahead a parent may set an exception: two calendar months,
 	// mirroring the parent-portal list window (parseSickDayRange) so a created
 	// entry can never fall outside the range the UI shows.
-	maxDate := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	maxDate := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
 	if date.After(maxDate) {
 		return nil, ErrCareDateTooFar
 	}

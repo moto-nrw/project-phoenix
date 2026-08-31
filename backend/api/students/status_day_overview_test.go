@@ -80,7 +80,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, today.AddDays(2), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(1), active.StudentStatusDayClassTrip)
 	// Out of the default two-month window: must not be listed.
-	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year, today.Month+3, 1), active.StudentStatusDayExcused)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year(), today.Month()+3, 1), active.StudentStatusDayExcused)
 	clearedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(3), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today.AddDays(1), active.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, inactiveLegacyChild.ID, today.AddDays(1), active.StudentStatusDayExcused)
@@ -139,7 +139,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 			Exec(context.Background())
 	})
 	assert.True(t, today.BerlinMidnight().Equal(auditEntry.RangeStart))
-	assert.True(t, timezone.NewDate(today.Year, today.Month+2, today.Day).EndOfDay().Equal(auditEntry.RangeEnd))
+	assert.True(t, timezone.NewDate(today.Year(), today.Month()+2, today.Day()).EndOfDay().Equal(auditEntry.RangeEnd))
 	groupIDs, ok := auditEntry.Metadata["group_ids"].([]interface{})
 	require.True(t, ok)
 	assert.Contains(t, groupIDs, float64(groupA.ID))

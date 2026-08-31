@@ -2,9 +2,6 @@ package base
 
 import (
 	"testing"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 func TestNewFilter(t *testing.T) {
@@ -243,24 +240,6 @@ func TestFilter_FirstNumberIn(t *testing.T) {
 	})
 }
 
-func TestTrimInPlaceholders(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		count int
-		want  string
-	}{
-		{0, ""},
-		{1, "LOWER(TRIM(?))"},
-		{3, "LOWER(TRIM(?)), LOWER(TRIM(?)), LOWER(TRIM(?))"},
-	}
-	for _, tt := range tests {
-		if got := trimInPlaceholders(tt.count); got != tt.want {
-			t.Errorf("trimInPlaceholders(%d) = %q, want %q", tt.count, got, tt.want)
-		}
-	}
-}
-
 func TestFilter_NullChecks(t *testing.T) {
 	t.Parallel()
 
@@ -363,34 +342,6 @@ func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
 	}
 	if len(nested.or) != 1 || nested.or[0].tableAlias != "room" {
 		t.Fatalf("nested OR filter should inherit room alias: %+v", nested.or)
-	}
-}
-
-func TestFilter_DateBetween(t *testing.T) {
-	t.Parallel()
-
-	date := timezone.NewDate(2024, time.June, 15)
-
-	f := NewFilter().DateBetween("start_date", "end_date", date)
-
-	if len(f.conditions) != 2 {
-		t.Fatalf("Filter.DateBetween() should add two conditions, got %d", len(f.conditions))
-	}
-
-	// start_date <= date
-	if f.conditions[0].Field != "start_date" || f.conditions[0].Operator != OpLessThanOrEqual {
-		t.Errorf("DateBetween first condition = %+v, want start_date <=", f.conditions[0])
-	}
-	if got, ok := f.conditions[0].Value.(timezone.Date); !ok || got != date {
-		t.Errorf("DateBetween first value = %T(%v), want timezone.Date(%v)", f.conditions[0].Value, f.conditions[0].Value, date)
-	}
-
-	// end_date >= date
-	if f.conditions[1].Field != "end_date" || f.conditions[1].Operator != OpGreaterThanOrEqual {
-		t.Errorf("DateBetween second condition = %+v, want end_date >=", f.conditions[1])
-	}
-	if got, ok := f.conditions[1].Value.(timezone.Date); !ok || got != date {
-		t.Errorf("DateBetween second value = %T(%v), want timezone.Date(%v)", f.conditions[1].Value, f.conditions[1].Value, date)
 	}
 }
 

@@ -82,7 +82,7 @@ func (r *FolderRepository) Create(ctx context.Context, folder *filestore.Folder)
 		ModelTableExpr(folderTableExpr).
 		Returning("*").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create folder", Err: err}
+		return &modelBase.DatabaseError{Op: "create folder", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -101,10 +101,10 @@ func (r *FolderRepository) Update(ctx context.Context, folder *filestore.Folder)
 	query = base.WithTenantFilter(ctx, query, "folder")
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update folder", Err: err}
+		return &modelBase.DatabaseError{Op: "update folder", Err: base.TranslateNotFound(err)}
 	}
 	if affected, err := res.RowsAffected(); err == nil && affected == 0 {
-		return &modelBase.DatabaseError{Op: "update folder", Err: sql.ErrNoRows}
+		return &modelBase.DatabaseError{Op: "update folder", Err: base.TranslateNotFound(sql.ErrNoRows)}
 	}
 	return nil
 }
@@ -118,10 +118,10 @@ func (r *FolderRepository) Delete(ctx context.Context, folderID int64) error {
 	query = base.WithTenantFilter(ctx, query, "folder")
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete folder", Err: err}
+		return &modelBase.DatabaseError{Op: "delete folder", Err: base.TranslateNotFound(err)}
 	}
 	if affected, err := res.RowsAffected(); err == nil && affected == 0 {
-		return &modelBase.DatabaseError{Op: "delete folder", Err: sql.ErrNoRows}
+		return &modelBase.DatabaseError{Op: "delete folder", Err: base.TranslateNotFound(sql.ErrNoRows)}
 	}
 	return nil
 }
@@ -135,7 +135,7 @@ func (r *FolderRepository) FindByID(ctx context.Context, folderID int64) (*files
 		Where(`"folder".id = ?`, folderID)
 	query = base.WithTenantFilter(ctx, query, "folder")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find folder", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find folder", Err: base.TranslateNotFound(err)}
 	}
 	return folder, nil
 }
@@ -159,7 +159,7 @@ func (r *FolderRepository) ListVisible(ctx context.Context, viewer filestore.Vie
 	}
 	query = base.WithTenantFilter(ctx, query, "folder")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list visible folders", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list visible folders", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -176,7 +176,7 @@ func (r *FolderRepository) IsVisible(ctx context.Context, folderID int64, viewer
 	query = base.WithTenantFilter(ctx, query, "folder")
 	exists, err := query.Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check folder visibility", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check folder visibility", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -193,7 +193,7 @@ func (r *FolderRepository) ReplaceAudience(ctx context.Context, folderID int64, 
 		Where(`"folder_role".folder_id = ?`, folderID)
 	rolesDelete = base.WithTenantFilter(ctx, rolesDelete, "folder_role")
 	if _, err := rolesDelete.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear folder roles", Err: err}
+		return &modelBase.DatabaseError{Op: "clear folder roles", Err: base.TranslateNotFound(err)}
 	}
 
 	accountsDelete := db.NewDelete().
@@ -202,7 +202,7 @@ func (r *FolderRepository) ReplaceAudience(ctx context.Context, folderID int64, 
 		Where(`"folder_account".folder_id = ?`, folderID)
 	accountsDelete = base.WithTenantFilter(ctx, accountsDelete, "folder_account")
 	if _, err := accountsDelete.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear folder accounts", Err: err}
+		return &modelBase.DatabaseError{Op: "clear folder accounts", Err: base.TranslateNotFound(err)}
 	}
 
 	if len(audience.RoleIDs) > 0 {
@@ -217,7 +217,7 @@ func (r *FolderRepository) ReplaceAudience(ctx context.Context, folderID int64, 
 			ModelTableExpr(folderRoleTableExpr).
 			On("CONFLICT DO NOTHING").
 			Exec(ctx); err != nil {
-			return &modelBase.DatabaseError{Op: "insert folder roles", Err: err}
+			return &modelBase.DatabaseError{Op: "insert folder roles", Err: base.TranslateNotFound(err)}
 		}
 	}
 
@@ -233,7 +233,7 @@ func (r *FolderRepository) ReplaceAudience(ctx context.Context, folderID int64, 
 			ModelTableExpr(folderAccountTableExpr).
 			On("CONFLICT DO NOTHING").
 			Exec(ctx); err != nil {
-			return &modelBase.DatabaseError{Op: "insert folder accounts", Err: err}
+			return &modelBase.DatabaseError{Op: "insert folder accounts", Err: base.TranslateNotFound(err)}
 		}
 	}
 	return nil
@@ -254,7 +254,7 @@ func (r *FolderRepository) GetAudience(ctx context.Context, folderIDs []int64) (
 		OrderExpr(`"folder_role".role_id ASC`)
 	rolesQuery = base.WithTenantFilter(ctx, rolesQuery, "folder_role")
 	if err := rolesQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list folder roles", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list folder roles", Err: base.TranslateNotFound(err)}
 	}
 
 	var accounts []*filestore.FolderAccount
@@ -265,7 +265,7 @@ func (r *FolderRepository) GetAudience(ctx context.Context, folderIDs []int64) (
 		OrderExpr(`"folder_account".account_id ASC`)
 	accountsQuery = base.WithTenantFilter(ctx, accountsQuery, "folder_account")
 	if err := accountsQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list folder accounts", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list folder accounts", Err: base.TranslateNotFound(err)}
 	}
 
 	for _, row := range roles {
@@ -295,7 +295,7 @@ func (r *FolderRepository) ListAudienceRoles(ctx context.Context) ([]*filestore.
 		OrderExpr(`lower("role".name) ASC`).
 		Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list audience roles", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list audience roles", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -313,7 +313,7 @@ func (r *FolderRepository) ListAudienceAccounts(ctx context.Context) ([]*filesto
 		OrderExpr(`lower("person".last_name) ASC, lower("person".first_name) ASC`)
 	query = base.WithTenantFilter(ctx, query, "mapping")
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list audience accounts", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list audience accounts", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -351,7 +351,7 @@ func (r *FileRepository) TotalStoredBytes(ctx context.Context) (int64, error) {
 		WhereAllWithDeleted()
 	query = base.WithTenantFilter(ctx, query, "file")
 	if err := query.Scan(ctx, &total); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "sum stored file bytes", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "sum stored file bytes", Err: base.TranslateNotFound(err)}
 	}
 	return total.Int64, nil
 }

@@ -10,9 +10,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -33,13 +31,26 @@ func NewRepository[T modelBase.Entity](db *bun.DB, tableName, entityName string)
 	}
 }
 
+type modelTableQuery[Q any] interface {
+	Model(any) Q
+	ModelTableExpr(string, ...any) Q
+}
+
+func modelAtTable[Q modelTableQuery[Q]](query Q, model any, table, alias string) Q {
+	query = query.Model(model)
+	if alias == "" {
+		return query.ModelTableExpr("?", bun.Ident(table))
+	}
+	return query.ModelTableExpr("? AS ?", bun.Ident(table), bun.Ident(alias))
+}
+
 // applyTenantFilter adds a WHERE tenant_id = ? clause if the repository is tenant-scoped
 // and a tenant ID is present in the context. This is a defense-in-depth measure
 // layered on top of PostgreSQL RLS policies.
 func (r *Repository[T]) applyTenantFilter(ctx context.Context, query *bun.SelectQuery, alias string) *bun.SelectQuery {
 	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID)
+		if tenantID := tenantIDFromContext(ctx); tenantID > 0 {
+			query = query.Where("? = ?", bun.Ident(alias+".tenant_id"), tenantID)
 		}
 	}
 	return query
@@ -61,15 +72,13 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 
 	// Auto-set tenant_id from context if the entity is tenant-scoped and tenant_id is not yet set
 	if ts, ok := any(entity).(modelBase.TenantScoped); ok && ts.GetTenantID() == 0 {
-		if tid := tenant.FromContext(ctx); tid != 0 {
+		if tid := tenantIDFromContext(ctx); tid != 0 {
 			ts.SetTenantID(tid)
 		}
 	}
 
 	// Explicitly set the table name with schema
-	_, err := GetDB(ctx, r.DB).NewInsert().
-		Model(entity).
-		ModelTableExpr(r.TableName).
+	_, err := modelAtTable(GetDB(ctx, r.DB).NewInsert(), entity, r.TableName, "").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -98,17 +107,14 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
-		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id)
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), entityVal, r.TableName, entityName).
+		Where("? = ?", bun.Ident(entityName+".id"), id)
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
 	err := query.Scan(ctx)
 	if err != nil {
+		err = TranslateNotFound(err)
 		return entity, &modelBase.DatabaseError{
 			Op:  "find by id",
 			Err: err,
@@ -129,14 +135,12 @@ func (r *Repository[T]) FindByIDForUpdate(ctx context.Context, id any) (T, error
 	}
 	entityVal := reflect.New(entityType).Interface().(T)
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
-		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), entityVal, r.TableName, entityName).
+		Where("? = ?", bun.Ident(entityName+".id"), id).
 		For("UPDATE")
 	query = r.applyTenantFilter(ctx, query, entityName)
 	if err := query.Scan(ctx); err != nil {
+		err = TranslateNotFound(err)
 		return entity, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
 	}
 	return entityVal, nil
@@ -151,7 +155,7 @@ func (r *Repository[T]) FindByIDOrNil(ctx context.Context, id any) (T, error) {
 	entity, err := r.FindByID(ctx, id)
 	if err != nil {
 		var dbErr *modelBase.DatabaseError
-		if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		if errors.As(err, &dbErr) && errors.Is(dbErr.Err, modelBase.ErrNotFound) {
 			var zero T
 			return zero, nil
 		}
@@ -177,16 +181,12 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	updateQuery := GetDB(ctx, r.DB).NewUpdate().
-		Model(entity).
-		ModelTableExpr(tableExpr).
+	updateQuery := modelAtTable(GetDB(ctx, r.DB).NewUpdate(), entity, r.TableName, entityName).
 		WherePK()
 
 	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			updateQuery = updateQuery.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		if tenantID := tenantIDFromContext(ctx); tenantID > 0 {
+			updateQuery = updateQuery.Where("? = ?", bun.Ident(entityName+".tenant_id"), tenantID)
 		}
 	}
 
@@ -208,16 +208,12 @@ func (r *Repository[T]) Delete(ctx context.Context, id any) error {
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	deleteQuery := GetDB(ctx, r.DB).NewDelete().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
-		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id)
+	deleteQuery := modelAtTable(GetDB(ctx, r.DB).NewDelete(), entityVal, r.TableName, entityName).
+		Where("? = ?", bun.Ident(entityName+".id"), id)
 
 	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			deleteQuery = deleteQuery.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		if tenantID := tenantIDFromContext(ctx); tenantID > 0 {
+			deleteQuery = deleteQuery.Where("? = ?", bun.Ident(entityName+".tenant_id"), tenantID)
 		}
 	}
 
@@ -243,12 +239,8 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(&entities).
-		ModelTableExpr(tableExpr).
-		ColumnExpr(fmt.Sprintf(`"%s".*`, entityName))
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), &entities, r.TableName, entityName).
+		ColumnExpr("?.*", bun.Ident(entityName))
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
@@ -278,12 +270,8 @@ func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.
 	entities := make([]T, 0)
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(&entities).
-		ModelTableExpr(tableExpr).
-		ColumnExpr(fmt.Sprintf(`"%s".*`, entityName))
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), &entities, r.TableName, entityName).
+		ColumnExpr("?.*", bun.Ident(entityName))
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
@@ -291,7 +279,7 @@ func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.
 		if options.Filter != nil {
 			options.Filter.WithTableAlias(entityName)
 		}
-		query = options.ApplyToQuery(query)
+		query = ApplyQueryOptions(query, options)
 	}
 
 	if err := query.Scan(ctx); err != nil {
@@ -311,18 +299,14 @@ func (r *Repository[T]) CountWithOptions(ctx context.Context, options *modelBase
 	entityVal := r.newEntityValue()
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), entityVal, r.TableName, entityName).
 		Column(entityName + ".id")
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias(entityName)
-		query = options.Filter.ApplyToQuery(query)
+		query = ApplyFilter(query, options.Filter)
 	}
 
 	count, err := query.Count(ctx)
@@ -341,16 +325,12 @@ func (r *Repository[T]) CountWithOptions(ctx context.Context, options *modelBase
 // absolute minimum). Returns nil when no rows match. Intended for
 // retention/cleanup statistics (oldest expired record, preview output).
 // dateColumn must be a compile-time constant column name, never user input.
-func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error) {
+func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cutoff *string) (*string, error) {
 	entityVal := r.newEntityValue()
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
-		ColumnExpr("MIN(?)", bun.Ident(dateColumn))
+	query := modelAtTable(GetDB(ctx, r.DB).NewSelect(), entityVal, r.TableName, entityName).
+		ColumnExpr("TO_CHAR(MIN(?), 'YYYY-MM-DD')", bun.Ident(dateColumn))
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 
@@ -358,7 +338,7 @@ func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cut
 		query = query.Where("? < ?", bun.Ident(dateColumn), *cutoff)
 	}
 
-	var oldest *timezone.Date
+	var oldest *string
 	if err := query.Scan(ctx, &oldest); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "oldest before",
@@ -373,20 +353,16 @@ func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cut
 // before cutoff and returns the number of rows deleted. Intended for
 // retention/cleanup jobs (GDPR data expiry, stale-record pruning).
 // dateColumn must be a compile-time constant column name, never user input.
-func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error) {
+func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, cutoff string) (int64, error) {
 	entityVal := r.newEntityValue()
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewDelete().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
+	query := modelAtTable(GetDB(ctx, r.DB).NewDelete(), entityVal, r.TableName, entityName).
 		Where("? < ?", bun.Ident(dateColumn), cutoff)
 
 	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		if tenantID := tenantIDFromContext(ctx); tenantID > 0 {
+			query = query.Where("? = ?", bun.Ident(entityName+".tenant_id"), tenantID)
 		}
 	}
 
@@ -419,16 +395,12 @@ func (r *Repository[T]) DeleteBefore(ctx context.Context, column string, cutoff 
 	entityVal := r.newEntityValue()
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewDelete().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
+	query := modelAtTable(GetDB(ctx, r.DB).NewDelete(), entityVal, r.TableName, entityName).
 		Where("? < ?", bun.Ident(column), cutoff)
 
 	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		if tenantID := tenantIDFromContext(ctx); tenantID > 0 {
+			query = query.Where("? = ?", bun.Ident(entityName+".tenant_id"), tenantID)
 		}
 	}
 
@@ -478,11 +450,7 @@ func (r *Repository[T]) updateColumns(ctx context.Context, entity T, nullGuard s
 	}
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewUpdate().
-		Model(entity).
-		ModelTableExpr(tableExpr).
+	query := modelAtTable(GetDB(ctx, r.DB).NewUpdate(), entity, r.TableName, entityName).
 		Column(columns...).
 		WherePK()
 	if nullGuard != "" {
@@ -490,8 +458,8 @@ func (r *Repository[T]) updateColumns(ctx context.Context, entity T, nullGuard s
 	}
 
 	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		if tenantID := tenantIDFromContext(ctx); tenantID > 0 {
+			query = query.Where("? = ?", bun.Ident(entityName+".tenant_id"), tenantID)
 		}
 	}
 
@@ -589,7 +557,7 @@ func UpdateOperationError(err error, op string) error {
 // TenantWhere returns a WHERE clause fragment and value for tenant filtering.
 // Use this in custom repository methods to add defense-in-depth tenant_id checks.
 func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {
-	tenantID := tenant.FromContext(ctx)
+	tenantID := tenantIDFromContext(ctx)
 	if tenantID > 0 {
 		return fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID, true
 	}
