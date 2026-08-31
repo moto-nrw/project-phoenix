@@ -256,10 +256,12 @@ function TimetableRosterStudentRow({
   // warning sentence; once the time has passed the child is simply expected
   // and the stale sentence would only add noise (#2878). Every other planning
   // warning keeps its message — the preview showed it, so the started view
-  // must not lose it.
+  // must not lose it. An arrival warning without a time cannot be replaced by
+  // a time, so its message stays too.
   const arrivalTime = upcomingArrivalTime(row.warnings, now);
   const planningNotes = (row.warnings ?? []).filter(
-    (warning) => warning.kind !== "arrival_after_slot_start",
+    (warning) =>
+      warning.kind !== "arrival_after_slot_start" || !warning.expectedArrival,
   );
 
   return (
@@ -293,7 +295,7 @@ function TimetableRosterStudentRow({
         ) : null}
         {planningNotes.map((warning) => (
           <div
-            key={warning.kind}
+            key={`${warning.kind}:${warning.message}`}
             className="text-moto-amber-strong mt-1 text-sm"
           >
             {warning.message}
@@ -395,8 +397,10 @@ interface TimetableRosterHeaderProps {
   readonly isConfirmingExpected: boolean;
   readonly roster: TimetableRoster;
   readonly showTimetableCounts: boolean;
+  readonly now: Date;
   readonly summary: {
     readonly absent: number;
+    readonly arrivingLater: number;
     readonly departed: number;
     readonly expected: number;
     readonly present: number;
@@ -412,6 +416,7 @@ function TimetableRosterHeader({
   confirmableExpectedRows,
   isCompletingInstance,
   isConfirmingExpected,
+  now,
   roster,
   showTimetableCounts,
   summary,
@@ -419,7 +424,6 @@ function TimetableRosterHeader({
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
-  const now = useMinuteClock();
   const completeEnabled = canCompleteInstance(
     roster.instance.canComplete,
     roster.instance.completeAvailableAt,
@@ -503,9 +507,19 @@ function TimetableRosterHeader({
         </p>
       ) : null}
       {showTimetableCounts ? (
-        <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
+        <div
+          className={`grid grid-cols-2 gap-2 p-4 ${
+            summary.arrivingLater > 0 ? "sm:grid-cols-6" : "sm:grid-cols-5"
+          }`}
+        >
           <RosterSummaryStat label="Anwesend" value={summary.present} />
           <RosterSummaryStat label="Erwartet" value={summary.expected} />
+          {summary.arrivingLater > 0 ? (
+            <RosterSummaryStat
+              label="Kommt später"
+              value={summary.arrivingLater}
+            />
+          ) : null}
           <RosterSummaryStat label="Abwesend" value={summary.absent} />
           <RosterSummaryStat label="Gegangen" value={summary.departed} />
           <RosterSummaryStat label="Ungeplant" value={summary.unplanned} />
@@ -705,7 +719,9 @@ export function TimetableRosterContent({
   const arrivingLater = stillExpected.filter(
     (row) => upcomingArrivalTime(row.warnings, now) !== null,
   );
-  const expected = stillExpected.filter((row) => !arrivingLater.includes(row));
+  const expected = stillExpected.filter(
+    (row) => upcomingArrivalTime(row.warnings, now) === null,
+  );
   // An absence a sick / excused / class-trip day status wrote onto a day the
   // child was never booked into care belongs here too, not under "Abwesend":
   // the block has not ended yet, so nothing has undone that false absence, and
@@ -754,11 +770,13 @@ export function TimetableRosterContent({
         confirmableExpectedRows={confirmableExpectedRows}
         isCompletingInstance={isCompletingInstance}
         isConfirmingExpected={isConfirmingExpected}
+        now={now}
         roster={roster}
         showTimetableCounts={showTimetableCounts}
         note={headerNote}
         summary={{
           absent: absent.length,
+          arrivingLater: arrivingLater.length,
           departed: departed.length,
           expected: expected.length,
           present: present.length,

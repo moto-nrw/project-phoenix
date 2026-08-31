@@ -853,7 +853,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bereich `Erwartet` prüfen.",
           "Kinder mit späterer Ankunft stehen unter `Kommt später`. Dort steht die Uhrzeit, zum Beispiel `Kommt um 13:45 Uhr`.",
           "`Erwartete bestätigen` checkt alle Kinder unter `Erwartet` ein. Kinder unter `Kommt später` sind nicht dabei.",
-          "Ab der angegebenen Uhrzeit wechselt das Kind zu `Erwartet`. Kommt es früher, checken Sie es einzeln ein.",
+          "Ab der angegebenen Uhrzeit wechselt das Kind zu `Erwartet`.",
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",

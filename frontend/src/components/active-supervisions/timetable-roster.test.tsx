@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TimetableRosterContent } from "./timetable-roster";
@@ -64,6 +64,7 @@ function renderRoster(
   value: TimetableRoster,
   attendanceWebEnabled = false,
   onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void> = vi.fn(),
+  showTimetableCounts = false,
 ) {
   render(
     <TimetableRosterContent
@@ -74,7 +75,7 @@ function renderRoster(
       isCompletingInstance={false}
       isConfirmingExpected={false}
       roster={value}
-      showTimetableCounts={false}
+      showTimetableCounts={showTimetableCounts}
       canAddUnplanned={false}
       onAddStudent={vi.fn()}
       onComplete={vi.fn()}
@@ -205,6 +206,38 @@ describe("TimetableRosterContent late arrivals", () => {
     expect(onConfirmExpected).toHaveBeenCalledTimes(1);
     const rows = onConfirmExpected.mock.calls[0]?.[0] as TimetableRosterRow[];
     expect(rows.map((row) => row.studentId)).toEqual(["1"]);
+  });
+
+  it("counts late arrivals in their own header stat", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    renderRoster(lateRoster(), true, vi.fn(), true);
+
+    const statLabel = screen.getByText("Kommt später");
+    expect(
+      within(statLabel.parentElement as HTMLElement).getByText("1"),
+    ).toBeInTheDocument();
+    // The section header carries its own count, so the exact-match stat label
+    // above cannot be the section title ("Kommt später (1)").
+    expect(screen.getByText("Kommt später (1)")).toBeInTheDocument();
+  });
+
+  it("moves the child to Erwartet when the minute clock crosses the arrival", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 44));
+    renderRoster(lateRoster(), true);
+
+    expect(screen.getByText("Kommt später")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
+    const expectedSection = screen
+      .getByText("Erwartet")
+      .closest("section") as HTMLElement;
+    expect(
+      within(expectedSection).getByText("Später Kind"),
+    ).toBeInTheDocument();
   });
 
   it("moves the child to Erwartet once the expected arrival is reached", () => {
