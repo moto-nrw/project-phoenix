@@ -328,7 +328,23 @@ type staffAbsenceService struct {
 	// injection (SetAbsenceTypeService) like the others; nil in bare-constructed
 	// unit fixtures, where every absence is a plain standard type.
 	absenceTypes StaffAbsenceTypeService
-	todayFunc    func() timezone.Date
+	// logger is setter-injected by the factory (SetLogger); nil falls back to
+	// slog.Default() via getLogger, like the other active services.
+	logger    *slog.Logger
+	todayFunc func() timezone.Date
+}
+
+// SetLogger wires the service-scoped logger (setter injection like
+// SetBroadcaster, so bare-constructed unit fixtures need no logger).
+func (s *staffAbsenceService) SetLogger(logger *slog.Logger) {
+	s.logger = logger
+}
+
+func (s *staffAbsenceService) getLogger() *slog.Logger {
+	if s.logger == nil {
+		return slog.Default()
+	}
+	return s.logger
 }
 
 func (s *staffAbsenceService) today() timezone.Date {
@@ -669,7 +685,7 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	if absenceType != activeModels.AbsenceTypeCompTime {
 		return nil
 	}
-	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(s.today()))
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(s.today()))
 	if err != nil {
 		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
 	}
@@ -700,8 +716,13 @@ type CompTimeBalancePreview struct {
 	// FutureCommitmentMinutes sums the deductions of OTHER comp-time entries
 	// on days after today, which the current balance does not yet include.
 	FutureCommitmentMinutes int `json:"future_commitment_minutes"`
-	// ProjectedBalanceMinutes = current − future commitments − the unrealized
-	// part of the new deduction: the account once every named day has passed.
+	// FutureAdjustmentMinutes is the signed sum of Stundenkonto transactions
+	// (payout / grant / reset, #1420) effective after today — booked, but like
+	// the commitments not yet part of CurrentBalanceMinutes.
+	FutureAdjustmentMinutes int `json:"future_adjustment_minutes"`
+	// ProjectedBalanceMinutes = current + future adjustments − future
+	// commitments − the unrealized part of the new deduction: the account once
+	// every named day has passed.
 	ProjectedBalanceMinutes int `json:"projected_balance_minutes"`
 }
 
@@ -730,7 +751,7 @@ func (s *staffAbsenceService) PreviewCompTimeBalance(
 
 	today := s.today()
 	currentBalance := 0
-	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(today))
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(today))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve account start for comp_time preview: %w", err)
 	}
@@ -770,12 +791,22 @@ func (s *staffAbsenceService) PreviewCompTimeBalance(
 		return nil, fmt.Errorf("failed to compute future comp_time commitments: %w", err)
 	}
 
+	// Future-dated Stundenkonto transactions (payout / grant / reset, #1420)
+	// move the account exactly like committed comp-time days, so the
+	// projection folds them in over the same carry-chain horizon.
+	horizon := monthOf(today).addMonths(maxFutureMonths).lastDay()
+	futureAdjustments, err := s.monthService.GetBalanceAdjustmentMinutes(ctx, staffID, today.AddDays(1), horizon)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute future balance adjustments: %w", err)
+	}
+
 	return &CompTimeBalancePreview{
 		CurrentBalanceMinutes:    currentBalance,
 		DeductionMinutes:         deduction,
 		RealizedDeductionMinutes: deduction - unrealizedDeduction,
 		FutureCommitmentMinutes:  futureCommitment,
-		ProjectedBalanceMinutes:  currentBalance - futureCommitment - unrealizedDeduction,
+		FutureAdjustmentMinutes:  futureAdjustments,
+		ProjectedBalanceMinutes:  currentBalance + futureAdjustments - futureCommitment - unrealizedDeduction,
 	}, nil
 }
 

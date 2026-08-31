@@ -101,6 +101,7 @@ describe("SickReportModal", () => {
       deductionMinutes: 480,
       realizedDeductionMinutes: 0,
       futureCommitmentMinutes: 0,
+      futureAdjustmentMinutes: 0,
       projectedBalanceMinutes: 120,
     });
   });
@@ -253,6 +254,10 @@ describe("SickReportModal", () => {
     expect(await screen.findByText("Stundenkonto aktuell")).toBeInTheDocument();
     expect(screen.getByText("Abzug für diesen Eintrag")).toBeInTheDocument();
     expect(screen.getByText("Stundenkonto danach")).toBeInTheDocument();
+    // No future-dated Buchungen: the row stays hidden.
+    expect(
+      screen.queryByText("Bereits geplante Buchungen"),
+    ).not.toBeInTheDocument();
     // Positive projection: no warning, no confirmation checkbox.
     expect(
       screen.queryByText(/fällt damit unter null/),
@@ -270,7 +275,8 @@ describe("SickReportModal", () => {
       deductionMinutes: 480,
       realizedDeductionMinutes: 0,
       futureCommitmentMinutes: 240,
-      projectedBalanceMinutes: -600,
+      futureAdjustmentMinutes: -60,
+      projectedBalanceMinutes: -660,
     });
     mocks.createAbsence.mockResolvedValue({
       ...createdRow,
@@ -281,10 +287,12 @@ describe("SickReportModal", () => {
     expect(
       await screen.findByText(/fällt damit unter null/),
     ).toBeInTheDocument();
-    // The already planned future Freizeitausgleich shows up as its own row.
+    // The already planned future Freizeitausgleich and the future-dated
+    // Stundenkonto-Buchungen (payout etc.) show up as their own rows.
     expect(
       screen.getByText("Bereits geplanter Freizeitausgleich"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Bereits geplante Buchungen")).toBeInTheDocument();
 
     const submit = screen.getByRole("button", {
       name: "Freizeitausgleich eintragen",
@@ -356,6 +364,7 @@ describe("SickReportModal", () => {
       deductionMinutes: 960,
       realizedDeductionMinutes: 0,
       futureCommitmentMinutes: 0,
+      futureAdjustmentMinutes: 0,
       projectedBalanceMinutes: -360,
     });
     expect(

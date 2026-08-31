@@ -2200,7 +2200,8 @@ describe("staff-api", () => {
               deduction_minutes: 480,
               realized_deduction_minutes: 0,
               future_commitment_minutes: 240,
-              projected_balance_minutes: -600,
+              future_adjustment_minutes: -60,
+              projected_balance_minutes: -660,
             },
           }),
       } as Response);
@@ -2220,7 +2221,8 @@ describe("staff-api", () => {
         deductionMinutes: 480,
         realizedDeductionMinutes: 0,
         futureCommitmentMinutes: 240,
-        projectedBalanceMinutes: -600,
+        futureAdjustmentMinutes: -60,
+        projectedBalanceMinutes: -660,
       });
     });
 

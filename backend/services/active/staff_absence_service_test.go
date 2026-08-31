@@ -3095,6 +3095,7 @@ type absMonthServiceMock struct {
 	WorkTimeMonthService
 	closingBalance   int
 	futureCommitment int
+	futureAdjustment int
 	deduction        int
 	deductions       []int
 	deductionCalls   int
@@ -3115,6 +3116,10 @@ func (m *absMonthServiceMock) GetClosingBalanceAsOf(context.Context, int64, time
 
 func (m *absMonthServiceMock) GetFutureCompTimeCommitmentMinutes(context.Context, int64) (int, error) {
 	return m.futureCommitment, nil
+}
+
+func (m *absMonthServiceMock) GetBalanceAdjustmentMinutes(context.Context, int64, timezone.Date, timezone.Date) (int, error) {
+	return m.futureAdjustment, nil
 }
 
 // #2873: a comp_time absence deducting more daily-target minutes than the
@@ -3338,6 +3343,34 @@ func TestAbsPreviewCompTimeBalance_IncludesFutureCommitments(t *testing.T) {
 	assert.Equal(t, 480, preview.DeductionMinutes)
 	assert.Equal(t, 480, preview.FutureCommitmentMinutes)
 	assert.Equal(t, 300-480-480, preview.ProjectedBalanceMinutes)
+}
+
+// Future-dated Stundenkonto transactions (#1420: payout, grant, reset) are
+// booked but not yet in the current balance — the projection must fold them
+// in with their sign, exactly like the committed comp-time days.
+func TestAbsPreviewCompTimeBalance_IncludesFutureAdjustments(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// A payout of 300 minutes is scheduled after today.
+	svc.monthService = &absMonthServiceMock{closingBalance: 600, deduction: 480, futureAdjustment: -300}
+
+	start := timezone.NewDate(2026, 8, 28)
+	preview, err := svc.PreviewCompTimeBalance(context.Background(), 100, start, start, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, -300, preview.FutureAdjustmentMinutes)
+	assert.Equal(t, 600-300-480, preview.ProjectedBalanceMinutes)
+
+	// A scheduled credit raises the projection symmetrically.
+	svc.monthService = &absMonthServiceMock{closingBalance: 600, deduction: 480, futureAdjustment: 120}
+	preview, err = svc.PreviewCompTimeBalance(context.Background(), 100, start, start, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, 120, preview.FutureAdjustmentMinutes)
+	assert.Equal(t, 600+120-480, preview.ProjectedBalanceMinutes)
 }
 
 // Days up to today are already priced into the closing balance; only the

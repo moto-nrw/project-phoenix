@@ -647,6 +647,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
+	if loggerAware, ok := staffAbsenceService.(interface {
+		SetLogger(*slog.Logger)
+	}); ok {
+		loggerAware.SetLogger(activeLogger)
+	}
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.

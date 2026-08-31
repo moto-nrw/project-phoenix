@@ -907,6 +907,9 @@ export interface CompTimeBalancePreview {
   deductionMinutes: number;
   realizedDeductionMinutes: number;
   futureCommitmentMinutes: number;
+  // Signed sum of future-dated Stundenkonto-Buchungen (Auszahlung, Gutschrift,
+  // Reset) that are booked but not yet part of the current balance.
+  futureAdjustmentMinutes: number;
   projectedBalanceMinutes: number;
 }
 
@@ -915,6 +918,7 @@ interface BackendCompTimeBalancePreview {
   deduction_minutes: number;
   realized_deduction_minutes: number;
   future_commitment_minutes: number;
+  future_adjustment_minutes: number;
   projected_balance_minutes: number;
 }
 
@@ -1181,6 +1185,7 @@ class StaffAbsenceService {
       deductionMinutes: json.data.deduction_minutes,
       realizedDeductionMinutes: json.data.realized_deduction_minutes,
       futureCommitmentMinutes: json.data.future_commitment_minutes,
+      futureAdjustmentMinutes: json.data.future_adjustment_minutes,
       projectedBalanceMinutes: json.data.projected_balance_minutes,
     };
   }

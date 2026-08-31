@@ -362,6 +362,18 @@ export function SickReportModal({
                         </dd>
                       </div>
                     )}
+                    {preview.futureAdjustmentMinutes !== 0 && (
+                      <div className="flex items-center justify-between gap-4">
+                        <dt className="text-gray-600">
+                          Bereits geplante Buchungen
+                        </dt>
+                        <dd className="font-medium text-gray-900 tabular-nums">
+                          {formatSignedDuration(
+                            preview.futureAdjustmentMinutes,
+                          )}
+                        </dd>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-4">
                       <dt className="text-gray-600">
                         Abzug für diesen Eintrag
