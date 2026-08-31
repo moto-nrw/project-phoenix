@@ -1,4 +1,4 @@
-package absencetypes
+package absencetypes_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
+	absencetypes "github.com/moto-nrw/project-phoenix/api/absence-types"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -70,11 +71,11 @@ func TestRouterManagesCustomTypeAllowance(t *testing.T) {
 	assert.NotEqual(t, staff.ID, admin.ID)
 }
 
-func setupAbsenceTypesRoute(t *testing.T) (*testpkg.DB, *Resource) {
+func setupAbsenceTypesRoute(t *testing.T) (*testpkg.DB, *absencetypes.Resource) {
 	t.Helper()
 
 	db, serviceFactory := testutil.SetupAPITest(t)
-	resource := NewResource(serviceFactory.StaffAbsenceType, db, slog.Default())
+	resource := absencetypes.NewResource(serviceFactory.StaffAbsenceType, db, slog.Default())
 	resource.SetActorResolver(func(ctx context.Context) (int64, error) {
 		current, err := serviceFactory.UserContext.GetCurrentStaff(ctx)
 		if err != nil {

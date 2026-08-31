@@ -1,4 +1,4 @@
-package absencetypes
+package absencetypes_test
 
 import (
 	"testing"
