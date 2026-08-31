@@ -274,6 +274,16 @@ func (s *Service) EndStaffPreview(ctx context.Context, previewToken, ipAddress, 
 // anything that reused the id. Such a token therefore starts a fresh preview
 // with its own start event, exactly like starting from scratch — which is
 // what it is.
+//
+// "Already ended" is decided under the preview's advisory lock, which the
+// caller's transaction keeps until the replacement token is minted and
+// committed. Without it the check and the mint straddle a concurrent end: the
+// renewal reads "still running", the end commits, and the token minted a
+// moment later revives a preview the admin had closed — same preview id, no
+// new start event, and an end that the uniqueness index would swallow. With
+// the lock the two orders are the only ones possible: the end wins and this
+// renewal starts a fresh instance with its own audit pair, or the renewal wins
+// and the end closes the instance right after it.
 func (s *Service) continuedPreviewID(ctx context.Context, previousToken string, adminAccountID, tenantID, targetAccountID int64) (string, bool, error) {
 	if strings.TrimSpace(previousToken) == "" {
 		return "", false, nil
@@ -286,6 +296,10 @@ func (s *Service) continuedPreviewID(ctx context.Context, previousToken string, 
 		claims.ActingAdminID != adminAccountID || claims.TenantID != tenantID ||
 		int64(claims.ID) != targetAccountID {
 		return "", false, nil
+	}
+
+	if err := s.repos.AuthEvent.LockStaffPreview(ctx, adminAccountID, claims.PreviewID); err != nil {
+		return "", false, err
 	}
 
 	ended, err := s.repos.AuthEvent.StaffPreviewEnded(ctx, adminAccountID, claims.PreviewID)
@@ -332,6 +346,13 @@ func (s *Service) recordPreviewEnd(ctx context.Context, adminAccountID, tenantID
 
 	var recorded bool
 	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Taken before the insert so a renewal in flight either finishes
+		// before this end is visible, or waits for it and then sees a closed
+		// instance — never mints a token that revives it (see
+		// continuedPreviewID).
+		if err := s.repos.AuthEvent.LockStaffPreview(ctx, adminAccountID, previewID); err != nil {
+			return err
+		}
 		inserted, err := s.repos.AuthEvent.CreateStaffPreviewEndOnce(ctx, event)
 		if err != nil {
 			return err

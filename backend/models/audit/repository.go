@@ -29,6 +29,12 @@ type AuthEventRepository interface {
 	// StaffPreviewEnded reports whether this preview instance has already
 	// been ended (#2893), so a stale token cannot revive a closed preview.
 	StaffPreviewEnded(ctx context.Context, accountID int64, previewID string) (bool, error)
+	// LockStaffPreview serializes the two transactions that decide one
+	// preview instance's fate (#2893): the renewal, which may only continue
+	// an instance that is still running, and the end, which closes it. Both
+	// hold the lock for the rest of their transaction, so a renewal never
+	// straddles an end and revives a closed preview.
+	LockStaffPreview(ctx context.Context, accountID int64, previewID string) error
 	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
 	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
 	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error

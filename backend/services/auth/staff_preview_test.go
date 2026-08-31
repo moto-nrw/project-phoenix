@@ -441,6 +441,83 @@ func TestAuthService_StartStaffPreviewIgnoresEndedPreviewToken(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond, "restart after an ended preview must write its own start event")
 }
 
+// A renewal may not straddle a concurrent end. Reading "still running" and
+// minting the replacement token are one atomic step under the preview's
+// advisory lock, so a renewal that arrives while an end is in flight waits for
+// it and then starts a NEW instance — instead of reviving the closed one with
+// its id, which would leave the session running past the end, without a start
+// event of its own and with its later end swallowed by the uniqueness index.
+func TestAuthService_StartStaffPreviewWaitsForConcurrentEnd(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	admin := testpkg.CreateTestAccount(t, db, "preview-remint-race-admin")
+	_, target := testpkg.CreateTestCalendarStaff(t, db, "Gleichzeitig", "Erneuert")
+
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	require.NoError(t, err)
+	previewID, ok := decodePreviewTokenPayload(t, session.AccessToken)["preview_id"].(string)
+	require.True(t, ok)
+
+	// Stands in for EndStaffPreview's transaction, held open: same advisory
+	// lock, same end row. The key is spelled out here because the service owns
+	// it — should the two ever drift apart, the renewal below stops waiting and
+	// the assertions catch it.
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	lockKey := fmt.Sprintf("staff-preview:%d:%s", admin.ID, previewID)
+	_, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO audit.auth_events
+			(tenant_id, account_id, event_type, success, ip_address, user_agent, metadata, created_at)
+		VALUES (?, ?, 'staff_preview_ended', true, '127.0.0.1', 'go-test', ?::jsonb, NOW())`,
+		tenantID, admin.ID,
+		fmt.Sprintf(`{"target_account_id": %d, "preview_id": %q}`, target.ID, previewID))
+	require.NoError(t, err)
+
+	remintErr := make(chan error, 1)
+	remint := make(chan *auth.StaffPreviewSession, 1)
+	go func() {
+		renewed, startErr := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, session.AccessToken, "127.0.0.1", "go-test")
+		remint <- renewed
+		remintErr <- startErr
+	}()
+
+	select {
+	case err := <-remintErr:
+		t.Fatalf("renewal must wait for the end in flight, returned early: %v", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	require.NoError(t, tx.Commit())
+	require.NoError(t, <-remintErr)
+
+	renewed := <-remint
+	require.NotNil(t, renewed)
+	newID, ok := decodePreviewTokenPayload(t, renewed.AccessToken)["preview_id"].(string)
+	require.True(t, ok)
+	assert.NotEqual(t, previewID, newID, "a renewal after an end must not revive the closed instance")
+
+	require.Eventually(t, func() bool {
+		var count int
+		countErr := db.NewSelect().
+			ColumnExpr("COUNT(*)").
+			TableExpr("audit.auth_events").
+			Where("account_id = ?", admin.ID).
+			Where("event_type = ?", "staff_preview_started").
+			Where("metadata->>'preview_id' = ?", newID).
+			Scan(ctx, &count)
+		return countErr == nil && count == 1
+	}, 5*time.Second, 100*time.Millisecond, "the new instance must have its own start event")
+}
+
 // Two tabs ending the same preview in the same moment must produce exactly
 // one audit row. A read-then-write guard cannot promise that — both callers
 // would read "not ended yet" before either row lands — so uniqueness lives in

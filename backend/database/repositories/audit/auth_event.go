@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -184,6 +185,23 @@ func (r *AuthEventRepository) StaffPreviewEnded(ctx context.Context, accountID i
 		Where(`"auth_event".event_type = ?`, audit.EventTypeStaffPreviewEnded).
 		Where(`"auth_event".metadata->>'preview_id' = ?`, previewID).
 		Exists(ctx)
+}
+
+// LockStaffPreview takes the transaction-scoped advisory lock of one preview
+// instance (#2893). Two writers contend for it: the renewal, which asks
+// whether the instance is still running and then mints its replacement token,
+// and the end, which closes it. Without the lock those two straddle each
+// other — the renewal reads "still running", the end commits, and the token
+// minted a moment later revives a preview the admin had closed, with no start
+// event of its own and an end the uniqueness index would swallow.
+//
+// The lock is released with the caller's transaction, so the renewal keeps it
+// until its token is committed.
+func (r *AuthEventRepository) LockStaffPreview(ctx context.Context, accountID int64, previewID string) error {
+	if previewID == "" {
+		return errors.New("preview_id is required")
+	}
+	return base.AcquireXactLock(ctx, r.db, fmt.Sprintf("staff-preview:%d:%s", accountID, previewID))
 }
 
 // ListPendingAccountWideWipes returns the newest pending wipe per account.
