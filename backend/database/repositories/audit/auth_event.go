@@ -124,18 +124,46 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 	return events, nil
 }
 
-// ExistsByAccountEventAndMetadata reports whether the account already has an
-// event of eventType whose metadata matches every given key/value.
-func (r *AuthEventRepository) ExistsByAccountEventAndMetadata(ctx context.Context, accountID int64, eventType string, metadata map[string]string) (bool, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*audit.AuthEvent)(nil)).
-		ModelTableExpr(`audit.auth_events AS "auth_event"`).
-		Where(`"auth_event".`+whereAccountIDEquals, accountID).
-		Where(`"auth_event".event_type = ?`, eventType)
-	for key, value := range metadata {
-		query = query.Where(`"auth_event".metadata->>? = ?`, key, value)
+// CreateStaffPreviewEndOnce records the end of one staff-view preview
+// instance and reports whether THIS call wrote the row (#2893).
+//
+// Ending a preview is idempotent and concurrent: the client may repeat the
+// call, and two tabs can end the same preview in the same moment. A
+// read-then-insert guard cannot cover the second case — both callers read
+// "not ended yet" before either row lands. So uniqueness lives in the
+// database (partial unique index idx_auth_events_staff_preview_end_once,
+// migration 1.15.355) and the conflict is absorbed here: the second writer
+// simply inserts nothing and gets false.
+func (r *AuthEventRepository) CreateStaffPreviewEndOnce(ctx context.Context, event *audit.AuthEvent) (bool, error) {
+	if event == nil {
+		return false, errors.New("auth event is required")
 	}
-	return query.Exists(ctx)
+	if event.EventType != audit.EventTypeStaffPreviewEnded {
+		return false, errors.New("event type must be staff_preview_ended")
+	}
+	if previewID, _ := event.GetMetadata()["preview_id"].(string); previewID == "" {
+		return false, errors.New("preview_id metadata is required")
+	}
+	if err := event.Validate(); err != nil {
+		return false, err
+	}
+
+	base.EnsureTenantID(ctx, event)
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(event).
+		ModelTableExpr("audit.auth_events").
+		On("CONFLICT DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
 }
 
 // ListPendingAccountWideWipes returns the newest pending wipe per account.

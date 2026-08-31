@@ -834,6 +834,45 @@ async function refreshAdminTokenForPreview(
 }
 
 /**
+ * Record the end of a preview that the SESSION ended on its own — the target
+ * lost eligibility, so the re-mint was rejected. The interactive "Vorschau
+ * beenden" button posts the same call from the browser; this is the same
+ * ending, just without a click, and it must reach the audit trail the same
+ * way. Best effort: the preview is over regardless of what this call answers,
+ * and the backend records one end per preview instance however often it is
+ * asked (unique index on the preview id).
+ */
+async function recordPreviewEnd(
+  adminAccessToken: string | undefined,
+  previewToken: string | undefined,
+): Promise<void> {
+  if (!adminAccessToken || !previewToken) return;
+  try {
+    const response = await fetch(
+      `${getServerApiUrl()}/auth/staff-preview/end`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminAccessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ preview_token: previewToken }),
+        signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
+      },
+    );
+    if (!response.ok) {
+      logger.warn("staff_preview_auto_end_not_recorded", {
+        status: response.status,
+      });
+    }
+  } catch (err) {
+    logger.warn("staff_preview_auto_end_error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
  * Keep an active preview session alive: refresh the admin token when needed
  * and re-mint the preview token near its expiry. Returns true while the
  * preview stays active (caller returns the token) and false when the preview
@@ -916,8 +955,13 @@ async function maintainPreviewSession(
     }
 
     // 403/404/…: the target is no longer previewable (deactivated, role
-    // changed, admin rights revoked) — end the preview, back to admin.
+    // changed, admin rights revoked) — end the preview, back to admin. This
+    // ending is as real as one the admin clicks, so it gets the same audit
+    // entry: without it the trail would show a preview that started and never
+    // ended. Recorded BEFORE the restore, while the preview token is still in
+    // hand — it is the proof of which preview is being closed.
     logger.warn("staff_preview_remint_rejected", { status: response.status });
+    await recordPreviewEnd(adminAccessToken, token.token as string | undefined);
     restoreAdminFromPreview(token);
     return false;
   } catch (err) {

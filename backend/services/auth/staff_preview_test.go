@@ -372,3 +372,49 @@ func TestAuthService_StaffPreviewAuditPairsOneStartWithOneEnd(t *testing.T) {
 		return countEvents("staff_preview_ended", previewID) > 1
 	}, 2*time.Second, 200*time.Millisecond, "repeated end must not write a second audit event")
 }
+
+// Two tabs ending the same preview in the same moment must produce exactly
+// one audit row. A read-then-write guard cannot promise that — both callers
+// would read "not ended yet" before either row lands — so uniqueness lives in
+// the database and this test is what pins it.
+func TestAuthService_EndStaffPreviewConcurrentlyWritesOneEvent(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	admin := testpkg.CreateTestAccount(t, db, "preview-end-race-admin")
+	_, target := testpkg.CreateTestCalendarStaff(t, db, "Gleichzeitig", "Beendet")
+
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	require.NoError(t, err)
+	previewID, ok := decodePreviewTokenPayload(t, session.AccessToken)["preview_id"].(string)
+	require.True(t, ok)
+
+	const callers = 5
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			<-start
+			_, endErr := service.EndStaffPreview(ctx, admin.ID, tenantID, session.AccessToken, "127.0.0.1", "go-test")
+			errs <- endErr
+		}()
+	}
+	close(start)
+	for i := 0; i < callers; i++ {
+		require.NoError(t, <-errs)
+	}
+
+	var count int
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("COUNT(*)").
+		TableExpr("audit.auth_events").
+		Where("account_id = ?", admin.ID).
+		Where("event_type = ?", "staff_preview_ended").
+		Where("metadata->>'preview_id' = ?", previewID).
+		Scan(ctx, &count))
+	assert.Equal(t, 1, count, "concurrent ends must write exactly one audit event")
+}

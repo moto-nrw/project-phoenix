@@ -271,12 +271,15 @@ describe("JWT callback — staff preview (#2893)", () => {
     const parkedAccess = token.token;
     const started = await startPreview(token);
     started.tokenExpiry = Date.now() + 60 * 1000;
+    const previewAccess = started.token;
 
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 403,
       json: () => Promise.resolve({}),
     });
+    // the automatic ending records itself just like a clicked one
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
 
     const result = (await callJwt(started)) as unknown as Record<
       string,
@@ -286,6 +289,40 @@ describe("JWT callback — staff preview (#2893)", () => {
     expect(result.token).toBe(parkedAccess);
     expect(result.previewTargetAccountId).toBeUndefined();
     expect(result.roles).toEqual(["admin"]);
+
+    const [endUrl, endInit] = mockFetch.mock.calls[1] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ];
+    expect(endUrl).toBe("http://server:8080/auth/staff-preview/end");
+    expect(endInit.headers.Authorization).toBe(`Bearer ${parkedAccess}`);
+    expect(JSON.parse(endInit.body)).toEqual({
+      preview_token: previewAccess,
+    });
+  });
+
+  it("stays ended when the automatic end call fails", async () => {
+    const token = adminToken();
+    const parkedAccess = token.token;
+    const started = await startPreview(token);
+    started.tokenExpiry = Date.now() + 60 * 1000;
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({}),
+    });
+    mockFetch.mockRejectedValueOnce(new Error("audit endpoint down"));
+
+    const result = (await callJwt(started)) as unknown as Record<
+      string,
+      unknown
+    >;
+
+    // The preview is over either way — the audit call is best effort and must
+    // never leave the admin stuck in someone else's view.
+    expect(result.token).toBe(parkedAccess);
+    expect(result.previewTargetAccountId).toBeUndefined();
   });
 
   it("terminates the whole session when the admin refresh is rejected", async () => {

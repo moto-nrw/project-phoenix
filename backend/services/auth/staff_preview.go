@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -66,91 +67,101 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 		return nil, &AuthError{Op: op, Err: ErrPreviewSelf}
 	}
 
-	account, err := s.repos.Account.FindByID(ctx, targetAccountID)
-	if err != nil {
-		// Only a genuine miss is a 404. A database or infrastructure error
-		// must stay a 5xx so the admin retries instead of being told the
-		// colleague does not exist.
-		if errors.Is(err, modelBase.ErrNotFound) {
-			return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
-		}
-		return nil, &AuthError{Op: op, Err: err}
-	}
-	if account == nil {
-		return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
-	}
-	if !account.Active {
-		return nil, &AuthError{Op: op, Err: ErrAccountInactive}
-	}
-
-	// Membership check + tenant-scoped metadata in ONE admin transaction —
-	// the same BYPASSRLS shape as the login/switch flows, because no tenant
-	// transaction is open on this route (mirrors switch-tenant).
-	var metadata *accountMetadata
-	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, _ bun.Tx) error {
-		mappings, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, targetAccountID)
+	// Everything that decides whether this person may be previewed — account
+	// state, school membership, roles — AND the minting of the token happen in
+	// ONE admin transaction, with the same row locks the login/refresh path
+	// uses (mirrors switch-tenant; no tenant transaction is open on this
+	// route). Under READ COMMITTED a plain read would only prove the account
+	// was active at statement time: a deactivation committing a moment later
+	// would still leave a fresh 15-minute preview token in the world. The FOR
+	// UPDATE on the account and the FOR SHARE on the mapping make the
+	// revoking UPDATE wait for this transaction, so a minted token is provably
+	// backed by an active account and an active membership.
+	var (
+		account     *authModels.Account
+		metadata    *accountMetadata
+		accessToken string
+		previewID   string
+		isRemint    bool
+	)
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, _ bun.Tx) error {
+		var err error
+		account, err = s.repos.Account.FindByIDForUpdate(ctx, targetAccountID)
 		if err != nil {
+			// Only a genuine miss is a 404. A database or infrastructure error
+			// must stay a 5xx so the admin retries instead of being told the
+			// colleague does not exist.
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, modelBase.ErrNotFound) {
+				return &AuthError{Op: op, Err: ErrAccountNotFound}
+			}
 			return &AuthError{Op: op, Err: err}
 		}
-		mapped := false
-		for _, mapping := range mappings {
-			if mapping.TenantID == tenantID {
-				mapped = true
-				break
-			}
+		if account == nil {
+			return &AuthError{Op: op, Err: ErrAccountNotFound}
+		}
+		if !account.Active {
+			return &AuthError{Op: op, Err: ErrAccountInactive}
+		}
+
+		mapped, err := s.repos.AccountTenant.ExistsActiveByAccountAndTenantForShare(ctx, targetAccountID, tenantID)
+		if err != nil {
+			return &AuthError{Op: op, Err: err}
 		}
 		if !mapped {
 			return &AuthError{Op: op, Err: ErrTenantAccessDenied}
 		}
 
 		metadata, err = s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// The preview shows the OGS tenant portal. Accounts without a surface
+		// there cannot be previewed meaningfully: guardians live in the
+		// parents portal, Lehrkraft-only accounts in moto schule, and an
+		// account with no role at this school could not even log in.
+		if len(metadata.roleNames) == 0 || IsGuardianOnlyForTenant(metadata.roleNames) {
+			return &AuthError{Op: op, Err: ErrPreviewTargetNotStaff}
+		}
+		if IsSchoolPortalOnlyForTenant(account.Roles) {
+			return &AuthError{Op: op, Err: ErrMustUseSchoolPortal}
+		}
+
+		// A re-mint continues the running preview instance; anything else
+		// starts a new one. Only a new one is a "started" event.
+		previewID, isRemint = s.continuedPreviewID(previousToken, adminAccountID, tenantID, targetAccountID)
+		if !isRemint {
+			newID, err := newPreviewID()
+			if err != nil {
+				return &AuthError{Op: op, Err: err}
+			}
+			previewID = newID
+		}
+
+		claims := jwt.AppClaims{
+			ID:            int(account.ID),
+			Sub:           account.Email,
+			Username:      metadata.username,
+			FirstName:     metadata.firstName,
+			LastName:      metadata.lastName,
+			Roles:         metadata.roleNames,
+			Permissions:   metadata.permissionStrs,
+			IsAdmin:       metadata.isAdmin,
+			Scope:         metadata.scope,
+			TenantID:      tenantID,
+			OrgID:         metadata.orgID,
+			ReadOnly:      true,
+			ActingAdminID: adminAccountID,
+			PreviewID:     previewID,
+		}
+		accessToken, err = s.tokenAuth.CreateJWT(claims)
+		if err != nil {
+			return &AuthError{Op: op, Err: err}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	// The preview shows the OGS tenant portal. Accounts without a surface
-	// there cannot be previewed meaningfully: guardians live in the parents
-	// portal, Lehrkraft-only accounts in moto schule, and an account with no
-	// role at this school could not even log in.
-	if len(metadata.roleNames) == 0 || IsGuardianOnlyForTenant(metadata.roleNames) {
-		return nil, &AuthError{Op: op, Err: ErrPreviewTargetNotStaff}
-	}
-	if IsSchoolPortalOnlyForTenant(account.Roles) {
-		return nil, &AuthError{Op: op, Err: ErrMustUseSchoolPortal}
-	}
-
-	// A re-mint continues the running preview instance; anything else starts
-	// a new one. Only a new one is a "started" event.
-	previewID, isRemint := s.continuedPreviewID(previousToken, adminAccountID, tenantID, targetAccountID)
-	if !isRemint {
-		newID, err := newPreviewID()
-		if err != nil {
-			return nil, &AuthError{Op: op, Err: err}
-		}
-		previewID = newID
-	}
-
-	claims := jwt.AppClaims{
-		ID:            int(account.ID),
-		Sub:           account.Email,
-		Username:      metadata.username,
-		FirstName:     metadata.firstName,
-		LastName:      metadata.lastName,
-		Roles:         metadata.roleNames,
-		Permissions:   metadata.permissionStrs,
-		IsAdmin:       metadata.isAdmin,
-		Scope:         metadata.scope,
-		TenantID:      tenantID,
-		OrgID:         metadata.orgID,
-		ReadOnly:      true,
-		ActingAdminID: adminAccountID,
-		PreviewID:     previewID,
-	}
-	accessToken, err := s.tokenAuth.CreateJWT(claims)
-	if err != nil {
-		return nil, &AuthError{Op: op, Err: err}
 	}
 
 	if isRemint {
@@ -186,12 +197,15 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 // preview that never happened. Purely an audit affair otherwise — the preview
 // token simply expires, nothing is revoked.
 //
-// Ending is one-shot per preview instance: the event carries the token's
-// preview id, and a repeat call for an id already recorded as ended writes
-// nothing a second time. So the same signed token cannot be replayed into a
-// row of duplicate "ended" events. Auth events are written asynchronously
-// (see logAuthEventWithMetadata), so two calls in the very same moment can
-// still both land — the guard covers replays, not a photo finish.
+// Ending is one-shot per preview instance, and the database is what makes it
+// so: the event carries the token's preview id, a partial unique index covers
+// (account, preview id) for this event type, and the insert absorbs the
+// conflict. A replay of the same signed token writes nothing a second time —
+// and neither does a second tab ending the same preview in the very same
+// moment, which a read-then-write check could not have caught. The row is
+// therefore written synchronously here instead of through the asynchronous
+// logAuthEventWithMetadata: the uniqueness decision has to be part of this
+// call, not of a goroutine that outlives it.
 //
 // Returns the previewed account id for the caller's response and logs.
 func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error) {
@@ -219,13 +233,13 @@ func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID 
 	}
 	targetAccountID := int64(claims.ID)
 
-	ended, err := s.previewAlreadyEnded(ctx, adminAccountID, claims.PreviewID)
+	recorded, err := s.recordPreviewEnd(ctx, adminAccountID, tenantID, targetAccountID, claims.PreviewID, ipAddress, userAgent)
 	if err != nil {
 		return 0, &AuthError{Op: op, Err: err}
 	}
-	if ended {
-		// Not an error for the caller — the preview IS over, which is what
-		// the client asked for. It simply does not get a second audit row.
+	if !recorded {
+		// Not an error for the caller — the preview IS over, which is what the
+		// client asked for. It simply does not get a second audit row.
 		s.getLogger().Debug("staff preview end: already recorded",
 			slog.Int64("admin_account_id", adminAccountID),
 			slog.Int64("target_account_id", targetAccountID),
@@ -233,8 +247,6 @@ func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID 
 		return targetAccountID, nil
 	}
 
-	s.logAuthEventWithMetadata(ctx, adminAccountID, audit.EventTypeStaffPreviewEnded, true, ipAddress, userAgent, "",
-		map[string]interface{}{"target_account_id": targetAccountID, "preview_id": claims.PreviewID})
 	s.getLogger().Info("staff preview ended",
 		slog.Int64("admin_account_id", adminAccountID),
 		slog.Int64("target_account_id", targetAccountID),
@@ -264,24 +276,32 @@ func (s *Service) continuedPreviewID(previousToken string, adminAccountID, tenan
 	return claims.PreviewID, true
 }
 
-// previewAlreadyEnded reports whether this preview instance was closed
-// before. Reads the admin's own audit trail — the same place the event is
-// written — through an admin transaction, because the end route runs without
-// a tenant transaction (see the route comment in api/auth).
-func (s *Service) previewAlreadyEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error) {
-	var ended bool
-	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, _ bun.Tx) error {
-		found, err := s.repos.AuthEvent.ExistsByAccountEventAndMetadata(
-			ctx, adminAccountID, audit.EventTypeStaffPreviewEnded,
-			map[string]string{"preview_id": previewID},
-		)
+// recordPreviewEnd writes the "preview ended" audit row for this preview
+// instance and reports whether THIS call wrote it. Concurrency is settled in
+// the database (unique index over account + preview id for this event type),
+// so two ends arriving together produce exactly one row and the loser learns
+// it lost — no read-then-write window in between.
+//
+// The row is written in the admin's tenant transaction because the end route
+// runs without one (see the route comment in api/auth), and synchronously
+// because the caller needs the outcome.
+func (s *Service) recordPreviewEnd(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previewID, ipAddress, userAgent string) (bool, error) {
+	event := audit.NewAuthEvent(adminAccountID, audit.EventTypeStaffPreviewEnded, true, ipAddress)
+	event.SetTenantID(tenantID)
+	event.UserAgent = userAgent
+	event.SetMetadata("target_account_id", targetAccountID)
+	event.SetMetadata("preview_id", previewID)
+
+	var recorded bool
+	err := tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		inserted, err := s.repos.AuthEvent.CreateStaffPreviewEndOnce(ctx, event)
 		if err != nil {
 			return err
 		}
-		ended = found
+		recorded = inserted
 		return nil
 	})
-	return ended, err
+	return recorded, err
 }
 
 // newPreviewID returns the identifier for one preview instance: 128 bits of
