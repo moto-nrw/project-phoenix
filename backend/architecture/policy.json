@@ -4070,12 +4070,12 @@
       "target_role": "public"
     },
     {
-      "id": "domain.port-domain",
-      "description": "Domain ports express persistence operations using their own domain values.",
+      "id": "meal-plan.port-domain",
+      "description": "Meal Plan ports express persistence operations using their own domain values.",
       "scopes": [
         "production"
       ],
-      "source_owner_kind": "domain",
+      "source_owner": "meal-plan",
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
@@ -4117,8 +4117,7 @@
       "id": "meal-plan.compose.orm-sql",
       "description": "Meal Plan composition supplies the concrete Bun database dependency.",
       "scopes": [
-        "production",
-        "internal_test"
+        "production"
       ],
       "source_owner": "meal-plan",
       "source_role": "compose",
