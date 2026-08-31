@@ -19,6 +19,7 @@ import { matchesPathPrefix } from "~/lib/section-navigation";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
+import { SidebarToggle } from "./header/sidebar-toggle";
 import { RefreshButton } from "./header/refresh-button";
 import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
@@ -236,6 +237,12 @@ export function Header() {
               shrink (min-w-0) so long tenant names / breadcrumbs truncate
               instead of pushing the header past the viewport (#2011) */}
           <div className="flex min-w-0 flex-1 items-center space-x-4">
+            {/* Seitenleisten-Toggle (#2825): erstes Element der Kopfzeile,
+                links vom Logo — die Standardposition (Gmail, GitHub) für
+                Layouts mit vollbreiter Topbar. Nur in den Portalen mit
+                einklappbarer Desktop-Seitenleiste; das Eltern- und das
+                Schul-Portal haben eigene Leisten ohne Klappzustand. */}
+            {(mode === "teacher" || mode === "operator") && <SidebarToggle />}
             {mode === "teacher" ? (
               // Brand doubles as tenant switcher when the account has
               // multiple tenants; renders a plain BrandLink otherwise.
