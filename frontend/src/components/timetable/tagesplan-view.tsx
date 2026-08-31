@@ -59,15 +59,10 @@ const GENERIC_ERROR =
 // Kinderliste zurückkommt, landet wieder beim Block, den er angetippt hat.
 const SCROLL_STORAGE_KEY = "tagesplan-scroll";
 
-// Nur abweichende Zustände tragen ein Etikett — "geplant" ist der Normalfall.
-const STATUS_BADGES: Partial<
-  Record<PlannedTimetableInstance["status"], { label: string; color: string }>
-> = {
-  active: { label: "Läuft", color: LOCATION_COLORS.GROUP_ROOM },
-  completed: { label: "Beendet", color: LOCATION_COLORS.OTHER_ROOM },
-  // DANGER, nicht SICK: der Termin fällt aus, niemand ist krank.
-  cancelled: { label: "Fällt aus", color: LOCATION_COLORS.DANGER },
-};
+// Genau zwei farbige Signale auf der ganzen Seite: das grüne "Läuft" und der
+// Starten-Knopf. Beendetes und Verpasstes wird gedimmt statt etikettiert,
+// eine Absage steht als rote Textzeile ("Fällt aus · Grund") in der Zeile —
+// DANGER, nicht SICK: der Termin fällt aus, niemand ist krank.
 
 function isValidISODay(value: string | null): value is string {
   return value != null && /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -118,21 +113,20 @@ function staffLine(instance: PlannedTimetableInstance): string | null {
     .join(", ");
 }
 
-function childrenLine(instance: PlannedTimetableInstance): string | null {
+// Kinderzahl so knapp wie möglich — der Tagesplan soll sich in einem Blick
+// lesen, nicht in Sätzen ("4 Kinder" statt "4 Kinder erwartet").
+function childrenShort(instance: PlannedTimetableInstance): string | null {
   if (instance.status === "cancelled") return null;
   if (instance.status === "active") {
-    return `${instance.presentStudentsCount} von ${instance.expectedStudentsCount} Kindern da`;
+    return `${instance.presentStudentsCount} von ${instance.expectedStudentsCount} da`;
   }
-  if (instance.status === "completed") {
-    // Nach dem Beenden trägt der Block keinen Erwartet-Stand mehr — nur wer
-    // da war, ist noch eine sinnvolle Zahl.
-    return instance.presentStudentsCount === 1
-      ? "1 Kind war da"
-      : `${instance.presentStudentsCount} Kinder waren da`;
-  }
-  return instance.expectedStudentsCount === 1
-    ? "1 Kind erwartet"
-    : `${instance.expectedStudentsCount} Kinder erwartet`;
+  // Nach dem Beenden gibt es keinen Erwartet-Stand mehr — zählbar ist nur
+  // noch, wer da war.
+  const count =
+    instance.status === "completed"
+      ? instance.presentStudentsCount
+      : instance.expectedStudentsCount;
+  return count === 1 ? "1 Kind" : `${count} Kinder`;
 }
 
 // Die "Jetzt"-Linie: markiert die aktuelle Uhrzeit zwischen vergangenen und
@@ -161,6 +155,7 @@ function NowDivider({ nowHHMM }: Readonly<{ nowHHMM: string }>) {
 function TagesplanRow({
   instance,
   isToday,
+  dayIsPast,
   nowHHMM,
   startBusy,
   onOpenSession,
@@ -168,31 +163,44 @@ function TagesplanRow({
 }: Readonly<{
   instance: PlannedTimetableInstance;
   isToday: boolean;
+  dayIsPast: boolean;
   nowHHMM: string;
   startBusy: boolean;
   onOpenSession: (activeGroupId: string) => void;
   onStart: (instance: PlannedTimetableInstance) => void;
 }>) {
   const room = instance.roomName ?? `Raum ${instance.roomId}`;
-  const badge = STATUS_BADGES[instance.status];
   const running = instance.status === "active";
+  const cancelled = instance.status === "cancelled";
   const openable = running && instance.activeGroupId != null;
   const startable =
     isToday &&
     instance.status === "planned" &&
     canStartPlannedInstance(instance, new Date());
   const missed =
-    instance.status === "planned" && isToday && instance.endTime <= nowHHMM;
+    instance.status === "planned" &&
+    (dayIsPast || (isToday && instance.endTime <= nowHHMM));
+  // Vorbei ist vorbei: gedimmte Zeilen lassen das Laufende und Kommende von
+  // selbst hervortreten — statt eines Etiketts an jeder Zeile.
+  const over =
+    instance.status === "completed" ||
+    missed ||
+    (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
   const staff = staffLine(instance);
-  const children = childrenLine(instance);
 
-  const details = [room, instance.groupName, children]
-    .filter(Boolean)
-    .join(" · ");
+  const metaParts = [
+    instance.status === "completed" ? "Beendet" : null,
+    missed ? "Nicht gestartet" : null,
+    room,
+    instance.groupName,
+    cancelled ? null : childrenShort(instance),
+  ].filter(Boolean);
 
   const body = (
     <>
-      <span className="w-[4.25rem] shrink-0 sm:w-24">
+      <span
+        className={`w-[4.25rem] shrink-0 sm:w-24 ${over ? "opacity-50" : ""}`}
+      >
         <span className="block text-sm font-semibold text-gray-900 tabular-nums">
           {instance.startTime}
         </span>
@@ -200,8 +208,10 @@ function TagesplanRow({
           bis {instance.endTime}
         </span>
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-gray-900">
+      <span className={`min-w-0 flex-1 ${over ? "opacity-50" : ""}`}>
+        <span
+          className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
+        >
           {instance.title}
           {instance.planningTrackName ? (
             <span className="ml-2 text-xs font-normal text-gray-500">
@@ -209,39 +219,36 @@ function TagesplanRow({
             </span>
           ) : null}
         </span>
-        <span className="block truncate text-xs text-gray-500">{details}</span>
-        {staff ? (
-          <span className="block truncate text-xs text-gray-500">{staff}</span>
-        ) : null}
-        {instance.status === "cancelled" ? (
-          <span className="block truncate text-xs text-gray-600">
+        {cancelled ? (
+          <span
+            className="block truncate text-xs font-medium"
+            style={{ color: LOCATION_COLORS.DANGER }}
+          >
             {instance.cancelReason
-              ? `Fällt aus: ${instance.cancelReason}`
-              : "Dieser Termin findet nicht statt."}
+              ? `Fällt aus · ${instance.cancelReason}`
+              : "Fällt aus"}
           </span>
         ) : null}
-        {missed ? (
-          <span className="block text-xs text-gray-500">Nicht gestartet</span>
-        ) : null}
-        <span className="mt-1 flex items-center gap-2 sm:hidden">
-          {badge ? (
-            <StatusDotBadge label={badge.label} color={badge.color} />
-          ) : null}
+        <span className="block truncate text-xs text-gray-500">
+          {metaParts.join(" · ")}
         </span>
+        {staff && !cancelled ? (
+          <span className="block truncate text-xs text-gray-400">{staff}</span>
+        ) : null}
       </span>
-      {badge ? (
-        <span className="hidden shrink-0 sm:flex">
-          <StatusDotBadge label={badge.label} color={badge.color} />
+      {running ? (
+        <span className="shrink-0">
+          <StatusDotBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
         </span>
       ) : null}
     </>
   );
 
   const edgeStyle = {
-    borderLeftColor:
-      instance.status === "cancelled"
-        ? LOCATION_COLORS.DANGER
-        : (instance.planningTrackColor ?? "#E5E7EB"),
+    borderLeftColor: cancelled
+      ? LOCATION_COLORS.DANGER
+      : (instance.planningTrackColor ?? "#E5E7EB"),
+    ...(over ? { opacity: 0.9 } : {}),
   };
 
   if (openable) {
@@ -395,13 +402,13 @@ export function TagesplanView() {
     listError instanceof TimetableOperationsApiError &&
     listError.httpStatus === 403;
 
-  const description = isToday
-    ? overviewScope === "all_staff"
-      ? "Alle Betreuungsblöcke von heute. Tippen Sie auf einen laufenden Block, um seine Kinderliste zu öffnen."
-      : "Ihre Betreuungsblöcke von heute. Sie sehen nur Termine, für die Sie eingeteilt sind. Tippen Sie auf einen laufenden Block, um seine Kinderliste zu öffnen."
-    : overviewScope === "all_staff"
-      ? `Alle Betreuungsblöcke am ${formatDate(day)}.`
-      : `Ihre Betreuungsblöcke am ${formatDate(day)}. Sie sehen nur Termine, für die Sie eingeteilt sind.`;
+  // Ein Satz, mehr nicht: die Liste erklärt sich selbst (Chevron am
+  // laufenden Block, Starten-Knopf am eigenen). Nur die eingeschränkte
+  // Sicht (#2380) muss gesagt werden, sonst fehlen scheinbar Termine.
+  const description =
+    overviewScope === "all_staff"
+      ? "Der Betreuungstag Ihrer Schule."
+      : "Ihre Einsätze. Sie sehen nur Termine, für die Sie eingeteilt sind.";
 
   return (
     <div className="w-full space-y-4">
@@ -504,6 +511,7 @@ export function TagesplanView() {
                   <TagesplanRow
                     instance={instance}
                     isToday={isToday}
+                    dayIsPast={day < today}
                     nowHHMM={nowHHMM}
                     startBusy={startBusyId === instance.id}
                     onOpenSession={openSession}

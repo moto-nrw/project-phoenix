@@ -220,8 +220,8 @@ describe("TagesplanView", () => {
 
     render(<TagesplanView />);
 
-    expect(screen.getByText("Fällt aus: Personalausfall")).toBeInTheDocument();
-    expect(screen.getAllByText("Beendet").length).toBeGreaterThan(0);
+    expect(screen.getByText("Fällt aus · Personalausfall")).toBeInTheDocument();
+    expect(screen.getByText(/Beendet/)).toBeInTheDocument();
     // Keine Zeile ist antippbar, kein Start-Knopf vorhanden.
     expect(
       screen.queryByRole("button", { name: /Bastel-AG|Hausaufgaben|Starten/ }),
