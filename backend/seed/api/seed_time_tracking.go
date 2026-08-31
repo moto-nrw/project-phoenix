@@ -79,6 +79,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	rng := rand.New(rand.NewPCG(0xC0FFEE, 0xBEEF))
 	today := todaySeedDate().UTCMidnight()
 	loc := seedBerlinLocation()
+	statisticsSupervisorEmail := rt.FixedSeeder.staffCredentials[max(0, len(rt.FixedSeeder.staffCredentials)-2)].Email
 
 	sessionCount := 0
 	absenceCount := 0
@@ -126,7 +127,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		// always free when we POST /check-in for the next iteration.
 		for offset := timeTrackingDaysBack - 1; offset >= 0; offset-- {
 			day := today.AddDate(0, 0, -offset)
-			if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+			if !shouldSeedTimeTrackingDay(day, today, cred.Email == statisticsSupervisorEmail) {
 				continue
 			}
 			if sickDay != nil && day.Equal(*sickDay) {
@@ -153,6 +154,16 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	fmt.Printf("  %d schedules, %d sessions, %d absences seeded for %d staff\n",
 		scheduleCount, sessionCount, absenceCount, len(staffOrder))
 	return nil
+}
+
+func shouldSeedTimeTrackingDay(day, today time.Time, isStatisticsSupervisor bool) bool {
+	if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+		return false
+	}
+	// The earlier statistics step leaves this supervisor with a closed NFC
+	// block today. A synthetic 08:00–16:00 app block would overlap it whenever
+	// the seed runs during working hours.
+	return !isStatisticsSupervisor || toDateKey(day) != toDateKey(today)
 }
 
 func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {

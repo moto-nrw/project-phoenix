@@ -108,6 +108,15 @@ func TestToDateKey(t *testing.T) {
 	assert.Equal(t, "2026-05-04", toDateKey(d))
 }
 
+func TestShouldSeedTimeTrackingDaySkipsTodayForStatisticsSupervisor(t *testing.T) {
+	t.Parallel()
+
+	today := time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC)
+	assert.False(t, shouldSeedTimeTrackingDay(today, today, true))
+	assert.True(t, shouldSeedTimeTrackingDay(today, today, false))
+	assert.True(t, shouldSeedTimeTrackingDay(today.AddDate(0, 0, -3), today, true))
+}
+
 func TestExtractSessionID(t *testing.T) {
 	t.Parallel()
 
