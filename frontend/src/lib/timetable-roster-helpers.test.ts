@@ -33,26 +33,31 @@ function arrivalWarnings(
 }
 
 describe("upcomingArrivalTime", () => {
+  const today = "2026-08-31";
   const at = (hours: number, minutes: number) =>
     new Date(
       `2026-08-31T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00+02:00`,
     );
 
   it("returns the expected arrival while it is still ahead", () => {
-    expect(upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0))).toBe(
-      "13:45",
-    );
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0), today),
+    ).toBe("13:45");
   });
 
   it("returns null once the expected arrival is reached", () => {
     expect(
-      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 45)),
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 45), today),
     ).toBeNull();
-    expect(upcomingArrivalTime(arrivalWarnings("13:45"), at(14, 0))).toBeNull();
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(14, 0), today),
+    ).toBeNull();
   });
 
   it("ignores other warning kinds and missing times", () => {
-    expect(upcomingArrivalTime(arrivalWarnings(null), at(13, 0))).toBeNull();
+    expect(
+      upcomingArrivalTime(arrivalWarnings(null), at(13, 0), today),
+    ).toBeNull();
     expect(
       upcomingArrivalTime(
         [
@@ -67,6 +72,7 @@ describe("upcomingArrivalTime", () => {
           },
         ],
         at(13, 0),
+        today,
       ),
     ).toBeNull();
   });
@@ -77,7 +83,14 @@ describe("upcomingArrivalTime", () => {
       upcomingArrivalTime(
         arrivalWarnings("13:45"),
         new Date("2026-08-31T11:00:00Z"),
+        today,
       ),
     ).toBe("13:45");
+  });
+
+  it("does not classify arrivals on another roster date as late", () => {
+    expect(
+      upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0), "2026-09-01"),
+    ).toBeNull();
   });
 });

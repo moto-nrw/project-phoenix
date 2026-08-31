@@ -6,17 +6,22 @@ const berlinTimeFormatter = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+const berlinDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Berlin",
+});
 
 /**
  * Expected arrival ("HH:MM") of an `arrival_after_slot_start` warning that is
- * still ahead of `now`, else null. The zero-padded wall-clock strings compare
- * lexicographically; comparing clock times without the date is safe because
- * the supervision rosters only ever show today's blocks.
+ * still ahead on the roster's Berlin calendar date, else null. The zero-padded
+ * wall-clock strings compare lexicographically once both dates match.
  */
 export function upcomingArrivalTime(
   warnings: TimetableRosterRow["warnings"] | undefined,
   now: Date,
+  rosterDate: string,
 ): string | null {
+  const nowDate = berlinDateFormatter.format(now);
+  if (rosterDate !== nowDate) return null;
   const nowClock = berlinTimeFormatter.format(now);
   for (const warning of warnings ?? []) {
     if (warning.kind !== "arrival_after_slot_start") continue;

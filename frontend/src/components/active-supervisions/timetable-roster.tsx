@@ -219,6 +219,7 @@ interface TimetableRosterRowProps {
   readonly instanceIsSpontaneous: boolean;
   /** Minute clock of the page — decides whether an expected arrival is still ahead. */
   readonly now: Date;
+  readonly rosterDate: string;
   readonly pickupTimesLoaded?: boolean;
   readonly pickupTimesRedacted?: boolean;
   readonly row: TimetableRosterRow;
@@ -235,6 +236,7 @@ function TimetableRosterStudentRow({
   attendanceWebEnabled,
   instanceIsSpontaneous,
   now,
+  rosterDate,
   pickupTimesLoaded,
   pickupTimesRedacted,
   row,
@@ -265,7 +267,7 @@ function TimetableRosterStudentRow({
     !row.currentlyPresent &&
     row.status === "expected" &&
     isCareDayExpected(row.careDayStatus)
-      ? upcomingArrivalTime(row.warnings, now)
+      ? upcomingArrivalTime(row.warnings, now, rosterDate)
       : null;
   const planningNotes = (row.warnings ?? []).filter(
     (warning) =>
@@ -333,6 +335,7 @@ interface TimetableRosterSectionProps {
   readonly description?: string;
   readonly instanceIsSpontaneous: boolean;
   readonly now: Date;
+  readonly rosterDate: string;
   readonly pickupTimesLoaded?: boolean;
   readonly pickupTimesRedacted?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
@@ -347,6 +350,7 @@ function TimetableRosterSection({
   description,
   instanceIsSpontaneous,
   now,
+  rosterDate,
   pickupTimesLoaded,
   pickupTimesRedacted,
   onAction,
@@ -377,6 +381,7 @@ function TimetableRosterSection({
           attendanceWebEnabled={attendanceWebEnabled}
           instanceIsSpontaneous={instanceIsSpontaneous}
           now={now}
+          rosterDate={rosterDate}
           pickupTimesLoaded={pickupTimesLoaded}
           pickupTimesRedacted={pickupTimesRedacted}
           row={row}
@@ -725,10 +730,12 @@ export function TimetableRosterContent({
   // Once the minute clock passes the arrival time the row moves to "Erwartet"
   // by itself.
   const arrivingLater = stillExpected.filter(
-    (row) => upcomingArrivalTime(row.warnings, now) !== null,
+    (row) =>
+      upcomingArrivalTime(row.warnings, now, roster.instance.date) !== null,
   );
   const expected = stillExpected.filter(
-    (row) => upcomingArrivalTime(row.warnings, now) === null,
+    (row) =>
+      upcomingArrivalTime(row.warnings, now, roster.instance.date) === null,
   );
   // An absence a sick / excused / class-trip day status wrote onto a day the
   // child was never booked into care belongs here too, not under "Abwesend":
@@ -764,6 +771,7 @@ export function TimetableRosterContent({
     attendanceWebEnabled,
     instanceIsSpontaneous,
     now,
+    rosterDate: roster.instance.date,
     pickupTimesLoaded: roster.pickupTimesLoaded,
     pickupTimesRedacted: roster.pickupTimesRedacted,
     onAction: onRosterAction,
