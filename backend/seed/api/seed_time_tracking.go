@@ -86,7 +86,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 
 	for idx, cred := range staffOrder {
 		staffID := staffIDByEmail[cred.Email]
-		if idx < len(DemoStaff) && DemoStaff[idx].Position == "Extern" {
+		if cred.Position == "Extern" {
 			continue
 		}
 		if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
