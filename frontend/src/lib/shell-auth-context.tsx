@@ -39,6 +39,13 @@ interface ShellAuthContextType {
   mode: ShellMode;
   homeUrl: string;
   profileUrl: string | null;
+  // Admin staff-view preview (#2893) — only the teacher shell fills these.
+  // isPreview: this session currently renders the read-only view of another
+  // staff member; canStartStaffPreview: the signed-in admin may open one.
+  isPreview?: boolean;
+  previewTargetName?: string;
+  previewTargetAccountId?: number;
+  canStartStaffPreview?: boolean;
 }
 
 const ShellAuthContext = createContext<ShellAuthContextType | undefined>(
@@ -51,6 +58,13 @@ export function useShellAuth(): ShellAuthContextType {
     throw new Error("useShellAuth must be used within a ShellAuthProvider");
   }
   return context;
+}
+
+// useShellAuthSafe returns undefined outside a provider instead of throwing.
+// For chrome that merely ADAPTS to shell state (the preview offset in
+// AppShell) and must keep rendering where no shell provider exists.
+export function useShellAuthSafe(): ShellAuthContextType | undefined {
+  return useContext(ShellAuthContext);
 }
 
 export function TeacherShellProvider({
@@ -135,6 +149,14 @@ export function TeacherShellProvider({
       mode: "teacher" as const,
       homeUrl,
       profileUrl: "/profile",
+      // Admin staff-view preview (#2893): the entry point requires the admin
+      // wildcard (same gate as the backend route); during a preview the
+      // session carries the TARGET's permissions, so the flag is false then.
+      isPreview: session?.user?.isPreview ?? false,
+      previewTargetName: session?.user?.previewTargetName,
+      previewTargetAccountId: session?.user?.previewTargetAccountId,
+      canStartStaffPreview:
+        !session?.user?.isPreview && hasPermission(session, "admin:*"),
     };
   }, [session, sessionStatus, profile, homeUrl]);
 
