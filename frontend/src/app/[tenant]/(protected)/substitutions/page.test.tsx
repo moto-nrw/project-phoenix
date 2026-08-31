@@ -276,6 +276,25 @@ describe("SubstitutionPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the standard forbidden page when the group overview denies access", () => {
+    const error = new Error("Vertretungen konnten nicht geladen werden.");
+    error.name = "SubstitutionAccessError";
+    vi.mocked(useSWRAuth).mockImplementation(
+      () =>
+        ({
+          data: undefined,
+          isLoading: false,
+          error,
+          mutate: mocks.mutate,
+        }) as never,
+    );
+
+    render(<SubstitutionPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
+  });
+
   it("explains every empty section", () => {
     mocks.overview.groups = [];
     mocks.overview.targets = [];

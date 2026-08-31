@@ -219,6 +219,15 @@ describe("substitutionService", () => {
     );
   });
 
+  it("marks forbidden group-overview access for the page guard", async () => {
+    sessionFetch.mockResolvedValue({ ok: false, status: 403 });
+
+    await expect(substitutionService.fetchOverview()).rejects.toMatchObject({
+      name: "SubstitutionAccessError",
+      message: "Vertretungen konnten nicht geladen werden.",
+    });
+  });
+
   it("assigns and maps a typed group handover", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,

@@ -10,6 +10,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { InfoCard } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -856,6 +857,9 @@ type OverviewContentProps = Readonly<{
 }>;
 
 function OverviewContent(props: OverviewContentProps) {
+  if (props.data.error?.name === "SubstitutionAccessError") {
+    return <ForbiddenPage />;
+  }
   if (props.data.error) {
     return (
       <Alert

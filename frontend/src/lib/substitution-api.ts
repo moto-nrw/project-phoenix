@@ -39,7 +39,9 @@ class SubstitutionService {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error("Vertretungen konnten nicht geladen werden.");
+      const error = new Error("Vertretungen konnten nicht geladen werden.");
+      if (response.status === 403) error.name = "SubstitutionAccessError";
+      throw error;
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
