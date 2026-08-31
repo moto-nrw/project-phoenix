@@ -70,6 +70,9 @@ describe("TeacherShellProvider", () => {
           name: "John Doe",
           email: "john@example.com",
           roles: ["teacher", "admin"],
+          // schedules:read: das Gate der Tagesplan-Route — ohne das Recht
+          // bleibt /dashboard das Logo-Ziel (eigener Test unten).
+          permissions: ["schedules:read"],
         },
       },
       status: "authenticated",
@@ -98,6 +101,24 @@ describe("TeacherShellProvider", () => {
           name: "Admin Only",
           email: "admin@example.com",
           roles: ["admin"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    expect(result.current.homeUrl).toBe("/dashboard");
+  });
+
+  it("keeps /dashboard as home for caregivers without schedules:read (#2383)", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Ohne Recht",
+          email: "user@example.com",
+          roles: ["user"],
+          permissions: [],
         },
       },
       status: "authenticated",

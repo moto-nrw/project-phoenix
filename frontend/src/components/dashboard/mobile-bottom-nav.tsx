@@ -680,11 +680,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Bei offener Betreuung gibt es keine "meine Gruppe" — der
       // gruppenbasierte Einstieg entfällt (#1544).
       !(openCareGroupMode && item.href === "/ogs-groups") &&
-      // Tagesplan (#2383): nur im detaillierten Modus und nur an Schulen mit
-      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne config:read).
+      // Tagesplan (#2383): nur im detaillierten Modus, nur an Schulen mit
+      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne
+      // config:read) und nur mit schedules:read — das Gate der Route
+      // (/timetable/operations/planned-now), sonst wäre der Tab ein 403.
       !(
         item.href === "/tagesplan" &&
-        (presenceMode === "binary" || !tagesplanEnabled)
+        (presenceMode === "binary" ||
+          !tagesplanEnabled ||
+          !hasPermission(session, "schedules:read"))
       ),
   );
 

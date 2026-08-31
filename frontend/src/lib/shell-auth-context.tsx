@@ -9,7 +9,7 @@ import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
-import { isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, isCaregiver } from "~/lib/auth-utils";
 import { usePresenceMode, useTimetableEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "ShellAuthContext" });
@@ -63,10 +63,14 @@ export function TeacherShellProvider({
   const presenceMode = usePresenceMode();
   const timetableEnabled = useTimetableEnabled();
   // Home der Betreuungskräfte ist der Tagesplan (#2383) — dieselbe Regel wie
-  // der Login-Redirect. Admins (und Schulen ohne Betreuungsplan bzw. im
-  // binären Modus) behalten /dashboard als Logo-Ziel.
+  // der Login-Redirect, inklusive schedules:read (das Gate der Tagesplan-
+  // Route). Admins (und Schulen ohne Betreuungsplan bzw. im binären Modus)
+  // behalten /dashboard als Logo-Ziel.
   const homeUrl =
-    isCaregiver(session) && presenceMode !== "binary" && timetableEnabled
+    isCaregiver(session) &&
+    presenceMode !== "binary" &&
+    timetableEnabled &&
+    hasPermission(session, "schedules:read")
       ? "/tagesplan"
       : "/dashboard";
 

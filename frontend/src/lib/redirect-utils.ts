@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import type { PresenceMode } from "~/lib/tenant-api";
 
 const SCHOOL_PORTAL_HANDOFF_PATH = "/school/login";
@@ -60,9 +60,11 @@ export function getSmartRedirectPath(
     }
 
     // Detailed mode + Betreuungsplan enabled: the day plan is the entry into
-    // the running care day (#2383). Schools that disabled the Betreuungsplan
-    // keep their previous start path below.
-    if (timetableEnabled) {
+    // the running care day (#2383) — but only with schedules:read, the gate
+    // of the Tagesplan route; without it the redirect would land on a 403.
+    // Schools that disabled the Betreuungsplan (and caregivers without the
+    // permission) keep their previous start path below.
+    if (timetableEnabled && hasPermission(session, "schedules:read")) {
       return TAGESPLAN_PATH;
     }
 

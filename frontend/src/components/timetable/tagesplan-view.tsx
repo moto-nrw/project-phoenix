@@ -32,7 +32,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -64,8 +64,11 @@ const SCROLL_STORAGE_KEY = "tagesplan-scroll";
 // eine Absage steht als rote Textzeile ("Fällt aus · Grund") in der Zeile —
 // DANGER, nicht SICK: der Termin fällt aus, niemand ist krank.
 
+// Nur echte Kalendertage aus ?d= übernehmen: die geteilte Prüfung weist auch
+// formgültige, aber unmögliche Daten wie "2026-02-31" ab, statt sie an die
+// API weiterzureichen (dort gäbe es nur einen 400).
 function isValidISODay(value: string | null): value is string {
-  return value != null && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return value != null && isValidISODate(value);
 }
 
 function berlinNowHHMM(at: Date): string {

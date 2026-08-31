@@ -102,13 +102,15 @@ const NAV_ITEMS: NavItem[] = [
   {
     // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
     // laufenden Tag. Für Admins versteckt — sie haben den vollen
-    // Betreuungsplan im Planungsbereich. Gating (binary, timetable.enabled)
-    // siehe filteredNavItems.
+    // Betreuungsplan im Planungsbereich. schedules:read spiegelt das Gate
+    // der Route (/timetable/operations/planned-now); ohne das Recht wäre
+    // der Eintrag nur ein sicherer 403. Weiteres Gating (binary,
+    // timetable.enabled) siehe filteredNavItems.
     ...STAFF_FLAT_PAGES.tagesplan,
     icon: navigationIcons.betreuungsplan,
     concept: "carePlan",
     activeColor: "text-moto-green",
-    alwaysShow: true,
+    requiresPermission: "schedules:read",
     hideForAdmin: true,
   },
   {

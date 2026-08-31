@@ -15,11 +15,18 @@ import {
 // timetableEnabled=false.
 describe("redirect-utils", () => {
   describe("getSmartRedirectPath", () => {
-    const createSession = (roles: string[]): Session => ({
+    // schedules:read ist die Default-Permission: der Tagesplan-Redirect setzt
+    // das Gate der Tagesplan-Route voraus; Tests ohne das Recht übergeben
+    // explizit ein leeres Array.
+    const createSession = (
+      roles: string[],
+      permissions: string[] = ["schedules:read"],
+    ): Session => ({
       user: {
         id: "1",
         email: "test@example.com",
         roles,
+        permissions,
         token: "token",
       },
       expires: "2024-12-31",
@@ -36,6 +43,17 @@ describe("redirect-utils", () => {
       const session = createSession(["user"]);
       const result = getSmartRedirectPath(session, idle);
       expect(result).toBe(TAGESPLAN_PATH);
+    });
+
+    it("keeps the previous start path for caregivers without schedules:read", () => {
+      // Ohne das Recht der Tagesplan-Route wäre der Redirect nur ein 403 —
+      // solche Konten behalten den alten Einstieg.
+      const session = createSession(["user"], []);
+      const result = getSmartRedirectPath(session, {
+        ...idle,
+        hasGroups: true,
+      });
+      expect(result).toBe("/ogs-groups");
     });
 
     it("sends caregivers with groups to the Tagesplan when the Betreuungsplan is enabled (#2383)", () => {
@@ -267,11 +285,15 @@ describe("redirect-utils", () => {
   });
 
   describe("useSmartRedirectPath", () => {
-    const createSession = (roles: string[]): Session => ({
+    const createSession = (
+      roles: string[],
+      permissions: string[] = ["schedules:read"],
+    ): Session => ({
       user: {
         id: "1",
         email: "test@example.com",
         roles,
+        permissions,
         token: "token",
       },
       expires: "2024-12-31",
