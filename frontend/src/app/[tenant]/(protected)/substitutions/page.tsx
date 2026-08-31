@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Suspense, useMemo, useState } from "react";
 
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
+import { RoleGuard } from "~/components/auth/role-guard";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -87,15 +88,6 @@ type GroupAssignmentModalProps = Readonly<{
   ) => void;
 }>;
 
-function EmptySection({
-  title,
-  description,
-}: Readonly<{ title: string; description: string }>) {
-  return (
-    <EmptyState variant="compact" title={title} description={description} />
-  );
-}
-
 function RunningSection({
   rows,
   onAssign,
@@ -105,7 +97,8 @@ function RunningSection({
 }>) {
   if (rows.length === 0) {
     return (
-      <EmptySection
+      <EmptyState
+        variant="compact"
         title="Keine laufenden Betreuungen"
         description="Zurzeit läuft keine Betreuung in Ihrem Sichtbereich."
       />
@@ -166,7 +159,8 @@ function ScheduleSection({
 }: ScheduleSectionProps) {
   if (!canRead) {
     return (
-      <EmptySection
+      <EmptyState
+        variant="compact"
         title="Keine Terminvertretungen verfügbar"
         description="Bitten Sie einen Admin um Zugriff auf Terminvertretungen."
       />
@@ -177,7 +171,8 @@ function ScheduleSection({
   );
   if (appointments.length === 0) {
     return (
-      <EmptySection
+      <EmptyState
+        variant="compact"
         title="Heute keine Terminvertretungen"
         description="Für heute ist keine Vertretung eingetragen."
       />
@@ -237,7 +232,8 @@ function GroupSection(props: GroupSectionProps) {
   const { overview, openCare, onAssign, onEnd } = props;
   if (openCare) {
     return (
-      <EmptySection
+      <EmptyState
+        variant="compact"
         title="Keine Gruppenübergabe nötig"
         description="Diese Schule arbeitet ohne feste Gruppen."
       />
@@ -260,7 +256,8 @@ function GroupSection(props: GroupSectionProps) {
         </p>
       )}
       {overview.groupHandovers.length === 0 ? (
-        <EmptySection
+        <EmptyState
+          variant="compact"
           title="Keine Gruppenübergaben"
           description="Zurzeit ist keine Gruppe übergeben."
         />
@@ -967,8 +964,10 @@ function LoadingFallback() {
 
 export default function SubstitutionPage() {
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <SubstitutionPageContent />
-    </Suspense>
+    <RoleGuard variant="staffOrAdmin" fallback={<LoadingFallback />}>
+      <Suspense fallback={<LoadingFallback />}>
+        <SubstitutionPageContent />
+      </Suspense>
+    </RoleGuard>
   );
 }

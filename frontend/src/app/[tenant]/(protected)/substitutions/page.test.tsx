@@ -206,6 +206,18 @@ describe("SubstitutionPage", () => {
     expect(screen.queryByLabelText("Startdatum")).not.toBeInTheDocument();
   });
 
+  it("denies the overview to authenticated accounts without a staff or admin role", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { roles: ["guardian"], permissions: [] } },
+      status: "authenticated",
+    } as never);
+
+    render(<SubstitutionPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByText("Laufende Betreuungen")).not.toBeInTheDocument();
+  });
+
   it("gives wildcard admins the admin date controls", () => {
     vi.mocked(useSession).mockReturnValue({
       data: { user: { roles: ["user"], permissions: ["admin:*"] } },
