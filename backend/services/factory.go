@@ -832,6 +832,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:                repos.ActiveGroup,
+		SessionStartLock:         repos.SessionStartLock,
 		VisitRepo:                repos.ActiveVisit,
 		SupervisorRepo:           repos.GroupSupervisor,
 		CombinedGroupRepo:        repos.CombinedGroup,
@@ -1458,6 +1459,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		RoleRepo:               repos.Role,
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,
+		CaregiverBindingLock:   repos.CaregiverBindingLock,
 		TeacherRepo:            repos.Teacher,
 		GroupTeacherRepo:       repos.GroupTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,

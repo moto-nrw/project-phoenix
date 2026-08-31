@@ -25941,7 +25941,7 @@
       "declaration": "TestBroadcast_UpdateVisitMoveSendsMovementEvents",
       "target": "database/repositories.NewFactory",
       "lines": [
-        180
+        181
       ],
       "tables": []
     },

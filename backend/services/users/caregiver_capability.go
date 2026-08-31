@@ -28,6 +28,7 @@ type CaregiverCapabilityServiceDependencies struct {
 	RoleRepo               authModels.RoleRepository
 	PersonRepo             userModels.PersonRepository
 	StaffRepo              userModels.StaffRepository
+	CaregiverBindingLock   userModels.CaregiverBindingLocker
 	TeacherRepo            userModels.TeacherRepository
 	GroupTeacherRepo       educationModels.GroupTeacherRepository
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
@@ -47,13 +48,6 @@ type caregiverRoleFlags struct {
 	hasUserRole          bool
 	hasLegacyTeacherRole bool
 	hasOtherUsableRole   bool
-}
-
-var caregiverCapabilityBindingTables = []string{
-	"education.group_teacher",
-	"education.group_substitution",
-	"active.group_supervisors",
-	"activities.supervisors",
 }
 
 const caregiverCapabilityAuditIP = "0.0.0.0"
@@ -221,8 +215,14 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 				return err
 			}
 		}
-		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
-			return err
+		if s.CaregiverBindingLock == nil {
+			return &UsersError{Op: "disable caregiver capability", Err: errors.New("caregiver binding lock repository is not configured")}
+		}
+		if err := s.CaregiverBindingLock.LockCaregiverCapabilityBindings(txCtx); err != nil {
+			return &UsersError{
+				Op:  "disable caregiver capability",
+				Err: fmt.Errorf("lock caregiver capability bindings: %w", err),
+			}
 		}
 
 		state, roleFlags, err := s.loadCapabilityStateWithRoleFlags(txCtx, accountID)
@@ -304,25 +304,6 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 
 	return result, nil
 }
-func (s *caregiverCapabilityService) lockCaregiverCapabilityBindings(
-	ctx context.Context,
-	tx bun.Tx,
-) error {
-	for _, tableName := range caregiverCapabilityBindingTables {
-		if _, err := tx.ExecContext(
-			ctx,
-			fmt.Sprintf("LOCK TABLE %s IN SHARE ROW EXCLUSIVE MODE", tableName),
-		); err != nil {
-			return &UsersError{
-				Op:  "disable caregiver capability",
-				Err: fmt.Errorf("lock %s: %w", tableName, err),
-			}
-		}
-	}
-
-	return nil
-}
-
 func (s *caregiverCapabilityService) recordCapabilityAuditEvent(
 	ctx context.Context,
 	accountID int64,

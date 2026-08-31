@@ -36,6 +36,7 @@ func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.Recordi
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
+		SessionStartLock:   repos.SessionStartLock,
 		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
 		CombinedGroupRepo:  repos.CombinedGroup,
