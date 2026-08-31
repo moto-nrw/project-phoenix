@@ -436,7 +436,7 @@ func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.T
 func (m *mockAuthService) SwitchTenant(context.Context, int64, string) (string, string, error) {
 	return "", "", nil
 }
-func (m *mockAuthService) StartStaffPreview(context.Context, int64, int64, int64, string, string) (*authSvc.StaffPreviewSession, error) {
+func (m *mockAuthService) StartStaffPreview(context.Context, int64, int64, int64, string, string, string) (*authSvc.StaffPreviewSession, error) {
 	return nil, nil
 }
 func (m *mockAuthService) EndStaffPreview(context.Context, int64, int64, string, string, string) (int64, error) {

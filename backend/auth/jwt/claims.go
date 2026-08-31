@@ -45,6 +45,11 @@ type AppClaims struct {
 	// Zero on every regular token. Kept in the claims so the preview can
 	// never be mistaken for a real session of the target account.
 	ActingAdminID int64 `json:"acting_admin_id,omitempty"`
+	// PreviewID identifies ONE preview instance (#2893). It is created when
+	// the admin opens the preview and carried unchanged through every
+	// re-mint, so the audit trail can pair exactly one start with exactly one
+	// end no matter how often the token was renewed. Empty on regular tokens.
+	PreviewID string `json:"preview_id,omitempty"`
 	CommonClaims
 }
 
@@ -250,6 +255,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	c.FamilyID = getOptionalString(claims, "family_id")
 	c.ReadOnly = getOptionalBool(claims, "read_only")
 	c.ActingAdminID = getOptionalInt64(claims, "acting_admin_id")
+	c.PreviewID = getOptionalString(claims, "preview_id")
 
 	return nil
 }

@@ -183,6 +183,9 @@ func ParseStructToMap(c any) (map[string]any, error) {
 		if appClaims.ActingAdminID != 0 {
 			claims["acting_admin_id"] = appClaims.ActingAdminID
 		}
+		if appClaims.PreviewID != "" {
+			claims["preview_id"] = appClaims.PreviewID
+		}
 
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
@@ -215,6 +218,21 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 // middleware gives — the staff-view preview end call (#2893) proves with it
 // which preview token the admin actually held.
 func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {
+	return a.parseAccessJWT(tokenString, false)
+}
+
+// ParseExpiredAccessJWT is ParseAccessJWT without the expiry check: the
+// signature still has to verify, so the claims are as trustworthy as ever —
+// only their freshness is not. Use it ONLY where an expired token is
+// evidence, never where it grants access. The staff-view preview (#2893)
+// ends this way: an admin who lets the preview run past the 15-minute access
+// expiry and then clicks "Vorschau beenden" must still produce a
+// staff_preview_ended row, otherwise the audit trail loses the pair.
+func (a *TokenAuth) ParseExpiredAccessJWT(tokenString string) (*AppClaims, error) {
+	return a.parseAccessJWT(tokenString, true)
+}
+
+func (a *TokenAuth) parseAccessJWT(tokenString string, allowExpired bool) (*AppClaims, error) {
 	jwtToken, err := a.JwtAuth.Decode(tokenString)
 	if err != nil {
 		return nil, err
@@ -231,7 +249,7 @@ func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {
 		return nil, err
 	}
 	claims.ExpiresAt = expiryFromClaims(raw)
-	if claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
+	if !allowExpired && claims.ExpiresAt > 0 && claims.ExpiresAt < time.Now().Unix() {
 		return nil, errors.New("access token expired")
 	}
 	return &claims, nil

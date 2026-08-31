@@ -21,6 +21,11 @@ type AuthEventRepository interface {
 	FindByID(ctx context.Context, id interface{}) (*AuthEvent, error)
 	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*AuthEvent, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
+	// ExistsByAccountEventAndMetadata reports whether the account already has
+	// an event of eventType whose metadata matches every given key/value
+	// (text comparison). Lets a caller keep a one-shot event one-shot — e.g.
+	// the staff-view preview records exactly one end per preview id (#2893).
+	ExistsByAccountEventAndMetadata(ctx context.Context, accountID int64, eventType string, metadata map[string]string) (bool, error)
 	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
 	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
 	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error

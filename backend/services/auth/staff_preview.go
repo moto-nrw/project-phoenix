@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
+	"io"
 	"log/slog"
 	"strings"
 
@@ -49,8 +51,12 @@ type StaffPreviewCandidate struct {
 //
 // Re-minting is the same call: the frontend repeats it with a fresh admin
 // token when the preview token nears expiry, so a deactivated target ends
-// the preview at the next mint.
-func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, ipAddress, userAgent string) (*StaffPreviewSession, error) {
+// the preview at the next mint. It passes the token it currently holds as
+// previousToken; when that token proves the SAME preview instance (this
+// admin, this school, this target), the new token inherits its preview id
+// and NO second staff_preview_started event is written. A long preview then
+// stays one start and one end in the audit trail, however often it renewed.
+func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error) {
 	const op = "start staff preview"
 
 	if tenantID <= 0 {
@@ -115,6 +121,17 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 		return nil, &AuthError{Op: op, Err: ErrMustUseSchoolPortal}
 	}
 
+	// A re-mint continues the running preview instance; anything else starts
+	// a new one. Only a new one is a "started" event.
+	previewID, isRemint := s.continuedPreviewID(previousToken, adminAccountID, tenantID, targetAccountID)
+	if !isRemint {
+		newID, err := newPreviewID()
+		if err != nil {
+			return nil, &AuthError{Op: op, Err: err}
+		}
+		previewID = newID
+	}
+
 	claims := jwt.AppClaims{
 		ID:            int(account.ID),
 		Sub:           account.Email,
@@ -129,19 +146,28 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 		OrgID:         metadata.orgID,
 		ReadOnly:      true,
 		ActingAdminID: adminAccountID,
+		PreviewID:     previewID,
 	}
 	accessToken, err := s.tokenAuth.CreateJWT(claims)
 	if err != nil {
 		return nil, &AuthError{Op: op, Err: err}
 	}
 
-	s.logAuthEventWithMetadata(ctx, adminAccountID, audit.EventTypeStaffPreviewStarted, true, ipAddress, userAgent, "",
-		map[string]interface{}{"target_account_id": targetAccountID})
-	s.getLogger().Info("staff preview started",
-		slog.Int64("admin_account_id", adminAccountID),
-		slog.Int64("target_account_id", targetAccountID),
-		slog.Int64("tenant_id", tenantID),
-	)
+	if isRemint {
+		s.getLogger().Debug("staff preview token re-minted",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.Int64("target_account_id", targetAccountID),
+			slog.Int64("tenant_id", tenantID),
+		)
+	} else {
+		s.logAuthEventWithMetadata(ctx, adminAccountID, audit.EventTypeStaffPreviewStarted, true, ipAddress, userAgent, "",
+			map[string]interface{}{"target_account_id": targetAccountID, "preview_id": previewID})
+		s.getLogger().Info("staff preview started",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.Int64("target_account_id", targetAccountID),
+			slog.Int64("tenant_id", tenantID),
+		)
+	}
 
 	return &StaffPreviewSession{
 		AccessToken:     accessToken,
@@ -160,11 +186,22 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 // preview that never happened. Purely an audit affair otherwise — the preview
 // token simply expires, nothing is revoked.
 //
+// Ending is one-shot per preview instance: the event carries the token's
+// preview id, and a repeat call for an id already recorded as ended writes
+// nothing a second time. So the same signed token cannot be replayed into a
+// row of duplicate "ended" events. Auth events are written asynchronously
+// (see logAuthEventWithMetadata), so two calls in the very same moment can
+// still both land — the guard covers replays, not a photo finish.
+//
 // Returns the previewed account id for the caller's response and logs.
 func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error) {
 	const op = "end staff preview"
 
-	claims, err := s.tokenAuth.ParseAccessJWT(previewToken)
+	// Expiry is deliberately not checked here: a preview left open past the
+	// 15-minute access expiry must still end with an audit row. The signature
+	// is what proves the admin held this token; freshness proves nothing
+	// extra, and this call grants no access.
+	claims, err := s.tokenAuth.ParseExpiredAccessJWT(previewToken)
 	if err != nil {
 		s.getLogger().Warn("staff preview end: token not parseable",
 			slog.Int64("admin_account_id", adminAccountID),
@@ -173,7 +210,7 @@ func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID 
 		return 0, &AuthError{Op: op, Err: ErrPreviewTokenInvalid}
 	}
 	if !claims.IsReadOnlyPreview() || claims.ActingAdminID != adminAccountID ||
-		claims.TenantID != tenantID || claims.ID <= 0 {
+		claims.TenantID != tenantID || claims.ID <= 0 || claims.PreviewID == "" {
 		s.getLogger().Warn("staff preview end: token does not belong to this session",
 			slog.Int64("admin_account_id", adminAccountID),
 			slog.Int64("tenant_id", tenantID),
@@ -182,13 +219,79 @@ func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID 
 	}
 	targetAccountID := int64(claims.ID)
 
+	ended, err := s.previewAlreadyEnded(ctx, adminAccountID, claims.PreviewID)
+	if err != nil {
+		return 0, &AuthError{Op: op, Err: err}
+	}
+	if ended {
+		// Not an error for the caller — the preview IS over, which is what
+		// the client asked for. It simply does not get a second audit row.
+		s.getLogger().Debug("staff preview end: already recorded",
+			slog.Int64("admin_account_id", adminAccountID),
+			slog.Int64("target_account_id", targetAccountID),
+		)
+		return targetAccountID, nil
+	}
+
 	s.logAuthEventWithMetadata(ctx, adminAccountID, audit.EventTypeStaffPreviewEnded, true, ipAddress, userAgent, "",
-		map[string]interface{}{"target_account_id": targetAccountID})
+		map[string]interface{}{"target_account_id": targetAccountID, "preview_id": claims.PreviewID})
 	s.getLogger().Info("staff preview ended",
 		slog.Int64("admin_account_id", adminAccountID),
 		slog.Int64("target_account_id", targetAccountID),
 	)
 	return targetAccountID, nil
+}
+
+// continuedPreviewID reads the preview id out of the token the client is
+// renewing. It returns ok only when the token is a signed preview token of
+// exactly this admin, school, and target — a foreign or forged value must
+// never suppress a start event or join two previews into one audit pair. An
+// expired token is fine: a renewal that arrives late is still the same
+// preview instance.
+func (s *Service) continuedPreviewID(previousToken string, adminAccountID, tenantID, targetAccountID int64) (string, bool) {
+	if strings.TrimSpace(previousToken) == "" {
+		return "", false
+	}
+	claims, err := s.tokenAuth.ParseExpiredAccessJWT(previousToken)
+	if err != nil {
+		return "", false
+	}
+	if !claims.IsReadOnlyPreview() || claims.PreviewID == "" ||
+		claims.ActingAdminID != adminAccountID || claims.TenantID != tenantID ||
+		int64(claims.ID) != targetAccountID {
+		return "", false
+	}
+	return claims.PreviewID, true
+}
+
+// previewAlreadyEnded reports whether this preview instance was closed
+// before. Reads the admin's own audit trail — the same place the event is
+// written — through an admin transaction, because the end route runs without
+// a tenant transaction (see the route comment in api/auth).
+func (s *Service) previewAlreadyEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error) {
+	var ended bool
+	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, _ bun.Tx) error {
+		found, err := s.repos.AuthEvent.ExistsByAccountEventAndMetadata(
+			ctx, adminAccountID, audit.EventTypeStaffPreviewEnded,
+			map[string]string{"preview_id": previewID},
+		)
+		if err != nil {
+			return err
+		}
+		ended = found
+		return nil
+	})
+	return ended, err
+}
+
+// newPreviewID returns the identifier for one preview instance: 128 bits of
+// cryptographic randomness, so a client can never guess a foreign id.
+func newPreviewID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := io.ReadFull(SecureRandomSource(), buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 // ListStaffPreviewCandidates returns the staff members an admin can preview

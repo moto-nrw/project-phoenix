@@ -879,7 +879,13 @@ async function maintainPreviewSession(
         Authorization: `Bearer ${adminAccessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ account_id: token.previewTargetAccountId }),
+      // The expiring token comes along as previous_token: it proves this is
+      // the SAME preview instance, so the backend renews it instead of
+      // recording a second "preview started" in the audit trail.
+      body: JSON.stringify({
+        account_id: token.previewTargetAccountId,
+        previous_token: token.token,
+      }),
       signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
     });
 

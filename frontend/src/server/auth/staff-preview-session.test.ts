@@ -190,6 +190,7 @@ describe("JWT callback — staff preview (#2893)", () => {
   it("re-mints an expiring preview token with the fresh admin token", async () => {
     const started = await startPreview(adminToken());
     started.tokenExpiry = Date.now() + 60 * 1000; // inside the buffer
+    const expiringPreviewToken = started.token as string;
     const remintedJwt = previewJwt({ first_name: "Erika" });
 
     mockFetch.mockResolvedValueOnce({
@@ -213,6 +214,12 @@ describe("JWT callback — staff preview (#2893)", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(
       `Bearer ${started.previewAdminToken as string}`,
     );
+    // The expiring token travels along so the backend continues the SAME
+    // preview instead of auditing a second "preview started".
+    expect(JSON.parse(init.body as string)).toEqual({
+      account_id: "42",
+      previous_token: expiringPreviewToken,
+    });
     expect(result.token).toBe(remintedJwt);
     expect(result.previewTargetAccountId).toBe("42");
     expect((result.tokenExpiry as number) > Date.now()).toBe(true);

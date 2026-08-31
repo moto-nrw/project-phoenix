@@ -146,8 +146,10 @@ type AuthService interface {
 	// list feeds the picker. The route layer restricts all three to
 	// effective admins. End is given the preview token it closes and reads
 	// the previewed account from it, so the audit trail cannot be stamped
-	// with a preview that never happened.
-	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, ipAddress, userAgent string) (*StaffPreviewSession, error)
+	// with a preview that never happened. Start takes the token the client
+	// currently holds so a re-mint continues the running preview instead of
+	// opening a second one in the audit trail.
+	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error)
 	EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error)
 	ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error)
 

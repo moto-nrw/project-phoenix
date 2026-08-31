@@ -124,6 +124,20 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 	return events, nil
 }
 
+// ExistsByAccountEventAndMetadata reports whether the account already has an
+// event of eventType whose metadata matches every given key/value.
+func (r *AuthEventRepository) ExistsByAccountEventAndMetadata(ctx context.Context, accountID int64, eventType string, metadata map[string]string) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*audit.AuthEvent)(nil)).
+		ModelTableExpr(`audit.auth_events AS "auth_event"`).
+		Where(`"auth_event".`+whereAccountIDEquals, accountID).
+		Where(`"auth_event".event_type = ?`, eventType)
+	for key, value := range metadata {
+		query = query.Where(`"auth_event".metadata->>? = ?`, key, value)
+	}
+	return query.Exists(ctx)
+}
+
 // ListPendingAccountWideWipes returns the newest pending wipe per account.
 // A zero since value lists every still-pending wipe so a failed after-commit
 // revoke is retried for as long as the flag remains.

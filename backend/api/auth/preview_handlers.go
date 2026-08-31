@@ -18,6 +18,11 @@ import (
 // person. Strings keep the ID exact end to end.
 type StaffPreviewStartRequest struct {
 	AccountID int64 `json:"account_id,string"`
+	// PreviousToken is the preview token the client currently holds, sent
+	// when it renews an expiring preview. It turns the call into a re-mint of
+	// the SAME preview instance, so the audit trail keeps one start per
+	// preview instead of one per renewal. Empty on the first call.
+	PreviousToken string `json:"previous_token,omitempty"`
 }
 
 // Bind validates the staff-preview start payload.
@@ -65,7 +70,7 @@ func (rs *Resource) startStaffPreview(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	session, err := rs.AuthService.StartStaffPreview(
 		r.Context(), int64(claims.ID), claims.TenantID, req.AccountID,
-		getClientIP(r), r.Header.Get(headerUserAgent),
+		req.PreviousToken, getClientIP(r), r.Header.Get(headerUserAgent),
 	)
 	if err != nil {
 		renderStaffPreviewError(w, r, err)

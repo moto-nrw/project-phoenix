@@ -134,3 +134,69 @@ func TestParseAccessJWTVerifiesPreviewTokens(t *testing.T) {
 		require.Error(t, parseErr)
 	})
 }
+
+// A preview left open past the access expiry must still end with an audit
+// row, so the end path parses the expired token — signature and all other
+// checks unchanged. It grants no access, it only identifies the preview.
+func TestParseExpiredAccessJWTAcceptsExpiredPreviewTokens(t *testing.T) {
+	t.Parallel()
+
+	tokenAuth, err := NewTokenAuthWithSecret("parse-expired-access-jwt-secret")
+	require.NoError(t, err)
+
+	expiring, err := NewTokenAuthWithSecret("parse-expired-access-jwt-secret")
+	require.NoError(t, err)
+	expiring.JwtExpiry = -time.Minute
+	expired, err := expiring.CreateJWT(AppClaims{
+		ID:            42,
+		Sub:           "target@example.com",
+		Roles:         []string{"user"},
+		TenantID:      77,
+		ReadOnly:      true,
+		ActingAdminID: 99,
+		PreviewID:     "cafebabe",
+	})
+	require.NoError(t, err)
+
+	_, err = tokenAuth.ParseAccessJWT(expired)
+	require.Error(t, err, "the strict parse still rejects expired tokens")
+
+	parsed, err := tokenAuth.ParseExpiredAccessJWT(expired)
+	require.NoError(t, err)
+	assert.True(t, parsed.IsReadOnlyPreview())
+	assert.EqualValues(t, 99, parsed.ActingAdminID)
+	assert.Equal(t, "cafebabe", parsed.PreviewID)
+
+	t.Run("still rejects a foreign signature", func(t *testing.T) {
+		other, otherErr := NewTokenAuthWithSecret("a-different-secret")
+		require.NoError(t, otherErr)
+		_, parseErr := other.ParseExpiredAccessJWT(expired)
+		require.Error(t, parseErr)
+	})
+}
+
+// The preview id identifies ONE preview instance across every re-mint, so it
+// has to survive the stamp → parse round trip and stay absent elsewhere.
+func TestPreviewIDClaimRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	stamped, err := ParseStructToMap(AppClaims{
+		ID:            42,
+		Sub:           "target@example.com",
+		Roles:         []string{"user"},
+		ReadOnly:      true,
+		ActingAdminID: 99,
+		PreviewID:     "0123456789abcdef",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "0123456789abcdef", stamped["preview_id"])
+
+	var parsed AppClaims
+	require.NoError(t, parsed.ParseClaims(jsonRoundTrip(t, stamped)))
+	assert.Equal(t, "0123456789abcdef", parsed.PreviewID)
+
+	regular, err := ParseStructToMap(AppClaims{ID: 42, Sub: "u@example.com", Roles: []string{"admin"}})
+	require.NoError(t, err)
+	_, hasPreviewID := regular["preview_id"]
+	assert.False(t, hasPreviewID)
+}
