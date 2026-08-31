@@ -57,7 +57,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	sf, err := services.NewFactory(repos, db, slog.Default())
+	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 
 	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(

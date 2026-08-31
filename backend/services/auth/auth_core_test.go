@@ -44,7 +44,7 @@ const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist sec
 // setupAuthService creates an Auth Service with real database connection
 func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory.Auth
@@ -52,7 +52,7 @@ func setupAuthService(t *testing.T, db *bun.DB) auth.AuthService {
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory.Invitation

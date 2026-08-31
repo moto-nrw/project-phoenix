@@ -265,6 +265,102 @@ func TestCheckRejectsNewPackageClassifications(t *testing.T) {
 	}
 }
 
+func TestCheckAllowsPolicyForPackageCreatedByCandidate(t *testing.T) {
+	t.Parallel()
+
+	repo, baseRef := ratchetRepository(t, legacyRecord(2583))
+	policy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["roles"] = append(document["roles"].([]any), "public")
+		document["packages"] = append(document["packages"].([]any), map[string]any{
+			"path": "replacement", "owner": "module", "role": "public", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+		document["rules"] = append(document["rules"].([]any), map[string]any{
+			"id": "module.to.replacement", "description": "Application uses its candidate replacement.", "scopes": []string{"production"},
+			"source_owner": "module", "source_role": "application", "target_owner": "module", "target_role": "public",
+		}, map[string]any{
+			"id": "module.test.to.replacement", "description": "Behavior test uses its candidate replacement.", "scopes": []string{"external_test"},
+			"source_owner": "module", "source_role": "module-behavior-test", "target_owner": "module", "target_role": "public",
+		})
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
+	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), "")
+	writeFile(t, filepath.Join(repo, "source", "source.go"), `package source
+
+import "example.test/architecture-fixture/replacement"
+
+func Use() string { return replacement.Value }
+`)
+	writeFile(t, filepath.Join(repo, "replacement", "replacement.go"), `package replacement
+
+const Value = "replacement"
+`)
+	runGit(t, repo, "add", ".")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "backend architecture ratchet passed") {
+		t.Fatalf("policy for candidate-created package was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckAllowsRemovingGuardForDeletedLegacySymbol(t *testing.T) {
+	t.Parallel()
+
+	basePolicy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["owners"].([]any)[0].(map[string]any)["kind"] = "composition"
+		document["roles"] = append(document["roles"].([]any), "compose")
+		for _, value := range document["packages"].([]any) {
+			pkg := value.(map[string]any)
+			if pkg["path"] == "source" {
+				pkg["role"] = "compose"
+			}
+		}
+		document["legacy_composition"] = []any{map[string]any{"package": "source", "symbols": []string{"Use"}}}
+	})
+	repo, baseRef := ratchetRepositoryWithPolicy(t, legacyRecord(2583), basePolicy)
+	candidatePolicy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+		document["legacy_composition"] = []any{}
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidatePolicy)
+	writeFile(t, filepath.Join(repo, "source", "source.go"), `package source
+
+import "example.test/architecture-fixture/target"
+
+func use() string { return target.Value }
+`)
+	runGit(t, repo, "add", ".")
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err != nil || !strings.Contains(output, "backend architecture ratchet passed") {
+		t.Fatalf("guard for deleted legacy symbol was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestCheckRejectsRemovingGuardForExistingLegacySymbol(t *testing.T) {
+	t.Parallel()
+
+	basePolicy := mutatePolicy(t, readFile(t, fixturePath(t, "vertical-forbidden.json")), func(document map[string]any) {
+		document["owners"].([]any)[0].(map[string]any)["kind"] = "composition"
+		document["roles"] = append(document["roles"].([]any), "compose")
+		for _, value := range document["packages"].([]any) {
+			pkg := value.(map[string]any)
+			if pkg["path"] == "source" {
+				pkg["role"] = "compose"
+			}
+		}
+		document["legacy_composition"] = []any{map[string]any{"package": "source", "symbols": []string{"Use"}}}
+	})
+	repo, baseRef := ratchetRepositoryWithPolicy(t, legacyRecord(2583), basePolicy)
+	candidatePolicy := mutatePolicy(t, basePolicy, func(document map[string]any) {
+		document["legacy_composition"] = []any{}
+	})
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), candidatePolicy)
+
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "legacy composition symbol is no longer guarded") {
+		t.Fatalf("guard for existing legacy symbol was accepted: %v\n%s", err, output)
+	}
+}
+
 func TestCheckRejectsExternalDependencyReclassification(t *testing.T) {
 	t.Parallel()
 

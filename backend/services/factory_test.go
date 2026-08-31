@@ -33,7 +33,7 @@ func TestNewFactory(t *testing.T) {
 	viper.Reset()
 	seedFactoryRequiredConfig()
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -84,7 +84,7 @@ func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("vapid_public_key", "configured-without-the-other-required-values")
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.Error(t, err)
 	require.Nil(t, factory)
 	assert.ErrorContains(t, err, "invalid VAPID configuration")
@@ -103,7 +103,7 @@ func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", 0)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -121,7 +121,7 @@ func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", 500)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -139,7 +139,7 @@ func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", 72)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -157,7 +157,7 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", 0)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -175,7 +175,7 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", 2000)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -193,7 +193,7 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", 60)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -211,7 +211,7 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("frontend_url", "http://example.com/")
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -229,7 +229,7 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("frontend_url", "")
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.Error(t, err)
 	require.Nil(t, factory)
 	assert.Contains(t, err.Error(), "FRONTEND_URL")
@@ -251,7 +251,7 @@ func TestNewFactory_PortalURLs_Required(t *testing.T) {
 			seedFactoryRequiredConfig()
 			viper.Set(tc.key, "")
 
-			factory, err := services.NewFactory(repos, db, slog.Default())
+			factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 			require.Error(t, err)
 			require.Nil(t, factory)
 			assert.Contains(t, err.Error(), tc.want)
@@ -269,7 +269,7 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	viper.Reset()
 	seedFactoryRequiredConfig()
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -290,7 +290,7 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	viper.Set("email_from_name", "Test App")
 	viper.Set("email_from_address", "test@example.com")
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -309,7 +309,7 @@ func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", -10)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 
@@ -327,7 +327,7 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", -10)
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NotNil(t, factory)
 

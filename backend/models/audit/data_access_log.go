@@ -100,22 +100,6 @@ type DataAccessLog struct {
 	Metadata map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
 }
 
-// GetID implements the base.Entity interface.
-func (d *DataAccessLog) GetID() interface{} {
-	return d.ID
-}
-
-// GetCreatedAt implements the base.Entity interface.
-func (d *DataAccessLog) GetCreatedAt() time.Time {
-	return d.AccessedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface. Access log rows are
-// append-only, so updated_at mirrors accessed_at.
-func (d *DataAccessLog) GetUpdatedAt() time.Time {
-	return d.AccessedAt
-}
-
 // GetMetadata returns the metadata map, lazily initialising it.
 func (d *DataAccessLog) GetMetadata() map[string]interface{} {
 	if d.Metadata == nil {

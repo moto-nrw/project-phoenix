@@ -2,11 +2,31 @@ package config
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSettingAuditEntryHasHonestShape(t *testing.T) {
+	t.Parallel()
+
+	modelType := reflect.TypeFor[SettingAuditEntry]()
+	for _, method := range []string{"GetID", "GetCreatedAt", "GetUpdatedAt"} {
+		if _, ok := reflect.PointerTo(modelType).MethodByName(method); ok {
+			t.Fatalf("SettingAuditEntry must not declare the generic %s contract", method)
+		}
+	}
+	idField, ok := modelType.FieldByName("ID")
+	if !ok || len(idField.Index) != 1 || idField.Tag.Get("bun") != "id,pk,autoincrement" {
+		t.Fatal("SettingAuditEntry must keep its direct audit identity mapping")
+	}
+	changedAtField, ok := modelType.FieldByName("ChangedAt")
+	if !ok || changedAtField.Tag.Get("bun") != "changed_at,notnull,default:current_timestamp" {
+		t.Fatal("SettingAuditEntry must keep its changed_at mapping")
+	}
+}
 
 func TestSettingAuditEntry_Validate(t *testing.T) {
 	t.Parallel()
@@ -59,27 +79,6 @@ func TestSettingAuditEntry_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSettingAuditEntry_GetID(t *testing.T) {
-	t.Parallel()
-
-	entry := &SettingAuditEntry{ID: 99}
-	assert.Equal(t, int64(99), entry.GetID())
-}
-
-func TestSettingAuditEntry_GetCreatedAt_ReturnsChangedAt(t *testing.T) {
-	t.Parallel()
-
-	entry := &SettingAuditEntry{}
-	assert.Equal(t, entry.ChangedAt, entry.GetCreatedAt())
-}
-
-func TestSettingAuditEntry_GetUpdatedAt_ReturnsChangedAt(t *testing.T) {
-	t.Parallel()
-
-	entry := &SettingAuditEntry{}
-	assert.Equal(t, entry.ChangedAt, entry.GetUpdatedAt())
 }
 
 func TestNewAuditEntry(t *testing.T) {

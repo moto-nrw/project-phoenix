@@ -40,7 +40,6 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
@@ -73,6 +72,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
+	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -109,6 +111,57 @@ func recordHTTPRuntimeEvent(ctx context.Context, tracer *observability.Tracer, e
 	case event.Kind == apiCommon.TenantRuntimeResponseWrite && event.Err != nil:
 		tracer.Failure(ctx, "http", string(event.Kind), "response_write_failure", event.Err)
 	}
+}
+
+func initializeMealPlanServices(repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) (*services.Factory, *mealplanModule.Module, error) {
+	settings := mealplanCompose.NewSettings()
+	module, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB:       db,
+		Settings: settings,
+		Observe: func(observation mealplanCompose.Observation) {
+			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
+		},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	factory, err := services.NewFactoryWithMealPlan(repoFactory, db, logger, module, settings.Bind)
+	if err != nil {
+		return nil, nil, err
+	}
+	return factory, module, nil
+}
+
+var mealPlanErrorRules = []apiCommon.ErrorRule{
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
+	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
+	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+}
+
+func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+	renderer := apiCommon.RulesRenderer(mealPlanErrorRules, apiCommon.ErrorInternalServerRenderer(internalMessage))
+	apiCommon.RenderError(w, r, renderer(err))
+}
+
+func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI.Resource {
+	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
+		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
+			apiCommon.ProtectedTenantGroup(router, db, register)
+		},
+		Permission: func(access mealplanAPI.Access) mealplanAPI.Middleware {
+			if access == mealplanAPI.AccessRead {
+				return apiCommon.RequireConfigRead()
+			}
+			return apiCommon.RequireConfigUpdate()
+		},
+		Success: apiCommon.Respond,
+		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+		},
+		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+			renderMealPlanFailure(w, r, err, internalMessage)
+		},
+	})
 }
 
 // API represents the API structure
@@ -235,8 +288,8 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 	// Initialize repository factory with DB connection
 	repoFactory := repositories.NewFactory(db)
 
-	// Initialize service factory with repository factory
-	serviceFactory, err := services.NewFactory(repoFactory, db, logger)
+	// Compose one Meal Plan instance for both staff and parent callers.
+	serviceFactory, mealPlanCapability, err := initializeMealPlanServices(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +377,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
+	api.MealPlan = newMealPlanResource(mealPlanCapability, db)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -691,7 +745,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
-	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
