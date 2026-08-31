@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	requestLegalBlocksSnapshotVersion     = "1.15.341"
+	requestLegalBlocksSnapshotVersion     = "1.15.355"
 	requestLegalBlocksSnapshotDescription = "Add append-only legal-blocks consent evidence snapshot to enrollment requests"
 )
 
@@ -23,7 +23,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.341: Adding legal_blocks_snapshot to enrollment.requests...")
+			fmt.Println("Migration 1.15.355: Adding legal_blocks_snapshot to enrollment.requests...")
 			// No backfill: the wording shown to families before this
 			// migration cannot be reconstructed reliably, so historical
 			// requests keep an empty snapshot instead of a fabricated one.
@@ -37,7 +37,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.341: Dropping requests.legal_blocks_snapshot...")
+			fmt.Println("Rolling back migration 1.15.355: Dropping requests.legal_blocks_snapshot...")
 			_, err := db.NewRaw(`
 				ALTER TABLE enrollment.requests
 					DROP COLUMN IF EXISTS legal_blocks_snapshot;
