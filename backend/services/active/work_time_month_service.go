@@ -114,6 +114,11 @@ type WorkTimeMonthService interface {
 	// each target minus recorded net work, because comp_time itself credits
 	// nothing (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
+	// GetFutureCompTimeCommitmentMinutes sums the deductions of every
+	// effective comp-time absence on days after today, through the supported
+	// balance horizon. The comp-time preview (#2873) subtracts it so already
+	// planned Freizeitausgleiche show up in the projected balance.
+	GetFutureCompTimeCommitmentMinutes(ctx context.Context, staffID int64) (int, error)
 	// GetDailyProjection returns Soll, Gutschrift, Ist and Saldo per calendar
 	// day for the daily table — the same arithmetic the Monatskarte sums.
 	GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error)
@@ -1082,6 +1087,26 @@ func (s *workTimeMonthService) addAdjustmentReductionCheckpoints(
 		}
 	}
 	return nil
+}
+
+// GetFutureCompTimeCommitmentMinutes sums the unrealized deductions of every
+// effective comp-time absence from tomorrow through the balance horizon.
+func (s *workTimeMonthService) GetFutureCompTimeCommitmentMinutes(ctx context.Context, staffID int64) (int, error) {
+	if staffID <= 0 {
+		return 0, errors.New("staff id is required")
+	}
+	if s.absenceRepo == nil {
+		return 0, nil
+	}
+	today := s.today()
+	from := today.AddDays(1)
+	last := monthOf(today).addMonths(maxFutureMonths).lastDay()
+	checkpoints := map[timezone.Date]struct{}{}
+	compTimeAbsences, err := s.addCompTimeReductionCheckpoints(ctx, staffID, from, last, checkpoints)
+	if err != nil {
+		return 0, err
+	}
+	return s.getCompTimeDeductionInRange(ctx, staffID, from, last, compTimeAbsences)
 }
 
 func (s *workTimeMonthService) addCompTimeReductionCheckpoints(

@@ -26,10 +26,11 @@ var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled
 // ErrVacationQuotaInvalid marks invalid quota input supplied by a caller.
 var ErrVacationQuotaInvalid = errors.New("invalid vacation quota")
 
-// ErrCompTimeExceedsBalance prevents a comp_time absence from deducting more
-// daily-target minutes than the Stundenkonto has accrued before the absence
-// starts — the same overdraft guard the balance adjustments enforce (#1420).
-var ErrCompTimeExceedsBalance = errors.New("comp_time absence exceeds accrued balance")
+// Comp_time absences may overdraw the Stundenkonto since #2873: the former
+// ErrCompTimeExceedsBalance overdraft rejection was replaced by the
+// PreviewCompTimeBalance projection, which the frontend shows before the
+// Leitung deliberately confirms a booking into the negative. The overdraft
+// guard on balance ADJUSTMENTS (payout etc.) is unchanged (#1420).
 
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
@@ -217,6 +218,10 @@ type StaffAbsenceService interface {
 	// DeleteAbsenceFor is DeleteAbsence with an explicit actor (admin delete,
 	// #1843): deleting a sick report reverses its plan cascade first.
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	// PreviewCompTimeBalance projects the Stundenkonto effect of a planned
+	// Freizeitausgleich before the Leitung confirms it (#2873) — informative
+	// only, an overdraft no longer blocks the create.
+	PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (*CompTimeBalancePreview, error)
 	// SetShiftPlanSyncer injects the #1843 plan cascade (wired in the factory
 	// after the schedule services exist; mirrors SetStaffShiftRepo).
 	SetShiftPlanSyncer(syncer ShiftPlanSyncer)
@@ -323,7 +328,23 @@ type staffAbsenceService struct {
 	// injection (SetAbsenceTypeService) like the others; nil in bare-constructed
 	// unit fixtures, where every absence is a plain standard type.
 	absenceTypes StaffAbsenceTypeService
-	todayFunc    func() timezone.Date
+	// logger is setter-injected by the factory (SetLogger); nil falls back to
+	// slog.Default() via getLogger, like the other active services.
+	logger    *slog.Logger
+	todayFunc func() timezone.Date
+}
+
+// SetLogger wires the service-scoped logger (setter injection like
+// SetBroadcaster, so bare-constructed unit fixtures need no logger).
+func (s *staffAbsenceService) SetLogger(logger *slog.Logger) {
+	s.logger = logger
+}
+
+func (s *staffAbsenceService) getLogger() *slog.Logger {
+	if s.logger == nil {
+		return slog.Default()
+	}
+	return s.logger
 }
 
 func (s *staffAbsenceService) today() timezone.Date {
@@ -498,11 +519,6 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
 		}
-		if req.AbsenceType == activeModels.AbsenceTypeCompTime {
-			if err := s.validateCompTimeBalance(ctx, subjectStaffID, dateStart, dateEnd, req.HalfDay, nil); err != nil {
-				return nil, err
-			}
-		}
 		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
 		resp, err = s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
 	}
@@ -584,11 +600,6 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	}
 	if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
 		return nil, err
-	}
-	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
-		if err := s.validateCompTimeBalance(ctx, existing[0].StaffID, mergedStart, mergedEnd, req.HalfDay, existing); err != nil {
-			return nil, err
-		}
 	}
 
 	// Update the primary absence with merged range
@@ -674,7 +685,7 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	if absenceType != activeModels.AbsenceTypeCompTime {
 		return nil
 	}
-	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(s.today()))
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(s.today()))
 	if err != nil {
 		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
 	}
@@ -690,66 +701,134 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	return nil
 }
 
-// validateCompTimeBalance rejects a comp_time absence whose additional
-// daily-target deduction would invalidate an existing later ledger debit or
-// comp-time commitment. It must run under the shared staff balance lock
-// (lockStaffAbsenceWrites takes it), mirroring the adjustment overdraft guard.
-// Existing rows are already reserved by GetBalanceReductionCapacity during a
-// merge, so only the newly added part of the merged range consumes capacity.
-func (s *staffAbsenceService) validateCompTimeBalance(
+// CompTimeBalancePreview is what the create modal shows before the Leitung
+// confirms a Freizeitausgleich (#2873). All values are minutes.
+type CompTimeBalancePreview struct {
+	// CurrentBalanceMinutes is the live Stundenkonto as of today.
+	CurrentBalanceMinutes int `json:"current_balance_minutes"`
+	// DeductionMinutes is what the requested range additionally deducts
+	// (overlapping existing comp-time rows already reserve their share).
+	DeductionMinutes int `json:"deduction_minutes"`
+	// RealizedDeductionMinutes is the part of DeductionMinutes on days up to
+	// today — already contained in CurrentBalanceMinutes, since a day without
+	// recorded work shows its missing target as minus either way.
+	RealizedDeductionMinutes int `json:"realized_deduction_minutes"`
+	// FutureCommitmentMinutes sums the deductions of OTHER comp-time entries
+	// on days after today, which the current balance does not yet include.
+	FutureCommitmentMinutes int `json:"future_commitment_minutes"`
+	// FutureAdjustmentMinutes is the signed sum of Stundenkonto transactions
+	// (payout / grant / reset, #1420) effective after today — booked, but like
+	// the commitments not yet part of CurrentBalanceMinutes.
+	FutureAdjustmentMinutes int `json:"future_adjustment_minutes"`
+	// ProjectedBalanceMinutes = current + future adjustments − future
+	// commitments − the unrealized part of the new deduction: the account once
+	// every named day has passed.
+	ProjectedBalanceMinutes int `json:"projected_balance_minutes"`
+}
+
+// PreviewCompTimeBalance projects what a comp_time absence over [start, end]
+// does to the Stundenkonto (#2873). It replaces the former overdraft
+// rejection: the numbers inform the Leitung before the deliberate confirm in
+// the frontend, they never block the booking.
+func (s *staffAbsenceService) PreviewCompTimeBalance(
 	ctx context.Context,
 	staffID int64,
 	start, end timezone.Date,
 	halfDay bool,
-	existing []*activeModels.StaffAbsence,
-) error {
+) (*CompTimeBalancePreview, error) {
 	if s.monthService == nil {
-		// Bare-constructed unit tests without month math; the factory always
-		// wires the real service.
-		return nil
+		return nil, fmt.Errorf("comp_time preview requires the month service")
 	}
-	additionalDeduction, err := s.getAdditionalCompTimeDeduction(
-		ctx, staffID, start, end, halfDay, existing,
-	)
-	if err != nil {
-		return err
+	if end.Before(start) {
+		return nil, fmt.Errorf("invalid date range: date_end must not be before date_start")
 	}
-	if additionalDeduction <= 0 {
-		return nil
+	if err := validateSingleDayHalfDayAbsence(activeModels.AbsenceTypeCompTime, halfDay, start, end); err != nil {
+		return nil, err
+	}
+	if err := s.rejectPreAccountCompTime(ctx, activeModels.AbsenceTypeCompTime, start, end); err != nil {
+		return nil, err
 	}
 
-	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, start)
-	if err != nil {
-		return fmt.Errorf("failed to compute reduction capacity for comp_time absence: %w", err)
-	}
 	today := s.today()
-	if !start.After(today) {
-		historicalEnd := end
-		if historicalEnd.After(today) {
-			historicalEnd = today
-		}
-		realizedDeduction, err := s.getAdditionalCompTimeDeduction(
-			ctx, staffID, start, historicalEnd, halfDay, existing,
-		)
+	currentBalance := 0
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(today))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve account start for comp_time preview: %w", err)
+	}
+	if !today.Before(anchor) {
+		currentBalance, err = s.monthService.GetClosingBalanceAsOf(ctx, staffID, today)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to compute current balance for comp_time preview: %w", err)
 		}
-		// Today's and historical closing balances already include the missing
-		// target minutes that the absence names. Add only that realized part
-		// back before comparing the whole request, or the guard charges it
-		// twice. Future days remain fully reserved.
-		reductionCapacity += realizedDeduction
 	}
-	if additionalDeduction > reductionCapacity {
-		return fmt.Errorf(
-			"%w: comp_time absence adds %d minutes but only %d minutes remain available from %s onward",
-			ErrCompTimeExceedsBalance,
-			additionalDeduction,
-			reductionCapacity,
-			start.String(),
-		)
+
+	// Existing comp-time rows overlapping the requested range already reserve
+	// their minutes; a create over them merges, so only the additional part
+	// counts — the same reservation arithmetic the former guard used.
+	overlapping, err := s.effectiveCompTimeAbsences(ctx, staffID, start, end)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	deduction, err := s.getAdditionalCompTimeDeduction(ctx, staffID, start, end, halfDay, overlapping)
+	if err != nil {
+		return nil, err
+	}
+
+	unrealizedDeduction := 0
+	if end.After(today) {
+		clippedStart := start
+		if tomorrow := today.AddDays(1); clippedStart.Before(tomorrow) {
+			clippedStart = tomorrow
+		}
+		unrealizedDeduction, err = s.getAdditionalCompTimeDeduction(ctx, staffID, clippedStart, end, halfDay, overlapping)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	futureCommitment, err := s.monthService.GetFutureCompTimeCommitmentMinutes(ctx, staffID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute future comp_time commitments: %w", err)
+	}
+
+	// Future-dated Stundenkonto transactions (payout / grant / reset, #1420)
+	// move the account exactly like committed comp-time days, so the
+	// projection folds them in over the same carry-chain horizon.
+	horizon := monthOf(today).addMonths(maxFutureMonths).lastDay()
+	futureAdjustments, err := s.monthService.GetBalanceAdjustmentMinutes(ctx, staffID, today.AddDays(1), horizon)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute future balance adjustments: %w", err)
+	}
+
+	return &CompTimeBalancePreview{
+		CurrentBalanceMinutes:    currentBalance,
+		DeductionMinutes:         deduction,
+		RealizedDeductionMinutes: deduction - unrealizedDeduction,
+		FutureCommitmentMinutes:  futureCommitment,
+		FutureAdjustmentMinutes:  futureAdjustments,
+		ProjectedBalanceMinutes:  currentBalance + futureAdjustments - futureCommitment - unrealizedDeduction,
+	}, nil
+}
+
+// effectiveCompTimeAbsences returns the comp_time rows overlapping [start,
+// end] that actually reserve balance (reported/approved) — the set a create
+// over the same range would merge with.
+func (s *staffAbsenceService) effectiveCompTimeAbsences(ctx context.Context, staffID int64, start, end timezone.Date) ([]*activeModels.StaffAbsence, error) {
+	rows, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load existing comp_time absences: %w", err)
+	}
+	compTime := make([]*activeModels.StaffAbsence, 0, len(rows))
+	for _, row := range rows {
+		if row.AbsenceType != activeModels.AbsenceTypeCompTime {
+			continue
+		}
+		if row.Status != activeModels.AbsenceStatusReported && row.Status != activeModels.AbsenceStatusApproved {
+			continue
+		}
+		compTime = append(compTime, row)
+	}
+	return compTime, nil
 }
 
 func (s *staffAbsenceService) getAdditionalCompTimeDeduction(
