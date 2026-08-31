@@ -75,7 +75,7 @@ describe("ChildConsentsSection", () => {
     expect(mockedGet).toHaveBeenCalledTimes(2);
   });
 
-  it("zeigt vier klar getrennte Zustände und nur bei Fotos eine Aktion", async () => {
+  it("zeigt nur hinterlegte Einwilligungen und nur bei Fotos eine Aktion", async () => {
     renderSection();
 
     expect(
@@ -89,13 +89,39 @@ describe("ChildConsentsSection", () => {
     expect(
       screen.getByText("Datenschutz zur Kenntnis genommen"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Kontakt per E-Mail erlaubt")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Kontakt per E-Mail erlaubt"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Foto-Einwilligung")).toBeInTheDocument();
     expect(screen.getAllByText("Hinterlegt")).toHaveLength(3);
-    expect(screen.getByText("Nicht hinterlegt")).toBeInTheDocument();
+    expect(screen.queryByText("Nicht hinterlegt")).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "Foto-Einwilligung widerrufen" }),
     ).toHaveLength(1);
+  });
+
+  it("blendet den gesamten Bereich ohne hinterlegte Einwilligungen aus", async () => {
+    mockedGet.mockResolvedValue(
+      granted.map((consent) => ({
+        ...consent,
+        state: "not_recorded" as const,
+        changed_at: undefined,
+        can_withdraw: false,
+      })),
+    );
+
+    renderSection();
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("parent-page-section-skeleton"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByRole("heading", {
+        name: "Einwilligungen und Bestätigungen",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("erklärt die sofortige Wirkung und zeigt danach den Widerruf", async () => {
@@ -128,12 +154,8 @@ describe("ChildConsentsSection", () => {
     await user.click(screen.getByRole("button", { name: "Jetzt widerrufen" }));
 
     await waitFor(() => expect(mockedWithdraw).toHaveBeenCalledWith("42"));
-    const withdrawn = await screen.findByText("Widerrufen");
-    const notRecorded = screen.getByText("Nicht hinterlegt");
-    expect(withdrawn).not.toHaveAttribute(
-      "style",
-      notRecorded.getAttribute("style"),
-    );
+    expect(await screen.findByText("Widerrufen")).toBeInTheDocument();
+    expect(screen.queryByText("Nicht hinterlegt")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Foto-Einwilligung widerrufen" }),
     ).not.toBeInTheDocument();

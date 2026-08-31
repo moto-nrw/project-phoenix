@@ -89,6 +89,10 @@ export function ChildConsentsSection({
     );
   }
 
+  const visibleConsents =
+    consents?.filter((consent) => consent.state !== "not_recorded") ?? [];
+  if (visibleConsents.length === 0) return null;
+
   return (
     <>
       <ParentSection
@@ -101,7 +105,7 @@ export function ChildConsentsSection({
           <Alert type="error" message={t("withdrawError")} />
         ) : null}
         <dl className="divide-y divide-gray-100">
-          {consents?.map((consent) => (
+          {visibleConsents.map((consent) => (
             <div
               key={consent.key}
               className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
