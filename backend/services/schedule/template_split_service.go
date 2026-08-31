@@ -232,6 +232,7 @@ type TemplateSplitDependencies struct {
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 	DB          *bun.DB
+	Today       func() timezone.Date
 }
 
 // TemplateSplitService performs recurring-template scope operations.
@@ -276,6 +277,9 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitServi
 	deviations, ok := deps.InstanceService.(splitDeviationPreserver)
 	if !ok {
 		panic("schedule.NewTemplateSplitService: instance service does not support deviation preservation")
+	}
+	if deps.Today == nil {
+		deps.Today = timezone.TodayDate
 	}
 	return &TemplateSplitService{
 		deps:       deps,
@@ -492,7 +496,7 @@ func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 		in.targetsProvided = in.Targets != nil
 		in.targetsPresenceSet = true
 	}
-	if err := validateSplitInput(&in); err != nil {
+	if err := validateSplitInput(&in, s.deps.Today()); err != nil {
 		return nil, err
 	}
 	tenantID := tenant.FromContext(ctx)
@@ -755,7 +759,7 @@ func (s *TemplateSplitService) createSplitSuccessor(
 // destructive half of Split. Planned non-spontaneous future instances are
 // deleted; active/completed/cancelled/spontaneous rows remain as history.
 func (s *TemplateSplitService) EndFromDate(ctx context.Context, in TemplateEndInput) (*TemplateEndResult, error) {
-	if err := validateTemplateEndInput(in); err != nil {
+	if err := validateTemplateEndInput(in, s.deps.Today()); err != nil {
 		return nil, err
 	}
 	tenantID := tenant.FromContext(ctx)
@@ -954,11 +958,11 @@ func (s *TemplateSplitService) cascadeEndToSeriesSegments(
 
 // validateSplitInput checks the semantic rules the handler's Bind cannot:
 // dates, weekday range, week pattern, time order, activity type.
-func validateSplitInput(in *TemplateSplitInput) error {
+func validateSplitInput(in *TemplateSplitInput, today timezone.Date) error {
 	if err := validateSplitTemplateFields(*in); err != nil {
 		return err
 	}
-	if err := validateSplitRecurrence(*in); err != nil {
+	if err := validateSplitRecurrence(*in, today); err != nil {
 		return err
 	}
 	if err := validateSplitWeekdayAssignments(*in); err != nil {
@@ -1010,7 +1014,7 @@ func validateSplitTemplateFields(in TemplateSplitInput) error {
 	return nil
 }
 
-func validateSplitRecurrence(in TemplateSplitInput) error {
+func validateSplitRecurrence(in TemplateSplitInput, today timezone.Date) error {
 	if len(in.Weekdays) == 0 {
 		return fmt.Errorf("%w: at least one weekday is required", ErrSplitInvalidInput)
 	}
@@ -1031,7 +1035,7 @@ func validateSplitRecurrence(in TemplateSplitInput) error {
 	if in.EffectiveDate.IsZero() {
 		return fmt.Errorf("%w: effective_date is required", ErrSplitInvalidInput)
 	}
-	if in.EffectiveDate.Before(timezone.TodayDate()) {
+	if in.EffectiveDate.Before(today) {
 		return fmt.Errorf("%w: effective_date must not be in the past", ErrSplitInvalidInput)
 	}
 	return nil
@@ -1072,14 +1076,14 @@ func validateSplitTargetGroup(in *TemplateSplitInput) error {
 	return nil
 }
 
-func validateTemplateEndInput(in TemplateEndInput) error {
+func validateTemplateEndInput(in TemplateEndInput, today timezone.Date) error {
 	if in.TemplateID <= 0 {
 		return fmt.Errorf("%w: template id is required", ErrSplitInvalidInput)
 	}
 	if in.EffectiveDate.IsZero() {
 		return fmt.Errorf("%w: effective_date is required", ErrSplitInvalidInput)
 	}
-	if in.EffectiveDate.Before(timezone.TodayDate()) {
+	if in.EffectiveDate.Before(today) {
 		return fmt.Errorf("%w: effective_date must not be in the past", ErrSplitInvalidInput)
 	}
 	return nil

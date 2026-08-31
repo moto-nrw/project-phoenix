@@ -547,7 +547,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/feedback",
+      "path": "modules/feedback/http",
       "owner": "inbound-feedback",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -974,7 +974,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/feedback",
+      "path": "modules/feedback/internal/adapters/postgres",
       "owner": "feedback",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1268,9 +1268,16 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/feedback",
+      "path": "modules/feedback/internal/domain",
       "owner": "feedback",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/ports",
+      "owner": "feedback",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1506,7 +1513,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/feedback",
+      "path": "modules/feedback",
+      "owner": "feedback",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/compose",
+      "owner": "feedback",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/feedback/internal/application",
       "owner": "feedback",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -4088,6 +4109,245 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
+    },
+    {
+      "id": "feedback.port-domain",
+      "description": "Feedback ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "feedback.compose.application",
+      "description": "Feedback composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "application"
+    },
+    {
+      "id": "feedback.domain.calendar-date",
+      "description": "Feedback domain values use the repository calendar-date type required for PostgreSQL DATE columns.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "domain",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.compose.domain",
+      "description": "Feedback composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.compose.orm-sql",
+      "description": "Feedback composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "feedback.compose.port",
+      "description": "Feedback composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "port"
+    },
+    {
+      "id": "feedback.compose.postgres",
+      "description": "Feedback composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "postgres"
+    },
+    {
+      "id": "feedback.compose.public",
+      "description": "Feedback composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.compose.tenant-runtime",
+      "description": "Feedback composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "feedback.internal-test.orm-sql",
+      "description": "Feedback composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "feedback",
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "feedback.postgres.calendar-date",
+      "description": "Feedback persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.public.calendar-date",
+      "description": "The public Feedback facade uses the repository calendar-date value type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "feedback",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "feedback.internal-test.tenant-runtime",
+      "description": "Feedback composition tests verify tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "feedback",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-feedback.http.security-contract",
+      "description": "The Feedback HTTP adapter binds its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-feedback",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-feedback.adapter-test.http-router",
+      "description": "Feedback adapter tests exercise the real router and response renderer.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-feedback",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-iot-data.to.feedback",
+      "description": "The IoT feedback endpoint submits through the public Feedback capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-data",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-iot-internal-shared.to.feedback",
+      "description": "The IoT error mapper preserves Feedback capability error contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-iot-internal-shared",
+      "source_role": "http",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.feedback-public",
+      "description": "API test composition shares the real Feedback facade with migrated adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "feedback",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.feedback-compose",
+      "description": "API test composition constructs the real Feedback module.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "feedback",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.feedback-compose",
+      "description": "The production root constructs the Feedback module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.feedback-http",
+      "description": "The production root constructs the Feedback HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-feedback",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.feedback-public",
+      "description": "The production root shares the one Feedback facade with its consumers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "feedback",
+      "target_role": "public"
     },
     {
       "id": "meal-plan.compose.application",

@@ -479,7 +479,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveFilterSub", "Staff")
 
 		startDate := timezone.NewDate(2000, 1, 1)
-		endDate := timezone.NewDate(9999, 12, 31)
+		endDate := timezone.NewDate(2100, 1, 1)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		filters := map[string]interface{}{

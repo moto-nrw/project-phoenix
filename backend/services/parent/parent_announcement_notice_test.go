@@ -60,7 +60,7 @@ func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo usersMod
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, []*usersModels.ParentAnnouncementTarget{
 		{TargetType: usersModels.AnnouncementTargetStudent, TargetRefID: &id},
 	}))
-	now := time.Now()
+	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	persisted, err := repo.FindByID(ctx, a.ID)
 	require.NoError(t, err)
