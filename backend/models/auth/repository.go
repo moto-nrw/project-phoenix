@@ -157,10 +157,6 @@ type AccountPermissionRepository interface {
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-
-	FindByPermissionID(ctx context.Context, permissionID int64) ([]*AccountPermission, error)
-
-	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*AccountPermission, error)
 }
 
 // TokenRepository defines operations for managing authentication tokens
@@ -184,9 +180,6 @@ type TokenRepository interface {
 
 	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
-
-	// Token family tracking methods
-	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -332,11 +325,6 @@ type MFAOverrideRepository interface {
 	// surface so a single account's override picture across tenants is
 	// inspectable.
 	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
-
-	// DeleteAllByAccount wipes every override row when the account is
-	// reset or destroyed. Returns the number of rows removed for the
-	// audit log.
-	DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error)
 }
 
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.

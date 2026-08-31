@@ -28,35 +28,10 @@ import (
 // not proof of liveness — it only stops the zero-textual-caller set from
 // growing.
 //
-// Allowlist rules (same one-way semantics as the other ratchets):
-//   - a zero-caller method NOT listed fails the test — delete the method (impl
-//   - interface decl + dedicated tests) or, if it is a deliberate test
-//     verification helper, add it here with a reason;
-//   - a listed method that gained a caller fails the test — remove the entry.
-//
-// Seeded 2026-07-05 after slice A3. Entries marked "test helper" are
-// production-dead but load-bearing as verification/teardown helpers inside
-// live-method tests (deleting them would force rewriting business-rule tests,
-// which the no-test-modifications rule gates). The remaining entries are the
-// residual inventory the audit's coverage note predicted (gap-140 swept 9
-// domains; this list is the follow-up work queue for later slices).
-var repoMethodZeroCallerAllowlist = map[string]string{
-	// test verification/teardown helpers (kept deliberately in A3)
-	"FindByPostAndVoter":         "test helper: verifies live vote Create/Delete tests",
-	"IsViewed":                   "test helper: verifies live MarkViewed tests",
-	"GetLastReadAt":              "test helper: verifies live Upsert tests",
-	"CountUnreadByPost":          "test helper: verifies live read-cursor tests",
-	"FindByPermissionID":         "test helper: verifies live DeleteByPermissionID tests",
-	"FindByAccountAndPermission": "test helper: verifies live Grant/Deny/Remove/Update tests",
-	"DeleteAllByAccount":         "test helper: branch-independent MFA-override test teardown",
-	"FindByFamilyID":             "test helper: verifies live DeleteByFamilyID tests",
-	"ListOrganizedByStaff":       "test helper: repository-coverage assertion in services/calendar/service_integration_test.go; no production caller yet (personal-calendar feature, issue #1833)",
-
-	// Parked endpoint verticals (owner decision 2026-07-05: keep, do not delete)
-	"FindByDescription": "parked: legacy /api/schedules vertical (Timeframe)",
-	"FindByMonthDay":    "parked: legacy /api/schedules vertical (RecurrenceRule)",
-	"FindWithRelations": "parked: combined-groups vertical (GroupMapping)",
-}
+// The allowlist is intentionally empty: repository interfaces may expose only
+// methods with production callers. Tests must verify behavior through live
+// methods instead of preserving test-only repository API.
+var repoMethodZeroCallerAllowlist = map[string]string{}
 
 func TestRepoInterfaceMethodCallerRatchet(t *testing.T) {
 	t.Parallel()

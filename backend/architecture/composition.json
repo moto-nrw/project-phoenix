@@ -17797,8 +17797,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1922,
-        1923
+        1935,
+        1936
       ],
       "tables": []
     },
@@ -17808,7 +17808,7 @@
       "declaration": "buildTemplateModule",
       "target": "api/testutil.SetupAPITest",
       "lines": [
-        103
+        118
       ],
       "tables": []
     },
@@ -17818,7 +17818,7 @@
       "declaration": "buildTemplateModule",
       "target": "database/repositories.NewFactory",
       "lines": [
-        113
+        128
       ],
       "tables": []
     },
@@ -18130,20 +18130,10 @@
     {
       "scope": "test",
       "file": "database/repositories/active/group_mapping_repository_test.go",
-      "declaration": "TestGroupMappingRepository_FindWithRelations",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        302
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/active/group_mapping_repository_test.go",
       "declaration": "TestGroupMappingRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        382
+        302
       ],
       "tables": []
     },
@@ -20750,7 +20740,7 @@
       "declaration": "TestAccountPermissionRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        63
+        80
       ],
       "tables": []
     },
@@ -20760,7 +20750,7 @@
       "declaration": "TestAccountPermissionRepository_DeleteByPermissionID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        441
+        396
       ],
       "tables": []
     },
@@ -20770,17 +20760,7 @@
       "declaration": "TestAccountPermissionRepository_DenyPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_permission_repository_test.go",
-      "declaration": "TestAccountPermissionRepository_FindByAccountAndPermission",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        164
+        200
       ],
       "tables": []
     },
@@ -20790,17 +20770,7 @@
       "declaration": "TestAccountPermissionRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        97
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_permission_repository_test.go",
-      "declaration": "TestAccountPermissionRepository_FindByPermissionID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        135
+        114
       ],
       "tables": []
     },
@@ -20810,7 +20780,7 @@
       "declaration": "TestAccountPermissionRepository_GrantPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        200
+        156
       ],
       "tables": []
     },
@@ -20820,7 +20790,7 @@
       "declaration": "TestAccountPermissionRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        374
+        329
       ],
       "tables": []
     },
@@ -20830,7 +20800,7 @@
       "declaration": "TestAccountPermissionRepository_RemovePermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        288
+        244
       ],
       "tables": []
     },
@@ -20840,7 +20810,7 @@
       "declaration": "TestAccountPermissionRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        329
+        284
       ],
       "tables": []
     },
@@ -21983,7 +21953,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        556
+        516
       ],
       "tables": [
         "auth.tokens"
@@ -21995,7 +21965,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        748
+        708
       ],
       "tables": []
     },
@@ -22005,7 +21975,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown",
       "target": "database/repositories.NewFactory",
       "lines": [
-        793
+        753
       ],
       "tables": []
     },
@@ -22015,7 +21985,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        631
+        591
       ],
       "tables": []
     },
@@ -22025,7 +21995,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg",
       "target": "database/repositories.NewFactory",
       "lines": [
-        709
+        669
       ],
       "tables": []
     },
@@ -22035,7 +22005,7 @@
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated",
       "target": "database/repositories.NewFactory",
       "lines": [
-        667
+        627
       ],
       "tables": []
     },
@@ -22055,7 +22025,7 @@
       "declaration": "TestTokenRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        977
+        937
       ],
       "tables": []
     },
@@ -22121,7 +22091,7 @@
       "declaration": "TestTokenRepository_DeleteByFamilyID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        511
+        471
       ],
       "tables": []
     },
@@ -22131,7 +22101,7 @@
       "declaration": "TestTokenRepository_DeleteByTenantID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        996
+        956
       ],
       "tables": []
     },
@@ -22141,7 +22111,7 @@
       "declaration": "TestTokenRepository_DeleteExpiredRotatedForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        821
+        781
       ],
       "tables": []
     },
@@ -22164,16 +22134,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         187
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_FindByFamilyID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        471
       ],
       "tables": []
     },
@@ -22203,7 +22163,7 @@
       "declaration": "TestTokenRepository_GetLatestTokenInFamily",
       "target": "database/repositories.NewFactory",
       "lines": [
-        864
+        824
       ],
       "tables": []
     },
@@ -22233,7 +22193,7 @@
       "declaration": "TestTokenRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        922
+        882
       ],
       "tables": []
     },
@@ -23434,7 +23394,7 @@
       "declaration": "TestRecurrenceRuleRepository_FindByDateRange",
       "target": "database/repositories.NewFactory",
       "lines": [
-        444
+        389
       ],
       "tables": [
         "schedule.recurrence_rules"
@@ -23459,18 +23419,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         134
-      ],
-      "tables": [
-        "schedule.recurrence_rules"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/recurrence_rule_repository_test.go",
-      "declaration": "TestRecurrenceRuleRepository_FindByMonthDay",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        389
       ],
       "tables": [
         "schedule.recurrence_rules"
@@ -23709,18 +23657,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         186
-      ],
-      "tables": [
-        "schedule.timeframes"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/schedule/timeframe_repository_test.go",
-      "declaration": "TestTimeframeRepository_FindByDescription",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        273
       ],
       "tables": [
         "schedule.timeframes"
@@ -26610,7 +26546,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedRejectsInactiveAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2077
+        2073
       ],
       "tables": [
         "auth.accounts"
@@ -26622,7 +26558,7 @@
       "declaration": "TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2671
+        2667
       ],
       "tables": []
     },
@@ -26642,7 +26578,7 @@
       "declaration": "TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2734
+        2730
       ],
       "tables": []
     },
@@ -30592,7 +30528,7 @@
       "declaration": "TestRolloverDeadlineWorkerErrorRollsBackTenantTick",
       "target": "database/repositories.NewFactory",
       "lines": [
-        48
+        49
       ],
       "tables": []
     },

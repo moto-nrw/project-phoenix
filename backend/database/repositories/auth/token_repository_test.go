@@ -453,7 +453,7 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 	require.NoError(t, err)
 	require.Len(t, deleted, 3)
 
-	remaining, err := repo.FindByFamilyID(ctx, newFamilyID)
+	remaining, err := repo.List(ctx, map[string]any{"family_id": newFamilyID})
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	assert.Equal(t, 0, remaining[0].Generation)
@@ -462,46 +462,6 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 // ============================================================================
 // Token Family Tests
 // ============================================================================
-
-func TestTokenRepository_FindByFamilyID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).Token
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds tokens by family ID", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "tokenFamily")
-		defer cleanupAccountRecords(t, db, account.ID)
-
-		familyID := uuid.Must(uuid.NewV4()).String()
-
-		// Create tokens in same family
-		token1 := &auth.Token{
-			AccountID: account.ID,
-			Token:     uuid.Must(uuid.NewV4()).String(),
-			Expiry:    time.Now().Add(time.Hour),
-			FamilyID:  familyID,
-		}
-		err := repo.Create(ctx, token1)
-		require.NoError(t, err)
-
-		token2 := &auth.Token{
-			AccountID: account.ID,
-			Token:     uuid.Must(uuid.NewV4()).String(),
-			Expiry:    time.Now().Add(time.Hour),
-			FamilyID:  familyID,
-		}
-		err = repo.Create(ctx, token2)
-		require.NoError(t, err)
-
-		// Find by family
-		tokens, err := repo.FindByFamilyID(ctx, familyID)
-		require.NoError(t, err)
-		assert.Len(t, tokens, 2)
-	})
-}
 
 func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 	t.Parallel()
@@ -542,7 +502,7 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
-		tokens, err := repo.FindByFamilyID(ctx, familyID)
+		tokens, err := repo.List(ctx, map[string]any{"family_id": familyID})
 		require.NoError(t, err)
 		assert.Empty(t, tokens)
 	})

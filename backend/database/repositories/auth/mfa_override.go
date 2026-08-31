@@ -206,22 +206,3 @@ func (r *MFAOverrideRepository) ListByAccount(ctx context.Context, accountID int
 	}
 	return rows, nil
 }
-
-// DeleteAllByAccount wipes every row for the account in a single
-// statement. Used by the AdminDisable cascade so a reset clears the
-// override slate alongside trusted devices + credential.
-func (r *MFAOverrideRepository) DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.MFAOverride)(nil)).
-		ModelTableExpr(mfaOverrideTable).
-		Where("account_id = ?", accountID).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete all mfa overrides for account", Err: base.TranslateNotFound(err)}
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete all mfa overrides", Err: base.TranslateNotFound(err)}
-	}
-	return n, nil
-}
