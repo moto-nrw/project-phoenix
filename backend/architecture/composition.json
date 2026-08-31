@@ -17802,8 +17802,8 @@
       "declaration": "TestTemplateList_IncludesShiftTypeBadge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1935,
-        1936
+        1939,
+        1940
       ],
       "tables": []
     },
@@ -22481,7 +22481,7 @@
       "declaration": "TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        612
+        611
       ],
       "tables": []
     },
@@ -22541,7 +22541,7 @@
       "declaration": "TestGroupSubstitutionRepository_ListWithRelations",
       "target": "database/repositories.NewFactory",
       "lines": [
-        560
+        559
       ],
       "tables": []
     },
@@ -29842,7 +29842,7 @@
       "declaration": "TestAutoExcusal_DeletingTheExceptionRestoresBlocks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        214
+        213
       ],
       "tables": []
     },
@@ -29852,7 +29852,7 @@
       "declaration": "TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        472
+        471
       ],
       "tables": []
     },
@@ -29862,7 +29862,7 @@
       "declaration": "autoExcusalHarness.exception",
       "target": "database/repositories.NewFactory",
       "lines": [
-        358
+        357
       ],
       "tables": []
     },

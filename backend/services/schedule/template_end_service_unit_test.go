@@ -17,7 +17,8 @@ import (
 func TestTemplateEndInputValidation(t *testing.T) {
 	t.Parallel()
 
-	future := timezone.TodayDate().AddDays(1)
+	today := timezone.NewDate(2026, 8, 24)
+	future := today.AddDays(1)
 
 	tests := []struct {
 		name string
@@ -33,19 +34,19 @@ func TestTemplateEndInputValidation(t *testing.T) {
 		},
 		{
 			name: "past effective date",
-			in:   TemplateEndInput{TemplateID: 10, EffectiveDate: timezone.TodayDate().AddDays(-1)},
+			in:   TemplateEndInput{TemplateID: 10, EffectiveDate: today.AddDays(-1)},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTemplateEndInput(tt.in)
+			err := validateTemplateEndInput(tt.in, today)
 
 			require.ErrorIs(t, err, ErrSplitInvalidInput)
 		})
 	}
 
-	require.NoError(t, validateTemplateEndInput(TemplateEndInput{TemplateID: 10, EffectiveDate: future}))
+	require.NoError(t, validateTemplateEndInput(TemplateEndInput{TemplateID: 10, EffectiveDate: future}, today))
 }
 
 func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testing.T) {
@@ -245,6 +246,7 @@ func templateEndUnitService(
 			EnrollmentRepo: enrollmentRepo,
 			SupervisorRepo: supervisorRepo,
 			InstanceRepo:   instanceRepo,
+			Today:          func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
 			Logger:         slog.New(slog.DiscardHandler),
 		},
 		lockTenantRecurrence: func(context.Context) error { return nil },

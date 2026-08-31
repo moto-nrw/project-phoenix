@@ -41,7 +41,7 @@ func (s *Store) Create(ctx context.Context, entry domain.Entry) (domain.Entry, d
 	if err != nil {
 		return domain.Entry{}, domain.OperationStats{}, err
 	}
-	value := row{TenantID: tenantID, Value: entry.Value, Day: entry.Day, Time: entry.Time, StudentID: entry.StudentID, IsMensaFeedback: entry.IsMensaFeedback}
+	value := row{TenantID: tenantID, Value: entry.Value, Day: entry.Day, Time: timezone.NormalizeWallClock(entry.Time), StudentID: entry.StudentID, IsMensaFeedback: entry.IsMensaFeedback}
 	query := db.NewInsert().Model(&value).ModelTableExpr(`feedback.entries`).Returning("*")
 	started := time.Now()
 	err = query.Scan(ctx)
@@ -181,7 +181,7 @@ func (s *Store) CountForStudent(ctx context.Context, studentID int64) (int, doma
 
 func toDomain(value row) domain.Entry {
 	return domain.Entry{
-		ID: value.ID, Value: value.Value, Day: value.Day, Time: value.Time, StudentID: value.StudentID,
+		ID: value.ID, Value: value.Value, Day: value.Day, Time: timezone.NormalizeWallClock(value.Time), StudentID: value.StudentID,
 		IsMensaFeedback: value.IsMensaFeedback, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }

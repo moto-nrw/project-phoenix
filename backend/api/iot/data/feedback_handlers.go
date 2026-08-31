@@ -121,11 +121,12 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
+	day, feedbackTime := feedbackTimestamp(now)
 	input := feedbackModule.CreateEntry{
 		StudentID:       req.StudentID,
 		Value:           req.Value,
-		Day:             feedbackModule.Date(timezone.DateFromTime(now).String()),
-		Time:            now.Format("15:04:05"),
+		Day:             day,
+		Time:            feedbackTime,
 		IsMensaFeedback: false,
 	}
 
@@ -162,4 +163,9 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 
 	common.Respond(w, r, http.StatusCreated, response, "Feedback submitted successfully")
 	rs.ObserveResponse(http.StatusCreated, "none")
+}
+
+func feedbackTimestamp(now time.Time) (feedbackModule.Date, string) {
+	now = now.In(timezone.Berlin)
+	return feedbackModule.Date(timezone.DateFromTime(now).String()), now.Format("15:04:05")
 }

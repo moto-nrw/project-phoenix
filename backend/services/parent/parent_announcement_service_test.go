@@ -68,7 +68,7 @@ func seedPublishedAnnouncement(
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
 		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
-	now := time.Now()
+	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 	// Re-read so PublishedAt reflects the DB-persisted value (Postgres truncates

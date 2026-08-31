@@ -113,3 +113,13 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 		})
 	}
 }
+
+func TestFeedbackTimestampUsesBerlinCalendarAndClock(t *testing.T) {
+	t.Parallel()
+	instant := time.Date(2026, 8, 31, 23, 30, 45, 0, time.UTC)
+
+	day, clock := feedbackTimestamp(instant)
+
+	assert.Equal(t, feedbackModule.Date("2026-09-01"), day)
+	assert.Equal(t, "01:30:45", clock)
+}

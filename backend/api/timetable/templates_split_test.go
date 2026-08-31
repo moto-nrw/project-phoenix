@@ -61,6 +61,7 @@ func attachSplitServiceWithValidator(
 		// the wiring honest without pulling in the enrollment service.
 		ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error { return nil },
 		DB:                     s.db,
+		Today:                  s.res.todayDate,
 	})
 }
 
@@ -571,7 +572,7 @@ func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateModule(t, mat)
+	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
@@ -739,7 +740,7 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	s := buildTemplateModule(t, mat)
+	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	defer s.cleanupFn()
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})

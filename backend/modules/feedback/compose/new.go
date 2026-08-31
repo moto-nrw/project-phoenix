@@ -172,9 +172,8 @@ func (e engine) CountForStudent(ctx context.Context, studentID int64) (int, erro
 func toDomainInput(input feedback.CreateEntry) domain.Entry {
 	day, _ := domain.ParseDate(string(input.Day))
 	parsedTime, _ := time.Parse("15:04:05", input.Time)
-	hour, minute, second := parsedTime.Clock()
 	return domain.Entry{
-		Value: input.Value, Day: day, Time: time.Date(1970, 1, 1, hour, minute, second, 0, time.UTC),
+		Value: input.Value, Day: day, Time: parsedTime,
 		StudentID: input.StudentID, IsMensaFeedback: input.IsMensaFeedback,
 	}
 }
