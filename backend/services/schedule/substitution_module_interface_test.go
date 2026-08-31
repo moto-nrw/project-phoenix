@@ -506,7 +506,7 @@ func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, *repositories.Factory
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	factory, err := services.NewFactory(repos, db, slog.Default())
+	factory, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	return db, repos, factory.Substitution
 }
