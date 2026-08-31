@@ -31,13 +31,14 @@ func New(database Database) *Store {
 }
 
 func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.Entry, int64, error) {
-	db, _, err := s.database(ctx)
+	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
 	var rows []row
 	err = db.NewSelect().Model(&rows).
 		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
+		Where(`"meal_plan_entry".tenant_id = ?`, tenantID).
 		Where(`"meal_plan_entry".date >= ?`, start).
 		Where(`"meal_plan_entry".date <= ?`, end).
 		OrderExpr(`"meal_plan_entry".date ASC`).
@@ -59,7 +60,7 @@ func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domai
 		return 0, 0, 0, err
 	}
 	started := time.Now()
-	deleted, err := deleteDay(ctx, db, date)
+	deleted, err := deleteDay(ctx, db, tenantID, date)
 	lockWait := time.Since(started)
 	if err != nil || len(dishes) == 0 {
 		return deleted, 1, lockWait, err
@@ -82,18 +83,19 @@ func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domai
 }
 
 func (s *Store) ClearDay(ctx context.Context, date domain.Date) (int64, int64, time.Duration, error) {
-	db, _, err := s.database(ctx)
+	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, 0, 0, err
 	}
 	started := time.Now()
-	rows, err := deleteDay(ctx, db, date)
+	rows, err := deleteDay(ctx, db, tenantID, date)
 	return rows, 1, time.Since(started), err
 }
 
-func deleteDay(ctx context.Context, db bun.IDB, date domain.Date) (int64, error) {
+func deleteDay(ctx context.Context, db bun.IDB, tenantID int64, date domain.Date) (int64, error) {
 	result, err := db.NewDelete().Model((*row)(nil)).
 		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
+		Where(`"meal_plan_entry".tenant_id = ?`, tenantID).
 		Where(`"meal_plan_entry".date = ?`, date).
 		Exec(ctx)
 	if err != nil {
