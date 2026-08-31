@@ -361,7 +361,11 @@ export function CalendarPeriodsEditor() {
               onClick={beginCreateSemester}
               className="shrink-0 gap-2"
             >
-              <MotoConceptIcon concept="calendarPeriods" size={16} />
+              <MotoConceptIcon
+                concept="calendarPeriods"
+                colorMode="inherit"
+                size={16}
+              />
               Halbjahr anlegen
             </Button>
             <Button
@@ -397,7 +401,11 @@ export function CalendarPeriodsEditor() {
             onClick={beginCreateSemester}
             className="mt-5 gap-2"
           >
-            <MotoConceptIcon concept="calendarPeriods" size={16} />
+            <MotoConceptIcon
+              concept="calendarPeriods"
+              colorMode="inherit"
+              size={16}
+            />
             Halbjahr anlegen
           </Button>
         </section>
