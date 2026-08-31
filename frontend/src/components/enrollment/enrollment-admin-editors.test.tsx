@@ -2017,6 +2017,24 @@ describe("CareOfferingsEditor", () => {
 });
 
 describe("PhasesEditor", () => {
+  it("uses the button foreground color for the create action icon", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    const button = await screen.findByRole("button", {
+      name: "Neue Anmeldephase",
+    });
+    const icon = button.querySelector("[data-moto-duotone-tone]");
+
+    expect(icon).toBeInTheDocument();
+    expect(icon).not.toHaveStyle({ color: "#3730A3" });
+    expect(icon?.getAttribute("style")).toContain(
+      "--moto-icon-secondary: currentColor",
+    );
+  });
+
   it("creates a phase, assigns schemas, toggles status, deletes, and completes rollover", async () => {
     mocks.searchParams = new URLSearchParams("assignForm=schema-1");
     mocks.listPhases.mockResolvedValue([phase()]);
