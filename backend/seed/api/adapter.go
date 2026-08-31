@@ -45,6 +45,8 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("%s %s failed: %d", e.Method, e.Path, e.StatusCode)
 }
 
+func (e *APIError) HTTPStatusCode() int { return e.StatusCode }
+
 type Adapter interface {
 	BaseURL() string
 	CheckHealth(context.Context) error

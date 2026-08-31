@@ -104,6 +104,18 @@ func (c *Client) PutWithAuth(auth AuthRef, path string, body any) ([]byte, error
 	return c.doRequestWithExplicitAuth("PUT", path, body, auth, nil)
 }
 
+func (c *Client) PatchWithAuth(auth AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("PATCH", path, body, auth, nil)
+}
+
+func (c *Client) DeleteWithAuth(auth AuthRef, path string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("DELETE", path, nil, auth, nil)
+}
+
+func (c *Client) DeleteWithAuthBody(auth AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("DELETE", path, body, auth, nil)
+}
+
 func (c *Client) PostWithAuthAndHeaders(auth AuthRef, path string, body any, headers map[string]string) ([]byte, error) {
 	return c.doRequestWithExplicitAuth("POST", path, body, auth, headers)
 }
@@ -163,6 +175,12 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 // Delete makes an authenticated DELETE request.
 func (c *Client) Delete(path string) ([]byte, error) {
 	return c.doRequestWithHeaders("DELETE", path, nil, true, nil)
+}
+
+// DeleteWithBody makes an authenticated DELETE request with an explicit
+// confirmation payload for destructive APIs that require a preview token.
+func (c *Client) DeleteWithBody(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("DELETE", path, body, true, nil)
 }
 
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
