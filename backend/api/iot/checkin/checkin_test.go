@@ -24,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	checkinsvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -34,9 +33,9 @@ import (
 
 // testContext holds shared test dependencies.
 type testContext struct {
-	db       *bun.DB
-	services *services.Factory
-	resource *checkinAPI.Resource
+	db                *bun.DB
+	resource          *checkinAPI.Resource
+	newCheckinService func(activeSvc.Service, usersSvc.PersonService) *checkinsvc.CheckinService
 }
 
 // injectFailingUsers points both the handler's UsersService AND its extracted
@@ -46,13 +45,7 @@ type testContext struct {
 // affects the pickup-query/checkin resolution path.
 func (ctx *testContext) injectFailingUsers(users usersSvc.PersonService) {
 	ctx.resource.UsersService = users
-	ctx.resource.Checkin = checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
-		Active:     ctx.services.Active,
-		Users:      users,
-		Facilities: ctx.services.Facilities,
-		Activities: ctx.services.Activities,
-		Logger:     slog.Default(),
-	})
+	ctx.resource.Checkin = ctx.newCheckinService(ctx.resource.ActiveService, users)
 }
 
 type failingPickupScheduleService struct {
@@ -112,11 +105,16 @@ func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
 	return nil, s.err
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupCheckinRoute initializes the production check-in resource.
+func setupCheckinRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	newCheckinService := func(active activeSvc.Service, users usersSvc.PersonService) *checkinsvc.CheckinService {
+		return checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
+			Active: active, Users: users, Facilities: svc.Facilities, Activities: svc.Activities, Logger: slog.Default(),
+		})
+	}
 
 	resource := checkinAPI.NewResource(
 		svc.IoT,
@@ -129,9 +127,9 @@ func setupTestContext(t *testing.T) *testContext {
 	)
 
 	return &testContext{
-		db:       db,
-		services: svc,
-		resource: resource,
+		db:                db,
+		resource:          resource,
+		newCheckinService: newCheckinService,
 	}
 }
 
@@ -149,7 +147,7 @@ func createTestDeviceContext(device *iot.Device) *iot.Device {
 
 func TestDevicePing_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "ping-test")
@@ -177,7 +175,7 @@ func TestDevicePing_Success(t *testing.T) {
 
 func TestDevicePing_Unauthorized(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -196,7 +194,7 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 
 func TestDeviceStatus_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-test")
@@ -222,7 +220,7 @@ func TestDeviceStatus_Success(t *testing.T) {
 
 func TestDeviceStatus_Unauthorized(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -241,7 +239,7 @@ func TestDeviceStatus_Unauthorized(t *testing.T) {
 
 func TestDeviceCheckin_Unauthorized(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -260,7 +258,7 @@ func TestDeviceCheckin_Unauthorized(t *testing.T) {
 
 func TestDeviceCheckin_MissingRFID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-missing-rfid")
@@ -284,7 +282,7 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 
 func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-not-found")
@@ -309,7 +307,7 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 
 func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-no-groups")
@@ -353,7 +351,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 
 func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-test")
@@ -408,7 +406,7 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 	t.Parallel()
 	// This test verifies that checkin to a room without an active group fails appropriately
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-new")
@@ -450,7 +448,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 	t.Parallel()
 	t.Run("authenticates supervisor with active session", func(t *testing.T) {
-		ctx := setupTestContext(t)
+		ctx := setupCheckinRoute(t)
 
 		// Create test device
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-rfid")
@@ -505,7 +503,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 	})
 
 	t.Run("returns 404 when no active session", func(t *testing.T) {
-		ctx := setupTestContext(t)
+		ctx := setupCheckinRoute(t)
 
 		// Create test device (no active session)
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-no-session")
@@ -536,7 +534,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 	})
 
 	t.Run("idempotent duplicate supervisor scan", func(t *testing.T) {
-		ctx := setupTestContext(t)
+		ctx := setupCheckinRoute(t)
 
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-dup")
 
@@ -590,7 +588,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 	})
 
 	t.Run("response includes room and activity names", func(t *testing.T) {
-		ctx := setupTestContext(t)
+		ctx := setupCheckinRoute(t)
 
 		device := testpkg.CreateTestDevice(t, ctx.db, "staff-detail")
 
@@ -648,7 +646,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 // handleStaffScan (workflow.go lines 118-121).
 func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "bare-person")
 
@@ -684,7 +682,7 @@ func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	t.Parallel()
 	// This test verifies that attempting to transfer to a room without an active group fails
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
@@ -742,7 +740,7 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 
 func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-json")
 
@@ -770,7 +768,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 
 func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "empty-rfid")
 
@@ -796,7 +794,7 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
@@ -804,7 +802,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 func TestRouter_CheckinEndpointExists(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -819,7 +817,7 @@ func TestRouter_CheckinEndpointExists(t *testing.T) {
 
 func TestRouter_PingEndpointExists(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -833,7 +831,7 @@ func TestRouter_PingEndpointExists(t *testing.T) {
 
 func TestRouter_StatusEndpointExists(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := ctx.resource.Router()
 
@@ -852,7 +850,7 @@ func TestRouter_StatusEndpointExists(t *testing.T) {
 func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 	t.Parallel()
 	// Full checkin requires staff context for attendance tracking (checked_in_by FK constraint).
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "success-checkin")
@@ -903,7 +901,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 	t.Parallel()
 	// Room transfer: checkout from room 1, checkin to room 2.
 	// Requires staff context for attendance tracking (checked_in_by FK constraint).
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
@@ -967,7 +965,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 
 func TestDevicePing_SessionActiveStatus(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create device
 	device := testpkg.CreateTestDevice(t, ctx.db, "session-ping")
@@ -997,7 +995,7 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 
 func TestDeviceCheckin_InvalidAction(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-action")
 
@@ -1025,7 +1023,7 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 
 func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create device
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-no-visit")
@@ -1117,7 +1115,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-auto")
@@ -1178,7 +1176,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 	t.Parallel()
 	// Verifies that a successful checkin response includes the active_students count
 	// when the device is linked to an active session.
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "active-count")
 
@@ -1237,7 +1235,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 	t.Parallel()
 	// Check in two students and verify the count increments correctly
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "multi-count")
 
@@ -1309,7 +1307,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 
 func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "shared-room-count")
 
@@ -1377,7 +1375,7 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 	t.Parallel()
 	// When a student scans out from a room and the same room_id is provided,
 	// the checkin should be skipped (student stays checked out from that room).
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "same-room")
 
@@ -1432,7 +1430,7 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	t.Parallel()
 	// Verifies that checkin fails when room is at capacity
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "capacity-test")
 
@@ -1490,7 +1488,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 
 func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "capacity-transfer-rollback")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Capacity", "Transfer")
@@ -1535,7 +1533,7 @@ func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T)
 func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 	t.Parallel()
 	// Verifies that checkout response includes the room name from the active visit
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-room")
 
@@ -1585,7 +1583,7 @@ func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 	t.Parallel()
 	// Student with no active visit and no room_id should get an error
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "no-action")
 
@@ -1621,7 +1619,7 @@ func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 	t.Parallel()
 	// Verifies that checkin fails when activity MaxParticipants is reached
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "act-cap")
 
@@ -1691,7 +1689,7 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 	t.Parallel()
 	// When the device is NOT linked to an active group, getActiveStudentCountForRoom
 	// falls back to counting across all groups in the room
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "fallback-count")
 
@@ -1747,7 +1745,7 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 	t.Parallel()
 	// Verifies that a checkin with room_id updates the session's last activity
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "session-update")
 
@@ -1873,7 +1871,7 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-auto")
 
@@ -1936,7 +1934,7 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-idem")
 
@@ -2005,7 +2003,7 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-checkout")
 
@@ -2074,7 +2072,7 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-no-staff")
 
@@ -2132,7 +2130,7 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-staff")
 
@@ -2183,7 +2181,7 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-idem")
 
@@ -2259,7 +2257,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "wc-hijack-regression")
 
@@ -2328,7 +2326,7 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 		"REGRESSION: WC group must NOT have DeviceID — it would hijack GetDeviceCurrentSession")
 
 	// Verify GetDeviceCurrentSession still returns the REAL session, not WC
-	realSession, err := ctx.services.Active.GetDeviceCurrentSession(context.Background(), device.ID)
+	realSession, err := ctx.resource.ActiveService.GetDeviceCurrentSession(context.Background(), device.ID)
 	require.NoError(t, err, "GetDeviceCurrentSession should find the real session")
 	assert.Equal(t, sessionGroup.ID, realSession.ID,
 		"GetDeviceCurrentSession must return the room session (group %d), not the WC group (group %d)",
@@ -2342,7 +2340,7 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 // tenant filter. Two of these tests running side by side see each other's
 // half-created room, category or activity.
 func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-device")
 
@@ -2394,7 +2392,7 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 	t.Parallel()
 	// Checkin for a student with a weekly pickup schedule should return pickup_time in response.
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-time-checkin")
@@ -2434,7 +2432,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 		PickupTime: pickupTime,
 		CreatedBy:  staff.ID,
 	}
-	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, sched)
+	err := ctx.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, sched)
 	require.NoError(t, err, "Failed to create pickup schedule")
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -2465,7 +2463,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 	t.Parallel()
 	// Checkin for a student without any pickup schedule should NOT include pickup_time.
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "no-pickup-checkin")
 
@@ -2511,7 +2509,7 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-success")
@@ -2540,7 +2538,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 
 	tenantCtx := testpkg.Ctx(t)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
-	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+	err := ctx.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  student.ID,
 		Weekday:    todayWeekday,
 		PickupTime: pickupTime,
@@ -2548,7 +2546,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+	err = ctx.resource.PickupScheduleService.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
 		NoteDate:  todayUTC,
 		Content:   "Mama holt heute frueher ab",
@@ -2579,14 +2577,14 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	assert.Equal(t, "15:30", data["pickup_time"])
 	assert.Equal(t, "Mama holt heute frueher ab", data["pickup_note"])
 
-	visits, err := ctx.services.Active.FindVisitsByStudentID(tenantCtx, student.ID)
+	visits, err := ctx.resource.ActiveService.FindVisitsByStudentID(tenantCtx, student.ID)
 	require.NoError(t, err)
 	assert.Empty(t, visits, "Pickup query must not create visit records")
 }
 
 func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-empty")
 
@@ -2623,7 +2621,7 @@ func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
 
 func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff")
 
@@ -2653,7 +2651,7 @@ func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-error")
 
@@ -2665,7 +2663,7 @@ func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	ctx.resource.PickupScheduleService = &failingPickupScheduleService{
-		PickupScheduleService: ctx.services.PickupSchedule,
+		PickupScheduleService: ctx.resource.PickupScheduleService,
 		err:                   errors.New("schedule lookup exploded"),
 	}
 
@@ -2686,14 +2684,14 @@ func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-rfid-failure")
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupRFIDFailure", "Staff")
 
 	ctx.injectFailingUsers(&failingPersonService{
-		PersonService:  ctx.services.Users,
+		PersonService:  ctx.resource.UsersService,
 		findByTagIDErr: errors.New("rfid lookup exploded"),
 	})
 
@@ -2714,7 +2712,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-student-failure")
 
@@ -2726,7 +2724,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	ctx.injectFailingUsers(&failingPersonService{
-		PersonService: ctx.services.Users,
+		PersonService: ctx.resource.UsersService,
 		studentRepo: &failingStudentRepository{
 			StudentRepository: repositories.NewFactory(ctx.db).Student,
 			err:               errors.New("student lookup exploded"),
@@ -2750,7 +2748,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 
 func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-note-precedence")
@@ -2775,7 +2773,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	tenantCtx := testpkg.Ctx(t)
 	recurringNote := "Papa holt normalerweise ab"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
-	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+	err := ctx.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  student.ID,
 		Weekday:    todayWeekday,
 		PickupTime: pickupTime,
@@ -2784,7 +2782,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+	err = ctx.resource.PickupScheduleService.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
 		NoteDate:  todayUTC,
 		Content:   "Heute holt Oma ab",
@@ -2792,7 +2790,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = ctx.services.PickupSchedule.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
+	err = ctx.resource.PickupScheduleService.CreateStudentPickupNote(tenantCtx, &scheduleModels.StudentPickupNote{
 		StudentID: student.ID,
 		NoteDate:  todayUTC,
 		Content:   "Bitte am Seiteneingang warten",
@@ -2822,7 +2820,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 
 func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 	ctx.resource.Now = func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC) }
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-exception-fallback")
@@ -2847,7 +2845,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 	tenantCtx := testpkg.Ctx(t)
 	recurringNote := "Bitte am Seiteneingang klingeln"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
-	err := ctx.services.PickupSchedule.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
+	err := ctx.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, &scheduleModels.StudentPickupSchedule{
 		StudentID:  student.ID,
 		Weekday:    todayWeekday,
 		PickupTime: pickupTime,
@@ -2858,7 +2856,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 
 	updatedTime := time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC)
 	blankReason := "   "
-	err = ctx.services.PickupSchedule.CreateStudentPickupException(tenantCtx, &scheduleModels.StudentPickupException{
+	err = ctx.resource.PickupScheduleService.CreateStudentPickupException(tenantCtx, &scheduleModels.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: todayUTC,
 		PickupTime:    &updatedTime,
@@ -2890,7 +2888,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 
 func TestDevicePickupQuery_Unauthorized(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -2905,7 +2903,7 @@ func TestDevicePickupQuery_Unauthorized(t *testing.T) {
 
 func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-bad-body")
 
@@ -2924,7 +2922,7 @@ func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
 
 func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-unknown-rfid")
 
@@ -2944,7 +2942,7 @@ func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
 
 func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff-fail")
 
@@ -2957,7 +2955,7 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 
 	// Override person resolution with a failing staff repository
 	ctx.injectFailingUsers(&failingPersonService{
-		PersonService: ctx.services.Users,
+		PersonService: ctx.resource.UsersService,
 		staffRepo: &failingStaffRepository{
 			StaffRepository: repositories.NewFactory(ctx.db).Staff,
 			err:             errors.New("staff lookup exploded"),
@@ -2980,7 +2978,7 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 
 func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-orphan")
 
@@ -3045,7 +3043,7 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 	// The DB-race path (where visitRepo.Create itself trips the partial
 	// unique index from migration 1.15.47) is NOT exercised here — see
 	// the package note on duplicateVisitActiveService above.
-	ctx := setupTestContext(t)
+	ctx := setupCheckinRoute(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "dup-409")
 
@@ -3077,20 +3075,14 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 	// extracted CheckinService (issue #575 B8), so the wrapped active service
 	// is injected there; the handler's own ActiveService receives the same
 	// wrapper for consistency.
-	wrappedActive := &duplicateVisitActiveService{Service: ctx.services.Active}
-	wrappedCheckin := checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
-		Active:     wrappedActive,
-		Users:      ctx.services.Users,
-		Facilities: ctx.services.Facilities,
-		Activities: ctx.services.Activities,
-		Logger:     slog.Default(),
-	})
+	wrappedActive := &duplicateVisitActiveService{Service: ctx.resource.ActiveService}
+	wrappedCheckin := ctx.newCheckinService(wrappedActive, ctx.resource.UsersService)
 	wrappedResource := checkinAPI.NewResource(
-		ctx.services.IoT,
-		ctx.services.Users,
+		ctx.resource.IoTService,
+		ctx.resource.UsersService,
 		wrappedActive,
 		wrappedCheckin,
-		ctx.services.PickupSchedule,
+		ctx.resource.PickupScheduleService,
 		nil,
 		slog.Default(),
 	)

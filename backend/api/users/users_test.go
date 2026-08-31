@@ -15,19 +15,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
-	services *services.Factory
 	resource *usersAPI.Resource
 }
 
-// setupTestContext creates test resources for users handler tests
-func setupTestContext(t *testing.T) *testContext {
+// setupUsersRoute creates test resources for users handler tests
+func setupUsersRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -35,7 +33,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 	return &testContext{
 		db:       db,
-		services: svc,
 		resource: resource,
 	}
 }
@@ -45,7 +42,7 @@ func setupTestContext(t *testing.T) *testContext {
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
-	tc := setupTestContext(t)
+	tc := setupUsersRoute(t)
 
 	router := chi.NewRouter()
 	router.Mount("/users", tc.resource.Router())

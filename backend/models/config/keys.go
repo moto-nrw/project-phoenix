@@ -323,7 +323,16 @@ const (
 	KeyEnrollmentLegalTermsEnabled        = "enrollment.legal_terms_enabled"
 	KeyEnrollmentLegalDSGVOEnabled        = "enrollment.legal_dsgvo_enabled"
 	KeyEnrollmentLegalEmailContactEnabled = "enrollment.legal_email_contact_enabled"
-	KeyEnrollmentLegalPhotoEnabled        = "enrollment.legal_photo_enabled"
+
+	// KeyEmailReplyToAddress is the address a parent reaches when they answer a
+	// tenant-bound e-mail (Einladung, Anmeldung, Elternmitteilung). Empty means
+	// fall back to the school's contact address in platform.schools.email; if
+	// that is empty too, no Reply-To header is written at all (#1936).
+	//
+	// This never becomes the visible sender. The From stays the central
+	// authenticated address so SPF/DKIM alignment is unaffected.
+	KeyEmailReplyToAddress         = "email.reply_to_address"
+	KeyEnrollmentLegalPhotoEnabled = "enrollment.legal_photo_enabled"
 )
 
 // Enrollment select-option values.

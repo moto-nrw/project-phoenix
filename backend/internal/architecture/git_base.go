@@ -98,9 +98,16 @@ func repositoryRelativePath(root, project, candidatePath string) (string, error)
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
-	output, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	output, err := processOutput(dir, nil, "git", append([]string{"-C", dir}, args...)...)
 	if err != nil {
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return string(output), nil
+}
+
+func processOutput(dir string, environment []string, executable string, args ...string) ([]byte, error) {
+	command := exec.Command(executable, args...)
+	command.Dir = dir
+	command.Env = environment
+	return command.CombinedOutput()
 }

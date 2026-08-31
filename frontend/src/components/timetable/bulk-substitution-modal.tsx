@@ -12,9 +12,9 @@
  * Vertretung im Backend tagesweite Semantik haben (#1840) — es gibt hier
  * bewusst keine Termin-Granularität unterhalb eines Tages.
  *
- * Der Save ist EIN atomarer Request (POST /substitutions/bulk): entweder
- * landen alle gewählten Tage oder keiner. Ein Fehler nennt den betroffenen
- * Tag, damit er abgewählt werden kann.
+ * Der Save ist EIN atomarer Request über das gemeinsame Vertretungsmodul:
+ * entweder landen alle gewählten Tage oder keiner. Ein Fehler nennt den
+ * betroffenen Tag, damit er abgewählt werden kann.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -31,6 +31,7 @@ import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { substitutionService } from "~/lib/substitution-api";
 import { timetableService } from "~/lib/timetable-api";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -234,7 +235,7 @@ export function BulkSubstitutionModal({
     if (!canSave) return;
     setSaving(true);
     try {
-      const result = await timetableService.applyBulkSubstitution({
+      const result = await substitutionService.applyBulkSubstitution({
         absentStaffId,
         substituteStaffId: substituteStaffId || undefined,
         dates: selectedDates,

@@ -265,6 +265,8 @@ type Factory struct {
 
 	// StaffMessaging (OGS-internal colleague chat, #2598)
 	StaffMessaging *staffmessaging.Service
+	// StaffNotice (Tagesinformationen: interne Hinweise der Leitung, #2180)
+	StaffNotice schedule.StaffNoticeService
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -538,6 +540,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	)
 
 	// Initialize guardian service
+	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
+	// Built once here and shared: the outbox worker covers every queued kind,
+	// the guardian service covers its own synchronous invitation send.
+	tenantMailIdentity := platform.NewTenantMailIdentityService(repos.School, func(ctx context.Context, tenantID int64) (string, error) {
+		return settingsService.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+	}, logger)
+
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
 		GuardianProfileRepo:     repos.GuardianProfile,
 		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
@@ -558,6 +567,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		FrontendURL:             frontendURL,
 		DefaultFrom:             defaultFrom,
 		InvitationExpiry:        invitationTokenExpiry,
+		MailIdentity:            tenantMailIdentity,
 		DB:                      db,
 	})
 
@@ -567,7 +577,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db)
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(repos.StaffShift)
 	if broadcastAware, ok := workSessionService.(interface {
@@ -749,13 +759,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
 	}); ok {
 		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
-			Settings:    settingsService,
-			Dispatcher:  dispatcher,
-			StaffRepo:   repos.Staff,
-			SchoolRepo:  repos.School,
-			DefaultFrom: defaultFrom,
-			FrontendURL: frontendURL,
-			Logger:      activeLogger,
+			Settings:     settingsService,
+			Dispatcher:   dispatcher,
+			StaffRepo:    repos.Staff,
+			SchoolRepo:   repos.School,
+			DefaultFrom:  defaultFrom,
+			FrontendURL:  frontendURL,
+			MailIdentity: tenantMailIdentity,
+			Logger:       activeLogger,
 		})
 	}
 
@@ -1182,6 +1193,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		repos.DeviationEvent,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
+		now,
 	)
 
 	// Initialize time-tracking GDPR cleanup service (Tranche 0b). Deletes
@@ -1335,6 +1347,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		SchoolURL:         schoolURL,
 		DefaultFrom:       defaultFrom,
 		InvitationExpiry:  invitationTokenExpiry,
+		MailIdentity:      tenantMailIdentity,
 		DB:                db,
 		Logger:            authLogger,
 	})
@@ -1351,6 +1364,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Logger:      logger.With("service", "outbox"),
 		DB:          db,
 	})
+	emailOutboxWorker.SetMailIdentityResolver(tenantMailIdentity)
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:         repos.GuardianInvitation,
@@ -1497,8 +1511,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: repos.GroupSubstitution,
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
-		Audit: repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
+		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
+		ActiveSupervisorCreator: activeService,
+		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
 		Logger: logger.With("service", "substitution"),
+		Schedule: newScheduleSubstitutionBridge(schedule.NewSubstitutionAdapter(schedule.SubstitutionAdapterDependencies{
+			Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+			Staff: repos.Staff, Engine: instanceService, Broadcaster: realtimeHub,
+			Logger: logger.With("service", "schedule-substitution"),
+		})),
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
 			if assignmentBound {
 				return false, nil
@@ -2339,6 +2360,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Logger:      logger.With("service", "announcement"),
 	})
 
+	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
+		Repo:    repos.StaffNotice,
+		Periods: repos.CalendarPeriod,
+		Logger:  logger.With("service", "staffnotice"),
+	})
+
 	// The cancellation notice (#2601) rides on the announcement service, which
 	// is built after the instance service; inject it now that both exist.
 	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
@@ -2767,6 +2794,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Parent:              parentService,
 		Messaging:           messagingService,
 		StaffMessaging:      staffMessagingService,
+		StaffNotice:         staffNoticeService,
 		Calendar:            calendarSvc,
 		CalendarFeedCleanup: calendarSvc,
 		ParentAnnouncement:  parentAnnouncementService,

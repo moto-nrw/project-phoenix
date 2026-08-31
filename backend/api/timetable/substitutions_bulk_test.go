@@ -4,7 +4,7 @@
 //
 // The point of the endpoint is that a multi-day absence/substitution lands in
 // ONE atomic save. The tests drive the wired handler with real DB writes
-// (buildDevSetup delegates the deviation writes to the real service), then
+// (buildDevModule delegates the deviation writes to the real service), then
 // read the DB back to prove:
 //   - a substitute covers every selected day (and only those),
 //   - the absence-only variant marks the rows without creating cover,
@@ -74,7 +74,7 @@ func bulkStaffState(t *testing.T, s *devSetup, instanceID int64) (absentA bool, 
 func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
 	d2Str, d2 := futureSubDate(2)
@@ -122,7 +122,7 @@ func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
 	d2Str, d2 := futureSubDate(2)
@@ -151,7 +151,7 @@ func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
 func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
 	d2Str, d2 := futureSubDate(2)
@@ -183,7 +183,7 @@ func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
 func TestBulkSubstitution_RejectsPastAndInvalidInput(t *testing.T) {
 	t.Parallel()
 
-	s := buildDevSetup(t)
+	s := buildDevModule(t)
 	router := bulkRouter(s.ctx, s.res)
 	past := futureSubDateOffset(-1)
 

@@ -32,7 +32,7 @@ func init() {
 // persisted and linked.
 func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Child", "1a")
 
@@ -63,7 +63,7 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	// The guardian is created and linked to the student.
-	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	linked, err := ctx.resource.GuardianService.GetStudentGuardians(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
 	require.Len(t, linked, 1, "expected exactly one linked guardian")
 	assert.Equal(t, "Atomic", linked[0].Profile.FirstName)
@@ -72,7 +72,7 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 // TestCreateStudentGuardians_EmptyGuardians_BadRequest rejects an empty batch.
 func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Empty", "Batch", "1a")
 
@@ -94,7 +94,7 @@ func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 // single-link endpoint).
 func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
 	t.Parallel()
-	ctx := setupTestContext(t)
+	ctx := setupGuardiansRoute(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Forbidden", "Batch", "1a")
 

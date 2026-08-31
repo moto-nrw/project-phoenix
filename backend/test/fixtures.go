@@ -3056,6 +3056,17 @@ type ActivityInstanceOpts struct {
 	CalendarPeriodID *int64
 }
 
+// Date returns a calendar date for callers that should not depend on the
+// application's date implementation directly.
+func Date(year int, month time.Month, day int) timezone.Date {
+	return timezone.NewDate(year, month, day)
+}
+
+// TodayDate returns today's Berlin calendar date for fixture setup.
+func TodayDate() timezone.Date {
+	return timezone.TodayDate()
+}
+
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
@@ -3147,6 +3158,37 @@ func SetCalendarPeriodActive(tb testing.TB, db *bun.DB, period *schedule.Calenda
 	period.IsActive = active
 	_, err := db.NewUpdate().Model(period).Column("is_active").WherePK().Exec(ctx)
 	require.NoError(tb, err, "Failed to set test calendar period active state")
+}
+
+// StaffNoticeOpts controls optional fields for NewTestStaffNotice.
+type StaffNoticeOpts struct {
+	Important               bool // default priority is "info"
+	ValidUntil              *timezone.Date
+	Inactive                bool
+	RequiresAcknowledgement bool
+}
+
+// NewTestStaffNotice builds an unsaved Tagesinformation (#2180) with the
+// fields a repository test needs: every day of the week, no week pattern,
+// active unless opts.Inactive. It does not touch the database — the
+// repository under test persists it, so the fixture stays out of that path.
+func NewTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts StaffNoticeOpts) *users.StaffNotice {
+	tb.Helper()
+
+	priority := users.StaffNoticePriorityInfo
+	if opts.Important {
+		priority = users.StaffNoticePriorityImportant
+	}
+	return &users.StaffNotice{
+		Title:                   title,
+		Priority:                priority,
+		ValidFrom:               validFrom,
+		ValidUntil:              opts.ValidUntil,
+		Weekdays:                []int16{},
+		RequiresAcknowledgement: opts.RequiresAcknowledgement,
+		Active:                  !opts.Inactive,
+		CreatedBy:               createdBy,
+	}
 }
 
 // StaffShiftOpts controls optional fields for CreateTestStaffShift.

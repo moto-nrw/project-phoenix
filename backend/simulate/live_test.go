@@ -4,14 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
-	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,7 +50,7 @@ func TestRandomFromSet_MultipleElements(t *testing.T) {
 func TestFindStudent_Found(t *testing.T) {
 	t.Parallel()
 
-	students := []seedapi.SeedStudent{
+	students := []SeedStudent{
 		{ID: 1, FirstName: "Felix", LastName: "Schneider"},
 		{ID: 2, FirstName: "Emma", LastName: "Meyer"},
 	}
@@ -66,7 +62,7 @@ func TestFindStudent_Found(t *testing.T) {
 func TestFindStudent_NotFound(t *testing.T) {
 	t.Parallel()
 
-	students := []seedapi.SeedStudent{
+	students := []SeedStudent{
 		{ID: 1, FirstName: "Felix", LastName: "Schneider"},
 	}
 	s := findStudent(students, 99)
@@ -138,7 +134,7 @@ func TestPrintLiveSummary_WithCounts(t *testing.T) {
 func TestBootstrapLiveState_Success(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/auth/login":
@@ -151,14 +147,14 @@ func TestBootstrapLiveState_Success(t *testing.T) {
 				},
 			})
 		default:
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(simulationHTTPStatusOK)
 			_, _ = fmt.Fprint(w, `{}`)
 		}
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
@@ -168,7 +164,7 @@ func TestBootstrapLiveState_Success(t *testing.T) {
 		roomIDs:   []int64{10, 20},
 	}
 
-	students := []seedapi.SeedStudent{
+	students := []SeedStudent{
 		{ID: 1, FirstName: "A", LastName: "B"},
 		{ID: 2, FirstName: "C", LastName: "D"},
 		{ID: 3, FirstName: "E", LastName: "F"},
@@ -184,16 +180,16 @@ func TestBootstrapLiveState_Success(t *testing.T) {
 func TestBootstrapLiveState_NoRFID(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, _ *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]any{{"student_id": 1}},
 		})
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
@@ -202,7 +198,7 @@ func TestBootstrapLiveState_NoRFID(t *testing.T) {
 		rfidTags:  map[int64]string{}, // no RFID tags
 	}
 
-	err := bootstrapLiveState(client, ls, []seedapi.SeedStudent{{ID: 1}})
+	err := bootstrapLiveState(client, ls, []SeedStudent{{ID: 1}})
 	require.NoError(t, err)
 	assert.Empty(t, ls.checkedIn) // skipped because no RFID
 }
@@ -210,42 +206,42 @@ func TestBootstrapLiveState_NoRFID(t *testing.T) {
 func TestBootstrapLiveState_ServerError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, _ *simulationHTTPRequest) {
+		w.WriteHeader(simulationHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db fail"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
 		rfidTags:  map[int64]string{1: "DE000001"},
 	}
 
-	err := bootstrapLiveState(client, ls, []seedapi.SeedStudent{{ID: 1}})
+	err := bootstrapLiveState(client, ls, []SeedStudent{{ID: 1}})
 	assert.Error(t, err)
 }
 
 func TestBootstrapLiveState_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, _ *simulationHTTPRequest) {
+		w.WriteHeader(simulationHTTPStatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
 		rfidTags:  map[int64]string{1: "DE000001"},
 	}
 
-	err := bootstrapLiveState(client, ls, []seedapi.SeedStudent{{ID: 1}})
+	err := bootstrapLiveState(client, ls, []SeedStudent{{ID: 1}})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "parse visits")
 }
@@ -261,7 +257,7 @@ func TestLiveRoomMove_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -289,7 +285,7 @@ func TestLiveRoomMove_NoCheckedIn(t *testing.T) {
 		roomIDs:   []int64{10},
 	}
 
-	err := liveRoomMove(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	err := liveRoomMove(client, ls, state, SeedDevice{}, "12:00:00")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no checked-in students")
 }
@@ -305,7 +301,7 @@ func TestLiveGoUnterwegs_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -332,7 +328,7 @@ func TestLiveGoUnterwegs_NoCheckedIn(t *testing.T) {
 		rfidTags:  map[int64]string{},
 	}
 
-	err := liveGoUnterwegs(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	err := liveGoUnterwegs(client, ls, state, SeedDevice{}, "12:00:00")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no checked-in students")
 }
@@ -348,7 +344,7 @@ func TestLiveReturnFromUnterwegs_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -372,7 +368,7 @@ func TestLiveReturnFromUnterwegs_NobodyUnterwegs_FallsBackToRoomMove(t *testing.
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -399,7 +395,7 @@ func TestLiveToggleSick_MarkSick(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -422,7 +418,7 @@ func TestLiveToggleSick_MarkHealthy(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -438,7 +434,7 @@ func TestLiveToggleSick_NoStudents(t *testing.T) {
 	t.Parallel()
 
 	client := newClient("http://localhost:1", false)
-	state := &seedapi.SeedState{Students: nil}
+	state := &SeedState{Students: nil}
 	ls := &liveState{sick: make(map[int64]bool)}
 
 	err := liveToggleSick(client, ls, state, "12:00:00")
@@ -449,14 +445,14 @@ func TestLiveToggleSick_NoStudents(t *testing.T) {
 func TestLiveToggleSick_ServerError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, _ *simulationHTTPRequest) {
+		w.WriteHeader(simulationHTTPStatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"fail"}`)
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{sick: make(map[int64]bool)}
@@ -476,7 +472,7 @@ func TestLiveSchulhofRotate_FullCycle(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -528,7 +524,7 @@ func TestLiveSchulhofRotate_CooldownSkips(t *testing.T) {
 		},
 	}
 
-	err := liveSchulhofRotate(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	err := liveSchulhofRotate(client, ls, state, SeedDevice{}, "12:00:00")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no rotation-eligible students")
 }
@@ -536,9 +532,9 @@ func TestLiveSchulhofRotate_CooldownSkips(t *testing.T) {
 func TestLiveSchulhofRotate_ServerError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, _ *simulationHTTPRequest) {
+		w.WriteHeader(simulationHTTPStatusInternalServerError)
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
@@ -567,7 +563,7 @@ func TestLiveAttendanceToggle_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -591,7 +587,7 @@ func TestLiveAttendanceToggle_CooldownSkips(t *testing.T) {
 		interval:       10 * time.Second,
 	}
 
-	err := liveAttendanceToggle(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	err := liveAttendanceToggle(client, ls, state, SeedDevice{}, "12:00:00")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no attendance-eligible students")
 }
@@ -599,9 +595,9 @@ func TestLiveAttendanceToggle_CooldownSkips(t *testing.T) {
 func TestLiveAttendanceToggle_ServerError(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, _ *simulationHTTPRequest) {
+		w.WriteHeader(simulationHTTPStatusInternalServerError)
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
@@ -628,7 +624,7 @@ func TestLiveSupervisorSwap_Success(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{staffIDs: []int64{7}}
@@ -645,7 +641,7 @@ func TestLiveSupervisorSwap_NoStaff(t *testing.T) {
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{}
 
-	err := liveSupervisorSwap(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	err := liveSupervisorSwap(client, ls, state, SeedDevice{}, "12:00:00")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no staff IDs")
 }
@@ -653,12 +649,12 @@ func TestLiveSupervisorSwap_NoStaff(t *testing.T) {
 func TestLiveSupervisorSwap_NoActiveSession(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{"is_active": false},
 		})
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
@@ -674,16 +670,16 @@ func TestLiveSupervisorSwap_NoActiveSession(t *testing.T) {
 func TestLiveSupervisorSwap_PutErrorResetsSession(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == "PUT" {
-			w.WriteHeader(http.StatusConflict)
+			w.WriteHeader(simulationHTTPStatusConflict)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{"active_group_id": 5, "is_active": true},
 		})
-	}))
+	})
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
@@ -707,7 +703,7 @@ func TestRunLiveTick_IncrementsCounts(t *testing.T) {
 	defer srv.Close()
 
 	client := newClient(srv.URL, false)
-	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
+	client.BindAuth(simulationTestAuth{Kind: simulationTestAuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -737,7 +733,7 @@ func TestRunLiveTick_IncrementsCounts(t *testing.T) {
 func TestRunLive_InvalidStatePath(t *testing.T) {
 	t.Parallel()
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: "/nonexistent/state.json"})
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory, StatePath: "/nonexistent/state.json"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "load seed state")
 }
@@ -750,13 +746,13 @@ func TestRunLive_NoAdminAccounts(t *testing.T) {
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:  srv.URL,
-		Accounts: seedapi.SeedStateAccounts{},
+		Accounts: SeedStateAccounts{},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory, StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no admin accounts")
 }
@@ -764,26 +760,26 @@ func TestRunLive_NoAdminAccounts(t *testing.T) {
 func TestRunLive_LoginFails(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		switch r.URL.Path {
 		case "/auth/login":
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(simulationHTTPStatusUnauthorized)
 			_, _ = fmt.Fprint(w, `{"error":"bad"}`)
 		default:
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(simulationHTTPStatusOK)
 		}
-	}))
+	})
 	defer srv.Close()
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:  srv.URL,
-		Accounts: seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Accounts: SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory, StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "admin login")
 }
@@ -796,15 +792,15 @@ func TestRunLive_NoDevices(t *testing.T) {
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{},
 		DevicePIN: "1234",
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory, StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no devices")
 }
@@ -817,17 +813,17 @@ func TestRunLive_NoRooms(t *testing.T) {
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
 		Rooms:     map[string]int64{},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{StatePath: statePath, Interval: time.Second})
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory, StatePath: statePath, Interval: time.Second})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no rooms")
 }
@@ -840,17 +836,17 @@ func TestRunLive_RejectsNonPositiveInterval(t *testing.T) {
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
 		Rooms:     map[string]int64{"OGS-Raum 1": 10},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory,
 		StatePath: statePath,
 		Interval:  0,
 	})
@@ -861,7 +857,7 @@ func TestRunLive_RejectsNonPositiveInterval(t *testing.T) {
 func TestRunLive_NoActiveVisits(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/auth/login":
@@ -869,25 +865,25 @@ func TestRunLive_NoActiveVisits(t *testing.T) {
 		case "/api/active/visits":
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		default:
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
 		}
-	}))
+	})
 	defer srv.Close()
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
 		Rooms:     map[string]int64{"OGS-Raum 1": 10},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
-	err := RunLive(context.Background(), LiveOptions{
+	err := RunLive(context.Background(), LiveOptions{Client: newTestClientFactory,
 		StatePath: statePath,
 		Interval:  time.Second,
 	})
@@ -903,21 +899,21 @@ func TestRunLive_CancelledContext(t *testing.T) {
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
 		Rooms:     map[string]int64{"OGS-Raum 1": 10},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// Cancel immediately so the loop exits on first select
 	cancel()
 
-	err := RunLive(ctx, LiveOptions{
+	err := RunLive(ctx, LiveOptions{Client: newTestClientFactory,
 		StatePath: statePath,
 		Interval:  1 * time.Second,
 		Verbose:   false,
@@ -933,20 +929,20 @@ func TestRunLive_RunsTicksBeforeCancel(t *testing.T) {
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "Felix", LastName: "S"}},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "S"}},
 		Rooms:     map[string]int64{"OGS-Raum 1": 10},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	err := RunLive(ctx, LiveOptions{
+	err := RunLive(ctx, LiveOptions{Client: newTestClientFactory,
 		StatePath: statePath,
 		Interval:  50 * time.Millisecond,
 		Verbose:   true,
@@ -959,7 +955,7 @@ func TestRunLive_BootstrapFallback(t *testing.T) {
 
 	// Server that fails on /api/active/visits so bootstrap falls back
 	callCount := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/auth/login":
@@ -967,34 +963,34 @@ func TestRunLive_BootstrapFallback(t *testing.T) {
 		case "/api/active/visits":
 			if callCount == 0 {
 				callCount++
-				w.WriteHeader(http.StatusInternalServerError)
+				w.WriteHeader(simulationHTTPStatusInternalServerError)
 				_, _ = fmt.Fprint(w, `{"error":"db"}`)
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
 		default:
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
 		}
-	}))
+	})
 	defer srv.Close()
 
 	dir := t.TempDir()
 	statePath := filepath.Join(dir, "state.json")
-	state := &seedapi.SeedState{
+	state := &SeedState{
 		BaseURL:   srv.URL,
 		DevicePIN: "1234",
-		Accounts:  seedapi.SeedStateAccounts{Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}}},
-		Devices:   map[string]seedapi.SeedDevice{"d1": {APIKey: "k1"}},
-		Students:  []seedapi.SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
+		Accounts:  SeedStateAccounts{Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}}},
+		Devices:   map[string]SeedDevice{"d1": {APIKey: "k1"}},
+		Students:  []SeedStudent{{ID: 1, FirstName: "F", LastName: "L"}},
 		Rooms:     map[string]int64{"OGS-Raum 1": 10},
 	}
-	require.NoError(t, seedapi.WriteSeedState(state, statePath))
+	require.NoError(t, WriteSeedState(state, statePath))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
 
-	err := RunLive(ctx, LiveOptions{
+	err := RunLive(ctx, LiveOptions{Client: newTestClientFactory,
 		StatePath: statePath,
 		Interval:  1 * time.Second,
 	})
@@ -1008,7 +1004,7 @@ func TestRunLive_BootstrapFallback(t *testing.T) {
 func TestLiveOptions_Fields(t *testing.T) {
 	t.Parallel()
 
-	opts := LiveOptions{
+	opts := LiveOptions{Client: newTestClientFactory,
 		StatePath: "/tmp/state.json",
 		Interval:  5 * time.Second,
 		Verbose:   true,
@@ -1057,9 +1053,9 @@ func TestLiveState_Initialization(t *testing.T) {
 // Helpers
 // =============================================================================
 
-func liveAPIMock(t *testing.T) *httptest.Server {
+func liveAPIMock(t *testing.T) *simulationHTTPTestServer {
 	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/auth/login":
@@ -1073,24 +1069,24 @@ func liveAPIMock(t *testing.T) *httptest.Server {
 				"data": map[string]any{"active_group_id": 5, "is_active": true},
 			})
 		default:
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data":   map[string]any{"id": 1},
 			})
 		}
-	}))
+	})
 }
 
-func minimalLiveState(baseURL string) *seedapi.SeedState {
-	return &seedapi.SeedState{
+func minimalLiveState(baseURL string) *SeedState {
+	return &SeedState{
 		BaseURL:   baseURL,
 		DevicePIN: "1234",
-		Accounts: seedapi.SeedStateAccounts{
-			Admin: []seedapi.AccountCredentials{{Email: "a@t.de", Password: "p"}},
+		Accounts: SeedStateAccounts{
+			Admin: []AccountCredentials{{Email: "a@t.de", Password: "p"}},
 		},
-		Devices:  map[string]seedapi.SeedDevice{"d1": {APIKey: "k1", Name: "S1"}},
-		Students: []seedapi.SeedStudent{{ID: 1, FirstName: "Felix", LastName: "S"}},
+		Devices:  map[string]SeedDevice{"d1": {APIKey: "k1", Name: "S1"}},
+		Students: []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "S"}},
 		Rooms:    map[string]int64{"OGS-Raum 1": 10, "Sporthalle": 20},
 	}
 }

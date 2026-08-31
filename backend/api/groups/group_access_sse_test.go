@@ -22,7 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,7 +36,7 @@ func setupRecordingRouter(t *testing.T) (*testContext, chi.Router, *testpkg.Reco
 	tc, router := setupProtectedRouter(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	aware, ok := tc.services.Education.(interface {
+	aware, ok := tc.resource.EducationService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	})
 	require.True(t, ok, "education service must accept a broadcaster")
@@ -100,7 +100,7 @@ func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSESameTeachers")
 
-	teachers, err := tc.services.Education.GetGroupTeachers(t.Context(), groupID)
+	teachers, err := tc.resource.EducationService.GetGroupTeachers(t.Context(), groupID)
 	require.NoError(t, err)
 	require.Len(t, teachers, 1)
 
@@ -128,9 +128,9 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	groupID, _ := groupLeader(t, tc, "SSETeacherRollback")
 
 	ctx := testpkg.Ctx(t)
-	originalGroup, err := tc.services.Education.GetGroup(ctx, groupID)
+	originalGroup, err := tc.resource.EducationService.GetGroup(ctx, groupID)
 	require.NoError(t, err)
-	originalTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
+	originalTeachers, err := tc.resource.EducationService.GetGroupTeachers(ctx, groupID)
 	require.NoError(t, err)
 	require.Len(t, originalTeachers, 1)
 
@@ -151,11 +151,11 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	updatedGroup, err := tc.services.Education.GetGroup(ctx, groupID)
+	updatedGroup, err := tc.resource.EducationService.GetGroup(ctx, groupID)
 	require.NoError(t, err)
 	assert.Equal(t, originalGroup.Name, updatedGroup.Name, "the group update must roll back with its teacher set")
 
-	updatedTeachers, err := tc.services.Education.GetGroupTeachers(ctx, groupID)
+	updatedTeachers, err := tc.resource.EducationService.GetGroupTeachers(ctx, groupID)
 	require.NoError(t, err)
 	require.Len(t, updatedTeachers, 1)
 	assert.Equal(t, originalTeachers[0].ID, updatedTeachers[0].ID)
@@ -188,11 +188,9 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertBadRequest(t, rr)
 
-	queryOptions := base.NewQueryOptions()
-	queryOptions.Filter.Equal("name", groupName)
-	groupCount, err := tc.services.Education.CountGroups(
+	groupCount, err := tc.resource.EducationService.CountGroups(
 		testpkg.Ctx(t),
-		queryOptions,
+		&educationModels.GroupListQuery{Name: groupName},
 	)
 	require.NoError(t, err)
 	assert.Zero(t, groupCount, "the new group must roll back with its partial teacher set")

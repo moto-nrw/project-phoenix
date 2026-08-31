@@ -31,7 +31,7 @@ func setOverviewScopeForTest(t *testing.T, tc *testContext, scope string) {
 	t.Helper()
 
 	ctx := tenant.WithTenantID(context.Background(), testpkg.Tenant(t))
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		ctx, configModel.KeyOperationalOverviewScope, scope, nil, nil,
 	))
 }
@@ -139,7 +139,7 @@ func TestOperationalOverviewScope_GroupModeIsNotAnAccessRule(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	ctx := tenant.WithTenantID(context.Background(), testpkg.Tenant(t))
-	require.NoError(t, tc.services.Settings.SetValue(
+	require.NoError(t, tc.resource.SettingsService.SetValue(
 		ctx, configModel.KeyGroupMode, configModel.GroupModeOpenCare, nil, nil,
 	))
 	setOverviewScopeForTest(t, tc, configModel.OverviewScopeOwn)

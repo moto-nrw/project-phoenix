@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -13,7 +14,28 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+// Database aliases and constructors keep migration tests on the shared test
+// support boundary instead of adding test-only dependencies to production
+// migration files.
+type Tx = bun.Tx
+type TxOptions = sql.TxOptions
+type NullInt64 = sql.NullInt64
+type NullString = sql.NullString
+type NullTime = sql.NullTime
+
+func DBList(value any) any { return bun.List(value) }
+
+func NewBunDB(database *sql.DB, options ...bun.DBOption) *bun.DB {
+	return bun.NewDB(database, pgdialect.New(), options...)
+}
+
+func OpenPostgresSQL(dsn string) *sql.DB {
+	return sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+}
 
 // SetupTestDB returns the package-wide test database pool. The first call in
 // a test binary initializes the whole test-database lifecycle (server up,
@@ -87,6 +109,18 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to open private test database pool")
+	return db
+}
+
+// SetupServeTestDB returns a private pool connected as the least-privilege
+// phoenix_auth role. Use it for tests that must exercise SET ROLE and database
+// capabilities through the same connection identity as the HTTP server.
+func SetupServeTestDB(t *testing.T) *bun.DB {
+	t.Helper()
+
+	SetupTestDB(t) // ensure the package clone and test role password are ready
+	db, err := database.DBConnForServe()
+	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
 	return db
 }
 

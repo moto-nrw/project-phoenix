@@ -27,7 +27,7 @@ import (
 func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Race", "Graduate", "4a")
 

@@ -24,39 +24,9 @@ import (
 // legitimate validity-filter SELECTs. Reviewers: new DeleteExpired-style
 // methods must delegate to DeleteBefore unless the predicate is compound.
 var (
-	// Files whose QueryOptions list bodies are behaviorally divergent from
-	// the generic (verified 2026-07-06, audit B8/dup-54 skeptic list).
-	queryOptionsListAllowlist = map[string]int{
-		"database/repositories/education/group.go":            1, // LEFT JOIN facilities.rooms + sort rewrite
-		"database/repositories/education/grade_transition.go": 1, // returns data+count pair
-		"database/repositories/activities/group.go":           1, // LEFT JOIN categories
-		"database/repositories/active/group_supervisor.go":    1, // applyActiveOnlyFilter pseudo-filter
-		"database/repositories/active/combined_group.go":      1, // applyActiveOnlyFilter pseudo-filter
-		"database/repositories/users/guardian_profile.go":     1, // no tenant filter, default ordering, fmt.Errorf
-		"database/repositories/users/student.go":              1, // hydrateBusDaysForStudents post-processing
-		"database/repositories/schedule/dateframe.go":         1, // parked vertical, no base.Repository embed
-		"database/repositories/schedule/recurrence_rule.go":   1, // parked vertical, no base.Repository embed
-		// Deliberately alias-free ModelTableExpr: a custom alias historically
-		// broke bun's SELECT column expansion here ("missing FROM-clause
-		// entry"); see the comment above its List method.
-		"database/repositories/active/staff_vacation_quota.go": 1,
-	}
+	queryOptionsListAllowlist = map[string]int{}
 
-	// Hand-rolled .Set("col = ?") sites for the consolidated updater column
-	// families. Everything else was migrated to UpdateColumns in audit B8c.
-	updaterSetAllowlist = map[string]int{
-		// Tenant WHERE not expressible via UpdateColumns without flipping
-		// repo-wide TenantScoped (AccountParent is a cross-tenant table).
-		"database/repositories/auth/account_parent.go": 2,
-		// Out of B8c scope (post-audit additions, listed for the recount).
-		"database/repositories/auth/guardian_invitation.go": 2, // UpdateEmailStatus (email_sent_at + email_retry_count)
-		"database/repositories/users/profile.go":            1, // UpdateAvatar
-		// Compound updates UpdateColumns cannot express (state-guard WHERE
-		// beyond the PK, or a ::jsonb cast on a sibling column).
-		"database/repositories/active/work_session_break.go": 1, // EndBreak: WHERE ended_at IS NULL guard
-		"database/repositories/auth/passkey.go":              1, // UpdateAfterUse: revoked_at IS NULL + jsonb cast
-		"database/repositories/platform/operator_passkey.go": 1, // UpdateAfterUse: revoked_at IS NULL + jsonb cast
-	}
+	updaterSetAllowlist = map[string]int{}
 )
 
 var (

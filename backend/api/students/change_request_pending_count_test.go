@@ -22,7 +22,7 @@ import (
 func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Count", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CountBadgeGroup")
@@ -83,7 +83,7 @@ func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testi
 func TestExcusedQueueReachable_WithAbsencePermission(t *testing.T) {
 	t.Parallel()
 
-	tc := setupTestContext(t)
+	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Reviewer")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "QueueReviewGroup")

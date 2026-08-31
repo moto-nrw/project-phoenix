@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,12 +139,14 @@ func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalRollback")
-	category := new(activitiesModel.Category)
-	require.NoError(t, db.NewSelect().
-		Model(category).
-		ModelTableExpr(`activities.categories AS "category"`).
-		Where("id = ?", group.CategoryID).
-		Scan(ctx))
+	var category struct {
+		ID       int64
+		TenantID int64 `bun:"tenant_id"`
+		Name     string
+	}
+	require.NoError(t, db.NewRaw(`
+		SELECT id, tenant_id, name FROM activities.categories WHERE id = ?
+	`, group.CategoryID).Scan(ctx, &category))
 	replacementName := category.Name
 
 	now := time.Now()
@@ -155,12 +156,12 @@ func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.
 		Where("id = ?", category.ID).
 		Exec(ctx)
 	require.NoError(t, err)
-	replacement := &activitiesModel.Category{Name: replacementName}
-	replacement.SetTenantID(category.TenantID)
-	require.NoError(t, db.NewInsert().
-		Model(replacement).
-		ModelTableExpr("activities.categories").
-		Scan(ctx))
+	var replacementID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO activities.categories (tenant_id, name)
+		VALUES (?, ?)
+		RETURNING id
+	`, category.TenantID, replacementName).Scan(ctx, &replacementID))
 
 	defer func() {
 		require.NoError(t, activityCategoryArchivalUp(ctx, db))

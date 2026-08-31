@@ -1,18 +1,98 @@
 import { sessionFetch } from "./session-cache";
 import {
   type BackendGroupHandover,
+  type BackendAdditionalSupervisionResult,
+  type RunningSupervision,
   type BackendSubstitutionOverview,
   type Substitution,
   type TeacherAvailability,
   formatDateForBackend,
   mapSubstitutionResponse,
   mapSubstitutionsResponse,
+  mapScheduleSubstitutionOverview,
+  type ScheduleSubstitutionOverview,
   prepareSubstitutionForBackend,
   type SubstitutionProxyEnvelope,
   unwrapSubstitutionProxyEnvelope,
 } from "./substitution-helpers";
+import {
+  mapApplyDeviations,
+  mapBulkSubstitution,
+  prepareApplyDeviationsBody,
+  prepareBulkSubstitutionBody,
+} from "./timetable-helpers";
+import type {
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
+  BackendApplyDeviationsResponse,
+  BackendBulkSubstitutionResponse,
+  BulkSubstitutionInput,
+  BulkSubstitutionResponse,
+} from "./timetable-types";
 
 class SubstitutionService {
+  async fetchScheduleOverview(
+    from: string,
+    to: string,
+  ): Promise<ScheduleSubstitutionOverview> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(`/api/substitutions?${params}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Vertretungen konnten nicht geladen werden.");
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    if (envelope.data === undefined) {
+      throw new Error("Ungültige Antwort für Vertretungen.");
+    }
+    return mapScheduleSubstitutionOverview(envelope.data);
+  }
+
+  async applyScheduleSubstitution(
+    instanceId: string,
+    input: ApplyDeviationsInput,
+  ): Promise<ApplyDeviationsResponse> {
+    if (input.cancel) {
+      throw new Error("Absagen laufen nicht über eine Vertretung.");
+    }
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "schedule_substitution",
+        schedule_substitution: {
+          instance_id: Number(instanceId),
+          ...prepareApplyDeviationsBody(input),
+        },
+      }),
+    });
+    if (!response.ok) throw await substitutionError(response);
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendApplyDeviationsResponse>;
+    return mapApplyDeviations(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
+  async applyBulkSubstitution(
+    input: BulkSubstitutionInput,
+  ): Promise<BulkSubstitutionResponse> {
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "schedule_substitution",
+        schedule_substitution: {
+          whole_days: prepareBulkSubstitutionBody(input),
+        },
+      }),
+    });
+    if (!response.ok) throw await substitutionError(response);
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendBulkSubstitutionResponse>;
+    return mapBulkSubstitution(unwrapSubstitutionProxyEnvelope(envelope));
+  }
+
   async fetchSubstitutions(date?: Date): Promise<Substitution[]> {
     const params = new URLSearchParams();
     if (date) params.set("date", formatDateForBackend(date));
@@ -51,6 +131,70 @@ class SubstitutionService {
     });
   }
 
+  async fetchRunningSupervision(
+    activeGroupId: string,
+  ): Promise<RunningSupervision> {
+    const params = new URLSearchParams({ active_group_id: activeGroupId });
+    const response = await sessionFetch(`/api/substitutions?${params}`, {
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error(
+        "Die Betreuung konnte nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendSubstitutionOverview>;
+    const rows = unwrapSubstitutionProxyEnvelope(envelope).running_supervisions;
+    if (!Array.isArray(rows) || rows.length !== 1 || !rows[0]) {
+      throw new Error("Ungültige Antwort für die Betreuung.");
+    }
+    const row = rows[0];
+    return {
+      id: row.id.toString(),
+      name: row.name,
+      roomName: row.room_name,
+      supervisors: row.supervisors.map((staff) => ({
+        id: staff.id.toString(),
+        fullName: staff.full_name,
+      })),
+      availableTargets: row.available_targets.map((staff) => ({
+        id: staff.id.toString(),
+        fullName: staff.full_name,
+      })),
+      isCurrentUserSupervising: row.is_current_user_supervising,
+      canAssign: row.can_assign,
+    };
+  }
+
+  async addSupervisor(
+    activeGroupId: string,
+    targetStaffId: string,
+  ): Promise<{ id: string; targetName: string }> {
+    const response = await sessionFetch("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "additional_supervision",
+        additional_supervision: {
+          active_group_id: activeGroupId,
+          target_staff_id: targetStaffId,
+        },
+      }),
+    });
+    if (!response.ok) {
+      const body = (await response.json()) as { error?: string };
+      throw new Error(
+        body.error ??
+          "Der Betreuer konnte nicht hinzugefügt werden. Bitte versuchen Sie es noch einmal.",
+      );
+    }
+    const envelope =
+      (await response.json()) as SubstitutionProxyEnvelope<BackendAdditionalSupervisionResult>;
+    const body = unwrapSubstitutionProxyEnvelope(envelope);
+    return { id: body.id.toString(), targetName: body.target.full_name };
+  }
+
   async createSubstitution(
     groupId: string,
     substituteStaffId: string,
@@ -87,7 +231,7 @@ class SubstitutionService {
       credentials: "include",
       body: JSON.stringify({
         type: "group_handover",
-        id: Number.parseInt(id, 10),
+        id,
       }),
     });
     if (!response.ok) {
@@ -97,6 +241,11 @@ class SubstitutionService {
       );
     }
   }
+}
+
+async function substitutionError(response: Response): Promise<Error> {
+  const body = (await response.json()) as { error?: string };
+  return new Error(body.error ?? "Vertretung konnte nicht gespeichert werden.");
 }
 
 export const substitutionService = new SubstitutionService();

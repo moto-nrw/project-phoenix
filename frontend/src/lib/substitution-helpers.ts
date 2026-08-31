@@ -4,11 +4,11 @@
 import { toISODate } from "~/lib/date-helpers";
 
 export interface BackendGroupHandover {
-  id: number;
+  id: string;
   type: "group_handover";
-  group: { id: number; name: string };
+  group: { id: string; name: string };
   target: {
-    id: number;
+    id: string;
     full_name: string;
   };
   period: { start_date: string; end_date: string };
@@ -17,7 +17,74 @@ export interface BackendGroupHandover {
 
 export interface BackendSubstitutionOverview {
   group_handovers: BackendGroupHandover[];
-  targets: Array<{ id: number; full_name: string }>;
+  targets: Array<{ id: string; full_name: string }>;
+  schedule_appointments?: BackendScheduleAppointment[];
+  schedule_targets?: Array<{ id: string; full_name: string }>;
+  running_supervisions: BackendRunningSupervision[];
+}
+
+interface BackendRunningSupervision {
+  id: string;
+  type: "additional_supervision";
+  name: string;
+  room_name?: string;
+  supervisors: Array<{ id: string; full_name: string }>;
+  available_targets: Array<{ id: string; full_name: string }>;
+  is_current_user_supervising: boolean;
+  can_assign: boolean;
+}
+export interface BackendAdditionalSupervisionResult {
+  id: string;
+  type: "additional_supervision";
+  active_group_id: string;
+  target: { id: string; full_name: string };
+}
+
+export interface RunningSupervision {
+  id: string;
+  name: string;
+  roomName?: string;
+  supervisors: Array<{ id: string; fullName: string }>;
+  availableTargets: Array<{ id: string; fullName: string }>;
+  isCurrentUserSupervising: boolean;
+  canAssign: boolean;
+}
+
+interface BackendScheduleAppointment {
+  id: number;
+  type: "schedule_substitution";
+  date: string;
+  start_time: string;
+  end_time: string;
+  title: string;
+  status: string;
+  staff: Array<{
+    assignment_id: number;
+    staff: { id: string; full_name: string };
+    is_absent: boolean;
+    is_substitute: boolean;
+    can_end: boolean;
+  }>;
+}
+
+export interface ScheduleSubstitutionOverview {
+  appointments: Array<{
+    id: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    title: string;
+    status: string;
+    staff: Array<{
+      assignmentId: string;
+      id: string;
+      name: string;
+      isAbsent: boolean;
+      isSubstitute: boolean;
+      canEnd: boolean;
+    }>;
+  }>;
+  staff: Array<{ id: string; name: string }>;
 }
 
 export interface SubstitutionProxyEnvelope<T> {
@@ -84,15 +151,47 @@ export function mapSubstitutionsResponse(
   return backendSubstitutions.map(mapSubstitutionResponse);
 }
 
+export function mapScheduleSubstitutionOverview(
+  backend: BackendSubstitutionOverview,
+): ScheduleSubstitutionOverview {
+  return {
+    appointments: (backend.schedule_appointments ?? []).map((appointment) => ({
+      id: String(appointment.id),
+      date: appointment.date,
+      startTime: appointment.start_time,
+      endTime: appointment.end_time,
+      title: appointment.title,
+      status: appointment.status,
+      staff: appointment.staff.map((row) => ({
+        assignmentId: String(row.assignment_id),
+        id: String(row.staff.id),
+        name: row.staff.full_name,
+        isAbsent: row.is_absent,
+        isSubstitute: row.is_substitute,
+        canEnd: row.can_end,
+      })),
+    })),
+    staff: (backend.schedule_targets ?? []).map((member) => ({
+      id: String(member.id),
+      name: member.full_name,
+    })),
+  };
+}
+
 // Prepare frontend types for backend
 export interface CreateSubstitutionRequest {
   type: "group_handover";
   group_handover: {
-    group_id: number;
-    target_staff_id: number;
+    group_id: string;
+    target_staff_id: string;
     start_date: string;
     end_date: string;
   };
+}
+
+export interface AddSupervisorRequest {
+  type: "additional_supervision";
+  additional_supervision: { active_group_id: string; target_staff_id: string };
 }
 
 export function prepareSubstitutionForBackend(
@@ -104,8 +203,8 @@ export function prepareSubstitutionForBackend(
   return {
     type: "group_handover",
     group_handover: {
-      group_id: Number.parseInt(groupId, 10),
-      target_staff_id: Number.parseInt(substituteStaffId, 10),
+      group_id: groupId,
+      target_staff_id: substituteStaffId,
       start_date: startDate,
       end_date: endDate,
     },

@@ -63,5 +63,15 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to tim
 }
 
 func (r *deviationEventRepository) DeleteOlderThan(ctx context.Context, cutoff timezone.Date) (int64, error) {
-	return r.Repository.DeleteOlderThan(ctx, "occurrence_date", cutoff)
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return 0, &modelBase.DatabaseError{Op: "delete expired deviation events", Err: fmt.Errorf("tenant context is required")}
+	}
+	var deleted int64
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		`SELECT audit.delete_expired_deviation_events(?, ?)`, tenantID, cutoff,
+	).Scan(ctx, &deleted); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete expired deviation events", Err: err}
+	}
+	return deleted, nil
 }

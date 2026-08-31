@@ -32,7 +32,7 @@ func futureMondayForPull() timezone.Date {
 func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	t.Parallel()
 
-	s := buildTemplateSetup(t, nil)
+	s := buildTemplateModule(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
