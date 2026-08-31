@@ -1134,10 +1134,11 @@ var serialTestBaseline = map[string]int{
 	// new migration test necessarily adds one — 91 since 1.15.314.
 	"database/migrations":              91,
 	"database/repositories/audit":      2,
+	"database/repositories/active":     1,
 	"database/repositories/auth":       4,
 	"database/repositories/enrollment": 3,
 	"database/repositories/platform":   34,
-	"database/repositories/users":      1,
+	"database/repositories/users":      2,
 	"email":                            12,
 	"integration/phoenixapi":           25,
 	"models/config":                    12,
