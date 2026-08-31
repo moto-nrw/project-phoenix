@@ -61,7 +61,7 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 
 func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool, requestService ...*scheduleService.CareScheduleRequestService) parentService.Service {
 	t.Helper()
-	sf, err := services.NewFactory(repos, db, slog.Default(), func() time.Time {
+	sf, err := services.NewFactoryForTests(repos, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
@@ -80,6 +80,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
 		},
+		MealPlan:               availableMealPlan(false),
 		Broadcaster:            testpkg.NewRecordingBroadcaster(),
 		ArrivalSchedules:       sf.ArrivalSchedule,
 		PickupSchedules:        sf.PickupSchedule,

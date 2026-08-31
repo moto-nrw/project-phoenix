@@ -386,7 +386,7 @@ func (rs *Resource) getChildMealPlan(w http.ResponseWriter, r *http.Request) {
 	out := make([]MealPlanEntryResponse, 0, len(rows))
 	for _, entry := range rows {
 		out = append(out, MealPlanEntryResponse{
-			Date:     entry.Date.String(),
+			Date:     string(entry.Date),
 			Position: entry.Position,
 			Dish:     entry.Dish,
 			Note:     entry.Note,

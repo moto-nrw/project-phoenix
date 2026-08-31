@@ -89,6 +89,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 			sickRequiresApproval:    sickRequiresApproval,
 			excusedRequiresApproval: excusedRequiresApproval,
 		},
+		MealPlan:        availableMealPlan(true),
 		Broadcaster:     bc,
 		ExcusedRequests: excused,
 		DB:              db,

@@ -305,9 +305,6 @@ type GroupMappingRepository interface {
 
 	// RemoveGroupFromCombination removes an active group from a combined group
 	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
-
-	// FindWithRelations retrieves a mapping with its associated CombinedGroup and ActiveGroup relations
-	FindWithRelations(ctx context.Context, id int64) (*GroupMapping, error)
 }
 
 // AttendanceRepository is already defined above

@@ -39,7 +39,6 @@ type AppointmentRepository interface {
 	// visibility with lifecycle cutoffs, which generic filters cannot express.
 	ListCancellationTombstonesForStaff(ctx context.Context, staffID int64, since time.Time) ([]*Appointment, error)
 	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)
-	ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
 	// ListCancellationTombstonesForGuardianProfiles returns guardian-visible
 	// appointments cancelled OR soft-deleted on/after `since`, regardless of their
 	// event dates — the feed re-exports them as STATUS:CANCELLED so subscribers

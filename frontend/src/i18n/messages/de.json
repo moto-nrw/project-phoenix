@@ -1202,6 +1202,7 @@
     "identityRequestButton": "Änderungen anfragen",
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
     "departureDescription": "Legen Sie für jeden Wochentag fest, ob Ihr Kind abgeholt wird, allein geht oder den Bus nimmt. Änderungen prüft die OGS.",
+    "departureReadOnlyAccompanied": "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestError": "Die Anfrage konnte nicht gesendet werden.",
