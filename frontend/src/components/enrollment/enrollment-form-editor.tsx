@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -33,7 +32,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { FormModal } from "~/components/ui/form-modal";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -1588,19 +1587,24 @@ function FormTemplateDetail({
                 </p>
               </div>
 
-              <Link
+              <ButtonLink
                 href={
                   assignedPhases.length > 0
                     ? "/enrollment-phases"
                     : `/enrollment-phases?assignForm=${encodeURIComponent(schema.id)}`
                 }
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                size="md"
+                className="h-10 w-full gap-2 px-3 shadow-sm"
               >
-                <MotoConceptIcon concept="calendarPeriods" size={18} />
+                <MotoConceptIcon
+                  concept="calendarPeriods"
+                  colorMode="inherit"
+                  size={18}
+                />
                 {assignedPhases.length > 0
                   ? "Anmeldephasen öffnen"
                   : "In Anmeldephase auswählen"}
-              </Link>
+              </ButtonLink>
 
               <a
                 href={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}

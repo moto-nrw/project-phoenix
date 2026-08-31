@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Button } from "~/components/ui/button";
 import {
   type Phase,
   type PhaseAudience,
@@ -808,14 +809,19 @@ export function PhasesEditor() {
           />
         </div>
         {!editingId && !rolloverSource && (
-          <button
+          <Button
             type="button"
             onClick={startCreate}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            size="md"
+            className="h-9 shrink-0 gap-2 px-3 shadow-sm"
           >
-            <MotoConceptIcon concept="calendarPeriods" size={16} />
+            <MotoConceptIcon
+              concept="calendarPeriods"
+              colorMode="inherit"
+              size={16}
+            />
             Neue Anmeldephase
-          </button>
+          </Button>
         )}
       </div>
 
@@ -985,14 +991,19 @@ function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
         Lege zuerst fest, für welchen Zeitraum Eltern anmelden können, zum
         Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.
       </p>
-      <button
+      <Button
         type="button"
         onClick={onCreate}
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        size="md"
+        className="mt-5 h-9 gap-2 px-3 shadow-sm"
       >
-        <MotoConceptIcon concept="calendarPeriods" size={16} />
+        <MotoConceptIcon
+          concept="calendarPeriods"
+          colorMode="inherit"
+          size={16}
+        />
         Erste Anmeldephase anlegen
-      </button>
+      </Button>
     </section>
   );
 }

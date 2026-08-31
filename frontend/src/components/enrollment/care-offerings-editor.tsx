@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ButtonLink } from "~/components/ui/button";
 import {
   type CareOffering,
   type CareOfferingInput,
@@ -1129,13 +1129,18 @@ function NoPhaseState() {
         Betreuungsangebote gehören immer zu einer Anmeldephase. Lege zuerst den
         Zeitraum an, danach kannst du die passenden Angebote ergänzen.
       </p>
-      <Link
+      <ButtonLink
         href="/enrollment-phases"
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        size="md"
+        className="mt-5 h-9 gap-2 px-3 shadow-sm"
       >
-        <MotoConceptIcon concept="calendarPeriods" size={18} />
+        <MotoConceptIcon
+          concept="calendarPeriods"
+          colorMode="inherit"
+          size={18}
+        />
         Anmeldephase anlegen
-      </Link>
+      </ButtonLink>
     </section>
   );
 }
