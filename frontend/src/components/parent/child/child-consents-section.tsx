@@ -104,27 +104,27 @@ export function ChildConsentsSection({
         {withdrawFailed ? (
           <Alert type="error" message={t("withdrawError")} />
         ) : null}
-        <dl className="divide-y divide-gray-100">
+        <ul className="divide-y divide-gray-100">
           {visibleConsents.map((consent) => (
-            <div
+            <li
               key={consent.key}
               className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <dt className="text-sm font-semibold text-gray-900">
+                <p className="text-sm font-semibold text-gray-900">
                   {t(`items.${consent.key}`)}
-                </dt>
+                </p>
                 {consent.changed_at ? (
-                  <dd className="mt-1 text-sm text-gray-600">
+                  <p className="mt-1 text-sm text-gray-600">
                     {t(`dates.${consent.state}`, {
                       date: formatBerlinDate(consent.changed_at, locale),
                     })}
-                  </dd>
+                  </p>
                 ) : null}
                 {consent.key === "photo" &&
                 consent.state === "granted" &&
                 consent.can_withdraw ? (
-                  <dd>
+                  <div>
                     <Button
                       type="button"
                       variant="ghost"
@@ -138,18 +138,18 @@ export function ChildConsentsSection({
                     >
                       {t("withdrawButtonShort")}
                     </Button>
-                  </dd>
+                  </div>
                 ) : null}
               </div>
-              <dd className="flex items-start sm:items-end">
+              <div className="flex items-start sm:items-end">
                 <StatusBadge
                   label={t(`states.${consent.state}`)}
                   tone={stateTone(consent.state)}
                 />
-              </dd>
-            </div>
+              </div>
+            </li>
           ))}
-        </dl>
+        </ul>
       </ParentSection>
       <ConfirmationModal
         isOpen={withdrawOpen}

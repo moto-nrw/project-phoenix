@@ -720,6 +720,40 @@ describe("StudentDetailPage", () => {
       ).toBeInTheDocument();
     });
 
+    it("shows a withdrawn consent in the Stammdaten tab", () => {
+      mockUseStudentData.mockReturnValue({
+        student: {
+          ...mockStudent,
+          consents: [
+            {
+              key: "photo",
+              state: "withdrawn",
+              changed_at: "2026-08-31T15:00:00Z",
+            },
+          ],
+        },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: ["Raum 101"],
+        mySupervisedRooms: ["Raum 101"],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("heading", {
+          name: "Einwilligungen und Bestätigungen",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Widerrufen am 31.08.2026")).toBeInTheDocument();
+    });
+
     it("passes enrollment extra fields into full access personal info", () => {
       mockUseStudentEnrollmentExtraFields.mockReturnValue({
         groups: [

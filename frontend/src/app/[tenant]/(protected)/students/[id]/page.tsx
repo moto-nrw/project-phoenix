@@ -51,6 +51,7 @@ import {
   type AggregatedRequestFilters,
 } from "~/components/students/aggregated-request-list";
 import { FamilyProtectionControl } from "~/components/students/family-protection-control";
+import { StudentConsentsReadOnly } from "~/components/students/student-consents-read-only";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   StudentCheckoutSection,
@@ -1751,6 +1752,7 @@ function FullAccessView({
               showEditButton={hasWriteAccess}
               onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
             />
+            <StudentConsentsReadOnly consents={student.consents} />
             {canManageFamilyProtection ? (
               <SectionCard
                 kicker="Private Angaben"

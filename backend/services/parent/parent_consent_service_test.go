@@ -33,15 +33,14 @@ func buildConsentService(t *testing.T) (parentService.Service, *bun.DB, *reposit
 		Logger:      slog.Default(),
 	})
 	return parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:             repos.ParentChild,
-		StudentRepo:           repos.Student,
-		StudentGuardianRepo:   repos.StudentGuardian,
-		StudentConsentChanges: repos.StudentConsentChange,
-		StudentConsents:       usersService.NewStudentConsentRecorder(repos.StudentConsentChange),
-		StudentPhotos:         photos,
-		Broadcaster:           testpkg.NewRecordingBroadcaster(),
-		DB:                    db,
-		Logger:                slog.Default(),
+		ChildRepo:           repos.ParentChild,
+		StudentRepo:         repos.Student,
+		StudentGuardianRepo: repos.StudentGuardian,
+		StudentConsents:     usersService.NewStudentConsentService(repos.StudentConsentChange),
+		StudentPhotos:       photos,
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		DB:                  db,
+		Logger:              slog.Default(),
 	}), db, repos, unlinker
 }
 

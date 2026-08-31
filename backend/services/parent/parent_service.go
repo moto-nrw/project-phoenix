@@ -506,8 +506,7 @@ type ServiceConfig struct {
 	// pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
-	StudentConsentChanges   auditModels.StudentConsentChangeRepository
-	StudentConsents         usersSvc.StudentConsentChangeRecorder
+	StudentConsents         usersSvc.StudentConsentService
 	StudentPhotos           usersSvc.StudentPhotoService
 
 	DB     *bun.DB

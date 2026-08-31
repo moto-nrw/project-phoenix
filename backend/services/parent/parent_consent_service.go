@@ -3,29 +3,22 @@ package parent
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 const (
-	ChildConsentStateGranted     = "granted"
-	ChildConsentStateWithdrawn   = "withdrawn"
-	ChildConsentStateNotRecorded = "not_recorded"
+	ChildConsentStateGranted     = usersService.StudentConsentStateGranted
+	ChildConsentStateWithdrawn   = usersService.StudentConsentStateWithdrawn
+	ChildConsentStateNotRecorded = usersService.StudentConsentStateNotRecorded
 )
 
-// ChildConsent is the parent-facing current state of one consent or required
-// acknowledgement. ChangedAt is the grant/withdrawal time when known.
-type ChildConsent struct {
-	Key         string
-	State       string
-	ChangedAt   *time.Time
-	CanWithdraw bool
-}
+type ChildConsent = usersService.StudentConsentState
 
 func (s *service) GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
@@ -60,7 +53,7 @@ func (s *service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID
 	if err != nil {
 		return nil, err
 	}
-	if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsentChanges == nil || s.StudentConsents == nil {
+	if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsents == nil {
 		return nil, fmt.Errorf("parent: consent dependencies not wired")
 	}
 
@@ -130,48 +123,8 @@ func (s *service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID
 }
 
 func (s *service) loadChildConsents(ctx context.Context, student *usersModels.Student, canManage bool) ([]ChildConsent, error) {
-	var latestPhotoChange *auditModels.StudentConsentChange
-	if student.PhotoConsentGivenAt == nil && s.StudentConsentChanges != nil {
-		changes, err := s.StudentConsentChanges.ListByStudentID(ctx, student.ID)
-		if err != nil {
-			return nil, err
-		}
-		for _, change := range changes {
-			if change.ConsentKey == auditModels.StudentConsentPhoto {
-				latestPhotoChange = change
-				break
-			}
-		}
+	if s.StudentConsents == nil {
+		return nil, fmt.Errorf("parent: student consent service not wired")
 	}
-	return currentChildConsents(student, canManage, latestPhotoChange), nil
-}
-
-func currentChildConsents(student *usersModels.Student, canManage bool, latestPhotoChange *auditModels.StudentConsentChange) []ChildConsent {
-	photo := consentFromTimestamp(auditModels.StudentConsentPhoto, student.PhotoConsentGivenAt, canManage)
-	if student.PhotoConsentGivenAt == nil && latestPhotoChange != nil && latestPhotoChange.Action == auditModels.StudentConsentWithdrawn {
-		changedAt := latestPhotoChange.CreatedAt
-		photo = ChildConsent{
-			Key:       auditModels.StudentConsentPhoto,
-			State:     ChildConsentStateWithdrawn,
-			ChangedAt: &changedAt,
-		}
-	}
-	return []ChildConsent{
-		consentFromTimestamp(auditModels.StudentConsentAGB, student.AGBAcceptedAt, false),
-		consentFromTimestamp(auditModels.StudentConsentDataProcessing, student.DataProcessingAcceptedAt, false),
-		consentFromTimestamp(auditModels.StudentConsentEmailContact, student.EmailContactAcceptedAt, false),
-		photo,
-	}
-}
-
-func consentFromTimestamp(key string, recordedAt *time.Time, canManage bool) ChildConsent {
-	if recordedAt == nil {
-		return ChildConsent{Key: key, State: ChildConsentStateNotRecorded}
-	}
-	return ChildConsent{
-		Key:         key,
-		State:       ChildConsentStateGranted,
-		ChangedAt:   recordedAt,
-		CanWithdraw: canManage,
-	}
+	return s.StudentConsents.CurrentStates(ctx, student, canManage)
 }

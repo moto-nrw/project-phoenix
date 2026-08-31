@@ -10,6 +10,22 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
+const (
+	StudentConsentStateGranted     = "granted"
+	StudentConsentStateWithdrawn   = "withdrawn"
+	StudentConsentStateNotRecorded = "not_recorded"
+)
+
+// StudentConsentState is the current staff/parent-facing state of one consent
+// or required acknowledgement. ChangedAt is the grant/withdrawal time when
+// known. CanWithdraw is decided by the calling portal's permission check.
+type StudentConsentState struct {
+	Key         string
+	State       string
+	ChangedAt   *time.Time
+	CanWithdraw bool
+}
+
 // StudentConsentChangeRecorder appends audit rows for effective changes to
 // the four consent timestamps stored on users.students.
 type StudentConsentChangeRecorder interface {
@@ -22,12 +38,84 @@ type StudentConsentChangeRecorder interface {
 	) error
 }
 
-type studentConsentRecorder struct {
+// StudentConsentStateReader resolves the four live consent timestamps and the
+// latest photo withdrawal into one shared projection. Both portals use this so
+// staff cannot see a different state than parents.
+type StudentConsentStateReader interface {
+	CurrentStates(ctx context.Context, student *userModels.Student, canWithdrawPhoto bool) ([]StudentConsentState, error)
+}
+
+type StudentConsentService interface {
+	StudentConsentChangeRecorder
+	StudentConsentStateReader
+}
+
+type studentConsentService struct {
 	repo auditModels.StudentConsentChangeRepository
 }
 
-func NewStudentConsentRecorder(repo auditModels.StudentConsentChangeRepository) StudentConsentChangeRecorder {
-	return &studentConsentRecorder{repo: repo}
+func NewStudentConsentService(repo auditModels.StudentConsentChangeRepository) StudentConsentService {
+	return &studentConsentService{repo: repo}
+}
+
+func (r *studentConsentService) CurrentStates(
+	ctx context.Context,
+	student *userModels.Student,
+	canWithdrawPhoto bool,
+) ([]StudentConsentState, error) {
+	if r == nil || r.repo == nil {
+		return nil, fmt.Errorf("student consent reader: repository not wired")
+	}
+	if student == nil || student.ID <= 0 {
+		return nil, fmt.Errorf("student consent reader: persisted student is required")
+	}
+
+	var latestPhotoChange *auditModels.StudentConsentChange
+	if student.PhotoConsentGivenAt == nil {
+		changes, err := r.repo.ListByStudentID(ctx, student.ID)
+		if err != nil {
+			return nil, fmt.Errorf("student consent reader: list changes: %w", err)
+		}
+		for _, change := range changes {
+			if change.ConsentKey == auditModels.StudentConsentPhoto {
+				latestPhotoChange = change
+				break
+			}
+		}
+	}
+
+	photo := currentConsentFromTimestamp(
+		auditModels.StudentConsentPhoto,
+		student.PhotoConsentGivenAt,
+		canWithdrawPhoto,
+	)
+	if latestPhotoChange != nil && latestPhotoChange.Action == auditModels.StudentConsentWithdrawn {
+		changedAt := latestPhotoChange.CreatedAt
+		photo = StudentConsentState{
+			Key:       auditModels.StudentConsentPhoto,
+			State:     StudentConsentStateWithdrawn,
+			ChangedAt: &changedAt,
+		}
+	}
+
+	return []StudentConsentState{
+		currentConsentFromTimestamp(auditModels.StudentConsentAGB, student.AGBAcceptedAt, false),
+		currentConsentFromTimestamp(auditModels.StudentConsentDataProcessing, student.DataProcessingAcceptedAt, false),
+		currentConsentFromTimestamp(auditModels.StudentConsentEmailContact, student.EmailContactAcceptedAt, false),
+		photo,
+	}, nil
+}
+
+func currentConsentFromTimestamp(key string, recordedAt *time.Time, canWithdraw bool) StudentConsentState {
+	if recordedAt == nil {
+		return StudentConsentState{Key: key, State: StudentConsentStateNotRecorded}
+	}
+	return StudentConsentState{
+		Key:         key,
+		State:       StudentConsentStateGranted,
+		ChangedAt:   recordedAt,
+		CanWithdraw: canWithdraw,
+	}
 }
 
 type studentConsentField struct {
@@ -36,7 +124,7 @@ type studentConsentField struct {
 	after  *time.Time
 }
 
-func (r *studentConsentRecorder) RecordTransitions(
+func (r *studentConsentService) RecordTransitions(
 	ctx context.Context,
 	before, after *userModels.Student,
 	source string,

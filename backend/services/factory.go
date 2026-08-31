@@ -291,7 +291,7 @@ type Factory struct {
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
 	StudentPhotos   users.StudentPhotoService
-	StudentConsents users.StudentConsentChangeRecorder
+	StudentConsents users.StudentConsentService
 }
 
 // SetSettingsObservers wires delivery-owned metrics without coupling the
@@ -314,7 +314,7 @@ func (f *Factory) SetSettingsObservers(
 func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
-	studentConsentRecorder := users.NewStudentConsentRecorder(repos.StudentConsentChange)
+	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 	settingsRuntime := newSettingsRuntime(db, nil)
 	repos.SetConfigRuntime(settingsRuntime)
 
@@ -1593,7 +1593,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 			PickupScheduleRepo:  repos.StudentPickupSchedule,
 			RFIDCardRepo:        repos.RFIDCard,
 			Resolver:            relationshipResolver,
-			Consents:            studentConsentRecorder,
+			Consents:            studentConsentService,
 		},
 		db,
 	)
@@ -1879,7 +1879,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
-		StudentConsents:          studentConsentRecorder,
+		StudentConsents:          studentConsentService,
 		CareWithdrawal:           careLifecycleService,
 		Broadcaster:              realtimeHub,
 		PickupGuardianNotifier:   pillEmitter,
@@ -2371,8 +2371,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		StudentGuardianRepo:       repos.StudentGuardian,
 		GuardianPhoneRepo:         repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo:   repos.GuardianChange,
-		StudentConsentChanges:     repos.StudentConsentChange,
-		StudentConsents:           studentConsentRecorder,
+		StudentConsents:           studentConsentService,
 		RequestChildRepo:          repos.RequestChild,
 		RequestChildOfferingRepo:  repos.RequestChildOffering,
 		CareOfferingRepo:          repos.CareOffering,
@@ -2778,7 +2777,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		StudentDeletion:      studentDeletionService,
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
-		StudentConsents:      studentConsentRecorder,
+		StudentConsents:      studentConsentService,
 		MasterDataReview:     masterDataReviewService,
 		CareRequests:         careRequestService,
 		OfferingChanges:      offeringChangeRequestService,

@@ -525,6 +525,10 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		AttendanceLogEnabled:  attendanceLogEnabled,
 		FeedbackEnabled:       feedbackEnabled,
 	}
+	if err := rs.enrichStudentConsents(r.Context(), &response, student, hasFullAccess); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
@@ -563,6 +567,34 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
+}
+
+func (rs *Resource) enrichStudentConsents(
+	ctx context.Context,
+	response *StudentDetailResponse,
+	student *users.Student,
+	hasFullAccess bool,
+) error {
+	if !hasFullAccess {
+		return nil
+	}
+	if rs.StudentConsents == nil {
+		return errors.New("student consent service not wired")
+	}
+
+	consents, err := rs.StudentConsents.CurrentStates(ctx, student, false)
+	if err != nil {
+		return err
+	}
+	response.Consents = make([]StudentConsentResponse, 0, len(consents))
+	for _, consent := range consents {
+		response.Consents = append(response.Consents, StudentConsentResponse{
+			Key:       consent.Key,
+			State:     consent.State,
+			ChangedAt: consent.ChangedAt,
+		})
+	}
+	return nil
 }
 
 // createPersonFromStudentRequest creates a Person object from a StudentRequest

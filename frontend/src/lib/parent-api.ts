@@ -8,8 +8,13 @@
  * arrive as strings per the project's frontend convention.
  */
 
-import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
+import type {
+  ConsentKey,
+  ConsentRecord,
+  ConsentState,
+} from "~/lib/consent-types";
+import { createLogger } from "~/lib/logger";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
@@ -35,15 +40,11 @@ export interface Child {
   readonly school_slug: string;
 }
 
-export type ChildConsentKey =
-  "agb" | "data_processing" | "email_contact" | "photo";
+export type ChildConsentKey = ConsentKey;
 
-export type ChildConsentState = "granted" | "withdrawn" | "not_recorded";
+export type ChildConsentState = ConsentState;
 
-export interface ChildConsent {
-  readonly key: ChildConsentKey;
-  readonly state: ChildConsentState;
-  readonly changed_at?: string; // ISO timestamp
+export interface ChildConsent extends ConsentRecord {
   readonly can_withdraw: boolean;
 }
 
