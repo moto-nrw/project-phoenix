@@ -29,6 +29,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}

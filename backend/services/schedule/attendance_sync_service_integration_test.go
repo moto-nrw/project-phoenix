@@ -236,7 +236,7 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 			}))
 			testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
 
-			factory, err := services.NewFactory(repositories.NewFactory(s.db), s.db, slog.Default())
+			factory, err := services.NewFactoryForTests(repositories.NewFactory(s.db), s.db, slog.Default())
 			require.NoError(t, err)
 			if tt.timeout {
 				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))

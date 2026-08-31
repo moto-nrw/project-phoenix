@@ -41,18 +41,6 @@ type EnrollmentOfferingAdjustment struct {
 	ChangedAt                   time.Time       `bun:"changed_at,notnull,default:now()" json:"changed_at"`
 }
 
-func (e *EnrollmentOfferingAdjustment) GetID() interface{} {
-	return e.ID
-}
-
-func (e *EnrollmentOfferingAdjustment) GetCreatedAt() time.Time {
-	return e.ChangedAt
-}
-
-func (e *EnrollmentOfferingAdjustment) GetUpdatedAt() time.Time {
-	return e.ChangedAt
-}
-
 type EnrollmentOfferingAdjustmentRepository interface {
 	Create(ctx context.Context, entry *EnrollmentOfferingAdjustment) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*EnrollmentOfferingAdjustment, error)

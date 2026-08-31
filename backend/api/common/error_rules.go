@@ -61,6 +61,14 @@ func RulesRenderer(rules []ErrorRule, fallback func(error) render.Renderer) func
 	}
 }
 
+// FixedRenderer adapts a stable public error message to an ErrorRule while
+// ignoring the matched internal sentinel's text.
+func FixedRenderer(renderer func(error) render.Renderer, publicErr error) func(error) render.Renderer {
+	return func(error) render.Renderer {
+		return renderer(publicErr)
+	}
+}
+
 // UnwrapRenderer builds an ErrorRenderer for the typed-wrapper packages
 // (rooms, groups, schedules, activities, users): errors.As to the domain
 // wrapper E, match the rules against the wrapped chain, and render the

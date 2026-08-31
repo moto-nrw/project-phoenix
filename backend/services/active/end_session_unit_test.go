@@ -106,10 +106,6 @@ func (m *mockGroupRepository) EndSession(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockGroupRepository) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
-	return nil, nil
-}
-
 func (m *mockGroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
 	return nil, nil
 }

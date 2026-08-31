@@ -23,7 +23,7 @@ import (
 // buildCombinedGroupService creates an Active Service for combined group tests
 func buildCombinedGroupService(t *testing.T, db *bun.DB) active.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

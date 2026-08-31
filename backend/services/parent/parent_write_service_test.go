@@ -97,6 +97,7 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
 		},
+		MealPlan:    availableMealPlan(false),
 		Broadcaster: bc,
 		DB:          db,
 		Logger:      slog.Default(),

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,11 +21,48 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMealPlanErrorRendererContracts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, targetCode, internalMessage, body string
+		err                                     error
+		status                                  int
+	}{
+		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, body: `{"status":"error","error":"feature_disabled"}`},
+		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, body: `{"status":"error","error":"meal plan covers weekdays only (Monday-Friday)"}`},
+		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, body: `{"status":"error","error":"invalid_dishes"}`},
+		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", body: `{"status":"error","error":"failed to load meal plan"}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := httptest.NewRequest(http.MethodGet, "/meal-plan", nil)
+			response := httptest.NewRecorder()
+			err := test.err
+			if test.targetCode != "" {
+				for _, rule := range mealPlanErrorRules {
+					if rule.Target.Error() == test.targetCode {
+						err = rule.Target
+						break
+					}
+				}
+				require.Error(t, err)
+			}
+			renderMealPlanFailure(response, request, err, test.internalMessage)
+			assert.Equal(t, test.status, response.Code)
+			assert.JSONEq(t, test.body, response.Body.String())
+		})
+	}
+}
 
 // TestParseAllowedOrigins tests the parseAllowedOrigins function
 // Deliberately NOT parallel: mutates process-global configuration.
@@ -269,6 +308,13 @@ func setupOperatorInvitationRoute(t *testing.T) chi.Router {
 	repoFactory := repositories.NewFactory(db)
 	api := &API{Services: serviceFactory, Router: chi.NewRouter(), db: db, repos: repoFactory}
 	initializeAPIResources(api, repoFactory, db, slog.Default())
+	mealPlan, err := mealplanCompose.New(mealplanCompose.Dependencies{
+		DB:       db,
+		Settings: mealplanCompose.SettingsFunc(func(context.Context) (bool, error) { return true, nil }),
+		Observe:  func(mealplanCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	api.MealPlan = newMealPlanResource(mealPlan, db)
 	api.registerRoutesWithRateLimiting()
 	return api.Router
 }

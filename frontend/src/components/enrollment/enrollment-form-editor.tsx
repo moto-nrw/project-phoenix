@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -33,7 +32,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { FormModal } from "~/components/ui/form-modal";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -1588,19 +1587,24 @@ function FormTemplateDetail({
                 </p>
               </div>
 
-              <Link
+              <ButtonLink
                 href={
                   assignedPhases.length > 0
                     ? "/enrollment-phases"
                     : `/enrollment-phases?assignForm=${encodeURIComponent(schema.id)}`
                 }
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                size="md"
+                className="w-full gap-2"
               >
-                <MotoConceptIcon concept="calendarPeriods" size={18} />
+                <MotoConceptIcon
+                  concept="calendarPeriods"
+                  colorMode="inherit"
+                  size={18}
+                />
                 {assignedPhases.length > 0
                   ? "Anmeldephasen öffnen"
                   : "In Anmeldephase auswählen"}
-              </Link>
+              </ButtonLink>
 
               <a
                 href={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
@@ -2348,19 +2352,45 @@ function LegalBlocksSection({
             })
           }
         />
-        {block.kind !== "notice" ? (
+        {block.kind !== "notice" &&
+        !(
+          block.kind === "consent" &&
+          (block.source === "standard" || standardByKey.has(block.key))
+        ) ? (
           <StyledCheckboxButton
             checked={block.required}
             disabled={disabled}
             muted
             onCheckedChange={(checked) =>
-              updateBlock(index, { required: checked })
+              updateBlock(
+                index,
+                block.source === "standard" || standardByKey.has(block.key)
+                  ? { required: checked }
+                  : // Eine Pflicht-Checkbox ist eine Bestätigung (terms),
+                    // eine freiwillige Checkbox eine Einwilligung (consent).
+                    { required: checked, kind: checked ? "terms" : "consent" },
+              )
             }
           >
             Muss bestätigt werden
           </StyledCheckboxButton>
         ) : null}
       </div>
+      {block.kind === "consent" ? (
+        <p className="mt-2 text-xs leading-5 text-gray-500">
+          Freiwillige Einwilligung: Eltern können das Formular auch ohne Häkchen
+          abschicken.
+        </p>
+      ) : null}
+      {block.kind === "terms" &&
+      block.source !== "standard" &&
+      !standardByKey.has(block.key) ? (
+        <p className="mt-2 text-xs leading-5 text-gray-500">
+          Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
+          sie das Formular nicht abschicken. Das ist keine freiwillige
+          Einwilligung.
+        </p>
+      ) : null}
     </div>
   );
 
@@ -2790,7 +2820,7 @@ function checkboxLegalBlockKindFor(
 ): FormLegalBlock["kind"] {
   if (block.key === "agb") return "terms";
   if (block.key === "data_processing") return "privacy_notice";
-  return "consent";
+  return block.required ? "terms" : "consent";
 }
 
 function CoreFieldGroup({
@@ -4621,13 +4651,26 @@ function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
       displayMode === LEGAL_BLOCK_DISPLAY_MODE_PDF
         ? (block.document_url ?? "").trim()
         : "";
+    // Einwilligungen sind immer freiwillig (Art. 7 Abs. 4 DSGVO): eine als
+    // Pflicht markierte Custom-Checkbox ist eine Bestätigung (terms), keine
+    // Einwilligung. Legacy-Blöcke mit consent+required werden beim nächsten
+    // Speichern entsprechend umgeschrieben; das Backend lehnt consent+required ab.
+    const kind =
+      (block.source ?? "custom") !== "standard" &&
+      block.kind === "consent" &&
+      block.required
+        ? "terms"
+        : block.kind;
     return {
       key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
-      kind: block.kind,
+      kind,
       title: block.title.trim(),
       label: block.label.trim(),
       text: block.text.trim(),
-      required: block.kind === "notice" ? false : Boolean(block.required),
+      required:
+        kind === "notice" || kind === "consent"
+          ? false
+          : Boolean(block.required),
       enabled: Boolean(block.enabled),
       sort_order: index * 10 + 10,
       source: block.source ?? "custom",

@@ -160,6 +160,16 @@ func TestRecordSettingsEvidence(t *testing.T) {
 	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(settingsLookupDuration))
 }
 
+func TestObserveMealPlanOperationRecordsStatementDuration(t *testing.T) {
+	t.Parallel()
+
+	before := testutil.CollectAndCount(mealPlanStatementDuration)
+
+	ObserveMealPlanOperation("replace_day", time.Millisecond, 2, 1, 3*time.Millisecond, nil)
+
+	assert.Equal(t, before+1, testutil.CollectAndCount(mealPlanStatementDuration))
+}
+
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 	t.Parallel()
 

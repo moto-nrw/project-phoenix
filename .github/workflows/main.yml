@@ -21,6 +21,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   # Draft PRs run no CI. lint/test skip implicitly via `needs: detect-changes`;
   # env-sync-check and ci-gate carry the same guard explicitly. The full suite

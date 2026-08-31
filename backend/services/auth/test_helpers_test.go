@@ -1234,10 +1234,6 @@ func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, 
 	panic("CleanupOldTokensForAccountReturning not implemented")
 }
 
-func (noopTokenRepository) FindByFamilyID(context.Context, string) ([]*authModel.Token, error) {
-	panic("FindByFamilyID not implemented")
-}
-
 func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {
 	panic("DeleteByFamilyIDReturning not implemented")
 }

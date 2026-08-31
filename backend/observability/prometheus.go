@@ -164,6 +164,30 @@ var (
 		},
 		[]string{"key"},
 	)
+	mealPlanOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_operations_total", Help: "Meal Plan operations by operation and outcome."},
+		[]string{"operation", "outcome"},
+	)
+	mealPlanDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_meal_plan_operation_duration_seconds", Help: "Meal Plan read and write duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	mealPlanQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_queries_total", Help: "Persistence queries issued by Meal Plan operations."},
+		[]string{"operation"},
+	)
+	mealPlanRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_meal_plan_rows_changed_total", Help: "Rows changed by Meal Plan commands."},
+		[]string{"operation"},
+	)
+	mealPlanStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_meal_plan_statement_duration_seconds",
+			Help:    "Cumulative Meal Plan write-statement duration by operation.",
+			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
+		},
+		[]string{"operation"},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -283,6 +307,11 @@ func init() {
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
+		mealPlanOperations,
+		mealPlanDuration,
+		mealPlanQueries,
+		mealPlanRowsChanged,
+		mealPlanStatementDuration,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -346,6 +375,24 @@ func ObserveHTTPRequest(method, route string, status int, duration time.Duration
 	statusClass := StatusClass(status)
 	appHTTPRequests.WithLabelValues(method, route, statusClass).Inc()
 	appHTTPDuration.WithLabelValues(method, route).Observe(duration.Seconds())
+}
+
+func ObserveMealPlanOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	mealPlanOperations.WithLabelValues(operation, outcome).Inc()
+	mealPlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		mealPlanQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		mealPlanRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		mealPlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
