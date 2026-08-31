@@ -102,11 +102,13 @@ type Factory struct {
 	StaffDocument   userModels.StaffDocumentRepository
 	StudentDocument userModels.StudentDocumentRepository
 
-	// School file storage (#2596)
-	FileFolder         filestoreModels.FolderRepository
-	File               filestoreModels.FileRepository
-	FileEvent          auditModels.FileEventRepository
-	SubstitutionChange auditModels.SubstitutionChangeCreator
+	// School file storage (#2596) and the attachments of Elternmitteilungen
+	// (#2890), which reuse its document primitives.
+	FileFolder             filestoreModels.FolderRepository
+	File                   filestoreModels.FileRepository
+	AnnouncementAttachment filestoreModels.AnnouncementAttachmentRepository
+	FileEvent              auditModels.FileEventRepository
+	SubstitutionChange     auditModels.SubstitutionChangeCreator
 
 	NotificationPreference userModels.NotificationPreferenceRepository
 
@@ -359,10 +361,11 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentDocument: users.NewStudentDocumentRepository(db),
 
 		// School file storage (#2596)
-		FileFolder:         filestore.NewFolderRepository(db),
-		File:               filestore.NewFileRepository(db),
-		FileEvent:          audit.NewFileEventRepository(db),
-		SubstitutionChange: audit.NewSubstitutionChangeRepository(db),
+		FileFolder:             filestore.NewFolderRepository(db),
+		File:                   filestore.NewFileRepository(db),
+		AnnouncementAttachment: filestore.NewAnnouncementAttachmentRepository(db),
+		FileEvent:              audit.NewFileEventRepository(db),
+		SubstitutionChange:     audit.NewSubstitutionChangeRepository(db),
 
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 

@@ -157,6 +157,9 @@ type Service interface {
 
 	// --- cancellation notice (#2601) ---
 	CareCancellationPublisher
+
+	// AttachmentSupport is the announcement side of the attachments (#2890).
+	AttachmentSupport
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -185,6 +188,9 @@ type service struct {
 	preferences notifications.PreferenceService
 	deliveries  DeliveryRecorder
 	parentsURL  string
+	// attachments is the file side of #2890, injected after construction (the
+	// two services point at each other).
+	attachments AttachmentPurger
 	logger      *slog.Logger
 }
 
@@ -412,6 +418,13 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	// Delivery rows carry the same weak link (related_entity_id, no FK), so they
 	// need the same explicit cleanup.
 	if err := s.dropDeliveryRows(ctx, a.GetTenantID(), id); err != nil {
+		return err
+	}
+	// The attachment rows DO cascade — which is exactly the problem: once they
+	// are gone, nothing points at their bytes any more. Record the cleanup
+	// intents first, in this transaction, so a rollback takes them with it
+	// (#2890).
+	if err := s.purgeAttachments(ctx, id); err != nil {
 		return err
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {

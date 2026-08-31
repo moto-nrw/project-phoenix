@@ -300,6 +300,17 @@ func (r *ParentAnnouncementRepository) clearReads(ctx context.Context, announcem
 	return nil
 }
 
+// ClearEngagement drops every read/acknowledgement and poll answer of an
+// announcement. It is the explicit form of what Update already does after a
+// body edit, for the callers that change an announcement without rewriting its
+// row — attaching or removing a file (#2890).
+func (r *ParentAnnouncementRepository) ClearEngagement(ctx context.Context, announcementID int64) error {
+	if err := r.clearReads(ctx, announcementID); err != nil {
+		return err
+	}
+	return r.clearResponses(ctx, announcementID)
+}
+
 // SetPublished sets (or clears, when publishedAt is nil) the publication
 // timestamp. RLS pins the update to the current tenant.
 func (r *ParentAnnouncementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {

@@ -2070,6 +2070,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		db,
 		repos.FileFolder,
 		repos.File,
+		repos.AnnouncementAttachment,
 		repos.FileEvent,
 		settingsService,
 		logger.With("service", "filestore"),
@@ -2411,6 +2412,16 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
 		setter.SetGuardianNoticePublisher(parentAnnouncementService)
 	}
+
+	// Anhänge an Elternmitteilungen (#2890). Die Datei gehört der Dateiablage,
+	// der Empfängerkreis der Mitteilung — beide Seiten zeigen aufeinander, also
+	// werden sie hier verbunden, wo alle drei Dienste existieren. Ohne diese
+	// Verdrahtung verweigern die Anhang-Pfade den Dienst, statt ohne Prüfung zu
+	// entscheiden.
+	if setter, ok := fileStoreService.(filestore.AnnouncementPortSetter); ok {
+		setter.SetAnnouncementPorts(parentAnnouncementService, parentService)
+	}
+	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,
