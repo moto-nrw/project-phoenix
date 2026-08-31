@@ -18,14 +18,13 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -723,7 +722,6 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		configModels.KeyGuardianParentCanRemove,
 		configModels.KeyParentMasterDataEditEnabled,
 		configModels.KeyParentMasterDataRequestEnabled,
-		configModels.KeyMealPlanEnabled,
 		configModels.KeyParentNewsEnabled,
 		configModels.KeyParentGuardianManagementEnabled,
 		configModels.KeyParentRequestReasonPolicy,
@@ -786,7 +784,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
-	mealPlan, err := resolveBool(configModels.KeyMealPlanEnabled)
+	mealPlan, err := s.mealPlanAvailableForTenant(ctx, child.tenantID)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
@@ -948,34 +946,29 @@ func parentVisibleStatusDay(row *activeModels.StudentStatusDay, accountID int64)
 // containing weekStart. Unlike ListSickDays this is gated by the
 // operations.meal_plan_enabled toggle: if the school does not run a meal plan
 // the parent must not see one, so a disabled tenant yields ErrMealPlanDisabled.
-func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error) {
+func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
 
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
-	if err != nil {
-		return nil, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
-	}
-	if !enabled {
-		return nil, ErrMealPlanDisabled
-	}
-
-	monday, friday := mealplanService.WeekRange(weekStart)
+	monday := mealPlanWeekMonday(weekStart)
 	// Parents may only read the current and next work week. Staff can plan
 	// arbitrary future (and past) weeks on the staff page; those are drafts and
 	// must not be reachable through the parent proxy by supplying a crafted
 	// week_start. Compare on the normalized Monday so any day within an allowed
 	// week resolves the same.
-	currentMonday, _ := mealplanService.WeekRange(s.todayDate())
+	currentMonday := mealPlanWeekMonday(s.todayDate())
 	if monday != currentMonday && monday != currentMonday.AddDays(7) {
 		return nil, ErrMealPlanWeekOutOfRange
 	}
 
-	var out []*mealplanModels.MealPlanEntry
+	if s.MealPlan == nil {
+		return nil, errors.New("parent: meal plan capability is required")
+	}
+	var out []mealplanModule.Entry
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		rows, findErr := s.MealPlanRepo.FindByDateRange(txCtx, monday, friday)
+		rows, findErr := s.MealPlan.Week(txCtx, mealplanModule.Date(monday.String()))
 		if findErr != nil {
 			return findErr
 		}
@@ -983,9 +976,30 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 		return nil
 	})
 	if txErr != nil {
+		if errors.Is(txErr, mealplanModule.ErrDisabled) {
+			return nil, ErrMealPlanDisabled
+		}
 		return nil, fmt.Errorf("parent: meal plan week: %w", txErr)
 	}
 	return out, nil
+}
+
+func (s *service) mealPlanAvailableForTenant(ctx context.Context, tenantID int64) (bool, error) {
+	if s.MealPlan == nil {
+		return false, errors.New("parent: meal plan capability is required")
+	}
+	var available bool
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var resolveErr error
+		available, resolveErr = s.MealPlan.Available(txCtx)
+		return resolveErr
+	})
+	return available, err
+}
+
+func mealPlanWeekMonday(date timezone.Date) timezone.Date {
+	offset := (int(date.Weekday()) + 6) % 7
+	return date.AddDays(-offset)
 }
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override

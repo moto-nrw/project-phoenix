@@ -624,7 +624,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/mealplan",
+      "path": "modules/mealplan/http",
       "owner": "inbound-mealplan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -995,7 +995,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/mealplan",
+      "path": "modules/mealplan/internal/adapters/postgres",
       "owner": "meal-plan",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1289,9 +1289,16 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/mealplan",
+      "path": "modules/mealplan/internal/domain",
       "owner": "meal-plan",
       "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/ports",
+      "owner": "meal-plan",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1541,7 +1548,21 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/mealplan",
+      "path": "modules/mealplan",
+      "owner": "meal-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/compose",
+      "owner": "meal-plan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/application",
       "owner": "meal-plan",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1912,7 +1933,7 @@
   "legacy_composition": [
     {"package": "api", "symbols": ["API", "New"]},
     {"package": "database/repositories", "symbols": ["Factory", "NewFactory"]},
-    {"package": "services", "symbols": ["Factory", "NewFactory"]}
+    {"package": "services", "symbols": ["Factory"]}
   ],
   "external_classes": [
     "cli-config",
@@ -4024,6 +4045,213 @@
       "source_owner": "staff-clock",
       "source_role": "application",
       "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.to.meal-plan",
+      "description": "care-plan reads the public Meal Plan capability after authorizing the child and week.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.behavior-test.meal-plan",
+      "description": "Care Plan behavior tests fake the public Meal Plan capability consumed by the parent service.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.port-domain",
+      "description": "Meal Plan ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "meal-plan.compose.application",
+      "description": "Meal Plan composition constructs its application service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "application"
+    },
+    {
+      "id": "meal-plan.domain.calendar-date",
+      "description": "Meal Plan domain values use the repository calendar-date type required for PostgreSQL DATE columns.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "domain",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.compose.domain",
+      "description": "Meal Plan composition maps its internal domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.compose.orm-sql",
+      "description": "Meal Plan composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "meal-plan.compose.port",
+      "description": "Meal Plan composition exposes observations from its consumer-owned port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "port"
+    },
+    {
+      "id": "meal-plan.compose.postgres",
+      "description": "Meal Plan composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "postgres"
+    },
+    {
+      "id": "meal-plan.compose.public",
+      "description": "Meal Plan composition returns its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.compose.tenant-runtime",
+      "description": "Meal Plan composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.internal-test.orm-sql",
+      "description": "Meal Plan composition tests supply the concrete Bun test database.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "module-internal-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "meal-plan.postgres.calendar-date",
+      "description": "Meal Plan persistence maps PostgreSQL DATE columns with the repository calendar-date type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.public.calendar-date",
+      "description": "The public Meal Plan facade uses the repository calendar-date value type.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "public",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "meal-plan.internal-test.tenant-runtime",
+      "description": "Meal Plan composition tests verify tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.meal-plan-compose",
+      "description": "The production root constructs the Meal Plan module once.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.test.meal-plan-compose",
+      "description": "Root composition tests construct the required Meal Plan module for complete route graphs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "meal-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.meal-plan-http",
+      "description": "The production root constructs the Meal Plan HTTP adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-mealplan",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.to.meal-plan-public",
+      "description": "The production root shares the one Meal Plan facade with its consumers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
       "target_role": "public"
     },
     {

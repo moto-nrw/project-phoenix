@@ -74,7 +74,7 @@ func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, clocks...)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default(), clocks...)
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
 
@@ -129,6 +129,19 @@ func ProtectedTestTenantGroup(db *bun.DB, r chi.Router, fn func(chi.Router, func
 func ProtectedTestTenantGroupFunc(db *bun.DB) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
 	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
 		ProtectedTestTenantGroup(db, r, fn)
+	}
+}
+
+func UnprotectedGroupFunc() func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		fn(r, IdentityMiddleware)
+	}
+}
+
+func RecordingUnprotectedGroupFunc(called *bool) func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)) {
+	return func(r chi.Router, fn func(chi.Router, func(http.Handler) http.Handler)) {
+		*called = true
+		fn(r, IdentityMiddleware)
 	}
 }
 
