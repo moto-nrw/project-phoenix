@@ -854,11 +854,14 @@ async function recordPreviewEnd(
 ): Promise<void> {
   if (!previewToken) return;
   try {
+    // Same audit context the regular refresh path forwards: without it the
+    // automatic end lands with the Docker-internal IP and Node as browser.
+    const auditHeaders = await getRefreshAuditHeaders();
     const response = await fetch(
       `${getServerApiUrl()}/auth/staff-preview/end`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...auditHeaders },
         body: JSON.stringify({ preview_token: previewToken }),
         signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
       },
@@ -935,11 +938,16 @@ async function maintainPreviewSession(
   // Step 2: re-mint the preview token as the admin. No dedup needed — the
   // mint does not rotate anything, a concurrent double-mint is harmless.
   try {
+    const remintAuditHeaders = await getRefreshAuditHeaders();
     const response = await fetch(`${getServerApiUrl()}/auth/staff-preview`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${adminAccessToken}`,
         "Content-Type": "application/json",
+        // A re-mint normally continues the same preview and writes no start
+        // event — but if the backend ever treats it as a new one, the audit
+        // row must carry the real client, not the Docker-internal hop.
+        ...remintAuditHeaders,
       },
       // The expiring token comes along as previous_token: it proves this is
       // the SAME preview instance, so the backend renews it instead of

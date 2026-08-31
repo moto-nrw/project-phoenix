@@ -22,11 +22,16 @@ async function POSTHandler(request: NextRequest) {
     const body: unknown = await request.json();
 
     const { getServerApiUrl } = await import("~/lib/server-api-url");
+    const { getClientForwardHeaders } =
+      await import("~/lib/client-headers.server");
     const response = await fetch(`${getServerApiUrl()}/auth/staff-preview`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        // The start writes an audit event — the backend must see the admin's
+        // real IP and browser, not the Docker-internal proxy hop.
+        ...getClientForwardHeaders(request),
       },
       body: JSON.stringify(body),
     });

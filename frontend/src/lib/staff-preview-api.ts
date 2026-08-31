@@ -91,6 +91,28 @@ async function startStaffPreview(
 }
 
 /**
+ * Report the end of a preview to the audit trail. Best effort — the preview is
+ * over regardless of the answer, and the backend records one end per preview
+ * instance however often it is asked.
+ *
+ * Plain fetch, not sessionFetch: the signed preview token in the body is the
+ * credential the whole way down, and the route needs no session. sessionFetch
+ * would throw when the admin session has already expired — exactly the case in
+ * which the end must still reach the audit trail.
+ */
+async function postPreviewEnd(previewToken: string): Promise<void> {
+  try {
+    await fetch("/api/auth/staff-preview/end", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preview_token: previewToken }),
+    });
+  } catch {
+    // Audit only — ending the preview must never fail on this call.
+  }
+}
+
+/**
  * Full start sequence: mint the preview token, swap the session onto it,
  * drop every cache. Callers finish with a hard reload so all mounted data
  * re-fetches through the target's eyes.
@@ -101,14 +123,22 @@ export async function performStartStaffPreview(
   swrMutate: SwrMutateAll,
 ): Promise<StaffPreviewSession> {
   const preview = await startStaffPreview(accountId);
-  await update({
-    previewStart: {
-      accessToken: preview.accessToken,
-      expiresIn: preview.expiresIn,
-      targetAccountId: preview.targetAccountId,
-      targetName: preview.targetName,
-    },
-  });
+  try {
+    await update({
+      previewStart: {
+        accessToken: preview.accessToken,
+        expiresIn: preview.expiresIn,
+        targetAccountId: preview.targetAccountId,
+        targetName: preview.targetName,
+      },
+    });
+  } catch (err) {
+    // The backend already minted the token and recorded "preview started".
+    // The session never swapped, so no preview exists in the UI — close it in
+    // the audit trail too, otherwise the start stays unmatched forever.
+    await postPreviewEnd(preview.accessToken);
+    throw err;
+  }
   await swrMutate(() => true, undefined, { revalidate: false });
   clearSessionCache();
   return preview;
@@ -131,19 +161,7 @@ export async function performEndStaffPreview(
   await update({ previewEnd: true });
   clearSessionCache();
   if (previewToken) {
-    try {
-      // Plain fetch, not sessionFetch: the signed preview token in the body is
-      // the credential the whole way down, and the route needs no session.
-      // sessionFetch would throw when the admin session has already expired —
-      // exactly the case in which the end must still reach the audit trail.
-      await fetch("/api/auth/staff-preview/end", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preview_token: previewToken }),
-      });
-    } catch {
-      // Audit only — ending the preview must never fail on this call.
-    }
+    await postPreviewEnd(previewToken);
   }
   await swrMutate(() => true, undefined, { revalidate: false });
   clearSessionCache();

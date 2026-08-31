@@ -23,11 +23,18 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json();
 
     const { getServerApiUrl } = await import("~/lib/server-api-url");
+    const { getClientForwardHeaders } =
+      await import("~/lib/client-headers.server");
     const response = await fetch(
       `${getServerApiUrl()}/auth/staff-preview/end`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          // Same audit reason as the start route: the end event should carry
+          // the real client IP and browser, not the Docker-internal hop.
+          ...getClientForwardHeaders(request),
+        },
         body: JSON.stringify(body),
       },
     );
