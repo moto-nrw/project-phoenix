@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	customLeaveAllowancesVersion     = "1.15.355"
+	customLeaveAllowancesVersion     = "1.15.356"
 	customLeaveAllowancesDescription = "Add yearly allowances for school-defined staff absence types (#2874)"
 )
 
