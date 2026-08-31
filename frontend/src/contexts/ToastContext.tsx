@@ -9,7 +9,10 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { Modal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 
 // Logger instance for toast notifications
 const logger = createLogger({ component: "ToastContext" });
@@ -123,6 +126,13 @@ const desktopStylesByType: Record<
   },
 };
 
+const modalTitles: Record<ToastType, string> = {
+  success: "Erfolgreich!",
+  error: "Fehler",
+  info: "Information",
+  warning: "Warnung",
+};
+
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -142,25 +152,71 @@ interface InternalToastTimers {
   start: number;
 }
 
+function MobileToastCard({
+  item,
+  onSelect,
+}: Readonly<{
+  item: ToastItemData;
+  onSelect: (item: ToastItemData) => void;
+}>) {
+  const styles = mobileStylesByType[item.type];
+
+  return (
+    <Button
+      type="button"
+      variant="surface"
+      size="card"
+      aria-label={`${modalTitles[item.type]}: ${item.message}. ${
+        item.action ? `Tippen zum ${item.action.label}` : "Tippen zum Schließen"
+      }`}
+      onClick={() => onSelect(item)}
+      className={`${styles.bg} ${styles.border} border text-center shadow-none`}
+    >
+      <output
+        aria-live="polite"
+        aria-atomic="true"
+        className="flex flex-col items-center gap-3"
+      >
+        <div className={styles.iconColor}>
+          <svg
+            className="h-12 w-12"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d={styles.iconPath}
+            />
+          </svg>
+        </div>
+        <div>
+          <p className={`text-lg font-semibold ${styles.text}`}>
+            {modalTitles[item.type]}
+          </p>
+          <p className={`mt-1 text-sm ${styles.text} opacity-80`}>
+            {item.message}
+          </p>
+        </div>
+      </output>
+    </Button>
+  );
+}
+
 function ToastRow({
   item,
   onClose,
   reducedMotion,
+  isMobile,
 }: Readonly<{
   item: ToastItemData;
   onClose: (id: string) => void;
   reducedMotion: boolean;
+  isMobile: boolean;
 }>) {
-  const mobileStyles = mobileStylesByType[item.type];
   const desktopStyles = desktopStylesByType[item.type];
-
-  // Modal titles for mobile center-overlay
-  const modalTitles: Record<ToastType, string> = {
-    success: "Erfolgreich!",
-    error: "Fehler",
-    info: "Information",
-    warning: "Warnung",
-  };
 
   const [visible, setVisible] = useState(false);
   const [exiting, setExiting] = useState(false);
@@ -168,7 +224,6 @@ function ToastRow({
     remaining: item.duration,
     start: Date.now(),
   });
-  const isDesktopRef = useRef<boolean>(false);
 
   useEffect(() => {
     setVisible(true);
@@ -183,18 +238,13 @@ function ToastRow({
       timersRef.current.timeoutId = localTimeout;
     }
 
-    if (typeof globalThis !== "undefined") {
-      isDesktopRef.current =
-        !!globalThis.matchMedia?.("(min-width: 768px)").matches;
-    }
-
     return () => {
       if (localTimeout) clearTimeout(localTimeout);
     };
   }, [item.duration, item.id, onClose, reducedMotion]);
 
   const pauseIfDesktop = () => {
-    if (!isDesktopRef.current) return;
+    if (isMobile) return;
     if (timersRef.current.timeoutId) {
       clearTimeout(timersRef.current.timeoutId);
       timersRef.current.timeoutId = undefined;
@@ -204,7 +254,7 @@ function ToastRow({
   };
 
   const resumeIfDesktop = () => {
-    if (!isDesktopRef.current) return;
+    if (isMobile) return;
     if (timersRef.current.remaining > 0) {
       timersRef.current.start = Date.now();
       timersRef.current.timeoutId = setTimeout(() => {
@@ -214,130 +264,79 @@ function ToastRow({
     }
   };
 
-  // Handle manual dismiss on mobile (tap anywhere to close)
-  const handleMobileDismiss = () => {
-    // Clear any existing timers
+  const dismissWithExitAnimation = () => {
     if (timersRef.current.timeoutId) {
       clearTimeout(timersRef.current.timeoutId);
       timersRef.current.timeoutId = undefined;
     }
-    // Trigger exit animation and close
     setExiting(true);
     setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
   };
 
   const handleAction = () => {
     item.action?.onClick();
-    handleMobileDismiss();
+    dismissWithExitAnimation();
   };
 
   return (
-    <>
-      {/* Mobile: Center-Overlay Modal Style - tap to dismiss */}
-      <button
-        type="button"
-        aria-label={`${modalTitles[item.type]}: ${item.message}. ${
-          item.action
-            ? `Tippen zum ${item.action.label}`
-            : "Tippen zum Schließen"
-        }`}
-        aria-hidden={isDesktopRef.current}
-        onClick={item.action ? handleAction : handleMobileDismiss}
-        className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none ${
-          visible && !exiting ? "scale-100 opacity-100" : "scale-95 opacity-0"
-        }`}
-      >
-        <output
-          aria-live="polite"
-          aria-atomic="true"
-          className="flex flex-col items-center gap-3 p-6 text-center"
-        >
-          <div className={mobileStyles.iconColor}>
-            <svg
-              className="h-12 w-12"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d={mobileStyles.iconPath}
-              />
-            </svg>
-          </div>
-          <div>
-            <p className={`text-lg font-semibold ${mobileStyles.text}`}>
-              {modalTitles[item.type]}
-            </p>
-            <p className={`mt-1 text-sm ${mobileStyles.text} opacity-80`}>
-              {item.message}
-            </p>
-          </div>
-        </output>
-      </button>
-
-      {/* Desktop: Original bottom-right notification style */}
-      <output
-        aria-live="polite"
-        aria-atomic="true"
-        aria-hidden={!isDesktopRef.current}
-        onMouseEnter={pauseIfDesktop}
-        onMouseLeave={resumeIfDesktop}
-        className={`pointer-events-auto hidden md:block ${desktopStyles.bg} ${desktopStyles.border} ${desktopStyles.text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
-      >
-        <div className="flex items-start gap-3">
-          <div className={`flex-shrink-0 ${desktopStyles.text}`}>
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d={desktopStyles.iconPath}
-              />
-            </svg>
-          </div>
-          <p className={`flex-1 text-sm font-medium ${desktopStyles.text}`}>
-            {item.message}
-          </p>
-          {item.action && (
-            <button
-              type="button"
-              onClick={handleAction}
-              className={`flex-shrink-0 self-center text-sm font-semibold ${desktopStyles.text} underline underline-offset-2 transition-opacity hover:opacity-70`}
-            >
-              {item.action.label}
-            </button>
-          )}
+    <output
+      aria-live="polite"
+      aria-atomic="true"
+      aria-hidden={isMobile}
+      onMouseEnter={pauseIfDesktop}
+      onMouseLeave={resumeIfDesktop}
+      className={`pointer-events-auto hidden md:block ${desktopStyles.bg} ${desktopStyles.border} ${desktopStyles.text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
+    >
+      <div className="flex items-start gap-3">
+        <div className={`flex-shrink-0 ${desktopStyles.text}`}>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d={desktopStyles.iconPath}
+            />
+          </svg>
+        </div>
+        <p className={`flex-1 text-sm font-medium ${desktopStyles.text}`}>
+          {item.message}
+        </p>
+        {item.action && (
           <button
             type="button"
-            aria-label="Schließen"
-            onClick={() => onClose(item.id)}
-            className={`flex-shrink-0 ${desktopStyles.text} transition-opacity hover:opacity-70`}
+            onClick={handleAction}
+            className={`flex-shrink-0 self-center text-sm font-semibold ${desktopStyles.text} underline underline-offset-2 transition-opacity hover:opacity-70`}
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            {item.action.label}
           </button>
-        </div>
-      </output>
-    </>
+        )}
+        <button
+          type="button"
+          aria-label="Schließen"
+          onClick={() => onClose(item.id)}
+          className={`flex-shrink-0 ${desktopStyles.text} transition-opacity hover:opacity-70`}
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+      </div>
+    </output>
   );
 }
 
@@ -346,6 +345,7 @@ export function ToastProvider({
 }: Readonly<{ children: React.ReactNode }>) {
   const [items, setItems] = useState<ToastItemData[]>([]);
   const reducedMotion = useReducedMotion();
+  const isMobile = useMediaQuery(BELOW_MD);
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
@@ -406,40 +406,47 @@ export function ToastProvider({
     [push, remove],
   );
 
-  // Handle backdrop click - dismiss the topmost (last) toast on mobile
-  const handleBackdropClick = useCallback(() => {
-    const lastItem = items.at(-1);
-    if (lastItem) {
-      remove(lastItem.id);
-    }
-  }, [items, remove]);
+  const topmostItem = items.at(-1);
+  const handleMobileSelect = useCallback(
+    (item: ToastItemData) => {
+      item.action?.onClick();
+      remove(item.id);
+    },
+    [remove],
+  );
 
   return (
     <ToastContext.Provider value={api}>
       {children}
 
-      {/* Shared backdrop for mobile - native button for accessibility */}
-      {items.length > 0 && (
-        <button
-          type="button"
-          onClick={handleBackdropClick}
-          aria-label="Benachrichtigungen schließen"
-          className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer border-none bg-black/20 p-0 transition-opacity md:hidden"
-          style={{
-            opacity: items.length > 0 ? 1 : 0,
-            transition: reducedMotion ? "none" : "opacity 300ms",
-          }}
-        />
-      )}
+      <Modal
+        isOpen={isMobile && topmostItem !== undefined}
+        onClose={() => {
+          if (topmostItem) remove(topmostItem.id);
+        }}
+        title="Benachrichtigungen"
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-xs"
+        backdropLabel="Benachrichtigung schließen"
+      >
+        <div className="space-y-2">
+          {items.map((item) => (
+            <MobileToastCard
+              key={item.id}
+              item={item}
+              onSelect={handleMobileSelect}
+            />
+          ))}
+        </div>
+      </Modal>
 
-      {/* Global container: mobile centered; desktop bottom-right (original) */}
-      <div className="pointer-events-none fixed inset-0 z-[9000] flex flex-col items-center justify-center gap-2 px-4 md:inset-auto md:right-6 md:bottom-6 md:max-w-sm md:items-stretch md:justify-end md:px-0">
+      <div className="pointer-events-none fixed right-6 bottom-6 z-[9000] hidden max-w-sm flex-col items-stretch justify-end gap-2 md:flex">
         {items.map((item) => (
           <ToastRow
             key={item.id}
             item={item}
             onClose={remove}
             reducedMotion={reducedMotion}
+            isMobile={isMobile}
           />
         ))}
       </div>

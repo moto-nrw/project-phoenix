@@ -1,8 +1,8 @@
 // UI-kit drift ratchet (issue #1629).
 //
 // Four rules that stop drift away from the shared UI kit. Generic brand colors
-// and hand-rolled overlays tolerate existing stock via shrink-only baselines;
-// rounded-3xl and unlabeled checkboxes are hard-zero:
+// tolerate existing stock via a shrink-only baseline; hand-rolled overlays,
+// rounded-3xl, and unlabeled checkboxes are hard-zero:
 //
 //   ui-kit/no-generic-brand-colors  — generic Tailwind hues (bg-green-500 …)
 //                                     used for brand semantics; use the brand
@@ -281,30 +281,6 @@ src/lib/iot-helpers.ts|bg-green-100:2 bg-red-100:2 bg-yellow-100 text-green-800:
 src/lib/staff-helpers.ts|from-green-50/80 from-red-50/80 from-sky-50/80 to-emerald-100/80 to-rose-100/80 to-sky-100/80
 `);
 
-const OVERLAY_BASELINE_FILES = new Set([
-  "src/app/operator/devices/page.tsx",
-  "src/app/operator/persons/page.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/app/operator/unregistered-tags/page.tsx",
-  "src/components/auth/mfa-admin-override-modal.tsx",
-  "src/components/background-wrapper.tsx",
-  "src/components/dashboard/header/profile-dropdown.tsx",
-  "src/components/enrollment/admin-enrollment-detail.tsx",
-  "src/contexts/ToastContext.tsx",
-]);
-
-const OVERLAY_BASELINE = new Map([
-  ["src/app/operator/devices/page.tsx", 1],
-  ["src/app/operator/persons/page.tsx", 1],
-  ["src/app/operator/provisioning/soft-delete-shared.tsx", 1],
-  ["src/app/operator/unregistered-tags/page.tsx", 1],
-  ["src/components/auth/mfa-admin-override-modal.tsx", 1],
-  ["src/components/background-wrapper.tsx", 1],
-  ["src/components/dashboard/header/profile-dropdown.tsx", 1],
-  ["src/components/enrollment/admin-enrollment-detail.tsx", 1],
-  ["src/contexts/ToastContext.tsx", 2],
-]);
-
 const BRAND_COLOR_RE =
   /\b(?:text|bg|border|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+(?:\/(?:\d+|\[[^\]\s]+\]))?(?![\w-])/g;
 const FIXED_RE = /\bfixed\b/;
@@ -507,10 +483,10 @@ const noHandRolledOverlay = {
       description:
         "Disallow hand-rolled full-screen overlays (`fixed inset-0`) outside the UI kit; use Modal, Drawer, ConfirmationModal, or OverflowMenu.",
     },
-    messages: {
-      handRolledOverlay:
-        "Hand-rolled full-screen overlay ('{{match}}'). Use the kit Modal / Drawer / OverflowMenu instead of a bespoke fixed inset-0 layer. The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
-    },
+      messages: {
+        handRolledOverlay:
+          "Hand-rolled full-screen overlay ('{{match}}'). Use the kit Modal / Drawer / OverflowMenu instead of a bespoke fixed inset-0 layer.",
+      },
     schema: [],
   },
   create(context) {
@@ -519,22 +495,13 @@ const noHandRolledOverlay = {
     if (EXEMPT_FILE_RE.test(key)) return {};
     if (key.startsWith(UI_KIT_DIR)) return {};
 
-    const baseline = OVERLAY_BASELINE_FILES.has(key)
-      ? (OVERLAY_BASELINE.get(key) ?? 0)
-      : 0;
-    let seenMatches = 0;
-
     const check = (node, text) => {
       if (!FIXED_RE.test(text) || !INSET_0_RE.test(text)) return;
-
-      seenMatches += 1;
-      if (seenMatches > baseline) {
-        context.report({
-          node,
-          messageId: "handRolledOverlay",
-          data: { match: "fixed … inset-0" },
-        });
-      }
+      context.report({
+        node,
+        messageId: "handRolledOverlay",
+        data: { match: "fixed … inset-0" },
+      });
     };
 
     return {

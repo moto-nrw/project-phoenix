@@ -15,6 +15,7 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
+import { OVERLAY_BACKDROP_CLASS } from "./overlay-styles";
 
 // Shared a11y contract for all modal dialogs (also consumed by form-modal).
 export const dialogAriaProps = {
@@ -56,6 +57,8 @@ interface ModalProps {
   readonly backdropLabel?: string;
   /** Prevent every dismissal path while an operation must finish in place. */
   readonly isDismissDisabled?: boolean;
+  /** Keep backdrop taps from discarding in-progress form input. */
+  readonly isBackdropDismissDisabled?: boolean;
   /**
    * Auf schmalen Schirmen als Sheet von unten statt als mittiges Fenster, mit
    * angehefteter Fussleiste und freiem Sicherheitsbereich. Ab `sm` bleibt es
@@ -83,6 +86,7 @@ function MobileSheetModal({
   footer,
   closeLabel = "Modal schließen",
   isDismissDisabled = false,
+  isBackdropDismissDisabled = false,
 }: ModalProps) {
   const { openModal, closeModal } = useModal();
   const onCloseRef = useLatest(onClose);
@@ -106,7 +110,7 @@ function MobileSheetModal({
     <Drawer
       open
       onOpenChange={handleOpenChange}
-      dismissible={!isDismissDisabled}
+      dismissible={!isDismissDisabled && !isBackdropDismissDisabled}
     >
       <DrawerContent
         data-mobile-sheet="true"
@@ -171,6 +175,7 @@ function DialogModal({
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
+  isBackdropDismissDisabled = false,
   mobileSheet = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
@@ -323,9 +328,9 @@ function DialogModal({
           type="button"
           tabIndex={-1}
           onClick={handleClose}
-          disabled={isDismissDisabled}
+          disabled={isDismissDisabled || isBackdropDismissDisabled}
           aria-label={backdropLabel}
-          className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
+          className={`absolute inset-0 cursor-default border-none bg-transparent p-0 ${OVERLAY_BACKDROP_CLASS} transition-all duration-200 ease-out ${
             isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
           }`}
           style={{
@@ -345,6 +350,7 @@ function DialogModal({
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
           style={{
+            pointerEvents: "auto",
             background:
               "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
             backdropFilter: "blur(20px)",
@@ -487,6 +493,8 @@ interface ConfirmationModalProps {
    * inconsistent state (e.g. a multi-request operation).
    */
   readonly isDismissDisabled?: boolean;
+  /** Forwarded to Modal — backdrop taps do not close the confirmation. */
+  readonly isBackdropDismissDisabled?: boolean;
   readonly confirmButtonClass?: string;
   /**
    * Text shown on the confirm button while isConfirmLoading. Defaults to
@@ -512,6 +520,7 @@ export function ConfirmationModal({
   isConfirmLoading = false,
   isConfirmDisabled = false,
   isDismissDisabled = false,
+  isBackdropDismissDisabled = false,
   confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
   loadingText = "Wird geladen...",
   closeLabel,
@@ -572,6 +581,7 @@ export function ConfirmationModal({
       title={title}
       footer={modalFooter}
       isDismissDisabled={isDismissDisabled}
+      isBackdropDismissDisabled={isBackdropDismissDisabled}
       closeLabel={closeLabel}
       backdropLabel={backdropLabel}
       mobileSheet={mobileSheet}

@@ -213,6 +213,52 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("can keep typed work open when only the backdrop is clicked", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          isBackdropDismissDisabled
+        >
+          <textarea defaultValue="Noch nicht gespeichert" />
+        </Modal>
+      </TestWrapper>,
+    );
+
+    const backdrop = screen.getByRole("button", {
+      name: /hintergrund.*schließen/i,
+    });
+    expect(backdrop).toBeDisabled();
+    fireEvent.click(backdrop);
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the obscured page blurred behind the shared backdrop", async () => {
+    render(
+      <TestWrapper>
+        <Modal isOpen={true} onClose={vi.fn()} title="Test">
+          <p>Content</p>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    ).toHaveClass("backdrop-blur-sm");
+  });
+
   it("should call onClose when Escape key is pressed", async () => {
     const onClose = vi.fn();
     render(

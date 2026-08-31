@@ -60,6 +60,7 @@
     "soon": "Soon",
     "refresh": "Refresh data",
     "closeMenu": "Close menu",
+    "profileMenu": "Profile menu for {name}",
     "profile": "Profile",
     "logout": "Sign out",
     "comingSoonTooltip": "Coming soon",

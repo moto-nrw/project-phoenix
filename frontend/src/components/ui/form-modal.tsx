@@ -8,6 +8,7 @@ import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { dialogAriaProps } from "./modal";
 import { useLatest } from "~/lib/hooks/use-latest";
+import { OVERLAY_BACKDROP_CLASS } from "./overlay-styles";
 
 interface FormModalProps {
   readonly isOpen: boolean;
@@ -181,7 +182,7 @@ export function FormModal({
           tabIndex={-1}
           onClick={handleClose}
           aria-label="Hintergrund - Klicken zum Schließen"
-          className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
+          className={`absolute inset-0 cursor-default border-none bg-transparent p-0 ${OVERLAY_BACKDROP_CLASS} transition-all duration-200 ease-out ${
             isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
           }`}
           style={{

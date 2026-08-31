@@ -2,12 +2,13 @@
 // Refactored with extracted sub-components to reduce cognitive complexity
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -103,7 +104,6 @@ export function Header() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -113,8 +113,8 @@ export function Header() {
     routingMode,
   );
   const tenantContext = useTenantSafe();
-  // parentNav is available in every shell; only parent-mode branches read it, so
-  // the German staff/operator labels are untouched (they render the de mirror).
+  // parentNav is available in every shell. Staff/operator shells use the de
+  // mirror; the parents portal supplies its active locale.
   const tParentNav = useTranslations("parentNav");
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const {
@@ -220,30 +220,6 @@ export function Header() {
     return () => globalThis.window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    if (!isProfileMenuOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (profileMenuRef.current?.contains(target)) return;
-      setIsProfileMenuOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsProfileMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isProfileMenuOpen]);
-
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
   const referrer = referrerPage ?? "/students/search";
@@ -258,6 +234,7 @@ export function Header() {
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
   const displayAvatar = profile?.avatar;
+  const profileMenuLabel = tParentNav("profileMenu", { name: displayName });
   const brandLabel = mode === "teacher" ? tenantContext?.tenant?.name : null;
 
   const isSessionExpired = sessionExpired;
@@ -367,34 +344,47 @@ export function Header() {
 
             {mode === "teacher" ? <RemindersBell /> : null}
             {/* User menu */}
-            <div ref={profileMenuRef} className="relative">
-              <ProfileTrigger
-                displayName={displayName}
-                displayAvatar={displayAvatar}
-                userRole={userRole}
-                isOpen={isProfileMenuOpen}
-                compactOnTablet={mode === "parent"}
-                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              />
-              <ProfileDropdownMenu
-                isOpen={isProfileMenuOpen}
-                displayName={displayName}
-                displayAvatar={displayAvatar}
-                userEmail={userEmail}
-                profileUrl={profileUrl}
-                profileLabel={
-                  mode === "operator"
-                    ? "Profileinstellungen"
-                    : mode === "parent"
-                      ? tParentNav("settings")
-                      : mode === "school"
-                        ? "Einstellungen"
-                        : undefined
-                }
-                onClose={() => setIsProfileMenuOpen(false)}
-                onLogout={() => setIsLogoutModalOpen(true)}
-              />
-            </div>
+            <AnchoredPopover
+              open={isProfileMenuOpen}
+              onOpenChange={setIsProfileMenuOpen}
+              ariaLabel={profileMenuLabel}
+              preferredWidth={288}
+              className="border-0 bg-transparent p-0 shadow-none"
+              renderTrigger={({ ref, toggle, panelId }) => (
+                <ProfileTrigger
+                  ref={ref}
+                  menuId={panelId}
+                  ariaLabel={profileMenuLabel}
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userRole={userRole}
+                  isOpen={isProfileMenuOpen}
+                  compactOnTablet={mode === "parent"}
+                  onClick={toggle}
+                />
+              )}
+            >
+              {({ close }) => (
+                <ProfileDropdownMenu
+                  isOpen={isProfileMenuOpen}
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userEmail={userEmail}
+                  profileUrl={profileUrl}
+                  profileLabel={
+                    mode === "operator"
+                      ? "Profileinstellungen"
+                      : mode === "parent"
+                        ? tParentNav("settings")
+                        : mode === "school"
+                          ? "Einstellungen"
+                          : undefined
+                  }
+                  onClose={close}
+                  onLogout={() => setIsLogoutModalOpen(true)}
+                />
+              )}
+            </AnchoredPopover>
           </div>
         </div>
       </div>

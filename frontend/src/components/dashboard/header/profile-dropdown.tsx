@@ -3,6 +3,7 @@
 
 "use client";
 
+import { forwardRef } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { UserIcon } from "@phosphor-icons/react";
@@ -89,25 +90,40 @@ function ProfileIcon() {
  */
 interface ProfileTriggerProps {
   readonly displayName: string;
+  readonly ariaLabel: string;
   readonly displayAvatar?: string | null;
   readonly userRole: string;
   readonly isOpen: boolean;
   readonly onClick: () => void;
   readonly compactOnTablet?: boolean;
+  readonly menuId?: string;
 }
 
-export function ProfileTrigger({
-  displayName,
-  displayAvatar,
-  userRole,
-  isOpen,
-  onClick,
-  compactOnTablet = false,
-}: ProfileTriggerProps) {
+export const ProfileTrigger = forwardRef<
+  HTMLButtonElement,
+  ProfileTriggerProps
+>(function ProfileTrigger(
+  {
+    displayName,
+    ariaLabel,
+    displayAvatar,
+    userRole,
+    isOpen,
+    onClick,
+    compactOnTablet = false,
+    menuId,
+  }: ProfileTriggerProps,
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
+      aria-label={ariaLabel}
+      aria-haspopup="dialog"
+      aria-expanded={isOpen}
+      aria-controls={menuId}
       className="flex touch-manipulation items-center space-x-2 rounded-lg p-1.5 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
     >
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
@@ -122,7 +138,7 @@ export function ProfileTrigger({
       <ChevronDownIcon isOpen={isOpen} />
     </button>
   );
-}
+});
 
 /**
  * Profile dropdown menu
@@ -159,71 +175,58 @@ export function ProfileDropdownMenu({
   };
 
   return (
-    <>
-      {/* Invisible backdrop to close dropdown on click outside */}
-      {isOpen && (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 cursor-default"
-          onClick={onClose}
-          aria-label={t("closeMenu")}
-        />
-      )}
-
-      {/* Dropdown menu */}
-      <div
-        className={`absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl border border-gray-200 bg-white shadow-lg transition-[opacity,transform,visibility] duration-150 ease-out ${
-          isOpen
-            ? "visible translate-y-0 opacity-100"
-            : "invisible -translate-y-2 opacity-0"
-        }`}
-      >
-        {/* User info header */}
-        <div className="border-b border-gray-100/50 px-4 py-4">
-          <div className="flex items-center space-x-3">
-            <UserAvatar
-              avatarUrl={displayAvatar}
-              userName={displayName}
-              size="md"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold text-gray-900">
-                {displayName}
-              </div>
-              <div className="truncate text-xs text-gray-500" title={userEmail}>
-                {userEmail}
-              </div>
+    <div
+      className={`w-72 rounded-2xl border border-gray-200 bg-white shadow-lg transition-[opacity,transform,visibility] duration-150 ease-out ${
+        isOpen
+          ? "visible translate-y-0 opacity-100"
+          : "invisible -translate-y-2 opacity-0"
+      }`}
+    >
+      {/* User info header */}
+      <div className="border-b border-gray-100/50 px-4 py-4">
+        <div className="flex items-center space-x-3">
+          <UserAvatar
+            avatarUrl={displayAvatar}
+            userName={displayName}
+            size="md"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-semibold text-gray-900">
+              {displayName}
+            </div>
+            <div className="truncate text-xs text-gray-500" title={userEmail}>
+              {userEmail}
             </div>
           </div>
         </div>
-
-        {/* Menu items */}
-        <div className="p-2">
-          {profileUrl && (
-            <Link
-              href={profileUrl}
-              onClick={onClose}
-              className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
-            >
-              <ProfileIcon />
-              {profileLabel ?? t("profile")}
-            </Link>
-          )}
-
-          {/* Divider */}
-          <div className="my-2 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
-
-          {/* Logout button */}
-          <button
-            type="button"
-            onClick={handleLogoutClick}
-            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-[background-color,color] duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
-          >
-            <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
-            {t("logout")}
-          </button>
-        </div>
       </div>
-    </>
+
+      {/* Menu items */}
+      <div className="p-2">
+        {profileUrl && (
+          <Link
+            href={profileUrl}
+            onClick={onClose}
+            className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
+          >
+            <ProfileIcon />
+            {profileLabel ?? t("profile")}
+          </Link>
+        )}
+
+        {/* Divider */}
+        <div className="my-2 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+
+        {/* Logout button */}
+        <button
+          type="button"
+          onClick={handleLogoutClick}
+          className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-[background-color,color] duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
+        >
+          <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
+          {t("logout")}
+        </button>
+      </div>
+    </div>
   );
 }
