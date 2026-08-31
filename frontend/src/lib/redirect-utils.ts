@@ -20,13 +20,13 @@ export interface SupervisionState {
 }
 
 /** The staff day-plan entry point (#2383). */
-export const TAGESPLAN_PATH = "/betreuungsplan/tag";
+export const TAGESPLAN_PATH = "/tagesplan";
 
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
  * 1. Binary-mode caregivers: /students/search (roomless entry stays, #2383)
- * 2. Caregivers at schools with the Betreuungsplan enabled: /betreuungsplan/tag (#2383)
+ * 2. Caregivers at schools with the Betreuungsplan enabled: /tagesplan (#2383)
  * 3. Open-care caregivers: /students/search (no group concept, #1544)
  * 4. Caregivers with groups: /ogs-groups
  * 5. Caregivers actively supervising: /active-supervisions

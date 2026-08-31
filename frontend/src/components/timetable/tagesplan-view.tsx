@@ -350,9 +350,7 @@ export function TagesplanView() {
   const goToDay = useCallback(
     (iso: string) => {
       restoredRef.current = true;
-      router.replace(
-        iso === today ? "/betreuungsplan/tag" : `/betreuungsplan/tag?d=${iso}`,
-      );
+      router.replace(iso === today ? "/tagesplan" : `/tagesplan?d=${iso}`);
     },
     [router, today],
   );

@@ -172,7 +172,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     // Tagesplan (#2383): die Standardseite der Betreuungskräfte, deshalb der
     // erste Tab. Gating (binary-Modus, timetable.enabled) unten in
     // filteredMainItemsByMode.
-    href: "/betreuungsplan/tag",
+    href: "/tagesplan",
     label: "Tagesplan",
     iconKey: "betreuungsplan",
     concept: "carePlan",
@@ -683,7 +683,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Tagesplan (#2383): nur im detaillierten Modus und nur an Schulen mit
       // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne config:read).
       !(
-        item.href === "/betreuungsplan/tag" &&
+        item.href === "/tagesplan" &&
         (presenceMode === "binary" || !tagesplanEnabled)
       ),
   );

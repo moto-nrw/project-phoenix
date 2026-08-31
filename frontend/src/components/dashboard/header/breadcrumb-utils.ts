@@ -23,9 +23,6 @@ import {
  */
 const exactPageTitles: Record<string, string> = {
   [STAFF_FLAT_PAGES.studentSearch.href]: STAFF_FLAT_PAGES.studentSearch.label,
-  // Vor der Katalogsuche: /betreuungsplan/tag ist eine Unterseite des
-  // Planungsbereichs und würde sonst dessen Label "Betreuungsplan" tragen.
-  [STAFF_FLAT_PAGES.tagesplan.href]: STAFF_FLAT_PAGES.tagesplan.label,
 };
 
 const detailRouteTitles: Array<{
@@ -159,10 +156,6 @@ const BREADCRUMB_SECTIONS: readonly {
 export function getSectionBreadcrumb(
   pathname: string,
 ): SectionBreadcrumbInfo | null {
-  // Der Tagesplan (#2383) liegt unter /betreuungsplan, ist aber der flache
-  // Einstieg der Betreuungskräfte — eine "Planung"-Brotkrume würde auf einen
-  // Bereich zeigen, den sie gar nicht öffnen dürfen.
-  if (pathname === STAFF_FLAT_PAGES.tagesplan.href) return null;
   for (const { root, getActivePage, hasDeepPages } of BREADCRUMB_SECTIONS) {
     const page = getActivePage(pathname);
     if (!page || page.href === root.href) continue;

@@ -347,7 +347,7 @@ const NFC_ONLY_HREFS = new Set<string>([
 const BINARY_HIDDEN_HREFS = new Set<string>([
   "/rooms",
   "/activities",
-  "/betreuungsplan/tag",
+  "/tagesplan",
 ]);
 const GROUP_NAV_ICON =
   "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
@@ -627,7 +627,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
     // Tagesplan (#2383) nur an Schulen, die den Betreuungsplan nutzen. Das
     // Flag kommt vom Tenant-Resolve und ist damit auch ohne config:read da.
-    if (!tagesplanEnabled && item.href === "/betreuungsplan/tag") return false;
+    if (!tagesplanEnabled && item.href === "/tagesplan") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -862,7 +862,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const beforeAccordionItems = mainNavItems.filter(
     (item) =>
       item.href === "/dashboard" ||
-      item.href === "/betreuungsplan/tag" ||
+      item.href === "/tagesplan" ||
       (item.href === "/students/search" && !item.comingSoon),
   );
 
@@ -871,7 +871,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     (item) =>
       !item.comingSoon &&
       item.href !== "/dashboard" &&
-      item.href !== "/betreuungsplan/tag" &&
+      item.href !== "/tagesplan" &&
       item.href !== "/students/search" &&
       item.href !== "/substitutions",
   );
@@ -1179,7 +1179,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Tagesplan (#2383): die Standardseite der Betreuungskräfte —
               ganz oben, wie Home bei Admins. */}
           {beforeAccordionItems
-            .filter((item) => item.href === "/betreuungsplan/tag")
+            .filter((item) => item.href === "/tagesplan")
             .map(renderNavItem)}
 
           {/* Group navigation (tenant staff/admin; hidden in open-care mode). */}

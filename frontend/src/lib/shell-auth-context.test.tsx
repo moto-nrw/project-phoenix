@@ -87,7 +87,7 @@ describe("TeacherShellProvider", () => {
     expect(result.current.mode).toBe("teacher");
     // Betreuungskräfte (auch mit Doppelrolle) haben den Tagesplan als Home
     // (#2383) — dieselbe Priorität wie der Login-Redirect.
-    expect(result.current.homeUrl).toBe("/betreuungsplan/tag");
+    expect(result.current.homeUrl).toBe("/tagesplan");
     expect(result.current.profileUrl).toBe("/profile");
   });
 

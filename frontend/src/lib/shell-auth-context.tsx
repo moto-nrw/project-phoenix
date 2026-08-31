@@ -67,7 +67,7 @@ export function TeacherShellProvider({
   // binären Modus) behalten /dashboard als Logo-Ziel.
   const homeUrl =
     isCaregiver(session) && presenceMode !== "binary" && timetableEnabled
-      ? "/betreuungsplan/tag"
+      ? "/tagesplan"
       : "/dashboard";
 
   const value = useMemo<ShellAuthContextType>(() => {
