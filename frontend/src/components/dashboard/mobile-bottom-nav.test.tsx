@@ -437,9 +437,9 @@ describe("MobileBottomNav", () => {
       // Admin-only items should be visible in the drawer
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretung")).toBeInTheDocument();
+      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
@@ -506,10 +506,9 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/dienstplan",
       );
-      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
-        "href",
-        "/test-tenant/vertretung",
-      );
+      expect(
+        screen.getByText("Terminvertretungen").closest("a"),
+      ).toHaveAttribute("href", "/test-tenant/vertretung");
     });
 
     it("keeps planning links bare in subdomain mode", () => {
@@ -526,10 +525,9 @@ describe("MobileBottomNav", () => {
         "href",
         "/dienstplan",
       );
-      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
-        "href",
-        "/vertretung",
-      );
+      expect(
+        screen.getByText("Terminvertretungen").closest("a"),
+      ).toHaveAttribute("href", "/vertretung");
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
@@ -1147,15 +1145,25 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
     }
 
-    it("hides Gruppenzugriff for open-care tenants", () => {
+    it("keeps Vertretungen for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(screen.queryByText("Gruppenübergaben")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+    });
+
+    it("shows Vertretungen to staff", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
 
     it("hides the Gruppe main item for open-care staff (#1544)", () => {
@@ -1208,10 +1216,10 @@ describe("MobileBottomNav", () => {
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
       expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
-      expect(screen.getByText("Gruppenübergaben")).toBeInTheDocument();
+      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
 
     it("reads timetable.enabled from the tenant-scoped SWR key", () => {

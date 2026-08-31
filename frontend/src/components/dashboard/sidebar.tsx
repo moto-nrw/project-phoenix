@@ -135,14 +135,12 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: "calendar:own",
   },
   {
-    // Gruppenübergaben ändern die Verantwortung, nicht die Sichtbarkeit von
-    // Kinderdaten. Nur relevant bei festen Gruppen (operations.group_mode);
-    // Gating siehe substitutionsItem-Rendering unten.
+    // Gemeinsame Übersicht für Gruppenübergaben, Terminvertretungen und
+    // zusätzliche Aufsichten. Einzelne Aktionen bleiben serverseitig geprüft.
     ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
-    requiresAdmin: true,
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
@@ -851,7 +849,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       item.href !== "/substitutions",
   );
 
-  // Gruppenübergaben (admin only, flat) — nur bei festen Gruppen relevant
+  // Zentrale Vertretungsübersicht, für Admins und Mitarbeitende.
   const substitutionsItem = mainNavItems.find(
     (item) => item.href === "/substitutions",
   );
@@ -1292,10 +1290,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
           {middleItems.map(renderNavItem)}
 
-          {/* Gruppenübergaben (admin, flat) — nur bei festen Gruppen (#1940) */}
-          {substitutionsItem &&
-            !openCareGroupMode &&
-            renderNavItem(substitutionsItem)}
+          {/* Zentrale Vertretungsübersicht. Der Gruppenbereich erklärt offene
+              Betreuung selbst; Termine und laufende Aufsichten bleiben nutzbar. */}
+          {substitutionsItem && renderNavItem(substitutionsItem)}
 
           {/* Kommunikation accordion — was intern bleibt: Team-Chat und
               Tagesinformationen. Sichtbar für alle Mitarbeitenden, der Chat
