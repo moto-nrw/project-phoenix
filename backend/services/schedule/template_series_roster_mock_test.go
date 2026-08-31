@@ -177,6 +177,9 @@ func seriesMockChain(
 		}},
 		StudentEnrollmentRepo:  enrollments,
 		ActivitySupervisorRepo: supervisors,
+		Today: func() timezone.Date {
+			return timezone.NewDate(2026, 8, 24)
+		},
 	})
 }
 

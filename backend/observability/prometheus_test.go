@@ -135,6 +135,18 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
+	t.Parallel()
+	badRequestBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters"))
+	serverErrorBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("staff", "5xx", "internal_error"))
+
+	ObserveFeedbackHTTPResponse("iot", 400, "invalid_parameters")
+	ObserveFeedbackHTTPResponse("staff", 500, "internal_error")
+
+	assert.Equal(t, badRequestBefore+1, testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters")))
+	assert.Equal(t, serverErrorBefore+1, testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("staff", "5xx", "internal_error")))
+}
+
 func TestRecordWorkerRunEvidence(t *testing.T) {
 	t.Parallel()
 	const jobID = "test-worker-job"

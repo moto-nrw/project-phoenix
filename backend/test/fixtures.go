@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -2587,33 +2586,6 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 	require.NoError(tb, err, "Failed to create test token for tenant")
 
 	return token
-}
-
-// CreateTestFeedbackEntryForTenant creates a feedback entry belonging to a specific tenant.
-// Requires an existing student ID within the same tenant.
-func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *feedback.Entry {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	now := time.Now()
-
-	entry := &feedback.Entry{
-		Value:     feedback.ValuePositive,
-		Day:       timezone.DateFromTime(now),
-		Time:      now,
-		StudentID: studentID,
-	}
-	entry.SetTenantID(tenantID)
-
-	err := db.NewInsert().
-		Model(entry).
-		ModelTableExpr(`feedback.entries`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test feedback entry for tenant")
-
-	return entry
 }
 
 // CreateTestStaffForTenant creates a staff member (and person) belonging to a specific tenant.

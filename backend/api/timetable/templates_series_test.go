@@ -46,10 +46,7 @@ type splitSeriesSetup struct {
 func buildSplitSeriesSetup(t *testing.T, name string) *splitSeriesSetup {
 	t.Helper()
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
-	clock := func() time.Time {
-		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
-	}
-	s := buildTemplateModule(t, mat, clock)
+	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	attachSplitService(s, mat)
 	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
 

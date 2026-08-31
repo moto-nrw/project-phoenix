@@ -61,6 +61,12 @@ type StudentDeletionService interface {
 	AuditGraduatePurge(ctx context.Context, studentID, actorAccountID int64) error
 }
 
+// FeedbackEntryCounter is the narrow owner query used by the child-deletion
+// preview. The Feedback module implements it without exposing persistence.
+type FeedbackEntryCounter interface {
+	CountForStudent(context.Context, int64) (int, error)
+}
+
 type studentDeletionService struct {
 	studentService StudentService
 	studentRepo    userModels.StudentRepository
@@ -69,6 +75,7 @@ type studentDeletionService struct {
 	transitionRepo educationModels.GradeTransitionRepository
 	dataAuditRepo  auditModels.DataDeletionRepository
 	auditRepo      auditModels.StudentDeletionRepository
+	feedback       FeedbackEntryCounter
 	documentRepo   userModels.StudentDocumentRepository
 	withdrawalRepo userModels.CareWithdrawalCompletionRepository
 	txHandler      *tenant.TransactionRunner
@@ -144,6 +151,7 @@ func NewStudentDeletionService(
 	transitionRepo educationModels.GradeTransitionRepository,
 	dataAuditRepo auditModels.DataDeletionRepository,
 	auditRepo auditModels.StudentDeletionRepository,
+	feedback FeedbackEntryCounter,
 	db *bun.DB,
 ) StudentDeletionService {
 	return &studentDeletionService{
@@ -154,6 +162,7 @@ func NewStudentDeletionService(
 		transitionRepo: transitionRepo,
 		dataAuditRepo:  dataAuditRepo,
 		auditRepo:      auditRepo,
+		feedback:       feedback,
 		txHandler:      tenant.NewTransactionRunner(),
 	}
 }
@@ -288,7 +297,7 @@ func (s *studentDeletionService) AuditGraduatePurge(ctx context.Context, student
 	if err := s.deletionRepo.LockMessageThreads(ctx, studentID); err != nil {
 		return err
 	}
-	counts, err := s.deletionRepo.Preview(ctx, studentID)
+	counts, err := s.loadCounts(ctx, studentID)
 	if err != nil {
 		return err
 	}
@@ -318,7 +327,7 @@ func (s *studentDeletionService) ensureCountsUnchanged(
 	studentID int64,
 	expected userModels.StudentDeletionCounts,
 ) error {
-	current, err := s.deletionRepo.Preview(ctx, studentID)
+	current, err := s.loadCounts(ctx, studentID)
 	if err != nil {
 		return err
 	}
@@ -389,11 +398,27 @@ func (s *studentDeletionService) loadPreview(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	counts, err := s.deletionRepo.Preview(ctx, studentID)
+	counts, err := s.loadCounts(ctx, studentID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	return student, person, counts, nil
+}
+
+func (s *studentDeletionService) loadCounts(ctx context.Context, studentID int64) (*userModels.StudentDeletionCounts, error) {
+	counts, err := s.deletionRepo.Preview(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if s.feedback == nil {
+		return nil, errors.New("student deletion: feedback counter is required")
+	}
+	feedbackCount, err := s.feedback.CountForStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("student deletion: count feedback entries: %w", err)
+	}
+	counts.OtherRecords += feedbackCount
+	return counts, nil
 }
 
 func buildStudentDeletionPreview(

@@ -171,6 +171,10 @@ func firstTemplateClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
+func fixedTemplateClock() time.Time {
+	return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+}
+
 func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {

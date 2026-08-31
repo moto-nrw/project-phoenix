@@ -241,14 +241,14 @@ func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 	t.Parallel()
 
 	f := newCareFixture(t)
+	setter, ok := f.svc.(interface{ SetTodayDate(func() timezone.Date) })
+	require.True(t, ok)
+	setter.SetTodayDate(func() timezone.Date { return timezone.NewDate(2026, 8, 24) })
 	upsertMondayPickup(t, f, 15, 0)
 
-	// Next Monday (always in the future), so the exception's weekday fallback
-	// (the live Monday plan) supplies the old side.
-	date := timezone.NewDate(2026, 8, 24).AddDays(1)
-	for date.Weekday() != time.Monday {
-		date = date.AddDays(1)
-	}
+	// A fixed future Monday lets the exception's weekday fallback (the live
+	// Monday plan) supply the old side without depending on the wall clock.
+	date := timezone.NewDate(2026, 8, 31)
 	req, err := f.svc.CreatePickupChangeRequest(
 		f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
 		date, time.Date(0, 1, 1, 16, 30, 0, 0, time.UTC), "Arzttermin",

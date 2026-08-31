@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
@@ -33,7 +32,6 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -178,9 +176,6 @@ type Factory struct {
 	StaffMonthSnapshot              activeModels.StaffMonthBalanceSnapshotRepository
 
 	SessionStartLock activeModels.SessionStartLocker
-
-	// Feedback domain
-	FeedbackEntry feedbackModels.EntryRepository
 
 	// IoT domain
 	Device             iotModels.DeviceRepository
@@ -435,9 +430,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffMonthSnapshot:              active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		SessionStartLock: active.NewSessionStartLocker(db),
-
-		// Feedback repositories
-		FeedbackEntry: feedback.NewEntryRepository(db),
 
 		// IoT repositories
 		Device:             iot.NewDeviceRepository(db),
