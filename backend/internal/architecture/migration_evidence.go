@@ -136,6 +136,11 @@ func requireRatchetKeys(keys []string) error {
 		if len(parts) != 4 || slicesContainBlankOrPadded(parts) {
 			return fmt.Errorf("exact_ratchet_keys entry %q must use scope|rule|source|target", key)
 		}
+		if err := validateLegacyViolationFields(Violation{
+			Scope: Scope(parts[0]), Rule: parts[1], Source: parts[2], Target: parts[3],
+		}); err != nil {
+			return fmt.Errorf("exact_ratchet_keys entry %q: %w", key, err)
+		}
 		if _, exists := seen[key]; exists {
 			return fmt.Errorf("exact_ratchet_keys contains duplicate key %q", key)
 		}

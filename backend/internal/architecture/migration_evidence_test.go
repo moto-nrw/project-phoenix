@@ -103,7 +103,13 @@ func TestValidateMigrationTicketRejectsInvalidRatchetKeys(t *testing.T) {
 	}{
 		{name: "empty key", keys: []any{""}, want: "contains an empty value"},
 		{name: "malformed key", keys: []any{"production|imports.forbidden|source"}, want: "must use scope|rule|source|target"},
-		{name: "duplicate key", keys: []any{"production|imports.forbidden|source|target", "production|imports.forbidden|source|target"}, want: "contains duplicate key"},
+		{name: "invalid scope", keys: []any{"bogus|imports.forbidden|example.test/source|example.test/target"}, want: `scope "bogus" is invalid`},
+		{name: "invalid rule", keys: []any{"production|bogus rule|example.test/source|example.test/target"}, want: `rule "bogus rule" is invalid`},
+		{name: "wildcard source", keys: []any{"production|imports.forbidden|example.test/...|example.test/target"}, want: "contains a wildcard or package-family pattern"},
+		{name: "unqualified source", keys: []any{"production|imports.forbidden|source|example.test/target"}, want: "must be an exact Go package path"},
+		{name: "package family target", keys: []any{"production|imports.forbidden|example.test/source|api"}, want: "must be an exact Go package path"},
+		{name: "whitespace", keys: []any{"production|imports.forbidden|example.test/source|example.test/target path"}, want: "without whitespace"},
+		{name: "duplicate key", keys: []any{"production|imports.forbidden|example.test/source|example.test/target", "production|imports.forbidden|example.test/source|example.test/target"}, want: "contains duplicate key"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

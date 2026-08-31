@@ -50,6 +50,17 @@ func CleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()
 	ctx := context.Background()
 
-	_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
-	_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(tb, err)
+	defer func() { _ = tx.Rollback() }()
+
+	// MFA audit writes run asynchronously. Lock the operator first so an audit
+	// insert cannot land between deleting its logs and deleting the operator.
+	_, err = tx.ExecContext(ctx, `SELECT id FROM platform.operators WHERE id = ? FOR UPDATE`, operatorID)
+	require.NoError(tb, err)
+	_, err = tx.ExecContext(ctx, `DELETE FROM platform.operator_audit_log WHERE operator_id = ?`, operatorID)
+	require.NoError(tb, err)
+	_, err = tx.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operatorID)
+	require.NoError(tb, err)
+	require.NoError(tb, tx.Commit())
 }
