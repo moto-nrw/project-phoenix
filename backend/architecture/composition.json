@@ -20780,7 +20780,7 @@
       "declaration": "TestAccountPermissionRepository_DeleteByPermissionID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        392
+        396
       ],
       "tables": []
     },
@@ -20790,7 +20790,7 @@
       "declaration": "TestAccountPermissionRepository_DenyPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        198
+        200
       ],
       "tables": []
     },
@@ -20810,7 +20810,7 @@
       "declaration": "TestAccountPermissionRepository_GrantPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        157
+        156
       ],
       "tables": []
     },
@@ -20820,7 +20820,7 @@
       "declaration": "TestAccountPermissionRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        324
+        329
       ],
       "tables": []
     },
@@ -20830,7 +20830,7 @@
       "declaration": "TestAccountPermissionRepository_RemovePermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        239
+        244
       ],
       "tables": []
     },
@@ -20840,7 +20840,7 @@
       "declaration": "TestAccountPermissionRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        280
+        284
       ],
       "tables": []
     },
