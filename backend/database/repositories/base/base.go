@@ -44,6 +44,11 @@ func modelAtTable[Q modelTableQuery[Q]](query Q, model any, table, alias string)
 	return query.ModelTableExpr("? AS ?", bun.Ident(table), bun.Ident(alias))
 }
 
+func isNilOrZero[T any](entity T) bool {
+	value := reflect.ValueOf(entity)
+	return !value.IsValid() || value.IsZero()
+}
+
 // applyTenantFilter adds a WHERE tenant_id = ? clause if the repository is tenant-scoped
 // and a tenant ID is present in the context. This is a defense-in-depth measure
 // layered on top of PostgreSQL RLS policies.
@@ -59,7 +64,7 @@ func (r *Repository[T]) applyTenantFilter(ctx context.Context, query *bun.Select
 // Create inserts a new entity into the database
 func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 	// Check if entity is nil using reflection
-	if reflect.ValueOf(entity).IsZero() {
+	if isNilOrZero(entity) {
 		return fmt.Errorf("%s cannot be nil or zero value", r.EntityName)
 	}
 
@@ -173,7 +178,7 @@ func (r *Repository[T]) FindByIDOrNil(ctx context.Context, id any) (T, error) {
 // Update updates an existing entity in the database
 func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	// Check if entity is nil using reflection
-	if reflect.ValueOf(entity).IsZero() {
+	if isNilOrZero(entity) {
 		return fmt.Errorf("%s cannot be nil or zero value", r.EntityName)
 	}
 
@@ -448,7 +453,7 @@ func (r *Repository[T]) UpdateColumnsIfNull(ctx context.Context, entity T, guard
 }
 
 func (r *Repository[T]) updateColumns(ctx context.Context, entity T, nullGuard string, columns ...string) (int64, error) {
-	if reflect.ValueOf(entity).IsZero() {
+	if isNilOrZero(entity) {
 		return 0, fmt.Errorf("%s cannot be nil or zero value", r.EntityName)
 	}
 	if len(columns) == 0 {
