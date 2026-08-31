@@ -327,10 +327,12 @@ describe("JWT callback — staff preview (#2893)", () => {
 
   it("terminates the whole session when the admin refresh is rejected", async () => {
     const started = await startPreview(adminToken());
+    const previewAccess = started.token as string;
     started.tokenExpiry = Date.now() + 60 * 1000;
     started.previewAdminTokenExpiry = Date.now() - 1000;
 
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
 
     const result = (await callJwt(started)) as unknown as Record<
       string,
@@ -338,6 +340,35 @@ describe("JWT callback — staff preview (#2893)", () => {
     >;
 
     expect(result.error).toBe("RefreshTokenError");
+    // The session dies, but the preview still ends in the audit trail — and
+    // no preview field survives into the dead session.
+    const [url, init] = mockFetch.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe("http://server:8080/auth/staff-preview/end");
+    expect(JSON.parse(init.body as string)).toEqual({
+      preview_token: previewAccess,
+    });
+    expect(result.previewTargetAccountId).toBeUndefined();
+  });
+
+  it("ends the preview when the refresh token itself has expired", async () => {
+    const started = await startPreview(adminToken());
+    const previewAccess = started.token as string;
+    started.refreshTokenExpiry = Date.now() - 1000;
+
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const result = (await callJwt(started)) as unknown as Record<
+      string,
+      unknown
+    >;
+
+    expect(result.error).toBe("RefreshTokenExpired");
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://server:8080/auth/staff-preview/end");
+    expect(JSON.parse(init.body as string)).toEqual({
+      preview_token: previewAccess,
+    });
+    expect(result.previewTargetAccountId).toBeUndefined();
   });
 
   it("keeps the preview on a transient re-mint failure", async () => {

@@ -166,6 +166,26 @@ func (r *AuthEventRepository) CreateStaffPreviewEndOnce(ctx context.Context, eve
 	return affected > 0, nil
 }
 
+// StaffPreviewEnded reports whether the preview instance previewID of
+// adminAccountID has already been ended (#2893).
+//
+// Read against the same partial unique index that makes the end one-shot, so
+// the lookup is a single index probe. It answers one question only: may a
+// token still be treated as the running preview instance, or does it belong
+// to a preview that is already closed?
+func (r *AuthEventRepository) StaffPreviewEnded(ctx context.Context, accountID int64, previewID string) (bool, error) {
+	if previewID == "" {
+		return false, errors.New("preview_id is required")
+	}
+	return base.GetDB(ctx, r.db).NewSelect().
+		Model((*audit.AuthEvent)(nil)).
+		ModelTableExpr(`audit.auth_events AS "auth_event"`).
+		Where(`"auth_event".`+whereAccountIDEquals, accountID).
+		Where(`"auth_event".event_type = ?`, audit.EventTypeStaffPreviewEnded).
+		Where(`"auth_event".metadata->>'preview_id' = ?`, previewID).
+		Exists(ctx)
+}
+
 // ListPendingAccountWideWipes returns the newest pending wipe per account.
 // A zero since value lists every still-pending wipe so a failed after-commit
 // revoke is retried for as long as the flag remains.

@@ -26,6 +26,9 @@ type AuthEventRepository interface {
 	// or concurrent ends of the same preview id insert nothing and return
 	// false — uniqueness is enforced by the database, not by a prior read.
 	CreateStaffPreviewEndOnce(ctx context.Context, event *AuthEvent) (bool, error)
+	// StaffPreviewEnded reports whether this preview instance has already
+	// been ended (#2893), so a stale token cannot revive a closed preview.
+	StaffPreviewEnded(ctx context.Context, accountID int64, previewID string) (bool, error)
 	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
 	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
 	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error

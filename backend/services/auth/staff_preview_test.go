@@ -373,6 +373,54 @@ func TestAuthService_StaffPreviewAuditPairsOneStartWithOneEnd(t *testing.T) {
 	}, 2*time.Second, 200*time.Millisecond, "repeated end must not write a second audit event")
 }
 
+// A token of a preview that has already ENDED must not revive that instance.
+// If it did, the new preview would inherit the closed id: no start event
+// would be written for it, and its own end would be swallowed by the
+// uniqueness index — a preview running with no trace in the audit trail.
+func TestAuthService_StartStaffPreviewIgnoresEndedPreviewToken(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+
+	admin := testpkg.CreateTestAccount(t, db, "preview-stale-admin")
+	_, target := testpkg.CreateTestCalendarStaff(t, db, "Alte", "Vorschau")
+
+	countStarts := func(previewID string) int {
+		var count int
+		require.NoError(t, db.NewSelect().
+			ColumnExpr("COUNT(*)").
+			TableExpr("audit.auth_events").
+			Where("account_id = ?", admin.ID).
+			Where("event_type = ?", "staff_preview_started").
+			Where("metadata->>'preview_id' = ?", previewID).
+			Scan(ctx, &count))
+		return count
+	}
+
+	first, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	require.NoError(t, err)
+	endedID, ok := decodePreviewTokenPayload(t, first.AccessToken)["preview_id"].(string)
+	require.True(t, ok)
+
+	_, err = service.EndStaffPreview(ctx, admin.ID, tenantID, first.AccessToken, "127.0.0.1", "go-test")
+	require.NoError(t, err)
+
+	// Same signed token, handed back as "previous" — the instance is closed,
+	// so this is a NEW preview with a new id and its own start event.
+	restarted, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, first.AccessToken, "127.0.0.1", "go-test")
+	require.NoError(t, err)
+	newID, ok := decodePreviewTokenPayload(t, restarted.AccessToken)["preview_id"].(string)
+	require.True(t, ok)
+	require.NotEqual(t, endedID, newID)
+
+	require.Eventually(t, func() bool {
+		return countStarts(newID) == 1
+	}, 5*time.Second, 100*time.Millisecond, "restart after an ended preview must write its own start event")
+}
+
 // Two tabs ending the same preview in the same moment must produce exactly
 // one audit row. A read-then-write guard cannot promise that — both callers
 // would read "not ended yet" before either row lands — so uniqueness lives in

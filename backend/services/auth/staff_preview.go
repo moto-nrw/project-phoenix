@@ -129,7 +129,10 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 
 		// A re-mint continues the running preview instance; anything else
 		// starts a new one. Only a new one is a "started" event.
-		previewID, isRemint = s.continuedPreviewID(previousToken, adminAccountID, tenantID, targetAccountID)
+		previewID, isRemint, err = s.continuedPreviewID(ctx, previousToken, adminAccountID, tenantID, targetAccountID)
+		if err != nil {
+			return &AuthError{Op: op, Err: err}
+		}
 		if !isRemint {
 			newID, err := newPreviewID()
 			if err != nil {
@@ -260,20 +263,34 @@ func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID 
 // never suppress a start event or join two previews into one audit pair. An
 // expired token is fine: a renewal that arrives late is still the same
 // preview instance.
-func (s *Service) continuedPreviewID(previousToken string, adminAccountID, tenantID, targetAccountID int64) (string, bool) {
+//
+// A token of a preview that has ALREADY ENDED is not: its instance is closed,
+// its end row is written, and the uniqueness index would swallow the end of
+// anything that reused the id. Such a token therefore starts a fresh preview
+// with its own start event, exactly like starting from scratch — which is
+// what it is.
+func (s *Service) continuedPreviewID(ctx context.Context, previousToken string, adminAccountID, tenantID, targetAccountID int64) (string, bool, error) {
 	if strings.TrimSpace(previousToken) == "" {
-		return "", false
+		return "", false, nil
 	}
 	claims, err := s.tokenAuth.ParseExpiredAccessJWT(previousToken)
 	if err != nil {
-		return "", false
+		return "", false, nil
 	}
 	if !claims.IsReadOnlyPreview() || claims.PreviewID == "" ||
 		claims.ActingAdminID != adminAccountID || claims.TenantID != tenantID ||
 		int64(claims.ID) != targetAccountID {
-		return "", false
+		return "", false, nil
 	}
-	return claims.PreviewID, true
+
+	ended, err := s.repos.AuthEvent.StaffPreviewEnded(ctx, adminAccountID, claims.PreviewID)
+	if err != nil {
+		return "", false, err
+	}
+	if ended {
+		return "", false, nil
+	}
+	return claims.PreviewID, true, nil
 }
 
 // recordPreviewEnd writes the "preview ended" audit row for this preview

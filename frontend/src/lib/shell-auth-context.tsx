@@ -11,6 +11,8 @@ import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission, isCaregiver } from "~/lib/auth-utils";
 import { usePresenceMode, useTimetableEnabled } from "~/lib/tenant-context";
+import { performEndStaffPreview } from "~/lib/staff-preview-api";
+import { mutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
@@ -72,7 +74,7 @@ export function TeacherShellProvider({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus, update } = useSession();
   const { profile } = useProfile();
   const presenceMode = usePresenceMode();
   const timetableEnabled = useTimetableEnabled();
@@ -126,6 +128,20 @@ export function TeacherShellProvider({
         } catch {
           // sessionStorage unavailable (e.g. private browsing quota)
         }
+        // Abmelden aus einer laufenden Vorschau beendet zuerst die Vorschau
+        // (#2893): sie endet hier genauso wie per Klick, also gehört ihr Ende
+        // ins Protokoll — und der Aufruf braucht das Admin-Token, das erst das
+        // Zurückschalten wiederherstellt. Danach widerruft der Logout die
+        // Admin-Familie wie gewohnt.
+        if (session?.user?.isPreview) {
+          try {
+            await performEndStaffPreview(session.user.token, update, mutate);
+          } catch (err: unknown) {
+            logger.warn("staff_preview_end_before_logout_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
         // Best-effort: drop this device's Web Push registration while the
         // session is still valid. Must never block logout.
         await unsubscribePushSilently("tenant");
@@ -158,7 +174,7 @@ export function TeacherShellProvider({
       canStartStaffPreview:
         !session?.user?.isPreview && hasPermission(session, "admin:*"),
     };
-  }, [session, sessionStatus, profile, homeUrl]);
+  }, [session, sessionStatus, profile, homeUrl, update]);
 
   return (
     <ShellAuthContext.Provider value={value}>

@@ -873,6 +873,27 @@ async function recordPreviewEnd(
 }
 
 /**
+ * End a preview because the SESSION is lost, not because anyone clicked:
+ * the admin refresh failed terminally or the refresh token expired. The
+ * session callback strips the token right after, so this is the last moment
+ * the preview token is in hand — without recording here, the audit trail
+ * keeps a "started" that never ends.
+ *
+ * Best effort, in this order: record first (the parked admin access token may
+ * still be valid even though its refresh is gone), then restore the admin
+ * state so no preview field survives into the dead session.
+ */
+async function endPreviewOnSessionLoss(
+  token: Record<string, unknown>,
+): Promise<void> {
+  await recordPreviewEnd(
+    token.previewAdminToken as string | undefined,
+    token.token as string | undefined,
+  );
+  restoreAdminFromPreview(token);
+}
+
+/**
  * Keep an active preview session alive: refresh the admin token when needed
  * and re-mint the preview token near its expiry. Returns true while the
  * preview stays active (caller returns the token) and false when the preview
@@ -901,6 +922,8 @@ async function maintainPreviewSession(
       adminAccessToken = attempt.result.access_token;
     } else if (attempt.status === "terminal") {
       // The admin session itself is gone — everything ends, preview included.
+      // The preview still gets its end event before the session is stripped.
+      await endPreviewOnSessionLoss(token);
       token.error = "RefreshTokenError";
       token.needsRefresh = true;
       return true;
@@ -1168,6 +1191,11 @@ export const sharedJwtCallback: NonNullable<
     logger.warn("refresh token expired", {
       expires_at: new Date(token.refreshTokenExpiry as number).toISOString(),
     });
+    // A running preview ends with the session it hangs on — and it ends in
+    // the audit trail too, before the session callback drops the token.
+    if (isPreviewActive(token)) {
+      await endPreviewOnSessionLoss(token);
+    }
     token.error = "RefreshTokenExpired";
     token.needsRefresh = true;
     return token;
