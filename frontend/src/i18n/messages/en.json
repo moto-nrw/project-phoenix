@@ -1202,6 +1202,7 @@
     "identityRequestButton": "Request changes",
     "requestHint": "These changes are reviewed by the team before they are applied.",
     "departureDescription": "Choose whether your child is picked up, walks home alone or takes the bus on each weekday. The OGS reviews changes.",
+    "departureReadOnlyAccompanied": "Your child goes home with another child on at least one day. You cannot change the way home here.",
     "requestButton": "Request change",
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestError": "The request could not be sent.",

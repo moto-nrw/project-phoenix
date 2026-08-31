@@ -605,6 +605,62 @@ describe("ChildMasterDataView", () => {
     );
   });
 
+  it("requests only Monday to change from pickup to walking", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        allowed_departure_modes: {
+          mon: ["pickup"],
+          tue: ["pickup"],
+          wed: ["pickup"],
+          thu: ["pickup"],
+          fri: ["pickup"],
+        },
+      }),
+    );
+
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
+    const section = departureSection.closest("section");
+    if (!section) {
+      throw new Error("departure section not found");
+    }
+
+    fireEvent.click(screen.getByLabelText("Mo Geht allein"));
+    fireEvent.click(screen.getByLabelText("Mo Wird abgeholt"));
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "42",
+        [
+          {
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            value: {
+              mon: ["alone"],
+              tue: ["pickup"],
+              wed: ["pickup"],
+              thu: ["pickup"],
+              fri: ["pickup"],
+            },
+          },
+        ],
+        [],
+      ),
+    );
+  });
+
   it("keeps departure request success when the pending refresh fails", async () => {
     mockSubmit.mockResolvedValueOnce([
       {
@@ -741,7 +797,7 @@ describe("ChildMasterDataView", () => {
     expect(wedPickup).toBeChecked();
   });
 
-  it("does not offer accompanied departure requests without companion-note support", async () => {
+  it("shows accompanied departures without offering them for editing", async () => {
     mockGetMasterData.mockResolvedValue(
       masterData({
         allowed_departure_modes: {
@@ -766,10 +822,17 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
-    expect(
-      screen.queryByLabelText("Mo Mit anderem Kind"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeChecked();
+    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeDisabled();
     expect(screen.getByLabelText("Mo Geht allein")).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Ihr Kind geht an mindestens einem Tag mit einem anderen Kind. Sie können den Heimweg hier nicht ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mo Geht allein").closest("label"),
+    ).toHaveClass("cursor-default");
     expect(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
     ).toBeDisabled();
