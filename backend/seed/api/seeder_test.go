@@ -650,6 +650,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/enrollment/phases/") && strings.HasSuffix(r.URL.Path, "/late-invites") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter), "token": "late-invite-token"},
+			})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/auth/guardian-invitations/") && strings.HasSuffix(r.URL.Path, "/accept") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -718,9 +724,25 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					"id":           fmt.Sprintf("%d", idCounter),
 					"status_token": fmt.Sprintf("status-token-%d", idCounter),
 					"children": []map[string]any{
-						{"id": fmt.Sprintf("%d", idCounter+1000)},
+						{"id": fmt.Sprintf("%d", idCounter+1000), "created_student_id": fmt.Sprintf("%d", idCounter+2000)},
 					},
 				},
+			})
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/care-offerings/requests") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"pending_request": map[string]any{"id": fmt.Sprintf("%d", idCounter)}},
+			})
+			return
+		}
+		if r.URL.Path == "/api/timetable/instances" && r.Method == seedHTTPMethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"instances": []map[string]any{
+					{"id": idCounter, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
+					{"id": idCounter + 2, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
+					{"id": idCounter + 3, "title": "Frühbetreuung", "activity_group_id": idCounter + 1},
+				}},
 			})
 			return
 		}
@@ -731,6 +753,37 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					"request_id": fmt.Sprintf("%d", idCounter),
 					"status_url": fmt.Sprintf("https://parents.example.test/status/status-token-%d", idCounter),
 				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/parent/me/messages/children/") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{
+					"thread_id": fmt.Sprintf("%d", idCounter),
+					"messages":  []map[string]any{{"id": fmt.Sprintf("%d", idCounter+1)}},
+				},
+			})
+			return
+		}
+		if r.URL.Path == "/api/staff-messages/recipients" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{
+					{"account_id": "7001", "name": "Thomas Schmidt"},
+					{"account_id": "7002", "name": "Sabine Weber"},
+					{"account_id": "7020", "name": "Uwe Lange"},
+				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/guardians") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"guardian_profile_id": fmt.Sprintf("%d", idCounter)},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/parent-announcements/") && strings.HasSuffix(r.URL.Path, "/publish") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"published_at": "2026-08-31T00:00:00Z"},
 			})
 			return
 		}
@@ -838,7 +891,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					{"id": 12, "name": "Hausaufgaben"}, {"id": 13, "name": "Lernen"},
 					{"id": 14, "name": "Musik"}, {"id": 15, "name": "Spiele"},
 					{"id": 16, "name": "Draußen"}, {"id": 17, "name": "Mensa"},
+					{"id": 18, "name": "Gruppenraum"},
 				},
+			})
+
+		case "/api/shift-types/defaults":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   []map[string]any{{"id": idCounter, "name": "Betreuung"}},
 			})
 
 		case "/api/active/visits":
@@ -853,6 +913,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data": map[string]any{
 					"id": "1001",
 				},
+			})
+
+		case "/api/enrollment/schema/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)},
 			})
 
 		case "/api/enrollment/care-offerings":

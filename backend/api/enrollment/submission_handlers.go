@@ -848,9 +848,7 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 		childID = v
 	}
 
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return rs.RequestService.Withdraw(adminCtx, token, childID)
-	})
+	err := rs.RequestService.Withdraw(r.Context(), token, childID)
 	if err != nil {
 		switch {
 		case errors.Is(err, enrollmentService.ErrRequestNotFound):

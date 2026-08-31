@@ -2838,77 +2838,91 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 // child when childID is 0). Approved children must go through the
 // admin (terminal student records exist) - returns ErrWithdrawNotAllowed.
 func (s *requestService) Withdraw(ctx context.Context, token string, childID int64) error {
-	req, _, err := s.GetByStatusToken(ctx, token)
-	if err != nil {
+	var req *enrollmentModels.Request
+	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		var loadErr error
+		req, _, loadErr = s.GetByStatusToken(adminCtx, token)
+		return loadErr
+	}); err != nil {
 		return err
 	}
 
 	tenantID := req.GetTenantID()
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
 	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		lockedReq, err := s.RequestRepo.FindByStatusTokenForUpdate(txCtx, strings.TrimSpace(token))
-		if err != nil || lockedReq == nil {
-			return ErrRequestNotFound
-		}
-		if lockedReq.StatusTokenExpires != nil && time.Now().After(*lockedReq.StatusTokenExpires) {
-			return ErrRequestNotFound
-		}
-		children, err := s.RequestChildRepo.ListByRequestIDForUpdate(txCtx, lockedReq.ID)
-		if err != nil {
-			return fmt.Errorf("withdraw: lock request children: %w", err)
-		}
-		anyWithdrawn := false
-		for _, c := range children {
-			if childID != 0 && c.ID != childID {
-				continue
-			}
-			if c.Status == enrollmentModels.ChildStatusApproved {
-				if childID != 0 {
-					return ErrWithdrawNotAllowed
-				}
-				continue
-			}
-			if c.IsTerminal() {
-				continue // already approved/rejected/withdrawn
-			}
-			if err := s.RequestChildRepo.UpdateStatus(txCtx, c.ID, enrollmentModels.ChildStatusWithdrawn, nil, 0); err != nil {
-				return err
-			}
-			c.Status = enrollmentModels.ChildStatusWithdrawn
-			c.StatusReason = nil
-			anyWithdrawn = true
-		}
-		if childID == 0 && anyWithdrawn {
-			if err := s.RequestRepo.MarkWithdrawn(txCtx, lockedReq.ID, time.Now()); err != nil {
-				return err
-			}
-		}
-		if !anyWithdrawn {
-			return nil
-		}
-
-		if !allChildrenParentResolved(children) {
-			return nil
-		}
-		children, err = s.RequestChildRepo.ListByRequestID(txCtx, lockedReq.ID)
-		if err != nil {
-			return fmt.Errorf("withdraw: refresh children for decision digest: %w", err)
-		}
-		phase, err := s.PhaseRepo.FindByID(txCtx, lockedReq.PhaseID)
-		if err != nil {
-			return fmt.Errorf("withdraw: load phase for decision digest: %w", err)
-		}
-		if err := enqueueDecisionNotifications(txCtx, decisionNotificationDependencies{
-			requests:   s.RequestRepo,
-			settings:   s.Settings,
-			outbox:     s.OutboxEnqueuer,
-			schools:    s.SchoolRepo,
-			parentsURL: s.ParentsURL,
-		}, lockedReq, children, phase, nil); err != nil {
-			return fmt.Errorf("withdraw: notify completed decision state: %w", err)
-		}
-		return nil
+		return s.withdrawInTenant(txCtx, token, childID)
 	})
+}
+
+func (s *requestService) withdrawInTenant(ctx context.Context, token string, childID int64) error {
+	lockedReq, err := s.RequestRepo.FindByStatusTokenForUpdate(ctx, strings.TrimSpace(token))
+	if err != nil || lockedReq == nil {
+		return ErrRequestNotFound
+	}
+	if lockedReq.StatusTokenExpires != nil && time.Now().After(*lockedReq.StatusTokenExpires) {
+		return ErrRequestNotFound
+	}
+	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, lockedReq.ID)
+	if err != nil {
+		return fmt.Errorf("withdraw: lock request children: %w", err)
+	}
+	anyWithdrawn, err := s.withdrawChildren(ctx, children, childID)
+	if err != nil || !anyWithdrawn {
+		return err
+	}
+	if childID == 0 {
+		if err := s.RequestRepo.MarkWithdrawn(ctx, lockedReq.ID, time.Now()); err != nil {
+			return err
+		}
+	}
+	if !allChildrenParentResolved(children) {
+		return nil
+	}
+	return s.enqueueWithdrawDecision(ctx, lockedReq)
+}
+
+func (s *requestService) withdrawChildren(ctx context.Context, children []*enrollmentModels.RequestChild, childID int64) (bool, error) {
+	anyWithdrawn := false
+	for _, child := range children {
+		if childID != 0 && child.ID != childID {
+			continue
+		}
+		if child.Status == enrollmentModels.ChildStatusApproved {
+			if childID != 0 {
+				return false, ErrWithdrawNotAllowed
+			}
+			continue
+		}
+		if child.IsTerminal() {
+			continue
+		}
+		if err := s.RequestChildRepo.UpdateStatus(ctx, child.ID, enrollmentModels.ChildStatusWithdrawn, nil, 0); err != nil {
+			return false, err
+		}
+		child.Status, child.StatusReason, anyWithdrawn = enrollmentModels.ChildStatusWithdrawn, nil, true
+	}
+	return anyWithdrawn, nil
+}
+
+func (s *requestService) enqueueWithdrawDecision(ctx context.Context, request *enrollmentModels.Request) error {
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, request.ID)
+	if err != nil {
+		return fmt.Errorf("withdraw: refresh children for decision digest: %w", err)
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil {
+		return fmt.Errorf("withdraw: load phase for decision digest: %w", err)
+	}
+	if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
+		requests:   s.RequestRepo,
+		settings:   s.Settings,
+		outbox:     s.OutboxEnqueuer,
+		schools:    s.SchoolRepo,
+		parentsURL: s.ParentsURL,
+	}, request, children, phase, nil); err != nil {
+		return fmt.Errorf("withdraw: notify completed decision state: %w", err)
+	}
+	return nil
 }
 
 func childIDsForStatus(children []*enrollmentModels.RequestChild, status string) map[int64]struct{} {
