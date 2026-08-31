@@ -1739,7 +1739,7 @@ function TimetablesContent() {
           canManageSchedules ? handleAttendancePatch : undefined
         }
         editDeferred={false}
-        suspended={eventModalOpen || poolInstance !== null}
+        suspended={eventModalOpen || poolInstance !== null || periodModalOpen}
         onOpenPool={setPoolInstance}
         canManageStaffPool={canManageSchedules}
       />
