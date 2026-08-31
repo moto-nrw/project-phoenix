@@ -198,11 +198,12 @@ func TestRepository_FindByIDRejectsValueEntity(t *testing.T) {
 	t.Parallel()
 
 	repo := NewRepository[testSettingValue](nil, baseTestTable, baseTestEntityName)
+	var valueEntity testSettingValue
 
-	_, err := repo.FindByID(context.Background(), int64(1))
+	_, err := repo.FindByID(context.Background(), valueEntity.ID)
 	require.EqualError(t, err, "SettingValue repository requires a pointer entity type")
 
-	_, err = repo.FindByIDForUpdate(context.Background(), int64(1))
+	_, err = repo.FindByIDForUpdate(context.Background(), valueEntity.ID)
 	require.EqualError(t, err, "SettingValue repository requires a pointer entity type")
 }
 
