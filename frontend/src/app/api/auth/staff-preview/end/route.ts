@@ -1,6 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffPreviewEndRoute" });
@@ -8,20 +6,20 @@ const logger = createLogger({ component: "StaffPreviewEndRoute" });
 /**
  * POST /api/auth/staff-preview/end
  * Records the end of a staff-view preview for the audit trail (#2893).
- * The backend route is public and token-proved (the signed preview token in
- * the body is the credential); the session check here only keeps this proxy
- * from being an anonymous relay. The jwt callback's automatic endings call
- * the backend directly and never pass through this route.
+ *
+ * Deliberately session-free, mirroring the backend route it relays to: the
+ * signed preview token in the body IS the credential (admin, school, target
+ * and preview id all come from its claims, and the audit row is one-shot per
+ * preview instance). Requiring a NextAuth session here would break exactly the
+ * case the backend was made expiry-independent for — closing a preview whose
+ * admin session has already expired. Without that, the audit trail keeps a
+ * start without an end.
+ *
+ * A caller without a valid preview token gets nothing: the backend rejects the
+ * body at signature parsing, before any database work.
  */
-async function POSTHandler(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-    const token = session?.user?.token;
-
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body: unknown = await request.json();
 
     const { getServerApiUrl } = await import("~/lib/server-api-url");
@@ -29,10 +27,7 @@ async function POSTHandler(request: NextRequest) {
       `${getServerApiUrl()}/auth/staff-preview/end`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       },
     );
@@ -50,5 +45,3 @@ async function POSTHandler(request: NextRequest) {
     );
   }
 }
-
-export const POST = withTenantAuth(POSTHandler);

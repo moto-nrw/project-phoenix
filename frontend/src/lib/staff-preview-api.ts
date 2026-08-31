@@ -132,7 +132,11 @@ export async function performEndStaffPreview(
   clearSessionCache();
   if (previewToken) {
     try {
-      await sessionFetch("/api/auth/staff-preview/end", {
+      // Plain fetch, not sessionFetch: the signed preview token in the body is
+      // the credential the whole way down, and the route needs no session.
+      // sessionFetch would throw when the admin session has already expired —
+      // exactly the case in which the end must still reach the audit trail.
+      await fetch("/api/auth/staff-preview/end", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preview_token: previewToken }),
