@@ -23441,10 +23441,20 @@
     {
       "scope": "test",
       "file": "database/repositories/schedule/planning_track_repo_test.go",
-      "declaration": "TestPlanningTrackRepositoryRejectsPartialOrder",
+      "declaration": "TestPlanningTrackRepositoryFindByIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
         74
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/schedule/planning_track_repo_test.go",
+      "declaration": "TestPlanningTrackRepositoryRejectsPartialOrder",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        116
       ],
       "tables": []
     },
@@ -23464,7 +23474,7 @@
       "declaration": "TestPlanningTrackServiceNameConflictAndArchiveLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        106
+        148
       ],
       "tables": []
     },
