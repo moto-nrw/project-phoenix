@@ -95,9 +95,10 @@ describe("ChildConsentsSection", () => {
     expect(screen.getByText("Foto-Einwilligung")).toBeInTheDocument();
     expect(screen.getAllByText("Hinterlegt")).toHaveLength(3);
     expect(screen.queryByText("Nicht hinterlegt")).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("button", { name: "Foto-Einwilligung widerrufen" }),
-    ).toHaveLength(1);
+    const withdrawButton = screen.getByRole("button", {
+      name: "Foto-Einwilligung widerrufen",
+    });
+    expect(withdrawButton).toHaveTextContent(/^Widerrufen$/);
   });
 
   it("blendet den gesamten Bereich ohne hinterlegte Einwilligungen aus", async () => {

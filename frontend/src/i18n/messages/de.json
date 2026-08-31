@@ -1602,6 +1602,7 @@
         "not_recorded": "Nicht hinterlegt"
       },
       "withdrawButton": "Foto-Einwilligung widerrufen",
+      "withdrawButtonShort": "Widerrufen",
       "confirmTitle": "Foto-Einwilligung widerrufen?",
       "confirmBody": "Die Einwilligung endet sofort. Falls ein Foto gespeichert ist, wird es gelöscht.",
       "confirmButton": "Jetzt widerrufen",

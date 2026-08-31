@@ -121,27 +121,31 @@ export function ChildConsentsSection({
                     })}
                   </dd>
                 ) : null}
+                {consent.key === "photo" &&
+                consent.state === "granted" &&
+                consent.can_withdraw ? (
+                  <dd>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="compact"
+                      className="text-moto-red-strong hover:text-moto-red-strong mt-1 h-auto min-h-12 px-0 underline-offset-4 hover:bg-transparent hover:underline"
+                      aria-label={t("withdrawButton")}
+                      onClick={() => {
+                        setWithdrawFailed(false);
+                        setWithdrawOpen(true);
+                      }}
+                    >
+                      {t("withdrawButtonShort")}
+                    </Button>
+                  </dd>
+                ) : null}
               </div>
-              <dd className="flex flex-col items-start gap-2 sm:items-end">
+              <dd className="flex items-start sm:items-end">
                 <StatusBadge
                   label={t(`states.${consent.state}`)}
                   tone={stateTone(consent.state)}
                 />
-                {consent.key === "photo" &&
-                consent.state === "granted" &&
-                consent.can_withdraw ? (
-                  <Button
-                    type="button"
-                    variant="outline_danger"
-                    size="md"
-                    onClick={() => {
-                      setWithdrawFailed(false);
-                      setWithdrawOpen(true);
-                    }}
-                  >
-                    {t("withdrawButton")}
-                  </Button>
-                ) : null}
               </dd>
             </div>
           ))}

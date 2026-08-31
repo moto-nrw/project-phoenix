@@ -1602,6 +1602,7 @@
         "not_recorded": "Not recorded"
       },
       "withdrawButton": "Withdraw photo consent",
+      "withdrawButtonShort": "Withdraw",
       "confirmTitle": "Withdraw photo consent?",
       "confirmBody": "The consent ends immediately. If a photo is stored, it will be deleted.",
       "confirmButton": "Withdraw now",
