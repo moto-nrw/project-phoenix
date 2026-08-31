@@ -271,12 +271,18 @@ vi.mock("~/components/groups/group-transfer-modal", () => ({
   GroupTransferModal: () => null,
 }));
 
-vi.mock("~/lib/group-transfer-api", () => ({
-  groupTransferService: {
-    getAllAvailableStaff: vi.fn(() => Promise.resolve([])),
-    getActiveTransfersForGroup: vi.fn(() => Promise.resolve([])),
-    transferGroup: vi.fn(),
-    cancelTransferBySubstitutionId: vi.fn(),
+vi.mock("~/lib/substitution-api", () => ({
+  substitutionService: {
+    fetchOverview: vi.fn(() =>
+      Promise.resolve({
+        groups: [],
+        targets: [],
+        groupHandovers: [],
+        runningSupervisions: [],
+      }),
+    ),
+    createSubstitution: vi.fn(),
+    deleteSubstitution: vi.fn(),
   },
 }));
 

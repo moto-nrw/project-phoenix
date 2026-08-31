@@ -2,6 +2,7 @@ package database
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,53 @@ func clearDatabaseEnv(t *testing.T) {
 	t.Setenv("APP_ENV", "")
 	t.Setenv("DB_DSN", "")
 	t.Setenv("TEST_DB_DSN", "")
+}
+
+func testPoolConfigFromEnv(t *testing.T) {
+	setValidPoolConfig := func(t *testing.T) {
+		t.Helper()
+		t.Setenv("DB_MAX_OPEN_CONNS", "40")
+		t.Setenv("DB_MAX_IDLE_CONNS", "20")
+		t.Setenv("DB_CONN_MAX_LIFETIME", "30m")
+		t.Setenv("DB_CONN_MAX_IDLE_TIME", "10m")
+	}
+
+	t.Run("accepts explicit values", func(t *testing.T) {
+		setValidPoolConfig(t)
+
+		config, err := poolConfigFromEnv()
+
+		require.NoError(t, err)
+		assert.Equal(t, 40, config.maxOpen)
+		assert.Equal(t, 20, config.maxIdle)
+		assert.Equal(t, 30*time.Minute, config.maxLifetime)
+		assert.Equal(t, 10*time.Minute, config.maxIdleTime)
+	})
+
+	t.Run("rejects missing or invalid values", func(t *testing.T) {
+		for _, test := range []struct {
+			name  string
+			key   string
+			value string
+			want  string
+		}{
+			{name: "missing open connections", key: "DB_MAX_OPEN_CONNS", want: "DB_MAX_OPEN_CONNS"},
+			{name: "invalid idle connections", key: "DB_MAX_IDLE_CONNS", value: "many", want: "DB_MAX_IDLE_CONNS"},
+			{name: "too many idle connections", key: "DB_MAX_IDLE_CONNS", value: "41", want: "DB_MAX_IDLE_CONNS"},
+			{name: "zero lifetime", key: "DB_CONN_MAX_LIFETIME", value: "0s", want: "DB_CONN_MAX_LIFETIME"},
+			{name: "invalid idle time", key: "DB_CONN_MAX_IDLE_TIME", value: "later", want: "DB_CONN_MAX_IDLE_TIME"},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				setValidPoolConfig(t)
+				t.Setenv(test.key, test.value)
+
+				_, err := poolConfigFromEnv()
+
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), test.want)
+			})
+		}
+	})
 }
 
 // TestGetDatabaseDSN_ExplicitDSN verifies that an explicit DB_DSN is returned when set
@@ -81,6 +129,8 @@ func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 	require.Error(t, err)
 	assert.Empty(t, result)
 	assert.Contains(t, err.Error(), "DB_DSN")
+
+	testPoolConfigFromEnv(t)
 }
 
 // TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN proves the documented

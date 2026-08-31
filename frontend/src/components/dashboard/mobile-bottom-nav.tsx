@@ -405,12 +405,11 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
-    // Gruppenübergaben sind nur bei festen Gruppen relevant (Filter unten).
+    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge.
     href: "/substitutions",
-    label: "Gruppenübergaben",
+    label: "Vertretungen",
     iconKey: "substitutions",
     concept: "groupAccess",
-    requiresAdmin: true,
   },
   // Planning is flattened in the mobile drawer. The shared catalog omits the
   // desktop-only calendar-period editor and supplies all legacy active paths.
@@ -718,7 +717,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
       return false;
     }
-    if (item.href === "/substitutions" && openCareGroupMode) return false;
     // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
     // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
     // Seitenleiste.

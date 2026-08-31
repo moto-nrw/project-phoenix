@@ -1098,7 +1098,7 @@ describe("InstanceDetailModal", () => {
     expect(screen.queryByText(/aus Regeltermin/)).not.toBeInTheDocument();
   });
 
-  it("labels the substitution jump action 'Vertretung bearbeiten' and links to /vertretung", () => {
+  it("labels the substitution jump action 'Vertretung eintragen' and links to /vertretung", () => {
     render(
       <InstanceDetailModal
         instance={instance({
@@ -1117,7 +1117,7 @@ describe("InstanceDetailModal", () => {
       />,
     );
 
-    const link = screen.getByRole("link", { name: /Vertretung bearbeiten/ });
+    const link = screen.getByRole("link", { name: /Vertretung eintragen/ });
     expect(link).toHaveAttribute(
       "href",
       expect.stringContaining("/vertretung?d=2026-05-04&block=42"),
