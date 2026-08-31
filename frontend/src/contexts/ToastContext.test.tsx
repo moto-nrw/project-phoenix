@@ -199,6 +199,44 @@ describe("ToastContext", () => {
       expect(screen.getByLabelText("Close")).toBeInTheDocument();
     });
 
+    it("restarts the dialog animation when the next mobile toast remains", async () => {
+      vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.success("First", { duration: 0 });
+          toast.success("Second", { duration: 0 });
+        }, [toast]);
+
+        return null;
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      await screen.findByText("Second");
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Second")).not.toBeInTheDocument();
+        expect(screen.getByText("First")).toBeVisible();
+      });
+    });
+
     it("runs a toast action from the desktop toast", async () => {
       const onAction = vi.fn();
 

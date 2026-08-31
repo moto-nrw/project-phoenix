@@ -434,6 +434,7 @@ export function ToastProvider({
       {children}
 
       <Modal
+        key={topmostItem?.id}
         isOpen={isMobile && topmostItem !== undefined}
         onClose={() => {
           if (topmostItem) remove(topmostItem.id);
