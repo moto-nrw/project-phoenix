@@ -818,7 +818,7 @@ POST /auth/refresh
 POST /auth/register
 POST /auth/roles/
 POST /auth/roles/{roleId}/permissions/{permissionId}
-POST /auth/staff-preview/
+POST /auth/staff-preview
 POST /auth/staff-preview/end
 POST /auth/switch-tenant
 POST /internal/metrics

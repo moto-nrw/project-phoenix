@@ -184,6 +184,10 @@ function syncTokenFromPayload(
   token.isAdmin = payload.is_admin ?? false;
   token.scope = payload.scope;
   token.name = buildDisplayName(payload, (token.email as string) ?? "");
+  // Kept in sync alongside name: the staff-preview swap (#2893) rides this
+  // helper too, and session.user.firstName must follow the token's identity —
+  // entering, renewing, and leaving a preview included.
+  token.firstName = payload.first_name;
   // Operator JWTs store email as username; keep session in sync after email change.
   // Tenant-scoped users don't need this: their email comes from the NextAuth
   // sign-in flow (authorize callback) and doesn't change via JWT refresh —
@@ -835,27 +839,26 @@ async function refreshAdminTokenForPreview(
 
 /**
  * Record the end of a preview that the SESSION ended on its own — the target
- * lost eligibility, so the re-mint was rejected. The interactive "Vorschau
- * beenden" button posts the same call from the browser; this is the same
- * ending, just without a click, and it must reach the audit trail the same
- * way. Best effort: the preview is over regardless of what this call answers,
- * and the backend records one end per preview instance however often it is
- * asked (unique index on the preview id).
+ * lost eligibility, or the admin session itself died. The interactive
+ * "Vorschau beenden" button posts the same call from the browser; this is the
+ * same ending, just without a click, and it must reach the audit trail the
+ * same way. The endpoint is public and token-proved: the signed preview token
+ * is the credential, so the end is recordable even when every admin token has
+ * expired (laptop closed for a week mid-preview). Best effort: the preview is
+ * over regardless of what this call answers, and the backend records one end
+ * per preview instance however often it is asked (unique index on the
+ * preview id).
  */
 async function recordPreviewEnd(
-  adminAccessToken: string | undefined,
   previewToken: string | undefined,
 ): Promise<void> {
-  if (!adminAccessToken || !previewToken) return;
+  if (!previewToken) return;
   try {
     const response = await fetch(
       `${getServerApiUrl()}/auth/staff-preview/end`,
       {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${adminAccessToken}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preview_token: previewToken }),
         signal: AbortSignal.timeout(PREVIEW_REMINT_TIMEOUT_MS),
       },
@@ -879,17 +882,14 @@ async function recordPreviewEnd(
  * the preview token is in hand — without recording here, the audit trail
  * keeps a "started" that never ends.
  *
- * Best effort, in this order: record first (the parked admin access token may
- * still be valid even though its refresh is gone), then restore the admin
- * state so no preview field survives into the dead session.
+ * Best effort, in this order: record first (the signed preview token is the
+ * credential — no admin token needs to be alive for it), then restore the
+ * admin state so no preview field survives into the dead session.
  */
 async function endPreviewOnSessionLoss(
   token: Record<string, unknown>,
 ): Promise<void> {
-  await recordPreviewEnd(
-    token.previewAdminToken as string | undefined,
-    token.token as string | undefined,
-  );
+  await recordPreviewEnd(token.token as string | undefined);
   restoreAdminFromPreview(token);
 }
 
@@ -984,7 +984,7 @@ async function maintainPreviewSession(
     // ended. Recorded BEFORE the restore, while the preview token is still in
     // hand — it is the proof of which preview is being closed.
     logger.warn("staff_preview_remint_rejected", { status: response.status });
-    await recordPreviewEnd(adminAccessToken, token.token as string | undefined);
+    await recordPreviewEnd(token.token as string | undefined);
     restoreAdminFromPreview(token);
     return false;
   } catch (err) {

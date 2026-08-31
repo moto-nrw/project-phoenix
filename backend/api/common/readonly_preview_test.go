@@ -91,6 +91,11 @@ func TestReadOnlyPreviewMiddleware(t *testing.T) {
 			// reads with a plaintext-reveal side effect stay blocked
 			{http.MethodPost, "/api/staff/5/stammdaten/bank-steuer/reveal"},
 			{http.MethodPost, "/api/guardians/5/payment/reveal"},
+			// import dry-runs persist a GDPR audit row in the target's name
+			{http.MethodPost, "/api/import/students/preview"},
+			{http.MethodPost, "/api/import/teachers/preview"},
+			{http.MethodPost, "/api/import/class-list-entries/preview"},
+			{http.MethodPost, "/api/import/opening-balances/preview"},
 			// bulk WRITES that sit next to allowlisted bulk reads
 			{http.MethodPost, "/api/students/pickup-schedules/bulk"},
 			{http.MethodPost, "/api/students/arrival-schedules/bulk"},

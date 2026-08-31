@@ -124,6 +124,15 @@ func (rs *Resource) Router() chi.Router {
 
 	// Public routes (no rate limiting — these are read-only lookups)
 	r.Get("/invitations/{token}", rs.validateInvitation)
+	// Ending a staff-view preview (#2893) is public and token-proved, like the
+	// invitation accepts below and /mfa/verify above: the signed preview token
+	// in the body is the credential (admin, school, target, and preview id all
+	// come from its claims). A session cannot be required here — the end must
+	// still be recordable when the admin's own tokens have long expired,
+	// otherwise the audit trail keeps a start without an end. The call writes
+	// only the one-shot audit row (unique per preview instance) and grants
+	// nothing; garbage bodies fail signature parsing before any DB work.
+	r.Post("/staff-preview/end", rs.endStaffPreview)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/guardian-invitations/{token}", rs.validateGuardianInvitation)
 	r.Post("/guardian-invitations/{token}/accept", rs.acceptGuardianInvitation)
@@ -168,20 +177,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/switch-tenant", rs.switchTenant)
 
 		// Admin staff-view preview (#2893). "admin:*" matches the admin
-		// wildcard (precedent: DELETE /auth/tokens/expired below). start/end
-		// deliberately run WITHOUT the tenant transaction — like
-		// /switch-tenant they open their own admin transaction inside the
+		// wildcard (precedent: DELETE /auth/tokens/expired below). start
+		// deliberately runs WITHOUT the tenant transaction — like
+		// /switch-tenant it opens its own admin transaction inside the
 		// service; the candidate list is a plain RLS read and gets one.
-		// chi's Route mounts the subrouter under BOTH "/staff-preview" and
-		// "/staff-preview/" (mux.Mount registers the pattern and pattern+"/"),
-		// so the client's slash-less POST /auth/staff-preview lands on the
-		// "/" handler below — pinned by TestStaffPreviewEndpoints, which
-		// drives exactly that path against the production router.
-		r.Route("/staff-preview", func(r chi.Router) {
-			r.With(common.RequiresPermission("admin:*")).Post("/", rs.startStaffPreview)
-			r.With(common.RequiresPermission("admin:*")).Post("/end", rs.endStaffPreview)
-			r.With(common.RequiresPermission("admin:*"), common.TenantTxMiddleware).Get("/candidates", rs.listStaffPreviewCandidates)
-		})
+		// Registered as flat paths (no subrouter mount) so the client's
+		// slash-less POST /auth/staff-preview matches exactly — pinned by
+		// TestStaffPreviewEndpoints against the production router. The end
+		// route lives in the PUBLIC section above: it authenticates by the
+		// signed preview token in its body, not by this session.
+		r.With(common.RequiresPermission("admin:*")).Post("/staff-preview", rs.startStaffPreview)
+		r.With(common.RequiresPermission("admin:*"), common.TenantTxMiddleware).Get("/staff-preview/candidates", rs.listStaffPreviewCandidates)
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)

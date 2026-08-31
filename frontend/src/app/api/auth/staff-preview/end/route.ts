@@ -8,8 +8,10 @@ const logger = createLogger({ component: "StaffPreviewEndRoute" });
 /**
  * POST /api/auth/staff-preview/end
  * Records the end of a staff-view preview for the audit trail (#2893).
- * Called AFTER the session restored the admin tokens — the preview token
- * itself cannot reach this endpoint (read-only block).
+ * The backend route is public and token-proved (the signed preview token in
+ * the body is the credential); the session check here only keeps this proxy
+ * from being an anonymous relay. The jwt callback's automatic endings call
+ * the backend directly and never pass through this route.
  */
 async function POSTHandler(request: NextRequest) {
   try {

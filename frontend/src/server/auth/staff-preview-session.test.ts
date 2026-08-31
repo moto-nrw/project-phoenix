@@ -133,6 +133,7 @@ describe("JWT callback — staff preview (#2893)", () => {
     expect(result.permissions).toEqual(["students:read"]);
     expect(result.isAdmin).toBe(false);
     expect(result.name).toBe("Erika Beispiel");
+    expect(result.firstName).toBe("Erika");
     // the admin's refresh token stays in place — none exists for the target
     expect(result.refreshToken).toBe(token.refreshToken);
     expect(mockFetch).not.toHaveBeenCalled();
@@ -169,6 +170,7 @@ describe("JWT callback — staff preview (#2893)", () => {
     expect(ended.roles).toEqual(["admin"]);
     expect(ended.permissions).toEqual(["admin:*"]);
     expect(ended.isAdmin).toBe(true);
+    expect(ended.firstName).toBe("Anna");
     expect(ended.previewTargetAccountId).toBeUndefined();
     expect(ended.previewAdminToken).toBeUndefined();
     expect(mockFetch).not.toHaveBeenCalled();
@@ -295,7 +297,9 @@ describe("JWT callback — staff preview (#2893)", () => {
       { headers: Record<string, string>; body: string },
     ];
     expect(endUrl).toBe("http://server:8080/auth/staff-preview/end");
-    expect(endInit.headers.Authorization).toBe(`Bearer ${parkedAccess}`);
+    // The signed preview token in the body is the credential — the end call
+    // must work without any admin token, so none may be required here.
+    expect(endInit.headers.Authorization).toBeUndefined();
     expect(JSON.parse(endInit.body)).toEqual({
       preview_token: previewAccess,
     });

@@ -25,10 +25,12 @@ const msgReadOnlyPreview = "In der Vorschau können Sie nur lesen. Beenden Sie d
 //
 // Deliberately NOT listed although they only read: the plaintext reveal
 // endpoints (/api/staff/{id}/stammdaten/bank-steuer/reveal,
-// /api/guardians/{id}/payment/reveal). They expose financial plaintext and
-// write a data-access audit row in the TARGET's permission context — in a
-// preview the admin should use their own session for that, so the preview
-// blocks them.
+// /api/guardians/{id}/payment/reveal) expose financial plaintext and write a
+// data-access audit row in the TARGET's permission context, and the import
+// dry-run previews (/api/import/*/preview) persist a GDPR import-audit row
+// (audit.data_imports) under the authenticated account — which in a preview
+// is the TARGET, not the admin. In both cases the admin should use their own
+// session, so the preview blocks them.
 var readOnlyPOSTAllowlist = []string{
 	"/api/birthdays/staff-export",
 	"/api/emergency/snapshot/export",
@@ -37,10 +39,6 @@ var readOnlyPOSTAllowlist = []string{
 	"/api/enrollment/admin/students/{studentId}/requests/export",
 	"/api/enrollment/phases/{id}/export",
 	"/api/guardians/payment-overview/export",
-	"/api/import/class-list-entries/preview",
-	"/api/import/opening-balances/preview",
-	"/api/import/students/preview",
-	"/api/import/teachers/preview",
 	"/api/rooms/export",
 	"/api/schedules/check-conflict",
 	"/api/schedules/find-available-slots",

@@ -104,11 +104,13 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 			ActingAdminID: admin.ID,
 		}
 
+		// /auth/staff-preview/end is deliberately absent: it is a PUBLIC
+		// token-proved route (the signed preview token in the body is the
+		// credential), so a preview session may end itself through it.
 		writes := []struct{ method, path, body string }{
 			{http.MethodPost, "/auth/switch-tenant", `{"tenant_slug":"t1"}`},
 			{http.MethodPost, "/auth/password", `{"current_password":"a","new_password":"b"}`},
 			{http.MethodPost, "/auth/staff-preview", fmt.Sprintf(`{"account_id":"%d"}`, admin.ID)},
-			{http.MethodPost, "/auth/staff-preview/end", `{"preview_token":"irrelevant"}`},
 		}
 		for _, w := range writes {
 			req := httptest.NewRequest(w.method, w.path, strings.NewReader(w.body))
@@ -124,36 +126,33 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	})
 
-	t.Run("end accepts the admin's own preview token", func(t *testing.T) {
+	// The end route is public and token-proved: the signed preview token in
+	// the body is the credential, so the end stays recordable after the
+	// admin's own tokens have expired (laptop closed for a week mid-preview).
+	t.Run("end works without any session — the signed token is the proof", func(t *testing.T) {
 		require.NotEmpty(t, mintedPreviewToken, "minting subtest must run first")
 		body := fmt.Sprintf(`{"preview_token":%q}`, mintedPreviewToken)
 		req := httptest.NewRequest(http.MethodPost, "/auth/staff-preview/end", strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		rec := testutil.ExecuteWithAuth(t, router, req, adminClaims)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	})
 
-	// The previewed account is read from the signed token, so an admin cannot
-	// name a colleague they never previewed in the audit trail.
-	t.Run("end rejects a token that is not this admin's preview", func(t *testing.T) {
-		foreign := testutil.MintTestJWT(t, jwt.AppClaims{
-			ID:            int(target.ID),
-			TenantID:      testpkg.Tenant(t),
-			Sub:           target.Email,
-			Roles:         []string{"user"},
-			ReadOnly:      true,
-			ActingAdminID: admin.ID + 1000,
-		})
+	// Only a server-minted preview token can write an end row — nobody can
+	// stamp the audit trail with a preview that never happened.
+	t.Run("end rejects anything that is not a preview token", func(t *testing.T) {
 		cases := map[string]string{
-			"another admin's preview": foreign,
-			"a regular session token": testutil.MintTestJWT(t, adminClaims),
-			"garbage":                 "not-a-token",
+			"a regular session token":            testutil.MintTestJWT(t, adminClaims),
+			"a preview token without preview id": testutil.MintTestJWT(t, jwt.AppClaims{ID: int(target.ID), TenantID: testpkg.Tenant(t), Sub: target.Email, ReadOnly: true, ActingAdminID: admin.ID}),
+			"garbage":                            "not-a-token",
 		}
 		for name, token := range cases {
 			body := fmt.Sprintf(`{"preview_token":%q}`, token)
 			req := httptest.NewRequest(http.MethodPost, "/auth/staff-preview/end", strings.NewReader(body))
 			req.Header.Set("Content-Type", "application/json")
-			rec := testutil.ExecuteWithAuth(t, router, req, adminClaims)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
 			assert.Equalf(t, http.StatusForbidden, rec.Code, "%s must be refused", name)
 			assert.Containsf(t, rec.Body.String(), "preview_token_invalid", "%s", name)
 		}
@@ -162,7 +161,8 @@ func TestStaffPreviewEndpoints(t *testing.T) {
 	t.Run("end refuses an empty payload", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/auth/staff-preview/end", strings.NewReader(`{}`))
 		req.Header.Set("Content-Type", "application/json")
-		rec := testutil.ExecuteWithAuth(t, router, req, adminClaims)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 	})
 

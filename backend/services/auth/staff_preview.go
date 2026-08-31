@@ -174,8 +174,14 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 			slog.Int64("tenant_id", tenantID),
 		)
 	} else {
-		s.logAuthEventWithMetadata(ctx, adminAccountID, audit.EventTypeStaffPreviewStarted, true, ipAddress, userAgent, "",
-			map[string]interface{}{"target_account_id": targetAccountID, "preview_id": previewID})
+		// Written synchronously, BEFORE the token leaves this method: if the
+		// start row cannot land, the caller gets an error and never holds a
+		// preview token — so no preview can run without its start event. The
+		// mint transaction persisted nothing (a JWT is stateless), so there is
+		// nothing to unwind on failure.
+		if err := s.recordPreviewStart(ctx, adminAccountID, tenantID, targetAccountID, previewID, ipAddress, userAgent); err != nil {
+			return nil, &AuthError{Op: op, Err: err}
+		}
 		s.getLogger().Info("staff preview started",
 			slog.Int64("admin_account_id", adminAccountID),
 			slog.Int64("target_account_id", targetAccountID),
@@ -191,14 +197,15 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 	}, nil
 }
 
-// EndStaffPreview records that the admin left the preview. Called with the
-// RESTORED admin session — the preview token itself cannot reach this route
-// (POST, blocked by the read-only middleware), so it travels in the body as
-// PROOF instead: the previewed account is read from the signed token, never
-// from a client-supplied number. Only a token this admin was actually handed
-// at this school is accepted, so nobody can stamp the audit trail with a
-// preview that never happened. Purely an audit affair otherwise — the preview
-// token simply expires, nothing is revoked.
+// EndStaffPreview records that the admin left the preview. The signed preview
+// token IS the credential: it travels in the body, and admin, school, target,
+// and preview instance are all read from its claims — never from anything the
+// client picks. Only the server ever mints such a token, so nobody can stamp
+// the audit trail with a preview that never happened. Because no live session
+// is required, the end is recordable even after the admin's own tokens have
+// expired — the "laptop closed for a week mid-preview" case still closes its
+// audit pair when the browser comes back. Purely an audit affair otherwise —
+// the preview token simply expires, nothing is revoked and nothing is granted.
 //
 // Ending is one-shot per preview instance, and the database is what makes it
 // so: the event carries the token's preview id, a partial unique index covers
@@ -211,29 +218,27 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 // call, not of a goroutine that outlives it.
 //
 // Returns the previewed account id for the caller's response and logs.
-func (s *Service) EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error) {
+func (s *Service) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
 	const op = "end staff preview"
 
 	// Expiry is deliberately not checked here: a preview left open past the
 	// 15-minute access expiry must still end with an audit row. The signature
-	// is what proves the admin held this token; freshness proves nothing
-	// extra, and this call grants no access.
+	// is what proves this token came from a real preview; freshness proves
+	// nothing extra, and this call grants no access.
 	claims, err := s.tokenAuth.ParseExpiredAccessJWT(previewToken)
 	if err != nil {
 		s.getLogger().Warn("staff preview end: token not parseable",
-			slog.Int64("admin_account_id", adminAccountID),
 			slog.String("error", err.Error()),
 		)
 		return 0, &AuthError{Op: op, Err: ErrPreviewTokenInvalid}
 	}
-	if !claims.IsReadOnlyPreview() || claims.ActingAdminID != adminAccountID ||
-		claims.TenantID != tenantID || claims.ID <= 0 || claims.PreviewID == "" {
-		s.getLogger().Warn("staff preview end: token does not belong to this session",
-			slog.Int64("admin_account_id", adminAccountID),
-			slog.Int64("tenant_id", tenantID),
-		)
+	if !claims.IsReadOnlyPreview() || claims.ActingAdminID <= 0 ||
+		claims.TenantID <= 0 || claims.ID <= 0 || claims.PreviewID == "" {
+		s.getLogger().Warn("staff preview end: token is not a preview token")
 		return 0, &AuthError{Op: op, Err: ErrPreviewTokenInvalid}
 	}
+	adminAccountID := claims.ActingAdminID
+	tenantID := claims.TenantID
 	targetAccountID := int64(claims.ID)
 
 	recorded, err := s.recordPreviewEnd(ctx, adminAccountID, tenantID, targetAccountID, claims.PreviewID, ipAddress, userAgent)
@@ -291,6 +296,22 @@ func (s *Service) continuedPreviewID(ctx context.Context, previousToken string, 
 		return "", false, nil
 	}
 	return claims.PreviewID, true, nil
+}
+
+// recordPreviewStart writes the "preview started" audit row for a NEW preview
+// instance — synchronously, in the admin's tenant transaction (the start route
+// runs without one), because StartStaffPreview must not hand out a token whose
+// start never reached the audit trail.
+func (s *Service) recordPreviewStart(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previewID, ipAddress, userAgent string) error {
+	event := audit.NewAuthEvent(adminAccountID, audit.EventTypeStaffPreviewStarted, true, ipAddress)
+	event.SetTenantID(tenantID)
+	event.UserAgent = userAgent
+	event.SetMetadata("target_account_id", targetAccountID)
+	event.SetMetadata("preview_id", previewID)
+
+	return tenant.WithTenantTx(s.withTenantRuntime(ctx), s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.repos.AuthEvent.Create(ctx, event)
+	})
 }
 
 // recordPreviewEnd writes the "preview ended" audit row for this preview

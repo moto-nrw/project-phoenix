@@ -150,7 +150,7 @@ type AuthService interface {
 	// currently holds so a re-mint continues the running preview instead of
 	// opening a second one in the audit trail.
 	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error)
-	EndStaffPreview(ctx context.Context, adminAccountID, tenantID int64, previewToken, ipAddress, userAgent string) (int64, error)
+	EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error)
 	ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error)
 
 	// Multi-Tenant Account Linking

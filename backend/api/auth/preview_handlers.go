@@ -85,8 +85,13 @@ func (rs *Resource) startStaffPreview(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// endStaffPreview handles POST /auth/staff-preview/end (admin only). Runs
-// with the RESTORED admin session and only writes the audit trail.
+// endStaffPreview handles POST /auth/staff-preview/end. The route is PUBLIC
+// (mirrors /auth/mfa/verify, which also takes its proof-JWT in the body): the
+// signed preview token is the credential, and admin, school, and target are
+// read from its claims in the service. No session is required, so the end is
+// recordable even after the admin's own tokens have expired — without that, a
+// preview whose session died would keep an unmatched start in the audit trail.
+// The call writes nothing but the one-shot audit row and grants no access.
 func (rs *Resource) endStaffPreview(w http.ResponseWriter, r *http.Request) {
 	req := &StaffPreviewEndRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -94,9 +99,8 @@ func (rs *Resource) endStaffPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
 	if _, err := rs.AuthService.EndStaffPreview(
-		r.Context(), int64(claims.ID), claims.TenantID, req.PreviewToken,
+		r.Context(), req.PreviewToken,
 		getClientIP(r), r.Header.Get(headerUserAgent),
 	); err != nil {
 		renderStaffPreviewError(w, r, err)

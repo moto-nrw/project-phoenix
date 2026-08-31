@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -255,7 +256,7 @@ func TestAuthService_ListStaffPreviewCandidates_CustomLehrkraftRoleIsListed(t *t
 	assert.True(t, listed, "an account with a school-defined role named Lehrkraft must be selectable")
 
 	// And the picker agrees with the start path.
-	_, err = service.StartStaffPreview(ctx, admin.ID, tenantID, customLehrkraft.ID, "", "", "")
+	_, err = service.StartStaffPreview(ctx, admin.ID, tenantID, customLehrkraft.ID, "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 }
 
@@ -270,11 +271,11 @@ func TestAuthService_EndStaffPreview(t *testing.T) {
 	admin := testpkg.CreateTestAccount(t, db, "preview-end-admin")
 	_, target := testpkg.CreateTestCalendarStaff(t, db, "Ende", "Person")
 
-	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "")
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 
-	t.Run("reads the previewed account from the token and audits it", func(t *testing.T) {
-		endedTarget, endErr := service.EndStaffPreview(ctx, admin.ID, tenantID, session.AccessToken, "127.0.0.1", "go-test")
+	t.Run("reads admin and previewed account from the token and audits it", func(t *testing.T) {
+		endedTarget, endErr := service.EndStaffPreview(ctx, session.AccessToken, "127.0.0.1", "go-test")
 		require.NoError(t, endErr)
 		assert.Equal(t, target.ID, endedTarget)
 
@@ -291,21 +292,40 @@ func TestAuthService_EndStaffPreview(t *testing.T) {
 		}, 5*time.Second, 100*time.Millisecond, "staff_preview_ended audit event missing")
 	})
 
-	// Without this, an admin could stamp the audit trail with a preview of a
-	// colleague they never opened.
-	t.Run("refuses a token that is not this admin's preview at this school", func(t *testing.T) {
+	// The signed token is the whole credential: only a token the server minted
+	// can write an end row, so nobody can stamp the audit trail with a preview
+	// that never happened. Garbage and regular session tokens are refused.
+	t.Run("refuses anything that is not a server-minted preview token", func(t *testing.T) {
+		_, endErr := service.EndStaffPreview(ctx, "not-a-token", "", "")
+		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+
+		regular, mintErr := jwt.MustNewTokenAuth().CreateJWT(jwt.AppClaims{
+			ID: int(admin.ID), Sub: "regular@test.local", TenantID: tenantID,
+		})
+		require.NoError(t, mintErr)
+		_, endErr = service.EndStaffPreview(ctx, regular, "", "")
+		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+	})
+
+	// A preview token names its own admin in acting_admin_id — the end lands
+	// on THAT account, whoever submits the token.
+	t.Run("a preview token ends the preview of the admin it was minted for", func(t *testing.T) {
 		otherAdmin := testpkg.CreateTestAccount(t, db, "preview-end-other-admin")
-		foreign, foreignErr := service.StartStaffPreview(ctx, otherAdmin.ID, tenantID, target.ID, "", "", "")
+		foreign, foreignErr := service.StartStaffPreview(ctx, otherAdmin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
 		require.NoError(t, foreignErr)
 
-		_, endErr := service.EndStaffPreview(ctx, admin.ID, tenantID, foreign.AccessToken, "", "")
-		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+		endedTarget, endErr := service.EndStaffPreview(ctx, foreign.AccessToken, "127.0.0.1", "go-test")
+		require.NoError(t, endErr)
+		assert.Equal(t, target.ID, endedTarget)
 
-		_, endErr = service.EndStaffPreview(ctx, admin.ID, tenantID+1, session.AccessToken, "", "")
-		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
-
-		_, endErr = service.EndStaffPreview(ctx, admin.ID, tenantID, "not-a-token", "", "")
-		requirePreviewErr(t, endErr, auth.ErrPreviewTokenInvalid)
+		var count int
+		require.NoError(t, db.NewSelect().
+			ColumnExpr("COUNT(*)").
+			TableExpr("audit.auth_events").
+			Where("account_id = ?", otherAdmin.ID).
+			Where("event_type = ?", "staff_preview_ended").
+			Scan(ctx, &count))
+		assert.Equal(t, 1, count, "the end must be recorded on the token's own admin")
 	})
 }
 
@@ -358,14 +378,14 @@ func TestAuthService_StaffPreviewAuditPairsOneStartWithOneEnd(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond, "renewal must not write a second staff_preview_started")
 
 	// Ending twice — a retry, a second tab — stays one audit row.
-	endedTarget, err := service.EndStaffPreview(ctx, admin.ID, tenantID, renewed.AccessToken, "127.0.0.1", "go-test")
+	endedTarget, err := service.EndStaffPreview(ctx, renewed.AccessToken, "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	assert.Equal(t, target.ID, endedTarget)
 	require.Eventually(t, func() bool {
 		return countEvents("staff_preview_ended", previewID) == 1
 	}, 5*time.Second, 100*time.Millisecond, "staff_preview_ended audit event missing")
 
-	endedTarget, err = service.EndStaffPreview(ctx, admin.ID, tenantID, renewed.AccessToken, "127.0.0.1", "go-test")
+	endedTarget, err = service.EndStaffPreview(ctx, renewed.AccessToken, "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	assert.Equal(t, target.ID, endedTarget)
 	assert.Never(t, func() bool {
@@ -405,7 +425,7 @@ func TestAuthService_StartStaffPreviewIgnoresEndedPreviewToken(t *testing.T) {
 	endedID, ok := decodePreviewTokenPayload(t, first.AccessToken)["preview_id"].(string)
 	require.True(t, ok)
 
-	_, err = service.EndStaffPreview(ctx, admin.ID, tenantID, first.AccessToken, "127.0.0.1", "go-test")
+	_, err = service.EndStaffPreview(ctx, first.AccessToken, "127.0.0.1", "go-test")
 	require.NoError(t, err)
 
 	// Same signed token, handed back as "previous" — the instance is closed,
@@ -447,7 +467,7 @@ func TestAuthService_EndStaffPreviewConcurrentlyWritesOneEvent(t *testing.T) {
 	for i := 0; i < callers; i++ {
 		go func() {
 			<-start
-			_, endErr := service.EndStaffPreview(ctx, admin.ID, tenantID, session.AccessToken, "127.0.0.1", "go-test")
+			_, endErr := service.EndStaffPreview(ctx, session.AccessToken, "127.0.0.1", "go-test")
 			errs <- endErr
 		}()
 	}
