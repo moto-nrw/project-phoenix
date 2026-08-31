@@ -22,8 +22,9 @@ func TestStaffRepository_LocksCaregiverBindings(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: this test holds a table lock while a competing
+// transaction waits for it, which can deadlock alongside other lock tests.
 func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
-	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	holderRepo := repoUsers.NewCaregiverBindingLocker(db)
 
