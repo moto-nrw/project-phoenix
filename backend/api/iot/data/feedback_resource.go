@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -23,10 +24,11 @@ type FeedbackResource struct {
 	UsersService    FeedbackStudentReader
 	FeedbackService Feedback
 	ObserveResponse func(int, string)
+	Logger          *slog.Logger
 }
 
 // NewFeedbackResource creates a new Feedback resource
-func NewFeedbackResource(usersService FeedbackStudentReader, feedbackService Feedback, observeResponse func(int, string)) *FeedbackResource {
+func NewFeedbackResource(usersService FeedbackStudentReader, feedbackService Feedback, observeResponse func(int, string), logger *slog.Logger) *FeedbackResource {
 	if usersService == nil || feedbackService == nil || observeResponse == nil {
 		panic("IoT feedback: all dependencies are required")
 	}
@@ -34,7 +36,15 @@ func NewFeedbackResource(usersService FeedbackStudentReader, feedbackService Fee
 		UsersService:    usersService,
 		FeedbackService: feedbackService,
 		ObserveResponse: observeResponse,
+		Logger:          logger,
 	}
+}
+
+func (rs *FeedbackResource) getLogger() *slog.Logger {
+	if rs.Logger != nil {
+		return rs.Logger
+	}
+	return slog.Default()
 }
 
 // Router returns a configured router for feedback submission endpoints

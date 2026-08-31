@@ -833,19 +833,21 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 
 	// The Feedback owner resolves and enforces its retention setting. A failed
 	// cleanup aborts the tenant transaction instead of being logged and ignored.
-	deleted, err := s.feedbackCleaner.DeleteExpired(ctx)
-	if err != nil {
-		s.getLogger().Error("feedback cleanup failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-		return false
-	}
-	if deleted > 0 {
-		s.getLogger().Info("feedback cleanup completed",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int("records_deleted", deleted),
-		)
+	if s.feedbackCleaner != nil {
+		deleted, err := s.feedbackCleaner.DeleteExpired(ctx)
+		if err != nil {
+			s.getLogger().Error("feedback cleanup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return false
+		}
+		if deleted > 0 {
+			s.getLogger().Info("feedback cleanup completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("records_deleted", deleted),
+			)
+		}
 	}
 
 	if s.unregisteredTagScanCleaner != nil {

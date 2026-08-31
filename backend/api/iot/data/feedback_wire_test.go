@@ -43,7 +43,7 @@ func executeFeedbackWireRequest(t *testing.T, body string, feedback wireFeedback
 	var observations []wireObservation
 	resource := NewFeedbackResource(wireStudentReader{}, feedback, func(status int, code string) {
 		observations = append(observations, wireObservation{status: status, code: code})
-	})
+	}, nil)
 	request := httptest.NewRequest(http.MethodPost, "/feedback", bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
 	testutil.WithDeviceContext(&iotModel.Device{DeviceID: "wire-device"})(request)

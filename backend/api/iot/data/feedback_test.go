@@ -45,6 +45,7 @@ func setupFeedbackModule(t *testing.T) *feedbackTestContext {
 		svc.Users,
 		feedback,
 		func(int, string) {},
+		nil,
 	)
 
 	return &feedbackTestContext{

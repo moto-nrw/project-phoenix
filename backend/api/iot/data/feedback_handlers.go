@@ -29,7 +29,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		return
 	}
 
-	slog.Default().InfoContext(r.Context(), "starting feedback submission",
+	rs.getLogger().InfoContext(r.Context(), "starting feedback submission",
 		slog.String("device_id", deviceCtx.DeviceID),
 		slog.Int64("device_db_id", deviceCtx.ID),
 	)
@@ -38,7 +38,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// Resolution failures are operational failures, not permission to write.
 	enabled, err := rs.FeedbackService.Available(r.Context())
 	if err != nil {
-		slog.Default().ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
+		rs.getLogger().ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
 		return
@@ -55,7 +55,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// Parse request
 	req := &IoTFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		slog.Default().ErrorContext(r.Context(), "invalid feedback request",
+		rs.getLogger().ErrorContext(r.Context(), "invalid feedback request",
 			slog.String("device_id", deviceCtx.DeviceID),
 			slog.String("error", err.Error()),
 		)
@@ -64,7 +64,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		return
 	}
 
-	slog.Default().DebugContext(r.Context(), "received feedback",
+	rs.getLogger().DebugContext(r.Context(), "received feedback",
 		slog.Int64("student_id", req.StudentID),
 		slog.String("value", req.Value),
 	)
@@ -81,7 +81,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// waits for our entry to be visible to its own pass (#405 review).
 	student, err := rs.UsersService.GetStudentByIDForUpdate(r.Context(), req.StudentID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		slog.Default().ErrorContext(r.Context(), "failed to lookup student",
+		rs.getLogger().ErrorContext(r.Context(), "failed to lookup student",
 			slog.Int64("student_id", req.StudentID),
 			slog.String("error", err.Error()),
 		)
@@ -91,7 +91,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		slog.Default().WarnContext(r.Context(), "student not found",
+		rs.getLogger().WarnContext(r.Context(), "student not found",
 			slog.Int64("student_id", req.StudentID),
 		)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
@@ -107,7 +107,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// unknown-student branch above returns, so PyrePortal needs no new error
 	// mapping (#405).
 	if student.IsAlumnus() {
-		slog.Default().InfoContext(r.Context(), "feedback rejected: student graduated",
+		rs.getLogger().InfoContext(r.Context(), "feedback rejected: student graduated",
 			slog.Int64("student_id", req.StudentID),
 		)
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
@@ -115,7 +115,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		return
 	}
 
-	slog.Default().DebugContext(r.Context(), "student validated",
+	rs.getLogger().DebugContext(r.Context(), "student validated",
 		slog.Int64("student_id", student.ID),
 	)
 
@@ -132,7 +132,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 	// Create feedback entry (validation happens in service layer)
 	entry, err := rs.FeedbackService.Submit(r.Context(), input)
 	if err != nil {
-		slog.Default().ErrorContext(r.Context(), "failed to create feedback entry",
+		rs.getLogger().ErrorContext(r.Context(), "failed to create feedback entry",
 			slog.String("error", err.Error()),
 		)
 		renderer := shared.ErrorRenderer(err)
@@ -145,7 +145,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		return
 	}
 
-	slog.Default().InfoContext(r.Context(), "created feedback entry",
+	rs.getLogger().InfoContext(r.Context(), "created feedback entry",
 		slog.Int64("entry_id", entry.ID),
 		slog.Int64("student_id", req.StudentID),
 	)

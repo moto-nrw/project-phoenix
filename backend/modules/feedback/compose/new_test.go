@@ -116,6 +116,8 @@ func TestModuleBatchFailureRollsBackEveryEntry(t *testing.T) {
 		createInput(9_223_372_036_854_775_000, "2026-08-31", feedback.ValueNegative),
 	})
 	require.Error(t, err)
+	var batchErr *feedback.BatchOperationError
+	assert.NotErrorAs(t, err, &batchErr)
 
 	entries, listErr := module.FindEntries(testpkg.Ctx(t), feedback.Filter{StudentID: &student.ID})
 	require.NoError(t, listErr)

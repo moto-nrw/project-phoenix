@@ -135,7 +135,7 @@ func (e engine) SubmitBatch(ctx context.Context, inputs []feedback.CreateEntry) 
 	}
 	entries, err := e.service.CreateBatch(ctx, values)
 	if err != nil {
-		return nil, &feedback.BatchOperationError{Errors: []error{mapError(err, 0)}}
+		return nil, mapError(err, 0)
 	}
 	return toPublicEntries(entries), nil
 }
