@@ -44,11 +44,19 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 	repo = authRepo.NewMFAOverrideRepository(db)
 
 	cleanup = func() {
-		// DeleteAllByAccount drops every override row this test wrote,
-		// regardless of which test path created them — keeps the fixture
-		// teardown branch-independent.
-		if _, err := repo.DeleteAllByAccount(ctx, account.ID); err != nil {
-			t.Logf("teardown: delete all overrides: %v", err)
+		rows, err := repo.ListByAccount(ctx, account.ID)
+		if err != nil {
+			t.Logf("teardown: list overrides: %v", err)
+		}
+		for _, row := range rows {
+			if row.IsGlobal() {
+				err = repo.DeleteGlobal(ctx, account.ID)
+			} else {
+				err = repo.DeleteTenant(ctx, account.ID, *row.TenantID)
+			}
+			if err != nil {
+				t.Logf("teardown: delete override: %v", err)
+			}
 		}
 		testpkg.CleanupTenantTestData(t, db, tenantID)
 		testpkg.CleanupAccount(t, db, account.ID)
@@ -354,7 +362,7 @@ func TestMFAOverrideRepository_DeleteTenant_TenantIDZeroRejected(t *testing.T) {
 	require.Error(t, repo.DeleteTenant(ctx, accountID, 0))
 }
 
-// --- ListByAccount / DeleteAllByAccount -------------------------------
+// --- ListByAccount ----------------------------------------------------
 
 func TestMFAOverrideRepository_ListByAccount_GlobalRowComesFirst(t *testing.T) {
 	t.Parallel()
@@ -389,40 +397,4 @@ func TestMFAOverrideRepository_ListByAccount_EmptyWhenNone(t *testing.T) {
 	rows, err := repo.ListByAccount(ctx, accountID)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
-}
-
-func TestMFAOverrideRepository_DeleteAllByAccount_ReturnsCount(t *testing.T) {
-	t.Parallel()
-
-	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
-
-	require.NoError(t, repo.UpsertGlobal(ctx, &auth.MFAOverride{
-		AccountID: accountID,
-		Override:  auth.MFAAdminOverrideForceOff,
-		SetByType: auth.MFAOverrideSetByTypeOperator,
-	}))
-	require.NoError(t, repo.UpsertTenant(ctx, &auth.MFAOverride{
-		AccountID: accountID, TenantID: &tenantID,
-		Override: auth.MFAAdminOverrideForceOn, SetByType: "account",
-	}))
-
-	n, err := repo.DeleteAllByAccount(ctx, accountID)
-	require.NoError(t, err)
-	assert.EqualValues(t, 2, n)
-
-	rows, err := repo.ListByAccount(ctx, accountID)
-	require.NoError(t, err)
-	assert.Empty(t, rows)
-}
-
-func TestMFAOverrideRepository_DeleteAllByAccount_ReturnsZeroWhenNothingToDelete(t *testing.T) {
-	t.Parallel()
-
-	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
-	defer cleanup()
-
-	n, err := repo.DeleteAllByAccount(ctx, accountID)
-	require.NoError(t, err)
-	assert.Equal(t, int64(0), n)
 }

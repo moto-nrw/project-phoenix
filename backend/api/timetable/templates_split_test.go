@@ -24,6 +24,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -285,8 +286,7 @@ func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
 	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
 	require.NotNil(t, group.TargetGradeLevel)
 	assert.EqualValues(t, 5, *group.TargetGradeLevel)
-	timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, rejectedName)
-	require.NoError(t, err)
+	timeframes := listTimeframesByDescription(t, scheduleRepo.NewTimeframeRepository(s.db), s.ctx, rejectedName)
 	assert.Empty(t, timeframes, "the handler-created timeframe must roll back with the rejected update")
 
 	s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
@@ -487,13 +487,14 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	updateName := fmt.Sprintf("Tpl-Update-Rollback-%d", time.Now().UnixNano())
 	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
 	timeframeRepo := scheduleRepo.NewTimeframeRepository(s.db)
-	existingTimeframes, err := timeframeRepo.FindByDescription(s.ctx, updateName)
-	require.NoError(t, err)
+	existingTimeframes := listTimeframesByDescription(t, timeframeRepo, s.ctx, updateName)
 	require.Empty(t, existingTimeframes)
 
 	validatorReached := false
 	s.res.TimetableData = testTimetableDataWithCareValidator(s.db, func(ctx context.Context, templateID int64) error {
-		provisionalTimeframes, lookupErr := timeframeRepo.FindByDescription(ctx, updateName)
+		options := modelBase.NewQueryOptions()
+		options.Filter.ILike("description", "%"+updateName+"%")
+		provisionalTimeframes, lookupErr := timeframeRepo.List(ctx, options)
 		if lookupErr != nil {
 			return lookupErr
 		}
@@ -524,8 +525,7 @@ func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) 
 	assert.Contains(t, updateW.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
 	assert.True(t, validatorReached, "the test must fail after the provisional writes, not during preflight")
 
-	afterTimeframes, err := timeframeRepo.FindByDescription(s.ctx, updateName)
-	require.NoError(t, err)
+	afterTimeframes := listTimeframesByDescription(t, timeframeRepo, s.ctx, updateName)
 	assert.Empty(t, afterTimeframes, "the unique timeframe created before validation must roll back")
 	afterGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
 	require.NoError(t, err)

@@ -31,6 +31,7 @@ import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
+import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
@@ -45,6 +46,7 @@ import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { Button } from "~/components/ui/button";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
@@ -351,6 +353,14 @@ const BINARY_HIDDEN_HREFS = new Set<string>([
 ]);
 const GROUP_NAV_ICON =
   "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z";
+// Icon paths shared between the expanded accordion headers and the collapsed
+// icon rail (#2825), so both renderings can never drift apart.
+const SUPERVISION_NAV_ICON =
+  "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z";
+const DATABASE_NAV_ICON =
+  "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4";
+const ENROLLMENT_NAV_ICON =
+  "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z";
 
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
@@ -393,7 +403,32 @@ interface SidebarProps {
   readonly className?: string;
 }
 
-function SidebarContent({ className = "" }: SidebarProps) {
+// Auf-/Zuklappen als 200ms-Breiten-Slide (#2825, explizit gewünschte Motion;
+// bewusste, dokumentierte Abweichung von "compositor properties only" — die
+// Breiten-Animation ist das etablierte Sidebar-Muster, z. B. shadcn).
+// clip-path schneidet den Inhalt auf die animierende Breite zu, damit er
+// hinter der Kante aufgedeckt wird statt sichtbar überzustehen; anders als
+// overflow-hidden bricht clip-path das position:sticky des Innenbereichs
+// nicht. Der Inhalt selbst hat pro Zustand eine feste Breite (w-64/w-16 auf
+// dem Sticky-Container), damit Labels während des Slides nicht umbrechen.
+// motion-safe respektiert prefers-reduced-motion.
+const ASIDE_WIDTH_TRANSITION =
+  "[clip-path:inset(0)] motion-safe:transition-[width] motion-safe:duration-200 motion-safe:ease-in-out";
+
+interface SidebarContentProps extends SidebarProps {
+  // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
+  // Wrapper (useSidebarCollapsed), damit auch der Suspense-Fallback die
+  // richtige Breite rendert. Umgeschaltet wird über den Toggle-Button in
+  // der Kopfzeile (header.tsx), der denselben Store nutzt.
+  readonly collapsed: boolean;
+  readonly onExpandSidebar: () => void;
+}
+
+function SidebarContent({
+  className = "",
+  collapsed,
+  onExpandSidebar,
+}: SidebarContentProps) {
   const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
@@ -772,16 +807,17 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const mainNavItems = filteredNavItems.filter((item) => !item.bottomPinned);
   const bottomNavItems = filteredNavItems.filter((item) => item.bottomPinned);
 
-  const getIconClasses = (item: NavItem) => {
-    const base =
-      "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
+  const getIconClasses = (item: NavItem, compact = false) => {
+    const base = compact
+      ? "h-5 w-5 shrink-0 transition-colors"
+      : "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5 transition-colors";
     if (!item.comingSoon && item.activeColor && isActiveLink(item.href)) {
       return `${base} ${item.activeColor}`;
     }
     return base;
   };
 
-  const renderNavIcon = (item: NavItem) => {
+  const renderNavIcon = (item: NavItem, compact = false) => {
     const concept = item.concept ? MOTO_CONCEPTS[item.concept] : null;
     const isActive = !item.comingSoon && isActiveLink(item.href);
     if (concept) {
@@ -791,7 +827,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
             icon={concept.icon}
             tone={concept.tone}
             size={22}
-            className="mr-3 h-5 w-5 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5"
+            className={
+              compact
+                ? "h-5 w-5"
+                : "mr-3 h-5 w-5 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5"
+            }
           />
         );
       }
@@ -801,7 +841,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         <ConceptIcon
           size={22}
           weight="regular"
-          className={getIconClasses(item)}
+          className={getIconClasses(item, compact)}
           aria-hidden="true"
         />
       );
@@ -809,7 +849,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     return (
       <svg
-        className={getIconClasses(item)}
+        className={getIconClasses(item, compact)}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -1131,6 +1171,253 @@ function SidebarContent({ className = "" }: SidebarProps) {
       })),
     [],
   );
+  // ——— Eingeklappte Leiste (#2825): schmaler Icon-Streifen ———
+  // Gleiche Reihenfolge und Aktiv-Zustände wie ausgeklappt, nur ohne Labels;
+  // jedes Icon trägt seinen Namen als Tooltip.
+  const railItemClasses = (isActive: boolean) =>
+    `relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+      isActive
+        ? "bg-gray-100 text-gray-900"
+        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+    }`;
+
+  const renderRailNavItem = (item: NavItem) => {
+    if (item.comingSoon) return null;
+    return (
+      <Link
+        key={item.href}
+        href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
+        className={railItemClasses(isActiveLink(item.href))}
+        title={item.label}
+        aria-label={item.label}
+        {...(item.newTab
+          ? { target: "_blank", rel: "noopener noreferrer" }
+          : {})}
+      >
+        {renderNavIcon(item, true)}
+        {item.href === "/anfragen" && (
+          <NotificationBadge
+            count={requestsPendingCount}
+            tone="staff"
+            size="sm"
+            ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
+            className="absolute -top-0.5 -right-0.5"
+          />
+        )}
+      </Link>
+    );
+  };
+
+  const renderRailSection = (section: {
+    key: string;
+    label: string;
+    iconPath: string;
+    concept?: MotoConceptKey;
+    activeColor?: string;
+    accordion: string;
+    isActive: boolean;
+    badgeCount?: number;
+    onOpen: () => void;
+  }) => {
+    const conceptDefinition = section.concept
+      ? MOTO_CONCEPTS[section.concept]
+      : null;
+    const ConceptIcon = conceptDefinition?.icon;
+    return (
+      <Button
+        key={section.key}
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={() => {
+          // Unterpunkte passen nicht in den Streifen: der Klick klappt die
+          // Leiste auf und öffnet den Bereich mit derselben
+          // Navigate-on-expand-Logik wie im ausgeklappten Zustand.
+          onExpandSidebar();
+          if (expanded !== section.accordion) section.onOpen();
+        }}
+        // Kit-Button liefert die standardisierten Fokus-Styles;
+        // railItemClasses überschreibt Maße und Zustandsfarben auf die
+        // 40px-Kachel des Streifens (twMerge, letzte Klasse gewinnt).
+        className={`${railItemClasses(section.isActive)} cursor-pointer`}
+        title={section.label}
+        aria-label={section.label}
+        // Im Streifen ist der Bereichsinhalt nie gerendert, deshalb meldet
+        // der Schalter im eingeklappten Zustand immer "zu" — erst nach dem
+        // Aufklappen übernimmt der Akkordeon-Header der breiten Leiste.
+        aria-expanded={!collapsed && expanded === section.accordion}
+      >
+        {conceptDefinition && ConceptIcon ? (
+          section.isActive ? (
+            <MotoDuotoneIcon
+              icon={conceptDefinition.icon}
+              tone={conceptDefinition.tone}
+              size={22}
+              className="h-5 w-5"
+            />
+          ) : (
+            <ConceptIcon
+              size={22}
+              weight="regular"
+              className="h-5 w-5 shrink-0"
+              aria-hidden="true"
+            />
+          )
+        ) : (
+          <svg
+            className={`h-5 w-5 shrink-0 ${section.isActive && section.activeColor ? section.activeColor : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d={section.iconPath}
+            />
+          </svg>
+        )}
+        {(section.badgeCount ?? 0) > 0 && (
+          <NotificationBadge
+            count={section.badgeCount ?? 0}
+            tone="parents"
+            size="sm"
+            ariaLabel={`${section.badgeCount} ungelesene Nachrichten`}
+            className="absolute -top-0.5 -right-0.5"
+          />
+        )}
+      </Button>
+    );
+  };
+
+  if (collapsed) {
+    return (
+      <aside
+        className={`min-h-screen w-16 border-r border-gray-200/70 bg-white/95 ${ASIDE_WIDTH_TRANSITION} ${className}`}
+      >
+        <div className={`${sidebarStickyClasses} flex w-16 flex-col`}>
+          {/* scrollbar-hidden: bei mehr Einträgen als Platz bleibt der Streifen
+              scrollbar, aber ohne sichtbaren Balken — der wäre im 64px-Rail
+              ein Viertel der Breite (Muster: VS-Code-Activity-Bar). */}
+          {mode === "operator" ? (
+            <nav className="scrollbar-hidden flex flex-1 flex-col items-center gap-1 overflow-y-auto p-2">
+              {resolvedOperatorSections
+                .flatMap((section) => section.items)
+                .map(renderRailNavItem)}
+            </nav>
+          ) : (
+            <>
+              <nav className="scrollbar-hidden flex flex-1 flex-col items-center gap-1 overflow-y-auto p-2">
+                {/* Home (Admins) und Tagesplan (Betreuungskräfte, #2383) —
+                    ganz oben, in derselben Reihenfolge wie ausgeklappt. */}
+                {beforeAccordionItems
+                  .filter(
+                    (item) =>
+                      item.href === "/dashboard" || item.href === "/tagesplan",
+                  )
+                  .map(renderRailNavItem)}
+                {showGroupAccordion &&
+                  !openCareGroupMode &&
+                  renderRailSection({
+                    key: "groups",
+                    label: "Meine Gruppen",
+                    iconPath: GROUP_NAV_ICON,
+                    concept: "groups",
+                    accordion: "groups",
+                    isActive:
+                      pathname.startsWith("/ogs-groups") ||
+                      Boolean(childGroupId),
+                    onOpen: handleGroupsToggle,
+                  })}
+                {showStaffAccordions &&
+                  !isBinaryMode &&
+                  renderRailSection({
+                    key: "supervisions",
+                    label:
+                      supervisedRooms.length > 1
+                        ? "Aktuelle Aufsichten"
+                        : "Aktuelle Aufsicht",
+                    iconPath: SUPERVISION_NAV_ICON,
+                    concept: "supervision",
+                    accordion: "supervisions",
+                    isActive:
+                      pathname.startsWith("/active-supervisions") ||
+                      Boolean(childRoomId),
+                    onOpen: handleSupervisionsToggle,
+                  })}
+                {beforeAccordionItems
+                  .filter((item) => item.href === "/students/search")
+                  .map(renderRailNavItem)}
+                {middleItems.map(renderRailNavItem)}
+                {substitutionsItem &&
+                  !openCareGroupMode &&
+                  renderRailNavItem(substitutionsItem)}
+                {communicationSubPages.length > 0 &&
+                  renderRailSection({
+                    key: "kommunikation",
+                    label: COMMUNICATION_SECTION.label,
+                    iconPath: navigationIcons.chat,
+                    activeColor: "text-moto-orange",
+                    accordion: "kommunikation",
+                    isActive: isOnCommunicationPage,
+                    badgeCount: communicationSectionBadgeCount,
+                    onOpen: handleCommunicationToggle,
+                  })}
+                {renderRailSection({
+                  key: "eltern",
+                  label: PARENT_SECTION.label,
+                  iconPath: navigationIcons.parents,
+                  concept: "parents",
+                  accordion: "eltern",
+                  isActive: isOnParentPage,
+                  badgeCount: parentSectionBadgeCount,
+                  onOpen: handleParentToggle,
+                })}
+                {userIsAdmin &&
+                  renderRailSection({
+                    key: "database",
+                    label: DATABASE_SECTION.label,
+                    iconPath: DATABASE_NAV_ICON,
+                    concept: "database",
+                    accordion: "database",
+                    isActive: pathname.startsWith("/database"),
+                    onOpen: handleDatabaseToggle,
+                  })}
+                {planningSubPages.length > 0 &&
+                  renderRailSection({
+                    key: "planning",
+                    label: PLANNING_SECTION.label,
+                    iconPath: navigationIcons.betreuungsplan,
+                    concept: "carePlan",
+                    accordion: "planning",
+                    isActive: isOnPlanningPage,
+                    onOpen: handlePlanningToggle,
+                  })}
+                {userIsAdmin &&
+                  renderRailSection({
+                    key: "enrollments",
+                    label: ENROLLMENT_SECTION.label,
+                    iconPath: ENROLLMENT_NAV_ICON,
+                    concept: "enrollments",
+                    accordion: "enrollments",
+                    isActive: isOnEnrollmentsPage,
+                    onOpen: handleEnrollmentsToggle,
+                  })}
+              </nav>
+              {bottomNavItems.length > 0 && (
+                <nav className="flex flex-col items-center gap-1 border-t border-gray-200 p-2">
+                  {bottomNavItems.map(renderRailNavItem)}
+                </nav>
+              )}
+            </>
+          )}
+        </div>
+      </aside>
+    );
+  }
+
   // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
     const renderOperatorItem = (item: NavItem) => (
@@ -1148,9 +1435,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
     return (
       <aside
-        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${ASIDE_WIDTH_TRANSITION} ${className}`}
       >
-        <div className={`${sidebarStickyClasses} flex flex-col`}>
+        <div className={`${sidebarStickyClasses} flex w-64 flex-col`}>
           <nav className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
             {resolvedOperatorSections.map((section, index) => (
               <div
@@ -1173,9 +1460,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   return (
     <aside
-      className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+      className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${ASIDE_WIDTH_TRANSITION} ${className}`}
     >
-      <div className={`${sidebarStickyClasses} flex flex-col`}>
+      <div className={`${sidebarStickyClasses} flex w-64 flex-col`}>
         {/* Main navigation, scrollable */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
           {/* Home (admin only) */}
@@ -1274,7 +1561,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               because room-level supervision has no meaning without visits) */}
           {showStaffAccordions && !isBinaryMode && (
             <SidebarAccordionSection
-              icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              icon={SUPERVISION_NAV_ICON}
               concept="supervision"
               label={
                 supervisedRooms.length > 1
@@ -1402,7 +1689,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Datenverwaltung accordion (admin only) */}
           {userIsAdmin && (
             <SidebarAccordionSection
-              icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+              icon={DATABASE_NAV_ICON}
               concept="database"
               label={DATABASE_SECTION.label}
               activeColor="text-gray-500"
@@ -1469,7 +1756,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               enrollment periods, offers and enrollment forms for admins. */}
           {userIsAdmin && (
             <SidebarAccordionSection
-              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              icon={ENROLLMENT_NAV_ICON}
               concept="enrollments"
               label={ENROLLMENT_SECTION.label}
               activeColor="text-moto-green"
@@ -1506,37 +1793,47 @@ function SidebarContent({ className = "" }: SidebarProps) {
 }
 
 export function Sidebar({ className = "" }: SidebarProps) {
+  // Klappzustand lebt hier statt in SidebarContent, damit der Suspense-
+  // Fallback dieselbe Breite rendert und beim Laden nichts springt.
+  const { collapsed, expandSidebar } = useSidebarCollapsed();
   return (
     <Suspense
       fallback={
         <aside
-          className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+          className={`min-h-screen ${collapsed ? "w-16" : "w-64"} border-r border-gray-200/70 bg-white/95 ${ASIDE_WIDTH_TRANSITION} ${className}`}
         >
           <div className="sticky top-[73px] p-3">
-            <nav className="space-y-0.5">
+            <nav className={collapsed ? "space-y-1" : "space-y-0.5"}>
               {/* Skeleton placeholders matching nav item height */}
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-28 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-20 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="flex items-center px-3 py-2">
-                <div className="mr-3 h-5 w-5 animate-pulse rounded bg-gray-200" />
-                <div className="h-4 w-24 animate-pulse rounded bg-gray-200" />
-              </div>
+              {["w-24", "w-28", "w-20", "w-24"].map((widthClass, index) => (
+                <div
+                  key={index}
+                  className={
+                    collapsed
+                      ? "flex items-center justify-center py-2"
+                      : "flex items-center px-3 py-2"
+                  }
+                >
+                  <div
+                    className={`h-5 w-5 animate-pulse rounded bg-gray-200 ${collapsed ? "" : "mr-3"}`}
+                  />
+                  {!collapsed && (
+                    <div
+                      className={`h-4 ${widthClass} animate-pulse rounded bg-gray-200`}
+                    />
+                  )}
+                </div>
+              ))}
             </nav>
           </div>
         </aside>
       }
     >
-      <SidebarContent className={className} />
+      <SidebarContent
+        className={className}
+        collapsed={collapsed}
+        onExpandSidebar={expandSidebar}
+      />
     </Suspense>
   );
 }
