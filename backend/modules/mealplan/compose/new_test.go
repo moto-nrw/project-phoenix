@@ -146,7 +146,7 @@ func TestModuleReportsPersistenceQueryAndRowCounts(t *testing.T) {
 		Date: mustDate(t, "2026-09-28"), Dishes: []mealplan.Dish{{Dish: "Eintopf"}},
 	}))
 	require.Len(t, observations, 1)
-	assert.EqualValues(t, 2, observations[0].Queries)
-	assert.EqualValues(t, 1, observations[0].Rows)
-	assert.Positive(t, observations[0].LockWait)
+	assert.EqualValues(t, 2, observations[0].Stats.Queries)
+	assert.EqualValues(t, 1, observations[0].Stats.Rows)
+	assert.Positive(t, observations[0].Stats.StatementDuration)
 }

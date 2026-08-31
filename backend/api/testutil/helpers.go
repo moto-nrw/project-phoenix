@@ -159,6 +159,17 @@ func RespondError(w http.ResponseWriter, r *http.Request, status int, err error)
 	render.JSON(w, r, Response{Status: "error", Error: err.Error()})
 }
 
+func RespondInvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
+	RespondError(w, r, http.StatusBadRequest, err)
+}
+
+func ErrorResponder(resolve func(error) (int, error)) func(http.ResponseWriter, *http.Request, error, string) {
+	return func(w http.ResponseWriter, r *http.Request, err error, _ string) {
+		status, responseErr := resolve(err)
+		RespondError(w, r, status, responseErr)
+	}
+}
+
 // WithJWTBearer sets an Authorization: Bearer <token> header on the request.
 // Use together with MintTestJWT when exercising a Resource via Router(), where
 // the production JWT middleware chain (Verifier → Authenticator → TenantMiddleware)

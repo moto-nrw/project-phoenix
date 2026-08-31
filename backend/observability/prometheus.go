@@ -180,10 +180,10 @@ var (
 		prometheus.CounterOpts{Name: "phoenix_meal_plan_rows_changed_total", Help: "Rows changed by Meal Plan commands."},
 		[]string{"operation"},
 	)
-	mealPlanLockWait = prometheus.NewHistogramVec(
+	mealPlanStatementDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "phoenix_meal_plan_lock_wait_upper_bound_seconds",
-			Help:    "Meal Plan write-statement duration, an upper bound for database lock wait, by operation.",
+			Name:    "phoenix_meal_plan_statement_duration_seconds",
+			Help:    "Cumulative Meal Plan write-statement duration by operation.",
 			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
 		},
 		[]string{"operation"},
@@ -311,7 +311,7 @@ func init() {
 		mealPlanDuration,
 		mealPlanQueries,
 		mealPlanRowsChanged,
-		mealPlanLockWait,
+		mealPlanStatementDuration,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -377,7 +377,7 @@ func ObserveHTTPRequest(method, route string, status int, duration time.Duration
 	appHTTPDuration.WithLabelValues(method, route).Observe(duration.Seconds())
 }
 
-func ObserveMealPlanOperation(operation string, duration time.Duration, queries, rows int64, lockWait time.Duration, err error) {
+func ObserveMealPlanOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, err error) {
 	outcome := "success"
 	if err != nil {
 		outcome = "error"
@@ -390,8 +390,8 @@ func ObserveMealPlanOperation(operation string, duration time.Duration, queries,
 	if rows > 0 {
 		mealPlanRowsChanged.WithLabelValues(operation).Add(float64(rows))
 	}
-	if lockWait > 0 {
-		mealPlanLockWait.WithLabelValues(operation).Observe(lockWait.Seconds())
+	if statementDuration > 0 {
+		mealPlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
 	}
 }
 

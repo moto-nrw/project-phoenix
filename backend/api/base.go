@@ -119,7 +119,7 @@ func initializeMealPlanServices(repoFactory *repositories.Factory, db *bun.DB, l
 		DB:       db,
 		Settings: settings,
 		Observe: func(observation mealplanCompose.Observation) {
-			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Queries, observation.Rows, observation.LockWait, observation.Err)
+			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
 	})
 	if err != nil {
@@ -130,6 +130,17 @@ func initializeMealPlanServices(repoFactory *repositories.Factory, db *bun.DB, l
 		return nil, nil, err
 	}
 	return factory, module, nil
+}
+
+var mealPlanErrorRules = []apiCommon.ErrorRule{
+	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedRenderer(apiCommon.ErrorForbidden, errors.New("feature_disabled"))},
+	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New("meal plan covers weekdays only (Monday-Friday)"))},
+	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+}
+
+func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+	renderer := apiCommon.RulesRenderer(mealPlanErrorRules, apiCommon.ErrorInternalServerRenderer(internalMessage))
+	apiCommon.RenderError(w, r, renderer(err))
 }
 
 func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI.Resource {
@@ -144,16 +155,11 @@ func newMealPlanResource(module *mealplanModule.Module, db *bun.DB) *mealplanAPI
 			return apiCommon.RequireConfigUpdate()
 		},
 		Success: apiCommon.Respond,
-		Failure: func(w http.ResponseWriter, r *http.Request, status int, err error) {
-			switch status {
-			case http.StatusBadRequest:
-				apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
-			case http.StatusForbidden:
-				apiCommon.RenderError(w, r, apiCommon.ErrorForbidden(err))
-			default:
-				message := strings.SplitN(err.Error(), "\n", 2)[0]
-				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap(message, err))
-			}
+		InvalidRequest: func(w http.ResponseWriter, r *http.Request, err error) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))
+		},
+		ModuleFailure: func(w http.ResponseWriter, r *http.Request, err error, internalMessage string) {
+			renderMealPlanFailure(w, r, err, internalMessage)
 		},
 	})
 }

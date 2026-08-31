@@ -2,6 +2,7 @@ package mealplan_test
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,11 +10,30 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanHTTP "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
+	"github.com/stretchr/testify/assert"
 )
 
 type engine struct {
 	available bool
 	entries   []mealplanModule.Entry
+}
+
+var moduleFailures = map[error]struct {
+	status int
+	err    error
+}{
+	mealplanModule.ErrDisabled:        {status: 403, err: errors.New("feature_disabled")},
+	mealplanModule.ErrInvalidMealDate: {status: 400, err: errors.New("meal plan covers weekdays only (Monday-Friday)")},
+	mealplanModule.ErrInvalidDishes:   {status: 400, err: mealplanModule.ErrInvalidDishes},
+}
+
+func resolveModuleFailure(err error) (int, error) {
+	for target, failure := range moduleFailures {
+		if errors.Is(err, target) {
+			return failure.status, failure.err
+		}
+	}
+	return 500, err
 }
 
 func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
@@ -28,8 +48,9 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 			accesses = append(accesses, access)
 			return testutil.IdentityMiddleware
 		},
-		Success: testutil.RespondSuccess,
-		Failure: testutil.RespondError,
+		Success:        testutil.RespondSuccess,
+		InvalidRequest: testutil.RespondInvalidRequest,
+		ModuleFailure:  testutil.ErrorResponder(resolveModuleFailure),
 	})
 
 	resource.Router()
@@ -67,8 +88,9 @@ func resource(available bool) *mealplanHTTP.Resource {
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware {
 			return testutil.IdentityMiddleware
 		},
-		Success: testutil.RespondSuccess,
-		Failure: testutil.RespondError,
+		Success:        testutil.RespondSuccess,
+		InvalidRequest: testutil.RespondInvalidRequest,
+		ModuleFailure:  testutil.ErrorResponder(resolveModuleFailure),
 	})
 }
 
@@ -80,9 +102,11 @@ func TestStaffWeekResponseContract(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	if body := response.Body.String(); !strings.Contains(body, `"date":"2026-09-07"`) || !strings.Contains(body, `"dish":"Nudeln"`) {
-		t.Fatalf("response body = %s", body)
-	}
+	assert.JSONEq(t, `{
+		"status":"success",
+		"data":[{"date":"2026-09-07","position":0,"dish":"Nudeln"}],
+		"message":"Meal plan retrieved successfully"
+	}`, response.Body.String())
 }
 
 func TestStaffDisabledAndMalformedContracts(t *testing.T) {
