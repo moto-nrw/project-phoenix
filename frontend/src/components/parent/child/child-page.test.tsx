@@ -9,6 +9,7 @@ import { ChildPage } from "./child-page";
 
 let mockSearchParams = new URLSearchParams();
 const mockMasterDataMount = vi.fn();
+const mockMasterDataLoad = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -31,6 +32,18 @@ vi.mock("~/components/parent/child/booked-care-section", () => ({
   BookedCareSection: () => <div data-testid="section-care">Betreuung</div>,
 }));
 vi.mock("~/components/parent/child-master-data", () => ({
+  useChildMasterData: () => {
+    useEffect(() => {
+      mockMasterDataLoad();
+    }, []);
+    return {
+      data: null,
+      features: null,
+      loading: false,
+      error: null,
+      setData: vi.fn(),
+    };
+  },
   ChildMasterDataView: ({
     childName,
     area,
@@ -286,7 +299,7 @@ describe("ChildPage", () => {
     expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
   });
 
-  it("laedt Heimweg und Angaben beim erneuten Tabwechsel nicht neu", async () => {
+  it("laedt Heimweg und Angaben nur einmal", async () => {
     const user = userEvent.setup();
     renderPage("42");
     await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
@@ -295,6 +308,7 @@ describe("ChildPage", () => {
     await user.click(screen.getByRole("tab", { name: "Kontakte & Abholung" }));
     await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
 
+    expect(mockMasterDataLoad).toHaveBeenCalledTimes(1);
     expect(mockMasterDataMount).toHaveBeenCalledTimes(2);
   });
 

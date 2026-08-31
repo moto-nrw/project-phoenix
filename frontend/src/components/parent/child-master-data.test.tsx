@@ -797,7 +797,7 @@ describe("ChildMasterDataView", () => {
     expect(wedPickup).toBeChecked();
   });
 
-  it("does not offer accompanied departure requests without companion-note support", async () => {
+  it("shows accompanied departures without offering them for editing", async () => {
     mockGetMasterData.mockResolvedValue(
       masterData({
         allowed_departure_modes: {
@@ -822,9 +822,8 @@ describe("ChildMasterDataView", () => {
       throw new Error("departure section not found");
     }
 
-    expect(
-      screen.queryByLabelText("Mo Mit anderem Kind"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeChecked();
+    expect(screen.getByLabelText("Mo Geht mit anderem Kind")).toBeDisabled();
     expect(screen.getByLabelText("Mo Geht allein")).toBeDisabled();
     expect(
       within(section).getByRole("button", { name: "Änderung anfragen" }),
