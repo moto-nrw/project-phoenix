@@ -24,7 +24,7 @@ function StatTileSkeleton({
   tone: MotoDuotoneTone;
 }>) {
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border p-4 shadow-sm backdrop-blur-md md:p-6">
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md md:p-6">
       <div className="mb-3 flex items-start justify-between">
         <div className="p-0.5">
           <MotoDuotoneIcon icon={icon} tone={tone} />
@@ -46,7 +46,7 @@ function InfoTileSkeleton({
   rows = 3,
 }: Readonly<{ title: string; concept: MotoConceptKey; rows?: number }>) {
   return (
-    <div className="moto-content-surface relative h-full overflow-hidden rounded-3xl border p-4 shadow-sm backdrop-blur-md md:p-6">
+    <div className="moto-content-surface relative h-full overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md md:p-6">
       <div className="mb-4 flex items-center gap-2">
         <div className="rounded-xl bg-gray-100 p-2">
           <MotoConceptIcon concept={concept} size={20} />

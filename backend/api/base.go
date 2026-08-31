@@ -121,6 +121,7 @@ type API struct {
 	metrics            *httpMetrics
 	tracer             *observability.Tracer
 	metricsBearerToken string
+	databaseLogger     *slog.Logger
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -289,6 +290,7 @@ func New(enableCORS bool, logger *slog.Logger) (result *API, resultErr error) {
 		metrics:            httpMetrics,
 		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
+		databaseLogger:     logger.With("handler", "database"),
 	}
 
 	// Setup router middleware
@@ -1159,11 +1161,20 @@ func (a *API) databaseStatsRouter() chi.Router {
 func (a *API) getDatabaseStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := a.Services.Database.GetStats(r.Context())
 	if err != nil {
-		slog.Default().Error("failed to get database stats", slog.String("error", err.Error()))
+		a.getDatabaseLogger().Error("failed to get database stats",
+			"error", err,
+		)
 		apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
 		return
 	}
 	apiCommon.RespondWithJSON(w, r, http.StatusOK, stats)
+}
+
+func (a *API) getDatabaseLogger() *slog.Logger {
+	if a.databaseLogger != nil {
+		return a.databaseLogger
+	}
+	return slog.Default()
 }
 
 // servePublicCalendarFeed serves parent and staff iCalendar subscription feeds.
