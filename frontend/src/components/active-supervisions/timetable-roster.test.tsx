@@ -254,6 +254,27 @@ describe("TimetableRosterContent late arrivals", () => {
     ).toBeInTheDocument();
   });
 
+  it("drops the arrival line once the child checked in early", () => {
+    vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
+    renderRoster(
+      roster(
+        [
+          rosterRow("2", "Früher da Kind", null, {
+            warnings: arrivalWarning("13:45"),
+            currentlyPresent: true,
+            status: "present",
+            visitId: "9",
+          }),
+        ],
+        true,
+      ),
+      true,
+    );
+
+    expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
+  });
+
   it("keeps other planning warnings visible in the started view", () => {
     vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
     renderRoster(
