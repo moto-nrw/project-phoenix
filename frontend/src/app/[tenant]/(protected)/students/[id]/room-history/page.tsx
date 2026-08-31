@@ -40,6 +40,11 @@ import {
   formatTime,
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
+import {
+  AttendanceCorrectionModal,
+  type CorrectableSlot,
+} from "~/components/students/attendance-correction-modal";
+import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
@@ -328,9 +333,13 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
 function DayCard({
   day,
   isToday,
+  canCorrect,
+  onCorrect,
 }: {
   readonly day: AttendanceHistoryDay;
   readonly isToday: boolean;
+  readonly canCorrect: boolean;
+  readonly onCorrect: (slot: CorrectableSlot) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const statusLabel = day.statusEntries.map((entry) => entry.label).join(", ");
@@ -390,24 +399,53 @@ function DayCard({
                 Betreuungsangebote
               </p>
               {day.slots.map((slot) => (
-                <div
-                  key={slot.instanceId}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <div>
-                    <span className="font-medium text-gray-800">
-                      {slot.title}
+                <div key={slot.instanceId} className="text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-medium text-gray-800">
+                        {slot.title}
+                      </span>
+                      <span className="ml-2 text-gray-500">
+                        {slot.startTime}–{slot.endTime}
+                      </span>
+                      {slot.isUnplanned && (
+                        <span className="text-moto-orange ml-2">ungeplant</span>
+                      )}
+                    </div>
+                    <span className="font-medium text-gray-600">
+                      {formatAttendanceSlotStatus(slot.status, slot.substatus)}
                     </span>
-                    <span className="ml-2 text-gray-500">
-                      {slot.startTime}–{slot.endTime}
-                    </span>
-                    {slot.isUnplanned && (
-                      <span className="text-moto-orange ml-2">ungeplant</span>
-                    )}
                   </div>
-                  <span className="font-medium text-gray-600">
-                    {formatAttendanceSlotStatus(slot.status, slot.substatus)}
-                  </span>
+                  {/* Die Bemerkung aus der Betreuung (#2898): ruhige
+                      Information unter ihrem Block, nicht klickbar. */}
+                  {slot.note && (
+                    <p className="mt-0.5 pl-1 text-gray-500 italic">
+                      Bemerkung: {slot.note}
+                    </p>
+                  )}
+                  {/* Korrigieren nur mit Recht und nur für echte Termine:
+                      synthetische "Ohne Zuordnung"-Zeilen tragen eine negative
+                      Kennung und haben keinen Eintrag zum Korrigieren. */}
+                  {canCorrect && !slot.instanceId.startsWith("-") && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onCorrect({
+                          instanceId: slot.instanceId,
+                          title: slot.title,
+                          date: formatDateShort(day.date),
+                          startTime: slot.startTime,
+                          endTime: slot.endTime,
+                          status: slot.status,
+                          substatus: slot.substatus,
+                          note: slot.note,
+                        })
+                      }
+                      className="mt-0.5 pl-1 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                    >
+                      Korrigieren
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -480,12 +518,21 @@ function DayCard({
 function HistoryTable({
   days,
   caps,
+  studentId,
+  onCorrected,
 }: {
   readonly days: AttendanceHistoryDay[];
   readonly caps: { attendanceDays: number; roomDetailDays: number };
+  readonly studentId: string;
+  readonly onCorrected: () => void;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const todayKey = todayISO();
+  // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
+  // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
+  const { data: session } = useSession();
+  const canCorrect = hasPermission(session, "schedules:manage");
+  const [correcting, setCorrecting] = useState<CorrectableSlot | null>(null);
 
   return (
     <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
@@ -612,6 +659,38 @@ function HistoryTable({
                                   </span>
                                 )}
                               </div>
+                              {/* Die Bemerkung aus der Betreuung (#2898):
+                                  ruhige Information unter ihrem Block, nicht
+                                  klickbar. Korrigieren ist die einzige Aktion
+                                  und nur mit Recht sichtbar; synthetische
+                                  "Ohne Zuordnung"-Zeilen tragen eine negative
+                                  Kennung und haben nichts zu korrigieren. */}
+                              {slot.note && (
+                                <p className="mt-1 pl-4 text-gray-500 italic">
+                                  Bemerkung: {slot.note}
+                                </p>
+                              )}
+                              {canCorrect &&
+                                !slot.instanceId.startsWith("-") && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setCorrecting({
+                                        instanceId: slot.instanceId,
+                                        title: slot.title,
+                                        date: formatDateShort(day.date),
+                                        startTime: slot.startTime,
+                                        endTime: slot.endTime,
+                                        status: slot.status,
+                                        substatus: slot.substatus,
+                                        note: slot.note,
+                                      })
+                                    }
+                                    className="mt-1 pl-4 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                                  >
+                                    Korrigieren
+                                  </button>
+                                )}
                             </td>
                             <td className="px-6 py-2 text-gray-500 tabular-nums">
                               {slot.checkedInAt
@@ -745,10 +824,21 @@ function HistoryTable({
                 key={day.date}
                 day={day}
                 isToday={day.date === todayKey}
+                canCorrect={canCorrect}
+                onCorrect={setCorrecting}
               />
             ))}
           </div>
         </>
+      )}
+      {correcting && (
+        <AttendanceCorrectionModal
+          isOpen
+          onClose={() => setCorrecting(null)}
+          studentId={studentId}
+          slot={correcting}
+          onCorrected={onCorrected}
+        />
       )}
     </div>
   );
@@ -980,7 +1070,12 @@ function StudentRoomHistoryPageContent() {
           </div>
 
           {/* History table */}
-          <HistoryTable days={history.days} caps={history.caps} />
+          <HistoryTable
+            days={history.days}
+            caps={history.caps}
+            studentId={studentId}
+            onCorrected={() => void fetchHistory()}
+          />
         </>
       )}
     </div>
