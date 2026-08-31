@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { notFoundMock } = vi.hoisted(() => ({
@@ -102,4 +103,40 @@ describe("TenantLayout", () => {
       { next: { revalidate: 300, tags: ["tenant-school-a"] } },
     );
   });
+
+  it.each([
+    { timetable_enabled: false, expected: false },
+    { timetable_enabled: true, expected: true },
+    { timetable_enabled: undefined, expected: true },
+  ])(
+    "maps timetable_enabled=$timetable_enabled into the server tenant context",
+    async ({ timetable_enabled, expected }) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 1,
+              slug: "school-a",
+              name: "School A",
+              subdomain: "school-a",
+              organization_id: 2,
+              organization_name: "Organization",
+              settings: {},
+              grade_level_max: 4,
+              timetable_enabled,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const element = (await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      })) as ReactElement<{ tenant: { timetableEnabled?: boolean } }>;
+
+      expect(element.props.tenant.timetableEnabled).toBe(expected);
+    },
+  );
 });
