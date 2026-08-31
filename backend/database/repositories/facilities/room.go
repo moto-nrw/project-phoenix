@@ -35,7 +35,7 @@ func (r *RoomRepository) FindByIDForUpdate(ctx context.Context, id int64) (*faci
 	query = base.WithTenantFilter(ctx, query, "room")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find room for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find room for update", Err: base.TranslateNotFound(err)}
 	}
 	return room, nil
 }
@@ -71,7 +71,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -92,7 +92,7 @@ func (r *RoomRepository) FindByName(ctx context.Context, name string) (*faciliti
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -114,7 +114,7 @@ func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by category",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -143,7 +143,7 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -203,7 +203,7 @@ func (r *RoomRepository) FindWithCapacity(ctx context.Context, minCapacity int) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with capacity",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -232,7 +232,7 @@ func (r *RoomRepository) SearchByText(ctx context.Context, searchText string) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "search by text",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -294,7 +294,7 @@ func (r *RoomRepository) FindWithOccupancy(ctx context.Context, id int64) (*faci
 	if err := query.Scan(ctx, &result); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find room with occupancy",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &result, nil
@@ -312,14 +312,14 @@ func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBa
 
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias("r")
-		query = options.Filter.ApplyToQuery(query)
+		query = base.ApplyFilter(query, options.Filter)
 	}
 
 	var results []facilities.RoomOccupancyRow
 	if err := query.Scan(ctx, &results); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list rooms with occupancy",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return results, nil

@@ -95,7 +95,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		require.NoError(t, f.repos.StaffBalanceAdjust.Create(f.ctx, adjustment))
 	}
 
-	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year, int(f.today.Month))
+	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), int(f.today.Month()))
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 
@@ -104,7 +104,7 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 		byStaff[row.StaffID] = row
 	}
 	for _, staff := range f.staff {
-		summary, err := f.monthSvc.GetMonthSummary(f.ctx, staff.ID, f.today.Year, int(f.today.Month))
+		summary, err := f.monthSvc.GetMonthSummary(f.ctx, staff.ID, f.today.Year(), int(f.today.Month()))
 		require.NoError(t, err)
 		row, ok := byStaff[staff.ID]
 		require.True(t, ok, "missing export row for staff %d", staff.ID)
@@ -149,9 +149,9 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 
 	f := newOverviewFixture(t, 1)
 	staffID := f.staff[0].ID
-	closedMonth := timezone.NewDate(f.today.Year, f.today.Month, 1).AddDays(-1)
+	closedMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{
-		accountStart: timezone.NewDate(closedMonth.Year, closedMonth.Month, 1).String(),
+		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := active.NewWorkTimeMonthService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
@@ -163,7 +163,7 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	closeSvc := active.NewStaffMonthCloseService(f.repos.StaffMonthSnapshot, monthSvc, f.repos.Staff, settings, nil)
 	svc := f.newOverviewService(settings)
 
-	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year, int(closedMonth.Month), "Abschluss")
+	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
 	require.NoError(t, err)
 	require.Len(t, closeResult.Snapshots, 1)
 	frozenBalance := closeResult.Snapshots[0].ClosingBalanceMinutes
@@ -171,12 +171,12 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 	// Retroactive session — the live number moves, the frozen one must not.
 	f.addSession(t, staffID, closedMonth, 4*time.Hour)
 
-	rows, err := svc.GetMonthExportRows(f.ctx, closedMonth.Year, int(closedMonth.Month))
+	rows, err := svc.GetMonthExportRows(f.ctx, closedMonth.Year(), int(closedMonth.Month()))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	row := rows[0]
 
-	detail, err := monthSvc.GetMonthSummary(f.ctx, staffID, closedMonth.Year, int(closedMonth.Month))
+	detail, err := monthSvc.GetMonthSummary(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()))
 	require.NoError(t, err)
 	require.True(t, detail.IsClosed)
 
@@ -195,13 +195,13 @@ func TestMonthExportRows_YearSpansMonths(t *testing.T) {
 
 	f := newOverviewFixture(t, 2)
 
-	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year, 0)
+	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year(), 0)
 	require.NoError(t, err)
-	require.Len(t, rows, 2*int(f.today.Month))
+	require.Len(t, rows, 2*int(f.today.Month()))
 	// Rows are grouped per staff member, months ascending.
 	assert.Equal(t, 1, rows[0].Month)
-	assert.Equal(t, int(f.today.Month), rows[int(f.today.Month)-1].Month)
-	assert.Equal(t, rows[0].StaffID, rows[int(f.today.Month)-1].StaffID)
+	assert.Equal(t, int(f.today.Month()), rows[int(f.today.Month())-1].Month)
+	assert.Equal(t, rows[0].StaffID, rows[int(f.today.Month())-1].StaffID)
 }
 
 func TestMonthExportRows_RejectsFutureMonth(t *testing.T) {
@@ -210,11 +210,11 @@ func TestMonthExportRows_RejectsFutureMonth(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 
 	next := f.today.AddDays(40)
-	_, err := f.svc.GetMonthExportRows(f.ctx, next.Year, int(next.Month))
+	_, err := f.svc.GetMonthExportRows(f.ctx, next.Year(), int(next.Month()))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, active.ErrTimeExportInvalid)
 
-	_, err = f.svc.GetMonthExportRows(f.ctx, f.today.Year+1, 0)
+	_, err = f.svc.GetMonthExportRows(f.ctx, f.today.Year()+1, 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, active.ErrTimeExportInvalid)
 }
@@ -230,8 +230,8 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 	exportSvc := f.newExportService()
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
-		Year:  f.today.Year,
-		Month: int(f.today.Month),
+		Year:  f.today.Year(),
+		Month: int(f.today.Month()),
 	}, actorID, "admin")
 	require.NoError(t, err)
 
@@ -280,8 +280,8 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
-		Year:  f.today.Year,
-		Month: int(f.today.Month),
+		Year:  f.today.Year(),
+		Month: int(f.today.Month()),
 	}, actorID, "admin")
 	require.Error(t, err)
 	assert.Nil(t, file)
@@ -301,13 +301,13 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
-		Year:        f.today.Year,
-		Month:       int(f.today.Month),
+		Year:        f.today.Year(),
+		Month:       int(f.today.Month()),
 		Granularity: active.ExportGranularityDay,
 	}, actorID, "admin")
 	require.NoError(t, err)
 
-	monthStart := timezone.NewDate(f.today.Year, f.today.Month, 1)
+	monthStart := timezone.NewDate(f.today.Year(), f.today.Month(), 1)
 	singleRows, err := sessionSvc.DayExportRows(f.ctx, f.staff[0].ID, monthStart, monthOfLastDay(f.today))
 	require.NoError(t, err)
 	require.NotEmpty(t, singleRows)
@@ -324,10 +324,10 @@ func TestStaffTimeExport_RejectsUnknownParameters(t *testing.T) {
 	exportSvc := f.newExportService()
 
 	for _, req := range []active.TimeExportRequest{
-		{Year: f.today.Year, Month: 1, Granularity: "weekly"},
-		{Year: f.today.Year, Month: 1, Format: "pdf"},
-		{Year: f.today.Year, Month: 1, TimeFormat: "seconds"},
-		{Year: f.today.Year, Month: 13},
+		{Year: f.today.Year(), Month: 1, Granularity: "weekly"},
+		{Year: f.today.Year(), Month: 1, Format: "pdf"},
+		{Year: f.today.Year(), Month: 1, TimeFormat: "seconds"},
+		{Year: f.today.Year(), Month: 13},
 		{Year: 1999, Month: 1},
 	} {
 		_, err := exportSvc.Export(f.ctx, req, f.staff[0].ID, "admin")
@@ -337,5 +337,5 @@ func TestStaffTimeExport_RejectsUnknownParameters(t *testing.T) {
 
 // monthOfLastDay returns the last day of the month containing d.
 func monthOfLastDay(d timezone.Date) timezone.Date {
-	return timezone.NewDate(d.Year, d.Month+1, 1).AddDays(-1)
+	return timezone.NewDate(d.Year(), d.Month()+1, 1).AddDays(-1)
 }

@@ -27,7 +27,7 @@ func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
 	db := bun.NewDB(sqlDB, pgdialect.New())
 
 	repo := authrepo.NewAccountRepository(db)
-	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
+	mock.ExpectExec(`UPDATE "auth"\."accounts" AS "account" SET .*avatar.* WHERE .*id.*`).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/success.jpg")
@@ -46,7 +46,7 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 	db := bun.NewDB(sqlDB, pgdialect.New())
 
 	repo := authrepo.NewAccountRepository(db)
-	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
+	mock.ExpectExec(`UPDATE "auth"\."accounts" AS "account" SET .*avatar.* WHERE .*id.*`).
 		WillReturnError(errors.New("update failed"))
 
 	err = repo.UpdateAvatar(context.Background(), 42, "/uploads/avatars/global/fail.jpg")

@@ -711,7 +711,7 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason
 func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (timezone.Date, error) {
 	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return timezone.Date{}, fmt.Errorf(errGetCurrentSession, err)
+		return timezone.Date(""), fmt.Errorf(errGetCurrentSession, err)
 	}
 	if open != nil {
 		return open.Date, nil
@@ -2934,7 +2934,7 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *use
 		return scheduleValidationErrorf("rotation_length must be between 1 and %d", configModels.WorkTimeModelMaxRotation)
 	}
 
-	anchor := timezone.Date{}
+	anchor := timezone.Date("")
 	if in.RotationAnchorDate != "" {
 		parsed, err := timezone.ParseDate(in.RotationAnchorDate)
 		if err != nil {

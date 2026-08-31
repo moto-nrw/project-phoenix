@@ -16,14 +16,14 @@ import (
 func ParseDateRangeQuery(r *http.Request) (timezone.Date, timezone.Date, error) {
 	from, err := timezone.ParseDate(r.URL.Query().Get("from"))
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, errors.New("from query parameter must be YYYY-MM-DD")
+		return timezone.Date(""), timezone.Date(""), errors.New("from query parameter must be YYYY-MM-DD")
 	}
 	to, err := timezone.ParseDate(r.URL.Query().Get("to"))
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, errors.New("to query parameter must be YYYY-MM-DD")
+		return timezone.Date(""), timezone.Date(""), errors.New("to query parameter must be YYYY-MM-DD")
 	}
 	if to.Before(from) {
-		return timezone.Date{}, timezone.Date{}, errors.New("to must be on or after from")
+		return timezone.Date(""), timezone.Date(""), errors.New("to must be on or after from")
 	}
 	return from, to, nil
 }

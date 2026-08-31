@@ -2,7 +2,6 @@ package staff
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +26,7 @@ func TestRequireBalanceAdjustmentStaffClassifiesLookupErrors(t *testing.T) {
 			name: "missing staff",
 			lookupErr: &modelBase.DatabaseError{
 				Op:  "find by id",
-				Err: sql.ErrNoRows,
+				Err: modelBase.ErrNotFound,
 			},
 			wantStatus: http.StatusNotFound,
 		},

@@ -43,7 +43,7 @@ func (r *StudentFieldEditRepository) CreateBatch(ctx context.Context, edits []*a
 		if err := edit.Validate(); err != nil {
 			return &modelBase.DatabaseError{
 				Op:  "validate",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 		base.EnsureTenantID(ctx, edit)
@@ -56,7 +56,7 @@ func (r *StudentFieldEditRepository) CreateBatch(ctx context.Context, edits []*a
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -75,7 +75,7 @@ func (r *StudentFieldEditRepository) GetByStudentID(ctx context.Context, student
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -100,7 +100,7 @@ func (r *StudentFieldEditRepository) CountOlderThanByStudent(ctx context.Context
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "count older than by student",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -122,7 +122,7 @@ func (r *StudentFieldEditRepository) DeleteOlderThan(ctx context.Context, cutoff
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete older than",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -130,7 +130,7 @@ func (r *StudentFieldEditRepository) DeleteOlderThan(ctx context.Context, cutoff
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete older than rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return deleted, nil

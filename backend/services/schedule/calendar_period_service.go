@@ -304,8 +304,8 @@ func (s *calendarPeriodService) withRecurrenceGate(
 // Extracted as a pure function so the year-boundary logic is testable
 // without injecting a clock.
 func defaultSchoolYearBounds(today timezone.Date) (name string, start, end timezone.Date) {
-	startYear := today.Year
-	if today.Month < time.August {
+	startYear := today.Year()
+	if today.Month() < time.August {
 		startYear--
 	}
 	name = fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1)

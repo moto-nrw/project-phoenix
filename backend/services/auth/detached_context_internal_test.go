@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,10 +29,10 @@ func TestDetachedTenantContextDropsAmbientTransactionAndHooks(t *testing.T) {
 
 	require.NoError(t, tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		var tx bun.Tx
-		ambient := modelBase.ContextWithTx(txCtx, &tx)
+		ambient := tenant.WithTransactionForTest(txCtx, &tx)
 		detached := detachedTenantContext(ambient)
 
-		_, hasTx := modelBase.TxFromContext(detached)
+		_, hasTx := tenant.TransactionFromContext(detached)
 		assert.False(t, hasTx)
 		assert.False(t, tenant.HasAfterCommitHooks(detached))
 		assert.Equal(t, int64(42), tenant.FromContext(detached))

@@ -980,12 +980,12 @@ func excusedScopeEnd(dates []timezone.Date) timezone.Date {
 
 func careScopeEnd(item *scheduleService.CareRequestReviewItem) timezone.Date {
 	if item.Request.RequestKind != "pickup_change" {
-		return timezone.Date{}
+		return timezone.Date("")
 	}
 	raw, _ := item.Request.Payload["date"].(string)
 	date, err := timezone.ParseDate(raw)
 	if err != nil {
-		return timezone.Date{}
+		return timezone.Date("")
 	}
 	return date
 }

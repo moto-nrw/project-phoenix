@@ -272,7 +272,7 @@ func NewService(deps ServiceDependencies) Service {
 func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if base.IsNoRows(err) {
 			return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
 		}
 		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrDatabaseOperation}
@@ -339,7 +339,7 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 	}
 	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if base.IsNoRows(err) {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
 		}
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
@@ -392,7 +392,7 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	// Delete the active group
 	_, err = s.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if base.IsNoRows(err) {
 			return &ActiveError{Op: "DeleteActiveGroup", Err: ErrActiveGroupNotFound}
 		}
 		return &ActiveError{Op: "DeleteActiveGroup", Err: fmt.Errorf("find group: %w", err)}
@@ -746,7 +746,7 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 
 	existing, err := s.VisitRepo.FindByID(ctx, visit.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if base.IsNoRows(err) {
 			return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
 		}
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
@@ -806,7 +806,7 @@ func (s *service) prepareVisitTransfer(
 
 	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, updated.ActiveGroupID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if base.IsNoRows(err) {
 			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
 		}
 		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}

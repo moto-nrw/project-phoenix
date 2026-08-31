@@ -52,7 +52,7 @@ type SubstitutionDependencies struct {
 
 type substitutionModule struct {
 	deps SubstitutionDependencies
-	tx   *base.TxHandler
+	tx   *tenant.TransactionRunner
 }
 
 type substitutionAccess struct {
@@ -65,7 +65,7 @@ func NewSubstitutionModule(deps SubstitutionDependencies) SubstitutionModule {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
-	return &substitutionModule{deps: deps, tx: base.NewTxHandler(deps.DB)}
+	return &substitutionModule{deps: deps, tx: tenant.NewTransactionRunner()}
 }
 
 func (s *substitutionModule) Overview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {
@@ -119,7 +119,7 @@ func (s *substitutionModule) groupOverview(ctx context.Context, caller Substitut
 func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (substitutionAccess, bool, []int64, timezone.Date, error) {
 	access, err := s.resolveAccess(ctx, caller)
 	if err != nil {
-		return access, false, nil, timezone.Date{}, err
+		return access, false, nil, timezone.Date(""), err
 	}
 	broad := false
 	if s.deps.CanSeeAll != nil {
@@ -167,9 +167,9 @@ func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int6
 		filter.In("group_id", values...)
 	}
 	if !admin {
-		filter.DateBetween("start_date", "end_date", today)
+		filter.LessThanOrEqual("start_date", today).GreaterThanOrEqual("end_date", today)
 	} else if query.On != nil {
-		filter.DateBetween("start_date", "end_date", *query.On)
+		filter.LessThanOrEqual("start_date", *query.On).GreaterThanOrEqual("end_date", *query.On)
 	} else {
 		filter.GreaterThanOrEqual("end_date", today)
 	}
@@ -235,7 +235,7 @@ func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCall
 	}
 
 	var result GroupHandover
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		created, group, target, createErr := s.assignLocked(txCtx, caller, access, request, start, end)
 		if createErr == nil {
 			result = projectAssignment(created, group, target)
@@ -257,7 +257,7 @@ func (s *substitutionModule) assignScheduleSubstitution(ctx context.Context, cal
 		return nil, err
 	}
 	var result *ScheduleSubstitutionResult
-	err := s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		var assignErr error
 		result, assignErr = s.deps.Schedule.Assign(txCtx, *assignment, caller.AccountID)
 		return assignErr
@@ -343,7 +343,7 @@ func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller,
 	if err != nil {
 		return err
 	}
-	err = s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.endLocked(txCtx, caller, access, request.ID)
 	})
 	if err != nil {
@@ -361,7 +361,7 @@ func (s *substitutionModule) endScheduleSubstitution(ctx context.Context, caller
 		return err
 	}
 	var result *ScheduleSubstitutionResult
-	err := s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.tx.RunInTx(ctx, func(txCtx context.Context) error {
 		var endErr error
 		result, endErr = s.deps.Schedule.End(txCtx, id, caller.AccountID)
 		return endErr
@@ -499,7 +499,8 @@ func (s *substitutionModule) visibleGroupIDs(ctx context.Context, access substit
 	filter := base.NewFilter().Equal("tenant_id", tenantID).
 		Equal("target_type", educationModels.GroupSubstitutionTypeGroupHandover).
 		Equal("substitute_staff_id", access.actor.StaffID).
-		DateBetween("start_date", "end_date", today)
+		LessThanOrEqual("start_date", today).
+		GreaterThanOrEqual("end_date", today)
 	options := base.NewQueryOptions()
 	options.Filter = filter
 	rows, err := s.deps.Substitutions.ListWithOptions(ctx, options)
@@ -535,7 +536,7 @@ func (s *substitutionModule) period(admin bool, requestedStart, requestedEnd *ti
 	today := timezone.DateFromTime(s.deps.Now())
 	if !admin {
 		if requestedStart != nil && *requestedStart != today || requestedEnd != nil && *requestedEnd != today {
-			return timezone.Date{}, timezone.Date{}, ErrInvalidPeriod
+			return timezone.Date(""), timezone.Date(""), ErrInvalidPeriod
 		}
 		return today, today, nil
 	}
@@ -543,7 +544,7 @@ func (s *substitutionModule) period(admin bool, requestedStart, requestedEnd *ti
 		return today, today, nil
 	}
 	if requestedStart == nil || requestedEnd == nil || requestedStart.IsZero() || requestedEnd.IsZero() || requestedEnd.Before(*requestedStart) || requestedStart.Before(today) {
-		return timezone.Date{}, timezone.Date{}, ErrInvalidPeriod
+		return timezone.Date(""), timezone.Date(""), ErrInvalidPeriod
 	}
 	return *requestedStart, *requestedEnd, nil
 }

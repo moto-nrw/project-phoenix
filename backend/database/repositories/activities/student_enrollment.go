@@ -52,7 +52,7 @@ func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, grou
 	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "student_enrollment")
 	deletedResult, err := deleteQuery.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete future enrollments by group", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete future enrollments by group", Err: base.TranslateNotFound(err)}
 	}
 	deleted, _ := deletedResult.RowsAffected()
 
@@ -72,7 +72,7 @@ func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, grou
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "cap active enrollments by group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
@@ -93,7 +93,7 @@ func (r *StudentEnrollmentRepository) SetValidUntilByID(ctx context.Context, id 
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set enrollment valid_until", Err: err}
+		return &modelBase.DatabaseError{Op: "set enrollment valid_until", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "set enrollment valid_until")
 }
@@ -117,7 +117,7 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -184,7 +184,7 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active enrollments by student IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -260,7 +260,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -327,7 +327,7 @@ func (r *StudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx c
 	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "backfill enrollment request child source", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "backfill enrollment request child source", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := result.RowsAffected()
 	return rows, nil
@@ -350,7 +350,7 @@ func (r *StudentEnrollmentRepository) DeleteByEnrollmentRequestChild(ctx context
 	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete by enrollment request child", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete by enrollment request child", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := result.RowsAffected()
 	return rows, nil
@@ -382,7 +382,7 @@ func (r *StudentEnrollmentRepository) Create(ctx context.Context, enrollment *ac
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -414,7 +414,7 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

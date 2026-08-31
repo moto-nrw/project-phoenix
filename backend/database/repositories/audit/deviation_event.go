@@ -57,11 +57,11 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to tim
 	if err := q.
 		OrderExpr(`"deviation_event".occurred_at DESC, "deviation_event".id DESC`).
 		Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list deviation events", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list deviation events", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
 
 func (r *deviationEventRepository) DeleteOlderThan(ctx context.Context, cutoff timezone.Date) (int64, error) {
-	return r.Repository.DeleteOlderThan(ctx, "occurrence_date", cutoff)
+	return r.Repository.DeleteOlderThan(ctx, "occurrence_date", string(cutoff))
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -29,7 +28,7 @@ type cleanupService struct {
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
 	consentRetention   ConsentRetentionResolver
-	txHandler          *base.TxHandler
+	txHandler          *tenant.TransactionRunner
 	batchSize          int
 	today              func() timezone.Date
 }
@@ -59,7 +58,7 @@ func NewCleanupService(
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
 		consentRetention:   consentRetention,
-		txHandler:          base.NewTxHandler(db),
+		txHandler:          tenant.NewTransactionRunner(),
 		batchSize:          100, // Process 100 students at a time
 	}
 	if len(today) > 0 {
@@ -208,7 +207,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []userModels
 func (s *cleanupService) processStudent(ctx context.Context, student userModels.StudentRetentionSetting) (int64, error) {
 	var deletedCount int64
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context) error {
 		// Delete expired visits
 		count, err := s.visitRepo.DeleteExpiredVisits(ctx, student.StudentID, student.DataRetentionDays)
 		if err != nil {

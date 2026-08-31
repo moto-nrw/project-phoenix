@@ -43,10 +43,7 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 	repoBase.EnsureTenantID(ctx, profile)
 
 	// Get the database connection (or transaction if in context)
-	var db bun.IDB = r.db
-	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
+	db := repoBase.GetDB(ctx, r.db)
 
 	_, err := db.NewInsert().
 		Model(profile).

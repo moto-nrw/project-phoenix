@@ -32,7 +32,7 @@ func TestUpdateTemplatePlanningTrackThreeState(t *testing.T) {
 				&parsedUpdateTemplate{req: req},
 				200,
 				4,
-				timezone.Date{},
+				timezone.Date(""),
 			)
 
 			assert.Equal(t, tc.wantProvided, input.Fields.PlanningTrackIDProvided)

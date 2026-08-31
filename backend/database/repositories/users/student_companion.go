@@ -58,7 +58,7 @@ func (r *StudentCompanionRepository) ListForStudent(ctx context.Context, student
 	query = base.WithTenantFilter(ctx, query, "student_companion")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student companions", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list student companions", Err: base.TranslateNotFound(err)}
 	}
 	return edges, nil
 }
@@ -104,7 +104,7 @@ func (r *StudentCompanionRepository) ListLinksForStudents(ctx context.Context, s
 	query = base.WithTenantFilter(ctx, query, "student_companion")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student companions", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list student companions", Err: base.TranslateNotFound(err)}
 	}
 
 	// Bucket the edges by requested child in ONE pass before folding. Handing
@@ -209,7 +209,7 @@ func (r *StudentCompanionRepository) companionNames(ctx context.Context, student
 	nameQuery = base.WithTenantFilter(ctx, nameQuery, "student")
 
 	if err := nameQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load companion names", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "load companion names", Err: base.TranslateNotFound(err)}
 	}
 
 	for _, row := range rows {
@@ -242,7 +242,7 @@ func (r *StudentCompanionRepository) CompanionCountsExcluding(ctx context.Contex
 	query = base.WithTenantFilter(ctx, query, "student_companion")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "count student companions", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "count student companions", Err: base.TranslateNotFound(err)}
 	}
 
 	requested := make(map[int64]bool, len(studentIDs))
@@ -300,7 +300,7 @@ func (r *StudentCompanionRepository) CompanionDaysCoveredExcluding(ctx context.C
 	query = base.WithTenantFilter(ctx, query, "student_companion")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student companion days", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list student companion days", Err: base.TranslateNotFound(err)}
 	}
 
 	requested := make(map[int64]bool, len(studentIDs))
@@ -370,7 +370,7 @@ func (r *StudentCompanionRepository) ReplaceForStudent(ctx context.Context, stud
 		deleteQuery = deleteQuery.Where(`"student_companion".tenant_id = ?`, tenantID)
 	}
 	if _, err := deleteQuery.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear student companions", Err: err}
+		return &modelBase.DatabaseError{Op: "clear student companions", Err: base.TranslateNotFound(err)}
 	}
 
 	if len(edges) == 0 {
@@ -390,7 +390,7 @@ func (r *StudentCompanionRepository) ReplaceForStudent(ctx context.Context, stud
 		Model(&edges).
 		ModelTableExpr(`users.student_companions AS "student_companion"`).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "insert student companions", Err: err}
+		return &modelBase.DatabaseError{Op: "insert student companions", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -412,7 +412,7 @@ func (r *StudentCompanionRepository) DeleteEdges(ctx context.Context, edgeIDs []
 		deleteQuery = deleteQuery.Where(`"student_companion".tenant_id = ?`, tenantID)
 	}
 	if _, err := deleteQuery.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete student companion edges", Err: err}
+		return &modelBase.DatabaseError{Op: "delete student companion edges", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -487,7 +487,7 @@ func (r *StudentCompanionRepository) CompanionIDsForWeekday(ctx context.Context,
 		WHERE companion.weekday = ?
 		  AND (? = 0 OR companion.tenant_id = ?)
 	`, bun.List(studentIDs), weekday, tenantID, tenantID, weekday, tenantID, tenantID).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list companions for weekday", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list companions for weekday", Err: base.TranslateNotFound(err)}
 	}
 
 	// Union-find over the returned edges: every node ends up under the

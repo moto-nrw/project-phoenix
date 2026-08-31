@@ -257,23 +257,23 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 
 	from := today
 	// Two calendar months ahead, mirroring time.Time.AddDate(0, 2, 0).
-	to := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	to := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
 	if fromRaw != "" {
 		parsed, err := timezone.ParseDate(fromRaw)
 		if err != nil {
-			return timezone.Date{}, timezone.Date{}, errors.New("invalid from date, expected YYYY-MM-DD")
+			return timezone.Date(""), timezone.Date(""), errors.New("invalid from date, expected YYYY-MM-DD")
 		}
 		from = parsed
 	}
 	if toRaw != "" {
 		parsed, err := timezone.ParseDate(toRaw)
 		if err != nil {
-			return timezone.Date{}, timezone.Date{}, errors.New("invalid to date, expected YYYY-MM-DD")
+			return timezone.Date(""), timezone.Date(""), errors.New("invalid to date, expected YYYY-MM-DD")
 		}
 		to = parsed
 	}
 	if to.Before(from) {
-		return timezone.Date{}, timezone.Date{}, errors.New("to must be on or after from")
+		return timezone.Date(""), timezone.Date(""), errors.New("to must be on or after from")
 	}
 	return from, to, nil
 }

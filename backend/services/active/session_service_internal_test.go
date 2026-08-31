@@ -18,6 +18,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -221,6 +222,41 @@ func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
+type sessionTestSavepoints struct{}
+
+func (sessionTestSavepoints) exec(ctx context.Context, statement string) error {
+	tx, err := transactionFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, statement)
+	return err
+}
+
+func (s sessionTestSavepoints) CreateSavepoint(ctx context.Context) error {
+	return s.exec(ctx, "SAVEPOINT phoenix_operation")
+}
+func (s sessionTestSavepoints) RollbackSavepoint(ctx context.Context) error {
+	return s.exec(ctx, "ROLLBACK TO SAVEPOINT phoenix_operation")
+}
+func (s sessionTestSavepoints) ReleaseSavepoint(ctx context.Context) error {
+	return s.exec(ctx, "RELEASE SAVEPOINT phoenix_operation")
+}
+
+func withSessionTestRuntime(t *testing.T, ctx context.Context, db *bun.DB) context.Context {
+	t.Helper()
+	tenantID := testpkg.Tenant(t)
+	within := func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error { return fn(ctx, tx) })
+	}
+	admin := func(ctx context.Context, fn func(context.Context, any) error) error {
+		return within(ctx, tenantID, fn)
+	}
+	runtime, err := tenant.NewUnitOfWork(within, admin, tenant.SavepointFunc(sessionTestSavepoints{}), func(error) bool { return false })
+	require.NoError(t, err)
+	return tenant.WithTenantID(tenant.WithUnitOfWork(ctx, runtime), tenantID)
+}
+
 type timetableBridgeCompleterForSessionUnitTest struct {
 	completeFunc func(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }
@@ -413,7 +449,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 			VisitRepo: &mockVisitRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
-					_, inTx := modelBase.TxFromContext(ctx)
+					_, inTx := tenant.TransactionFromContext(ctx)
 					assert.True(t, inTx, "the bridge must write inside the timeout transaction")
 					return 1, nil
 				},
@@ -423,10 +459,11 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 
 	t.Run("commits both halves together", func(t *testing.T) {
 		db, mock := newSessionSQLMockDB(t)
+		txCtx := withSessionTestRuntime(t, ctx, db)
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		result, err := newService(db, nil).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(db, nil).ProcessSessionTimeoutByID(txCtx, 100)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -435,10 +472,11 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 
 	t.Run("a failing session end takes the bridge write with it", func(t *testing.T) {
 		db, mock := newSessionSQLMockDB(t)
+		txCtx := withSessionTestRuntime(t, ctx, db)
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(txCtx, 100)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -739,8 +777,8 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
-		mock.ExpectExec("SAVEPOINT sp_active_assign_supervisor").WillReturnError(errors.New("savepoint failed"))
+		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnError(errors.New("savepoint failed"))
 		mock.ExpectRollback()
 
 		called := false
@@ -762,9 +800,9 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
-		mock.ExpectExec("SAVEPOINT sp_active_nfc_auto_checkin").WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec("ROLLBACK TO SAVEPOINT sp_active_nfc_auto_checkin").WillReturnError(errors.New("rollback failed"))
+		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("ROLLBACK TO SAVEPOINT phoenix_operation").WillReturnError(errors.New("rollback failed"))
 		mock.ExpectRollback()
 
 		logged := false
@@ -785,9 +823,9 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 		mock.ExpectBegin()
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
-		txCtx := modelBase.ContextWithTx(ctx, &tx)
-		mock.ExpectExec("SAVEPOINT sp_active_update_device_location").WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec("RELEASE SAVEPOINT sp_active_update_device_location").WillReturnError(errors.New("release failed"))
+		txCtx := tenant.WithTransactionForTest(withSessionTestRuntime(t, ctx, db), &tx)
+		mock.ExpectExec("SAVEPOINT phoenix_operation").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("RELEASE SAVEPOINT phoenix_operation").WillReturnError(errors.New("release failed"))
 		mock.ExpectRollback()
 
 		called := false

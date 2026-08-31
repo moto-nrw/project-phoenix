@@ -49,7 +49,7 @@ func (r *ActivityExceptionRepository) FindByID(ctx context.Context, id any) (*sc
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  opFindByID,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &row, nil
@@ -75,7 +75,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupID(ctx context.Context,
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by activity group id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -100,7 +100,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Con
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by activity group and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return &row, nil
@@ -129,7 +129,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDateRange(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by activity group and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil
@@ -151,7 +151,7 @@ func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from,
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return rows, nil

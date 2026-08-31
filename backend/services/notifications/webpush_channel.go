@@ -12,7 +12,6 @@ import (
 	"time"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -148,7 +147,7 @@ func (c *webPushChannel) Deliver(ctx context.Context, event Event) error {
 	}
 
 	dispatchCtx := context.WithoutCancel(ctx)
-	dispatchCtx = modelBase.ContextWithoutTx(dispatchCtx)
+	dispatchCtx = tenant.ContextWithoutTransaction(dispatchCtx)
 	dispatchCtx = tenant.ContextWithoutAfterCommitHooks(dispatchCtx)
 	go func() {
 		c.sendAll(dispatchCtx, event, payload, subs)
@@ -264,7 +263,7 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 	}
 
 	dispatchCtx := context.WithoutCancel(ctx)
-	dispatchCtx = modelBase.ContextWithoutTx(dispatchCtx)
+	dispatchCtx = tenant.ContextWithoutTransaction(dispatchCtx)
 	dispatchCtx = tenant.ContextWithoutAfterCommitHooks(dispatchCtx)
 	for _, event := range staffEvents {
 		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))

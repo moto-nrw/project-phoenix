@@ -496,7 +496,7 @@ func (s *offeringChangeRequestService) EarliestEffectiveFrom(ctx context.Context
 	if s.Settings != nil {
 		resolved, err := s.resolveLeadDays(ctx)
 		if err != nil {
-			return timezone.Date{}, err
+			return timezone.Date(""), err
 		}
 		leadDays = resolved
 	}
@@ -617,11 +617,11 @@ func (s *offeringChangeRequestService) carePeriodForEarliestEffectiveDate(
 ) (*enrollmentModels.StudentCarePeriod, *enrollmentModels.Phase, timezone.Date, error) {
 	earliest, err := s.EarliestEffectiveFrom(ctx)
 	if err != nil {
-		return nil, nil, timezone.Date{}, err
+		return nil, nil, timezone.Date(""), err
 	}
 	period, phase, err := s.carePeriodAtOrNext(ctx, studentID, earliest)
 	if err != nil {
-		return nil, nil, timezone.Date{}, err
+		return nil, nil, timezone.Date(""), err
 	}
 	if earliest.Before(phase.ServiceStartDate) {
 		earliest = phase.ServiceStartDate
@@ -639,10 +639,10 @@ func (s *offeringChangeRequestService) latestContiguousApprovedCarePeriodEnd(
 ) (timezone.Date, error) {
 	periods, err := s.RequestChildRepo.ListCarePeriodsByStudentID(ctx, studentID)
 	if err != nil {
-		return timezone.Date{}, fmt.Errorf("offering change: list care periods: %w", err)
+		return timezone.Date(""), fmt.Errorf("offering change: list care periods: %w", err)
 	}
 	if initial == nil {
-		return timezone.Date{}, ErrOfferingChangeNoEnrollment
+		return timezone.Date(""), ErrOfferingChangeNoEnrollment
 	}
 	return contiguousCarePeriodEnd(periods, initial), nil
 }
@@ -2284,11 +2284,11 @@ func confirmedEffectiveFrom(
 	}
 	earliest := appliedOfferingChangeDateForPhase(timezone.TodayDate(), phase)
 	if confirmed.Before(earliest) {
-		return timezone.Date{}, fmt.Errorf("%w: %s is before %s",
+		return timezone.Date(""), fmt.Errorf("%w: %s is before %s",
 			ErrOfferingChangeDateOutOfRange, confirmed, earliest)
 	}
 	if phase != nil && confirmed.After(phase.ServiceEndDate) {
-		return timezone.Date{}, fmt.Errorf("%w: %s is after the care period ends on %s",
+		return timezone.Date(""), fmt.Errorf("%w: %s is after the care period ends on %s",
 			ErrOfferingChangeDateOutOfRange, confirmed, phase.ServiceEndDate)
 	}
 	return *confirmed, nil

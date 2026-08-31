@@ -169,7 +169,7 @@ func newWTMFixture() *wtmFixture {
 }
 
 func wtmSession(date timezone.Date, startHour, minutes, breakMinutes int) *activeModels.WorkSession {
-	checkIn := time.Date(date.Year, date.Month, date.Day, startHour, 0, 0, 0, time.UTC)
+	checkIn := time.Date(date.Year(), date.Month(), date.Day(), startHour, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(time.Duration(minutes+breakMinutes) * time.Minute)
 	return &activeModels.WorkSession{
 		StaffID:      wtmStaffID,
@@ -843,8 +843,8 @@ func TestWTMDailyTargets_InvalidRangeIsTyped(t *testing.T) {
 	ctx := context.Background()
 
 	cases := map[string]struct{ from, to timezone.Date }{
-		"missing from": {timezone.Date{}, timezone.NewDate(2026, time.July, 1)},
-		"missing to":   {timezone.NewDate(2026, time.July, 1), timezone.Date{}},
+		"missing from": {timezone.Date(""), timezone.NewDate(2026, time.July, 1)},
+		"missing to":   {timezone.NewDate(2026, time.July, 1), timezone.Date("")},
 		"inverted":     {timezone.NewDate(2026, time.July, 10), timezone.NewDate(2026, time.July, 1)},
 		"over the cap": {timezone.NewDate(2020, time.January, 1), timezone.NewDate(2026, time.July, 1)},
 	}
@@ -917,7 +917,7 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 		StartedAt: now.Add(-30 * time.Minute),
 	}}
 
-	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, today.Year, int(today.Month))
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, today.Year(), int(today.Month()))
 	require.NoError(t, err)
 	// 120 minutes since check-in, 30 of them on break → 90 worked.
 	assert.InDelta(t, 90, summary.ActualMinutes, 1,
@@ -965,7 +965,7 @@ func TestWTMMonthSummary_TodayFutureCheckOutClampedAtNow(t *testing.T) {
 		CheckOutTime: &checkOut,
 	}}
 
-	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, todayDate.Year, int(todayDate.Month))
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, todayDate.Year(), int(todayDate.Month()))
 	require.NoError(t, err)
 	assert.InDelta(t, 60, summary.ActualMinutes, 1,
 		"only the minutes worked up to now count, not the future part of the checkout")

@@ -93,7 +93,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, sta
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get absences by staff and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -121,7 +121,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "get absence by staff and date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -200,7 +200,7 @@ func (r *StaffAbsenceRepository) effectiveAbsencesForDate(ctx context.Context, d
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get effective absences for date",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return absences, nil
@@ -219,7 +219,7 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list absences by statuses", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list absences by statuses", Err: base.TranslateNotFound(err)}
 	}
 	return absences, nil
 }
@@ -269,7 +269,7 @@ func (r *StaffAbsenceRepository) ListRequests(ctx context.Context, filter active
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list absence requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list absence requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -295,7 +295,7 @@ func (r *StaffAbsenceRepository) ListNonHistoricalByStaffID(ctx context.Context,
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list non-historical absences by staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return absences, nil
@@ -324,7 +324,7 @@ func (r *StaffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Contex
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete non-historical absences by staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -356,7 +356,7 @@ func (r *StaffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get absences by staff IDs and date range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	for _, absence := range absences {

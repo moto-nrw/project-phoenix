@@ -45,7 +45,7 @@ func (r *StaffMasterDataRepository) FindByStaffID(ctx context.Context, staffID i
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find staff master data by staff id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff master data by staff id", Err: base.TranslateNotFound(err)}
 	}
 	return data, nil
 }
@@ -75,7 +75,7 @@ func (r *StaffQualificationRepository) ListByStaffID(ctx context.Context, staffI
 	query = base.WithTenantFilter(ctx, query, "staff_qualification")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff qualifications", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff qualifications", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -93,7 +93,7 @@ func (r *StaffQualificationRepository) ReplaceForStaff(ctx context.Context, staf
 		ModelTableExpr(`users.staff_qualifications AS "staff_qualification"`).
 		Where(`"staff_qualification".staff_id = ?`, staffID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete staff qualifications", Err: err}
+		return &modelBase.DatabaseError{Op: "delete staff qualifications", Err: base.TranslateNotFound(err)}
 	}
 
 	if len(qualifications) == 0 {
@@ -112,7 +112,7 @@ func (r *StaffQualificationRepository) ReplaceForStaff(ctx context.Context, staf
 		Model(&qualifications).
 		ModelTableExpr(`users.staff_qualifications`).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "insert staff qualifications", Err: err}
+		return &modelBase.DatabaseError{Op: "insert staff qualifications", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -145,7 +145,7 @@ func (r *StaffFinancialDataRepository) FindByStaffID(ctx context.Context, staffI
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find staff financial data by staff id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff financial data by staff id", Err: base.TranslateNotFound(err)}
 	}
 	return data, nil
 }

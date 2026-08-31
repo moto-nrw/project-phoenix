@@ -49,7 +49,7 @@ func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -76,7 +76,7 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -104,7 +104,7 @@ func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specializa
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by specialization",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -127,7 +127,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -244,7 +244,7 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -264,7 +264,7 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all with staff and person",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -287,7 +287,7 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -347,7 +347,7 @@ func (r *TeacherRepository) ListActiveCaregivers(ctx context.Context) ([]*users.
 	if err := query.Scan(ctx, &caregivers); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active caregivers",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return caregivers, nil
@@ -364,7 +364,7 @@ func (r *TeacherRepository) FindActiveCaregiverByAccountID(ctx context.Context, 
 	if err := query.Scan(ctx, &caregivers); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active caregiver by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	if len(caregivers) == 0 {

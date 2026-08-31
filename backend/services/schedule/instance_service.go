@@ -385,7 +385,7 @@ func (s *instanceService) now() time.Time {
 }
 
 func instanceBoundary(day timezone.Date, wallClock time.Time) time.Time {
-	return time.Date(day.Year, day.Month, day.Day, wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
+	return time.Date(day.Year(), day.Month(), day.Day(), wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
 }
 
 func (s *instanceService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
@@ -2258,7 +2258,7 @@ func (s *instanceService) hasTx(ctx context.Context) bool {
 	if s.deps.DB == nil {
 		return true // no DB wired (unit tests): nothing to lock, nothing to wrap
 	}
-	_, ok := modelBase.TxFromContext(ctx)
+	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
 }
 
@@ -2430,7 +2430,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		// find). Fail fast instead of silently no-oping the admin action.
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		var result *ReplanWeekResult
 		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			var err error

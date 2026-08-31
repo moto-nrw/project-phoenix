@@ -208,9 +208,9 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 
 func autoStartCombineDayAndTime(day timezone.Date, tod time.Time) time.Time {
 	return time.Date(
-		day.Year,
-		day.Month,
-		day.Day,
+		day.Year(),
+		day.Month(),
+		day.Day(),
 		tod.Hour(),
 		tod.Minute(),
 		tod.Second(),

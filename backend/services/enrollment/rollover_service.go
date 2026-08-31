@@ -1080,7 +1080,7 @@ func (s *rolloverService) decideAutoRenewedRow(ctx context.Context, row *enrollm
 		})
 		return err
 	}
-	if _, ok := base.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return decide(ctx)
 	}
 	return tenant.WithSavepoint(ctx, decide)

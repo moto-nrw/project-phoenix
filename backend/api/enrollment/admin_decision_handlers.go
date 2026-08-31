@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -900,7 +899,7 @@ func (rs *Resource) dispatchPostDecisionInvite(parentCtx context.Context, invite
 		return
 	}
 	bgCtx := context.WithoutCancel(parentCtx)
-	bgCtx = modelBase.ContextWithoutTx(bgCtx)
+	bgCtx = tenant.ContextWithoutTransaction(bgCtx)
 	bgCtx = tenant.ContextWithoutAfterCommitHooks(bgCtx)
 	bgCtx, cancel := context.WithTimeout(bgCtx, 30*time.Second)
 	defer cancel()

@@ -39,7 +39,7 @@ func (r *StaffDocumentRepository) Create(ctx context.Context, document *users.St
 		ModelTableExpr(`users.staff_documents AS "staff_document"`).
 		Returning("*").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create staff document", Err: err}
+		return &modelBase.DatabaseError{Op: "create staff document", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -69,9 +69,7 @@ func (r *StaffDocumentRepository) findForStaff(ctx context.Context, staffID, doc
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 
 	if err := query.Scan(ctx); err != nil {
-		// sql.ErrNoRows stays wrapped so modelBase.IsNoRows classifies the
-		// missing (or foreign) document as a 404.
-		return nil, &modelBase.DatabaseError{Op: "find staff document", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff document", Err: base.TranslateNotFound(err)}
 	}
 	return doc, nil
 }
@@ -96,7 +94,7 @@ func (r *StaffDocumentRepository) ListByStaffID(ctx context.Context, staffID int
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff documents", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff documents", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -112,7 +110,7 @@ func (r *StaffDocumentRepository) ListPendingFileCleanupByStaffID(ctx context.Co
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 	if err := query.Scan(ctx, &documents); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending staff document cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending staff document cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return documents, nil
 }
@@ -129,7 +127,7 @@ func (r *StaffDocumentRepository) ListOffboardedPendingFileCleanups(ctx context.
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 	if err := query.Scan(ctx, &documents); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list offboarded staff document cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list offboarded staff document cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return documents, nil
 }
@@ -145,7 +143,7 @@ func (r *StaffDocumentRepository) ListDeletedPendingFileCleanups(ctx context.Con
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 	if err := query.Scan(ctx, &documents); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list deleted staff document cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list deleted staff document cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return documents, nil
 }
@@ -166,7 +164,7 @@ func (r *StaffDocumentRepository) ListDeletedPendingFileCleanupByStaffID(ctx con
 
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 	if err := query.Scan(ctx, &documents); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending deleted staff document cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending deleted staff document cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return documents, nil
 }
@@ -184,14 +182,14 @@ func (r *StaffDocumentRepository) SoftDelete(ctx context.Context, doc *users.Sta
 		Where(`"staff_document".deleted_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "soft delete staff document", Err: err}
+		return &modelBase.DatabaseError{Op: "soft delete staff document", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "soft delete staff document", Err: err}
+		return &modelBase.DatabaseError{Op: "soft delete staff document", Err: base.TranslateNotFound(err)}
 	}
 	if affected == 0 {
-		return &modelBase.DatabaseError{Op: "soft delete staff document", Err: sql.ErrNoRows}
+		return &modelBase.DatabaseError{Op: "soft delete staff document", Err: base.TranslateNotFound(sql.ErrNoRows)}
 	}
 	doc.DeletedAt = &now
 	doc.DeletedBy = &deletedBy
@@ -209,7 +207,7 @@ func (r *StaffDocumentRepository) MarkFileDeleted(ctx context.Context, documentI
 	query = query.WhereAllWithDeleted()
 	query = base.WithTenantFilter(ctx, query, "staff_document")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark staff document file deleted", Err: err}
+		return &modelBase.DatabaseError{Op: "mark staff document file deleted", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -222,7 +220,7 @@ func (r *StaffDocumentRepository) QueueFileCleanup(ctx context.Context, cleanup 
 		On(`CONFLICT (tenant_id, filename_stored) DO NOTHING`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "queue staff document file cleanup", Err: err}
+		return &modelBase.DatabaseError{Op: "queue staff document file cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -254,7 +252,7 @@ func (r *StaffDocumentRepository) listQueuedFileCleanups(ctx context.Context, wh
 	}
 	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list queued staff document file cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list queued staff document file cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return cleanups, nil
 }
@@ -276,7 +274,7 @@ func (r *StaffDocumentRepository) ActivateQueuedFileCleanupByFilename(ctx contex
 		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
 	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "activate queued staff document file cleanup", Err: err}
+		return &modelBase.DatabaseError{Op: "activate queued staff document file cleanup", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -291,7 +289,7 @@ func (r *StaffDocumentRepository) markQueuedFileCleanupComplete(ctx context.Cont
 		Where(`"staff_document_file_cleanup".cleaned_at IS NULL`)
 	query = base.WithTenantFilter(ctx, query, "staff_document_file_cleanup")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark queued staff document file cleanup complete", Err: err}
+		return &modelBase.DatabaseError{Op: "mark queued staff document file cleanup complete", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

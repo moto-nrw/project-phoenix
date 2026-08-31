@@ -55,7 +55,7 @@ type StaffOffboardingServiceDependencies struct {
 
 type staffOffboardingService struct {
 	StaffOffboardingServiceDependencies
-	txHandler   *modelBase.TxHandler
+	txHandler   *tenant.TransactionRunner
 	broadcaster realtime.Broadcaster
 }
 
@@ -63,7 +63,7 @@ type staffOffboardingService struct {
 func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffOffboardingService {
 	return &staffOffboardingService{
 		StaffOffboardingServiceDependencies: deps,
-		txHandler:                           modelBase.NewTxHandler(deps.DB),
+		txHandler:                           tenant.NewTransactionRunner(),
 	}
 }
 
@@ -97,7 +97,7 @@ func (s *staffOffboardingService) SetBroadcaster(broadcaster realtime.Broadcaste
 func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
 	groupAccessChanged := false
 	var deactivatedAccountID int64
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy, &groupAccessChanged, &deactivatedAccountID)
 	}); err != nil {
 		return err

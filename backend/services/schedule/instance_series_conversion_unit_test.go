@@ -90,6 +90,7 @@ func TestNewInstanceSeriesConversionService_PanicsOnNilDeps(t *testing.T) {
 }
 
 func TestConvertInstanceToSeries_RejectsInvalidInput(t *testing.T) {
+	zeroDate := timezone.Date("")
 	t.Parallel()
 
 	svc := &instanceSeriesConversionService{}
@@ -131,7 +132,7 @@ func TestConvertInstanceToSeries_RejectsInvalidInput(t *testing.T) {
 			in: ConvertInstanceToSeriesInput{
 				InstanceID: 9,
 				Template: CreateTemplateInput{
-					ScheduleValidFrom: &timezone.Date{},
+					ScheduleValidFrom: &zeroDate,
 					CalendarPeriodID:  &periodID,
 				},
 			},

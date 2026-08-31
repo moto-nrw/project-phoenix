@@ -327,7 +327,14 @@ func AuthenticationContext(ctx context.Context) (jwt.AppClaims, []string) {
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req.WithContext(testpkg.WithPackageTenantRuntime(req.Context())))
+	ctx := testpkg.WithPackageTenantRuntime(req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		// Request options inject identity before this helper installs the runtime.
+		// Reapply the tenant so the adapter-owned repository scope matches the
+		// production middleware order (runtime first, authentication second).
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
 	return rr
 }
 

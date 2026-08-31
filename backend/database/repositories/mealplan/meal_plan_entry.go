@@ -38,7 +38,7 @@ func (r *MealPlanEntryRepository) FindByDateRange(ctx context.Context, start, en
 	query = base.WithTenantFilter(ctx, query, "meal_plan_entry")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find meal plan entries by date range", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find meal plan entries by date range", Err: base.TranslateNotFound(err)}
 	}
 	return entries, nil
 }
@@ -69,7 +69,7 @@ func (r *MealPlanEntryRepository) ReplaceDay(ctx context.Context, date timezone.
 		Model(&entries).
 		ModelTableExpr("schedule.meal_plan_entries").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "insert meal plan entries", Err: err}
+		return &modelBase.DatabaseError{Op: "insert meal plan entries", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (r *MealPlanEntryRepository) DeleteByDate(ctx context.Context, date timezon
 	}
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete meal plan entry by date", Err: err}
+		return &modelBase.DatabaseError{Op: "delete meal plan entry by date", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

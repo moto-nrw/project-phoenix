@@ -2171,7 +2171,7 @@ func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
 // which lives as a bare TIME). Stays in the server's local zone so the
 // comparison with time.Now() is apples-to-apples.
 func combineDayAndTime(day timezone.Date, tod time.Time) time.Time {
-	return time.Date(day.Year, day.Month, day.Day,
+	return time.Date(day.Year(), day.Month(), day.Day(),
 		tod.Hour(), tod.Minute(), tod.Second(), tod.Nanosecond(), time.Local)
 }
 

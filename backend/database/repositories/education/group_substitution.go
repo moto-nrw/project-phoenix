@@ -53,7 +53,7 @@ func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -78,7 +78,7 @@ func (r *GroupSubstitutionRepository) DeleteActiveOrFutureByStaffID(ctx context.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete active or future by staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	rows, _ := result.RowsAffected()
@@ -99,7 +99,7 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date timez
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -121,7 +121,7 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by substitute",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -143,7 +143,7 @@ func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staff
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find overlapping",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -182,14 +182,15 @@ func applySubstitutionFilter(filter *modelBase.Filter, field string, value inter
 // applyActiveFilter applies active date filter using today's Berlin calendar day
 func applyActiveFilter(filter *modelBase.Filter, value interface{}) {
 	if boolValue, ok := value.(bool); ok && boolValue {
-		filter.DateBetween("start_date", "end_date", timezone.TodayDate())
+		date := timezone.TodayDate()
+		filter.LessThanOrEqual("start_date", date).GreaterThanOrEqual("end_date", date)
 	}
 }
 
 // applyDateFilter applies date filter for a specific date
 func applyDateFilter(filter *modelBase.Filter, value interface{}) {
 	if dateValue, ok := value.(timezone.Date); ok {
-		filter.DateBetween("start_date", "end_date", dateValue)
+		filter.LessThanOrEqual("start_date", dateValue).GreaterThanOrEqual("end_date", dateValue)
 	}
 }
 
@@ -276,7 +277,7 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
 	if err := groupQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load substitution groups", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "load substitution groups", Err: base.TranslateNotFound(err)}
 	}
 	for _, group := range groups {
 		groupMap[group.ID] = group
@@ -306,7 +307,7 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 	staffQuery = base.WithTenantFilter(ctx, staffQuery, "staff")
 
 	if err := staffQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load substitution staff", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "load substitution staff", Err: base.TranslateNotFound(err)}
 	}
 	if len(staffList) == 0 {
 		return staffMap, nil
@@ -344,7 +345,7 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 	personQuery = base.WithTenantFilter(ctx, personQuery, "person")
 
 	if err := personQuery.Scan(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "load substitution staff persons", Err: err}
+		return &modelBase.DatabaseError{Op: "load substitution staff persons", Err: base.TranslateNotFound(err)}
 	}
 
 	personMap := make(map[int64]*users.Person)
@@ -382,7 +383,7 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx co
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 	filter.Equal("substitute_staff_id", substituteStaffID)
-	filter.DateBetween("start_date", "end_date", date)
+	filter.LessThanOrEqual("start_date", date).GreaterThanOrEqual("end_date", date)
 	options.Filter = filter
 
 	return r.ListWithRelations(ctx, options)
@@ -408,7 +409,7 @@ func (r *GroupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active substitution blockers",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return results, nil

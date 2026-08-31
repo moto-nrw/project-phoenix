@@ -66,7 +66,7 @@ func (r *GradeTransitionRepository) Create(ctx context.Context, t *education.Gra
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create grade transition",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -87,7 +87,7 @@ func (r *GradeTransitionRepository) FindByID(ctx context.Context, id int64) (*ed
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find grade transition by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -108,7 +108,7 @@ func (r *GradeTransitionRepository) FindByIDWithMappings(ctx context.Context, id
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find grade transition by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -143,7 +143,7 @@ func (r *GradeTransitionRepository) Update(ctx context.Context, t *education.Gra
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update grade transition",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -163,7 +163,7 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete grade transition",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -214,7 +214,7 @@ func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find grade transitions by academic year",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -246,7 +246,7 @@ func (r *GradeTransitionRepository) LockLatestApplied(ctx context.Context) (*edu
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "lock latest applied grade transition",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -268,7 +268,7 @@ func (r *GradeTransitionRepository) LockTenantTransitions(ctx context.Context) e
 	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock tenant grade transitions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -285,7 +285,7 @@ func (r *GradeTransitionRepository) LockTenantRecurrenceWrites(ctx context.Conte
 	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock tenant recurrence writes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -306,7 +306,7 @@ func (r *GradeTransitionRepository) FindByStatus(ctx context.Context, status str
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find grade transitions by status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -332,7 +332,7 @@ func (r *GradeTransitionRepository) CreateMapping(ctx context.Context, m *educat
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create grade transition mapping",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -360,7 +360,7 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create grade transition mappings batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -379,7 +379,7 @@ func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transiti
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete grade transition mappings",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -402,7 +402,7 @@ func (r *GradeTransitionRepository) GetMappings(ctx context.Context, transitionI
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get grade transition mappings",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -430,7 +430,7 @@ func (r *GradeTransitionRepository) GetMappingsByTransitionIDs(ctx context.Conte
 	if err := query.Scan(ctx, &mappings); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get grade transition mappings by transition ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -459,7 +459,7 @@ func (r *GradeTransitionRepository) CreateHistory(ctx context.Context, h *educat
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create grade transition history",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -487,7 +487,7 @@ func (r *GradeTransitionRepository) CreateHistoryBatch(ctx context.Context, hist
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create grade transition history batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -510,7 +510,7 @@ func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get grade transition history",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -540,7 +540,7 @@ func (r *GradeTransitionRepository) CreateClassTeacherHistoryBatch(ctx context.C
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create class teacher history batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -560,7 +560,7 @@ func (r *GradeTransitionRepository) GetClassTeacherHistory(ctx context.Context, 
 	if err := query.Scan(ctx, &history); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get class teacher history",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -590,7 +590,7 @@ func (r *GradeTransitionRepository) CreateClassListEntryHistoryBatch(ctx context
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create class list entry history batch",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil
@@ -611,7 +611,7 @@ func (r *GradeTransitionRepository) GetClassListEntryHistory(ctx context.Context
 	if err := query.Scan(ctx, &history); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get class list entry history",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -635,7 +635,7 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get distinct classes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -656,7 +656,7 @@ func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get student count by class",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -693,7 +693,7 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get students by classes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -731,7 +731,7 @@ func (r *GradeTransitionRepository) PromoteStudentsByIDs(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "promote students by ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -739,7 +739,7 @@ func (r *GradeTransitionRepository) PromoteStudentsByIDs(
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -778,7 +778,7 @@ func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, tr
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "update student classes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -786,7 +786,7 @@ func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, tr
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -814,7 +814,7 @@ func (r *GradeTransitionRepository) RevertStudentClass(ctx context.Context, stud
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "revert student class",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -822,7 +822,7 @@ func (r *GradeTransitionRepository) RevertStudentClass(ctx context.Context, stud
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -853,7 +853,7 @@ func (r *GradeTransitionRepository) GraduateStudentsByClasses(ctx context.Contex
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "graduate students by classes",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -861,7 +861,7 @@ func (r *GradeTransitionRepository) GraduateStudentsByClasses(ctx context.Contex
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -892,7 +892,7 @@ func (r *GradeTransitionRepository) GraduateStudentsByIDs(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "graduate students by ids",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -900,7 +900,7 @@ func (r *GradeTransitionRepository) GraduateStudentsByIDs(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -953,7 +953,7 @@ func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Conte
 	if _, err := updQuery.Exec(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "reactivate students to status",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1012,7 +1012,7 @@ func (r *GradeTransitionRepository) ReleaseStudentTagsByIDs(ctx context.Context,
 	if err := selQuery.Scan(ctx, &held); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "read student rfid tags",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	if len(held) == 0 {
@@ -1037,7 +1037,7 @@ func (r *GradeTransitionRepository) ReleaseStudentTagsByIDs(ctx context.Context,
 	if _, err := updQuery.Exec(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "release student rfid tags",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1064,12 +1064,20 @@ func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, stude
 
 	tenantID := tenant.FromContext(ctx)
 
-	tx, inTx := modelBase.TxFromContext(ctx)
+	rawTx, inTx := tenant.TransactionFromContext(ctx)
+	var tx bun.Tx
+	if inTx {
+		var ok bool
+		tx, ok = rawTx.(bun.Tx)
+		if !ok {
+			return false, fmt.Errorf("restore student tag: unsupported transaction type %T", rawTx)
+		}
+	}
 	if inTx {
 		if _, err := tx.ExecContext(ctx, "SAVEPOINT "+restoreStudentTagSavepoint); err != nil {
 			return false, &modelBase.DatabaseError{
 				Op:  "restore student rfid tag savepoint",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 	}
@@ -1104,7 +1112,7 @@ func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, stude
 		}
 		return false, &modelBase.DatabaseError{
 			Op:  "restore student rfid tag",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1112,7 +1120,7 @@ func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, stude
 		if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+restoreStudentTagSavepoint); err != nil {
 			return false, &modelBase.DatabaseError{
 				Op:  "restore student rfid tag release savepoint",
-				Err: err,
+				Err: base.TranslateNotFound(err),
 			}
 		}
 	}
@@ -1121,7 +1129,7 @@ func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, stude
 	if err != nil {
 		return false, &modelBase.DatabaseError{
 			Op:  "get rows affected",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1164,7 +1172,7 @@ func (r *GradeTransitionRepository) FindStudentStatesByIDs(ctx context.Context, 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find student states by IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -1198,7 +1206,7 @@ func (r *GradeTransitionRepository) AnonymizeHistoryForStudent(ctx context.Conte
 	if _, err := updQuery.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "anonymize grade transition history for student",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return nil

@@ -332,8 +332,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Parallel()
 
 	periodID := int64(55)
-	rosterFrom := timezone.NewDate(2026, 8, 24).AddDays(6)
-	scheduleFrom := timezone.NewDate(2026, 8, 24).AddDays(28)
+	today := timezone.NewDate(2026, 8, 24)
+	rosterFrom := today.AddDays(6)
+	scheduleFrom := today.AddDays(28)
+	deps := func(resync func(context.Context, OfferingRosterResyncInput) error) TimetableDataDependencies {
+		return TimetableDataDependencies{Today: func() timezone.Date { return today }, ResyncOfferingRoster: resync}
+	}
 
 	baseInput := func() TemplateUpdateInput {
 		return TemplateUpdateInput{
@@ -345,12 +349,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("a template without a source before and after skips the hook", func(t *testing.T) {
 		called := false
-		svc := NewTimetableDataService(TimetableDataDependencies{
-			ResyncOfferingRoster: func(context.Context, OfferingRosterResyncInput) error {
+		svc := NewTimetableDataService(deps(
+			func(context.Context, OfferingRosterResyncInput) error {
 				called = true
 				return nil
 			},
-		})
+		))
 
 		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), baseInput(), nil, nil))
 		assert.False(t, called, "an edit that never involves a source must not reconcile a roster")
@@ -358,12 +362,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("removing a source still reconciles, using the previous offering", func(t *testing.T) {
 		var got OfferingRosterResyncInput
-		svc := NewTimetableDataService(TimetableDataDependencies{
-			ResyncOfferingRoster: func(_ context.Context, in OfferingRosterResyncInput) error {
+		svc := NewTimetableDataService(deps(
+			func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
 			},
-		})
+		))
 
 		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), baseInput(), []int64{11}, nil))
 
@@ -375,12 +379,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("a series start date wins over the roster valid_from", func(t *testing.T) {
 		var got OfferingRosterResyncInput
-		svc := NewTimetableDataService(TimetableDataDependencies{
-			ResyncOfferingRoster: func(_ context.Context, in OfferingRosterResyncInput) error {
+		svc := NewTimetableDataService(deps(
+			func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
 			},
-		})
+		))
 
 		in := baseInput()
 		in.Fields.SourceCareOfferingIDs = []int64{12, 13}
@@ -396,13 +400,12 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("an already-started series clamps the rewrite boundary to today", func(t *testing.T) {
 		var got OfferingRosterResyncInput
-		svc := NewTimetableDataService(TimetableDataDependencies{
-			Today: func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
-			ResyncOfferingRoster: func(_ context.Context, in OfferingRosterResyncInput) error {
+		svc := NewTimetableDataService(deps(
+			func(_ context.Context, in OfferingRosterResyncInput) error {
 				got = in
 				return nil
 			},
-		})
+		))
 
 		in := baseInput()
 		in.Fields.SourceCareOfferingIDs = []int64{12}
@@ -427,11 +430,11 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 	t.Run("a failing resync surfaces as a schedule error", func(t *testing.T) {
 		sentinel := errors.New("boom")
-		svc := NewTimetableDataService(TimetableDataDependencies{
-			ResyncOfferingRoster: func(context.Context, OfferingRosterResyncInput) error {
+		svc := NewTimetableDataService(deps(
+			func(context.Context, OfferingRosterResyncInput) error {
 				return sentinel
 			},
-		})
+		))
 		in := baseInput()
 		in.Fields.SourceCareOfferingIDs = []int64{12}
 
