@@ -18,10 +18,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,6 +65,9 @@ type fakeParentService struct {
 	todayStatusErr  error
 	gotTodayAccount int64
 	gotTodayStudent int64
+
+	mealPlanRows []mealplanModule.Entry
+	mealPlanErr  error
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -137,8 +140,8 @@ func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, str
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
 	return parentService.ChildFeatureFlags{}, nil
 }
-func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]*mealplanModels.MealPlanEntry, error) {
-	return nil, nil
+func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]mealplanModule.Entry, error) {
+	return f.mealPlanRows, f.mealPlanErr
 }
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
@@ -310,6 +313,49 @@ func careExceptionRequest(body string) *http.Request {
 	route := chi.NewRouteContext()
 	route.URLParams.Add("studentId", "77")
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func mealPlanRequest() *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodGet,
+		"/me/children/77/meal-plan?week_start=2026-08-24", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestGetChildMealPlan_ResponseContract(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{mealPlanRows: []mealplanModule.Entry{{
+		Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti",
+	}}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.getChildMealPlan(w, mealPlanRequest())
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{
+		"status":"success",
+		"data":[{"date":"2026-08-24","position":0,"dish":"Spaghetti"}],
+		"message":"Meal plan retrieved"
+	}`, w.Body.String())
+}
+
+func TestGetChildMealPlan_DisabledContract(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{ParentService: &fakeParentService{mealPlanErr: parentService.ErrMealPlanDisabled}}
+	w := httptest.NewRecorder()
+
+	rs.getChildMealPlan(w, mealPlanRequest())
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.JSONEq(t, `{
+		"status":"error",
+		"error":"parent: meal plan disabled for this school",
+		"code":"meal_plan_disabled"
+	}`, w.Body.String())
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {

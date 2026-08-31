@@ -85,7 +85,7 @@ func TestRevocationRollsBackWhenAuditInsertFails(t *testing.T) {
 
 	repoFactory := repositories.NewFactory(db)
 	repoFactory.AuthEvent = failingAuthEventRepository{AuthEventRepository: repoFactory.AuthEvent}
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 

@@ -65,7 +65,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	// t.Cleanup has released its row references.
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 

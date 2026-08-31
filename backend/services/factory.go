@@ -51,7 +51,6 @@ import (
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
@@ -132,7 +131,6 @@ type Factory struct {
 	Invitation                auth.InvitationService
 	GuardianInvitation        auth.GuardianInvitationService
 	Feedback                  feedback.Service
-	MealPlan                  mealplan.Service
 	IoT                       iot.Service
 	Checkin                   *iotcheckin.CheckinService
 	StaffClock                *staffclock.Service
@@ -309,8 +307,18 @@ func (f *Factory) SetSettingsObservers(
 	}
 }
 
-// NewFactory creates a new services factory; tests may pass one application clock.
-func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, clocks ...func() time.Time) (*Factory, error) {
+type MealPlanSettingsBinder func(func(context.Context) (bool, error))
+
+// NewFactoryWithMealPlan builds the production graph with the one authoritative
+// Meal Plan facade shared by staff and parent callers.
+func NewFactoryWithMealPlan(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, mealPlan parent.MealPlan, bindSettings MealPlanSettingsBinder, clocks ...func() time.Time) (*Factory, error) {
+	if mealPlan == nil || bindSettings == nil {
+		return nil, errors.New("meal plan capability and settings binder are required")
+	}
+	return newFactory(repos, db, logger, mealPlan, bindSettings, clocks...)
+}
+
+func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, mealPlan parent.MealPlan, bindMealPlanSettings MealPlanSettingsBinder, clocks ...func() time.Time) (*Factory, error) {
 	now := optionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	settingsRuntime := newSettingsRuntime(db, nil)
@@ -463,6 +471,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		settingsRuntime,
 		logger,
 	)
+	if mealPlan != nil {
+		bindMealPlanSettings(func(ctx context.Context) (bool, error) {
+			return settingsService.ResolveBool(ctx, configModels.KeyMealPlanEnabled)
+		})
+	}
 	// Wire the enrollment class-restriction probe so the settings service can
 	// refuse disabling concrete-class collection while an active phase
 	// restricts eligibility to specific classes (#1663). Runs inside the
@@ -859,9 +872,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	feedbackService := feedback.NewService(
 		repos.FeedbackEntry,
 	)
-
-	// Initialize meal plan service
-	mealPlanService := mealplan.NewService(repos.MealPlanEntry)
 
 	// Initialize IoT service
 	iotService := iot.NewService(
@@ -2331,7 +2341,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		GuardianProfileRepo:       repos.GuardianProfile,
 		AttendanceRepo:            repos.Attendance,
 		StatusDayRepo:             repos.StudentStatusDay,
-		MealPlanRepo:              repos.MealPlanEntry,
+		MealPlan:                  mealPlan,
 		StudentRepo:               repos.Student,
 		PickupExceptionRepo:       repos.StudentPickupException,
 		ArrivalExceptionRepo:      repos.StudentArrivalException,
@@ -2684,7 +2694,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		Schulhof:                schulhofService,
 		WC:                      wcService,
 		Feedback:                feedbackService,
-		MealPlan:                mealPlanService,
 		IoT:                     iotService,
 		Checkin:                 checkinService,
 		StaffClock:              staffClockService,

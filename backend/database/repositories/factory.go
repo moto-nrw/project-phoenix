@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	mealplanRepo "github.com/moto-nrw/project-phoenix/database/repositories/mealplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -35,7 +34,6 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -173,9 +171,6 @@ type Factory struct {
 	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
-
-	// Meal plan domain
-	MealPlanEntry mealplanModels.MealPlanEntryRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -427,9 +422,6 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
 		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
-
-		// Meal plan repositories
-		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),

@@ -314,17 +314,17 @@ type dateFieldInfo struct {
 	goType     string
 }
 
-// scanModelDateFields parses every struct in models/**/*.go and returns
+// scanModelDateFields parses persistence structs in models/**/*.go and
+// modules/**/*.go and returns
 // map["schema.table.column"][]dateFieldInfo for all fields. Fields tagged
 // type:date additionally register their column in dateColumns (belt and
 // braces for columns the migration scan cannot see).
 func scanModelDateFields(t *testing.T, root string, dateColumns map[string]string) map[string][]dateFieldInfo {
 	t.Helper()
 	result := map[string][]dateFieldInfo{}
-	modelsDir := filepath.Join(root, "models")
 	fset := token.NewFileSet()
 
-	err := filepath.Walk(modelsDir, func(path string, info os.FileInfo, err error) error {
+	walk := func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
@@ -380,9 +380,11 @@ func scanModelDateFields(t *testing.T, root string, dateColumns map[string]strin
 			return true
 		})
 		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking models dir: %v", err)
+	}
+	for _, dir := range []string{"models", "modules"} {
+		if err := filepath.Walk(filepath.Join(root, dir), walk); err != nil {
+			t.Fatalf("walking %s dir: %v", dir, err)
+		}
 	}
 	return result
 }
