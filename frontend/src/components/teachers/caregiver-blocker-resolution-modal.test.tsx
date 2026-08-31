@@ -81,10 +81,8 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
-vi.mock("~/lib/group-transfer-api", () => ({
-  groupTransferService: {
-    getStaffByRole: mockGetAllAvailableStaff,
-  },
+vi.mock("~/lib/staff-role-api", () => ({
+  fetchGroupLeaderCandidates: mockGetAllAvailableStaff,
 }));
 
 vi.mock("~/lib/logger", () => ({

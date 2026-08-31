@@ -81,6 +81,7 @@ type TimetableBridgeCompleter interface {
 type ServiceDependencies struct {
 	// Active domain repositories
 	GroupRepo         active.GroupRepository
+	SessionStartLock  active.SessionStartLocker
 	VisitRepo         active.VisitRepository
 	SupervisorRepo    active.GroupSupervisorRepository
 	CombinedGroupRepo active.CombinedGroupRepository

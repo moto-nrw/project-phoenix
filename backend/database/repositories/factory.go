@@ -88,6 +88,8 @@ type Factory struct {
 	ParentRequestShare  userModels.ParentRequestShareEventRepository
 	ParentRequestEvent  userModels.ParentRequestEventRepository
 
+	CaregiverBindingLock userModels.CaregiverBindingLocker
+
 	// Staff Stammdaten (#1423)
 	StaffMasterData    userModels.StaffMasterDataRepository
 	StaffQualification userModels.StaffQualificationRepository
@@ -171,6 +173,8 @@ type Factory struct {
 	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
 	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
+
+	SessionStartLock activeModels.SessionStartLocker
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -340,6 +344,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
 
+		CaregiverBindingLock: users.NewCaregiverBindingLocker(db),
+
 		// Staff Stammdaten (#1423)
 		StaffMasterData:    users.NewStaffMasterDataRepository(db),
 		StaffQualification: users.NewStaffQualificationRepository(db),
@@ -422,6 +428,8 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
 		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
+
+		SessionStartLock: active.NewSessionStartLocker(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),

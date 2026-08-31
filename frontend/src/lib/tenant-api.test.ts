@@ -158,6 +158,9 @@ describe("tenant-api", () => {
         // nicht stillschweigend abschalten (#2267).
         parentRequestReasonPolicy: "both",
         showTimetableCounts: true,
+        // Missing timetable_enabled reads as enabled — the registry default
+        // (#2383): an older backend must not hide the Tagesplan entry.
+        timetableEnabled: true,
         waitlistEnabled: true,
         // Older backends omit the health-column flag (#2609). Absent means
         // disabled because those backends do not print the health column.

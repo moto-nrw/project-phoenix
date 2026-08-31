@@ -31,6 +31,7 @@ interface TenantResolveResponse {
   attendance_log_enabled?: boolean;
   group_mode?: string;
   operational_overview_scope?: string;
+  timetable_enabled?: boolean;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
   emergency_list_health_info_enabled?: boolean;
@@ -80,6 +81,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     operationalOverviewScope: normalizeOverviewScope(
       data.operational_overview_scope,
     ),
+    timetableEnabled: data.timetable_enabled !== false,
     showTimetableCounts: data.show_timetable_counts !== false,
     waitlistEnabled: data.waitlist_enabled !== false,
     emergencyHealthInfoEnabled:

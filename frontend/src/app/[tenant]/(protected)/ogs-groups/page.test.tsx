@@ -232,14 +232,18 @@ vi.mock("~/components/groups/group-transfer-modal", () => ({
   },
 }));
 
-// Mock group-transfer-api
-vi.mock("~/lib/group-transfer-api", () => ({
-  groupTransferService: {
-    getAllAvailableStaff: vi.fn(() => Promise.resolve([])),
-    getStaffByRole: vi.fn(() => Promise.resolve([])),
-    getActiveTransfersForGroup: vi.fn(() => Promise.resolve([])),
-    transferGroup: vi.fn(() => Promise.resolve()),
-    cancelTransferBySubstitutionId: vi.fn(() => Promise.resolve()),
+vi.mock("~/lib/substitution-api", () => ({
+  substitutionService: {
+    fetchOverview: vi.fn(() =>
+      Promise.resolve({
+        groups: [],
+        targets: [],
+        groupHandovers: [],
+        runningSupervisions: [],
+      }),
+    ),
+    createSubstitution: vi.fn(() => Promise.resolve()),
+    deleteSubstitution: vi.fn(() => Promise.resolve()),
   },
 }));
 
@@ -440,7 +444,7 @@ vi.mock("~/lib/swr", () => ({
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { isHomeLocation } from "~/lib/location-helper";
-import { groupTransferService } from "~/lib/group-transfer-api";
+import { substitutionService } from "~/lib/substitution-api";
 import type {
   OgsLiveViewData,
   OgsLiveWireStudent,
@@ -515,19 +519,16 @@ beforeEach(() => {
     error: undefined,
     isReady: true,
   });
-  vi.mocked(groupTransferService.getAllAvailableStaff)
+  vi.mocked(substitutionService.fetchOverview).mockReset().mockResolvedValue({
+    groups: [],
+    targets: [],
+    groupHandovers: [],
+    runningSupervisions: [],
+  });
+  vi.mocked(substitutionService.createSubstitution)
     .mockReset()
-    .mockResolvedValue([]);
-  vi.mocked(groupTransferService.getStaffByRole)
-    .mockReset()
-    .mockResolvedValue([]);
-  vi.mocked(groupTransferService.getActiveTransfersForGroup)
-    .mockReset()
-    .mockResolvedValue([]);
-  vi.mocked(groupTransferService.transferGroup)
-    .mockReset()
-    .mockResolvedValue(undefined);
-  vi.mocked(groupTransferService.cancelTransferBySubstitutionId)
+    .mockResolvedValue({} as never);
+  vi.mocked(substitutionService.deleteSubstitution)
     .mockReset()
     .mockResolvedValue(undefined);
 });
@@ -3110,12 +3111,6 @@ describe("OGSGroupPage loadAvailableUsers", () => {
   });
 });
 
-// Note: Integration tests for the transfer modal are complex due to React state management.
-// The getAllAvailableStaff function is tested in group-transfer-api.test.ts which covers:
-// - Fetching all three roles (teacher, staff, user)
-// - Deduplication by staff ID
-// - Error handling when some roles fail to load
-
 // ===== Tests for exported helper functions (direct coverage) =====
 
 import {
@@ -4282,12 +4277,12 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
   });
 
   it("passes the module's narrow targets to the transfer modal", async () => {
-    vi.mocked(groupTransferService.getAllAvailableStaff).mockResolvedValue([
-      {
-        id: "s2",
-        fullName: "Other Teacher",
-      },
-    ]);
+    vi.mocked(substitutionService.fetchOverview).mockResolvedValue({
+      groups: [],
+      targets: [{ id: "s2", fullName: "Other Teacher" }],
+      groupHandovers: [],
+      runningSupervisions: [],
+    });
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({ students: [] }),
@@ -4309,7 +4304,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
 
     // Wait for staff to load and modal to re-render with availableUsers
     await waitFor(() => {
-      expect(groupTransferService.getAllAvailableStaff).toHaveBeenCalled();
+      expect(substitutionService.fetchOverview).toHaveBeenCalled();
     });
 
     await waitFor(() => {
@@ -4324,7 +4319,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
   });
 
   it("passes transfer data load failures to the modal", async () => {
-    vi.mocked(groupTransferService.getAllAvailableStaff).mockRejectedValueOnce(
+    vi.mocked(substitutionService.fetchOverview).mockRejectedValueOnce(
       new Error("network failure"),
     );
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -4348,14 +4343,26 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
   });
 
   it("clears previously loaded transfer data when a modal reload fails", async () => {
-    vi.mocked(groupTransferService.getAllAvailableStaff)
-      .mockResolvedValueOnce([{ id: "s2", fullName: "Other Teacher" }])
+    vi.mocked(substitutionService.fetchOverview)
+      .mockResolvedValueOnce({
+        groups: [],
+        targets: [{ id: "s2", fullName: "Other Teacher" }],
+        groupHandovers: [
+          {
+            id: "1",
+            type: "group_handover",
+            groupId: "1",
+            groupName: "OGS Gruppe A",
+            substituteStaffId: "s2",
+            substituteStaffName: "Other Teacher",
+            startDate: "2026-08-31",
+            endDate: "2026-08-31",
+            canEnd: true,
+          },
+        ],
+        runningSupervisions: [],
+      })
       .mockRejectedValueOnce(new Error("network failure"));
-    vi.mocked(
-      groupTransferService.getActiveTransfersForGroup,
-    ).mockResolvedValueOnce([
-      { substitutionId: "1", targetName: "Other Teacher" },
-    ] as never);
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({ students: [] }),
       isLoading: false,

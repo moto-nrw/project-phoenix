@@ -9,6 +9,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// SessionStartLocker serializes concurrent starts of the same tenant activity
+// for the lifetime of the caller's transaction.
+type SessionStartLocker interface {
+	LockSessionStart(ctx context.Context, tenantID, activityID int64) error
+}
+
 // GroupRepository defines operations for managing active groups
 type GroupRepository interface {
 	base.Repository[*Group]

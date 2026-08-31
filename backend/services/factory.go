@@ -661,6 +661,11 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
+	if loggerAware, ok := staffAbsenceService.(interface {
+		SetLogger(*slog.Logger)
+	}); ok {
+		loggerAware.SetLogger(activeLogger)
+	}
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.
@@ -840,6 +845,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:                repos.ActiveGroup,
+		SessionStartLock:         repos.SessionStartLock,
 		VisitRepo:                repos.ActiveVisit,
 		SupervisorRepo:           repos.GroupSupervisor,
 		CombinedGroupRepo:        repos.CombinedGroup,
@@ -1273,6 +1279,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		EducationGroupRepo: repos.Group,
 		RoomRepo:           repos.Room,
 		PersonService:      usersService,
+		PlanningTrackRepo:  repos.PlanningTrack,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,
 		DB:                 db,
@@ -1463,6 +1470,7 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 		RoleRepo:               repos.Role,
 		PersonRepo:             repos.Person,
 		StaffRepo:              repos.Staff,
+		CaregiverBindingLock:   repos.CaregiverBindingLock,
 		TeacherRepo:            repos.Teacher,
 		GroupTeacherRepo:       repos.GroupTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,

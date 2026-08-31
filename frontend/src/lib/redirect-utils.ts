@@ -3,7 +3,7 @@
  */
 
 import type { Session } from "next-auth";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import type { PresenceMode } from "~/lib/tenant-api";
 
 const SCHOOL_PORTAL_HANDOFF_PATH = "/school/login";
@@ -19,22 +19,27 @@ export interface SupervisionState {
   isLoadingSupervision: boolean;
 }
 
+/** The staff day-plan entry point (#2383). */
+export const TAGESPLAN_PATH = "/tagesplan";
+
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
- * 1. Binary-mode caregivers: /students/search
- * 2. Open-care caregivers: /students/search (no group concept, #1544)
- * 3. Caregivers with groups: /ogs-groups
- * 4. Caregivers actively supervising: /active-supervisions
- * 5. Other caregivers: /ogs-groups
- * 6. Existing school-portal-only sessions: school portal handoff
- * 7. Admin-only users: /dashboard
+ * 1. Binary-mode caregivers: /students/search (roomless entry stays, #2383)
+ * 2. Caregivers at schools with the Betreuungsplan enabled: /tagesplan (#2383)
+ * 3. Open-care caregivers: /students/search (no group concept, #1544)
+ * 4. Caregivers with groups: /ogs-groups
+ * 5. Caregivers actively supervising: /active-supervisions
+ * 6. Other caregivers: /ogs-groups
+ * 7. Existing school-portal-only sessions: school portal handoff
+ * 8. Admin-only users: /dashboard
  */
 export function getSmartRedirectPath(
   session: Session | null,
   supervisionState: SupervisionState,
   presenceMode: PresenceMode = "detailed",
   openCareGroupMode = false,
+  timetableEnabled = true,
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
@@ -50,7 +55,20 @@ export function getSmartRedirectPath(
   }
 
   if (canUseCaregiverFlows) {
-    if (presenceMode === "binary" || openCareGroupMode) {
+    if (presenceMode === "binary") {
+      return "/students/search";
+    }
+
+    // Detailed mode + Betreuungsplan enabled: the day plan is the entry into
+    // the running care day (#2383) — but only with schedules:read, the gate
+    // of the Tagesplan route; without it the redirect would land on a 403.
+    // Schools that disabled the Betreuungsplan (and caregivers without the
+    // permission) keep their previous start path below.
+    if (timetableEnabled && hasPermission(session, "schedules:read")) {
+      return TAGESPLAN_PATH;
+    }
+
+    if (openCareGroupMode) {
       return "/students/search";
     }
 
@@ -89,6 +107,7 @@ export function useSmartRedirectPath(
   supervisionState: SupervisionState,
   presenceMode: PresenceMode = "detailed",
   openCareGroupMode = false,
+  timetableEnabled = true,
 ): { redirectPath: string; isReady: boolean } {
   const isReady =
     !supervisionState.isLoadingGroups && !supervisionState.isLoadingSupervision;
@@ -97,6 +116,7 @@ export function useSmartRedirectPath(
     supervisionState,
     presenceMode,
     openCareGroupMode,
+    timetableEnabled,
   );
 
   return {

@@ -41,6 +41,27 @@ func (r *PlanningTrackRepository) ListAll(ctx context.Context) ([]*model.Plannin
 	return tracks, nil
 }
 
+// FindByIDs returns the planning tracks matching ids in one tenant-scoped IN
+// query. Archived rows are included so colours for historical references
+// still resolve (same behavior as the generic FindByID). Custom method
+// (backend-conventions Rule 2): bulk IN lookup with the empty-slice
+// short-circuit, mirroring activities.GroupRepository.FindByIDs.
+func (r *PlanningTrackRepository) FindByIDs(ctx context.Context, ids []int64) ([]*model.PlanningTrack, error) {
+	tracks := make([]*model.PlanningTrack, 0, len(ids))
+	if len(ids) == 0 {
+		return tracks, nil
+	}
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&tracks).
+		ModelTableExpr(`schedule.planning_tracks AS "planning_track"`).
+		Where(`"planning_track".id IN (?)`, bun.List(ids))
+	query = repoBase.WithTenantFilter(ctx, query, "planning_track")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find planning tracks by ids", Err: repoBase.TranslateNotFound(err)}
+	}
+	return tracks, nil
+}
+
 func (r *PlanningTrackRepository) FindByIDForShare(ctx context.Context, id int64) (*model.PlanningTrack, error) {
 	track := new(model.PlanningTrack)
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
