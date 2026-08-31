@@ -23,11 +23,15 @@ import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { AttachmentList } from "~/components/ui/attachment-list";
 import {
   ParentApiError,
   type ParentAnnouncement,
+  type ParentAnnouncementAttachment,
   type ParentAnnouncementPollChild,
   acknowledgeAnnouncement,
+  announcementAttachmentDownloadUrl,
+  listAnnouncementAttachments,
   markAnnouncementRead,
   respondToAnnouncement,
 } from "~/lib/parent-api";
@@ -529,6 +533,63 @@ export function NewsCard({
   );
 }
 
+/**
+ * Files the school attached to this message (#2890).
+ *
+ * Loaded when the message is opened, not with the feed: the file only matters
+ * once somebody is reading, and the school's audience rule is checked per
+ * message. A failure stays silent — the message itself is readable either way,
+ * and an error about a file the family may not even have expected would only
+ * worry them.
+ *
+ * It says "zu dieser Nachricht" rather than something like "Dateiablage": this
+ * is one message's attachment, not the entrance to a folder the family could
+ * browse.
+ */
+function NewsAttachments({
+  item,
+}: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const [attachments, setAttachments] = useState<
+    ParentAnnouncementAttachment[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listAnnouncementAttachments(item.id)
+      .then((list) => {
+        if (!cancelled) setAttachments(list);
+      })
+      .catch(() => {
+        // Deliberately silent, see the doc comment.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
+
+  if (attachments.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-4">
+      <p className="text-sm font-semibold text-gray-900">
+        {t("newsAttachmentsTitle")}
+      </p>
+      <p className="mt-0.5 mb-3 text-sm text-gray-500">
+        {t("newsAttachmentsHint")}
+      </p>
+      <AttachmentList
+        attachments={attachments}
+        downloadUrl={(attachmentId) =>
+          announcementAttachmentDownloadUrl(item.id, attachmentId)
+        }
+        downloadLabel={t("newsAttachmentsDownload")}
+        openLabel={t("newsAttachmentsOpen")}
+      />
+    </div>
+  );
+}
+
 function NewsMessageSection({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
@@ -554,6 +615,8 @@ function NewsMessageSection({
       <p className="mt-4 text-base leading-7 whitespace-pre-line text-gray-800">
         <LinkifiedText text={item.body} />
       </p>
+
+      <NewsAttachments item={item} />
 
       {item.link_url && (
         <a

@@ -10,6 +10,7 @@ import {
   Megaphone,
   Pencil,
   Plus,
+  Paperclip,
   Send,
   Trash2,
   Undo2,
@@ -40,6 +41,8 @@ import { LetterStatusPanel } from "~/components/announcements/letter-status-pane
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { LinkifiedText } from "~/components/ui/linkified-text";
+import { AttachmentList } from "~/components/ui/attachment-list";
+import { formatBytes } from "~/lib/files-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   berlinDayFromISO,
@@ -67,9 +70,14 @@ import {
   remindUnanswered,
   unpublishAnnouncement,
   updateAnnouncement,
+  announcementAttachmentDownloadUrl,
+  deleteAnnouncementAttachment,
+  fetchAnnouncementAttachments,
+  uploadAnnouncementAttachment,
 } from "~/lib/parent-announcements-api";
 import type {
   Announcement,
+  AnnouncementAttachment,
   AnnouncementEmailAudience,
   AnnouncementInput,
   AnnouncementPriority,
@@ -907,6 +915,16 @@ interface AnnouncementFormModalProps {
 const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
 
 /**
+ * Anhänge (#2890). Both limits mirror the backend
+ * (models/filestore.MaxAnnouncementAttachments, api/filestore.maxFile) and are
+ * stated in the form BEFORE a file is picked — an error message after a failed
+ * upload arrives too late to help.
+ */
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const ACCEPTED_ATTACHMENT_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
+
+/**
  * Two-step wizard, like writing an e-mail: first the content, then who
  * receives it — with "Als Entwurf speichern" and "Veröffentlichen" as the
  * final, explicit choices. Only drafts ever reach this modal (published
@@ -936,6 +954,39 @@ function AnnouncementFormModal({
   const [persistedId, setPersistedId] = useState<string | null>(
     announcement?.id ?? null,
   );
+
+  // Anhänge (#2890). Eine schon hochgeladene Datei liegt beim Backend
+  // (existingAttachments), eine gerade ausgewählte noch nicht (pendingFiles):
+  // beim Anlegen gibt es die Mitteilung ja erst nach dem Speichern. Beide
+  // Listen stehen untereinander, damit die schreibende Person nicht zwischen
+  // "schon da" und "kommt noch" unterscheiden muss.
+  const [existingAttachments, setExistingAttachments] = useState<
+    AnnouncementAttachment[]
+  >([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [attachmentError, setAttachmentError] = useState("");
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Beim Bearbeiten eines Entwurfs die schon hochgeladenen Dateien nachladen.
+  // Ein Fehler bleibt hier still: die Mitteilung selbst lässt sich weiter
+  // bearbeiten, und der Anhangsbereich zeigt dann eben nichts an.
+  useEffect(() => {
+    if (!persistedId) return;
+    let cancelled = false;
+    void fetchAnnouncementAttachments(persistedId)
+      .then((list) => {
+        if (!cancelled) setExistingAttachments(list.attachments);
+      })
+      .catch((err: unknown) => {
+        logger.error("announcement_attachments_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [persistedId]);
 
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [body, setBody] = useState(announcement?.body ?? "");
@@ -1044,6 +1095,57 @@ function AnnouncementFormModal({
     if (validateContent()) setStep(1);
   };
 
+  const attachmentCount = existingAttachments.length + pendingFiles.length;
+
+  const addFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setAttachmentError("");
+    const room = MAX_ATTACHMENTS - attachmentCount;
+    const picked = Array.from(files);
+    if (picked.length > room) {
+      setAttachmentError(
+        `Es sind höchstens ${MAX_ATTACHMENTS} Dateien je Mitteilung möglich.`,
+      );
+    }
+    const accepted: File[] = [];
+    for (const file of picked.slice(0, Math.max(room, 0))) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setAttachmentError(
+          `„${file.name}“ ist zu groß. Erlaubt sind bis zu ${formatBytes(MAX_ATTACHMENT_BYTES)} je Datei.`,
+        );
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (accepted.length > 0) setPendingFiles((prev) => [...prev, ...accepted]);
+  };
+
+  const removePendingFile = (index: number) => {
+    setAttachmentError("");
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingAttachment = async (attachmentId: string) => {
+    if (!persistedId) return;
+    setAttachmentBusy(true);
+    setAttachmentError("");
+    try {
+      await deleteAnnouncementAttachment(persistedId, attachmentId);
+      setExistingAttachments((prev) =>
+        prev.filter((a) => a.id !== attachmentId),
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Der Anhang konnte nicht entfernt werden";
+      setAttachmentError(message);
+      logger.error("announcement_attachment_delete_failed", { error: message });
+    } finally {
+      setAttachmentBusy(false);
+    }
+  };
+
   const handleSubmit = async (publish: boolean) => {
     if (!validateContent()) {
       setStep(0);
@@ -1093,6 +1195,37 @@ function AnnouncementFormModal({
         ? await updateAnnouncement(persistedId, input)
         : await createAnnouncement(input);
       setPersistedId(saved.id);
+
+      // Anhänge vor dem Veröffentlichen hochladen: danach ist die Mitteilung
+      // unveränderlich und das Backend lehnt jeden weiteren Anhang ab. Der
+      // Entwurf ist an dieser Stelle schon gespeichert, deshalb bleibt bei
+      // einem Fehlschlag nur der Upload offen — und die Datei in der Liste, so
+      // dass ein zweiter Versuch nichts erneut auswählen muss.
+      if (pendingFiles.length > 0) {
+        try {
+          for (const file of pendingFiles) {
+            const uploaded = await uploadAnnouncementAttachment(saved.id, file);
+            if (uploaded) {
+              setExistingAttachments((prev) => [...prev, uploaded]);
+            }
+          }
+          setPendingFiles([]);
+        } catch (err) {
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Die Datei konnte nicht hochgeladen werden";
+          setFormError(
+            `Als Entwurf gespeichert, aber ein Anhang konnte nicht hochgeladen werden: ${message}`,
+          );
+          logger.error("announcement_attachment_upload_failed", {
+            error: message,
+          });
+          await onRefresh();
+          return;
+        }
+      }
+
       if (publish) {
         try {
           await publishAnnouncement(saved.id);
@@ -1482,6 +1615,112 @@ function AnnouncementFormModal({
                       : "Nur Bezugspersonen mit Portal-Zugang bekommen die E-Mail. Alle anderen sehen Sie danach in der Empfängerliste."}
                   </p>
                 </div>
+              )}
+            </section>
+
+            <section className="flex flex-col gap-3 border-t border-gray-200 pt-4">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                  <Paperclip className="h-4 w-4 text-gray-400" aria-hidden />
+                  Dateien anhängen
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Die Dateien sehen genau die Eltern, die auch die Mitteilung
+                  bekommen – nicht alle Eltern der Schule. Sie liegen im
+                  Elternportal zum Herunterladen bereit und gehen nicht per
+                  E-Mail mit.
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG. Bis zu{" "}
+                  {formatBytes(MAX_ATTACHMENT_BYTES)} je Datei, höchstens{" "}
+                  {MAX_ATTACHMENTS} Dateien.
+                </p>
+              </div>
+
+              {existingAttachments.length > 0 && (
+                <AttachmentList
+                  attachments={existingAttachments}
+                  downloadUrl={(attachmentId) =>
+                    announcementAttachmentDownloadUrl(
+                      persistedId ?? "",
+                      attachmentId,
+                    )
+                  }
+                  onRemove={(attachmentId) =>
+                    void removeExistingAttachment(attachmentId)
+                  }
+                  busy={attachmentBusy}
+                />
+              )}
+
+              {pendingFiles.length > 0 && (
+                <ul className="flex flex-col gap-2">
+                  {pendingFiles.map((file, index) => (
+                    <li
+                      key={`${file.name}-${index}`}
+                      className="flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+                    >
+                      <Paperclip
+                        className="h-4 w-4 shrink-0 text-gray-400"
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
+                        {file.name}
+                      </span>
+                      <span className="shrink-0 text-xs text-gray-500">
+                        {formatBytes(file.size)}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="compact"
+                        onClick={() => removePendingFile(index)}
+                      >
+                        Entfernen
+                      </Button>
+                    </li>
+                  ))}
+                  <li className="text-xs text-gray-500">
+                    Diese Dateien werden mit dem Speichern hochgeladen.
+                  </li>
+                </ul>
+              )}
+
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept={ACCEPTED_ATTACHMENT_TYPES}
+                  className="hidden"
+                  onChange={(e) => {
+                    addFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={
+                    attachmentBusy || attachmentCount >= MAX_ATTACHMENTS
+                  }
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Datei auswählen
+                </Button>
+                {attachmentCount >= MAX_ATTACHMENTS && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    Die Höchstzahl ist erreicht. Entfernen Sie eine Datei, um
+                    eine andere anzuhängen.
+                  </p>
+                )}
+              </div>
+
+              {attachmentError && (
+                <p role="alert" className="text-moto-red-strong text-sm">
+                  {attachmentError}
+                </p>
               )}
             </section>
           </div>

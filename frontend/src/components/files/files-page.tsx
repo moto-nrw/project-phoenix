@@ -6,17 +6,7 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
-import {
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  File as FileIcon,
-  FolderOpen,
-  Lock,
-  Presentation,
-  Upload,
-  Users,
-} from "lucide-react";
+import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
@@ -26,6 +16,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { InfoItem } from "~/components/ui/info-card";
 import {
   OverflowMenu,
@@ -56,20 +47,7 @@ const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
 function fileIcon(contentType: string) {
-  const className = "h-4 w-4 text-gray-400";
-  if (contentType.startsWith("image/")) {
-    return <FileImage className={className} aria-hidden="true" />;
-  }
-  if (contentType === "application/pdf") {
-    return <FileText className={className} aria-hidden="true" />;
-  }
-  if (contentType.includes("spreadsheetml")) {
-    return <FileSpreadsheet className={className} aria-hidden="true" />;
-  }
-  if (contentType.includes("presentationml")) {
-    return <Presentation className={className} aria-hidden="true" />;
-  }
-  return <FileIcon className={className} aria-hidden="true" />;
+  return <FileTypeIcon contentType={contentType} />;
 }
 
 function visibilityIcon(visibility: FileFolder["visibility"]) {

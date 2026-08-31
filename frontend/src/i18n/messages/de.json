@@ -159,6 +159,10 @@
     "newsReadAndConfirm": "Gelesen bestätigen",
     "newsReadAnnouncement": "Lesen",
     "newsExternalLink": "Weitere Informationen öffnen",
+    "newsAttachmentsTitle": "Dateien zu dieser Nachricht",
+    "newsAttachmentsHint": "Tippen Sie auf den Namen, um die Datei zu öffnen oder zu speichern.",
+    "newsAttachmentsDownload": "Herunterladen",
+    "newsAttachmentsOpen": "Im Browser öffnen",
     "newsClose": "Schließen",
     "newsLetterBadge": "Bestätigung erforderlich",
     "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt."
