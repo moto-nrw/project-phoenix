@@ -20,6 +20,7 @@ import (
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -162,17 +163,19 @@ type Factory struct {
 	Attendance       activeModels.AttendanceRepository
 	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
 	// Statistics serves the aggregate reads of the Statistik page (#2606).
-	Statistics            activeModels.StatisticsRepository
-	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
-	WorkSession           activeModels.WorkSessionRepository
-	WorkSessionBreak      activeModels.WorkSessionBreakRepository
-	StaffAbsence          activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
-	StaffAbsenceType      activeModels.StaffAbsenceTypeRepository
-	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
-	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
-	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
-	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
+	Statistics                      activeModels.StatisticsRepository
+	ExcusedAbsenceRequest           activeModels.ExcusedAbsenceRequestRepository
+	WorkSession                     activeModels.WorkSessionRepository
+	WorkSessionBreak                activeModels.WorkSessionBreakRepository
+	StaffAbsence                    activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit               activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceType                activeModels.StaffAbsenceTypeRepository
+	StaffAbsenceTypeAllowance       activeModels.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChange activeModels.StaffAbsenceTypeAllowanceChangeRepository
+	StaffVacationQuota              activeModels.StaffVacationQuotaRepository
+	StaffVacationOpening            activeModels.StaffVacationOpeningRepository
+	StaffBalanceAdjust              activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot              activeModels.StaffMonthBalanceSnapshotRepository
 
 	SessionStartLock activeModels.SessionStartLocker
 
@@ -410,24 +413,26 @@ func NewFactory(db *bun.DB, clocks ...func() time.Time) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:           active.NewGroupRepository(db),
-		ActiveVisit:           active.NewVisitRepository(db),
-		GroupSupervisor:       groupSupervisor,
-		CombinedGroup:         active.NewCombinedGroupRepository(db),
-		GroupMapping:          active.NewGroupMappingRepository(db),
-		Attendance:            attendance,
-		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
-		Statistics:            active.NewStatisticsRepository(db),
-		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
-		WorkSession:           active.NewWorkSessionRepository(db, now),
-		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:          active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
-		StaffAbsenceType:      active.NewStaffAbsenceTypeRepository(db),
-		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
-		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
-		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
-		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
+		ActiveGroup:                     active.NewGroupRepository(db),
+		ActiveVisit:                     active.NewVisitRepository(db),
+		GroupSupervisor:                 groupSupervisor,
+		CombinedGroup:                   active.NewCombinedGroupRepository(db),
+		GroupMapping:                    active.NewGroupMappingRepository(db),
+		Attendance:                      attendance,
+		StudentStatusDay:                active.NewStudentStatusDayRepository(db),
+		Statistics:                      active.NewStatisticsRepository(db),
+		ExcusedAbsenceRequest:           active.NewExcusedAbsenceRequestRepository(db),
+		WorkSession:                     active.NewWorkSessionRepository(db, now),
+		WorkSessionBreak:                active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:                    active.NewStaffAbsenceRepository(db),
+		StaffAbsenceAudit:               active.NewStaffAbsenceAuditRepository(db),
+		StaffAbsenceType:                active.NewStaffAbsenceTypeRepository(db),
+		StaffAbsenceTypeAllowance:       workforce.NewStaffAbsenceTypeAllowanceRepository(db),
+		StaffAbsenceTypeAllowanceChange: workforce.NewStaffAbsenceTypeAllowanceChangeRepository(db),
+		StaffVacationQuota:              active.NewStaffVacationQuotaRepository(db),
+		StaffVacationOpening:            active.NewStaffVacationOpeningRepository(db),
+		StaffBalanceAdjust:              active.NewStaffBalanceAdjustmentRepository(db),
+		StaffMonthSnapshot:              active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		SessionStartLock: active.NewSessionStartLocker(db),
 

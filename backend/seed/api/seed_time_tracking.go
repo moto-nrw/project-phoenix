@@ -71,6 +71,12 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	if len(staffOrder) > 1 {
+		staffID := staffIDByEmail[staffOrder[1].Email]
+		if err := seedCustomAbsenceTypeAllowance(rt, customAbsenceTypeID, staffID, todayDate.Year()); err != nil {
+			return err
+		}
+	}
 	vacationApproverAuth, err := loginVacationApprover(rt, staffOrder)
 	if err != nil {
 		return err
@@ -340,7 +346,9 @@ func seedCustomAbsenceType(rt *Runtime) (int64, error) {
 	rt.Client.BindAuth(rt.TenantAuth)
 
 	resp, err := rt.Client.Post("/api/absence-types", map[string]any{
-		"name": "Regenerationstag",
+		"name":              "Regenerationstag",
+		"allowance_enabled": true,
+		"overrun_policy":    "warn",
 	})
 	if err != nil {
 		return 0, fmt.Errorf("post absence type: %w", err)
@@ -362,6 +370,22 @@ func seedCustomAbsenceType(rt *Runtime) (int64, error) {
 		return 0, fmt.Errorf("parse absence type id %q: %w", raw, err)
 	}
 	return id, nil
+}
+
+func seedCustomAbsenceTypeAllowance(rt *Runtime, absenceTypeID, staffID int64, year int) error {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+	if _, err := rt.Client.Put(
+		fmt.Sprintf("/api/absence-types/%d/allowances/%d", absenceTypeID, staffID),
+		map[string]any{
+			"year": year, "entitled_days": 3.5,
+			"reason": "Demo-Anspruch",
+		},
+	); err != nil {
+		return fmt.Errorf("seed custom absence type allowance for staff %d: %w", staffID, err)
+	}
+	return nil
 }
 
 func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note string, absenceTypeID *int64) error {

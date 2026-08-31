@@ -16644,6 +16644,16 @@
     },
     {
       "scope": "test",
+      "file": "api/absence-types/api_test.go",
+      "declaration": "setupAbsenceTypesRoute",
+      "target": "api/testutil.SetupAPITest",
+      "lines": [
+        76
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "api/active/active_test.go",
       "declaration": "setupActiveRoute",
       "target": "api/testutil.SetupAPITest",
@@ -25943,6 +25953,56 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         21
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/staff_absence_allowance_db_test.go",
+      "declaration": "TestCustomAbsenceAllowanceDoesNotCarryAcrossYears",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        197
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/staff_absence_allowance_db_test.go",
+      "declaration": "TestCustomAbsenceAllowanceIsTenantIsolated",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        242
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/staff_absence_allowance_db_test.go",
+      "declaration": "TestCustomAbsenceAllowanceOverrunPolicy",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        122
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/staff_absence_allowance_db_test.go",
+      "declaration": "TestCustomAbsenceAllowanceSerializesConcurrentCorrections",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        284
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/active/staff_absence_allowance_db_test.go",
+      "declaration": "TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        24
       ],
       "tables": []
     },
