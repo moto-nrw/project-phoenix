@@ -31,6 +31,7 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 		repos.GradeTransition,
 		repos.DataDeletion,
 		repos.StudentDeletionAudit,
+		&testpkg.FeedbackEntryCounterMock{},
 		tc.db,
 	)
 	usersService.WireStudentDeletionCareWithdrawals(tc.resource.StudentDeletionService, repos.CareWithdrawal)

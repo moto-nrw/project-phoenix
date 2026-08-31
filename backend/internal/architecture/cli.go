@@ -12,11 +12,12 @@ import (
 type CLIDependencies struct {
 	IssueClient IssueClient
 	Getenv      func(string) string
+	ProjectRoot string
 }
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, diagram, dependencies, or audit-issues")
+		return fmt.Errorf("command is required: check, explain, diagram, dependencies, audit-issues, or validate-ticket")
 	}
 
 	switch args[0] {
@@ -30,8 +31,10 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 		return runDiagram(args[1:])
 	case "dependencies":
 		return runDependencies(args[1:])
+	case "validate-ticket":
+		return runValidateMigrationTicket(args[1:], dependencies)
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, or audit-issues", args[0])
+		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, audit-issues, or validate-ticket", args[0])
 	}
 }
 

@@ -88,11 +88,12 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Ensure tenant 3 exists but DON'T map the account to it
-		testpkg.EnsureTestTenant(t, db, 3)
+		// Ensure the target exists but DON'T map the account to it.
+		targetTenantID := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureTestTenant(t, db, targetTenantID)
 
-		// ACT: Try switching to tenant 3 (no account_tenants mapping)
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "t3")
+		// ACT: Try switching to the target (no account_tenants mapping)
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID))
 
 		// ASSERT
 		require.Error(t, err)
@@ -109,12 +110,12 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Map account to tenant 2
-		testpkg.EnsureTestTenant(t, db, 2)
-		testpkg.MapAccountToTenant(t, db, account.ID, 2)
+		targetTenantID := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureTestTenant(t, db, targetTenantID)
+		testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
 
 		// ACT
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "t2")
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -142,29 +143,29 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 	service := setupAuthService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	// Ensure tenant 2 exists
-	testpkg.EnsureTestTenant(t, db, 2)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
 
 	// ARRANGE: Create User A (admin) mapped to both tenants
 	emailA, usernameA := uniqueTestCredentials("userA-1067")
 	accountA, err := service.Register(ctx, emailA, usernameA, testPassword, nil, 0)
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, accountA.ID)
-	testpkg.MapAccountToTenant(t, db, accountA.ID, 2)
+	testpkg.MapAccountToTenant(t, db, accountA.ID, targetTenantID)
 
 	// ARRANGE: Create User B (betreuer) mapped to both tenants
 	emailB, usernameB := uniqueTestCredentials("userB-1067")
 	accountB, err := service.Register(ctx, emailB, usernameB, testPassword, nil, 0)
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, accountB.ID)
-	testpkg.MapAccountToTenant(t, db, accountB.ID, 2)
+	testpkg.MapAccountToTenant(t, db, accountB.ID, targetTenantID)
 
 	// Step 1: User A logs in on tenant 1
 	_, refreshTokenA, err := service.Login(ctx, emailA, testPassword)
 	require.NoError(t, err, "User A login should succeed")
 
 	// Step 2: User A switches to tenant 2
-	_, _, err = service.SwitchTenant(ctx, accountA.ID, "t2")
+	_, _, err = service.SwitchTenant(ctx, accountA.ID, fmt.Sprintf("t%d", targetTenantID))
 	require.NoError(t, err, "User A switch to tenant 2 should succeed")
 
 	// Step 3: User A logs out — this should invalidate User A's tokens
@@ -180,7 +181,7 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 	require.NoError(t, err, "User B login should succeed")
 
 	// Step 5: User B switches to tenant 2 — should get User B's tokens, NOT User A's
-	accessTokenB, _, err := service.SwitchTenant(ctx, accountB.ID, "t2")
+	accessTokenB, _, err := service.SwitchTenant(ctx, accountB.ID, fmt.Sprintf("t%d", targetTenantID))
 	require.NoError(t, err, "User B switch to tenant 2 should succeed")
 	assert.NotEmpty(t, accessTokenB, "User B should receive a valid access token")
 }

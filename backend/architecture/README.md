@@ -22,6 +22,8 @@ scripts/backend-architecture.sh dependencies \
   --focus module:meal-plan
 scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
+scripts/backend-architecture.sh validate-ticket \
+  --ticket backend/architecture/migration-ticket-template.json
 ```
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
@@ -148,6 +150,26 @@ The wrapper supplies the committed baseline; callers must provide `--api-url`,
 and `GITHUB_TOKEN` is optional for authenticated requests. A GitHub or network
 error fails this audit and cannot change the deterministic `check` result or
 appear as a green audit.
+
+## Migration evidence
+
+`migration-ticket-template.json` is the executable contract for later
+migration tickets. Copy it, replace its guidance text with the ticket's facts,
+then run `validate-ticket`. The command rejects unknown fields and missing
+prerequisites, owner/capability, packages, tables, cutover, tests, runtime
+evidence, rollback/cleanup, or exit criteria. `exact_ratchet_keys` may be empty
+for an explicit prerequisite or acceptance node.
+
+Runtime evidence records its raw source, workload, and agreed thresholds. It
+also records query count, latency p50/p95, errors, DB-pool waits, measured lock
+waits, deadlocks, and Worker duration/retries/backlog. A metric that does not
+apply still needs a reason; an empty field fails validation. Full SQL statement
+duration is not lock-wait evidence because it also includes execution time.
+
+Keep raw Prometheus exports and load-run output in the issue or pull-request
+review evidence, outside the repository. The committed template checks ticket
+completeness; it is not a second architecture policy and does not invent
+environment-independent latency limits.
 
 ## Composition inventory
 
