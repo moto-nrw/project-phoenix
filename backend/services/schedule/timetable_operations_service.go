@@ -450,39 +450,51 @@ func (s *timetableOperationsService) enrichDayPlan(ctx context.Context, candidat
 		}
 	}
 
-	activityGroups := map[int64]*activitiesModel.Group{}
-	tracks := map[int64]*scheduleModel.PlanningTrack{}
-	educationGroupIDs := make([]int64, 0)
-	educationSeen := map[int64]bool{}
+	// One IN query per metadata kind instead of one lookup per distinct
+	// template/track: a large school's day plan otherwise fires a query
+	// burst proportional to its module count. Missing IDs are simply absent
+	// from the maps, which the render loop below already treats as "no
+	// metadata" (same behavior as the previous per-ID no-rows handling).
+	groupIDs := make([]int64, 0)
+	groupSeen := map[int64]bool{}
 	for _, candidate := range candidates {
 		groupID := candidate.instance.ActivityGroupID
-		if groupID == nil || *groupID <= 0 {
+		if groupID == nil || *groupID <= 0 || groupSeen[*groupID] {
 			continue
 		}
-		if _, cached := activityGroups[*groupID]; cached {
-			continue
-		}
-		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *groupID)
+		groupSeen[*groupID] = true
+		groupIDs = append(groupIDs, *groupID)
+	}
+	activityGroups := map[int64]*activitiesModel.Group{}
+	educationGroupIDs := make([]int64, 0)
+	trackIDs := make([]int64, 0)
+	if len(groupIDs) > 0 {
+		groups, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
 		if err != nil {
-			if modelBase.IsNoRows(err) {
-				activityGroups[*groupID] = nil
-				continue
-			}
 			return err
 		}
-		activityGroups[*groupID] = group
-		if group.EducationGroupID != nil && !educationSeen[*group.EducationGroupID] {
-			educationSeen[*group.EducationGroupID] = true
-			educationGroupIDs = append(educationGroupIDs, *group.EducationGroupID)
-		}
-		if group.PlanningTrackID != nil && s.deps.PlanningTrackRepo != nil {
-			if _, cached := tracks[*group.PlanningTrackID]; !cached {
-				track, err := s.deps.PlanningTrackRepo.FindByID(ctx, *group.PlanningTrackID)
-				if err != nil && !modelBase.IsNoRows(err) {
-					return err
-				}
-				tracks[*group.PlanningTrackID] = track
+		educationSeen := map[int64]bool{}
+		trackSeen := map[int64]bool{}
+		for _, group := range groups {
+			activityGroups[group.ID] = group
+			if group.EducationGroupID != nil && !educationSeen[*group.EducationGroupID] {
+				educationSeen[*group.EducationGroupID] = true
+				educationGroupIDs = append(educationGroupIDs, *group.EducationGroupID)
 			}
+			if group.PlanningTrackID != nil && !trackSeen[*group.PlanningTrackID] {
+				trackSeen[*group.PlanningTrackID] = true
+				trackIDs = append(trackIDs, *group.PlanningTrackID)
+			}
+		}
+	}
+	tracks := map[int64]*scheduleModel.PlanningTrack{}
+	if len(trackIDs) > 0 && s.deps.PlanningTrackRepo != nil {
+		trackRows, err := s.deps.PlanningTrackRepo.FindByIDs(ctx, trackIDs)
+		if err != nil {
+			return err
+		}
+		for _, track := range trackRows {
+			tracks[track.ID] = track
 		}
 	}
 	educationGroups := map[int64]*educationModel.Group{}

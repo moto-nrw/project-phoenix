@@ -1999,12 +1999,14 @@ type fakeOpsPlanningTrackRepo struct {
 	byID map[int64]*scheduleModel.PlanningTrack
 }
 
-func (r *fakeOpsPlanningTrackRepo) FindByID(_ context.Context, id interface{}) (*scheduleModel.PlanningTrack, error) {
-	trackID, _ := id.(int64)
-	if track := r.byID[trackID]; track != nil {
-		return track, nil
+func (r *fakeOpsPlanningTrackRepo) FindByIDs(_ context.Context, ids []int64) ([]*scheduleModel.PlanningTrack, error) {
+	tracks := make([]*scheduleModel.PlanningTrack, 0, len(ids))
+	for _, id := range ids {
+		if track := r.byID[id]; track != nil {
+			tracks = append(tracks, track)
+		}
 	}
-	return nil, sql.ErrNoRows
+	return tracks, nil
 }
 
 // fakeOpsCareDayService reports the care-plan verdict per student. Empty by
@@ -2269,6 +2271,19 @@ func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (
 		return nil, modelBase.ErrNotFound
 	}
 	return group, nil
+}
+
+func (r *fakeOpsActivityGroupRepo) FindByIDs(_ context.Context, ids []int64) ([]*activitiesModel.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	groups := make([]*activitiesModel.Group, 0, len(ids))
+	for _, id := range ids {
+		if group := r.byID[id]; group != nil {
+			groups = append(groups, group)
+		}
+	}
+	return groups, nil
 }
 
 type fakeOpsActiveService struct {

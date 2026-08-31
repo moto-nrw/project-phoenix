@@ -45,6 +45,10 @@ func (p *PlanningTrack) IsArchived() bool {
 type PlanningTrackRepository interface {
 	base.CRUDRepository[*PlanningTrack]
 	ListAll(ctx context.Context) ([]*PlanningTrack, error)
+	// FindByIDs returns the tracks matching the given IDs in one
+	// tenant-scoped IN query (missing IDs are simply absent). Archived
+	// rows are included so colours for historical references still resolve.
+	FindByIDs(ctx context.Context, ids []int64) ([]*PlanningTrack, error)
 	FindByIDForShare(ctx context.Context, id int64) (*PlanningTrack, error)
 	UpdateIfActive(ctx context.Context, track *PlanningTrack) (bool, error)
 	UpdateSortOrders(ctx context.Context, ids []int64) error
