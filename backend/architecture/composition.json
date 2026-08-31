@@ -561,7 +561,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 313,
+          "line": 314,
           "declaration": "NewFactory"
         }
       ]
@@ -29230,6 +29230,16 @@
       "target": "services.NewFactory",
       "lines": [
         64
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/parent/parent_consent_service_test.go",
+      "declaration": "buildConsentService",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
       ],
       "tables": []
     },

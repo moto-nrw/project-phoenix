@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -1423,6 +1424,9 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
 		return false, err
 	}
+	if err := rs.recordConsentTransition(ctx, effectiveConsent, &before, fresh, statusHistoryNow); err != nil {
+		return false, err
+	}
 
 	if err := rs.resyncSourcedTemplatesOnClassChange(ctx, classChangeRequested, previousSchoolClass, fresh.SchoolClass); err != nil {
 		return false, err
@@ -1447,6 +1451,20 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// subscribers into refetching the still-pre-commit row.
 	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow))
 	return companionsChanged, nil
+}
+
+func (rs *Resource) recordConsentTransition(ctx context.Context, effectiveConsent *bool, before, after *users.Student, changedAt time.Time) error {
+	if effectiveConsent == nil || rs.StudentConsents == nil {
+		return nil
+	}
+	return rs.StudentConsents.RecordTransitions(
+		ctx,
+		before,
+		after,
+		auditModels.StudentConsentSourceTenantPortal,
+		jwt.ActorAccountIDFromCtx(ctx),
+		changedAt,
+	)
 }
 
 // companionConflictRenderer returns the 409 payload when the transaction failed

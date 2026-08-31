@@ -1581,6 +1581,37 @@
     "care": {
       "weekTitle": "Dein OGS Wochenplan",
       "absenceTitle": "Abwesenheiten"
+    },
+    "consents": {
+      "title": "Einwilligungen und Bestätigungen",
+      "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist. Nur die Foto-Einwilligung können Sie hier widerrufen.",
+      "items": {
+        "agb": "Allgemeine Geschäftsbedingungen (AGB)",
+        "data_processing": "Datenschutz zur Kenntnis genommen",
+        "email_contact": "Kontakt per E-Mail erlaubt",
+        "photo": "Foto-Einwilligung"
+      },
+      "states": {
+        "granted": "Hinterlegt",
+        "withdrawn": "Widerrufen",
+        "not_recorded": "Nicht hinterlegt"
+      },
+      "dates": {
+        "granted": "Hinterlegt am {date}",
+        "withdrawn": "Widerrufen am {date}",
+        "not_recorded": "Nicht hinterlegt"
+      },
+      "withdrawButton": "Foto-Einwilligung widerrufen",
+      "confirmTitle": "Foto-Einwilligung widerrufen?",
+      "confirmBody": "Die Einwilligung endet sofort. Falls ein Foto gespeichert ist, wird es gelöscht.",
+      "confirmButton": "Jetzt widerrufen",
+      "withdrawing": "Wird widerrufen",
+      "cancel": "Abbrechen",
+      "close": "Dialog schließen",
+      "success": "Die Foto-Einwilligung wurde widerrufen. Falls ein Foto gespeichert war, wurde es gelöscht.",
+      "loadError": "Die Einwilligungen konnten gerade nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      "retry": "Erneut laden",
+      "withdrawError": "Die Foto-Einwilligung konnte nicht widerrufen werden. Bitte versuchen Sie es noch einmal."
     }
   },
   "parentMessages": {

@@ -95,6 +95,7 @@ DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 DELETE /operator/schools/{id}/accounts/{accountId}/mfa/
 DELETE /operator/schools/{id}/settings/values/{key}
 DELETE /parent/me/children/{studentId}/care-exception
+DELETE /parent/me/children/{studentId}/consents/photo
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
@@ -505,6 +506,7 @@ GET /parent/me/children/{studentId}/care-exception
 GET /parent/me/children/{studentId}/care-offerings
 GET /parent/me/children/{studentId}/care-offerings/catalog
 GET /parent/me/children/{studentId}/care-schedule
+GET /parent/me/children/{studentId}/consents
 GET /parent/me/children/{studentId}/excused-requests
 GET /parent/me/children/{studentId}/features
 GET /parent/me/children/{studentId}/guardians

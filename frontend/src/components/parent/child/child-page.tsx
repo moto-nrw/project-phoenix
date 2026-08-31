@@ -20,6 +20,7 @@ import {
 import { BookedCareSection } from "~/components/parent/child/booked-care-section";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
+import { ChildConsentsSection } from "~/components/parent/child/child-consents-section";
 import {
   ChildSwitcher,
   type ChildSwitcherItem,
@@ -448,6 +449,7 @@ function ChildAreaTabs({
           childName={childName}
           area="details"
         />
+        <ChildConsentsSection studentId={child.student_id} />
       </TabsContent>
 
       <TabsContent

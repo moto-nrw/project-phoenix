@@ -1581,6 +1581,37 @@
     "care": {
       "weekTitle": "OGS weekly schedule",
       "absenceTitle": "Absences"
+    },
+    "consents": {
+      "title": "Consents and confirmations",
+      "description": "Here you can see what is stored for your child. You can only withdraw photo consent here.",
+      "items": {
+        "agb": "General terms and conditions",
+        "data_processing": "Privacy information acknowledged",
+        "email_contact": "Contact by email allowed",
+        "photo": "Photo consent"
+      },
+      "states": {
+        "granted": "Recorded",
+        "withdrawn": "Withdrawn",
+        "not_recorded": "Not recorded"
+      },
+      "dates": {
+        "granted": "Recorded on {date}",
+        "withdrawn": "Withdrawn on {date}",
+        "not_recorded": "Not recorded"
+      },
+      "withdrawButton": "Withdraw photo consent",
+      "confirmTitle": "Withdraw photo consent?",
+      "confirmBody": "The consent ends immediately. If a photo is stored, it will be deleted.",
+      "confirmButton": "Withdraw now",
+      "withdrawing": "Withdrawing",
+      "cancel": "Cancel",
+      "close": "Close dialog",
+      "success": "Photo consent was withdrawn. If a photo was stored, it was deleted.",
+      "loadError": "The consents could not be loaded. Please try again.",
+      "retry": "Try again",
+      "withdrawError": "Photo consent could not be withdrawn. Please try again."
     }
   },
   "parentMessages": {

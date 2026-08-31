@@ -35,6 +35,18 @@ export interface Child {
   readonly school_slug: string;
 }
 
+export type ChildConsentKey =
+  "agb" | "data_processing" | "email_contact" | "photo";
+
+export type ChildConsentState = "granted" | "withdrawn" | "not_recorded";
+
+export interface ChildConsent {
+  readonly key: ChildConsentKey;
+  readonly state: ChildConsentState;
+  readonly changed_at?: string; // ISO timestamp
+  readonly can_withdraw: boolean;
+}
+
 // Per-child status values exposed on the enrollment-requests list.
 // Mirrors models/enrollment ChildStatus* constants.
 type EnrollmentChildStatus =
@@ -524,6 +536,24 @@ async function putJson<T>(url: string, body: unknown): Promise<T> {
  */
 export async function listMyChildren(): Promise<Child[]> {
   return getJson<Child[]>("/api/parent/me/children");
+}
+
+/** Reads the four current consent and acknowledgement states for one child. */
+export async function getChildConsents(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return getJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents`,
+  );
+}
+
+/** Withdraws the voluntary photo consent and returns all updated states. */
+export async function withdrawChildPhotoConsent(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return deleteJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+  );
 }
 
 /**

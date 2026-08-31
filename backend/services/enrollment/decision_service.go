@@ -371,6 +371,12 @@ type StudentRolloverAuditor interface {
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after users.StudentStatus) error
 }
 
+// StudentConsentAuditor records effective consent transitions made while an
+// enrollment submission is applied to a student.
+type StudentConsentAuditor interface {
+	RecordTransitions(ctx context.Context, before, after *users.Student, source string, actorAccountID *int64, changedAt time.Time) error
+}
+
 type PickupGuardianNotifier interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
@@ -416,6 +422,7 @@ type DecisionServiceConfig struct {
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	StudentAudit             StudentRolloverAuditor
+	StudentConsents          StudentConsentAuditor
 	CareWithdrawal           CareWithdrawalReconciler
 	// Broadcaster announces student_updated + student_companions_changed after
 	// an approved enrollment sync replaced a child's departure plan (the write
@@ -3824,6 +3831,7 @@ func (s *decisionService) applyTargetedFields(
 	if err != nil || schema == nil {
 		return false, nil
 	}
+	consentBefore := *student
 
 	var errs []string
 	studentDirty := false
@@ -4143,6 +4151,7 @@ func (s *decisionService) applyTargetedFields(
 	// best-effort field error is — would turn a legitimate enrollment change
 	// into an opaque 500 at the handler (#1694).
 	var companionRefusal error
+	studentUpdated := false
 	if studentDirty {
 		// Carrying a departure plan is a NECESSARY, not a sufficient, condition
 		// for a companion change: writing the same modes back trims no edge, and
@@ -4158,7 +4167,25 @@ func (s *decisionService) applyTargetedFields(
 				errs = append(errs, fmt.Sprintf("update student: %v", err))
 			}
 		} else {
+			studentUpdated = true
 			departurePlanSynced = companionChanges.Changed()
+		}
+	}
+	if studentUpdated && s.StudentConsents != nil {
+		var actorAccountID *int64
+		if reviewedBy > 0 {
+			actor := reviewedBy
+			actorAccountID = &actor
+		}
+		if err := s.StudentConsents.RecordTransitions(
+			ctx,
+			&consentBefore,
+			student,
+			auditModels.StudentConsentSourceEnrollment,
+			actorAccountID,
+			time.Now(),
+		); err != nil {
+			errs = append(errs, fmt.Sprintf("record consent history: %v", err))
 		}
 	}
 

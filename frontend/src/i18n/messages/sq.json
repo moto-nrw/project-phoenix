@@ -1581,6 +1581,37 @@
     "care": {
       "weekTitle": "Plani javor i OGS-së",
       "absenceTitle": "Mungesat"
+    },
+    "consents": {
+      "title": "Pëlqimet dhe konfirmimet",
+      "description": "Këtu shihni çfarë është ruajtur për fëmijën tuaj. Këtu mund të tërhiqni vetëm pëlqimin për fotografinë.",
+      "items": {
+        "agb": "Kushtet e përgjithshme",
+        "data_processing": "Informacioni për privatësinë u pranua",
+        "email_contact": "Kontakti me email lejohet",
+        "photo": "Pëlqimi për fotografinë"
+      },
+      "states": {
+        "granted": "Ruajtur",
+        "withdrawn": "Tërhequr",
+        "not_recorded": "Nuk është ruajtur"
+      },
+      "dates": {
+        "granted": "Ruajtur më {date}",
+        "withdrawn": "Tërhequr më {date}",
+        "not_recorded": "Nuk është ruajtur"
+      },
+      "withdrawButton": "Tërhiq pëlqimin për fotografinë",
+      "confirmTitle": "Të tërhiqet pëlqimi për fotografinë?",
+      "confirmBody": "Pëlqimi përfundon menjëherë. Nëse ka një fotografi të ruajtur, ajo do të fshihet.",
+      "confirmButton": "Tërhiq tani",
+      "withdrawing": "Po tërhiqet",
+      "cancel": "Anulo",
+      "close": "Mbyll dialogun",
+      "success": "Pëlqimi për fotografinë u tërhoq. Nëse kishte një fotografi të ruajtur, ajo u fshi.",
+      "loadError": "Pëlqimet nuk mund të ngarkoheshin. Ju lutemi provoni përsëri.",
+      "retry": "Provo përsëri",
+      "withdrawError": "Pëlqimi për fotografinë nuk mund të tërhiqej. Ju lutemi provoni përsëri."
     }
   },
   "parentMessages": {
