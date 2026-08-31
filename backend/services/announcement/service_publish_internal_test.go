@@ -152,7 +152,7 @@ func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType
 }
 
 func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
-	return NewService(ServiceConfig{
+	svc := NewService(ServiceConfig{
 		Repo:       repo,
 		Settings:   &fakeSettings{enabled: true},
 		Notifier:   &fakeNotifier{},
@@ -160,6 +160,11 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
 	})
+	// The file side of the attachments (#2890): Delete records the cleanup
+	// intents for the attachment bytes through it and refuses to run without
+	// one, so every service under test gets a stub.
+	svc.SetAttachmentPurger(&stubPurger{})
+	return svc
 }
 
 func draftAnnouncement(sendEmail bool) *usersModels.ParentAnnouncement {

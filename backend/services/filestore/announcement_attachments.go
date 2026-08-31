@@ -128,6 +128,10 @@ type AttachmentService interface {
 	// announcement service calls it inside its delete transaction, BEFORE the
 	// rows cascade away: afterwards nothing points at the bytes any more.
 	QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error
+	// CountAttachments reports the live attachments of an announcement. The
+	// announcement service asks at publish time so the e-mail can say that a
+	// file is waiting in the portal.
+	CountAttachments(ctx context.Context, announcementID int64) (int, error)
 	ListDeletedAttachmentsPendingCleanups(ctx context.Context) ([]*filestore.AnnouncementAttachment, error)
 	ListQueuedAttachmentCleanups(ctx context.Context) ([]*filestore.AnnouncementAttachmentCleanup, error)
 
@@ -456,6 +460,16 @@ func (s *service) queueAttachmentCleanup(ctx context.Context, announcementID int
 	cleanup.FilenameStored = storedName
 	cleanup.RetryAfter = retryAfter
 	return s.attachments.QueueFileCleanup(ctx, cleanup)
+}
+
+// CountAttachments runs in the caller's transaction: the announcement service
+// asks inside its publish transaction, where the announcement's tenant is
+// already the active one.
+func (s *service) CountAttachments(ctx context.Context, announcementID int64) (int, error) {
+	if announcementID <= 0 {
+		return 0, fmt.Errorf("%w: announcement id is required", ErrInvalid)
+	}
+	return s.attachments.CountByOwnerID(ctx, announcementID)
 }
 
 func (s *service) ListDeletedAttachmentsPendingCleanups(ctx context.Context) ([]*filestore.AnnouncementAttachment, error) {

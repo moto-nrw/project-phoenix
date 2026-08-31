@@ -723,6 +723,10 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				a.ResponseDeadline.Format("02.01.2006"))
 		}
 	}
+	// Every recipient of this path has portal access by construction
+	// (ResolveAudienceEmails is portal-audience only), so the attachment hint
+	// always points somewhere the reader can go.
+	hasAttachment := s.hasAttachments(ctx, a.ID)
 	queued := 0
 	for _, rcpt := range recipients {
 		// Deliberately NO announcement body here: e-mail is the least trusted
@@ -731,16 +735,17 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
-				emailPayloadRecipient:   rcpt.Email,
-				emailPayloadFirstName:   rcpt.FirstName,
-				emailPayloadLastName:    rcpt.LastName,
-				emailPayloadTitle:       a.Title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   s.parentsURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
+				emailPayloadRecipient:     rcpt.Email,
+				emailPayloadFirstName:     rcpt.FirstName,
+				emailPayloadLastName:      rcpt.LastName,
+				emailPayloadTitle:         a.Title,
+				emailPayloadSchoolName:    schoolName,
+				emailPayloadPortalURL:     s.parentsURL,
+				emailPayloadLogoURL:       logoURL,
+				emailPayloadMotoLogoURL:   motoLogoURL,
+				emailPayloadKicker:        kicker,
+				emailPayloadIntro:         intro,
+				emailPayloadHasAttachment: hasAttachment,
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,

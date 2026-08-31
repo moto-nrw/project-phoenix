@@ -21,6 +21,28 @@ import (
 // communication module never depends on the file storage.
 type AttachmentPurger interface {
 	QueueAttachmentCleanupForAnnouncement(ctx context.Context, announcementID int64) error
+	// CountAttachments reports how many live attachments an announcement has,
+	// so the e-mail can say that a file is waiting in the portal.
+	CountAttachments(ctx context.Context, announcementID int64) (int, error)
+}
+
+// hasAttachments reports whether the announcement carries files, for the
+// e-mail hint. A failure here is logged and read as "no attachment": the mail
+// is a pointer to the portal either way, and a missing sentence must never
+// stop an Elternbrief from going out.
+func (s *service) hasAttachments(ctx context.Context, announcementID int64) bool {
+	if s.attachments == nil {
+		return false
+	}
+	count, err := s.attachments.CountAttachments(ctx, announcementID)
+	if err != nil {
+		s.logger.Warn("announcement attachment count failed, mail omits the attachment hint",
+			"announcement_id", announcementID,
+			"error", err,
+		)
+		return false
+	}
+	return count > 0
 }
 
 // AttachmentSupport is what the file storage and the composition root need

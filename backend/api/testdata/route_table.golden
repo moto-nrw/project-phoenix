@@ -9,6 +9,7 @@ DELETE /api/activities/{id}/schedules/{scheduleId}
 DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
+DELETE /api/announcement-attachments/{announcementId}/{attachmentId}
 DELETE /api/calendar/appointments/{appointmentId}
 DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
@@ -149,6 +150,8 @@ GET /api/admin/grade-transitions/suggest
 GET /api/admin/grade-transitions/{id}/
 GET /api/admin/grade-transitions/{id}/history
 GET /api/admin/grade-transitions/{id}/preview
+GET /api/announcement-attachments/{announcementId}
+GET /api/announcement-attachments/{announcementId}/{attachmentId}/download
 GET /api/birthdays/
 GET /api/birthdays/opt-out
 GET /api/calendar/appointments/{appointmentId}
@@ -493,6 +496,8 @@ GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
 GET /operator/stats
 GET /operator/unregistered-tag-scans/
+GET /parent-news-attachments/{announcementId}
+GET /parent-news-attachments/{announcementId}/{attachmentId}/download
 GET /parent-sse/events
 GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId}
 GET /parent/enrollments/{tenantSlug}/profile
@@ -584,6 +589,7 @@ POST /api/activities/{id}/supervisors
 POST /api/admin/grade-transitions/
 POST /api/admin/grade-transitions/{id}/apply
 POST /api/admin/grade-transitions/{id}/revert
+POST /api/announcement-attachments/{announcementId}
 POST /api/birthdays/staff-export
 POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
