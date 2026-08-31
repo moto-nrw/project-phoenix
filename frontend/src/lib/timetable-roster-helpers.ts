@@ -1,5 +1,12 @@
 import type { TimetableRosterRow } from "./timetable-operations-types";
 
+const berlinTimeFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Berlin",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 /**
  * Expected arrival ("HH:MM") of an `arrival_after_slot_start` warning that is
  * still ahead of `now`, else null. The zero-padded wall-clock strings compare
@@ -10,9 +17,7 @@ export function upcomingArrivalTime(
   warnings: TimetableRosterRow["warnings"] | undefined,
   now: Date,
 ): string | null {
-  const nowClock = `${String(now.getHours()).padStart(2, "0")}:${String(
-    now.getMinutes(),
-  ).padStart(2, "0")}`;
+  const nowClock = berlinTimeFormatter.format(now);
   for (const warning of warnings ?? []) {
     if (warning.kind !== "arrival_after_slot_start") continue;
     if (warning.expectedArrival && warning.expectedArrival > nowClock) {

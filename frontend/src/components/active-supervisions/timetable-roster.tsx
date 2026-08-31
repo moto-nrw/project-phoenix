@@ -255,14 +255,18 @@ function TimetableRosterStudentRow({
   // A still-upcoming arrival gets the concrete time instead of the backend's
   // warning sentence; once the time has passed the child is simply expected
   // and the stale sentence would only add noise (#2878). A child who already
-  // arrived early carries no arrival line either — "Kommt um 13:45 Uhr" under
-  // "Anwesend" would contradict the list it stands in. Every other planning
-  // warning keeps its message — the preview showed it, so the started view
-  // must not lose it. An arrival warning without a time cannot be replaced by
-  // a time, so its message stays too.
-  const arrivalTime = row.currentlyPresent
-    ? null
-    : upcomingArrivalTime(row.warnings, now);
+  // arrived early, is absent, or has already departed carries no arrival line
+  // — "Kommt um 13:45 Uhr" would contradict the list it stands in. Every
+  // other planning warning keeps its message — the preview showed it, so the
+  // started view must not lose it. An arrival warning without a time cannot be
+  // replaced by a time, so its message stays too.
+  const arrivalTime =
+    row.planned &&
+    !row.currentlyPresent &&
+    row.status === "expected" &&
+    isCareDayExpected(row.careDayStatus)
+      ? upcomingArrivalTime(row.warnings, now)
+      : null;
   const planningNotes = (row.warnings ?? []).filter(
     (warning) =>
       warning.kind !== "arrival_after_slot_start" || !warning.expectedArrival,

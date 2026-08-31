@@ -275,6 +275,29 @@ describe("TimetableRosterContent late arrivals", () => {
     expect(screen.queryByText("Kommt später")).not.toBeInTheDocument();
   });
 
+  it("does not show an arrival line for rows that are no longer expected", () => {
+    vi.setSystemTime(new Date("2026-08-31T11:00:00Z"));
+    renderRoster(
+      roster(
+        [
+          rosterRow("3", "Abwesend Kind", null, {
+            warnings: arrivalWarning("13:45"),
+            status: "absent",
+          }),
+          rosterRow("4", "Gegangen Kind", null, {
+            warnings: arrivalWarning("13:45"),
+            status: "present",
+            visitId: "10",
+          }),
+        ],
+        true,
+      ),
+      true,
+    );
+
+    expect(screen.queryByText("Kommt um 13:45 Uhr")).not.toBeInTheDocument();
+  });
+
   it("keeps other planning warnings visible in the started view", () => {
     vi.setSystemTime(new Date(2026, 7, 31, 13, 0));
     renderRoster(

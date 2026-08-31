@@ -34,7 +34,9 @@ function arrivalWarnings(
 
 describe("upcomingArrivalTime", () => {
   const at = (hours: number, minutes: number) =>
-    new Date(2026, 7, 31, hours, minutes);
+    new Date(
+      `2026-08-31T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00+02:00`,
+    );
 
   it("returns the expected arrival while it is still ahead", () => {
     expect(upcomingArrivalTime(arrivalWarnings("13:45"), at(13, 0))).toBe(
@@ -67,5 +69,15 @@ describe("upcomingArrivalTime", () => {
         at(13, 0),
       ),
     ).toBeNull();
+  });
+
+  it("uses the Berlin clock instead of the browser clock", () => {
+    // 13:00 in Berlin, but 06:00 in Chicago on the same instant.
+    expect(
+      upcomingArrivalTime(
+        arrivalWarnings("13:45"),
+        new Date("2026-08-31T11:00:00Z"),
+      ),
+    ).toBe("13:45");
   });
 });
