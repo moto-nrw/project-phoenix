@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/architecture"
@@ -23,6 +24,7 @@ func main() {
 	dependencies := architecture.CLIDependencies{
 		IssueClient: issueHTTPClient{inner: &http.Client{Timeout: 15 * time.Second}},
 		Getenv:      os.Getenv,
+		ProjectRoot: filepath.Dir(project),
 	}
 	if err := architecture.RunCLI(os.Args[1:], dependencies); err != nil {
 		fmt.Fprintln(os.Stderr, err)
