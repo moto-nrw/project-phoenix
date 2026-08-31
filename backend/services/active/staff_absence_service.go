@@ -471,6 +471,15 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
 		return nil, ErrManagerControlledAbsence
 	}
+	if req.AbsenceTypeID != nil && s.absenceTypes != nil {
+		absenceType, err := s.absenceTypes.GetAbsenceType(ctx, *req.AbsenceTypeID)
+		if err != nil {
+			return nil, err
+		}
+		if absenceType.AllowanceEnabled {
+			return nil, ErrManagerControlledAbsence
+		}
+	}
 	return s.CreateAbsenceFor(ctx, staffID, staffID, actorAccountID, req)
 }
 
@@ -504,6 +513,13 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
 		return nil, err
+	}
+	if req.AbsenceTypeID != nil {
+		if _, err := s.absenceTypes.PreviewAllowanceBooking(
+			ctx, subjectStaffID, *req.AbsenceTypeID, dateStart, dateEnd, req.HalfDay,
+		); err != nil {
+			return nil, err
+		}
 	}
 
 	// Check for overlapping absences, merge if same type, reject if different type.
@@ -1000,6 +1016,9 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own absences")
 	}
+	if err := s.rejectManagerControlledCustomUpdate(ctx, absence, req); err != nil {
+		return nil, err
+	}
 	if absence.AbsenceType == activeModels.AbsenceTypeCompTime ||
 		(req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeCompTime) {
 		return nil, ErrManagerControlledAbsence
@@ -1075,6 +1094,36 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 
 	s.broadcastTimeTrackingChanged(ctx)
 	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
+}
+
+func (s *staffAbsenceService) rejectManagerControlledCustomUpdate(ctx context.Context, current *activeModels.StaffAbsence, req UpdateAbsenceRequest) error {
+	if s.absenceTypes == nil {
+		return nil
+	}
+	ids := []*int64{current.AbsenceTypeID}
+	if req.AbsenceTypeIDSet || req.AbsenceTypeID != nil {
+		ids = append(ids, req.AbsenceTypeID)
+	}
+	for _, id := range ids {
+		if err := s.rejectManagerControlledCustomType(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) rejectManagerControlledCustomType(ctx context.Context, id *int64) error {
+	if id == nil || s.absenceTypes == nil {
+		return nil
+	}
+	absenceType, err := s.absenceTypes.GetAbsenceType(ctx, *id)
+	if err != nil {
+		return err
+	}
+	if absenceType.AllowanceEnabled {
+		return ErrManagerControlledAbsence
+	}
+	return nil
 }
 
 func validateAbsenceUpdate(absence *activeModels.StaffAbsence, req UpdateAbsenceRequest) error {
@@ -1210,6 +1259,11 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	}
 	if absence.AbsenceType == activeModels.AbsenceTypeCompTime && !allowManagerControlled {
 		return ErrManagerControlledAbsence
+	}
+	if !allowManagerControlled {
+		if err := s.rejectManagerControlledCustomType(ctx, absence.AbsenceTypeID); err != nil {
+			return err
+		}
 	}
 	if isVacationWorkflowAbsence(absence) {
 		return fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")

@@ -643,6 +643,19 @@ func newFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, me
 	// service so it can be injected there and resolve custom names on both the
 	// write path (which base type an art inherits) and the read paths.
 	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
+	if allowanceAware, ok := staffAbsenceTypeService.(interface {
+		SetAllowanceRepositories(
+			activeModels.StaffAbsenceTypeAllowanceRepository,
+			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
+			activeModels.StaffAbsenceRepository,
+		)
+	}); ok {
+		allowanceAware.SetAllowanceRepositories(
+			repos.StaffAbsenceTypeAllowance,
+			repos.StaffAbsenceTypeAllowanceChange,
+			repos.StaffAbsence,
+		)
+	}
 	if typeAware, ok := workSessionService.(interface {
 		SetAbsenceTypeService(active.StaffAbsenceTypeService)
 	}); ok {
