@@ -37,10 +37,11 @@ func (f *overviewFixture) newWorkSessionService() active.WorkSessionService {
 	// reading export rows.
 	return active.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit,
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.Staff,
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff,
 		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
 		nil,
 		nil,
+		f.db,
 	)
 }
 

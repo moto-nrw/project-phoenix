@@ -28,7 +28,7 @@ export function RoomHistorySkeleton() {
         {Array.from({ length: 2 }, (_, i) => (
           <div
             key={i}
-            className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm"
+            className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm"
           >
             <div className="p-4 sm:p-6">
               <div className="mb-3 space-y-1.5">
@@ -41,7 +41,7 @@ export function RoomHistorySkeleton() {
         ))}
       </div>
 
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
           <Skeleton className="h-5 w-48 rounded" />
           <Skeleton className="mt-1.5 h-3 w-56 rounded" />

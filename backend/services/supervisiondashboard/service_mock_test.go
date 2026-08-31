@@ -38,6 +38,7 @@ type mockActiveService struct {
 	getTrackingIndicatorsFn    func(studentIDs []int64, labels []string) (map[int64][]bool, error)
 	getActiveGroupVisitsFn     func(activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error)
 	getAttendanceStatusesFn    func(studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
+	getStaffSupervisionsFn     func(staffID int64) ([]*activeModels.GroupSupervisor, error)
 }
 
 func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOptions) ([]*activeModels.Group, error) {
@@ -66,6 +67,10 @@ func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, a
 
 func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error) {
 	return m.getAttendanceStatusesFn(studentIDs)
+}
+
+func (m *mockActiveService) GetStaffActiveSupervisions(_ context.Context, staffID int64) ([]*activeModels.GroupSupervisor, error) {
+	return m.getStaffSupervisionsFn(staffID)
 }
 
 type mockUserContextService struct {
@@ -280,13 +285,18 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 				13: {Model: base.Model{ID: 13}, RoomID: 22, Room: &facilitiesModels.Room{Model: base.Model{ID: 22}, Name: "Adler"}},
 			}, nil
 		},
+		getStaffSupervisionsFn: func(staffID int64) ([]*activeModels.GroupSupervisor, error) {
+			assert.Equal(t, int64(91), staffID)
+			return []*activeModels.GroupSupervisor{{GroupID: 12}}, nil
+		},
 	}
 	settings := &configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return configModel.OverviewScopeAdmins, nil
 	}}
 	svc := &service{deps: Dependencies{Active: active, Settings: settings}}
 
-	groups, err := svc.resolveGroups(ctx)
+	staffID := int64(91)
+	groups, err := svc.resolveGroups(ctx, &staffID)
 	require.NoError(t, err)
 	require.Len(t, groups, 3)
 	assert.Equal(t, "Adler", groups[0].RoomName)
@@ -295,9 +305,13 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 	assert.Equal(t, &color, groups[2].RoomColor)
 	assert.Equal(t, "Malen", groups[2].Name)
 	assert.Equal(t, "Adler", groups[0].Name)
+	assert.True(t, groups[0].IsCurrentUserSupervising)
+	assert.False(t, groups[1].IsCurrentUserSupervising)
+	assert.True(t, groups[0].CanAssign)
+	assert.True(t, groups[1].CanAssign)
 
 	active.listActiveGroupsFn = func() ([]*activeModels.Group, error) { return nil, errors.New("boom") }
-	_, err = svc.resolveGroups(ctx)
+	_, err = svc.resolveGroups(ctx, &staffID)
 	require.ErrorContains(t, err, "load active groups")
 }
 
@@ -311,7 +325,7 @@ func TestResolveGroupsSupervisedErrors(t *testing.T) {
 		return nil, errors.New("boom")
 	}}
 	svc := &service{deps: Dependencies{UserContext: userContext, Settings: settings}}
-	_, err := svc.resolveGroups(ctx)
+	_, err := svc.resolveGroups(ctx, nil)
 	require.ErrorContains(t, err, "load supervised groups")
 
 	userContext.getMySupervisedGroupsFn = func() ([]*activeModels.Group, error) {
@@ -320,8 +334,33 @@ func TestResolveGroupsSupervisedErrors(t *testing.T) {
 	svc.deps.Active = &mockActiveService{getRoomsByIDsFn: func([]int64) ([]*facilitiesModels.Room, error) {
 		return nil, errors.New("boom")
 	}}
-	_, err = svc.resolveGroups(ctx)
+	_, err = svc.resolveGroups(ctx, nil)
 	require.ErrorContains(t, err, "bulk load rooms")
+}
+
+func TestResolveGroupsMarksEveryPersonalGroupAsOwn(t *testing.T) {
+	t.Parallel()
+
+	userContext := &mockUserContextService{getMySupervisedGroupsFn: func() ([]*activeModels.Group, error) {
+		return []*activeModels.Group{{Model: base.Model{ID: 11}}, {Model: base.Model{ID: 12}}}, nil
+	}}
+	svc := &service{deps: Dependencies{
+		Active: &mockActiveService{getRoomsByIDsFn: func([]int64) ([]*facilitiesModels.Room, error) {
+			return nil, nil
+		}},
+		UserContext: userContext,
+		Settings:    &configtest.Mock{},
+	}}
+	staffID := int64(91)
+
+	groups, err := svc.resolveGroups(context.Background(), &staffID)
+
+	require.NoError(t, err)
+	require.Len(t, groups, 2)
+	assert.True(t, groups[0].IsCurrentUserSupervising)
+	assert.True(t, groups[1].IsCurrentUserSupervising)
+	assert.True(t, groups[0].CanAssign)
+	assert.True(t, groups[1].CanAssign)
 }
 
 func TestLoadStaticSectionsBranches(t *testing.T) {

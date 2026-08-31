@@ -215,7 +215,7 @@ function StudentChangeHistoryPageContent() {
         />
       )}
 
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
           <ConceptSectionHeader
             title="Änderungsverlauf"

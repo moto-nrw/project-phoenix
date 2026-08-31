@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -35,19 +36,26 @@ type StaffLockStore interface {
 	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Staff, error)
 }
 
+type ActiveSupervisorCreator interface {
+	CreateGroupSupervisor(context.Context, *activeModels.GroupSupervisor) error
+}
+
 type SubstitutionDependencies struct {
-	Groups        GroupStore
-	Substitutions GroupHandoverStore
-	Teachers      userModels.TeacherRepository
-	Staff         StaffLockStore
-	Actors        ActorResolver
-	Audit         auditModels.SubstitutionChangeCreator
-	DB            *bun.DB
-	Broadcaster   realtime.Broadcaster
-	Logger        *slog.Logger
-	Now           func() time.Time
-	CanSeeAll     func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
-	Schedule      ScheduleSubstitutionAdapter
+	Groups                  GroupStore
+	Substitutions           GroupHandoverStore
+	Teachers                userModels.TeacherRepository
+	Staff                   StaffLockStore
+	Actors                  ActorResolver
+	Audit                   auditModels.SubstitutionChangeCreator
+	DB                      *bun.DB
+	Broadcaster             realtime.Broadcaster
+	Logger                  *slog.Logger
+	Now                     func() time.Time
+	CanSeeAll               func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
+	Schedule                ScheduleSubstitutionAdapter
+	ActiveGroups            activeModels.GroupRepository
+	ActiveSupervisors       activeModels.GroupSupervisorRepository
+	ActiveSupervisorCreator ActiveSupervisorCreator
 }
 
 type substitutionModule struct {
@@ -113,7 +121,12 @@ func (s *substitutionModule) groupOverview(ctx context.Context, caller Substitut
 	if !broad && query.GroupID > 0 && !canViewGroup(access, rows, query.GroupID) {
 		return nil, ErrNotFound
 	}
-	return s.projectOverview(ctx, caller.TenantID, access, rows, query.IncludeTargets)
+	result, err := s.projectOverview(ctx, caller.TenantID, access, rows, query.IncludeTargets)
+	if err != nil {
+		return nil, err
+	}
+	result.RunningSupervisions, err = s.listRunningSupervisions(ctx, access, query, broad, result.Targets)
+	return result, err
 }
 
 func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (substitutionAccess, bool, []int64, timezone.Date, error) {
@@ -121,10 +134,7 @@ func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller Subs
 	if err != nil {
 		return access, false, nil, timezone.Date{}, err
 	}
-	broad := false
-	if s.deps.CanSeeAll != nil {
-		broad, err = s.deps.CanSeeAll(ctx, caller.Scope == "school", access.admin, access.actor != nil)
-	}
+	broad, err := s.canSeeAll(ctx, caller, access)
 	today := timezone.DateFromTime(s.deps.Now())
 	visibleGroupIDs := access.ownedGroupIDs
 	if err == nil && !broad && query.GroupID == 0 {
@@ -135,13 +145,13 @@ func (s *substitutionModule) groupOverviewScope(ctx context.Context, caller Subs
 
 func emptyOverview() *OverviewResult {
 	return &OverviewResult{
-		GroupHandovers: []GroupHandover{}, Targets: []StaffRef{},
+		GroupHandovers: []GroupHandover{}, Targets: []StaffRef{}, RunningSupervisions: []RunningSupervision{},
 		ScheduleAppointments: []ScheduleAppointmentOverview{}, ScheduleTargets: []StaffRef{},
 	}
 }
 
 func validateOverviewQuery(query OverviewQuery, admin bool, today timezone.Date) error {
-	if query.GroupID < 0 {
+	if query.GroupID < 0 || query.ActiveGroupID < 0 {
 		return ErrInvalidTarget
 	}
 	if !admin && query.On != nil && *query.On != today {
@@ -209,10 +219,13 @@ func canViewGroup(access substitutionAccess, rows []*educationModels.GroupSubsti
 }
 
 func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCaller, assignment Assignment) (*AssignmentResult, error) {
+	if assignment.Type == TargetAdditionalSupervision && assignment.AdditionalSupervision != nil && assignment.GroupHandover == nil {
+		return s.assignAdditionalSupervision(ctx, caller, assignment.AdditionalSupervision)
+	}
 	if assignment.Type == TargetScheduleSubstitution {
 		return s.assignScheduleSubstitution(ctx, caller, assignment.ScheduleSubstitution)
 	}
-	if assignment.Type != TargetGroupHandover || assignment.GroupHandover == nil {
+	if assignment.Type != TargetGroupHandover || assignment.GroupHandover == nil || assignment.AdditionalSupervision != nil {
 		return nil, ErrInvalidTarget
 	}
 	request := assignment.GroupHandover
@@ -234,7 +247,7 @@ func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCall
 		return nil, ErrInvalidTarget
 	}
 
-	var result GroupHandover
+	var result AssignmentResult
 	err = s.tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
 		created, group, target, createErr := s.assignLocked(txCtx, caller, access, request, start, end)
 		if createErr == nil {
@@ -246,7 +259,7 @@ func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCall
 		return nil, err
 	}
 	realtime.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
-	return &AssignmentResult{GroupHandover: &result}, nil
+	return &result, nil
 }
 
 func (s *substitutionModule) assignScheduleSubstitution(ctx context.Context, caller SubstitutionCaller, assignment *ScheduleSubstitutionAssignment) (*AssignmentResult, error) {
@@ -378,6 +391,16 @@ func notifyScheduleChange(ctx context.Context, result *ScheduleSubstitutionResul
 	if result != nil && result.AfterCommit != nil {
 		result.AfterCommit(ctx)
 	}
+}
+
+func (s *substitutionModule) canSeeAll(ctx context.Context, caller SubstitutionCaller, access substitutionAccess) (bool, error) {
+	if access.admin {
+		return true, nil
+	}
+	if s.deps.CanSeeAll == nil {
+		return false, nil
+	}
+	return s.deps.CanSeeAll(ctx, caller.Scope == "school", false, access.actor != nil)
 }
 
 func (s *substitutionModule) endLocked(ctx context.Context, caller SubstitutionCaller, access substitutionAccess, id int64) error {
@@ -596,19 +619,21 @@ func project(row *educationModels.GroupSubstitution, canEnd bool) GroupHandover 
 	return result
 }
 
-func projectAssignment(row *educationModels.GroupSubstitution, group *educationModels.Group, target *userModels.ActiveCaregiver) GroupHandover {
-	return GroupHandover{
+func projectAssignment(row *educationModels.GroupSubstitution, group *educationModels.Group, target *userModels.ActiveCaregiver) AssignmentResult {
+	period := &Period{StartDate: row.StartDate.String(), EndDate: row.EndDate.String()}
+	return AssignmentResult{
 		ID: row.ID, Type: TargetGroupHandover, CanEnd: true,
-		Period: Period{StartDate: row.StartDate.String(), EndDate: row.EndDate.String()},
-		Group:  GroupRef{ID: group.ID, Name: group.Name},
+		Period: period,
+		Group:  &GroupRef{ID: group.ID, Name: group.Name},
 		Target: StaffRef{ID: target.StaffID, FullName: target.FullName()},
 	}
 }
 
 func auditChange(row *educationModels.GroupSubstitution, actorID int64, action string) *auditModels.SubstitutionChange {
+	endDate := row.EndDate
 	return &auditModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
-		StartDate: row.StartDate, EndDate: row.EndDate}
+		StartDate: row.StartDate, EndDate: &endDate}
 }
 
 func contains(ids []int64, id int64) bool {

@@ -144,6 +144,6 @@ type StudentFieldEditRepository interface {
 	CountOlderThanByStudent(ctx context.Context, cutoff time.Time) (map[int64]int, error)
 
 	// DeleteOlderThan removes all edit rows created strictly before cutoff and
-	// returns the number deleted. Tenant-scoped via RLS on the caller's tx.
+	// returns the number deleted through the tenant-bound retention capability.
 	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error)
 }

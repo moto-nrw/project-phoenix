@@ -35,7 +35,7 @@ import { StudentsInRoomSection } from "./students-in-room-section";
 
 const logger = createLogger({ component: "RoomDetailContent" });
 const DETAIL_CARD_CLASS =
-  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
+  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
 
 interface Room {
   id: string;
@@ -555,7 +555,7 @@ export function RoomDetailContent({
                       return (
                         <div
                           key={session.sessionId}
-                          className="rounded-2xl border border-gray-100 bg-white p-4 transition-shadow hover:shadow-md"
+                          className="rounded-xl border border-gray-100 bg-white p-4 transition-shadow hover:shadow-md"
                         >
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <h4 className="font-medium text-gray-900">
