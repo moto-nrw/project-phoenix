@@ -53,6 +53,9 @@ var unmappedDateColumns = map[string]string{
 	// type the restore does not need.
 	"users.student_care_exit_removals.valid_from":           "care-exit ledger, copied column-to-column in SQL — no model struct",
 	"users.student_care_exit_removals.previous_valid_until": "care-exit ledger, copied column-to-column in SQL — no model struct",
+	// Meal-plan persistence uses an adapter-local row with timezone.Date. The
+	// scanner intentionally only inspects models/, so it cannot discover it.
+	"schedule.meal_plan_entries.date": "meal-plan Postgres adapter-local row uses timezone.Date — no models/ struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a
