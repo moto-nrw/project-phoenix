@@ -28,7 +28,8 @@ func TestSessionStartLocker_AcquiresTransactionLock(t *testing.T) {
 func TestSessionStartLocker_ReleasesLockOnRollback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	locker := repoActive.NewSessionStartLocker(db)
-	tenantID, activityID := testpkg.Tenant(t), int64(73)
+	activity := testpkg.CreateTestActivityGroup(t, db, "session-start-lock-rollback")
+	tenantID, activityID := testpkg.Tenant(t), activity.ID
 
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
