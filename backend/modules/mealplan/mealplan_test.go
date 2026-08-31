@@ -12,7 +12,6 @@ type recordingEngine struct {
 	available bool
 	entries   []mealplan.Entry
 	replaced  mealplan.ReplaceDay
-	cleared   mealplan.Date
 }
 
 func (e *recordingEngine) Available(context.Context) (bool, error) { return e.available, nil }

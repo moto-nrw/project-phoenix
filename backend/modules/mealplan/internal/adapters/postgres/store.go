@@ -15,7 +15,7 @@ type Database func(context.Context) (bun.IDB, int64, error)
 type Store struct{ database Database }
 
 type row struct {
-	bun.BaseModel `bun:"schema:schedule,table:meal_plan_entries,alias:meal_plan_entry"`
+	bun.BaseModel `bun:"table:meal_plan_entries,alias:meal_plan_entry"`
 	TenantID      int64         `bun:"tenant_id"`
 	Date          timezone.Date `bun:"date,type:date"`
 	Position      int           `bun:"position"`
@@ -37,6 +37,7 @@ func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.
 	}
 	var rows []row
 	err = db.NewSelect().Model(&rows).
+		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
 		Where(`"meal_plan_entry".date >= ?`, start).
 		Where(`"meal_plan_entry".date <= ?`, end).
 		OrderExpr(`"meal_plan_entry".date ASC`).
@@ -68,7 +69,7 @@ func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []domai
 		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note})
 	}
 	started = time.Now()
-	result, err := db.NewInsert().Model(&rows).Exec(ctx)
+	result, err := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_plan_entries`).Exec(ctx)
 	lockWait += time.Since(started)
 	if err != nil {
 		return deleted, 2, lockWait, fmt.Errorf("meal plan postgres: insert day: %w", err)
@@ -91,7 +92,10 @@ func (s *Store) ClearDay(ctx context.Context, date domain.Date) (int64, int64, t
 }
 
 func deleteDay(ctx context.Context, db bun.IDB, date domain.Date) (int64, error) {
-	result, err := db.NewDelete().Model((*row)(nil)).Where("date = ?", date).Exec(ctx)
+	result, err := db.NewDelete().Model((*row)(nil)).
+		ModelTableExpr(`schedule.meal_plan_entries AS "meal_plan_entry"`).
+		Where(`"meal_plan_entry".date = ?`, date).
+		Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("meal plan postgres: delete day: %w", err)
 	}
