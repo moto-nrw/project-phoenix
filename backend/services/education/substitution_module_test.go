@@ -388,6 +388,7 @@ func TestGroupHandoverExternalInterface(t *testing.T) {
 
 	overview, err := service.Overview(ctx, caller, substitution.OverviewQuery{GroupID: group.ID, IncludeTargets: true})
 	require.NoError(t, err)
+	require.Equal(t, []substitution.GroupRef{{ID: group.ID, Name: group.Name}}, overview.Groups)
 	require.Len(t, overview.GroupHandovers, 1)
 	require.True(t, overview.GroupHandovers[0].CanEnd)
 	require.Contains(t, overview.Targets, substitution.StaffRef{ID: target.StaffID, FullName: "Toni Target"})
@@ -499,8 +500,12 @@ func TestGroupHandoverPermissionsAndPeriod(t *testing.T) {
 
 	regularStaffID := owner.StaffID
 	legacy := testpkg.CreateTestGroupSubstitution(t, db, foreign.ID, &regularStaffID, target.StaffID, tomorrow, tomorrow)
-	adminOverview, err := service.Overview(ctx, adminCaller, substitution.OverviewQuery{On: &tomorrow})
+	adminOverview, err := service.Overview(ctx, adminCaller, substitution.OverviewQuery{On: &tomorrow, IncludeTargets: true})
 	require.NoError(t, err)
+	require.ElementsMatch(t, []substitution.GroupRef{
+		{ID: owned.ID, Name: owned.Name},
+		{ID: foreign.ID, Name: foreign.Name},
+	}, adminOverview.Groups)
 	for _, handover := range adminOverview.GroupHandovers {
 		require.NotEqual(t, legacy.ID, handover.ID)
 	}
@@ -535,8 +540,9 @@ func TestGroupHandoverAllStaffVisibilityDoesNotGrantActions(t *testing.T) {
 	require.NoError(t, err)
 
 	observerCaller := substitutionCaller(t, observerAccountID, false)
-	overview, err := service.Overview(ctx, observerCaller, substitution.OverviewQuery{GroupID: group.ID})
+	overview, err := service.Overview(ctx, observerCaller, substitution.OverviewQuery{GroupID: group.ID, IncludeTargets: true})
 	require.NoError(t, err)
+	require.Empty(t, overview.Groups, "school-wide visibility must not grant group handover actions")
 	require.Len(t, overview.GroupHandovers, 1)
 	require.False(t, overview.GroupHandovers[0].CanEnd)
 

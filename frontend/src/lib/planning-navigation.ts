@@ -47,7 +47,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
   },
   {
     href: "/vertretung",
-    label: "Vertretung",
+    label: "Terminvertretungen",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
   },

@@ -167,6 +167,45 @@ describe("substitutionService", () => {
     });
   });
 
+  it("loads the central overview through one module request", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          groups: [{ id: "12", name: "Robins Gruppe" }],
+          group_handovers: [handover],
+          targets: [{ id: "34", full_name: "Toni Test" }],
+          running_supervisions: [
+            {
+              id: "41",
+              type: "additional_supervision",
+              name: "Freispiel",
+              room_name: "Atelier",
+              supervisors: [{ id: "11", full_name: "Alex Alt" }],
+              available_targets: [{ id: "73", full_name: "Nora Neu" }],
+              is_current_user_supervising: true,
+              can_assign: true,
+            },
+          ],
+        },
+      }),
+    });
+
+    const result = await substitutionService.fetchOverview();
+
+    expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions", {
+      credentials: "include",
+    });
+    expect(result.groups).toEqual([{ id: "12", name: "Robins Gruppe" }]);
+    expect(result.groupHandovers[0]?.id).toBe("5");
+    expect(result.targets).toEqual([{ id: "34", fullName: "Toni Test" }]);
+    expect(result.runningSupervisions[0]).toMatchObject({
+      id: "41",
+      roomName: "Atelier",
+      canAssign: true,
+    });
+  });
+
   it("rejects a malformed overview instead of showing an empty plan", async () => {
     sessionFetch.mockResolvedValue({
       ok: true,

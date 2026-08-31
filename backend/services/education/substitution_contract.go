@@ -70,6 +70,7 @@ type GroupHandover struct {
 
 type OverviewResult struct {
 	GroupHandovers       []GroupHandover               `json:"group_handovers"`
+	Groups               []GroupRef                    `json:"groups"`
 	Targets              []StaffRef                    `json:"targets"`
 	ScheduleAppointments []ScheduleAppointmentOverview `json:"schedule_appointments"`
 	ScheduleTargets      []StaffRef                    `json:"schedule_targets"`
