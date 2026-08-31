@@ -200,6 +200,8 @@ func applyViperTestConfig() {
 	viper.Set("db_debug", false) // Set to true for SQL debugging
 	viper.Set("db_max_open_conns", poolSize())
 	viper.Set("db_max_idle_conns", poolSize())
+	viper.Set("db_conn_max_lifetime", "5m")
+	viper.Set("db_conn_max_idle_time", "1m")
 }
 
 func applyStaticViperTestConfig() {
