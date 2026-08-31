@@ -3084,18 +3084,20 @@ func TestAbsEmails_SettingDisabled_NoSend(t *testing.T) {
 }
 
 // ============================================================================
-// comp_time overdraft guard (#1420 review)
+// comp_time Stundenkonto-Projektion (#2873) — the former overdraft guard
+// (#1420 review) is gone: a Leitung may deliberately book Freizeitausgleich
+// into a negative balance. The service only projects the effect.
 // ============================================================================
 
 // absMonthServiceMock stubs the WorkTimeMonthService reads the comp_time
-// overdraft guard performs; every other method panics via the nil embed.
+// preview performs; every other method panics via the nil embed.
 type absMonthServiceMock struct {
 	WorkTimeMonthService
-	capacity       int
-	capacityDate   timezone.Date
-	deduction      int
-	deductions     []int
-	deductionCalls int
+	closingBalance   int
+	futureCommitment int
+	deduction        int
+	deductions       []int
+	deductionCalls   int
 }
 
 func (m *absMonthServiceMock) GetCompTimeDeductionMinutes(context.Context, int64, timezone.Date, timezone.Date, bool) (int, error) {
@@ -3107,37 +3109,69 @@ func (m *absMonthServiceMock) GetCompTimeDeductionMinutes(context.Context, int64
 	return m.deduction, nil
 }
 
-func (m *absMonthServiceMock) GetBalanceReductionCapacity(_ context.Context, _ int64, effectiveDate timezone.Date) (int, error) {
-	m.capacityDate = effectiveDate
-	return m.capacity, nil
+func (m *absMonthServiceMock) GetClosingBalanceAsOf(context.Context, int64, timezone.Date) (int, error) {
+	return m.closingBalance, nil
 }
 
-// A multi-day comp_time absence deducting more daily-target minutes than the
-// Stundenkonto has accrued must be rejected — the same overdraft guard the
-// payout/comp-time adjustments enforce.
-func TestAbsCreateAbsenceFor_RejectsCompTimeAboveBalance(t *testing.T) {
+func (m *absMonthServiceMock) GetFutureCompTimeCommitmentMinutes(context.Context, int64) (int, error) {
+	return m.futureCommitment, nil
+}
+
+// #2873: a comp_time absence deducting more daily-target minutes than the
+// Stundenkonto holds is created anyway — the balance goes negative, the
+// Leitung confirmed the projection in the frontend.
+func TestAbsCreateAbsenceFor_AllowsCompTimeAboveBalance(t *testing.T) {
 	t.Parallel()
 
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	svc.monthService = &absMonthServiceMock{capacity: 480, deduction: 960}
-	createCalled := false
-	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
-		createCalled = true
+	svc.monthService = &absMonthServiceMock{closingBalance: 480, deduction: 960}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 89
 		return nil
 	}
 
-	start := timezone.TodayDate().AddDays(1)
-	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+	start := timezone.NewDate(2026, 8, 25)
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
 		AbsenceType: activeModels.AbsenceTypeCompTime,
 		DateStart:   start.String(),
 		DateEnd:     start.AddDays(1).String(),
-		Note:        "Freizeitausgleich",
+		Note:        "Freizeitausgleich trotz Minus",
 	})
 
-	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
-	assert.False(t, createCalled)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(89), result.ID)
 	assert.Empty(t, syncer.markCalls)
+}
+
+// #2873: an already negative Stundenkonto does not block a further half-day
+// Freizeitausgleich either.
+func TestAbsCreateAbsenceFor_AllowsHalfDayCompTimeWithExistingDeficit(t *testing.T) {
+	t.Parallel()
+
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{closingBalance: -300, deduction: 240}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 93
+		return nil
+	}
+
+	day := timezone.NewDate(2026, 8, 24)
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   day.String(),
+		DateEnd:     day.String(),
+		HalfDay:     true,
+		Note:        "Halber Freizeitausgleich im Minus",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(93), result.ID)
 }
 
 func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
@@ -3145,7 +3179,7 @@ func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
 
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	svc.monthService = &absMonthServiceMock{capacity: 960, deduction: 960}
+	svc.monthService = &absMonthServiceMock{closingBalance: 960, deduction: 960}
 	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
 		absence.ID = 90
 		return nil
@@ -3170,9 +3204,9 @@ func TestAbsCreateAbsenceFor_AllowsWorkedHalfCoveredByAccruedBalance(t *testing.
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	// The current closing balance is zero after four accrued hours pay for the
-	// four unworked target hours. The half-day deduction is already reflected
-	// in that closing balance and must not be charged a second time.
-	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 240}
+	// four unworked target hours; the half-day deduction is already realized
+	// in that closing balance.
+	svc.monthService = &absMonthServiceMock{closingBalance: 0, deduction: 240}
 	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
 		absence.ID = 91
 		return nil
@@ -3198,9 +3232,9 @@ func TestAbsCreateAbsenceFor_AllowsFullDayCoveredByAccruedBalance(t *testing.T) 
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	// The current closing balance is zero after one accrued day pays for the
-	// unworked target. The full-day deduction is already reflected in that
-	// closing balance and must not be charged a second time.
-	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 480}
+	// unworked target; the full-day deduction is already realized in that
+	// closing balance.
+	svc.monthService = &absMonthServiceMock{closingBalance: 0, deduction: 480}
 	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
 		absence.ID = 92
 		return nil
@@ -3219,97 +3253,17 @@ func TestAbsCreateAbsenceFor_AllowsFullDayCoveredByAccruedBalance(t *testing.T) 
 	assert.Equal(t, int64(92), result.ID)
 }
 
-func TestAbsCreateAbsenceFor_RejectsWorkedHalfWithExistingDeficit(t *testing.T) {
+// #2873: extending an existing comp_time absence via the merge path is not
+// balance-gated either — the merged row persists even when the added part
+// pushes the account below zero.
+func TestAbsCreateAbsenceFor_AllowsCompTimeMergeAboveBalance(t *testing.T) {
 	t.Parallel()
 
 	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	svc.monthService = &absMonthServiceMock{capacity: -1, deduction: 240}
-	createCalled := false
-	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
-		createCalled = true
-		return nil
-	}
-
-	today := timezone.TodayDate()
-	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
-		AbsenceType: activeModels.AbsenceTypeCompTime,
-		DateStart:   today.String(),
-		DateEnd:     today.String(),
-		HalfDay:     true,
-		Note:        "Halber Freizeitausgleich",
-	})
-
-	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
-	assert.False(t, createCalled)
-}
-
-// The timeline capacity includes same-day and later ledger reductions. The
-// shared staff lock serializes both writes, so the second debit must see the
-// first and reject their combined overdraft.
-func TestAbsCreateAbsenceFor_RejectsCompTimeCombinedWithSameDayAdjustment(t *testing.T) {
-	t.Parallel()
-
-	svc, absRepo, _ := absSetupServiceWithSyncer()
-	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	svc.monthService = &absMonthServiceMock{
-		capacity:  360,
-		deduction: 480,
-	}
-	createCalled := false
-	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
-		createCalled = true
-		return nil
-	}
-
-	start := timezone.TodayDate().AddDays(1)
-	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
-		AbsenceType: activeModels.AbsenceTypeCompTime,
-		DateStart:   start.String(),
-		DateEnd:     start.String(),
-		Note:        "Freizeitausgleich",
-	})
-
-	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
-	assert.Contains(t, err.Error(), "only 360 minutes remain available")
-	assert.False(t, createCalled)
-}
-
-// On the account-start day no credit exists to cover the target.
-func TestAbsCreateAbsenceFor_RejectsCompTimeOnAccountStartWithoutAccrual(t *testing.T) {
-	t.Parallel()
-
-	svc, _, _ := absSetupServiceWithSyncer()
-	today := timezone.TodayDate()
-	svc.settings = &wtmMockSettings{accountStart: today.String()}
-	// The day's missing target has already lowered the closing balance to
-	// -480. Adding that realized deduction back leaves no available credit.
-	svc.monthService = &absMonthServiceMock{capacity: -480, deduction: 480}
-
-	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
-		AbsenceType: activeModels.AbsenceTypeCompTime,
-		DateStart:   today.String(),
-		DateEnd:     today.String(),
-		Note:        "Freizeitausgleich",
-	})
-
-	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
-	assert.Contains(t, err.Error(), "only 0 minutes remain available")
-}
-
-// Extending an existing comp_time absence via the merge path must consume
-// capacity only for the newly added part; the existing row is already
-// reserved by the timeline capacity calculation.
-func TestAbsCreateAbsenceFor_RejectsCompTimeMergeAboveBalance(t *testing.T) {
-	t.Parallel()
-
-	svc, absRepo, _ := absSetupServiceWithSyncer()
-	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	svc.monthService = &absMonthServiceMock{
-		capacity:   479,
-		deductions: []int{960, 480},
-	}
-	start := timezone.TodayDate().AddDays(1)
+	svc.monthService = &absMonthServiceMock{closingBalance: 479, deductions: []int{960, 480}}
+	start := timezone.NewDate(2026, 8, 25)
 	existing := &activeModels.StaffAbsence{
 		StaffID:     100,
 		AbsenceType: activeModels.AbsenceTypeCompTime,
@@ -3322,8 +3276,10 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeMergeAboveBalance(t *testing.T) {
 		return []*activeModels.StaffAbsence{existing}, nil
 	}
 	updateCalled := false
-	absRepo.updateFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+	absRepo.updateFunc = func(_ context.Context, updated *activeModels.StaffAbsence) error {
 		updateCalled = true
+		assert.Equal(t, start, updated.DateStart)
+		assert.Equal(t, start.AddDays(1), updated.DateEnd)
 		return nil
 	}
 
@@ -3334,45 +3290,131 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeMergeAboveBalance(t *testing.T) {
 		Note:        "Verlängerung",
 	})
 
-	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
-	assert.False(t, updateCalled, "an overdrafting merge must not persist")
+	require.NoError(t, err)
+	assert.True(t, updateCalled, "the merge must persist despite the overdraft")
 }
 
-func TestAbsCreateAbsenceFor_RejectsCompTimeAgainstLaterLedgerCapacity(t *testing.T) {
+// ============================================================================
+// PreviewCompTimeBalance (#2873)
+// ============================================================================
+
+// A future entry larger than the balance projects negative — informative
+// only, nothing is rejected.
+func TestAbsPreviewCompTimeBalance_ProjectsPositiveToNegative(t *testing.T) {
 	t.Parallel()
 
-	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc, _, _ := absSetupServiceWithSyncer()
 	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	monthService := &absMonthServiceMock{capacity: 300, deduction: 480}
-	svc.monthService = monthService
-	createCalled := false
-	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
-		createCalled = true
-		return nil
-	}
+	svc.monthService = &absMonthServiceMock{closingBalance: 480, deduction: 960}
 
-	start := timezone.NewDate(2026, 8, 24).AddDays(1)
-	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
-		AbsenceType: activeModels.AbsenceTypeCompTime,
-		DateStart:   start.String(),
-		DateEnd:     start.String(),
-		Note:        "Vor späterer Auszahlung",
-	})
+	start := timezone.NewDate(2026, 8, 25)
+	preview, err := svc.PreviewCompTimeBalance(context.Background(), 100, start, start.AddDays(1), false)
 
-	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
-	assert.Equal(t, start, monthService.capacityDate)
-	assert.False(t, createCalled)
+	require.NoError(t, err)
+	assert.Equal(t, 480, preview.CurrentBalanceMinutes)
+	assert.Equal(t, 960, preview.DeductionMinutes)
+	assert.Equal(t, 0, preview.RealizedDeductionMinutes)
+	assert.Equal(t, 0, preview.FutureCommitmentMinutes)
+	assert.Equal(t, -480, preview.ProjectedBalanceMinutes)
 }
 
-// The timeline capacity has no defined result beyond the carry-chain horizon,
-// so far-future comp_time must be a client error, not a 500.
+// Already planned future Freizeitausgleiche lower the projection: the account
+// is already negative once they pass, and the new booking deepens it.
+func TestAbsPreviewCompTimeBalance_IncludesFutureCommitments(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// Two future bookings à 240 minutes are already committed.
+	svc.monthService = &absMonthServiceMock{closingBalance: 300, deduction: 480, futureCommitment: 480}
+
+	start := timezone.NewDate(2026, 8, 28)
+	preview, err := svc.PreviewCompTimeBalance(context.Background(), 100, start, start, false)
+
+	require.NoError(t, err)
+	assert.Equal(t, 300, preview.CurrentBalanceMinutes)
+	assert.Equal(t, 480, preview.DeductionMinutes)
+	assert.Equal(t, 480, preview.FutureCommitmentMinutes)
+	assert.Equal(t, 300-480-480, preview.ProjectedBalanceMinutes)
+}
+
+// Days up to today are already priced into the closing balance; only the
+// future part of the range moves the projection.
+func TestAbsPreviewCompTimeBalance_RealizedDaysDoNotCountTwice(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// First call prices the whole range (960), second the clipped future part
+	// starting tomorrow (480).
+	svc.monthService = &absMonthServiceMock{closingBalance: -100, deductions: []int{960, 480}}
+
+	preview, err := svc.PreviewCompTimeBalance(
+		context.Background(), 100,
+		timezone.NewDate(2026, 8, 23), timezone.NewDate(2026, 8, 25), false,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, -100, preview.CurrentBalanceMinutes)
+	assert.Equal(t, 960, preview.DeductionMinutes)
+	assert.Equal(t, 480, preview.RealizedDeductionMinutes)
+	assert.Equal(t, -580, preview.ProjectedBalanceMinutes)
+}
+
+// Half days use the existing single-date rule and deduction arithmetic.
+func TestAbsPreviewCompTimeBalance_HalfDay(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{closingBalance: 120, deduction: 240}
+
+	day := timezone.NewDate(2026, 8, 25)
+	preview, err := svc.PreviewCompTimeBalance(context.Background(), 100, day, day, true)
+	require.NoError(t, err)
+	assert.Equal(t, 240, preview.DeductionMinutes)
+	assert.Equal(t, -120, preview.ProjectedBalanceMinutes)
+
+	_, err = svc.PreviewCompTimeBalance(context.Background(), 100, day, day.AddDays(1), true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+}
+
+// The preview mirrors the create-side validation errors so the modal shows
+// the same rejections the submit would produce.
+func TestAbsPreviewCompTimeBalance_RejectsInvalidRanges(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := absSetupServiceWithSyncer()
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, 8, 24) }
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{closingBalance: 0, deduction: 480}
+
+	_, err := svc.PreviewCompTimeBalance(
+		context.Background(), 100,
+		timezone.NewDate(2026, 5, 30), timezone.NewDate(2026, 5, 30), false,
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "before the account start")
+
+	farFuture := timezone.NewDate(2027, 10, 24)
+	_, err = svc.PreviewCompTimeBalance(context.Background(), 100, farFuture, farFuture, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "months ahead")
+}
+
+// The carry chain has no defined result beyond its horizon, so far-future
+// comp_time must be a client error, not a 500.
 func TestAbsCreateAbsenceFor_RejectsFarFutureCompTime(t *testing.T) {
 	t.Parallel()
 
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
-	svc.monthService = &absMonthServiceMock{capacity: 10000, deduction: 480}
+	svc.monthService = &absMonthServiceMock{closingBalance: 10000, deduction: 480}
 	createCalled := false
 	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
 		createCalled = true

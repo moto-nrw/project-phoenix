@@ -899,6 +899,25 @@ interface AdminCreateAbsenceBody {
   note?: string;
 }
 
+// Stundenkonto projection for a planned Freizeitausgleich (#2873), shown in
+// the create modal before the Leitung confirms the entry. All values are
+// minutes; the projection may be negative — that informs, it never blocks.
+export interface CompTimeBalancePreview {
+  currentBalanceMinutes: number;
+  deductionMinutes: number;
+  realizedDeductionMinutes: number;
+  futureCommitmentMinutes: number;
+  projectedBalanceMinutes: number;
+}
+
+interface BackendCompTimeBalancePreview {
+  current_balance_minutes: number;
+  deduction_minutes: number;
+  realized_deduction_minutes: number;
+  future_commitment_minutes: number;
+  projected_balance_minutes: number;
+}
+
 class StaffAbsenceService {
   async getAbsences(
     staffId: string,
@@ -1125,15 +1144,45 @@ class StaffAbsenceService {
         response,
         "Krankmeldung fehlgeschlagen",
       );
-      if (error.code === "comp_time_exceeds_balance") {
-        throw new Error(
-          "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
-        );
-      }
       throw new Error(error.message);
     }
     const json = (await response.json()) as { data: StaffAbsenceRow };
     return json.data;
+  }
+
+  // Stundenkonto projection for a planned Freizeitausgleich (#2873):
+  // GET /api/staff/{id}/time-tracking/comp-time-preview. Informative only —
+  // a negative projection triggers a confirmation in the modal, the backend
+  // no longer rejects the create for it.
+  async getCompTimePreview(
+    staffId: string,
+    args: { dateStart: string; dateEnd: string; halfDay: boolean },
+  ): Promise<CompTimeBalancePreview> {
+    const params = new URLSearchParams({
+      date_start: args.dateStart,
+      date_end: args.dateEnd,
+      half_day: String(args.halfDay),
+    });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/comp-time-preview?${params}`,
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(
+        response,
+        "Die Saldo-Vorschau konnte nicht geladen werden.",
+      );
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as {
+      data: BackendCompTimeBalancePreview;
+    };
+    return {
+      currentBalanceMinutes: json.data.current_balance_minutes,
+      deductionMinutes: json.data.deduction_minutes,
+      realizedDeductionMinutes: json.data.realized_deduction_minutes,
+      futureCommitmentMinutes: json.data.future_commitment_minutes,
+      projectedBalanceMinutes: json.data.projected_balance_minutes,
+    };
   }
 
   // Deletes an absence (DELETE /api/staff/{id}/absences/{absenceId}).

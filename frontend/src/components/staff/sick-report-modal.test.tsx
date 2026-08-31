@@ -6,6 +6,7 @@ import { suppressConsole } from "~/test/helpers/console";
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   createAbsence: vi.fn(),
+  getCompTimePreview: vi.fn(),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -13,7 +14,10 @@ vi.mock("~/lib/tenant-router", () => ({
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffAbsenceService: { createAbsence: mocks.createAbsence },
+  staffAbsenceService: {
+    createAbsence: mocks.createAbsence,
+    getCompTimePreview: mocks.getCompTimePreview,
+  },
 }));
 
 // The kit DatePicker opens a react-day-picker overlay; swap it for a plain
@@ -90,6 +94,15 @@ describe("SickReportModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default Saldo-Vorschau (#2873): enough Plus-Stunden, no confirmation
+    // required. Individual tests override for the overdraft path.
+    mocks.getCompTimePreview.mockResolvedValue({
+      currentBalanceMinutes: 600,
+      deductionMinutes: 480,
+      realizedDeductionMinutes: 0,
+      futureCommitmentMinutes: 0,
+      projectedBalanceMinutes: 120,
+    });
   });
 
   it("submits a sick absence with the entered values", async () => {
@@ -230,5 +243,83 @@ describe("SickReportModal", () => {
     expect(
       screen.queryByRole("button", { name: "Zur Vertretung" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the Saldo-Vorschau for comp time (#2873)", async () => {
+    renderModal({ absenceType: "comp_time" });
+
+    expect(await screen.findByText("Stundenkonto aktuell")).toBeInTheDocument();
+    expect(screen.getByText("Abzug für diesen Eintrag")).toBeInTheDocument();
+    expect(screen.getByText("Stundenkonto danach")).toBeInTheDocument();
+    // Positive projection: no warning, no confirmation checkbox.
+    expect(
+      screen.queryByText(/fällt damit unter null/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Ich trage den Freizeitausgleich trotzdem ein.",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires an explicit confirmation when the projection is negative (#2873)", async () => {
+    mocks.getCompTimePreview.mockResolvedValue({
+      currentBalanceMinutes: 120,
+      deductionMinutes: 480,
+      realizedDeductionMinutes: 0,
+      futureCommitmentMinutes: 240,
+      projectedBalanceMinutes: -600,
+    });
+    mocks.createAbsence.mockResolvedValue({
+      ...createdRow,
+      absence_type: "comp_time",
+    });
+    renderModal({ absenceType: "comp_time" });
+
+    expect(
+      await screen.findByText(/fällt damit unter null/),
+    ).toBeInTheDocument();
+    // The already planned future Freizeitausgleich shows up as its own row.
+    expect(
+      screen.getByText("Bereits geplanter Freizeitausgleich"),
+    ).toBeInTheDocument();
+
+    const submit = screen.getByRole("button", {
+      name: "Freizeitausgleich eintragen",
+    });
+    expect(submit).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Ich trage den Freizeitausgleich trotzdem ein.",
+      }),
+    );
+    expect(submit).toBeEnabled();
+
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(mocks.createAbsence).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ absence_type: "comp_time" }),
+      ),
+    );
+  });
+
+  it("still allows submitting when the Saldo-Vorschau fails to load (#2873)", async () => {
+    mocks.getCompTimePreview.mockRejectedValue(new Error("preview down"));
+    mocks.createAbsence.mockResolvedValue({
+      ...createdRow,
+      absence_type: "comp_time",
+    });
+    renderModal({ absenceType: "comp_time" });
+
+    await waitFor(() => expect(mocks.getCompTimePreview).toHaveBeenCalled());
+
+    const submit = screen.getByRole("button", {
+      name: "Freizeitausgleich eintragen",
+    });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(mocks.createAbsence).toHaveBeenCalled());
   });
 });
