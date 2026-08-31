@@ -11,7 +11,10 @@ import {
   markOwnAttendanceMutation,
 } from "~/lib/sse-optimistic-mutations";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
+import {
+  rosterPickupTimeLabel,
+  upcomingArrivalTime,
+} from "~/lib/timetable-roster-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -214,6 +217,8 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
 interface TimetableRosterRowProps {
   readonly attendanceWebEnabled: boolean;
   readonly instanceIsSpontaneous: boolean;
+  /** Minute clock of the page — decides whether an expected arrival is still ahead. */
+  readonly now: Date;
   readonly pickupTimesLoaded?: boolean;
   readonly pickupTimesRedacted?: boolean;
   readonly row: TimetableRosterRow;
@@ -229,6 +234,7 @@ interface TimetableRosterRowProps {
 function TimetableRosterStudentRow({
   attendanceWebEnabled,
   instanceIsSpontaneous,
+  now,
   pickupTimesLoaded,
   pickupTimesRedacted,
   row,
@@ -246,6 +252,15 @@ function TimetableRosterStudentRow({
   ]
     .filter(Boolean)
     .join(" · ");
+  // A still-upcoming arrival gets the concrete time instead of the backend's
+  // warning sentence; once the time has passed the child is simply expected
+  // and the stale sentence would only add noise (#2878). Every other planning
+  // warning keeps its message — the preview showed it, so the started view
+  // must not lose it.
+  const arrivalTime = upcomingArrivalTime(row.warnings, now);
+  const planningNotes = (row.warnings ?? []).filter(
+    (warning) => warning.kind !== "arrival_after_slot_start",
+  );
 
   return (
     <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-start sm:justify-between">
@@ -271,6 +286,19 @@ function TimetableRosterStudentRow({
             Gehzeit: {pickupTimeLabel}
           </div>
         )}
+        {arrivalTime ? (
+          <div className="mt-1 text-sm font-medium text-gray-700">
+            Kommt um {arrivalTime} Uhr
+          </div>
+        ) : null}
+        {planningNotes.map((warning) => (
+          <div
+            key={warning.kind}
+            className="text-moto-amber-strong mt-1 text-sm"
+          >
+            {warning.message}
+          </div>
+        ))}
         {attendanceDetail ? (
           <div className="text-moto-amber-strong mt-1 text-sm">
             {attendanceDetail}
@@ -291,7 +319,10 @@ function TimetableRosterStudentRow({
 
 interface TimetableRosterSectionProps {
   readonly attendanceWebEnabled: boolean;
+  /** One line under the section title — for a precondition the rows share. */
+  readonly description?: string;
   readonly instanceIsSpontaneous: boolean;
+  readonly now: Date;
   readonly pickupTimesLoaded?: boolean;
   readonly pickupTimesRedacted?: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
@@ -303,7 +334,9 @@ interface TimetableRosterSectionProps {
 
 function TimetableRosterSection({
   attendanceWebEnabled,
+  description,
   instanceIsSpontaneous,
+  now,
   pickupTimesLoaded,
   pickupTimesRedacted,
   onAction,
@@ -317,15 +350,23 @@ function TimetableRosterSection({
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-lg border">
-      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
-        {title}
-        {countLabel}
+      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
+        <span className="text-sm font-semibold text-gray-700">
+          {title}
+          {countLabel}
+        </span>
+        {description ? (
+          <p className="mt-0.5 text-xs font-normal text-gray-500">
+            {description}
+          </p>
+        ) : null}
       </div>
       {rows.map((row) => (
         <TimetableRosterStudentRow
           key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
           attendanceWebEnabled={attendanceWebEnabled}
           instanceIsSpontaneous={instanceIsSpontaneous}
+          now={now}
           pickupTimesLoaded={pickupTimesLoaded}
           pickupTimesRedacted={pickupTimesRedacted}
           row={row}
@@ -641,6 +682,7 @@ export function TimetableRosterContent({
   onOpenStudent,
   onSearchChange,
 }: TimetableRosterContentProps) {
+  const now = useMinuteClock();
   const present = roster.rows.filter(
     (row) => row.currentlyPresent && row.planned,
   );
@@ -648,13 +690,22 @@ export function TimetableRosterContent({
   // not place here today — not booked, or the day was cancelled — go into
   // their own section below, never into "Erwartet" and never into the bulk
   // confirm, which would persist attendance for a child who is not coming.
-  const expected = roster.rows.filter(
+  const stillExpected = roster.rows.filter(
     (row) =>
       row.planned &&
       !row.currentlyPresent &&
       row.status === "expected" &&
       isCareDayExpected(row.careDayStatus),
   );
+  // A child whose expected arrival is still ahead (six lessons instead of
+  // five, #2878) is not expected yet: it gets its own "Kommt später" section
+  // and stays out of the bulk confirm, which would check it in prematurely.
+  // Once the minute clock passes the arrival time the row moves to "Erwartet"
+  // by itself.
+  const arrivingLater = stillExpected.filter(
+    (row) => upcomingArrivalTime(row.warnings, now) !== null,
+  );
+  const expected = stillExpected.filter((row) => !arrivingLater.includes(row));
   // An absence a sick / excused / class-trip day status wrote onto a day the
   // child was never booked into care belongs here too, not under "Abwesend":
   // the block has not ended yet, so nothing has undone that false absence, and
@@ -688,6 +739,7 @@ export function TimetableRosterContent({
   const sectionProps = {
     attendanceWebEnabled,
     instanceIsSpontaneous,
+    now,
     pickupTimesLoaded: roster.pickupTimesLoaded,
     pickupTimesRedacted: roster.pickupTimesRedacted,
     onAction: onRosterAction,
@@ -740,6 +792,16 @@ export function TimetableRosterContent({
       <TimetableRosterSection
         title="Erwartet"
         rows={expected}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Kommt später"
+        description={
+          attendanceWebEnabled
+            ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei."
+            : "Diese Kinder kommen laut Plan später."
+        }
+        rows={arrivingLater}
         {...sectionProps}
       />
       <TimetableRosterSection
