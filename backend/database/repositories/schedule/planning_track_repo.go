@@ -36,7 +36,7 @@ func (r *PlanningTrackRepository) ListAll(ctx context.Context) ([]*model.Plannin
 		OrderExpr(`LOWER("planning_track".name) ASC`)
 	query = repoBase.WithTenantFilter(ctx, query, "planning_track")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list planning tracks", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list planning tracks", Err: repoBase.TranslateNotFound(err)}
 	}
 	return tracks, nil
 }
@@ -50,7 +50,7 @@ func (r *PlanningTrackRepository) FindByIDForShare(ctx context.Context, id int64
 		For("SHARE")
 	query = repoBase.WithTenantFilter(ctx, query, "planning_track")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find planning track for share", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find planning track for share", Err: repoBase.TranslateNotFound(err)}
 	}
 	return track, nil
 }
@@ -74,11 +74,11 @@ func (r *PlanningTrackRepository) UpdateIfActive(ctx context.Context, track *mod
 	}
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "update active planning track", Err: err}
+		return false, &modelBase.DatabaseError{Op: "update active planning track", Err: repoBase.TranslateNotFound(err)}
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "update active planning track", Err: err}
+		return false, &modelBase.DatabaseError{Op: "update active planning track", Err: repoBase.TranslateNotFound(err)}
 	}
 	return rows == 1, nil
 }
@@ -100,10 +100,10 @@ func (r *PlanningTrackRepository) UpdateSortOrders(ctx context.Context, ids []in
 		OrderExpr("id ASC").
 		For("UPDATE").
 		Scan(ctx, &activeIDs); err != nil {
-		return &modelBase.DatabaseError{Op: "validate planning track order", Err: err}
+		return &modelBase.DatabaseError{Op: "validate planning track order", Err: repoBase.TranslateNotFound(err)}
 	}
 	if len(activeIDs) != len(ids) {
-		return &modelBase.DatabaseError{Op: "validate planning track order", Err: sql.ErrNoRows}
+		return &modelBase.DatabaseError{Op: "validate planning track order", Err: repoBase.TranslateNotFound(sql.ErrNoRows)}
 	}
 	active := make(map[int64]struct{}, len(activeIDs))
 	for _, id := range activeIDs {
@@ -111,7 +111,7 @@ func (r *PlanningTrackRepository) UpdateSortOrders(ctx context.Context, ids []in
 	}
 	for _, id := range ids {
 		if _, exists := active[id]; !exists {
-			return &modelBase.DatabaseError{Op: "validate planning track order", Err: sql.ErrNoRows}
+			return &modelBase.DatabaseError{Op: "validate planning track order", Err: repoBase.TranslateNotFound(sql.ErrNoRows)}
 		}
 	}
 	for sortOrder, id := range ids {
@@ -123,7 +123,7 @@ func (r *PlanningTrackRepository) UpdateSortOrders(ctx context.Context, ids []in
 			Where("archived_at IS NULL").
 			Exec(ctx)
 		if err != nil {
-			return &modelBase.DatabaseError{Op: "reorder planning tracks", Err: err}
+			return &modelBase.DatabaseError{Op: "reorder planning tracks", Err: repoBase.TranslateNotFound(err)}
 		}
 		if err := repoBase.AssertRowsAffected(result, 1, "reorder planning track"); err != nil {
 			return err
@@ -161,7 +161,7 @@ func (r *PlanningTrackRepository) RestoreAtEnd(ctx context.Context, track *model
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
-		return false, &modelBase.DatabaseError{Op: "restore planning track", Err: err}
+		return false, &modelBase.DatabaseError{Op: "restore planning track", Err: repoBase.TranslateNotFound(err)}
 	}
 	track.ArchivedAt = nil
 	track.SortOrder = sortOrder

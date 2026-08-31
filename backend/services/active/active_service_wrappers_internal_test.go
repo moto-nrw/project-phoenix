@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -214,7 +213,7 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 
 	t.Run("database no rows maps to active group not found", func(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{
-			err: &modelBase.DatabaseError{Op: "find active group", Err: sql.ErrNoRows},
+			err: &modelBase.DatabaseError{Op: "find active group", Err: modelBase.ErrNotFound},
 		}
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
@@ -262,7 +261,7 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 
 	t.Run("database no rows maps to staff not found", func(t *testing.T) {
 		repo := &staffRepoForActiveWrapperTest{
-			err: &modelBase.DatabaseError{Op: "find staff", Err: sql.ErrNoRows},
+			err: &modelBase.DatabaseError{Op: "find staff", Err: modelBase.ErrNotFound},
 		}
 		svc := &service{ServiceDependencies: ServiceDependencies{StaffRepo: repo}}
 

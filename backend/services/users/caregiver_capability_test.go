@@ -417,7 +417,7 @@ func TestCaregiverCapability_DisableCommitsIndependentlyOfAmbientTransaction(t *
 	assert.False(t, state.HasUserRole)
 }
 
-func TestCaregiverCapability_DisableFallsBackWithoutUnitOfWork(t *testing.T) {
+func TestCaregiverCapability_DisableRejectsMissingUnitOfWork(t *testing.T) {
 	t.Parallel()
 
 	db, factory := setupCaregiverFactory(t)
@@ -430,8 +430,8 @@ func TestCaregiverCapability_DisableFallsBackWithoutUnitOfWork(t *testing.T) {
 	assignSystemRoleToAccount(t, db, account.ID, tenantID, "user")
 
 	state, err := factory.CaregiverCapability.DisableCaregiverCapability(ctx, account.ID)
-	require.NoError(t, err)
-	assert.False(t, state.HasUserRole)
+	require.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	assert.Nil(t, state)
 }
 
 // Deliberately NOT parallel: assigning a SYSTEM role creates a row in

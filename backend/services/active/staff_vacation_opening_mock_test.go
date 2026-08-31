@@ -124,7 +124,7 @@ func TestValidateSetVacationOpening(t *testing.T) {
 		{name: "missing actor", decided: -1, wantMsg: "decided_by is required"},
 		{
 			name:    "missing Stichtag",
-			mutate:  func(r *SetVacationOpeningRequest) { r.EffectiveDate = timezone.Date{} },
+			mutate:  func(r *SetVacationOpeningRequest) { r.EffectiveDate = timezone.Date("") },
 			wantMsg: "effective_date is required",
 		},
 		{
@@ -147,7 +147,7 @@ func TestValidateSetVacationOpening(t *testing.T) {
 			// the same bound the bulk import applies (#2132 review).
 			name: "Stichtag in a closed vacation year",
 			mutate: func(r *SetVacationOpeningRequest) {
-				r.EffectiveDate = timezone.NewDate(timezone.TodayDate().Year-1, time.June, 1)
+				r.EffectiveDate = timezone.NewDate(timezone.TodayDate().Year()-1, time.June, 1)
 			},
 			wantMsg: "must be in the current vacation year",
 		},
@@ -187,7 +187,7 @@ func TestSetVacationOpening_CurrentYearGuardAlsoAppliesPerStaff(t *testing.T) {
 
 	svc, _, _ := voService(&voOpeningRepoMock{})
 	req := voRequest()
-	req.EffectiveDate = timezone.NewDate(timezone.TodayDate().Year-1, time.June, 1)
+	req.EffectiveDate = timezone.NewDate(timezone.TodayDate().Year()-1, time.June, 1)
 
 	_, err := svc.SetVacationOpening(context.Background(), 41, 42, req)
 
@@ -317,7 +317,7 @@ func TestDeleteVacationOpening_WritesTombstoneBeforeDeleting(t *testing.T) {
 
 	opening := &activeModels.StaffVacationOpening{
 		StaffID:         41,
-		Year:            timezone.TodayDate().Year,
+		Year:            timezone.TodayDate().Year(),
 		EffectiveDate:   timezone.TodayDate().AddDays(-10),
 		TakenBeforeDays: 5,
 		Note:            "Übernahme aus Altsystem",
@@ -350,7 +350,7 @@ func TestDeleteVacationOpening_Rejects(t *testing.T) {
 	t.Parallel()
 
 	boom := errors.New("db down")
-	year := timezone.TodayDate().Year
+	year := timezone.TodayDate().Year()
 
 	t.Run("without repository", func(t *testing.T) {
 		svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
@@ -477,7 +477,7 @@ func TestGetVacationOpening(t *testing.T) {
 func TestRejectVacationBeforeOpening(t *testing.T) {
 	t.Parallel()
 
-	year := timezone.TodayDate().Year
+	year := timezone.TodayDate().Year()
 	cutoff := timezone.NewDate(year, time.June, 8) // Monday
 
 	t.Run("ignores non-vacation absences", func(t *testing.T) {
@@ -563,7 +563,7 @@ func TestRejectVacationBeforeOpening(t *testing.T) {
 func TestRejectVacationAbsencesBefore(t *testing.T) {
 	t.Parallel()
 
-	year := timezone.TodayDate().Year
+	year := timezone.TodayDate().Year()
 	cutoff := timezone.NewDate(year, time.June, 8) // Monday
 	friday := cutoff.AddDays(-3)
 

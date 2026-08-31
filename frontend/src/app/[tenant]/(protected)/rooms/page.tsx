@@ -550,7 +550,7 @@ function RoomsPageContent() {
       )}
 
       {/* Room Cards Grid, skeleton mirrors the populated grid's column
-          breakpoints and per-card shape (rounded-3xl, min-h-[180px],
+          breakpoints and per-card shape (rounded-2xl, min-h-[180px],
           header row + meta line + status pill, middle content rows,
           footer hint) so the grid area doesn't visibly resize when real
           data arrives. Review feedback (#1323): a generic spinner

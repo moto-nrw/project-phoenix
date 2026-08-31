@@ -40,7 +40,7 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -82,7 +82,7 @@ func (r *ProfileRepository) List(ctx context.Context, filters map[string]interfa
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

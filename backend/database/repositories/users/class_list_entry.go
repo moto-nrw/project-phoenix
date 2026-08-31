@@ -40,7 +40,7 @@ func (r *ClassListEntryRepository) FindBySchoolClass(ctx context.Context, school
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by school class",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -64,7 +64,7 @@ func (r *ClassListEntryRepository) FindByNameAndClass(ctx context.Context, first
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name and class",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

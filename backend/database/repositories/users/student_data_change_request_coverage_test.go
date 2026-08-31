@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -11,7 +10,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,7 +43,7 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
-	ctx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	ctx := testpkg.TenantContext(chain.TenantID)
 
 	pending := coverageChangeRequest(chain.StudentID, chain.AccountID, chain.TenantID,
 		usersModels.DataChangeTargetPerson, "first_name", usersModels.DataChangeStatusPending, `"Maximilian"`)
@@ -96,7 +94,7 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 	repo := usersRepo.NewStudentDataChangeRequestRepository(db)
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, db)
-	ctxA := tenant.WithTenantID(context.Background(), chainA.TenantID)
+	ctxA := testpkg.TenantContext(chainA.TenantID)
 	rowA := coverageChangeRequest(chainA.StudentID, chainA.AccountID, chainA.TenantID,
 		usersModels.DataChangeTargetPerson, "first_name", usersModels.DataChangeStatusPending, `"Maximilian"`)
 	require.NoError(t, repo.Create(ctxA, rowA))
@@ -105,7 +103,7 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 	testpkg.EnsureTestTenant(t, db, tenantB)
 	studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "Other", "Child", "2b")
 	accountB := testpkg.CreateTestAccount(t, db, "parent")
-	ctxB := tenant.WithTenantID(context.Background(), tenantB)
+	ctxB := testpkg.TenantContext(tenantB)
 	rowB := coverageChangeRequest(studentB.ID, accountB.ID, tenantB,
 		usersModels.DataChangeTargetPerson, "first_name", usersModels.DataChangeStatusPending, `"Lena"`)
 	require.NoError(t, repo.Create(ctxB, rowB))

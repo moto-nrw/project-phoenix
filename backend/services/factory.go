@@ -104,95 +104,96 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 
 // Factory provides access to all services
 type Factory struct {
-	settingsRuntimeDB        *bun.DB
-	Auth                     auth.AuthService
-	StaffPINAuth             auth.StaffPINAuthenticator
-	MFA                      auth.MFAService
-	Passkey                  auth.PasskeyService
-	Active                   active.Service
-	ActiveCleanup            active.CleanupService
-	WorkSession              active.WorkSessionService
-	WorkTimeMonth            active.WorkTimeMonthService
-	Holidays                 schedule.HolidayService
-	ClosingDays              schedule.ClosingDayService
-	StaffAbsence             active.StaffAbsenceService
-	StaffAbsenceType         active.StaffAbsenceTypeService
-	StaffBalanceAdjust       active.StaffBalanceAdjustmentService
-	StaffMonthClose          active.StaffMonthCloseService
-	StaffOverview            active.StaffOverviewService
-	TimeTrackingAuditLog     active.TimeTrackingAuditLogService
-	StaffTimeExport          active.StaffTimeExportService
-	Activities               activities.ActivityService
-	Education                education.Service
-	Substitution             education.SubstitutionModule
-	GradeTransition          *education.GradeTransitionService
-	Facilities               facilities.Service
-	Schulhof                 facilities.SchulhofService
-	WC                       facilities.WCService
-	Invitation               auth.InvitationService
-	GuardianInvitation       auth.GuardianInvitationService
-	Feedback                 feedback.Service
-	MealPlan                 mealplan.Service
-	IoT                      iot.Service
-	Checkin                  *iotcheckin.CheckinService
-	StaffClock               *staffclock.Service
-	Settings                 config.SettingsService
-	TenantSettings           *config.TenantOperations
-	PayrollStatus            config.PayrollStatusGetter
-	Schedule                 schedule.Service
-	StaffShifts              schedule.StaffShiftService
-	StaffShiftSeries         schedule.StaffShiftSeriesService
-	StaffAssignments         schedule.StaffAssignmentService
-	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
-	ShiftTypes               schedule.ShiftTypeService
-	PlanningTracks           schedule.PlanningTrackService
-	PickupSchedule           schedule.PickupScheduleService
-	PartialAbsence           schedule.PartialAbsenceService
-	ArrivalSchedule          schedule.ArrivalScheduleService
-	CalendarPeriod           schedule.CalendarPeriodService
-	CareDay                  schedule.CareDayService
-	TimetableBridge          *schedule.TimetableBridgeService
-	Materialization          schedule.MaterializationService
-	TemplateSplit            *schedule.TemplateSplitService
-	TimetableCleanup         schedule.TimetableCleanupService
-	TimeTrackingCleanup      active.TimeTrackingCleanupService
-	StudentChangeLogCleanup  users.StudentChangeLogCleanupService
-	Instance                 schedule.InstanceService
-	AutoStart                schedule.AutoStartService
-	AutoEnd                  schedule.AutoEndService
-	TimetableOperations      schedule.TimetableOperationsService
-	Users                    users.PersonService
-	Birthdays                users.BirthdayService
-	StaffDocuments           users.StaffDocumentService
-	StudentDocuments         users.StudentDocumentService
-	FileStore                filestore.Service
-	StaffOffboarding         users.StaffOffboardingService
-	CaregiverCapability      users.CaregiverCapabilityService
-	Guardian                 *users.GuardianService
-	GuardianProfileLoader    *users.GuardianProfileLoader
-	UserContext              usercontext.UserContextService
-	Database                 database.DatabaseService
-	Import                   *importService.ImportService[importModels.StudentImportRow]        // Student import service
-	StaffImport              *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
-	ClassListImport          *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
-	OpeningBalanceImport     importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
-	ListExport               *listexport.RendererService
-	Emergency                *emergency.Service
-	SlotLists                slotlists.Service
-	PlanExport               planexport.Service
-	Reminders                reminders.Computer
-	Notifications            notifications.Notifier
-	PushSubscriptions        notifications.PushSubscriptionService
-	PWAUsage                 pwa.UsageService
-	NotificationPreferences  notifications.PreferenceService
-	AbsenceNotifier          notifications.AbsenceNotifier
-	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
-	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
-	Mailer                   email.Mailer
-	DefaultFrom              email.Email
-	FrontendURL              string
-	InvitationTokenExpiry    time.Duration
-	PasswordResetTokenExpiry time.Duration
+	settingsRuntimeDB         *bun.DB
+	Auth                      auth.AuthService
+	StaffPINAuth              auth.StaffPINAuthenticator
+	MFA                       auth.MFAService
+	Passkey                   auth.PasskeyService
+	Active                    active.Service
+	ActiveCleanup             active.CleanupService
+	WorkSession               active.WorkSessionService
+	WorkTimeMonth             active.WorkTimeMonthService
+	Holidays                  schedule.HolidayService
+	ClosingDays               schedule.ClosingDayService
+	StaffAbsence              active.StaffAbsenceService
+	StaffAbsenceType          active.StaffAbsenceTypeService
+	StaffBalanceAdjust        active.StaffBalanceAdjustmentService
+	StaffMonthClose           active.StaffMonthCloseService
+	StaffOverview             active.StaffOverviewService
+	TimeTrackingAuditLog      active.TimeTrackingAuditLogService
+	StaffTimeExport           active.StaffTimeExportService
+	Activities                activities.ActivityService
+	Education                 education.Service
+	Substitution              education.SubstitutionModule
+	GradeTransition           *education.GradeTransitionService
+	Facilities                facilities.Service
+	Schulhof                  facilities.SchulhofService
+	WC                        facilities.WCService
+	Invitation                auth.InvitationService
+	GuardianInvitation        auth.GuardianInvitationService
+	Feedback                  feedback.Service
+	MealPlan                  mealplan.Service
+	IoT                       iot.Service
+	Checkin                   *iotcheckin.CheckinService
+	StaffClock                *staffclock.Service
+	Settings                  config.SettingsService
+	TenantSettings            *config.TenantOperations
+	PayrollStatus             config.PayrollStatusGetter
+	Schedule                  schedule.Service
+	StaffShifts               schedule.StaffShiftService
+	StaffShiftSeries          schedule.StaffShiftSeriesService
+	StaffAssignments          schedule.StaffAssignmentService
+	StaffScheduleOverview     schedule.StaffScheduleOverviewGetter
+	ShiftTypes                schedule.ShiftTypeService
+	PlanningTracks            schedule.PlanningTrackService
+	PickupSchedule            schedule.PickupScheduleService
+	PartialAbsence            schedule.PartialAbsenceService
+	ArrivalSchedule           schedule.ArrivalScheduleService
+	CalendarPeriod            schedule.CalendarPeriodService
+	CareDay                   schedule.CareDayService
+	TimetableBridge           *schedule.TimetableBridgeService
+	Materialization           schedule.MaterializationService
+	TemplateSplit             *schedule.TemplateSplitService
+	TimetableCleanup          schedule.TimetableCleanupService
+	TimeTrackingCleanup       active.TimeTrackingCleanupService
+	StudentChangeLogCleanup   users.StudentChangeLogCleanupService
+	Instance                  schedule.InstanceService
+	AutoStart                 schedule.AutoStartService
+	AutoEnd                   schedule.AutoEndService
+	TimetableOperations       schedule.TimetableOperationsService
+	Users                     users.PersonService
+	Birthdays                 users.BirthdayService
+	StaffDocuments            users.StaffDocumentService
+	StudentDocuments          users.StudentDocumentService
+	FileStore                 filestore.Service
+	StaffOffboarding          users.StaffOffboardingService
+	CaregiverCapability       users.CaregiverCapabilityService
+	Guardian                  *users.GuardianService
+	GuardianProfileLoader     *users.GuardianProfileLoader
+	UserContext               usercontext.UserContextService
+	Database                  database.DatabaseService
+	DatabaseStatsCapabilities func(context.Context) database.StatsCapabilities
+	Import                    *importService.ImportService[importModels.StudentImportRow]        // Student import service
+	StaffImport               *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
+	ClassListImport           *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
+	OpeningBalanceImport      importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
+	ListExport                *listexport.RendererService
+	Emergency                 *emergency.Service
+	SlotLists                 slotlists.Service
+	PlanExport                planexport.Service
+	Reminders                 reminders.Computer
+	Notifications             notifications.Notifier
+	PushSubscriptions         notifications.PushSubscriptionService
+	PWAUsage                  pwa.UsageService
+	NotificationPreferences   notifications.PreferenceService
+	AbsenceNotifier           notifications.AbsenceNotifier
+	RealtimeHub               *realtime.Hub     // SSE event hub (shared by services and API)
+	Tracker                   analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
+	Mailer                    email.Mailer
+	DefaultFrom               email.Email
+	FrontendURL               string
+	InvitationTokenExpiry     time.Duration
+	PasswordResetTokenExpiry  time.Duration
 
 	// Platform domain (operator dashboard)
 	OperatorAuth         platform.OperatorAuthService
@@ -1535,7 +1536,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	})
 
 	// Initialize database stats service
-	databaseService := database.NewService(repos, databaseLogger)
+	databaseService := database.NewService(database.StatsDependencies{
+		Students: func(ctx context.Context) (int, error) {
+			rows, err := repos.Student.List(ctx, nil)
+			return len(rows), err
+		},
+		Teachers: func(ctx context.Context) (int, error) { rows, err := repos.Staff.List(ctx, nil); return len(rows), err },
+		Rooms:    func(ctx context.Context) (int, error) { rows, err := repos.Room.List(ctx, nil); return len(rows), err },
+		Activities: func(ctx context.Context) (int, error) {
+			rows, err := repos.ActivityGroup.List(ctx, nil)
+			return len(rows), err
+		},
+		Groups: func(ctx context.Context) (int, error) { rows, err := repos.Group.List(ctx, nil); return len(rows), err },
+		Roles:  func(ctx context.Context) (int, error) { rows, err := repos.Role.List(ctx, nil); return len(rows), err },
+		Devices: func(ctx context.Context) (int, error) {
+			rows, err := repos.Device.List(ctx, nil)
+			return len(rows), err
+		},
+		PermissionCount: func(ctx context.Context) (int, error) {
+			rows, err := repos.Permission.List(ctx, nil)
+			return len(rows), err
+		},
+	}, databaseLogger)
 
 	// Initialize cleanup service
 	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
@@ -2637,72 +2659,75 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
 	factory := &Factory{
-		settingsRuntimeDB:        db,
-		Auth:                     authService,
-		StaffPINAuth:             authService,
-		MFA:                      mfaService,
-		Passkey:                  passkeyService,
-		Active:                   activeService,
-		ActiveCleanup:            activeCleanupService,
-		WorkSession:              workSessionService,
-		WorkTimeMonth:            workTimeMonthService,
-		Holidays:                 holidayService,
-		ClosingDays:              closingDayService,
-		StaffAbsence:             staffAbsenceService,
-		StaffAbsenceType:         staffAbsenceTypeService,
-		StaffBalanceAdjust:       staffBalanceAdjustService,
-		StaffMonthClose:          staffMonthCloseService,
-		StaffOverview:            staffOverviewService,
-		TimeTrackingAuditLog:     timeTrackingAuditLogService,
-		StaffTimeExport:          staffTimeExportService,
-		Activities:               activitiesService,
-		Education:                educationService,
-		Substitution:             substitutionService,
-		GradeTransition:          gradeTransitionService,
-		Facilities:               facilitiesService,
-		Schulhof:                 schulhofService,
-		WC:                       wcService,
-		Feedback:                 feedbackService,
-		MealPlan:                 mealPlanService,
-		IoT:                      iotService,
-		Checkin:                  checkinService,
-		StaffClock:               staffClockService,
-		Settings:                 settingsService,
-		PayrollStatus:            payrollStatusService,
-		Schedule:                 scheduleService,
-		StaffShifts:              staffShiftService,
-		StaffShiftSeries:         staffShiftSeriesService,
-		StaffAssignments:         staffAssignmentService,
-		StaffScheduleOverview:    staffScheduleOverviewService,
-		ShiftTypes:               shiftTypeService,
-		PlanningTracks:           planningTrackService,
-		PickupSchedule:           pickupScheduleService,
-		PartialAbsence:           partialAbsenceService,
-		Display:                  displayService,
-		ArrivalSchedule:          arrivalScheduleService,
-		CareDay:                  careDayService,
-		TimetableBridge:          timetableBridgeService,
-		CalendarPeriod:           calendarPeriodService,
-		Materialization:          materializationService,
-		TemplateSplit:            templateSplitService,
-		TimetableCleanup:         timetableCleanupService,
-		TimeTrackingCleanup:      timeTrackingCleanupService,
-		StudentChangeLogCleanup:  studentChangeLogCleanupService,
-		Instance:                 instanceService,
-		AutoStart:                autoStartService,
-		AutoEnd:                  autoEndService,
-		TimetableOperations:      timetableOperationsService,
-		Users:                    usersService,
-		Birthdays:                birthdayService,
-		StaffDocuments:           staffDocumentService,
-		StudentDocuments:         studentDocumentService,
-		FileStore:                fileStoreService,
-		StaffOffboarding:         staffOffboardingService,
-		CaregiverCapability:      caregiverCapabilityService,
-		Guardian:                 guardianService,
-		GuardianProfileLoader:    guardianProfileLoader,
-		UserContext:              userContextService,
-		Database:                 databaseService,
+		settingsRuntimeDB:       db,
+		Auth:                    authService,
+		StaffPINAuth:            authService,
+		MFA:                     mfaService,
+		Passkey:                 passkeyService,
+		Active:                  activeService,
+		ActiveCleanup:           activeCleanupService,
+		WorkSession:             workSessionService,
+		WorkTimeMonth:           workTimeMonthService,
+		Holidays:                holidayService,
+		ClosingDays:             closingDayService,
+		StaffAbsence:            staffAbsenceService,
+		StaffAbsenceType:        staffAbsenceTypeService,
+		StaffBalanceAdjust:      staffBalanceAdjustService,
+		StaffMonthClose:         staffMonthCloseService,
+		StaffOverview:           staffOverviewService,
+		TimeTrackingAuditLog:    timeTrackingAuditLogService,
+		StaffTimeExport:         staffTimeExportService,
+		Activities:              activitiesService,
+		Education:               educationService,
+		Substitution:            substitutionService,
+		GradeTransition:         gradeTransitionService,
+		Facilities:              facilitiesService,
+		Schulhof:                schulhofService,
+		WC:                      wcService,
+		Feedback:                feedbackService,
+		MealPlan:                mealPlanService,
+		IoT:                     iotService,
+		Checkin:                 checkinService,
+		StaffClock:              staffClockService,
+		Settings:                settingsService,
+		PayrollStatus:           payrollStatusService,
+		Schedule:                scheduleService,
+		StaffShifts:             staffShiftService,
+		StaffShiftSeries:        staffShiftSeriesService,
+		StaffAssignments:        staffAssignmentService,
+		StaffScheduleOverview:   staffScheduleOverviewService,
+		ShiftTypes:              shiftTypeService,
+		PlanningTracks:          planningTrackService,
+		PickupSchedule:          pickupScheduleService,
+		PartialAbsence:          partialAbsenceService,
+		Display:                 displayService,
+		ArrivalSchedule:         arrivalScheduleService,
+		CareDay:                 careDayService,
+		TimetableBridge:         timetableBridgeService,
+		CalendarPeriod:          calendarPeriodService,
+		Materialization:         materializationService,
+		TemplateSplit:           templateSplitService,
+		TimetableCleanup:        timetableCleanupService,
+		TimeTrackingCleanup:     timeTrackingCleanupService,
+		StudentChangeLogCleanup: studentChangeLogCleanupService,
+		Instance:                instanceService,
+		AutoStart:               autoStartService,
+		AutoEnd:                 autoEndService,
+		TimetableOperations:     timetableOperationsService,
+		Users:                   usersService,
+		Birthdays:               birthdayService,
+		StaffDocuments:          staffDocumentService,
+		StudentDocuments:        studentDocumentService,
+		FileStore:               fileStoreService,
+		StaffOffboarding:        staffOffboardingService,
+		CaregiverCapability:     caregiverCapabilityService,
+		Guardian:                guardianService,
+		GuardianProfileLoader:   guardianProfileLoader,
+		UserContext:             userContextService,
+		Database:                databaseService,
+		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
+			return usercontext.DatabaseStatsCapabilities(ctx)
+		},
 		Import:                   studentImportService,        // Student import service
 		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
 		ClassListImport:          classListImportService,      // Class-list entry import (#2382)

@@ -68,7 +68,7 @@ func (r *MFATrustedDeviceRepository) FindActiveByAccountTenantAndTokenHash(ctx c
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active mfa trusted device", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find active mfa trusted device", Err: base.TranslateNotFound(err)}
 	}
 	return device, nil
 }
@@ -89,7 +89,7 @@ func (r *MFATrustedDeviceRepository) ListActiveByAccountTenant(ctx context.Conte
 		Order("last_used_at DESC NULLS LAST", "created_at DESC").
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list active mfa trusted devices", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list active mfa trusted devices", Err: base.TranslateNotFound(err)}
 	}
 	return devices, nil
 }
@@ -111,7 +111,7 @@ func (r *MFATrustedDeviceRepository) Revoke(ctx context.Context, id int64, revok
 		Where("revoked_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "revoke mfa trusted device", Err: err}
+		return &modelBase.DatabaseError{Op: "revoke mfa trusted device", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(res, 1, "revoke mfa trusted device")
 }
@@ -127,7 +127,7 @@ func (r *MFATrustedDeviceRepository) RevokeAllByAccountID(ctx context.Context, a
 		Where("revoked_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "revoke all mfa trusted devices for account", Err: err}
+		return &modelBase.DatabaseError{Op: "revoke all mfa trusted devices for account", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (r *MFATrustedDeviceRepository) RevokeAllByAccountTenant(ctx context.Contex
 		Where("revoked_at IS NULL").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "revoke all mfa trusted devices for account+tenant", Err: err}
+		return &modelBase.DatabaseError{Op: "revoke all mfa trusted devices for account+tenant", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

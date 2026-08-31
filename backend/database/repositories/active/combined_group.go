@@ -50,7 +50,7 @@ func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.Com
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -71,7 +71,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -93,7 +93,7 @@ func (r *CombinedGroupRepository) EndCombination(ctx context.Context, id int64) 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end combination",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -114,7 +114,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find combined group",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -131,7 +131,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group mappings",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

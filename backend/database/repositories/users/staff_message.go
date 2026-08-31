@@ -42,7 +42,7 @@ func (r *StaffMessageRepository) Create(ctx context.Context, message *users.Staf
 		ExcludeColumn("created_at", "updated_at").
 		Returning("id, created_at, updated_at").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "create staff message", Err: err}
+		return &modelBase.DatabaseError{Op: "create staff message", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -61,7 +61,7 @@ func (r *StaffMessageRepository) ListByThread(ctx context.Context, threadID int6
 	query = base.WithTenantFilter(ctx, query, "staff_message")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff messages by thread", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff messages by thread", Err: base.TranslateNotFound(err)}
 	}
 	return messages, nil
 }
@@ -78,11 +78,11 @@ func (r *StaffMessageRepository) DeleteOlderThan(ctx context.Context, cutoff tim
 
 	res, err := query.Exec(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete old staff messages", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete old staff messages", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete old staff messages", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "delete old staff messages", Err: base.TranslateNotFound(err)}
 	}
 	return affected, nil
 }

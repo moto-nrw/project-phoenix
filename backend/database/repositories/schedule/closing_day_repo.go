@@ -42,7 +42,7 @@ func (r *ClosingDayRepository) FindByTenantID(ctx context.Context) ([]*schedule.
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by tenant id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -66,7 +66,7 @@ func (r *ClosingDayRepository) FindOverlappingRange(ctx context.Context, from, t
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find overlapping range",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -88,7 +88,7 @@ func (r *ClosingDayRepository) FindByID(ctx context.Context, id any) (*schedule.
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  opFindByID,
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

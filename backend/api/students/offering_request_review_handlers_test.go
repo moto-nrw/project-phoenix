@@ -79,7 +79,7 @@ func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input enrol
 }
 
 func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context) (timezone.Date, error) {
-	return timezone.Date{}, nil
+	return timezone.Date(""), nil
 }
 
 func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {

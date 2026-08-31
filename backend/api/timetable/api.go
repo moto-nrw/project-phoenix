@@ -507,20 +507,20 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 	startDate, err = timezone.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, nil, false
+		return timezone.Date(""), timezone.Date(""), nil, false
 	}
 
 	endDate, err = timezone.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return timezone.Date{}, timezone.Date{}, nil, false
+		return timezone.Date(""), timezone.Date(""), nil, false
 	}
 
 	if req.WeekCycleAnchor != nil {
 		a, err := timezone.ParseDate(*req.WeekCycleAnchor)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
-			return timezone.Date{}, timezone.Date{}, nil, false
+			return timezone.Date(""), timezone.Date(""), nil, false
 		}
 		anchor = &a
 	}

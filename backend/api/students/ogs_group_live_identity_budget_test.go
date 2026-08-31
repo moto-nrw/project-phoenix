@@ -43,7 +43,9 @@ var identityStageMatchers = map[string]func(string) bool{
 		return strings.Contains(q, "users.teachers") && strings.Contains(q, "staff_id = ")
 	},
 	"substitutions": func(q string) bool {
-		return strings.Contains(q, "education.group_substitution") &&
+		hasTable := strings.Contains(q, "education.group_substitution") ||
+			strings.Contains(q, `"education"."group_substitution"`)
+		return hasTable &&
 			(strings.Contains(q, "substitute_staff_id = ") || strings.Contains(q, `substitute_staff_id" = `))
 	},
 }

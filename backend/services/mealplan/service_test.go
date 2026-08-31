@@ -194,7 +194,7 @@ func TestSetDay_ZeroDateRejected(t *testing.T) {
 
 	repo := &fakeRepo{}
 	svc := NewService(repo)
-	if err := svc.SetDay(context.Background(), timezone.Date{}, []DishInput{{Dish: "x"}}); err == nil {
+	if err := svc.SetDay(context.Background(), timezone.Date(""), []DishInput{{Dish: "x"}}); err == nil {
 		t.Fatal("expected error for zero date, got nil")
 	}
 	if repo.replaceCalls != 0 {
@@ -286,7 +286,7 @@ func TestDelete_ZeroDateRejected(t *testing.T) {
 
 	repo := &fakeRepo{}
 	svc := NewService(repo)
-	if err := svc.Delete(context.Background(), timezone.Date{}); err == nil {
+	if err := svc.Delete(context.Background(), timezone.Date("")); err == nil {
 		t.Fatal("expected error for zero date, got nil")
 	}
 	if repo.deleteCalls != 0 {

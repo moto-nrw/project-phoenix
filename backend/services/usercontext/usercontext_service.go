@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -99,6 +100,10 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		sseSettings:        repos.SSESettings,
 		logger:             logger,
 	}
+}
+
+func DatabaseStatsCapabilities(ctx context.Context) authorize.DatabaseStatsCapabilities {
+	return authorize.NewDatabaseStatsCapabilities(jwt.PermissionsFromCtx(ctx))
 }
 
 // getUserIDFromContext extracts the user ID from the JWT context

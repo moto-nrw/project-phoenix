@@ -90,7 +90,7 @@ func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpening
 	// in a closed year would silently rewrite a historical account whose days
 	// are already spent. The import handler bounds its Stichtag the same way;
 	// the check belongs here too so the per-staff route cannot bypass it.
-	case req.EffectiveDate.Year != today.Year:
+	case req.EffectiveDate.Year() != today.Year():
 		return fmt.Errorf("%w: effective_date must be in the current vacation year", ErrVacationOpeningInvalid)
 	default:
 		return nil
@@ -112,7 +112,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 		return nil, fmt.Errorf("failed to lock staff absence writes: %w", err)
 	}
 
-	year := req.EffectiveDate.Year
+	year := req.EffectiveDate.Year()
 	existing, err := s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing vacation opening: %w", err)
@@ -177,7 +177,7 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 	if absence.AbsenceType != activeModels.AbsenceTypeVacation || s.openingRepo == nil {
 		return nil
 	}
-	for year := absence.DateStart.Year; year <= absence.DateEnd.Year; year++ {
+	for year := absence.DateStart.Year(); year <= absence.DateEnd.Year(); year++ {
 		opening, err := s.openingRepo.GetByStaffAndYear(ctx, absence.StaffID, year)
 		if err != nil {
 			return fmt.Errorf("failed to check vacation opening: %w", err)
@@ -242,8 +242,8 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 // rejectVacationAbsencesBefore blocks a takeover when vacation absences that
 // count against the quota already exist before the Stichtag in its year.
 func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
-	yearStart := timezone.NewDate(effectiveDate.Year, time.January, 1)
-	yearEnd := timezone.NewDate(effectiveDate.Year, time.December, 31)
+	yearStart := timezone.NewDate(effectiveDate.Year(), time.January, 1)
+	yearEnd := timezone.NewDate(effectiveDate.Year(), time.December, 31)
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
 	if err != nil {
 		return fmt.Errorf("failed to check absences for vacation opening: %w", err)

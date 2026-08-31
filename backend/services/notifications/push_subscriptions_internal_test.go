@@ -9,7 +9,6 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -312,7 +311,7 @@ func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 	mappingLookupInTx := false
 	mappings := accountTenantRepositoryStub{
 		find: func(ctx context.Context, _ int64) ([]authModels.AccountTenant, error) {
-			_, mappingLookupInTx = modelBase.TxFromContext(ctx)
+			_, mappingLookupInTx = tenant.TransactionFromContext(ctx)
 			return []authModels.AccountTenant{
 				{TenantID: 41},
 				{TenantID: 42},
@@ -348,7 +347,7 @@ func TestPushSubscriptionServiceParentUnsubscribeIsAtomic(t *testing.T) {
 	mappingLookupInTx := false
 	mappings := accountTenantRepositoryStub{
 		find: func(ctx context.Context, _ int64) ([]authModels.AccountTenant, error) {
-			_, mappingLookupInTx = modelBase.TxFromContext(ctx)
+			_, mappingLookupInTx = tenant.TransactionFromContext(ctx)
 			return []authModels.AccountTenant{
 				{TenantID: 41},
 				{TenantID: 42},

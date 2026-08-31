@@ -89,7 +89,7 @@ func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 
 func (operatorSettingsRuntime) Today() configModel.CalendarDate {
 	today := timezone.TodayDate()
-	return configModel.NewCalendarDate(today.Year, today.Month, today.Day)
+	return configModel.NewCalendarDate(today.Year(), today.Month(), today.Day())
 }
 
 type openAttendanceAdapter struct{ service activeSvc.Service }

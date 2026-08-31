@@ -48,7 +48,7 @@ func (r *OperatorMFACredentialRepository) Update(ctx context.Context, credential
 		Where(platformWhereID, credential.ID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update operator mfa credential", Err: err}
+		return &modelBase.DatabaseError{Op: "update operator mfa credential", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -62,7 +62,7 @@ func (r *OperatorMFACredentialRepository) FindByOperatorID(ctx context.Context, 
 		Limit(1).
 		Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find operator mfa credential by operator id", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find operator mfa credential by operator id", Err: base.TranslateNotFound(err)}
 	}
 	return credential, nil
 }
@@ -80,7 +80,7 @@ func (r *OperatorMFACredentialRepository) DeleteByOperatorID(ctx context.Context
 		Where("operator_id = ?", operatorID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete operator mfa credential by operator id", Err: err}
+		return &modelBase.DatabaseError{Op: "delete operator mfa credential by operator id", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func (r *OperatorMFACredentialRepository) List(ctx context.Context, filters map[
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list operator mfa credentials", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list operator mfa credentials", Err: base.TranslateNotFound(err)}
 	}
 	return credentials, nil
 }

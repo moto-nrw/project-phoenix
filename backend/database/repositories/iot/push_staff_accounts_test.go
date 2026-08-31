@@ -9,7 +9,6 @@ import (
 	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,7 +157,7 @@ func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
 	})
 
 	t.Run("does not reach the same account from another tenant's context", func(t *testing.T) {
-		otherTenantCtx := tenant.WithTenantID(context.Background(), 2)
+		otherTenantCtx := testpkg.TenantContext(2)
 
 		subs, err := repo.FindForStaffAccounts(otherTenantCtx, []int64{addressed.ID})
 		require.NoError(t, err)

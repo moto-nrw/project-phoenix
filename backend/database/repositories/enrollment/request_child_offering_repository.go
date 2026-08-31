@@ -168,7 +168,7 @@ func requestChildOfferingValidityWindow(
 		Where(`"request_child".id = ?`, requestChildID).
 		Scan(ctx, &window)
 	if err != nil {
-		return timezone.Date{}, timezone.Date{}, fmt.Errorf("find care period for request child %d: %w", requestChildID, err)
+		return timezone.Date(""), timezone.Date(""), fmt.Errorf("find care period for request child %d: %w", requestChildID, err)
 	}
 	return window.Start, window.End.AddDays(1), nil
 }

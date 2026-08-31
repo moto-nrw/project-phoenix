@@ -15,7 +15,7 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresDatesAndTenant(t *testing.T
 	t.Parallel()
 
 	repo := enrollmentRepo.NewPhaseExpiryRepository(nil)
-	_, err := repo.ListSnapshots(context.Background(), timezone.Date{}, timezone.Date{})
+	_, err := repo.ListSnapshots(context.Background(), timezone.Date(""), timezone.Date(""))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dates are required")
 

@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +147,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 		Source:      active.StudentStatusSourcePlanned,
 	}))
 
-	rows, err := repo.FindActiveByStudentAndDateRange(tenant.WithTenantID(context.Background(), 2), student.ID, date, date)
+	rows, err := repo.FindActiveByStudentAndDateRange(testpkg.TenantContext(2), student.ID, date, date)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 

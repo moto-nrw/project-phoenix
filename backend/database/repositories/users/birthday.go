@@ -98,7 +98,7 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find student birthdays", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find student birthdays", Err: base.TranslateNotFound(err)}
 	}
 
 	return mapBirthdayRows(rows, users.BirthdayKindStudent), nil
@@ -135,7 +135,7 @@ func (r *StaffRepository) FindBirthdaysOn(ctx context.Context, days []users.Mont
 	query = base.WithTenantFilter(ctx, query, "staff")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff birthdays", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find staff birthdays", Err: base.TranslateNotFound(err)}
 	}
 
 	return mapBirthdayRows(rows, users.BirthdayKindStaff), nil
@@ -165,7 +165,7 @@ func (r *StaffRepository) ListBirthdaysForExport(ctx context.Context) ([]users.B
 	query = base.WithTenantFilter(ctx, query, "staff")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff birthdays for export", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff birthdays for export", Err: base.TranslateNotFound(err)}
 	}
 
 	return mapBirthdayRows(rows, users.BirthdayKindStaff), nil
@@ -185,7 +185,7 @@ func (r *StaffRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID 
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "set staff birthday display opt-out", Err: err}
+		return &modelBase.DatabaseError{Op: "set staff birthday display opt-out", Err: base.TranslateNotFound(err)}
 	}
 
 	return base.AssertRowsAffected(result, 1, "set staff birthday display opt-out")

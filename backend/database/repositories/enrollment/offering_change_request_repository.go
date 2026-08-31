@@ -53,7 +53,7 @@ func (r *OfferingChangeRequestRepository) GetPendingForStudent(
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "get pending offering change request", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "get pending offering change request", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -75,7 +75,7 @@ func (r *OfferingChangeRequestRepository) ListByStudent(
 		OrderExpr(`"offering_change_request".id DESC`)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list offering change requests by student", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list offering change requests by student", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -101,7 +101,7 @@ func (r *OfferingChangeRequestRepository) ListPendingForTenant(
 	query = base.ApplyRequestQueueFilters(query, "offering_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list pending offering change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list pending offering change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -129,7 +129,7 @@ func (r *OfferingChangeRequestRepository) ListDecidedForTenant(
 	query = base.ApplyRequestQueueFilters(query, "offering_change_request", "updated_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list decided offering change requests", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list decided offering change requests", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -152,7 +152,7 @@ func (r *OfferingChangeRequestRepository) FindByIDForUpdate(
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, enrollment.ErrOfferingChangeNotFound
 		}
-		return nil, &modelBase.DatabaseError{Op: "find offering change request for update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find offering change request for update", Err: base.TranslateNotFound(err)}
 	}
 	return row, nil
 }
@@ -172,7 +172,7 @@ func (r *OfferingChangeRequestRepository) UpdateEffectiveFrom(
 	q = base.WithTenantFilter(ctx, q, "offering_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update offering change effective date", Err: err}
+		return &modelBase.DatabaseError{Op: "update offering change effective date", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return enrollment.ErrOfferingChangeNotPending
@@ -195,7 +195,7 @@ func (r *OfferingChangeRequestRepository) UpdateApprovedCompleteWithdrawal(
 	q = base.WithTenantFilter(ctx, q, "offering_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update approved complete-withdrawal result", Err: err}
+		return &modelBase.DatabaseError{Op: "update approved complete-withdrawal result", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return enrollment.ErrOfferingChangeNotPending
@@ -227,7 +227,7 @@ func (r *OfferingChangeRequestRepository) UpdatePending(
 	q = base.WithTenantFilter(ctx, q, "offering_change_request")
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update pending offering change request", Err: err}
+		return &modelBase.DatabaseError{Op: "update pending offering change request", Err: base.TranslateNotFound(err)}
 	}
 	if rows, _ := res.RowsAffected(); rows == 0 {
 		return enrollment.ErrOfferingChangeNotPending
@@ -263,7 +263,7 @@ func (r *OfferingChangeRequestRepository) Decide(
 
 	res, err := q.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "decide offering change request", Err: err}
+		return &modelBase.DatabaseError{Op: "decide offering change request", Err: base.TranslateNotFound(err)}
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
@@ -288,7 +288,7 @@ func (r *OfferingChangeRequestRepository) UpdateDecisionSnapshot(
 		Where(`"offering_change_request".id = ?`, id)
 	q = base.WithTenantFilter(ctx, q, "offering_change_request")
 	if _, err := q.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "update offering change decision snapshot", Err: err}
+		return &modelBase.DatabaseError{Op: "update offering change decision snapshot", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }

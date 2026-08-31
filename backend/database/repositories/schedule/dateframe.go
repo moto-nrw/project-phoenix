@@ -49,7 +49,7 @@ func (r *DateframeRepository) FindByName(ctx context.Context, name string) (*sch
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -77,7 +77,7 @@ func (r *DateframeRepository) FindByDate(ctx context.Context, date time.Time) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by date",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 
@@ -106,7 +106,7 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find overlapping",
-			Err: err,
+			Err: repoBase.TranslateNotFound(err),
 		}
 	}
 

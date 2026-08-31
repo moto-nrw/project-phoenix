@@ -37,7 +37,7 @@ func (r *SchoolRepository) Create(ctx context.Context, school *platform.School) 
 		ModelTableExpr("platform.schools").
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "create school", Err: err}
+		return &modelBase.DatabaseError{Op: "create school", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -57,7 +57,7 @@ func (r *SchoolRepository) Update(ctx context.Context, school *platform.School) 
 		Where(`"school".id = ?`, school.ID).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update school", Err: err}
+		return &modelBase.DatabaseError{Op: "update school", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "update school")
 }
@@ -72,7 +72,7 @@ func (r *SchoolRepository) FindByID(ctx context.Context, id int64) (*platform.Sc
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &modelBase.DatabaseError{Op: "find school by id", Err: err}
+			return nil, &modelBase.DatabaseError{Op: "find school by id", Err: base.TranslateNotFound(err)}
 		}
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (r *SchoolRepository) findByIDWithLock(ctx context.Context, id int64, lockC
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &modelBase.DatabaseError{Op: op, Err: err}
+			return nil, &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
 		}
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (r *SchoolRepository) FindByOrganizationAndSlug(ctx context.Context, organi
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &modelBase.DatabaseError{Op: "find school by organization and slug", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find school by organization and slug", Err: base.TranslateNotFound(err)}
 	}
 	return school, nil
 }
@@ -275,7 +275,7 @@ func (r *SchoolRepository) SoftDelete(ctx context.Context, id int64) error {
 		Where(`"school".deleted_at IS NULL`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "soft delete school", Err: err}
+		return &modelBase.DatabaseError{Op: "soft delete school", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "soft delete school")
 }
@@ -296,7 +296,7 @@ func (r *SchoolRepository) CountByIDs(ctx context.Context, ids []int64) (int, er
 		Where(`"school".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count schools by ids", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -310,7 +310,7 @@ func (r *SchoolRepository) Restore(ctx context.Context, id int64) error {
 		Where(`"school".deleted_at IS NOT NULL`).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "restore school", Err: err}
+		return &modelBase.DatabaseError{Op: "restore school", Err: base.TranslateNotFound(err)}
 	}
 	return base.AssertRowsAffected(result, 1, "restore school")
 }
@@ -329,7 +329,7 @@ func (r *SchoolRepository) CountNonDeletedByOrganizationID(ctx context.Context, 
 		Where(`"school".deleted_at IS NULL`).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count non-deleted schools by organization", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count non-deleted schools by organization", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }

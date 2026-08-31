@@ -8,7 +8,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,7 +33,7 @@ func lockTenantRecurrenceWrites(ctx context.Context, db *bun.DB) error {
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return errors.New("template recurrence lock requires a transaction")
 	}
 	if err := base.AcquireXactLock(ctx, db, schedule.TenantRecurrenceLockKey(tenantID)); err != nil {
@@ -57,7 +56,7 @@ func lockTenantGradeTransitions(ctx context.Context, db *bun.DB) error {
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
 	}
-	if _, ok := modelBase.TxFromContext(ctx); !ok {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return errors.New("grade transition lock requires a transaction")
 	}
 	if err := base.AcquireXactLock(ctx, db, education.TenantTransitionsLockKey(tenantID)); err != nil {

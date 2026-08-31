@@ -105,7 +105,7 @@ func (r *StaffMessageReadRepository) MarkReadUpTo(ctx context.Context, threadID,
 		Set("last_read_message_id = EXCLUDED.last_read_message_id").
 		Where(advance).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark staff message thread read up to", Err: err}
+		return &modelBase.DatabaseError{Op: "mark staff message thread read up to", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (r *StaffMessageReadRepository) UnreadCount(ctx context.Context, accountID 
 
 	count := 0
 	if err := query.Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread staff messages", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count unread staff messages", Err: base.TranslateNotFound(err)}
 	}
 	return count, nil
 }
@@ -183,7 +183,7 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff message inbox", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list staff message inbox", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -208,7 +208,7 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 		OrderExpr(`name ASC`)
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list messageable staff", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -239,7 +239,7 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 		Limit(1).
 		Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -280,7 +280,7 @@ func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, account
 		GroupExpr(`"ar".account_id`).
 		Scan(ctx, &rows)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: base.TranslateNotFound(err)}
 	}
 	for _, row := range rows {
 		switch {

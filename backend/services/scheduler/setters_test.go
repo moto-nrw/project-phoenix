@@ -227,7 +227,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	t.Parallel()
 
 	today := timezone.NewDate(2026, 4, 20)
-	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
+	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
 	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
 		inst := &scheduleModel.ActivityInstance{
 			Date:          today,
@@ -296,7 +296,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 				context.Background(),
 				1,
 				5,
-				time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local),
+				time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local),
 			)
 
 			assert.Empty(t, spy.CallsByMethod("tenant"))
@@ -651,7 +651,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 		overdueBroadcaster: spy})
 
 	// Use a `now` set to 10:30 local on the same day → 30 min past threshold=5.
-	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
+	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
 	s.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, now)
 
 	assert.Len(t, spy.CallsByMethod("tenant"), 1, "broadcast attempted even when failure is expected")

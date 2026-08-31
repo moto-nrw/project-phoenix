@@ -161,7 +161,7 @@ func (r *ParentAnnouncementRepository) ReplaceOptions(ctx context.Context, tenan
 		Where("tenant_id = ?", tenantID).
 		For("UPDATE").
 		Scan(ctx, &publishedAt); err != nil {
-		return &modelBase.DatabaseError{Op: "lock parent announcement for option replace", Err: err}
+		return &modelBase.DatabaseError{Op: "lock parent announcement for option replace", Err: base.TranslateNotFound(err)}
 	}
 	if publishedAt != nil {
 		return users.ErrAnnouncementPublished
@@ -171,7 +171,7 @@ func (r *ParentAnnouncementRepository) ReplaceOptions(ctx context.Context, tenan
 		ModelTableExpr("users.parent_announcement_options").
 		Where("announcement_id = ?", announcementID).
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "clear parent announcement options", Err: err}
+		return &modelBase.DatabaseError{Op: "clear parent announcement options", Err: base.TranslateNotFound(err)}
 	}
 	if len(options) == 0 {
 		return nil
@@ -186,7 +186,7 @@ func (r *ParentAnnouncementRepository) ReplaceOptions(ctx context.Context, tenan
 		ModelTableExpr("users.parent_announcement_options").
 		Returning("*").
 		Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "insert parent announcement options", Err: err}
+		return &modelBase.DatabaseError{Op: "insert parent announcement options", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -201,7 +201,7 @@ func (r *ParentAnnouncementRepository) ListOptions(ctx context.Context, announce
 		OrderExpr("pao.position ASC, pao.id ASC")
 	query = base.WithTenantFilter(ctx, query, "pao")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement options", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement options", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -221,7 +221,7 @@ func (r *ParentAnnouncementRepository) ListOptionsForAnnouncements(ctx context.C
 		Where("pao.announcement_id IN (?)", bun.List(announcementIDs)).
 		OrderExpr("pao.announcement_id ASC, pao.position ASC, pao.id ASC").
 		Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list parent announcement options for feed", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement options for feed", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -267,7 +267,7 @@ func (r *ParentAnnouncementRepository) AnswerableChildren(ctx context.Context, a
 		ORDER BY last_name ASC, first_name ASC, student_id ASC`,
 		activeActivityGroupExists("a.tenant_id", r.today()))
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, accountID, bun.List(announcementIDs)).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list answerable children for parent announcements", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list answerable children for parent announcements", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -283,7 +283,7 @@ func (r *ParentAnnouncementRepository) AccountMayAnswerForStudent(ctx context.Co
 	sqlStr := "SELECT EXISTS (SELECT 1 FROM (" + inner + ") reached WHERE reached.student_id = ?)"
 	args := append(audienceStudentArgs(announcementID, tenantID, &accountID), studentID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &allowed); err != nil {
-		return false, &modelBase.DatabaseError{Op: "check parent announcement answer permission", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check parent announcement answer permission", Err: base.TranslateNotFound(err)}
 	}
 	return allowed, nil
 }
@@ -311,7 +311,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 	// liveness. Revoking poll.response after Phase 1 therefore prevents the
 	// write, rather than leaving a TOCTOU window.
 	if err := base.AcquireXactLock(ctx, r.DB, parentAnnouncementResponseLockKey(announcementID, studentID)); err != nil {
-		return false, &modelBase.DatabaseError{Op: "lock parent announcement response", Err: err}
+		return false, &modelBase.DatabaseError{Op: "lock parent announcement response", Err: base.TranslateNotFound(err)}
 	}
 	guard := `
 		WITH guard AS (
@@ -362,7 +362,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 		pgdialect.Array(optionIDs), announcementID, tenantID,
 		announcementID, studentID, tenantID,
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "replace parent announcement response", Err: err}
+		return false, &modelBase.DatabaseError{Op: "replace parent announcement response", Err: base.TranslateNotFound(err)}
 	}
 	if !live || len(optionIDs) == 0 {
 		return live, nil
@@ -396,7 +396,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 		pgdialect.Array(optionIDs), announcementID, tenantID,
 		tenantID, announcementID, studentID, accountID, time.Now(), announcementID, tenantID, bun.List(optionIDs),
 	).Scan(ctx, &live); err != nil {
-		return false, &modelBase.DatabaseError{Op: "insert parent announcement response", Err: err}
+		return false, &modelBase.DatabaseError{Op: "insert parent announcement response", Err: base.TranslateNotFound(err)}
 	}
 	return live, nil
 }
@@ -429,7 +429,7 @@ func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID
 	countArgs := append(append(append([]any{}, args...), args...), announcementID, tenantID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(countSQL, countArgs...).
 		Scan(ctx, &results.TargetChildCount, &results.ChildCount, &results.AnsweredCount); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement poll counts", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement poll counts", Err: base.TranslateNotFound(err)}
 	}
 
 	var options []*users.AnnouncementPollOptionResult
@@ -445,7 +445,7 @@ func (r *ParentAnnouncementRepository) PollResults(ctx context.Context, tenantID
 		ORDER BY o.position ASC, o.id ASC`
 	optionArgs := append(append([]any{}, args...), announcementID, tenantID)
 	if err := base.GetDB(ctx, r.DB).NewRaw(optionSQL, optionArgs...).Scan(ctx, &options); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement poll option results", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement poll option results", Err: base.TranslateNotFound(err)}
 	}
 	results.Options = options
 	return results, nil
@@ -482,7 +482,7 @@ func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantI
 	sqlArgs = append(sqlArgs, announcementID, tenantID)
 	var rows []*users.AnnouncementPollChildStatus
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement poll children", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement poll children", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -525,7 +525,7 @@ func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement poll reminder recipients", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement poll reminder recipients", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -580,7 +580,7 @@ func (r *ParentAnnouncementRepository) UnacknowledgedReminderRecipients(ctx cont
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
 	).Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "parent announcement letter reminder recipients", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "parent announcement letter reminder recipients", Err: base.TranslateNotFound(err)}
 	}
 	return rows, nil
 }

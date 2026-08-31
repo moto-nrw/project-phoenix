@@ -112,7 +112,7 @@ func TestMealPlanRepository_ReplaceDayZeroDateRejected(t *testing.T) {
 	repo := repositories.NewFactory(db).MealPlanEntry
 	ctx := testpkg.Ctx(t)
 
-	err := repo.ReplaceDay(ctx, timezone.Date{}, []*mealplan.MealPlanEntry{{Dish: "x"}})
+	err := repo.ReplaceDay(ctx, timezone.Date(""), []*mealplan.MealPlanEntry{{Dish: "x"}})
 	require.Error(t, err)
 }
 
@@ -129,7 +129,7 @@ func TestMealPlanRepository_TenantIsolation(t *testing.T) {
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
+	tenant2 := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID)
 
 	day := timezone.NewDate(2026, time.September, 7)
 

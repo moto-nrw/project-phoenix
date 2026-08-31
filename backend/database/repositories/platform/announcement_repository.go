@@ -44,7 +44,7 @@ func (r *AnnouncementRepository) FindByID(ctx context.Context, id int64) (*platf
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find announcement by id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -74,7 +74,7 @@ func (r *AnnouncementRepository) List(ctx context.Context, includeInactive bool)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list announcements",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -94,7 +94,7 @@ func (r *AnnouncementRepository) Publish(ctx context.Context, id int64) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "publish announcement",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -113,7 +113,7 @@ func (r *AnnouncementRepository) Unpublish(ctx context.Context, id int64) error 
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "unpublish announcement",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

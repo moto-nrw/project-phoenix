@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -202,13 +201,14 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 
 		// The real revert calls this inside its transaction, where the write is
 		// wrapped in a savepoint so a lost race cannot abort the whole revert.
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-
-		restored, err := repo.RestoreStudentTag(modelBase.ContextWithTx(ctx, &tx), student.ID, card.ID)
+		var restored bool
+		err = testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var restoreErr error
+			restored, restoreErr = repo.RestoreStudentTag(txCtx, student.ID, card.ID)
+			return restoreErr
+		})
 		require.NoError(t, err)
 		assert.True(t, restored)
-		require.NoError(t, tx.Commit())
 
 		assert.Equal(t, card.ID, personTag(t, db, student.PersonID))
 	})

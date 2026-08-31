@@ -140,7 +140,7 @@ func (s *StaffShift) Contains(other *StaffShift) bool {
 // that fall into a DST gap.
 func (s *StaffShift) StartInstant() time.Time {
 	wc := timezone.NormalizeWallClock(s.StartTime)
-	return time.Date(s.Date.Year, s.Date.Month, s.Date.Day, wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
+	return time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
 }
 
 // EndInstant returns the shift's planned end as an absolute instant in
@@ -148,5 +148,5 @@ func (s *StaffShift) StartInstant() time.Time {
 // fall into a DST gap.
 func (s *StaffShift) EndInstant() time.Time {
 	wc := timezone.NormalizeWallClock(s.EndTime)
-	return time.Date(s.Date.Year, s.Date.Month, s.Date.Day, wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
+	return time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
 }

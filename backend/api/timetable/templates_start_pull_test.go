@@ -42,7 +42,7 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	// The period must span both starts; widen it a year past the old start.
 	period := createTemplateTestPeriodRange(
 		t, s.db, "TplStartPullPeriod",
-		timezone.NewDate(newStart.Year, 1, 1),
+		timezone.NewDate(newStart.Year(), 1, 1),
 		oldStart.AddDays(365),
 		1, nil,
 	)
@@ -79,7 +79,7 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Vergangenheit")
 
 	// Outside the pinned period → the shared create/update preflight rejects.
-	outsideWithoutPeriod := updateBody(timezone.NewDate(newStart.Year-1, 12, 31).String())
+	outsideWithoutPeriod := updateBody(timezone.NewDate(newStart.Year()-1, 12, 31).String())
 	delete(outsideWithoutPeriod, "calendar_period_id")
 	w = doTemplateJSON(t, router, http.MethodPut, putPath, outsideWithoutPeriod)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())

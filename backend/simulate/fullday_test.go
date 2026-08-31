@@ -333,6 +333,17 @@ func simulationAPIMock(t *testing.T) *simulationHTTPTestServer {
 				"data":   []any{},
 			})
 
+		case "/api/iot/checkin":
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
+				w.WriteHeader(404)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag"})
+				return
+			}
+			w.WriteHeader(simulationHTTPStatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
+
 		case "/api/timetable/periods/bootstrap":
 			w.WriteHeader(simulationHTTPStatusOK)
 			_ = json.NewEncoder(w).Encode(map[string]any{

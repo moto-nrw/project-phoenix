@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -1850,13 +1849,13 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	deps.personService.accountPerson = &usersModel.Person{}
 	deps.personService.accountPerson.ID = 505
-	deps.personService.staffErr = sql.ErrNoRows
+	deps.personService.staffErr = modelBase.ErrNotFound
 	staffID, hasStaff, err := deps.service.(*timetableOperationsService).resolveStaffID(context.Background(), 683)
 	require.NoError(t, err)
 	assert.Zero(t, staffID)
 	assert.False(t, hasStaff)
 
-	deps.instanceRepo.err = sql.ErrNoRows
+	deps.instanceRepo.err = modelBase.ErrNotFound
 	inst, err := deps.service.(*timetableOperationsService).loadInstance(context.Background(), 415)
 	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
 	assert.Nil(t, inst)
@@ -2233,7 +2232,7 @@ type fakeOpsActiveGroupRepo struct {
 func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id interface{}) (*activeModel.Group, error) {
 	group := r.byID[id.(int64)]
 	if group == nil {
-		return nil, sql.ErrNoRows
+		return nil, modelBase.ErrNotFound
 	}
 	return group, nil
 }
@@ -2267,7 +2266,7 @@ func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (
 	}
 	group := r.byID[id.(int64)]
 	if group == nil {
-		return nil, sql.ErrNoRows
+		return nil, modelBase.ErrNotFound
 	}
 	return group, nil
 }

@@ -51,7 +51,7 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by email",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -75,7 +75,7 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by username",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -123,7 +123,7 @@ func (r *AccountParentRepository) List(ctx context.Context, filters map[string]i
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -184,7 +184,7 @@ func (r *AccountParentRepository) Create(ctx context.Context, account *auth.Acco
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -215,7 +215,7 @@ func (r *AccountParentRepository) Update(ctx context.Context, account *auth.Acco
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

@@ -446,7 +446,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 594,
+          "line": 596,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -456,7 +456,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 235,
+          "line": 236,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 238,
+          "line": 239,
           "declaration": "New"
         }
       ]
@@ -506,12 +506,12 @@
       "locations": [
         {
           "file": "services/auth/auth_service.go",
-          "line": 74,
+          "line": 73,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/auth_service.go",
-          "line": 120,
+          "line": 119,
           "declaration": "NewService"
         },
         {
@@ -533,21 +533,6 @@
           "file": "services/auth/passkey_service.go",
           "line": 116,
           "declaration": "type passkeyService"
-        }
-      ]
-    },
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services/database|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
-      "locations": [
-        {
-          "file": "services/database/database_service.go",
-          "line": 15,
-          "declaration": "type databaseService"
-        },
-        {
-          "file": "services/database/database_service.go",
-          "line": 25,
-          "declaration": "NewService"
         }
       ]
     },
@@ -576,7 +561,7 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 312,
+          "line": 313,
           "declaration": "NewFactory"
         }
       ]
@@ -16609,7 +16594,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        235
+        236
       ],
       "tables": []
     },
@@ -16619,7 +16604,7 @@
       "declaration": "New",
       "target": "services.NewFactory",
       "lines": [
-        238
+        239
       ],
       "tables": []
     },
@@ -18452,7 +18437,7 @@
       "declaration": "TestGroupSupervisorRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        75
+        73
       ],
       "tables": []
     },
@@ -18462,7 +18447,7 @@
       "declaration": "TestGroupSupervisorRepository_Create_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        750
+        748
       ],
       "tables": []
     },
@@ -18472,7 +18457,7 @@
       "declaration": "TestGroupSupervisorRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        187
+        185
       ],
       "tables": []
     },
@@ -18482,7 +18467,7 @@
       "declaration": "TestGroupSupervisorRepository_EndAllActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        856
+        854
       ],
       "tables": []
     },
@@ -18492,7 +18477,7 @@
       "declaration": "TestGroupSupervisorRepository_EndByActiveGroupAndStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        997
+        995
       ],
       "tables": []
     },
@@ -18502,7 +18487,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        464
+        462
       ],
       "tables": []
     },
@@ -18512,7 +18497,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_AlreadyEnded",
       "target": "database/repositories.NewFactory",
       "lines": [
-        809
+        807
       ],
       "tables": []
     },
@@ -18522,7 +18507,7 @@
       "declaration": "TestGroupSupervisorRepository_EndSupervision_NonExistent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        837
+        835
       ],
       "tables": []
     },
@@ -18532,7 +18517,7 @@
       "declaration": "TestGroupSupervisorRepository_FindActiveByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        292
+        290
       ],
       "tables": []
     },
@@ -18542,7 +18527,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        332
       ],
       "tables": []
     },
@@ -18552,8 +18537,8 @@
       "declaration": "TestGroupSupervisorRepository_FindByActiveGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        404,
-        405
+        402,
+        403
       ],
       "tables": []
     },
@@ -18563,7 +18548,7 @@
       "declaration": "TestGroupSupervisorRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        125
+        123
       ],
       "tables": []
     },
@@ -18573,7 +18558,7 @@
       "declaration": "TestGroupSupervisorRepository_FindStaleOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1095
+        1093
       ],
       "tables": []
     },
@@ -18583,7 +18568,7 @@
       "declaration": "TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        565
+        563
       ],
       "tables": []
     },
@@ -18593,7 +18578,7 @@
       "declaration": "TestGroupSupervisorRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        219
+        217
       ],
       "tables": []
     },
@@ -18603,7 +18588,7 @@
       "declaration": "TestGroupSupervisorRepository_List_WithQueryOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        782
+        780
       ],
       "tables": []
     },
@@ -18613,7 +18598,7 @@
       "declaration": "TestGroupSupervisorRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        157
+        155
       ],
       "tables": []
     },
@@ -18623,7 +18608,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_NilSupervision",
       "target": "database/repositories.NewFactory",
       "lines": [
-        707
+        705
       ],
       "tables": []
     },
@@ -18633,7 +18618,7 @@
       "declaration": "TestGroupSupervisorRepository_Update_ValidationFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        722
+        720
       ],
       "tables": []
     },
@@ -18643,7 +18628,7 @@
       "declaration": "createSupervisorTestData",
       "target": "database/repositories.NewFactory",
       "lines": [
-        44
+        42
       ],
       "tables": []
     },
@@ -18804,7 +18789,7 @@
       "declaration": "TestStudentStatusDayRepository_ClearByIDAndDates",
       "target": "database/repositories.NewFactory",
       "lines": [
-        88
+        87
       ],
       "tables": []
     },
@@ -18814,7 +18799,7 @@
       "declaration": "TestStudentStatusDayRepository_CountEffectiveDashboardAbsences",
       "target": "database/repositories.NewFactory",
       "lines": [
-        165
+        164
       ],
       "tables": [
         "users.students"
@@ -18826,7 +18811,7 @@
       "declaration": "TestStudentStatusDayRepository_DateBoundaryRoundtrip",
       "target": "database/repositories.NewFactory",
       "lines": [
-        326
+        325
       ],
       "tables": [
         "active.student_status_days"
@@ -18838,7 +18823,7 @@
       "declaration": "TestStudentStatusDayRepository_NoteOnReReport",
       "target": "database/repositories.NewFactory",
       "lines": [
-        267
+        266
       ],
       "tables": []
     },
@@ -18848,7 +18833,7 @@
       "declaration": "TestStudentStatusDayRepository_TenantScope",
       "target": "database/repositories.NewFactory",
       "lines": [
-        138
+        137
       ],
       "tables": []
     },
@@ -18858,7 +18843,7 @@
       "declaration": "TestStudentStatusDayRepository_UpsertAndFind",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        23
       ],
       "tables": []
     },
@@ -18868,7 +18853,7 @@
       "declaration": "TestStudentStatusDayRepository_UpsertNil",
       "target": "database/repositories.NewFactory",
       "lines": [
-        251
+        250
       ],
       "tables": []
     },
@@ -23593,7 +23578,7 @@
       "declaration": "TestShiftTypeRepository_CreateIfAbsent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        122
       ],
       "tables": []
     },
@@ -23603,7 +23588,7 @@
       "declaration": "TestShiftTypeRepository_CreateNormalizesColorAndListsSorted",
       "target": "database/repositories.NewFactory",
       "lines": [
-        38
+        36
       ],
       "tables": []
     },
@@ -23613,7 +23598,7 @@
       "declaration": "TestShiftTypeRepository_GuardBranches",
       "target": "database/repositories.NewFactory",
       "lines": [
-        194
+        192
       ],
       "tables": []
     },
@@ -23623,7 +23608,7 @@
       "declaration": "TestShiftTypeRepository_ListWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        217
+        215
       ],
       "tables": []
     },
@@ -23633,7 +23618,7 @@
       "declaration": "TestShiftTypeRepository_TenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        162
+        160
       ],
       "tables": []
     },
@@ -23643,7 +23628,7 @@
       "declaration": "TestShiftTypeRepository_UniqueNamePerTenant",
       "target": "database/repositories.NewFactory",
       "lines": [
-        107
+        105
       ],
       "tables": []
     },
@@ -23653,7 +23638,7 @@
       "declaration": "TestShiftTypeRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        75
+        73
       ],
       "tables": []
     },
@@ -23683,7 +23668,7 @@
       "declaration": "TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        127
+        125
       ],
       "tables": []
     },
@@ -23693,7 +23678,7 @@
       "declaration": "TestStaffShiftRepository_CreateFindNormalizesWallClock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        37
+        35
       ],
       "tables": []
     },
@@ -23703,7 +23688,7 @@
       "declaration": "TestStaffShiftRepository_DeleteUpcomingByStaffID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        169
+        167
       ],
       "tables": []
     },
@@ -23713,7 +23698,7 @@
       "declaration": "TestStaffShiftRepository_DuplicateStartRejected",
       "target": "database/repositories.NewFactory",
       "lines": [
-        208
+        206
       ],
       "tables": []
     },
@@ -23723,7 +23708,7 @@
       "declaration": "TestStaffShiftRepository_FindByStaffIDsAndDate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        95
+        93
       ],
       "tables": []
     },
@@ -23733,7 +23718,7 @@
       "declaration": "TestStaffShiftRepository_RejectsCrossTenantStaffReference",
       "target": "database/repositories.NewFactory",
       "lines": [
-        255
+        253
       ],
       "tables": []
     },
@@ -23743,7 +23728,7 @@
       "declaration": "TestStaffShiftRepository_TenantIsolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        227
+        225
       ],
       "tables": []
     },
@@ -23753,7 +23738,7 @@
       "declaration": "TestStaffShiftRepository_UpdateDeleteUseTenantAlias",
       "target": "database/repositories.NewFactory",
       "lines": [
-        65
+        63
       ],
       "tables": []
     },
@@ -25010,8 +24995,8 @@
       "declaration": "TestStudentDeletionRepository_DeletesOnlyTargetAssignments",
       "target": "database/repositories.NewFactory",
       "lines": [
-        88,
-        109
+        89,
+        110
       ],
       "tables": [
         "schedule.activity_instances",
@@ -25025,7 +25010,7 @@
       "declaration": "TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead",
       "target": "database/repositories.NewFactory",
       "lines": [
-        57
+        58
       ],
       "tables": [
         "users.parent_message_reads",
@@ -25038,7 +25023,7 @@
       "declaration": "TestStudentDeletionRepository_RequiresTenantContext",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        21
       ],
       "tables": []
     },
@@ -25204,7 +25189,7 @@
       "declaration": "TestStudentGuardianRepository_AccountHasStudentPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        531
+        532
       ],
       "tables": []
     },
@@ -25214,7 +25199,7 @@
       "declaration": "TestStudentGuardianRepository_Create_NilReturnsError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        238
+        239
       ],
       "tables": []
     },
@@ -25224,7 +25209,7 @@
       "declaration": "TestStudentGuardianRepository_Create_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        204
+        205
       ],
       "tables": []
     },
@@ -25234,7 +25219,7 @@
       "declaration": "TestStudentGuardianRepository_Create_ValidationError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        254
+        255
       ],
       "tables": []
     },
@@ -25244,7 +25229,7 @@
       "declaration": "TestStudentGuardianRepository_FilterAccountsWithStudentAccess",
       "target": "database/repositories.NewFactory",
       "lines": [
-        679
+        680
       ],
       "tables": []
     },
@@ -25254,7 +25239,7 @@
       "declaration": "TestStudentGuardianRepository_FindByGuardianProfileID_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        107
+        108
       ],
       "tables": []
     },
@@ -25264,7 +25249,7 @@
       "declaration": "TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        459
+        460
       ],
       "tables": [
         "users.students",
@@ -25277,7 +25262,7 @@
       "declaration": "TestStudentGuardianRepository_FindByStudentID_Empty",
       "target": "database/repositories.NewFactory",
       "lines": [
-        84
+        85
       ],
       "tables": []
     },
@@ -25287,7 +25272,7 @@
       "declaration": "TestStudentGuardianRepository_FindByStudentID_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        56
       ],
       "tables": []
     },
@@ -25297,7 +25282,7 @@
       "declaration": "TestStudentGuardianRepository_GuardianEmailHasStudentPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        589
+        590
       ],
       "tables": [
         "users.students",
@@ -25310,7 +25295,7 @@
       "declaration": "TestStudentGuardianRepository_LinkIfNotExists",
       "target": "database/repositories.NewFactory",
       "lines": [
-        326
+        327
       ],
       "tables": []
     },
@@ -25320,7 +25305,7 @@
       "declaration": "TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput",
       "target": "database/repositories.NewFactory",
       "lines": [
-        436
+        437
       ],
       "tables": []
     },
@@ -25330,7 +25315,7 @@
       "declaration": "TestStudentGuardianRepository_List_WithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        282
+        283
       ],
       "tables": [
         "users.students",
@@ -25343,7 +25328,7 @@
       "declaration": "TestStudentGuardianRepository_SetPrimary_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        152
+        153
       ],
       "tables": []
     },
@@ -25473,7 +25458,7 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        402
+        404
       ],
       "tables": []
     },
@@ -25483,7 +25468,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        568
+        570
       ],
       "tables": []
     },
@@ -25493,7 +25478,7 @@
       "declaration": "TestStudentRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        51
       ],
       "tables": []
     },
@@ -25503,7 +25488,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        289
+        291
       ],
       "tables": [
         "users.persons"
@@ -25515,7 +25500,7 @@
       "declaration": "TestStudentRepository_FindAllWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        634
+        636
       ],
       "tables": []
     },
@@ -25525,7 +25510,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        334
+        336
       ],
       "tables": []
     },
@@ -25535,7 +25520,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        367
+        369
       ],
       "tables": []
     },
@@ -25545,7 +25530,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        199
+        201
       ],
       "tables": []
     },
@@ -25555,7 +25540,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        971
+        973
       ],
       "tables": []
     },
@@ -25565,7 +25550,7 @@
       "declaration": "TestStudentRepository_FindByNameAndClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        818
+        820
       ],
       "tables": []
     },
@@ -25575,7 +25560,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        223
+        225
       ],
       "tables": []
     },
@@ -25585,7 +25570,7 @@
       "declaration": "TestStudentRepository_FindBySchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        459
+        461
       ],
       "tables": [
         "users.students"
@@ -25597,7 +25582,7 @@
       "declaration": "TestStudentRepository_FindByTeacherIDWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        598
+        600
       ],
       "tables": [
         "education.group_teacher"
@@ -25609,7 +25594,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        703
+        705
       ],
       "tables": [
         "users.students"
@@ -25621,7 +25606,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        760
+        762
       ],
       "tables": [
         "users.students"
@@ -25633,7 +25618,7 @@
       "declaration": "TestStudentRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        503
+        505
       ],
       "tables": []
     },
@@ -25643,7 +25628,7 @@
       "declaration": "TestStudentRepository_ListWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        531
+        533
       ],
       "tables": []
     },
@@ -25653,7 +25638,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        922
+        924
       ],
       "tables": []
     },
@@ -25663,7 +25648,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        867
+        869
       ],
       "tables": []
     },
@@ -25673,7 +25658,7 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        425
+        427
       ],
       "tables": [
         "users.students"
@@ -25685,7 +25670,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        246
+        248
       ],
       "tables": []
     },
@@ -25996,7 +25981,7 @@
       "declaration": "buildCombinedGroupService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        25
       ],
       "tables": []
     },
@@ -26006,7 +25991,7 @@
       "declaration": "buildCombinedGroupService",
       "target": "services.NewFactory",
       "lines": [
-        24
+        26
       ],
       "tables": []
     },
@@ -26086,7 +26071,7 @@
       "declaration": "TestIsDuplicateActiveVisitViolation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        97
+        96
       ],
       "tables": []
     },
@@ -26470,7 +26455,7 @@
       "declaration": "setupAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        46
       ],
       "tables": []
     },
@@ -26480,7 +26465,7 @@
       "declaration": "setupAuthService",
       "target": "services.NewFactory",
       "lines": [
-        48
+        47
       ],
       "tables": []
     },
@@ -26490,7 +26475,7 @@
       "declaration": "setupInvitationService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        54
       ],
       "tables": []
     },
@@ -26500,7 +26485,7 @@
       "declaration": "setupInvitationService",
       "target": "services.NewFactory",
       "lines": [
-        56
+        55
       ],
       "tables": []
     },
@@ -26510,7 +26495,7 @@
       "declaration": "setupInternalAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        90
+        92
       ],
       "tables": []
     },
@@ -26547,7 +26532,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        745
+        749
       ],
       "tables": []
     },
@@ -26567,7 +26552,7 @@
       "declaration": "setupGuardianInviteWithBackfiller",
       "target": "database/repositories.NewFactory",
       "lines": [
-        631
+        635
       ],
       "tables": []
     },
@@ -26966,16 +26951,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         36
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/database/database_service_test.go",
-      "declaration": "setupDatabaseService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
       ],
       "tables": []
     },
@@ -30264,7 +30239,7 @@
       "declaration": "TestArrivalScheduleService_UpsertBulkWaitsForStudentLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        252
+        251
       ],
       "tables": []
     },
@@ -30274,7 +30249,7 @@
       "declaration": "setupArrivalScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        26
       ],
       "tables": []
     },
@@ -30284,7 +30259,7 @@
       "declaration": "setupArrivalScheduleService",
       "target": "services.NewFactory",
       "lines": [
-        28
+        27
       ],
       "tables": []
     },
@@ -30589,7 +30564,7 @@
       "declaration": "TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence",
       "target": "database/repositories.NewFactory",
       "lines": [
-        390
+        391
       ],
       "tables": []
     },
@@ -30599,7 +30574,7 @@
       "declaration": "TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence",
       "target": "services.NewFactory",
       "lines": [
-        391
+        392
       ],
       "tables": []
     },
@@ -30609,7 +30584,7 @@
       "declaration": "setupPickupScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        26
+        27
       ],
       "tables": []
     },
@@ -30619,7 +30594,7 @@
       "declaration": "setupPickupScheduleService",
       "target": "services.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": []
     },
@@ -31804,7 +31779,7 @@
       "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2692
+        2693
       ],
       "tables": [
         "auth.guardian_invitations",
@@ -31819,7 +31794,7 @@
       "declaration": "TestGetStudentGuardians_NonOpenInvitationsNotPending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2543
+        2544
       ],
       "tables": [
         "users.guardian_profiles",
@@ -31833,7 +31808,7 @@
       "declaration": "TestGuardianService_ContactWritersShareProfileLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2651
+        2652
       ],
       "tables": [
         "users.guardian_phone_numbers",
@@ -31846,7 +31821,7 @@
       "declaration": "TestGuardianService_GetStudentGuardians",
       "target": "database/repositories.NewFactory",
       "lines": [
-        751
+        752
       ],
       "tables": []
     },
@@ -31856,7 +31831,7 @@
       "declaration": "setupGuardianService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        43
       ],
       "tables": []
     },
@@ -31866,7 +31841,7 @@
       "declaration": "setupGuardianService",
       "target": "services.NewFactory",
       "lines": [
-        43
+        44
       ],
       "tables": []
     },
@@ -31876,7 +31851,7 @@
       "declaration": "setupGuardianServiceWithMailer",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1637
+        1638
       ],
       "tables": []
     },

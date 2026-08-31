@@ -123,9 +123,11 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	txHandler := modelBase.NewTxHandler(s.DB)
-
-	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		tx, err := transactionFromContext(txCtx)
+		if err != nil {
+			return err
+		}
 		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
 			return err
 		}
@@ -158,6 +160,22 @@ func (s *service) acquireActivitySessionLock(ctx context.Context, tx bun.Tx, act
 		return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 	}
 	return nil
+}
+
+func transactionFromContext(ctx context.Context) (bun.Tx, error) {
+	raw, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return bun.Tx{}, tenant.ErrRuntimeRequired
+	}
+	switch tx := raw.(type) {
+	case bun.Tx:
+		return tx, nil
+	case *bun.Tx:
+		if tx != nil {
+			return *tx, nil
+		}
+	}
+	return bun.Tx{}, fmt.Errorf("active service: unsupported transaction type %T", raw)
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
@@ -309,39 +327,28 @@ func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int
 }
 
 func (s *service) runBestEffortDB(ctx context.Context, label string, fn func() error, logFailure func(error)) {
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		if err := fn(); err != nil {
 			logFailure(err)
 		}
 		return
 	}
 
-	savepointName := "sp_active_" + label
-	if _, err := (*tx).ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
-		s.getLogger().WarnContext(ctx, "failed to create savepoint for best-effort operation",
-			slog.String("operation", label),
-			slog.String("error", err.Error()),
-		)
-		return
+	var operationErr error
+	err := tenant.WithSavepoint(ctx, func(context.Context) error {
+		operationErr = fn()
+		return operationErr
+	})
+	if operationErr != nil {
+		logFailure(operationErr)
 	}
-
-	if err := fn(); err != nil {
-		logFailure(err)
-		if _, rollbackErr := (*tx).ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
-			s.getLogger().WarnContext(ctx, "failed to rollback savepoint for best-effort operation",
+	if err != nil {
+		if errors.Is(err, tenant.ErrSavepointControl) {
+			s.getLogger().WarnContext(ctx, "failed to control savepoint for best-effort operation",
 				slog.String("operation", label),
-				slog.String("error", rollbackErr.Error()),
+				slog.String("error", err.Error()),
 			)
 		}
-		return
-	}
-
-	if _, err := (*tx).ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
-		s.getLogger().WarnContext(ctx, "failed to release savepoint for best-effort operation",
-			slog.String("operation", label),
-			slog.String("error", err.Error()),
-		)
 	}
 }
 
@@ -369,9 +376,11 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
 	const operation = "ForceStartActivitySessionWithSupervisors"
-	txHandler := modelBase.NewTxHandler(s.DB)
-
-	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		tx, err := transactionFromContext(txCtx)
+		if err != nil {
+			return err
+		}
 		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
 			return err
 		}
@@ -985,7 +994,7 @@ func (s *service) queueActivitySessionEndBroadcasts(ctx context.Context, activeG
 	if s.Broadcaster == nil {
 		return
 	}
-	broadcastCtx := modelBase.ContextWithoutTx(ctx)
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
 	tenant.RegisterAfterCommit(ctx, func() {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
 		s.broadcastStudentCheckoutEvents(broadcastCtx, activeGroupIDStr, visits)
@@ -1180,7 +1189,7 @@ func (s *service) runInSessionTx(ctx context.Context, fn func(context.Context) e
 	if s.DB == nil {
 		return fn(ctx)
 	}
-	return modelBase.NewTxHandler(s.DB).RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+	return tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 		return fn(txCtx)
 	})
 }

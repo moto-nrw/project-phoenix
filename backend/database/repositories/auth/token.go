@@ -45,7 +45,7 @@ func (r *TokenRepository) FindByToken(ctx context.Context, token string) (*auth.
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by token",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -70,7 +70,7 @@ func (r *TokenRepository) FindByTokenForUpdate(ctx context.Context, token string
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by token for update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -93,11 +93,11 @@ func (r *TokenRepository) MarkRotated(ctx context.Context, id int64, replacement
 	query = base.WithTenantFilter(ctx, query, "token")
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: err}
+		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: base.TranslateNotFound(err)}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "count rotated refresh tokens", Err: err}
+		return &modelBase.DatabaseError{Op: "count rotated refresh tokens", Err: base.TranslateNotFound(err)}
 	}
 	if affected != 1 {
 		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: errors.New("refresh token was already rotated or not found")}
@@ -127,7 +127,7 @@ func (r *TokenRepository) DeleteExpiredRotatedForAccount(ctx context.Context, ac
 
 	query = base.WithTenantFilter(ctx, query, "token")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete expired rotated account refresh tokens", Err: err}
+		return &modelBase.DatabaseError{Op: "delete expired rotated account refresh tokens", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by account ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -174,7 +174,7 @@ func (r *TokenRepository) ListInactiveAccountIDsWithLiveTokens(ctx context.Conte
 		Where(`t.expiry > ?`, time.Now()).
 		Scan(ctx, &ids)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list inactive accounts with live tokens", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list inactive accounts with live tokens", Err: base.TranslateNotFound(err)}
 	}
 	return ids, nil
 }
@@ -191,7 +191,7 @@ func (r *TokenRepository) HasLiveTokensCreatedAfter(ctx context.Context, account
 		Where(`"token".created_at > ?`, since).
 		Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check live tokens created after", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check live tokens created after", Err: base.TranslateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -259,7 +259,7 @@ func (r *TokenRepository) deleteByAccountIDReturning(ctx context.Context, accoun
 		)`, cutoff, "", accountID, "", cutoff, "", cutoff)
 	}
 	if err := query.Scan(ctx, &deleted); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete and return by account ID", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return by account ID", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
@@ -275,7 +275,7 @@ func (r *TokenRepository) DeleteByTenantIDReturning(ctx context.Context, tenantI
 		Returning("*").
 		Scan(ctx, &deleted)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete and return tokens by tenant ID", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return tokens by tenant ID", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
@@ -304,7 +304,7 @@ func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -324,7 +324,7 @@ func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -351,7 +351,7 @@ func (r *TokenRepository) List(ctx context.Context, filters map[string]interface
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -410,7 +410,7 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")
 	}
 	if err := selectQuery.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find tokens for audited cleanup", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "find tokens for audited cleanup", Err: base.TranslateNotFound(err)}
 	}
 	if len(tokens) <= keepCount {
 		return nil, nil
@@ -429,7 +429,7 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		query = base.WithTenantFilter(ctx, query, "token")
 	}
 	if err := query.Scan(ctx, &deleted); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete and return old tokens", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return old tokens", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
@@ -445,7 +445,7 @@ func (r *TokenRepository) DeleteByFamilyIDReturning(ctx context.Context, familyI
 		Returning("*")
 	query = base.WithTenantFilter(ctx, query, "token")
 	if err := query.Scan(ctx, &deleted); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "delete and return tokens by family ID", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return tokens by family ID", Err: base.TranslateNotFound(err)}
 	}
 	return deleted, nil
 }
@@ -475,7 +475,7 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "get latest token in family",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -500,7 +500,7 @@ func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) (
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find tokens by family ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 

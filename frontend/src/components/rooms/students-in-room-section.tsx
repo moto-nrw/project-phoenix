@@ -45,7 +45,7 @@ import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
 const DETAIL_CARD_CLASS =
-  "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
+  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
 
 function canUseAllMoveTargets(session: Session | null): boolean {
   const permissions = session?.user?.permissions ?? [];
@@ -469,7 +469,7 @@ function BulkMoveToolbar({
 
   return (
     <div
-      className={`mb-4 rounded-2xl border p-3 transition-shadow ${
+      className={`mb-4 rounded-xl border p-3 transition-shadow ${
         hasSelection
           ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
           : "border-transparent bg-gray-50/80 shadow-none"
@@ -654,7 +654,7 @@ function SelectableStudentRow({
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-colors ${
+      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 transition-colors ${
         isSelected
           ? "border-gray-300 bg-gray-50"
           : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
@@ -667,7 +667,7 @@ function SelectableStudentRow({
           aria-checked={isSelected}
           aria-label={`${fullName} auswählen`}
           onClick={onToggleSelection}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
         >
           <span
             className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${

@@ -46,7 +46,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -86,7 +86,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisedRooms(ctx context.Contex
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active supervised rooms",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -110,7 +110,7 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find stale open supervisions",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -143,7 +143,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -180,7 +180,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -202,7 +202,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end supervision",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -232,7 +232,7 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -273,7 +273,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end all active by staff ID",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -281,7 +281,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end all active by staff ID (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -306,7 +306,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end by active group and staff id",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -314,7 +314,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end by active group and staff id (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -341,7 +341,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end supervisions by active group IDs",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -349,7 +349,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "end supervisions by active group IDs (rows affected)",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -384,7 +384,7 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get staff IDs with supervision today",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 
@@ -410,7 +410,7 @@ func (r *GroupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Co
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list active supervision blockers",
-			Err: err,
+			Err: base.TranslateNotFound(err),
 		}
 	}
 	return results, nil

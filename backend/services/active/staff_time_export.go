@@ -194,7 +194,7 @@ func (s *staffTimeExportService) validate(req *TimeExportRequest) error {
 		return fmt.Errorf("%w: month out of range", ErrTimeExportInvalid)
 	}
 	today := s.today()
-	if req.Year > today.Year {
+	if req.Year > today.Year() {
 		return fmt.Errorf("%w: year %d lies in the future", ErrTimeExportInvalid, req.Year)
 	}
 	// The running month is allowed (it exports as "offen"); a future month is
@@ -214,7 +214,7 @@ func (s *staffTimeExportService) periodBounds(req TimeExportRequest) (from, to t
 		return key.firstDay(), key.lastDay()
 	}
 	last := monthKey{Year: req.Year, Month: 12}
-	if today := s.today(); req.Year == today.Year {
+	if today := s.today(); req.Year == today.Year() {
 		last = monthOf(today)
 	}
 	return timezone.NewDate(req.Year, time.January, 1), last.lastDay()
