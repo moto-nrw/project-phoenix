@@ -87,31 +87,6 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 	return rules, nil
 }
 
-// FindByMonthDay finds all recurrence rules that include the specified month day
-func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) ([]*schedule.RecurrenceRule, error) {
-	var rules []*schedule.RecurrenceRule
-
-	query := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(&rules).
-		ModelTableExpr(tableExprRecurrenceAsRR).
-		Where("? = ANY(month_days)", day)
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "recurrence_rule"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by month day",
-			Err: repoBase.TranslateNotFound(err),
-		}
-	}
-
-	return rules, nil
-}
-
 // FindByDateRange finds all recurrence rules that apply within the given date range
 func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule

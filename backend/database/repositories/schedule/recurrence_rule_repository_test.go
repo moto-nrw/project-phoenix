@@ -381,61 +381,6 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 	})
 }
 
-func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds rules by month day", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyMonthly,
-			IntervalCount: 1,
-			MonthDays:     []int{1, 15, 30},
-		}
-		err := repo.Create(ctx, rule)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
-
-		rules, err := repo.FindByMonthDay(ctx, 15)
-		require.NoError(t, err)
-
-		var found bool
-		for _, r := range rules {
-			if r.ID == rule.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-
-	t.Run("does not find rules without matching month day", func(t *testing.T) {
-		rule := &schedule.RecurrenceRule{
-			Frequency:     schedule.FrequencyMonthly,
-			IntervalCount: 1,
-			MonthDays:     []int{1, 15},
-		}
-		err := repo.Create(ctx, rule)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
-
-		rules, err := repo.FindByMonthDay(ctx, 30)
-		require.NoError(t, err)
-
-		var found bool
-		for _, r := range rules {
-			if r.ID == rule.ID {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found)
-	})
-}
-
 func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 	t.Parallel()
 
