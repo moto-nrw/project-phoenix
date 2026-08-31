@@ -813,7 +813,7 @@ export function PhasesEditor() {
             type="button"
             onClick={startCreate}
             size="md"
-            className="h-9 shrink-0 gap-2 px-3 shadow-sm"
+            className="shrink-0 gap-2"
           >
             <MotoConceptIcon
               concept="calendarPeriods"
@@ -991,12 +991,7 @@ function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
         Lege zuerst fest, für welchen Zeitraum Eltern anmelden können, zum
         Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.
       </p>
-      <Button
-        type="button"
-        onClick={onCreate}
-        size="md"
-        className="mt-5 h-9 gap-2 px-3 shadow-sm"
-      >
+      <Button type="button" onClick={onCreate} size="md" className="mt-5 gap-2">
         <MotoConceptIcon
           concept="calendarPeriods"
           colorMode="inherit"

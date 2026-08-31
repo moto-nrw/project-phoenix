@@ -1594,7 +1594,7 @@ function FormTemplateDetail({
                     : `/enrollment-phases?assignForm=${encodeURIComponent(schema.id)}`
                 }
                 size="md"
-                className="h-10 w-full gap-2 px-3 shadow-sm"
+                className="w-full gap-2"
               >
                 <MotoConceptIcon
                   concept="calendarPeriods"

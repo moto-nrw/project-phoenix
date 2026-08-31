@@ -1129,11 +1129,7 @@ function NoPhaseState() {
         Betreuungsangebote gehören immer zu einer Anmeldephase. Lege zuerst den
         Zeitraum an, danach kannst du die passenden Angebote ergänzen.
       </p>
-      <ButtonLink
-        href="/enrollment-phases"
-        size="md"
-        className="mt-5 h-9 gap-2 px-3 shadow-sm"
-      >
+      <ButtonLink href="/enrollment-phases" size="md" className="mt-5 gap-2">
         <MotoConceptIcon
           concept="calendarPeriods"
           colorMode="inherit"
