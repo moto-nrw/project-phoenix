@@ -76,7 +76,8 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 	// would still leave a fresh 15-minute preview token in the world. The FOR
 	// UPDATE on the account and the FOR SHARE on the mapping make the
 	// revoking UPDATE wait for this transaction, so a minted token is provably
-	// backed by an active account and an active membership.
+	// backed by an active account, an active membership, and the roles and
+	// permissions that still existed when the token was written.
 	var (
 		account     *authModels.Account
 		metadata    *accountMetadata
@@ -109,6 +110,23 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 		}
 		if !mapped {
 			return &AuthError{Op: op, Err: ErrTenantAccessDenied}
+		}
+
+		// Pin what the token is BUILT from, in the same account -> roles ->
+		// permissions order every revocation path walks (mirrors
+		// schoolMintGuard). The account lock alone only serializes the paths
+		// that revoke a whole school access; a bare role or permission
+		// revocation (RemoveRoleFromAccount, RemovePermissionFromAccount,
+		// RemovePermissionFromRole) touches neither the account nor the
+		// mapping row and would commit between this read and the mint,
+		// leaving a revoked permission in a preview token valid for the next
+		// AUTH_JWT_EXPIRY. With the FOR SHARE locks held, the claims read
+		// below are provably the ones still in force at commit time.
+		if _, err := s.repos.AccountRole.FindByAccountIDForTenantForShare(ctx, targetAccountID, tenantID); err != nil && !isNotFoundError(err) {
+			return &AuthError{Op: op, Err: err}
+		}
+		if err := s.repos.Permission.LockAccountPermissionSourcesForTenant(ctx, targetAccountID, tenantID); err != nil {
+			return &AuthError{Op: op, Err: err}
 		}
 
 		metadata, err = s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
