@@ -847,7 +847,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Der Einstieg in den Betreuungstag: alle Betreuungsblöcke von heute in zeitlicher Reihenfolge – vergangene, laufende und kommende. Von hier aus öffnen Sie mit einem Tipp die Kinderliste des laufenden Blocks.",
         steps: [
-          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Später erreichen Sie ihn über `Tagesplan` in der Seitenleiste.",
+          "Nach dem Anmelden landen Betreuungskräfte direkt auf dem Tagesplan. Er ist Ihre Startseite: `Tagesplan` steht ganz oben in der Seitenleiste, am Handy ist es der erste Reiter unten. Auch ein Tipp auf das Schul-Logo führt hierher.",
           "Jeder Block zeigt Zeit, Namen, Raum, Zielgruppe und das eingeteilte Personal. Die Farbe am Rand ist die Farbe aus der Planung.",
           "Die grüne Linie `Jetzt` markiert die aktuelle Uhrzeit. Laufende Blöcke tragen das Etikett `Läuft`.",
           "Einen laufenden Block antippen: Sie landen in seiner Kinderliste in `Aktuelle Aufsicht` und können dort Kinder an-, ab- und ummelden.",

@@ -169,6 +169,16 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   {
+    // Tagesplan (#2383): die Standardseite der Betreuungskräfte, deshalb der
+    // erste Tab. Gating (binary-Modus, timetable.enabled) unten in
+    // filteredMainItemsByMode.
+    href: "/betreuungsplan/tag",
+    label: "Tagesplan",
+    iconKey: "betreuungsplan",
+    concept: "carePlan",
+    alwaysShow: true,
+  },
+  {
     href: "/ogs-groups",
     label: "Gruppe",
     iconKey: "group",
@@ -335,17 +345,6 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "group",
     concept: "groups",
     alwaysShow: true,
-  },
-  {
-    // Tages-Betreuungsplan (#2383): Einstieg der Betreuungskräfte in den
-    // laufenden Tag. Gating unten in filteredAdditionalItems (binary-Modus,
-    // timetable.enabled); Admins haben den vollen Betreuungsplan.
-    href: "/betreuungsplan/tag",
-    label: "Tagesplan",
-    iconKey: "betreuungsplan",
-    concept: "carePlan",
-    alwaysShow: true,
-    hideForAdmin: true,
   },
   {
     href: "/activities",
@@ -680,21 +679,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         userHasEffectiveAdminScope) &&
       // Bei offener Betreuung gibt es keine "meine Gruppe" — der
       // gruppenbasierte Einstieg entfällt (#1544).
-      !(openCareGroupMode && item.href === "/ogs-groups"),
+      !(openCareGroupMode && item.href === "/ogs-groups") &&
+      // Tagesplan (#2383): nur im detaillierten Modus und nur an Schulen mit
+      // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne config:read).
+      !(
+        item.href === "/betreuungsplan/tag" &&
+        (presenceMode === "binary" || !tagesplanEnabled)
+      ),
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
     if (item.href === "/anfragen") return canOpenRequestsPage(session);
-    // Tagesplan (#2383): nur im detaillierten Modus und nur an Schulen mit
-    // aktiviertem Betreuungsplan (Flag vom Tenant-Resolve, ohne config:read).
-    if (
-      item.href === "/betreuungsplan/tag" &&
-      (presenceMode === "binary" || !tagesplanEnabled)
-    ) {
-      return false;
-    }
     if (
       item.href === "/ogs-groups" &&
       !userIsCaregiver &&

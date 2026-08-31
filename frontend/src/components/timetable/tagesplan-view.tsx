@@ -445,7 +445,13 @@ export function TagesplanView() {
           </div>
         }
       >
-        {isLoading ? <Skeleton className="h-64 w-full" /> : null}
+        {/* Solange die Session lädt, fetcht useSWRAuth noch nicht — dann ist
+            isLoading false UND instances leer. Ohne diese Bedingung würde
+            kurz "keine Betreuung geplant" aufblitzen, obwohl nie geladen
+            wurde. */}
+        {isLoading || (instances == null && !listError) ? (
+          <Skeleton className="h-64 w-full" />
+        ) : null}
 
         {!isLoading && forbidden ? (
           <EmptyState
@@ -471,7 +477,10 @@ export function TagesplanView() {
           </div>
         ) : null}
 
-        {!isLoading && !listError && sorted.length === 0 ? (
+        {!isLoading &&
+        !listError &&
+        instances != null &&
+        sorted.length === 0 ? (
           <EmptyState
             title={
               isToday

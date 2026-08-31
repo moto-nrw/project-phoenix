@@ -857,11 +857,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
 
   // Determine which flat items come before / after the accordion insertion points
-  // Order: Home, groups, supervisions, search, activities, rooms, staff,
-  // substitutions, database, coming soon, bottom pinned.
+  // Order: Home, Tagesplan, groups, supervisions, search, activities, rooms,
+  // staff, substitutions, database, coming soon, bottom pinned.
   const beforeAccordionItems = mainNavItems.filter(
     (item) =>
       item.href === "/dashboard" ||
+      item.href === "/betreuungsplan/tag" ||
       (item.href === "/students/search" && !item.comingSoon),
   );
 
@@ -870,6 +871,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     (item) =>
       !item.comingSoon &&
       item.href !== "/dashboard" &&
+      item.href !== "/betreuungsplan/tag" &&
       item.href !== "/students/search" &&
       item.href !== "/substitutions",
   );
@@ -1172,6 +1174,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {/* Home (admin only) */}
           {beforeAccordionItems
             .filter((item) => item.href === "/dashboard")
+            .map(renderNavItem)}
+
+          {/* Tagesplan (#2383): die Standardseite der Betreuungskräfte —
+              ganz oben, wie Home bei Admins. */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/betreuungsplan/tag")
             .map(renderNavItem)}
 
           {/* Group navigation (tenant staff/admin; hidden in open-care mode). */}

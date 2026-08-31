@@ -9,6 +9,8 @@ import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
+import { isCaregiver } from "~/lib/auth-utils";
+import { usePresenceMode, useTimetableEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
@@ -58,6 +60,15 @@ export function TeacherShellProvider({
 }) {
   const { data: session, status: sessionStatus } = useSession();
   const { profile } = useProfile();
+  const presenceMode = usePresenceMode();
+  const timetableEnabled = useTimetableEnabled();
+  // Home der Betreuungskräfte ist der Tagesplan (#2383) — dieselbe Regel wie
+  // der Login-Redirect. Admins (und Schulen ohne Betreuungsplan bzw. im
+  // binären Modus) behalten /dashboard als Logo-Ziel.
+  const homeUrl =
+    isCaregiver(session) && presenceMode !== "binary" && timetableEnabled
+      ? "/betreuungsplan/tag"
+      : "/dashboard";
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
@@ -118,10 +129,10 @@ export function TeacherShellProvider({
         window.location.href = "/";
       },
       mode: "teacher" as const,
-      homeUrl: "/dashboard",
+      homeUrl,
       profileUrl: "/profile",
     };
-  }, [session, sessionStatus, profile]);
+  }, [session, sessionStatus, profile, homeUrl]);
 
   return (
     <ShellAuthContext.Provider value={value}>
