@@ -455,6 +455,18 @@ function TenantPageTabs({
   const rowRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(items.length);
+  // Liegen im scrollenden Band (unter sm) rechts noch Reiter? Dann zeigt ein
+  // Verlaufs-Fade an der Kartenkante, dass man scrollen kann — eine hart
+  // angeschnittene Pille liest sich sonst als Darstellungsfehler, und ein
+  // ganz hinausgescrollter Reiter wäre unsichtbar, ohne dass etwas auf ihn
+  // zeigt.
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollHint = useCallback(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    setCanScrollRight(row.scrollWidth - row.clientWidth - row.scrollLeft > 1);
+  }, []);
 
   const measure = useCallback(() => {
     const row = rowRef.current;
@@ -498,12 +510,23 @@ function TenantPageTabs({
 
   useLayoutEffect(() => {
     measure();
+    updateScrollHint();
     const row = rowRef.current;
-    if (!row || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(row);
-    return () => observer.disconnect();
-  }, [measure, items]);
+    if (!row) return;
+    row.addEventListener("scroll", updateScrollHint, { passive: true });
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => {
+        measure();
+        updateScrollHint();
+      });
+      observer.observe(row);
+    }
+    return () => {
+      row.removeEventListener("scroll", updateScrollHint);
+      observer?.disconnect();
+    };
+  }, [measure, updateScrollHint, items]);
 
   // Auf dem Telefon rueckt der aktive Reiter ins Sichtfenster des Bandes,
   // sonst steht die Seite auf einem Bereich, den man nicht sieht.
@@ -641,7 +664,7 @@ function TenantPageTabs({
           ihnen trägt. Die Linie verbindet den Reiter zugleich sichtbar mit
           dem Inhalt darunter; eine einzeln getönte Pille sagt das nicht, sie
           liest sich als Filter. */}
-      <div className="border-b border-gray-200 max-sm:border-0 sm:px-5">
+      <div className="relative border-b border-gray-200 max-sm:border-0 sm:px-5">
         <div
           ref={rowRef}
           role="tablist"
@@ -657,6 +680,16 @@ function TenantPageTabs({
           {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
           {hidden.length > 0 && moreTrigger()}
         </div>
+        {/* Scroll-Hinweis des mobilen Bandes: solange rechts Reiter liegen,
+            blendet die Kante sie sichtbar aus — die Pille wirkt angeschnitten
+            statt abgeschnitten, und beim Zu-Ende-Scrollen verschwindet der
+            Verlauf. Ohne ihn wäre ein hinausgescrollter Reiter unsichtbar. */}
+        {canScrollRight && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent sm:hidden"
+          />
+        )}
 
         {/* Schattenzeile für die Messung: sie steht in einem Kasten ohne Höhe
             und ist unsichtbar, behält aber die natürlichen Breiten aller
