@@ -200,6 +200,9 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 
 	count := 0
 	for _, cred := range staff {
+		if cred.Position == "Extern" {
+			continue
+		}
 		staffID := staffIDByEmail[cred.Email]
 		path := fmt.Sprintf("/api/staff/%d/schedule", staffID)
 		body := map[string]any{

@@ -205,3 +205,28 @@ func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
 		"/api/time-tracking/break/end",
 	}, paths)
 }
+
+func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{}}`)
+	})
+	defer srv.Close()
+
+	staff := []StaffCredentials{
+		{Email: "teacher@example.test", Position: "Pädagogische Fachkraft"},
+		{Email: "external@example.test", Position: "Extern"},
+	}
+	count, err := seedSchedulesViaAPI(
+		&Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}},
+		staff,
+		map[string]int64{"teacher@example.test": 11, "external@example.test": 22},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 5, count)
+	assert.Equal(t, []string{"/api/staff/11/schedule"}, paths)
+}

@@ -363,7 +363,8 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 
 func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 	// Create 10 groups with themed names (typical for German OGS)
-	// Each Pädagogische Fachkraft (demo11-demo20) gets exactly one group
+	// Each Pädagogische Fachkraft gets exactly one group; Wiesengruppe is
+	// additionally assigned to an OGS-Büro teacher.
 	// This ensures every Betreuer sees "Meine Gruppe" in the frontend
 	// Note: OGS-Büro staff (demo1-demo10) are admins and see ALL groups
 	classes := []struct {
@@ -380,7 +381,7 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 		{key: "schmetterlingsgruppe", name: "Schmetterlingsgruppe", teachers: []string{"Birgit Braun"}},
 		{key: "waldgruppe", name: "Waldgruppe", teachers: []string{"Jörg Krüger"}},
 		{key: "meeresgruppe", name: "Meeresgruppe", teachers: []string{"Heike Hartmann"}},
-		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Uwe Lange"}},
+		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Anna Müller"}},
 	}
 
 	for index, class := range classes {

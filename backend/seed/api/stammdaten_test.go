@@ -187,6 +187,31 @@ func TestFixedSeeder_SeedGroups(t *testing.T) {
 	assert.Len(t, fs.groupIDs, 10)
 }
 
+func TestFixedSeeder_SeedGroupsAssignsWiesengruppeTeacher(t *testing.T) {
+	t.Parallel()
+
+	var wiesengruppeTeacherIDs []int64
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		var body struct {
+			Name       string  `json:"name"`
+			TeacherIDs []int64 `json:"teacher_ids"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		if body.Name == "Wiesengruppe" {
+			wiesengruppeTeacherIDs = body.TeacherIDs
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
+	})
+	defer srv.Close()
+
+	fs := NewFixedSeeder(newTestClient(srv.URL, false), false, "")
+	fs.teacherIDs["Anna Müller"] = 42
+
+	require.NoError(t, fs.seedGroups(context.Background(), &FixedResult{}))
+	assert.Equal(t, []int64{42}, wiesengruppeTeacherIDs)
+}
+
 func TestFixedSeeder_SeedStudents(t *testing.T) {
 	t.Parallel()
 

@@ -208,7 +208,7 @@ var DemoStudents = []DemoStudent{
 	{FirstName: "Robin", LastName: "Walther", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
 	{FirstName: "Nina", LastName: "Weiß", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
 
-	// Wiesengruppe (10 students) - Betreuer: Uwe Lange - Mix of Klasse 3a, 4b
+	// Wiesengruppe (10 students) - Betreuerin: Anna Müller - Mix of Klasse 3a, 4b
 	{FirstName: "Sebastian", LastName: "Wendt", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
 	{FirstName: "Annika", LastName: "Winkler", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
 	{FirstName: "Tobias", LastName: "Winter", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
