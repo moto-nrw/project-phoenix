@@ -6,11 +6,11 @@ vi.mock("./session-cache", () => ({ sessionFetch }));
 import { substitutionService } from "./substitution-api";
 
 const handover = {
-  id: 5,
+  id: "5",
   type: "group_handover" as const,
-  group: { id: 12, name: "Robins Gruppe" },
+  group: { id: "12", name: "Robins Gruppe" },
   target: {
-    id: 34,
+    id: "34",
     full_name: "Toni Test",
   },
   period: { start_date: "2026-08-29", end_date: "2026-08-30" },
@@ -199,14 +199,88 @@ describe("substitutionService", () => {
       body: JSON.stringify({
         type: "group_handover",
         group_handover: {
-          group_id: 12,
-          target_staff_id: 34,
+          group_id: "12",
+          target_staff_id: "34",
           start_date: "2026-08-29",
           end_date: "2026-08-30",
         },
       }),
     });
     expect(result.id).toBe("5");
+  });
+
+  it("loads one running supervision with its available targets", async () => {
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          group_handovers: [],
+          targets: [],
+          running_supervisions: [
+            {
+              id: "41",
+              type: "additional_supervision",
+              name: "Freispiel",
+              room_name: "Atelier",
+              supervisors: [{ id: "11", full_name: "Alex Alt" }],
+              available_targets: [{ id: "73", full_name: "Toni Test" }],
+              is_current_user_supervising: true,
+              can_assign: true,
+            },
+          ],
+        },
+      }),
+    });
+
+    const result = await substitutionService.fetchRunningSupervision("41");
+
+    expect(sessionFetch).toHaveBeenCalledWith(
+      "/api/substitutions?active_group_id=41",
+      { credentials: "include" },
+    );
+    expect(result).toEqual({
+      id: "41",
+      name: "Freispiel",
+      roomName: "Atelier",
+      supervisors: [{ id: "11", fullName: "Alex Alt" }],
+      availableTargets: [{ id: "73", fullName: "Toni Test" }],
+      isCurrentUserSupervising: true,
+      canAssign: true,
+    });
+  });
+
+  it("adds a supervisor with only the two allowed ids", async () => {
+    const json = vi.fn(async () => ({
+      data: {
+        id: "91",
+        type: "additional_supervision",
+        active_group_id: "41",
+        target: { id: "73", full_name: "Toni Test" },
+      },
+    }));
+    sessionFetch.mockResolvedValue({
+      ok: true,
+      json,
+    });
+
+    const result = await substitutionService.addSupervisor(
+      "9007199254740993",
+      "9007199254740995",
+    );
+
+    expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "additional_supervision",
+        additional_supervision: {
+          active_group_id: "9007199254740993",
+          target_staff_id: "9007199254740995",
+        },
+      }),
+    });
+    expect(result).toEqual({ id: "91", targetName: "Toni Test" });
+    expect(json).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a missing proxy envelope", async () => {
@@ -220,12 +294,15 @@ describe("substitutionService", () => {
   it("ends a typed group handover", async () => {
     sessionFetch.mockResolvedValue({ ok: true });
 
-    await substitutionService.deleteSubstitution("5");
+    await substitutionService.deleteSubstitution("9007199254740993");
 
     expect(sessionFetch).toHaveBeenCalledWith("/api/substitutions/end", {
       method: "POST",
       credentials: "include",
-      body: JSON.stringify({ type: "group_handover", id: 5 }),
+      body: JSON.stringify({
+        type: "group_handover",
+        id: "9007199254740993",
+      }),
     });
   });
 });

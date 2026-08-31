@@ -487,6 +487,13 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 		if session == nil || session.ID <= 0 {
 			continue
 		}
+		locked, err := s.GroupRepo.FindByIDForUpdate(ctx, session.ID)
+		if err != nil {
+			return nil, err
+		}
+		if locked == nil || !locked.IsActive() {
+			continue
+		}
 		if err := s.GroupRepo.EndSession(ctx, session.ID); err != nil {
 			return nil, err
 		}
@@ -503,6 +510,13 @@ func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, dev
 	}
 
 	if existingSession == nil {
+		return 0, nil
+	}
+	locked, err := s.GroupRepo.FindByIDForUpdate(ctx, existingSession.ID)
+	if err != nil {
+		return 0, err
+	}
+	if locked == nil || !locked.IsActive() {
 		return 0, nil
 	}
 
@@ -685,17 +699,17 @@ func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) (int64
 
 // UpdateActiveGroupSupervisors replaces all supervisors for an active group
 func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*active.Group, error) {
-	if err := s.validateActiveGroupForSupervisorUpdate(ctx, activeGroupID); err != nil {
-		return nil, err
-	}
-
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
 	}
 
 	uniqueSupervisors := deduplicateSupervisorIDs(supervisorIDs)
-
-	if err := s.replaceSupervisorsInTransaction(ctx, activeGroupID, uniqueSupervisors); err != nil {
+	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockActiveGroupForSupervisorUpdate(txCtx, activeGroupID); err != nil {
+			return err
+		}
+		return s.replaceSupervisorsInTransaction(txCtx, activeGroupID, uniqueSupervisors)
+	}); err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
 
@@ -719,9 +733,9 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 }
 
 // validateActiveGroupForSupervisorUpdate validates that the group exists and is active
-func (s *service) validateActiveGroupForSupervisorUpdate(ctx context.Context, activeGroupID int64) error {
-	activeGroup, err := s.GroupRepo.FindByID(ctx, activeGroupID)
-	if err != nil {
+func (s *service) lockActiveGroupForSupervisorUpdate(ctx context.Context, activeGroupID int64) error {
+	activeGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, activeGroupID)
+	if err != nil || activeGroup == nil {
 		return &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: ErrActiveGroupNotFound}
 	}
 
@@ -729,6 +743,27 @@ func (s *service) validateActiveGroupForSupervisorUpdate(ctx context.Context, ac
 		return &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: fmt.Errorf("cannot update supervisors for an ended session")}
 	}
 
+	return nil
+}
+
+func (s *service) lockGroupRows(ctx context.Context, groupIDs ...int64) error {
+	unique := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		if id > 0 {
+			unique[id] = struct{}{}
+		}
+	}
+	ids := slices.Collect(maps.Keys(unique))
+	slices.Sort(ids)
+	for _, id := range ids {
+		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return err
+		}
+		if group == nil {
+			return ErrActiveGroupNotFound
+		}
+	}
 	return nil
 }
 
@@ -748,6 +783,7 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 		return err
 	}
 
+	uniqueSupervisors = primarySupervisorIDs(uniqueSupervisors, currentSupervisors)
 	if err := s.endAllCurrentSupervisors(ctx, currentSupervisors); err != nil {
 		return err
 	}
@@ -755,10 +791,26 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 	return s.upsertSupervisors(ctx, activeGroupID, uniqueSupervisors, currentSupervisors)
 }
 
-// endAllCurrentSupervisors ends all current supervisors by setting end_date
+// primarySupervisorIDs excludes non-primary roles from a primary-supervisor
+// replacement. IoT check-ins pass every active supervisor ID, including
+// additional supervisors, which must remain assigned to the session.
+func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*active.GroupSupervisor) map[int64]bool {
+	primaryIDs := maps.Clone(supervisorIDs)
+	for _, supervisor := range currentSupervisors {
+		if supervisor.Role != "supervisor" {
+			delete(primaryIDs, supervisor.StaffID)
+		}
+	}
+	return primaryIDs
+}
+
+// endAllCurrentSupervisors ends the current primary supervisors by setting end_date.
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
 	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
+		if supervisor.Role != "supervisor" {
+			continue
+		}
 		supervisor.EndDate = &today
 		if err := s.SupervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
@@ -880,53 +932,74 @@ func getDeviceIDString(deviceID *int64) string {
 
 // EndActivitySession ends an active activity session
 func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
-	// Verify the session exists and is active
-	group, err := s.GroupRepo.FindByID(ctx, activeGroupID)
+	var visitsToNotify []visitSSEData
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, activeGroupID)
+		if err != nil || group == nil {
+			return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
+		}
+		if !group.IsActive() {
+			return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
+		}
+		visitsToNotify, err = s.endActivitySessionLocked(txCtx, activeGroupID)
+		return err
+	})
 	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
+		return err
 	}
+	s.queueActivitySessionEndBroadcasts(ctx, activeGroupID, visitsToNotify)
+	return nil
+}
 
-	if !group.IsActive() {
-		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupAlreadyEnded}
-	}
-
-	// Collect active visits BEFORE transaction for SSE broadcasts
+func (s *service) endActivitySessionLocked(ctx context.Context, activeGroupID int64) ([]visitSSEData, error) {
+	// Collect active visits before mutating them for the SSE payloads.
 	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, activeGroupID)
 	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
+		return nil, &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
 	}
 
 	// End all active visits
 	for _, visitData := range visitsToNotify {
 		if _, _, err := s.endVisitWithAttendanceSync(ctx, visitData.VisitID); err != nil {
-			return &ActiveError{Op: "EndActivitySession", Err: err}
+			return nil, &ActiveError{Op: "EndActivitySession", Err: err}
 		}
 	}
 
 	// End all active supervisors
-	activeSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
-	if err != nil {
-		return &ActiveError{Op: "EndActivitySession", Err: err}
-	}
-	for _, sup := range activeSupervisors {
-		if err := s.SupervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
-			return &ActiveError{Op: "EndActivitySession", Err: err}
-		}
+	if err := s.endActiveSupervisors(ctx, activeGroupID); err != nil {
+		return nil, err
 	}
 
 	// End the session
 	if err := s.GroupRepo.EndSession(ctx, activeGroupID); err != nil {
+		return nil, &ActiveError{Op: "EndActivitySession", Err: err}
+	}
+	return visitsToNotify, nil
+}
+
+func (s *service) endActiveSupervisors(ctx context.Context, activeGroupID int64) error {
+	activeSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
-
-	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.Broadcaster != nil {
-		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		s.broadcastStudentCheckoutEvents(ctx, activeGroupIDStr, visitsToNotify)
-		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
+	for _, supervisor := range activeSupervisors {
+		if err := s.SupervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
+			return &ActiveError{Op: "EndActivitySession", Err: err}
+		}
 	}
-
 	return nil
+}
+
+func (s *service) queueActivitySessionEndBroadcasts(ctx context.Context, activeGroupID int64, visits []visitSSEData) {
+	if s.Broadcaster == nil {
+		return
+	}
+	broadcastCtx := tenant.ContextWithoutTransaction(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
+		s.broadcastStudentCheckoutEvents(broadcastCtx, activeGroupIDStr, visits)
+		s.broadcastActivityEndEvent(broadcastCtx, activeGroupID, activeGroupIDStr)
+	})
 }
 
 // GetDeviceCurrentSession gets the current active session for a device
@@ -953,21 +1026,6 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 
 	// Delegate to ProcessSessionTimeoutByID with the session ID
 	return s.ProcessSessionTimeoutByID(ctx, session.ID)
-}
-
-// validateSessionForTimeout validates that a session exists and is still active.
-// Returns the session if valid, or an error if not found or already ended.
-func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64) (*active.Group, error) {
-	session, err := s.GroupRepo.FindByID(ctx, sessionID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
-	}
-
-	if !session.IsActive() {
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
-	}
-
-	return session, nil
 }
 
 // checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
@@ -1085,12 +1143,12 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 // inside one transaction and announces nothing — the SSE events belong to the
 // caller, after the commit.
 func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
-	session, err := s.validateSessionForTimeout(ctx, sessionID)
-	if err != nil {
-		if activeErr, ok := err.(*ActiveError); ok {
-			return nil, activeErr
-		}
-		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	session, err := s.GroupRepo.FindByIDForUpdate(ctx, sessionID)
+	if err != nil || session == nil {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
+	}
+	if !session.IsActive() {
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
 	}
 
 	// The timetable side closes FIRST, before anything is announced (#1747
@@ -1106,6 +1164,9 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 	studentsCheckedOut, err := s.checkoutActiveVisits(ctx, sessionID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+	if err := s.endActiveSupervisors(ctx, sessionID); err != nil {
+		return nil, err
 	}
 
 	if err := s.GroupRepo.EndSession(ctx, sessionID); err != nil {
@@ -1316,32 +1377,72 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		}, nil
 	}
 
-	result := &DailySessionCleanupResult{
-		ExecutedAt: time.Now(),
-		Success:    true,
-		Errors:     make([]string, 0),
-	}
-
-	// 1. Get all active group IDs
-	activeGroups, err := s.GroupRepo.List(ctx, nil)
+	result := newDailySessionCleanupResult()
+	activeIDs, err := s.activeSessionIDs(ctx)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
 	}
-
-	activeIDs := make([]int64, 0, len(activeGroups))
-	for _, g := range activeGroups {
-		if g.IsActive() {
-			activeIDs = append(activeIDs, g.ID)
-		}
-	}
-
 	// Always clean up orphaned supervisors from previous days, regardless of
 	// whether today's bulk steps succeed or are skipped.
 	defer s.cleanupOrphanedSupervisors(ctx, result)
 
 	if len(activeIDs) == 0 {
 		return result, nil
+	}
+	slices.Sort(activeIDs)
+	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		lockedIDs, err := s.lockActiveSessionIDs(txCtx, activeIDs)
+		if err != nil {
+			return err
+		}
+		return s.endDailySessionsLocked(txCtx, lockedIDs, result)
+	}); err != nil {
+		result.Success = false
+		return result, &ActiveError{Op: "EndDailySessions", Err: err}
+	}
+	return result, nil
+}
+
+func newDailySessionCleanupResult() *DailySessionCleanupResult {
+	return &DailySessionCleanupResult{
+		ExecutedAt: time.Now(),
+		Success:    true,
+		Errors:     make([]string, 0),
+	}
+}
+
+func (s *service) activeSessionIDs(ctx context.Context) ([]int64, error) {
+	activeGroups, err := s.GroupRepo.List(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	activeIDs := make([]int64, 0, len(activeGroups))
+	for _, group := range activeGroups {
+		if group.IsActive() {
+			activeIDs = append(activeIDs, group.ID)
+		}
+	}
+	return activeIDs, nil
+}
+
+func (s *service) lockActiveSessionIDs(ctx context.Context, ids []int64) ([]int64, error) {
+	lockedIDs := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		group, err := s.GroupRepo.FindByIDForUpdate(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if group != nil && group.IsActive() {
+			lockedIDs = append(lockedIDs, id)
+		}
+	}
+	return lockedIDs, nil
+}
+
+func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64, result *DailySessionCleanupResult) error {
+	if len(activeIDs) == 0 {
+		return nil
 	}
 
 	// 2. Bulk end visits — abort remaining steps on failure to prevent
@@ -1350,7 +1451,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
 		result.Success = false
-		return result, nil
+		return err
 	}
 	result.VisitsEnded = int(visitsEnded)
 
@@ -1359,21 +1460,21 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
 		result.Success = false
-	} else {
-		result.SessionsEnded = int(sessionsEnded)
-		result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
+		return err
 	}
+	result.SessionsEnded = int(sessionsEnded)
+	result.EndedActiveGroupIDs = append(result.EndedActiveGroupIDs, activeIDs...)
 
 	// 4. Bulk end supervisors
 	supervisorsEnded, err := s.SupervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
 		result.Success = false
-	} else {
-		result.SupervisorsEnded = int(supervisorsEnded)
+		return err
 	}
+	result.SupervisorsEnded = int(supervisorsEnded)
 
-	return result, nil
+	return nil
 }
 
 // cleanupOrphanedSupervisors closes supervisor records from previous days
@@ -1391,17 +1492,39 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 	}
 
 	for _, record := range staleRecords {
-		// end_date is a DATE column, so set it to the start_date itself
-		endDate := record.StartDate
-
-		record.EndDate = &endDate
-		record.UpdatedAt = time.Now()
-		if _, err := s.SupervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
+		closed, err := s.closeStaleSupervisor(ctx, record, today)
+		if err != nil {
 			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
-		} else {
+		} else if closed {
 			result.SupervisorsEnded++
 		}
 	}
+}
+
+func (s *service) closeStaleSupervisor(ctx context.Context, record *active.GroupSupervisor, today timezone.Date) (bool, error) {
+	closed := false
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockGroupRows(txCtx, record.GroupID); err != nil {
+			return err
+		}
+		current, err := s.SupervisorRepo.FindByID(txCtx, record.ID)
+		if err != nil {
+			return err
+		}
+		if current == nil || current.GroupID != record.GroupID {
+			return ErrGroupSupervisorNotFound
+		}
+		if current.EndDate != nil || !current.StartDate.Before(today) {
+			return nil
+		}
+		endDate := current.StartDate
+		current.EndDate = &endDate
+		current.UpdatedAt = time.Now()
+		_, err = s.SupervisorRepo.UpdateColumns(txCtx, current, "end_date", "updated_at")
+		closed = err == nil
+		return err
+	})
+	return closed, err
 }

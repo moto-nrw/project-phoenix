@@ -95,8 +95,14 @@ export function MobileTabsActionArea(
   if (hasTitle) return null;
   if (!actionButton && !statusIndicator && !badge) return null;
 
+  const stackActionAndBadge = Boolean(actionButton && badge);
+
   return (
-    <div className="mr-2 flex flex-shrink-0 items-center gap-2 md:hidden md:gap-3">
+    <div
+      className={`mr-2 flex flex-shrink-0 items-center md:hidden ${
+        stackActionAndBadge ? "flex-col-reverse gap-1" : "gap-2"
+      }`}
+    >
       <TabsActionArea {...props} variant="mobile" />
     </div>
   );

@@ -11,8 +11,9 @@ import (
 type TargetType string
 
 const (
-	TargetGroupHandover        TargetType = "group_handover"
-	TargetScheduleSubstitution TargetType = "schedule_substitution"
+	TargetGroupHandover         TargetType = "group_handover"
+	TargetScheduleSubstitution  TargetType = "schedule_substitution"
+	TargetAdditionalSupervision TargetType = "additional_supervision"
 )
 
 var (
@@ -23,6 +24,7 @@ var (
 	ErrNotRunning      = errors.New("substitution is not running")
 	ErrAlreadyAssigned = errors.New("substitution already assigned")
 	ErrConflict        = errors.New("substitution conflict")
+	ErrSelfAssignment  = errors.New("substitution self assignment")
 )
 
 type OperationError struct {
@@ -43,12 +45,12 @@ func (e *OperationError) Is(target error) bool { return target == e.Target }
 func (e *OperationError) Unwrap() error        { return e.Cause }
 
 type GroupRef struct {
-	ID   int64  `json:"id"`
+	ID   int64  `json:"id,string"`
 	Name string `json:"name"`
 }
 
 type StaffRef struct {
-	ID       int64  `json:"id"`
+	ID       int64  `json:"id,string"`
 	FullName string `json:"full_name"`
 }
 
@@ -58,7 +60,7 @@ type Period struct {
 }
 
 type GroupHandover struct {
-	ID     int64      `json:"id"`
+	ID     int64      `json:"id,string"`
 	Type   TargetType `json:"type"`
 	Group  GroupRef   `json:"group"`
 	Target StaffRef   `json:"target"`
@@ -71,10 +73,23 @@ type OverviewResult struct {
 	Targets              []StaffRef                    `json:"targets"`
 	ScheduleAppointments []ScheduleAppointmentOverview `json:"schedule_appointments"`
 	ScheduleTargets      []StaffRef                    `json:"schedule_targets"`
+	RunningSupervisions  []RunningSupervision          `json:"running_supervisions"`
+}
+
+type RunningSupervision struct {
+	ID                       int64      `json:"id,string"`
+	Type                     TargetType `json:"type"`
+	Name                     string     `json:"name"`
+	RoomName                 string     `json:"room_name,omitempty"`
+	Supervisors              []StaffRef `json:"supervisors"`
+	AvailableTargets         []StaffRef `json:"available_targets"`
+	IsCurrentUserSupervising bool       `json:"is_current_user_supervising"`
+	CanAssign                bool       `json:"can_assign"`
 }
 
 type OverviewQuery struct {
 	GroupID                int64
+	ActiveGroupID          int64
 	On                     *timezone.Date
 	IncludeTargets         bool
 	ScheduleFrom           *timezone.Date
@@ -112,6 +127,8 @@ type GroupHandoverAssignment struct {
 	StartDate     *timezone.Date
 	EndDate       *timezone.Date
 }
+
+type AdditionalSupervisionAssignment struct{ ActiveGroupID, TargetStaffID int64 }
 
 type ScheduleAbsenceChange struct {
 	StaffID     int64    `json:"staff_id"`
@@ -186,14 +203,21 @@ type ScheduleSubstitutionDayResult struct {
 }
 
 type AssignmentResult struct {
-	*GroupHandover
+	ID                   int64                       `json:"id,string"`
+	Type                 TargetType                  `json:"type"`
+	Group                *GroupRef                   `json:"group,omitempty"`
+	ActiveGroupID        int64                       `json:"active_group_id,string,omitempty"`
+	Target               StaffRef                    `json:"target"`
+	Period               *Period                     `json:"period,omitempty"`
+	CanEnd               bool                        `json:"can_end,omitempty"`
 	ScheduleSubstitution *ScheduleSubstitutionResult `json:"schedule_substitution,omitempty"`
 }
 
 type Assignment struct {
-	Type                 TargetType
-	GroupHandover        *GroupHandoverAssignment
-	ScheduleSubstitution *ScheduleSubstitutionAssignment
+	Type                  TargetType
+	GroupHandover         *GroupHandoverAssignment
+	AdditionalSupervision *AdditionalSupervisionAssignment
+	ScheduleSubstitution  *ScheduleSubstitutionAssignment
 }
 
 type EndRequest struct {

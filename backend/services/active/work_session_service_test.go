@@ -640,6 +640,31 @@ func (m *wsMockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Cont
 	return 0, nil
 }
 
+func TestCheckoutSupervisionCleanupLocksGroupsInOrder(t *testing.T) {
+	t.Parallel()
+	locked := make([]int64, 0, 2)
+	supervisors := &wsMockGroupSupervisorRepository{
+		findActiveByStaffIDFunc: func(context.Context, int64) ([]*activeModels.GroupSupervisor, error) {
+			return []*activeModels.GroupSupervisor{{GroupID: 9}, {GroupID: 3}, {GroupID: 9}}, nil
+		},
+		endAllActiveByStaffIDFunc: func(context.Context, int64) (int, error) {
+			require.Equal(t, []int64{3, 9}, locked)
+			return 3, nil
+		},
+	}
+	service := &workSessionService{
+		supervisorRepo: supervisors,
+		groupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(_ context.Context, id int64) (*activeModels.Group, error) {
+			locked = append(locked, id)
+			return &activeModels.Group{Model: base.Model{ID: id}}, nil
+		}},
+	}
+
+	ended, err := service.endActiveSupervisionsWithGroupLocks(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, 3, ended)
+}
+
 func (m *wsMockGroupSupervisorRepository) CreateBulk(ctx context.Context, supervisors []*activeModels.GroupSupervisor) error {
 	return nil
 }

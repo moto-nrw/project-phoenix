@@ -32,7 +32,7 @@ export interface GroupTransfer {
 
 // Backend response for staff by role
 interface BackendHandoverTarget {
-  id: number;
+  id: string;
   full_name: string;
 }
 
@@ -45,7 +45,7 @@ interface BackendStaffGroupLeaderCandidate {
 // Map backend response to frontend type
 function mapStaffWithRole(data: BackendHandoverTarget): StaffWithRole {
   return {
-    id: data.id.toString(),
+    id: data.id,
     fullName: data.full_name,
   };
 }
@@ -111,8 +111,8 @@ export const groupTransferService = {
         body: JSON.stringify({
           type: "group_handover",
           group_handover: {
-            group_id: Number.parseInt(groupId, 10),
-            target_staff_id: Number.parseInt(targetStaffId, 10),
+            group_id: groupId,
+            target_staff_id: targetStaffId,
           },
         }),
       });
@@ -190,7 +190,7 @@ export const groupTransferService = {
         method: "POST",
         body: JSON.stringify({
           type: "group_handover",
-          id: Number.parseInt(substitutionId, 10),
+          id: substitutionId,
         }),
       });
 

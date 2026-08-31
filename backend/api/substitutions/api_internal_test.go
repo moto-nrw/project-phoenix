@@ -11,6 +11,65 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAssignAdditionalSupervisionAcceptsOnlyTargetIDs(t *testing.T) {
+	t.Parallel()
+	request, err := decodeAssignment(strings.NewReader(`{
+		"type":"additional_supervision",
+		"additional_supervision":{"active_group_id":41,"target_staff_id":73}
+	}`))
+
+	require.NoError(t, err)
+	assignment, err := request.toAssignment()
+	require.NoError(t, err)
+	require.Equal(t, "additional_supervision", string(request.Type))
+	require.Equal(t, int64(41), assignment.AdditionalSupervision.ActiveGroupID)
+	require.Equal(t, int64(73), assignment.AdditionalSupervision.TargetStaffID)
+}
+
+func TestAssignAdditionalSupervisionPreservesLargeStringIDs(t *testing.T) {
+	t.Parallel()
+	request, err := decodeAssignment(strings.NewReader(`{
+		"type":"additional_supervision",
+		"additional_supervision":{"active_group_id":"9007199254740993","target_staff_id":"9007199254740995"}
+	}`))
+
+	require.NoError(t, err)
+	assignment, err := request.toAssignment()
+	require.NoError(t, err)
+	require.Equal(t, int64(9007199254740993), assignment.AdditionalSupervision.ActiveGroupID)
+	require.Equal(t, int64(9007199254740995), assignment.AdditionalSupervision.TargetStaffID)
+}
+
+func TestAssignAdditionalSupervisionRejectsClientRoleAndStart(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"role": `{
+			"type":"additional_supervision",
+			"additional_supervision":{"active_group_id":41,"target_staff_id":73,"role":"supervisor"}
+		}`,
+		"start": `{
+			"type":"additional_supervision",
+			"additional_supervision":{"active_group_id":41,"target_staff_id":73,"start_time":"2026-08-30T10:00:00Z"}
+		}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := decodeAssignment(strings.NewReader(body))
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestAssignAdditionalSupervisionRejectsTrailingJSON(t *testing.T) {
+	t.Parallel()
+
+	_, err := decodeAssignment(strings.NewReader(
+		`{"type":"additional_supervision","additional_supervision":{"active_group_id":41,"target_staff_id":73}} {}`,
+	))
+	require.Error(t, err)
+}
+
 func TestRenderModuleErrorUsesStableContract(t *testing.T) {
 	t.Parallel()
 

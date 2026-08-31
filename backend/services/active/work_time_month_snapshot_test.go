@@ -50,8 +50,8 @@ func (snapshotSessionSettings) ResolveInt(context.Context, string) (int, error) 
 func (f *snapshotFixture) newAdminSessionService() active.WorkSessionService {
 	return active.NewWorkSessionService(
 		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit, f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.Staff, f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
-		snapshotSessionSettings{}, nil,
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff, f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
+		snapshotSessionSettings{}, nil, f.db,
 	)
 }
 

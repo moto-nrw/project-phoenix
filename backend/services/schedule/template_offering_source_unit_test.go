@@ -325,18 +325,16 @@ func TestOfferingRosterFeedChanged(t *testing.T) {
 // resyncUpdatedTemplateOfferingRoster decides whether an edit has to touch
 // the offering-sourced roster at all, and with which window.
 //
-// The fixture dates are today-relative on purpose: since the #2147 review the
-// boundary is clamped to today, so fixed calendar dates would flip these
-// assertions once real time passes them.
+// Inject a fixed today so the calendar boundary cannot drift with wall time.
 func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Parallel()
 
+	fixtureToday := timezone.NewDate(2026, 8, 24)
 	periodID := int64(55)
-	today := timezone.NewDate(2026, 8, 24)
-	rosterFrom := today.AddDays(6)
-	scheduleFrom := today.AddDays(28)
+	rosterFrom := fixtureToday.AddDays(6)
+	scheduleFrom := fixtureToday.AddDays(28)
 	deps := func(resync func(context.Context, OfferingRosterResyncInput) error) TimetableDataDependencies {
-		return TimetableDataDependencies{Today: func() timezone.Date { return today }, ResyncOfferingRoster: resync}
+		return TimetableDataDependencies{Today: func() timezone.Date { return fixtureToday }, ResyncOfferingRoster: resync}
 	}
 
 	baseInput := func() TemplateUpdateInput {
@@ -409,11 +407,11 @@ func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 
 		in := baseInput()
 		in.Fields.SourceCareOfferingIDs = []int64{12}
-		pastStart := timezone.NewDate(2026, 8, 24).AddDays(-30)
+		pastStart := fixtureToday.AddDays(-30)
 
 		require.NoError(t, svc.resyncUpdatedTemplateOfferingRoster(t.Context(), in, nil, &pastStart))
 
-		assert.Equal(t, timezone.NewDate(2026, 8, 24), got.EffectiveFrom,
+		assert.Equal(t, fixtureToday, got.EffectiveFrom,
 			"#2147 review: a past schedule start must not become the rewrite boundary — that would delete or cap roster rows that were already effective")
 	})
 

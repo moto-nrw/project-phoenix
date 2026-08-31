@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Error message constants to avoid duplication
@@ -387,6 +388,8 @@ type workSessionService struct {
 	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
 	absenceTypes   StaffAbsenceTypeService
 	supervisorRepo activeModels.GroupSupervisorRepository
+	groupRepo      activeModels.GroupRepository
+	db             *bun.DB
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
 	workModelRepo  configModels.WorkTimeModelRepository
@@ -457,8 +460,8 @@ func (s *workSessionService) SetAbsenceTypeService(svc StaffAbsenceTypeService) 
 	s.absenceTypes = svc
 }
 
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, groupRepo activeModels.GroupRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger, db *bun.DB) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, groupRepo: groupRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger, db: db}
 }
 
 func (s *workSessionService) now() time.Time {
@@ -938,7 +941,7 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 	if s.supervisorRepo == nil {
 		return
 	}
-	ended, err := s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
+	ended, err := s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
 	if err != nil {
 		s.getLogger().WarnContext(ctx, "failed to end active supervisions on checkout",
 			slog.Int64("staff_id", staffID),
@@ -950,6 +953,51 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 			slog.Int("ended_count", ended),
 			slog.Int64("staff_id", staffID))
 	}
+}
+
+func (s *workSessionService) endActiveSupervisionsWithGroupLocks(ctx context.Context, staffID int64) (int, error) {
+	if s.groupRepo == nil {
+		return s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
+	}
+	ended := 0
+	err := s.runInWorkSessionTx(ctx, func(txCtx context.Context) error {
+		supervisions, err := s.supervisorRepo.FindActiveByStaffID(txCtx, staffID)
+		if err != nil {
+			return err
+		}
+		groupIDs := make([]int64, 0, len(supervisions))
+		for _, supervision := range supervisions {
+			groupIDs = append(groupIDs, supervision.GroupID)
+		}
+		if err := s.lockWorkSessionGroupRows(txCtx, groupIDs); err != nil {
+			return err
+		}
+		ended, err = s.supervisorRepo.EndAllActiveByStaffID(txCtx, staffID)
+		return err
+	})
+	return ended, err
+}
+
+func (s *workSessionService) lockWorkSessionGroupRows(ctx context.Context, groupIDs []int64) error {
+	unique := make(map[int64]struct{}, len(groupIDs))
+	for _, id := range groupIDs {
+		unique[id] = struct{}{}
+	}
+	ordered := slices.Collect(maps.Keys(unique))
+	slices.Sort(ordered)
+	for _, id := range ordered {
+		if _, err := s.groupRepo.FindByIDForUpdate(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *workSessionService) runInWorkSessionTx(ctx context.Context, fn func(context.Context) error) error {
+	if s.db == nil {
+		return fn(ctx)
+	}
+	return tenant.NewTransactionRunner().RunInTx(ctx, fn)
 }
 
 // StartBreak starts a new break on the running block, whichever day it was

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -40,11 +41,15 @@ func (rs *Resource) Router() chi.Router {
 type assignmentRequest struct {
 	Type          substitution.TargetType `json:"type"`
 	GroupHandover *struct {
-		GroupID       int64  `json:"group_id"`
-		TargetStaffID int64  `json:"target_staff_id"`
-		StartDate     string `json:"start_date,omitempty"`
-		EndDate       string `json:"end_date,omitempty"`
+		GroupID       common.JSONID `json:"group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+		StartDate     string        `json:"start_date,omitempty"`
+		EndDate       string        `json:"end_date,omitempty"`
 	} `json:"group_handover"`
+	AdditionalSupervision *struct {
+		ActiveGroupID common.JSONID `json:"active_group_id"`
+		TargetStaffID common.JSONID `json:"target_staff_id"`
+	} `json:"additional_supervision"`
 	ScheduleSubstitution *scheduleAssignmentRequest `json:"schedule_substitution"`
 }
 
@@ -66,7 +71,7 @@ type scheduleAssignmentRequest struct {
 
 type endRequest struct {
 	Type substitution.TargetType `json:"type"`
-	ID   int64                   `json:"id"`
+	ID   common.JSONID           `json:"id"`
 }
 
 func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +83,14 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		query.GroupID = id
+	}
+	if raw := r.URL.Query().Get("active_group_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Gruppe ist ungültig.", "invalid_target"))
+			return
+		}
+		query.ActiveGroupID = id
 	}
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		date, err := timezone.ParseDate(raw)
@@ -104,8 +117,8 @@ func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
-	var request assignmentRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	request, err := decodeAssignment(r.Body)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCode("Die Anfrage ist ungültig.", "invalid_target"))
 		return
 	}
@@ -128,7 +141,24 @@ func (rs *Resource) assign(w http.ResponseWriter, r *http.Request) {
 		common.Respond(w, r, http.StatusCreated, created.ScheduleSubstitution, "Vertretung gespeichert")
 		return
 	}
+	if request.Type == substitution.TargetAdditionalSupervision {
+		common.Respond(w, r, http.StatusCreated, created, "Betreuer hinzugefügt")
+		return
+	}
 	common.Respond(w, r, http.StatusCreated, created, "Gruppe übergeben")
+}
+
+func decodeAssignment(body io.Reader) (assignmentRequest, error) {
+	var request assignmentRequest
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		return assignmentRequest{}, err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return assignmentRequest{}, errors.New("request body must contain one JSON object")
+	}
+	return request, nil
 }
 
 func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +172,7 @@ func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
 		renderModuleError(w, r, err)
 		return
 	}
-	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID}); err != nil {
+	if err := rs.Service.End(r.Context(), caller, substitution.EndRequest{Type: request.Type, ID: request.ID.Int64()}); err != nil {
 		renderModuleError(w, r, err)
 		return
 	}
@@ -184,11 +214,16 @@ func (request assignmentRequest) toAssignment() (substitution.Assignment, error)
 			return assignment, invalidAssignmentRequest("Das Enddatum ist ungültig.", substitution.ErrInvalidPeriod, "invalid_period")
 		}
 		assignment.GroupHandover = &substitution.GroupHandoverAssignment{
-			GroupID: request.GroupHandover.GroupID, TargetStaffID: request.GroupHandover.TargetStaffID,
+			GroupID: request.GroupHandover.GroupID.Int64(), TargetStaffID: request.GroupHandover.TargetStaffID.Int64(),
 			StartDate: start, EndDate: end,
 		}
 	case substitution.TargetScheduleSubstitution:
 		return request.toScheduleAssignment(assignment)
+	case substitution.TargetAdditionalSupervision:
+		if request.AdditionalSupervision == nil {
+			return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
+		}
+		assignment.AdditionalSupervision = &substitution.AdditionalSupervisionAssignment{ActiveGroupID: request.AdditionalSupervision.ActiveGroupID.Int64(), TargetStaffID: request.AdditionalSupervision.TargetStaffID.Int64()}
 	default:
 		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", substitution.ErrInvalidTarget, "invalid_target")
 	}
@@ -265,6 +300,7 @@ var moduleErrorSpecs = []moduleErrorSpec{
 	{target: substitution.ErrNotRunning, status: http.StatusConflict, code: "not_running", message: "Die Gruppenübergabe ist nicht mehr aktiv."},
 	{target: substitution.ErrAlreadyAssigned, status: http.StatusConflict, code: "already_assigned", message: "Diese Gruppenübergabe besteht bereits."},
 	{target: substitution.ErrConflict, status: http.StatusConflict, code: "conflict", message: "Die Änderung steht im Konflikt mit der aktuellen Planung."},
+	{target: substitution.ErrSelfAssignment, status: http.StatusBadRequest, code: "self_assignment", message: "Sie können sich nicht selbst hinzufügen."},
 }
 
 func operationErrorSpec(operation *substitution.OperationError) moduleErrorSpec {

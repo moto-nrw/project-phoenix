@@ -112,6 +112,18 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 	return db
 }
 
+// SetupServeTestDB returns a private pool connected as the least-privilege
+// phoenix_auth role. Use it for tests that must exercise SET ROLE and database
+// capabilities through the same connection identity as the HTTP server.
+func SetupServeTestDB(t *testing.T) *bun.DB {
+	t.Helper()
+
+	SetupTestDB(t) // ensure the package clone and test role password are ready
+	db, err := database.DBConnForServe()
+	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
+	return db
+}
+
 // ============================================================================
 // Generic Cleanup Helpers
 // ============================================================================

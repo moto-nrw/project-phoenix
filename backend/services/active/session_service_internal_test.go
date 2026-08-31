@@ -307,7 +307,7 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 			visitEnded = true
 			return nil
 		},
-	}},
+	}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 	}
 
 	result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -357,7 +357,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 			endSessionFunc: func(context.Context, int64) error {
 				return errors.New("session end failed")
 			},
-		}, VisitRepo: &mockVisitRepository{}},
+		}, VisitRepo: &mockVisitRepository{}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
 		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
@@ -391,7 +391,8 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 					return nil
 				},
 			},
-			VisitRepo: &mockVisitRepository{},
+			VisitRepo:      &mockVisitRepository{},
+			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
 					assert.Equal(t, []int64{100}, activeGroupIDs)
@@ -446,7 +447,8 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 				},
 				endSessionFunc: func(context.Context, int64) error { return endSessionErr },
 			},
-			VisitRepo: &mockVisitRepository{},
+			VisitRepo:      &mockVisitRepository{},
+			SupervisorRepo: &mockGroupSupervisorRepository{},
 			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
 					_, inTx := tenant.TransactionFromContext(ctx)
@@ -1477,6 +1479,46 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 	})
 }
 
+func TestSupervisorReplacement_PreservesAdditionalSupervisors(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	additional := &activeModels.GroupSupervisor{
+		Model:     modelBase.Model{ID: 21},
+		StaffID:   11,
+		Role:      "additional_supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+	primary := &activeModels.GroupSupervisor{
+		Model:     modelBase.Model{ID: 20},
+		StaffID:   10,
+		Role:      "supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+
+	var updatedIDs, createdStaffIDs []int64
+	svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*activeModels.GroupSupervisor, error) {
+			return []*activeModels.GroupSupervisor{primary, additional}, nil
+		},
+		updateFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			updatedIDs = append(updatedIDs, supervisor.ID)
+			return nil
+		},
+		createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+			createdStaffIDs = append(createdStaffIDs, supervisor.StaffID)
+			return nil
+		},
+	}}}
+
+	err := svc.replaceSupervisorsInTransaction(ctx, 100, map[int64]bool{10: true, 11: true, 12: true})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{20, 20}, updatedIDs)
+	assert.Equal(t, []int64{12}, createdStaffIDs)
+	assert.Nil(t, additional.EndDate)
+}
+
 func TestGetDeviceIDString(t *testing.T) {
 	t.Parallel()
 
@@ -1491,43 +1533,6 @@ func TestNormalizeTransferredSupervisorRole(t *testing.T) {
 
 	assert.Equal(t, "supervisor", normalizeTransferredSupervisorRole("Supervisor"))
 	assert.Equal(t, "helper", normalizeTransferredSupervisorRole("helper"))
-}
-
-func TestValidateSessionForTimeout_Branches(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	t.Run("not found", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return nil, errors.New("missing")
-			},
-		}},
-		}
-
-		session, err := svc.validateSessionForTimeout(ctx, 100)
-
-		require.Error(t, err)
-		assert.Nil(t, session)
-		assert.Contains(t, err.Error(), ErrActiveGroupNotFound.Error())
-	})
-
-	t.Run("already ended", func(t *testing.T) {
-		endedAt := time.Now()
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-				return &activeModels.Group{Model: modelBase.Model{ID: 100}, EndTime: &endedAt}, nil
-			},
-		}},
-		}
-
-		session, err := svc.validateSessionForTimeout(ctx, 100)
-
-		require.Error(t, err)
-		assert.Nil(t, session)
-		assert.Contains(t, err.Error(), ErrActiveGroupAlreadyEnded.Error())
-	})
 }
 
 func TestEndDailySessions_RepositoryFailures(t *testing.T) {
@@ -1552,7 +1557,10 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 	})
 
 	t.Run("visit bulk failure aborts later bulk steps", func(t *testing.T) {
-		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		mock.ExpectRollback()
+		svc := &service{ServiceDependencies: ServiceDependencies{DB: db, GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
 			},
@@ -1563,15 +1571,16 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		result, err := svc.EndDailySessions(ctx)
+		result, err := svc.EndDailySessions(withSessionTestRuntime(t, ctx, db))
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.NotNil(t, result)
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Errors[0], "bulk visit close failed")
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("session bulk failure records error and still tries supervisors", func(t *testing.T) {
+	t.Run("session bulk failure aborts supervisor cleanup", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 			listFunc: func(context.Context, *modelBase.QueryOptions) ([]*activeModels.Group, error) {
 				return []*activeModels.Group{activeGroup}, nil
@@ -1592,10 +1601,10 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		assert.False(t, result.Success)
 		assert.Equal(t, 2, result.VisitsEnded)
-		assert.Equal(t, 3, result.SupervisorsEnded)
+		assert.Zero(t, result.SupervisorsEnded)
 		assert.Contains(t, result.Errors[0], "bulk session close failed")
 	})
 
@@ -1620,7 +1629,7 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 
 		result, err := svc.EndDailySessions(ctx)
 
-		require.NoError(t, err)
+		require.Error(t, err)
 		assert.False(t, result.Success)
 		assert.Equal(t, 1, result.SessionsEnded)
 		assert.Contains(t, result.Errors[0], "bulk supervisor close failed")
@@ -1651,11 +1660,17 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 
 	t.Run("update failure is captured", func(t *testing.T) {
 		result := &DailySessionCleanupResult{Success: true}
-		svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: &mockGroupSupervisorRepository{
+		record := &activeModels.GroupSupervisor{Model: modelBase.Model{ID: 10}, GroupID: 20, StartDate: today.AddDays(-1)}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+			findByIDForUpdateFunc: func(context.Context, int64) (*activeModels.Group, error) {
+				return &activeModels.Group{Model: modelBase.Model{ID: 20}}, nil
+			},
+		}, SupervisorRepo: &mockGroupSupervisorRepository{
 			findStaleOpenFunc: func(context.Context, timezone.Date) ([]*activeModels.GroupSupervisor, error) {
-				return []*activeModels.GroupSupervisor{
-					{Model: modelBase.Model{ID: 10}, StartDate: today.AddDays(-1)},
-				}, nil
+				return []*activeModels.GroupSupervisor{record}, nil
+			},
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.GroupSupervisor, error) {
+				return record, nil
 			},
 			updateColumnsFunc: func(context.Context, *activeModels.GroupSupervisor, ...string) (int64, error) {
 				return 0, errors.New("stale close failed")
