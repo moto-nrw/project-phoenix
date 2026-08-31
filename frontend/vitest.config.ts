@@ -48,6 +48,13 @@ export default defineConfig({
           name: "app-dom",
           exclude: [...baseTestExcludes, ...apiTestFiles],
           environment: "happy-dom",
+          // happy-dom simuliert sonst 1024x768; Komponenten mit
+          // Viewport-abhängigen Defaults (z. B. die einklappbare
+          // Seitenleiste, #2825) sollen in Tests den Desktop-Zustand
+          // rendern, wie ihn auch der Server-Snapshot annimmt.
+          environmentOptions: {
+            happyDOM: { width: 1920, height: 1080 },
+          },
           setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
           sequence: { groupOrder: 1 },
         },
