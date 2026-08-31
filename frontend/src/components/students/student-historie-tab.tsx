@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import {
+  AttendanceCorrectionModal,
+  type CorrectableSlot,
+} from "~/components/students/attendance-correction-modal";
+import { hasPermission } from "~/lib/auth-utils";
 import { getCachedSession } from "~/lib/session-cache";
 import {
   formatAttendanceSlotStatus,
@@ -42,6 +47,7 @@ interface AttendanceHistoryDay {
     end_time: string;
     status: AttendanceSlotStatus;
     substatus?: string | null;
+    note?: string | null;
     is_unplanned: boolean;
   }>;
 }
@@ -93,6 +99,10 @@ function formatDuration(minutes: number | null | undefined): string {
 
 export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
+  // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
+  const [canCorrect, setCanCorrect] = useState(false);
+  const [correcting, setCorrecting] = useState<CorrectableSlot | null>(null);
 
   const loadData = useCallback(async () => {
     setState({ status: "loading" });
@@ -143,6 +153,13 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void (async () => {
+      const session = await getCachedSession();
+      setCanCorrect(hasPermission(session, "schedules:manage"));
+    })();
+  }, []);
 
   if (state.status === "loading") {
     return (
@@ -241,19 +258,53 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                   {day.slots?.map((slot) => (
                     <li
                       key={slot.instance_id}
-                      className="flex items-center justify-between text-xs text-gray-600"
+                      className="text-xs text-gray-600"
                     >
-                      <span>
-                        {slot.title}
-                        {slot.is_unplanned ? " · ungeplant" : ""}
-                      </span>
-                      <span>
-                        {slot.start_time}–{slot.end_time} ·{" "}
-                        {formatAttendanceSlotStatus(
-                          slot.status,
-                          slot.substatus,
-                        ).toLocaleLowerCase("de-DE")}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span>
+                          {slot.title}
+                          {slot.is_unplanned ? " · ungeplant" : ""}
+                        </span>
+                        <span>
+                          {slot.start_time}–{slot.end_time} ·{" "}
+                          {formatAttendanceSlotStatus(
+                            slot.status,
+                            slot.substatus,
+                          ).toLocaleLowerCase("de-DE")}
+                        </span>
+                      </div>
+                      {/* Die Bemerkung aus der Betreuung (#2898). Sie steht
+                          eingerückt unter dem Block, zu dem sie gehört, und
+                          ist ruhige Information — nicht klickbar. */}
+                      {slot.note ? (
+                        <p className="mt-0.5 pl-3 text-gray-500 italic">
+                          Bemerkung: {slot.note}
+                        </p>
+                      ) : null}
+                      {/* Korrigieren nur mit Recht und nur für echte Termine:
+                          synthetische "Ohne Zuordnung"-Zeilen tragen eine
+                          negative Kennung und haben keinen Eintrag, den man
+                          korrigieren könnte. */}
+                      {canCorrect && !slot.instance_id.startsWith("-") ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCorrecting({
+                              instanceId: slot.instance_id,
+                              title: slot.title,
+                              date: day.date,
+                              startTime: slot.start_time,
+                              endTime: slot.end_time,
+                              status: slot.status,
+                              substatus: slot.substatus ?? null,
+                              note: slot.note ?? null,
+                            })
+                          }
+                          className="mt-0.5 pl-3 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                        >
+                          Korrigieren
+                        </button>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -280,6 +331,15 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
           ))}
         </ul>
       )}
+      {correcting ? (
+        <AttendanceCorrectionModal
+          isOpen
+          onClose={() => setCorrecting(null)}
+          studentId={studentId}
+          slot={correcting}
+          onCorrected={() => void loadData()}
+        />
+      ) : null}
     </div>
   );
 }

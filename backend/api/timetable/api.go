@@ -243,6 +243,15 @@ func (rs *Resource) Router() chi.Router {
 			// in a sibling route subtree.
 			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
+
+			// #2898: correcting a COMPLETED block. Deliberately a separate
+			// route from the PATCH above, which stays frozen after completion.
+			// Same SchedulesManage gate, but the correction demands a reason
+			// and writes audit.attendance_corrections.
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+				Post("/{instance_id}/students/{student_id}/correction", rs.correctInstanceStudent)
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+				Get("/{instance_id}/students/{student_id}/corrections", rs.getInstanceStudentCorrections)
 		})
 
 		// WP-B11: per-student day and week read endpoints. Both gated on

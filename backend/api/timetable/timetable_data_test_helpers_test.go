@@ -89,6 +89,8 @@ func testTimetableDataWithOfferingCallbacks(
 		ValidateOfferingSource:     validateOfferingSource,
 		ResyncOfferingRoster:       resyncOfferingRoster,
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(db),
+		AttendanceCorrectionRepo:   auditRepo.NewAttendanceCorrectionRepository(db),
+		PersonRepo:                 usersRepo.NewPersonRepository(db),
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
 		RecoveryRepo:               scheduleRepo.NewActivityRecoveryRepository(db),
 		DB:                         db,

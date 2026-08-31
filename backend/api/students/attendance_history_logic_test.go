@@ -673,3 +673,56 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"instance_id":"9223372036854775807","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
 }
+
+// The free remark is written in the live roster and, before #2898, was
+// readable nowhere afterwards. The child's attendance history is the surface
+// that makes it findable again — per day and per block, which is what the
+// catalogue calls the digital class book.
+func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date: date, Title: "Fußball-AG",
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+	}
+	instance.ID = 201
+	note := "Hat sich am Knie gestoßen, Eltern informiert"
+	late := schedule.AttendanceSubstatusLate
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
+		{Instance: instance, Attendance: &schedule.InstanceStudent{
+			Status:    schedule.AttendanceStatusPresent,
+			Substatus: &late,
+			Note:      &note,
+		}},
+	}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 1)
+	require.NotNil(t, days[0].Slots[0].Note, "the note must reach the history payload")
+	assert.Equal(t, note, *days[0].Slots[0].Note)
+}
+
+// A block without a remark must not invent one: the field is omitted, not
+// rendered as an empty string.
+func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date: date, Title: "Betreuung",
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+	}
+	instance.ID = 202
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
+		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+	}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 1)
+	assert.Nil(t, days[0].Slots[0].Note)
+}

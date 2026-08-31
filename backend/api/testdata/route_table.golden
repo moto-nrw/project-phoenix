@@ -412,6 +412,7 @@ GET /api/timetable/instances/edited-in-window
 GET /api/timetable/instances/{id}/guardian-notice
 GET /api/timetable/instances/{id}/participants
 GET /api/timetable/instances/{id}/staff-pool
+GET /api/timetable/instances/{instance_id}/students/{student_id}/corrections
 GET /api/timetable/offering-sources
 GET /api/timetable/offering-sources/combined-counts
 GET /api/timetable/operations/active-groups/{id}/roster
@@ -766,6 +767,7 @@ POST /api/timetable/instances/{id}/deviations
 POST /api/timetable/instances/{id}/move-staff
 POST /api/timetable/instances/{id}/reopen
 POST /api/timetable/instances/{id}/start
+POST /api/timetable/instances/{instance_id}/students/{student_id}/correction
 POST /api/timetable/lists/export
 POST /api/timetable/lists/options
 POST /api/timetable/lists/preview

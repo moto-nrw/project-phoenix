@@ -78,6 +78,13 @@ type TimetableDataDependencies struct {
 	ValidateOfferingSource func(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
 	DeviationEventRepo auditModel.DeviationEventRepository
+	// AttendanceCorrectionRepo records corrections to a child's attendance in
+	// an instance (#2898). Optional — nil disables the trail, which is only
+	// acceptable in read-only test facades; production always wires it.
+	AttendanceCorrectionRepo auditModel.AttendanceCorrectionRepository
+	// PersonRepo snapshots the acting person's name onto a correction so the
+	// trail survives a later account deletion. Optional.
+	PersonRepo usersModel.PersonRepository
 	// ConflictAckRepo stores per-user conflict acknowledgements (#2139).
 	ConflictAckRepo scheduleModel.TimetableConflictAckRepository
 	// RecoveryRepo serializes attendance writes with instance completion.

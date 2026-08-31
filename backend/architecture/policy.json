@@ -1748,6 +1748,7 @@
     {"name": "activities.schedules", "write_owner": "timetable-activities"},
     {"name": "activities.student_enrollments", "write_owner": "timetable-activities"},
     {"name": "activities.supervisors", "write_owner": "timetable-activities"},
+    {"name": "audit.attendance_corrections", "write_owner": "audit-platform"},
     {"name": "audit.auth_events", "write_owner": "audit-platform"},
     {"name": "audit.class_list_entry_changes", "write_owner": "audit-platform"},
     {"name": "audit.data_access_log", "write_owner": "audit-platform"},

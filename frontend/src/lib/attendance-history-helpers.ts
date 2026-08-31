@@ -45,6 +45,7 @@ interface BackendAttendanceSlot {
   end_time: string;
   status: AttendanceSlotStatus;
   substatus?: string | null;
+  note?: string | null;
   checked_in_at?: string | null;
   checked_out_at?: string | null;
   is_unplanned: boolean;
@@ -107,6 +108,7 @@ interface AttendanceSlot {
   endTime: string;
   status: AttendanceSlotStatus;
   substatus: string | null;
+  note: string | null;
   checkedInAt: Date | null;
   checkedOutAt: Date | null;
   isUnplanned: boolean;
@@ -184,6 +186,7 @@ function mapAttendanceSlot(slot: BackendAttendanceSlot): AttendanceSlot {
     endTime: slot.end_time,
     status: slot.status,
     substatus: slot.substatus ?? null,
+    note: slot.note ?? null,
     checkedInAt: slot.checked_in_at ? new Date(slot.checked_in_at) : null,
     checkedOutAt: slot.checked_out_at ? new Date(slot.checked_out_at) : null,
     isUnplanned: slot.is_unplanned,

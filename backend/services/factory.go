@@ -2599,6 +2599,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger, cl
 		ResyncOfferingRoster:       offeringRosterResyncer.ResyncTemplateOfferingRoster,
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
+		AttendanceCorrectionRepo:   repos.AttendanceCorrection,
+		PersonRepo:                 repos.Person,
 		ConflictAckRepo:            repos.TimetableConflictAck,
 		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,

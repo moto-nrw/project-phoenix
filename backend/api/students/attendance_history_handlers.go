@@ -74,12 +74,17 @@ type attendanceSessionRecord struct {
 // negative decimal instance_id sentinel unique within the day — consumers must not
 // treat it as a real schedule.activity_instances ID.
 type attendanceSlotEntry struct {
-	InstanceID   string     `json:"instance_id"`
-	Title        string     `json:"title"`
-	StartTime    string     `json:"start_time"`
-	EndTime      string     `json:"end_time"`
-	Status       string     `json:"status"`
-	Substatus    *string    `json:"substatus,omitempty"`
+	InstanceID string  `json:"instance_id"`
+	Title      string  `json:"title"`
+	StartTime  string  `json:"start_time"`
+	EndTime    string  `json:"end_time"`
+	Status     string  `json:"status"`
+	Substatus  *string `json:"substatus,omitempty"`
+	// Note is the free remark a supervisor recorded for this child in this
+	// block. Carrying it here is what makes the entry readable after the day
+	// is over (#2898): it is written in the live roster, and this history is
+	// the only place that shows it again.
+	Note         *string    `json:"note,omitempty"`
 	CheckedInAt  *time.Time `json:"checked_in_at,omitempty"`
 	CheckedOutAt *time.Time `json:"checked_out_at,omitempty"`
 	IsUnplanned  bool       `json:"is_unplanned"`
@@ -561,6 +566,7 @@ func attachSlotAttendance(
 			EndTime:      row.Instance.EndTime.Format("15:04"),
 			Status:       row.Attendance.Status,
 			Substatus:    row.Attendance.Substatus,
+			Note:         row.Attendance.Note,
 			CheckedInAt:  row.Attendance.CheckedInAt,
 			CheckedOutAt: row.Attendance.CheckedOutAt,
 			IsUnplanned:  row.Attendance.IsUnplanned,
