@@ -140,7 +140,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 	t.Cleanup(func() { require.NoError(t, serveDB.Close()) })
 
 	repos := repositories.NewFactory(serveDB)
-	svc, err := services.NewFactory(repos, serveDB, slog.Default())
+	svc, err := services.NewFactoryForTests(repos, serveDB, slog.Default())
 	require.NoError(t, err)
 	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, serveDB)
 	router := testutil.NewTenantRouter(serveDB)

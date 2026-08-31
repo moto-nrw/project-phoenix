@@ -127,6 +127,13 @@ Candidate entries must be a subset of the base entries, unchanged entries must
 keep their issue, and candidate policy, package classification, and ownership
 changes may not weaken the checks enforced by the base policy.
 
+PR mode allows a classification when the candidate adds the first Go file in
+that exact package. Rules added with it must be anchored to an owner and role
+used only by candidate-created packages; owner-kind rules remain forbidden.
+Existing unclassified packages and modified packages do not qualify. A legacy
+composition guard may be removed only after the guarded package declaration is
+deleted.
+
 One additive ownership case is allowed because otherwise the ratchet would
 freeze the database schema: a candidate may add a `data_objects` entry when a
 new Go file under `database/migrations/` in the same candidate creates that

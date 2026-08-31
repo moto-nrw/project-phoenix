@@ -21,7 +21,7 @@ import (
 // setupAuthServiceWithDB creates an auth service with real database connection
 func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Auth
 }

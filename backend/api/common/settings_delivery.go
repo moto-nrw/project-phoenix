@@ -14,6 +14,10 @@ func RequireConfigWrite() Middleware {
 	return RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 }
 
+func RequireConfigUpdate() Middleware {
+	return RequiresPermission(permissions.ConfigUpdate)
+}
+
 func RequireConfigManage() Middleware {
 	return RequiresPermission(permissions.ConfigManage)
 }

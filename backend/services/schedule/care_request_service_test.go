@@ -87,7 +87,7 @@ func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	sf, err := services.NewFactory(repos, db, slog.Default())
+	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
