@@ -9,6 +9,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useTranslations } from "next-intl";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
@@ -152,59 +153,6 @@ interface InternalToastTimers {
   start: number;
 }
 
-function MobileToastCard({
-  item,
-  onSelect,
-}: Readonly<{
-  item: ToastItemData;
-  onSelect: (item: ToastItemData) => void;
-}>) {
-  const styles = mobileStylesByType[item.type];
-
-  return (
-    <Button
-      type="button"
-      variant="surface"
-      size="card"
-      aria-label={`${modalTitles[item.type]}: ${item.message}. ${
-        item.action ? `Tippen zum ${item.action.label}` : "Tippen zum Schließen"
-      }`}
-      onClick={() => onSelect(item)}
-      className={`${styles.bg} ${styles.border} border text-center shadow-none`}
-    >
-      <output
-        aria-live="polite"
-        aria-atomic="true"
-        className="flex flex-col items-center gap-3"
-      >
-        <div className={styles.iconColor}>
-          <svg
-            className="h-12 w-12"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d={styles.iconPath}
-            />
-          </svg>
-        </div>
-        <div>
-          <p className={`text-lg font-semibold ${styles.text}`}>
-            {modalTitles[item.type]}
-          </p>
-          <p className={`mt-1 text-sm ${styles.text} opacity-80`}>
-            {item.message}
-          </p>
-        </div>
-      </output>
-    </Button>
-  );
-}
-
 function ToastRow({
   item,
   onClose,
@@ -278,6 +226,52 @@ function ToastRow({
     dismissWithExitAnimation();
   };
 
+  if (isMobile) {
+    const mobileStyles = mobileStylesByType[item.type];
+    return (
+      <Button
+        type="button"
+        variant="surface"
+        size="card"
+        aria-label={`${modalTitles[item.type]}: ${item.message}. ${
+          item.action ? `Tippen zum ${item.action.label}` : "Tippen zum Schließen"
+        }`}
+        onClick={handleAction}
+        className={`${mobileStyles.bg} ${mobileStyles.border} border text-center shadow-none`}
+      >
+        <output
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex flex-col items-center gap-3"
+        >
+          <div className={mobileStyles.iconColor}>
+            <svg
+              className="h-12 w-12"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d={mobileStyles.iconPath}
+              />
+            </svg>
+          </div>
+          <div>
+            <p className={`text-lg font-semibold ${mobileStyles.text}`}>
+              {modalTitles[item.type]}
+            </p>
+            <p className={`mt-1 text-sm ${mobileStyles.text} opacity-80`}>
+              {item.message}
+            </p>
+          </div>
+        </output>
+      </Button>
+    );
+  }
+
   return (
     <output
       aria-live="polite"
@@ -346,6 +340,7 @@ export function ToastProvider({
   const [items, setItems] = useState<ToastItemData[]>([]);
   const reducedMotion = useReducedMotion();
   const isMobile = useMediaQuery(BELOW_MD);
+  const t = useTranslations("parentNav");
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
@@ -407,14 +402,6 @@ export function ToastProvider({
   );
 
   const topmostItem = items.at(-1);
-  const handleMobileSelect = useCallback(
-    (item: ToastItemData) => {
-      item.action?.onClick();
-      remove(item.id);
-    },
-    [remove],
-  );
-
   return (
     <ToastContext.Provider value={api}>
       {children}
@@ -424,31 +411,34 @@ export function ToastProvider({
         onClose={() => {
           if (topmostItem) remove(topmostItem.id);
         }}
-        title="Benachrichtigungen"
+        title={t("notifications")}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-xs"
         backdropLabel="Benachrichtigung schließen"
       >
         <div className="space-y-2">
           {items.map((item) => (
-            <MobileToastCard
+            <ToastRow
               key={item.id}
               item={item}
-              onSelect={handleMobileSelect}
+              onClose={remove}
+              reducedMotion={reducedMotion}
+              isMobile={isMobile}
             />
           ))}
         </div>
       </Modal>
 
       <div className="pointer-events-none fixed right-6 bottom-6 z-[9000] hidden max-w-sm flex-col items-stretch justify-end gap-2 md:flex">
-        {items.map((item) => (
-          <ToastRow
-            key={item.id}
-            item={item}
-            onClose={remove}
-            reducedMotion={reducedMotion}
-            isMobile={isMobile}
-          />
-        ))}
+        {!isMobile &&
+          items.map((item) => (
+            <ToastRow
+              key={item.id}
+              item={item}
+              onClose={remove}
+              reducedMotion={reducedMotion}
+              isMobile={isMobile}
+            />
+          ))}
       </div>
     </ToastContext.Provider>
   );

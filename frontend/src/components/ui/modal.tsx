@@ -210,6 +210,7 @@ function DialogModal({
     if (dismissTimerRef.current !== null) return;
     setIsExiting(true);
     setIsAnimating(false);
+    const onClose = onCloseRef.current;
 
     // Delay actual close to allow exit animation
     dismissTimerRef.current = setTimeout(() => {
@@ -221,7 +222,7 @@ function DialogModal({
         setIsAnimating(true);
         return;
       }
-      onCloseRef.current();
+      onClose();
     }, 250);
   }, [isDismissDisabledRef, onCloseRef]);
 

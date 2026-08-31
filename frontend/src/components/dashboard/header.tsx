@@ -349,6 +349,7 @@ export function Header() {
               onOpenChange={setIsProfileMenuOpen}
               ariaLabel={profileMenuLabel}
               preferredWidth={288}
+              align="end"
               className="border-0 bg-transparent p-0 shadow-none"
               renderTrigger={({ ref, toggle, panelId }) => (
                 <ProfileTrigger

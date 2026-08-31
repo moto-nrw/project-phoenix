@@ -25,6 +25,7 @@ interface AnchoredPopoverProps {
   readonly ariaLabel: string;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
   readonly preferredWidth?: number;
+  readonly align?: "start" | "end";
   readonly className?: string;
   readonly renderTrigger: (props: {
     ref: RefObject<HTMLButtonElement | null>;
@@ -41,6 +42,7 @@ export function AnchoredPopover({
   ariaLabel,
   initialFocusRef,
   preferredWidth,
+  align = "start",
   className,
   renderTrigger,
   children,
@@ -72,8 +74,9 @@ export function AnchoredPopover({
     const viewportHeight = window.innerHeight;
     const maxWidth = Math.max(viewportWidth - VIEWPORT_MARGIN * 2, 0);
     const width = Math.min(preferredWidth ?? rect.width, maxWidth);
+    const desiredLeft = align === "end" ? rect.right - width : rect.left;
     const left = Math.min(
-      Math.max(rect.left, VIEWPORT_MARGIN),
+      Math.max(desiredLeft, VIEWPORT_MARGIN),
       Math.max(viewportWidth - width - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
     );
     const spaceBelow =
@@ -101,7 +104,7 @@ export function AnchoredPopover({
       style.top = rect.bottom + PANEL_GAP - (scopeRect?.top ?? 0);
     }
     setPanelStyle(style);
-  }, [preferredWidth]);
+  }, [align, preferredWidth]);
 
   useLayoutEffect(() => {
     if (!open) {

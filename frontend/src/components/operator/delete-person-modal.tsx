@@ -34,8 +34,12 @@ export function DeletePersonModal({
     setError("");
     try {
       await operatorProvisioningService.softDeletePerson(person.id);
-      await onDeleted();
       onClose();
+      void Promise.resolve(onDeleted()).catch((err: unknown) => {
+        logger.error("person_list_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     } catch (err) {
       logger.error("person_soft_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
