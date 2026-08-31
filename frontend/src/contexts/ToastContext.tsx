@@ -429,15 +429,22 @@ export function ToastProvider({
   );
 
   const topmostItem = items.at(-1);
+  const dismissedToastIdRef = useRef<string | undefined>(undefined);
   return (
     <ToastContext.Provider value={api}>
       {children}
 
       <Modal
-        key={topmostItem?.id}
         isOpen={isMobile && topmostItem !== undefined}
+        animationKey={topmostItem?.id}
+        onDismissStart={() => {
+          dismissedToastIdRef.current = topmostItem?.id;
+        }}
         onClose={() => {
-          if (topmostItem) remove(topmostItem.id);
+          const dismissedToastId =
+            dismissedToastIdRef.current ?? topmostItem?.id;
+          dismissedToastIdRef.current = undefined;
+          if (dismissedToastId) remove(dismissedToastId);
         }}
         title={modalLabels.title}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-xs"

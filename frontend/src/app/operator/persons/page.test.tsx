@@ -518,27 +518,6 @@ describe("OperatorPersonsPage", () => {
     });
   });
 
-  it("closes the modal when revalidation fails after deletion", async () => {
-    mockSearchParamsGet.mockImplementation((key: string) =>
-      key === "schoolId" ? "10" : null,
-    );
-    mockSoftDeletePerson.mockResolvedValue(undefined);
-    mockMutatePersons.mockRejectedValue(new Error("Revalidation failed"));
-    withDefaultSWR({ schoolPersons: [mockPerson] });
-
-    render(<OperatorPersonsPage />);
-    fireEvent.click(screen.getByTitle("Person löschen"));
-    await screen.findByText("Person löschen");
-    fireEvent.change(screen.getByPlaceholderText("Max Mustermann"), {
-      target: { value: "Max Mustermann" },
-    });
-    fireEvent.click(screen.getByText("Endgültig löschen"));
-
-    await waitFor(() => {
-      expect(screen.queryByText("Endgültig löschen")).not.toBeInTheDocument();
-    });
-  });
-
   it("resets confirm input when opening modal for different person", async () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,

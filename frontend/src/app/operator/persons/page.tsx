@@ -151,7 +151,13 @@ function OperatorPersonsPageContent() {
       <DeletePersonModal
         person={deletePersonTarget}
         onClose={() => setDeletePersonTarget(null)}
-        onDeleted={() => mutateSchoolPersons().then(() => undefined)}
+        onDeleted={(deletedPerson) =>
+          mutateSchoolPersons(
+            (persons) =>
+              persons?.filter((person) => person.id !== deletedPerson.id),
+            { revalidate: false },
+          ).then(() => undefined)
+        }
       />
     </div>
   );

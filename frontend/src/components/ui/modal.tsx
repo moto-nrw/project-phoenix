@@ -35,6 +35,10 @@ function getModalAnimationClass(
 interface ModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  /** Runs when an animated dismissal starts, before the delayed close callback. */
+  readonly onDismissStart?: () => void;
+  /** Resets the dialog animation without remounting its children. */
+  readonly animationKey?: string;
   readonly title: string;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
@@ -81,6 +85,7 @@ export function Modal(props: ModalProps) {
 function MobileSheetModal({
   isOpen,
   onClose,
+  onDismissStart,
   title,
   children,
   footer,
@@ -90,6 +95,7 @@ function MobileSheetModal({
 }: ModalProps) {
   const { openModal, closeModal } = useModal();
   const onCloseRef = useLatest(onClose);
+  const onDismissStartRef = useLatest(onDismissStart);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -99,9 +105,12 @@ function MobileSheetModal({
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
-      if (!open && !isDismissDisabled) onCloseRef.current();
+      if (!open && !isDismissDisabled) {
+        onDismissStartRef.current?.();
+        onCloseRef.current();
+      }
     },
-    [isDismissDisabled, onCloseRef],
+    [isDismissDisabled, onCloseRef, onDismissStartRef],
   );
 
   if (!isOpen) return null;
@@ -168,6 +177,8 @@ function MobileSheetModal({
 function DialogModal({
   isOpen,
   onClose,
+  onDismissStart,
+  animationKey,
   title,
   children,
   footer,
@@ -194,6 +205,7 @@ function DialogModal({
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
+  const onDismissStartRef = useLatest(onDismissStart);
   const isDismissDisabledRef = useLatest(isDismissDisabled);
 
   // Pending dismissal (exit-animation delay before onClose). Tracked so a
@@ -208,9 +220,9 @@ function DialogModal({
   const handleClose = useCallback(() => {
     if (isDismissDisabledRef.current) return;
     if (dismissTimerRef.current !== null) return;
+    onDismissStartRef.current?.();
     setIsExiting(true);
     setIsAnimating(false);
-    const onClose = onCloseRef.current;
 
     // Delay actual close to allow exit animation
     dismissTimerRef.current = setTimeout(() => {
@@ -222,9 +234,9 @@ function DialogModal({
         setIsAnimating(true);
         return;
       }
-      onClose();
+      onCloseRef.current();
     }, 250);
-  }, [isDismissDisabledRef, onCloseRef]);
+  }, [isDismissDisabledRef, onCloseRef, onDismissStartRef]);
 
   // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
   // the dialog back from its exit animation.
@@ -293,7 +305,7 @@ function DialogModal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [isOpen, handleClose]);
+  }, [isOpen, handleClose, animationKey]);
 
   if (!isOpen) return null;
 
