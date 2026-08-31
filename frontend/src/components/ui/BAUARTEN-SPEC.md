@@ -338,3 +338,14 @@ gerundeten Kasten liest sich als Fehler.
 Unverändert gültig (Querregel Farbe). Ergänzend aus der Sichtprüfung: eine
 Kennzahl, die nur groß ist, ist kein Warnzustand. Orange und Rot an einer Zahl
 bedeuten, dass jemand handeln muss — sonst bleibt sie neutral.
+
+## 5. Kennzahlen: erst die eine Antwort, dann das Detail
+
+Eine Reihe gleichförmiger Kennzahl-Kacheln ist eine Tabelle ohne Kopfzeile —
+sieben Werte nebeneinander liest niemand als Aussage (gemessen auf
+/statistics). Das Eltern-Portal-Muster gilt auch hier: EINE Zahl ist die
+Antwort der Fläche und steht groß (`text-2xl`), zwei bis drei Nebenwerte
+stehen kleiner daneben, alles Weitere gehört in die Tabelle oder Liste
+darunter. Werte, die schon in der Statuszeile der Kopfkarte stehen, tauchen
+in keiner Kachelreihe erneut auf — die vier Kacheln der Startseite
+wiederholen sich auf keiner Unterseite.

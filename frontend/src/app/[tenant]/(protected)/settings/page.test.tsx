@@ -73,8 +73,10 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
+      // Leerzustand ohne Aktion und Symbol = EIN Satz aus Titel und
+      // Beschreibung.
       expect(
-        screen.getByText("Keine Einstellungen verfügbar."),
+        screen.getByText(/Keine Einstellungen verfügbar\./),
       ).toBeInTheDocument();
     });
   });

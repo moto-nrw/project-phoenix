@@ -71,8 +71,17 @@ export function SegmentedControl<T extends string>({
   // derselben Seite. Ein Umschalter, der auf jeder Seite anders groß ist,
   // wirkt beim Blättern unruhig, auch wenn jede einzelne Fassung für sich
   // stimmig aussieht.
+  //
+  // Segment 32 px + Spur-Innenrand 4 px = 40 px Gesamthöhe — dieselbe
+  // Bedienhöhe wie jeder Knopf in der Kopfkarte (CONTROL_HEIGHT in
+  // tenant-page.tsx). Das `!` ist nötig, weil die Kopfkarte ihre Höhe per
+  // Nachfahren-Selektor auf alle Knöpfe legt und die Spur des Umschalters
+  // sonst auf 48 px wüchse. Unter sm 36-px-Segmente, also 44 px gesamt —
+  // dieselbe Touch-Höhe wie die Nachbarn.
+  // Schriftgröße `text-sm`, nicht `text-xs`: ein Bedienelement ist kein
+  // Kleingedrucktes (Typo-Boden, TENANT-PAGE-SPEC).
   const base =
-    "flex h-9 min-w-[84px] items-center justify-center px-3 text-xs font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+    "flex h-8! min-w-[84px] items-center justify-center px-3 text-sm font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none max-sm:h-9!";
 
   // Die frühere „pills"-Fassung (runde, einzeln getönte Pillen ohne Spur) ist
   // aufgegangen: sie war 32 px hoch, die andere 36, und beide standen im
@@ -135,7 +144,7 @@ export function SegmentedControl<T extends string>({
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={`${base} rounded-md text-sm ${
+              className={`${base} rounded-md ${
                 active
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-500 hover:text-gray-700"

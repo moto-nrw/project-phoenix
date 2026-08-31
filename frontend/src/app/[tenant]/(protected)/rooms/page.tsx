@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -588,7 +589,7 @@ function RoomsPageContent() {
           ) : null}
 
           {filteredRooms.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <CollectionGrid>
               {filteredRooms.map((room) => {
                 const handleClick = () => handleSelectRoom(room);
                 return (
@@ -709,7 +710,7 @@ function RoomsPageContent() {
                   </TileCard>
                 );
               })}
-            </div>
+            </CollectionGrid>
           ) : null}
         </>
       )}

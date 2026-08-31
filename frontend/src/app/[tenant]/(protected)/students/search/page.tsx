@@ -13,6 +13,7 @@ import { CalendarRange, Download, Search } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -3371,9 +3372,9 @@ function SearchPageContent() {
                             </span>
                           }
                         >
-                          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                          <CollectionGrid>
                             {group.items.map(renderStudentCard)}
-                          </div>
+                          </CollectionGrid>
                         </SectionCard>
                       </div>
                     ))}
@@ -3382,9 +3383,9 @@ function SearchPageContent() {
               }
 
               return (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                <CollectionGrid>
                   {sortedStudents.map(renderStudentCard)}
-                </div>
+                </CollectionGrid>
               );
             })()}
           </div>

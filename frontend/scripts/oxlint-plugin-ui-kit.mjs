@@ -460,6 +460,158 @@ const noRounded3xl = makeClassStringRule({
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md). The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
 });
 
+// ui-kit/no-tiny-text — Schrift unter 12 px (text-[9px], text-[10px],
+// text-[11px]) ist unter dem Typo-Boden des Portals: text-xs (12 px) ist die
+// Untergrenze und selbst die ist Versalien-Labels vorbehalten, nie Werten,
+// Saetzen oder Bedienelementen (TENANT-PAGE-SPEC, "Typo-Boden"). Der Bestand
+// ist als Shrink-only-Baseline eingefroren; neue Winzschrift kommt nicht dazu.
+const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
+
+const TINY_TEXT_BASELINE_FILES = new Set([
+  "src/app/[tenant]/(protected)/calendar/page.tsx",
+  "src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx",
+  "src/app/[tenant]/(protected)/day-log/page.tsx",
+  "src/app/[tenant]/(protected)/meal-plan/page.tsx",
+  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
+  "src/app/help/nfc/erste-schritte/page.tsx",
+  "src/app/operator/provisioning/soft-delete-shared.tsx",
+  "src/components/active-supervisions/planned-now-section.tsx",
+  "src/components/active-supervisions/timetable-roster.tsx",
+  "src/components/activities/activity-management-modal.tsx",
+  "src/components/auth/role-permission-management-modal.tsx",
+  "src/components/calendar/personal-calendar.tsx",
+  "src/components/dashboard/header/reminders-bell.tsx",
+  "src/components/dashboard/sidebar.tsx",
+  "src/components/enrollment/admin-enrollments-list.tsx",
+  "src/components/enrollment/enrollment-form-editor.tsx",
+  "src/components/enrollment/enrollment-form.tsx",
+  "src/components/enrollment/phases-editor.tsx",
+  "src/components/files/files-page.tsx",
+  "src/components/guardians/guardian-contact-actions.tsx",
+  "src/components/guardians/guardian-delete-modal.tsx",
+  "src/components/guardians/guardian-list.tsx",
+  "src/components/help/help-search.tsx",
+  "src/components/parent/calendar/parent-calendar-page.tsx",
+  "src/components/parent/parent-enroll-picker.tsx",
+  "src/components/parent/parent-meal-plan-page.tsx",
+  "src/components/planning/closing-day-marker.tsx",
+  "src/components/staff/absence-request-row.tsx",
+  "src/components/staff/arbeitszeitmodell-tab.tsx",
+  "src/components/staff/dienstplan-resource-grid.tsx",
+  "src/components/staff/staff-session-table.tsx",
+  "src/components/students/care-schedule-manager.tsx",
+  "src/components/students/planned-status-days-modal.tsx",
+  "src/components/students/school-checkin-fab.tsx",
+  "src/components/time-tracking/edit-history-accordion.tsx",
+  "src/components/time-tracking/leave-requests-card.tsx",
+  "src/components/time-tracking/vacation-request-modal.tsx",
+  "src/components/timetable/bulk-substitution-modal.tsx",
+  "src/components/timetable/event-form/multi-select-field.tsx",
+  "src/components/timetable/event-form/step-termin.tsx",
+  "src/components/timetable/gap-jump-list.tsx",
+  "src/components/timetable/instance-block.tsx",
+  "src/components/timetable/instance-detail-modal.tsx",
+  "src/components/timetable/month-planner-grid.tsx",
+  "src/components/timetable/period-switcher-dropdown.tsx",
+  "src/components/timetable/staff-pool-slide-over.tsx",
+  "src/components/timetable/substitution-person-card.tsx",
+  "src/components/timetable/substitution-slide-over.tsx",
+  "src/components/timetable/template-card.tsx",
+  "src/components/timetable/timetable-add-menu.tsx",
+  "src/components/timetable/vertretung-day-list.tsx",
+  "src/components/timetable/vertretung-week-list.tsx",
+  "src/components/timetable/weekly-calendar-grid.tsx",
+  "src/components/ui/avatar.tsx",
+  "src/components/ui/coverage-indicator.tsx",
+  "src/components/ui/location-badge.tsx",
+  "src/components/ui/multi-checkbox-select.tsx",
+  "src/components/ui/notification-badge.tsx",
+  "src/components/ui/origin-chip.tsx",
+  "src/components/ui/page-header/FilterButton.tsx",
+  "src/components/ui/page-header/OverflowMenu.tsx",
+  "src/components/ui/parent-visible-badge.tsx",
+  "src/components/ui/plan-block.tsx",
+  "src/components/ui/plan-legend.tsx",
+  "src/components/ui/presence-badge.tsx",
+]);
+
+const TINY_TEXT_BASELINE = parseMatchBaseline(`
+src/app/[tenant]/(protected)/calendar/page.tsx|text-[11px]:1
+src/app/[tenant]/(protected)/database/personal/opening-balances/page.tsx|text-[11px]:2
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]:1
+src/app/[tenant]/(protected)/meal-plan/page.tsx|text-[11px]:1
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]:4 text-[11px]:2
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]:2
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]:1
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]:1
+src/components/active-supervisions/timetable-roster.tsx|text-[11px]:1
+src/components/activities/activity-management-modal.tsx|text-[10px]:3
+src/components/auth/role-permission-management-modal.tsx|text-[10px]:1 text-[11px]:1
+src/components/calendar/personal-calendar.tsx|text-[10px]:1 text-[11px]:12
+src/components/dashboard/header/reminders-bell.tsx|text-[10px]:1 text-[11px]:1
+src/components/dashboard/sidebar.tsx|text-[10px]:1
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]:2
+src/components/enrollment/enrollment-form-editor.tsx|text-[10px]:3 text-[11px]:9
+src/components/enrollment/enrollment-form.tsx|text-[11px]:1
+src/components/enrollment/phases-editor.tsx|text-[11px]:2
+src/components/files/files-page.tsx|text-[11px]:2
+src/components/guardians/guardian-contact-actions.tsx|text-[10px]:1
+src/components/guardians/guardian-delete-modal.tsx|text-[10px]:1
+src/components/guardians/guardian-list.tsx|text-[10px]:1
+src/components/help/help-search.tsx|text-[11px]:1
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]:2
+src/components/parent/parent-enroll-picker.tsx|text-[11px]:2
+src/components/parent/parent-meal-plan-page.tsx|text-[11px]:2
+src/components/planning/closing-day-marker.tsx|text-[10px]:1
+src/components/staff/absence-request-row.tsx|text-[11px]:1
+src/components/staff/arbeitszeitmodell-tab.tsx|text-[10px]:3 text-[11px]:1
+src/components/staff/dienstplan-resource-grid.tsx|text-[10px]:1 text-[11px]:4
+src/components/staff/staff-session-table.tsx|text-[11px]:1
+src/components/students/care-schedule-manager.tsx|text-[10px]:1 text-[11px]:4
+src/components/students/planned-status-days-modal.tsx|text-[10px]:1 text-[11px]:1
+src/components/students/school-checkin-fab.tsx|text-[10px]:1
+src/components/time-tracking/edit-history-accordion.tsx|text-[10px]:3
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]:1
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]:1
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]:2
+src/components/timetable/event-form/multi-select-field.tsx|text-[10px]:1 text-[11px]:2
+src/components/timetable/event-form/step-termin.tsx|text-[10px]:1 text-[11px]:5
+src/components/timetable/gap-jump-list.tsx|text-[10px]:1 text-[11px]:2
+src/components/timetable/instance-block.tsx|text-[10px]:5
+src/components/timetable/instance-detail-modal.tsx|text-[10px]:2 text-[11px]:4 text-[9px]:2
+src/components/timetable/month-planner-grid.tsx|text-[10px]:1 text-[11px]:4 text-[9px]:1
+src/components/timetable/period-switcher-dropdown.tsx|text-[10px]:6 text-[11px]:4
+src/components/timetable/staff-pool-slide-over.tsx|text-[10px]:1 text-[11px]:1
+src/components/timetable/substitution-person-card.tsx|text-[11px]:6
+src/components/timetable/substitution-slide-over.tsx|text-[10px]:5 text-[11px]:3 text-[9px]:1
+src/components/timetable/template-card.tsx|text-[10px]:1 text-[11px]:2
+src/components/timetable/timetable-add-menu.tsx|text-[10px]:1 text-[11px]:2
+src/components/timetable/vertretung-day-list.tsx|text-[11px]:5
+src/components/timetable/vertretung-week-list.tsx|text-[10px]:1
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]:4 text-[11px]:3 text-[9px]:1
+src/components/ui/avatar.tsx|text-[10px]:1
+src/components/ui/coverage-indicator.tsx|text-[11px]:2
+src/components/ui/location-badge.tsx|text-[10px]:2 text-[11px]:2
+src/components/ui/multi-checkbox-select.tsx|text-[11px]:1
+src/components/ui/notification-badge.tsx|text-[10px]:1
+src/components/ui/origin-chip.tsx|text-[11px]:1
+src/components/ui/page-header/FilterButton.tsx|text-[10px]:1
+src/components/ui/page-header/OverflowMenu.tsx|text-[10px]:1 text-[11px]:1
+src/components/ui/parent-visible-badge.tsx|text-[11px]:1
+src/components/ui/plan-block.tsx|text-[11px]:2
+src/components/ui/plan-legend.tsx|text-[11px]:1
+src/components/ui/presence-badge.tsx|text-[10px]:1 text-[11px]:2
+`);
+
+const noTinyText = makeClassStringRule({
+  regex: TINY_TEXT_RE,
+  baseline: restrictMatchBaseline(TINY_TEXT_BASELINE_FILES, TINY_TEXT_BASELINE),
+  skipUiKit: false,
+  docs: "Disallow sub-12px text utilities; the portal type floor is text-xs, and only for uppercase labels.",
+  messageId: "tinyText",
+  message:
+    "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Die Baseline in scripts/oxlint-plugin-ui-kit.mjs ist shrink-only.",
+});
 // ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
 // ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
 // selben Slot). Kein Baseline-Eintrag: der Bestand ist in derselben PR auf
@@ -648,6 +800,7 @@ export default {
     "no-tenant-kicker": noTenantKicker,
     "no-handrolled-surface": noHandrolledSurface,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
+    "no-tiny-text": noTinyText,
     "require-checkbox-label": requireCheckboxLabel,
   },
 };

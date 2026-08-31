@@ -102,7 +102,7 @@ export function StatCard(props: StatCardProps | StatTileProps) {
         >
           {props.value}
         </span>
-        <span className="block text-[11px] font-medium text-gray-500">
+        <span className="block text-xs font-medium text-gray-500">
           {props.label}
         </span>
       </div>
@@ -139,7 +139,9 @@ export function StatCard(props: StatCardProps | StatTileProps) {
       ) : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:text-[10px] max-sm:tracking-wide">
+          {/* Auch mobil 12 px: 10 px war unter dem Typo-Boden (nichts
+              Lesbares unter text-xs, und das nur für Versalien-Labels). */}
+          <p className="pr-8 text-xs font-semibold tracking-wider text-gray-500 uppercase max-sm:tracking-wide">
             {label}
           </p>
           {loading ? (

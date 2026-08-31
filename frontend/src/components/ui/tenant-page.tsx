@@ -201,7 +201,17 @@ export interface TenantPageProps {
   readonly testId?: string;
 }
 
-/** Ein Wert-Label-Paar der Statuszeile. Trennzeichen setzt `TenantPageStats`. */
+/**
+ * Ein Wert-Label-Paar der Statuszeile. Trennzeichen setzt `TenantPageStats`.
+ *
+ * Höchstens DREI Paare: die Statuszeile ist eine Orientierung, keine
+ * Kennzahlenleiste. Sechs Paare (gemessen auf /staff) liest niemand mehr als
+ * Satz — sie sind eine Tabelle ohne Kopf. Was über drei hinausgeht, trägt
+ * die Fläche darunter (Kacheln, Karten, Tabelle); das Gerüst schneidet hier
+ * ab, damit das Budget nicht pro Seite neu verhandelt wird.
+ */
+const MAX_STATS_ITEMS = 3;
+
 export function TenantPageStats({
   items,
 }: Readonly<{
@@ -209,7 +219,7 @@ export function TenantPageStats({
 }>) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-      {items.map((item, index) => (
+      {items.slice(0, MAX_STATS_ITEMS).map((item, index) => (
         <span key={item.label} className="inline-flex items-center gap-1.5">
           {index > 0 && (
             <span aria-hidden="true" className="text-gray-300">
@@ -233,10 +243,15 @@ export function TenantPageStats({
  * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
  * nicht nur direkte Kinder.
  */
-// Eine Bedienhöhe in der Kopfkarte: 36 px für Schaltflächen, Auswahl- UND
-// Eingabefelder. Das Eingabefeld fehlte hier, deshalb stand das Suchfeld mit
-// 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe Versatz.
-const CONTROL_HEIGHT = "[&_button]:h-9 [&_select]:h-9 [&_input]:h-9";
+// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Auswahl- UND
+// Eingabefelder, auf dem Telefon 44 px (die Untergrenze für eine
+// Touch-Fläche, dieselbe Begründung wie `Button size="touch"` der
+// Eltern-App). Das Eingabefeld fehlte hier anfangs, deshalb stand das
+// Suchfeld mit 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe
+// Versatz. Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
+// kommt mitsamt Spur ebenfalls auf 40 px — siehe dort.
+const CONTROL_HEIGHT =
+  "[&_button]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
 
 export function TenantPage({
   title,
@@ -666,6 +681,17 @@ function TenantPageTabs({
 }
 
 /**
+ * Titel und Beschreibung des Leerzustands als EIN Satzgefüge. Titel ohne
+ * Schlusszeichen bekommen einen Punkt, damit „Keine Räume vorhanden Legen
+ * Sie…" nicht entsteht.
+ */
+function joinEmptySentence(title: string, description?: string): string {
+  const trimmed = title.trim();
+  const punctuated = /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+  return description ? `${punctuated} ${description}` : punctuated;
+}
+
+/**
  * Fehler, Laden und Leerzustand an EINER Stelle, damit sie auf keiner Seite
  * mehr als `return null`, freier Spinner oder „Wird geladen…"-Fließtext
  * auftauchen.
@@ -731,16 +757,29 @@ function TenantPageBody({
     // Leerzustand als einziger Seitenzustand ohne Karte auf dem Hintergrund
     // und die Seite sieht leer statt aufgeräumt aus. Laden (Skelettkarten)
     // und Fehler (getönte Fläche) tragen ihre Fläche schon.
+    //
+    // Zwei Formen: mit Aktion (nächster Schritt) oder Symbol (benannter
+    // Zustand wie ForbiddenPage/FeatureOffPage) bekommt der Leerzustand die
+    // volle Bühne (EmptyState). Eine schmucklose Feststellung ist EIN Satz
+    // in der Karte, wie im Eltern-Portal — eine zentrierte Inszenierung
+    // über einem Sachverhalt, an dem niemand etwas tun kann, ist eine
+    // Aufgabe, die keine ist.
     return (
       <>
         {errorBanner}
         <SectionCard>
-          <EmptyState
-            title={empty.title}
-            description={empty.description}
-            icon={empty.icon}
-            action={empty.action}
-          />
+          {empty.action || empty.icon ? (
+            <EmptyState
+              title={empty.title}
+              description={empty.description}
+              icon={empty.icon}
+              action={empty.action}
+            />
+          ) : (
+            <p className="text-sm leading-6 text-gray-600">
+              {joinEmptySentence(empty.title, empty.description)}
+            </p>
+          )}
         </SectionCard>
       </>
     );

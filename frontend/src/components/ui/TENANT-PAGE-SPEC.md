@@ -49,6 +49,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 ·
    22 Betreuungstage". Für Wert-Label-Paare gibt es `TenantPageStats`.
    Kein Erklärsatz, keine Marketingzeile. Beim Laden `statsLoading`.
+   **Höchstens drei Paare** — `TenantPageStats` schneidet dahinter ab. Die
+   Statuszeile ist eine Orientierung; was mehr sagen will, ist eine Fläche
+   im Inhalt, keine längere Zeile.
 4. **Aktionen gehören in `actions`, und dort steht GENAU EINE sichtbar.**
    Keine eigene Button-Zeile unter oder über dem Kopf, keine Zeile, die nur
    einen Zähler, ein Select oder einen Export-Knopf trägt. Neben dem Titel
@@ -76,6 +79,12 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    auf einer Fläche, so wie der Inhalt, den sie ersetzen. Fehlende Rechte
    sind ein Zustand, kein Fehler: `ForbiddenPage` (grau, Schloss, ein Satz
    dazu, wer freischaltet), nicht ein roter Alarmkasten.
+   Ein Leerzustand ohne Aktion und ohne Symbol ist EIN Satz in der Karte
+   (das Gerüst rendert ihn so); die inszenierte Form mit Überschrift gibt
+   es nur für einen nächsten Schritt (`action`) oder einen benannten
+   Zustand mit Symbol (ForbiddenPage, FeatureOffPage). Eine Bühne für einen
+   Sachverhalt, an dem niemand etwas tun kann, ist eine Aufgabe, die keine
+   ist.
 7. **Reiter**: Seitenreiter über `tabs`. `ui/Tabs` bleibt nur für Reiter
    INNERHALB einer Karte (Slide-over: Bearbeiten/Verlauf), `SegmentedControl`
    für jede Wertauswahl — auch Monat/Woche/Tag, A/B-Woche, Exportzeitraum,
@@ -95,6 +104,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    - `TileCard` — anklickbare Kachel (Kind, Raum, Mitarbeiter, Nachricht).
      Mit `containsControls`, wenn die Kachel eigene Bedienelemente trägt.
    - `StatCard` — jede Kennzahl, mit `icon`, `href` und `loading`.
+   - `CollectionGrid` — DAS Kachelgitter jeder Sammlung: Spalten aus
+     `auto-fit` mit Mindest-Kachelbreite, Abstand 16 px (mobil 12 px).
+     Keine Seite deklariert mehr ihr eigenes `grid grid-cols-* gap-6`.
    - `TenantPageHeaderSkeleton` / `CardSkeleton` — Ladezustände.
      Kein `rounded-3xl`, kein `rounded-xl` als Karte, keine handgerollte
      Kartenfläche und keine zweite Kennzahl-Kachel.
@@ -124,6 +136,26 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
     ein Test wegen einer FACHLICHEN Erwartung bricht: stehen lassen und im
     Bericht melden, nichts umschreiben.
 15. **Keine AI-Attribution** irgendwo (Code, Kommentare, Commits).
+16. **Typo-Boden.** Nichts Lesbares unter 12 px, und `text-xs` (12 px) ist
+    Versalien-Labels vorbehalten (KICKER, Kennzahl-Label, Badge-Zahl).
+    Werte, Sätze und Bedienelemente sind `text-sm` oder größer; die
+    wichtigste Aussage einer Fläche ist ihre größte (`text-2xl` für die
+    eine Antwort, `text-sm leading-6` für den Satz darunter — das
+    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind per Ratchet
+    gesperrt (`ui-kit/no-tiny-text`, Baseline shrink-only).
+17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
+    zieht Knöpfe, Felder und Auswahllisten der Kopfkarte auf 40 px
+    (Telefon: 44 px, die Touch-Untergrenze — dieselbe Begründung wie
+    `Button size="touch"` der Eltern-App). `SegmentedControl` (Spur 40 px),
+    `ToggleChip` (`h-10`) und die Navigationsgruppe der
+    `PlanningContextBar` teilen dieses Maß. Kein 32-px-Bedienelement mehr
+    neben einem 40er in derselben Zeile.
+18. **Höchstens EIN Bedienband in der Kopfkarte.** Titel und Statuszeile
+    sind Text; darunter steht GENAU EINE interaktive Zeile (Suche + Filter
+    + eine Aktion, oder das Planungsband). Die Kontextzeile der
+    `PlanningContextBar` ist die benannte Ausnahme für Werkzeugflächen
+    (Wochenleiste) — in `text-sm`, nie als Kleingedrucktes, und nie als
+    dritte Zeile mit weiteren Bedienelementen.
 
 ## Unter `sm`: dieselbe Reihenfolge, andere Fläche
 

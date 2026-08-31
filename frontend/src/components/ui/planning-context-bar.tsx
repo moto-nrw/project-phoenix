@@ -29,9 +29,10 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  *    Weiter. "Heute" ist immer da (deaktiviert, wenn man schon dort steht), weil
  *    ein auftauchender und verschwindender Button die Zeile seitlich springen
  *    ließ.
- * 3. Zeile 2 ist eine ruhige 12px-Kontextzeile, keine Sammlung verschiedener
- *    Pillen. Sie wird immer gerendert, damit der Inhalt darunter beim
- *    Seitenwechsel nicht springt.
+ * 3. Zeile 2 ist eine ruhige Kontextzeile in normaler Textgröße (`text-sm`) —
+ *    keine Sammlung verschiedener Pillen und kein Kleingedrucktes. Sie wird
+ *    immer gerendert, damit der Inhalt darunter beim Seitenwechsel nicht
+ *    springt.
  *
  * Mobiles Verhalten: die Bar darf auf einem Handy nicht per `flex-wrap` in vier
  * Zeilen zerfallen — gemessen fraß sie so ein Viertel bis ein Drittel des
@@ -50,8 +51,8 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  * eine Wochenleiste, gar nichts). Jedes Element, das in eine Zeile einzieht,
  * muss in diese Höhe passen — siehe PlanningDayChip.
  */
-const PRIMARY_ROW_MIN_H = "min-h-9";
-const CONTEXT_ROW_MIN_H = "min-h-8";
+const PRIMARY_ROW_MIN_H = "min-h-10";
+const CONTEXT_ROW_MIN_H = "min-h-9";
 
 interface PlanningContextBarProps {
   readonly onPrevious?: () => void;
@@ -130,7 +131,7 @@ export function PlanningContextBar({
             steht der Slot selbst zwischen den Pfeilen und die Gruppe füllt
             unter md die Zeile. */}
         <div
-          className={`inline-flex h-9 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1 ${
+          className={`inline-flex h-10 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white max-sm:h-11 md:order-1 ${
             navigationInGroup ? "w-full md:w-auto" : ""
           }`}
         >
@@ -181,7 +182,7 @@ export function PlanningContextBar({
             type="button"
             size="compact"
             variant="ghost"
-            className="h-9 px-3 text-gray-600 md:order-2"
+            className="h-10 px-3 text-gray-600 max-sm:h-11 md:order-2"
             onClick={onToday}
           >
             {todayLabel}
@@ -232,7 +233,10 @@ export function PlanningContextBar({
             umbrechende Wochenleiste warf die Trennlinie und die Zähler mitten
             in die zweite Zeile und ließ die Bar um zwei Zeilen wachsen. */}
           <div
-            className={`flex [scrollbar-width:none] items-center gap-x-3 gap-y-1 overflow-x-auto text-xs text-gray-500 sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
+            // `text-sm`, nicht `text-xs`: die Kontextzeile trägt Bedienelemente
+            // (Wochenleiste, Zeitraum-Menü) und Zustände — kein Kleingedrucktes
+            // (Typo-Boden, TENANT-PAGE-SPEC).
+            className={`flex [scrollbar-width:none] items-center gap-x-3 gap-y-1 overflow-x-auto text-sm text-gray-600 sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 ${CONTEXT_ROW_MIN_H}`}
           >
             {children}
           </div>
@@ -285,7 +289,9 @@ export function PlanningDayChip({
       onClick={onClick}
       aria-label={ariaLabel}
       className={[
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
+        // 36 px und `text-sm`: der Tages-Chip ist ein Bedienelement in der
+        // Kontextzeile, kein Kleingedrucktes.
+        "inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2.5 text-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
         selected
           ? "bg-gray-900 text-white"
           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",

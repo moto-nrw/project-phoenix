@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
@@ -377,7 +378,7 @@ function ActivitiesPageContent() {
       >
         {/* Dasselbe Kachelraster wie Räume, Personal und Kinder: gleiche
             Objektart, gleiche Darstellung an allen Breakpoints. */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <CollectionGrid>
           {filteredActivities.map((activity) => {
             const handleClick = () => handleSelectActivity(activity);
             return (
@@ -407,7 +408,7 @@ function ActivitiesPageContent() {
               </TileCard>
             );
           })}
-        </div>
+        </CollectionGrid>
       </TenantPage>
 
       {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}

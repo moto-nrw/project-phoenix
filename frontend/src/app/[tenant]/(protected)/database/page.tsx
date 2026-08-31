@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
 import useSWR from "swr";
@@ -238,7 +239,7 @@ function DatabaseContent() {
         <DatabaseCardGridSkeleton />
       ) : (
         <div className="min-h-[60vh]">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <CollectionGrid minTileWidth="18rem">
             {baseDataSections.map((section) => {
               if (!nfcEnabled && NFC_ONLY_SECTION_IDS.has(section.id)) {
                 return null;
@@ -308,7 +309,7 @@ function DatabaseContent() {
                 </TileCard>
               );
             })}
-          </div>
+          </CollectionGrid>
         </div>
       )}
     </TenantPage>

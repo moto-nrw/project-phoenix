@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
@@ -883,7 +884,7 @@ function StaffPageContent() {
           {/* Staff Grid */}
           {view === "status" && filteredStaff.length > 0 && (
             <div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+              <CollectionGrid>
                 {filteredStaff.map((staffMember) => {
                   const locationStatus = getStaffLocationStatus(staffMember);
                   const displayType = getStaffDisplayType(staffMember);
@@ -998,7 +999,7 @@ function StaffPageContent() {
                     </TileCard>
                   );
                 })}
-              </div>
+              </CollectionGrid>
             </div>
           )}
         </>

@@ -1,5 +1,6 @@
 "use client";
 
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Skeleton } from "~/components/ui/skeleton";
 
 function StaffCardSkeleton() {
@@ -35,16 +36,15 @@ function StaffCardSkeleton() {
  */
 export function StaffCardsSkeleton() {
   return (
-    <div
+    <CollectionGrid
       role="status"
-      aria-busy="true"
-      aria-label="Mitarbeitende werden geladen"
-      data-testid="staff-page-skeleton"
-      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+      ariaBusy
+      ariaLabel="Mitarbeitende werden geladen"
+      testId="staff-page-skeleton"
     >
       {Array.from({ length: 6 }, (_, i) => (
         <StaffCardSkeleton key={i} />
       ))}
-    </div>
+    </CollectionGrid>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
@@ -33,11 +34,11 @@ export function DatabaseCardGridSkeleton() {
       data-testid="database-index-skeleton"
       className="min-h-[60vh]"
     >
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <CollectionGrid minTileWidth="18rem">
         {Array.from({ length: 8 }, (_, i) => (
           <DatabaseCardSkeleton key={i} />
         ))}
-      </div>
+      </CollectionGrid>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -882,7 +883,7 @@ function OGSGroupPageContent() {
     if (sortedStudents.length > 0) {
       return (
         <div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+          <CollectionGrid>
             {sortedStudents.map((student) => {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const studentPickup = pickupTimes.get(student.id.toString());
@@ -1012,7 +1013,7 @@ function OGSGroupPageContent() {
                 />
               );
             })}
-          </div>
+          </CollectionGrid>
         </div>
       );
     }

@@ -21,6 +21,7 @@
     "ui-kit/no-tenant-kicker": "error",
     "ui-kit/no-handrolled-surface": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",
+    "ui-kit/no-tiny-text": "error",
     "react/react-in-jsx-scope": "off",
     "no-unsafe-type-assertion": "off",
     "import/no-unassigned-import": "off",

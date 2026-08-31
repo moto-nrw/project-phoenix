@@ -27,7 +27,7 @@ import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { StatCard } from "~/components/ui/stat-card";
+import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import {
   berlinTodayISO,
   formatDate,
@@ -571,49 +571,56 @@ export default function StatisticsPage() {
         <>
           {/* Kennzahlen des Zeitraums als eigene Karte; die Tabelle darunter
               ist ihre eigene. Karten stapeln sich nicht ineinander. */}
+          {/* EINE große Aussage statt sieben gleichförmiger Mini-Kacheln
+              (Eltern-Portal-Muster: erst die eine Antwort, dann das Detail).
+              Betreuungstage und Kinderzahl stehen schon in der Statuszeile
+              der Kopfkarte, die abgezogenen Tage im Satz darunter — die
+              frühere Kachelreihe hat drei ihrer sieben Werte dupliziert. */}
           <SectionCard>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-                <StatCard
-                  variant="tile"
-                  label="Betreuungstage"
-                  value={data.care_days}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Tage abgezogen"
-                  value={data.excluded_days.total}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Kinder"
-                  value={data.totals.student_count}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Quote gesamt"
-                  value={formatRate(data.totals.attendance_rate)}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Krank"
-                  value={data.totals.sick_days}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Entschuldigt"
-                  value={data.totals.excused_days}
-                />
-                {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
-                  auf dem Schirm, der jemand nachgehen muss. */}
-                <StatCard
-                  variant="tile"
-                  label="Ohne Meldung"
-                  value={data.totals.unexplained_days}
-                  tone={data.totals.unexplained_days > 0 ? "orange" : undefined}
-                />
+              <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
+                <div>
+                  <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                    Quote gesamt
+                  </p>
+                  <p className="mt-1 text-2xl leading-tight font-semibold text-gray-900 tabular-nums">
+                    {formatRate(data.totals.attendance_rate)}
+                  </p>
+                </div>
+                <dl className="flex flex-wrap items-start gap-x-10 gap-y-4">
+                  {(
+                    [
+                      ["Krank", data.totals.sick_days, false],
+                      ["Entschuldigt", data.totals.excused_days, false],
+                      // Hervorgehoben, sobald es offene Fälle gibt: die Zahl
+                      // ist die einzige auf dem Schirm, der jemand nachgehen
+                      // muss.
+                      [
+                        "Ohne Meldung",
+                        data.totals.unexplained_days,
+                        data.totals.unexplained_days > 0,
+                      ],
+                    ] as const
+                  ).map(([label, value, highlight]) => (
+                    <div key={label}>
+                      <dt className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                        {label}
+                      </dt>
+                      <dd
+                        className="mt-1 text-lg leading-tight font-semibold tabular-nums"
+                        style={{
+                          color: highlight
+                            ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
+                            : undefined,
+                        }}
+                      >
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
-              <p className="text-xs leading-5 text-gray-500">
+              <p className="text-sm leading-6 text-gray-600">
                 {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
                 {data.excluded_days.public_holidays} Feiertage,{" "}
                 {data.excluded_days.closing_days} Schließtage,{" "}

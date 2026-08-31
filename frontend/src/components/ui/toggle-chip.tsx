@@ -42,7 +42,9 @@ export function ToggleChip({
       disabled={disabled}
       onClick={() => onPressedChange(!pressed)}
       className={cn(
-        "inline-flex h-9 items-center justify-center border px-3 text-sm font-medium transition-colors",
+        // 40 px wie jede Bedienhöhe im Portal (CONTROL_HEIGHT in
+        // tenant-page.tsx) — ein Merkmal-Chip ist ein Bedienelement.
+        "inline-flex h-10 items-center justify-center border px-3 text-sm font-medium transition-colors",
         "focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none",
         "disabled:cursor-not-allowed disabled:opacity-50",
         shape === "pill" ? "min-w-11 rounded-full" : "rounded-lg",

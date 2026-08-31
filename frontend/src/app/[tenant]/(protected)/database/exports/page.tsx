@@ -14,6 +14,7 @@ import {
   FileText,
   Printer,
 } from "lucide-react";
+import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
@@ -417,9 +418,7 @@ function ExportSection({
   // BAUARTEN-SPEC.
   return (
     <SectionCard title={title}>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {children}
-      </div>
+      <CollectionGrid minTileWidth="18rem">{children}</CollectionGrid>
     </SectionCard>
   );
 }

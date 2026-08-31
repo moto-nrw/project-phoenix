@@ -58,8 +58,31 @@ describe("TenantPage", () => {
       </TenantPage>,
     );
 
-    expect(screen.getByText("Noch kein Kind angelegt")).toBeInTheDocument();
+    // Ohne Aktion ist der Leerzustand EIN Satz in der Karte; der Titel
+    // bekommt dabei einen Schlusspunkt.
+    expect(screen.getByText("Noch kein Kind angelegt.")).toBeInTheDocument();
     expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
+  });
+
+  it("inszeniert den Leerzustand nur, wenn es einen nächsten Schritt gibt", () => {
+    render(
+      <TenantPage
+        title="Kinder"
+        empty={{
+          title: "Noch kein Kind angelegt",
+          description: "Legen Sie das erste Kind an.",
+          action: <button type="button">Kind anlegen</button>,
+        }}
+      >
+        <p>Inhalt</p>
+      </TenantPage>,
+    );
+
+    // Mit Aktion bleibt die EmptyState-Form: Überschrift plus Knopf.
+    expect(
+      screen.getByRole("button", { name: "Kind anlegen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Noch kein Kind angelegt")).toBeInTheDocument();
   });
 
   it("schaltet Seitenreiter per Klick, nicht erst per mousedown", () => {
