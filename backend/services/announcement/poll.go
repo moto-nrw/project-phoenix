@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/localization"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/emailbranding"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -252,7 +252,9 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 	for locale, group := range groups {
 		title, body := notifications.ParentAnnouncementCopy(locale, notifications.ParentPollReminder)
 		err := s.notifier.Notify(ctx, notifications.Event{
-			Type:     parentAnnouncementNotificationType,
+			Type:           parentAnnouncementNotificationType,
+			IdempotencyKey: fmt.Sprintf("parent-poll-reminder:%d:%d", a.ID, a.UpdatedAt.UTC().UnixNano()),
+			RelatedType:    relatedEntityTypePollReminder, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,
 			DeepLink: "/",

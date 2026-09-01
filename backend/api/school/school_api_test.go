@@ -22,12 +22,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/notifications"
 	"github.com/moto-nrw/project-phoenix/api/school"
 	"github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"

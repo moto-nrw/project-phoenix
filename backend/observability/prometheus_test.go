@@ -15,8 +15,8 @@ type staticSSEStatsProvider struct {
 	stats SSEStats
 }
 
-func (p staticSSEStatsProvider) SnapshotStats() SSEStats {
-	return p.stats
+func (p staticSSEStatsProvider) SnapshotSSEClientsByTenant() map[int64]int {
+	return p.stats.ClientsByTenant
 }
 
 func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {

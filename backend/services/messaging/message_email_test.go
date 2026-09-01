@@ -21,8 +21,8 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

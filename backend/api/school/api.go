@@ -27,10 +27,10 @@ import (
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 

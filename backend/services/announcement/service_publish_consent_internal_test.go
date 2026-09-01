@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // fakePreferences is a stand-in for the consent service. optedIn is returned

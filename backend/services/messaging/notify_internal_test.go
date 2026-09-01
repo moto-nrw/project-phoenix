@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,7 +72,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		notifier := &captureNotifier{}
 		prefs := &stubPreferences{optedIn: []int64{42}}
 
-		newNotifyService(notifier, prefs).notifyGuardianDevice(context.Background(), testThread())
+		newNotifyService(notifier, prefs).notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		require.Len(t, notifier.events, 1)
 		event := notifier.events[0]
@@ -91,7 +91,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		notifier := &captureNotifier{}
 
 		newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
-			notifyGuardianDevice(context.Background(), testThread())
+			notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		require.Len(t, notifier.events, 1)
 		// Not payload: the device lookup runs in a later transaction and keeps
@@ -102,7 +102,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 	t.Run("says nothing about the child or the sender", func(t *testing.T) {
 		notifier := &captureNotifier{}
 		newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
-			notifyGuardianDevice(context.Background(), testThread())
+			notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		require.Len(t, notifier.events, 1)
 		// A push is rendered on a lock screen. Everything identifying sits behind
@@ -120,7 +120,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 			GuardianProfiles: stubGuardianProfiles{profile: &usersModels.GuardianProfile{PortalLocale: &locale}},
 		})
 
-		s.notifyGuardianDevice(context.Background(), testThread())
+		s.notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		require.Len(t, notifier.events, 1)
 		assert.Equal(t, "New message from the OGS", notifier.events[0].Title)
@@ -130,7 +130,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		notifier := &captureNotifier{}
 
 		newNotifyService(notifier, &stubPreferences{optedIn: nil}).
-			notifyGuardianDevice(context.Background(), testThread())
+			notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		assert.Empty(t, notifier.events, "no row means off")
 	})
@@ -139,7 +139,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		notifier := &captureNotifier{}
 
 		newNotifyService(notifier, &stubPreferences{err: errors.New("db down")}).
-			notifyGuardianDevice(context.Background(), testThread())
+			notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		assert.Empty(t, notifier.events, "consent failures must fail closed")
 	})
@@ -147,7 +147,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 	t.Run("without a consent service nothing is pushed", func(t *testing.T) {
 		notifier := &captureNotifier{}
 
-		newNotifyService(notifier, nil).notifyGuardianDevice(context.Background(), testThread())
+		newNotifyService(notifier, nil).notifyGuardianDevice(context.Background(), testThread(), 123)
 
 		assert.Empty(t, notifier.events,
 			"an unwired dependency must not turn into consent-free delivery")
@@ -158,7 +158,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 
 		assert.NotPanics(t, func() {
 			newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
-				notifyGuardianDevice(context.Background(), testThread())
+				notifyGuardianDevice(context.Background(), testThread(), 123)
 		})
 	})
 
@@ -169,7 +169,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 
 		assert.NotPanics(t, func() {
 			newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
-				notifyGuardianDevice(context.Background(), testThread())
+				notifyGuardianDevice(context.Background(), testThread(), 123)
 		})
 	})
 
@@ -179,7 +179,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		thread := testThread()
 		thread.GuardianAccountID = 0
 
-		newNotifyService(notifier, prefs).notifyGuardianDevice(context.Background(), thread)
+		newNotifyService(notifier, prefs).notifyGuardianDevice(context.Background(), thread, 123)
 
 		assert.Empty(t, notifier.events)
 		assert.Nil(t, prefs.asked, "consent must not even be asked for a missing account")
@@ -190,7 +190,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 
 		assert.NotPanics(t, func() {
 			newNotifyService(notifier, &stubPreferences{optedIn: []int64{42}}).
-				notifyGuardianDevice(context.Background(), nil)
+				notifyGuardianDevice(context.Background(), nil, 123)
 		})
 		assert.Empty(t, notifier.events)
 	})

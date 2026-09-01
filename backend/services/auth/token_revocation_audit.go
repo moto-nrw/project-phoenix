@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -113,13 +113,13 @@ func tokenFamilyIDs(tokens []*authModels.Token) []string {
 func pushPortalsForScope(portalScope string) []string {
 	switch portalScope {
 	case authModels.PortalScopeParent:
-		return []string{iotModels.PushPortalParent}
+		return []string{deliveryModels.PushPortalParent}
 	case authModels.PortalScopeSchool:
-		return []string{iotModels.PushPortalSchool}
+		return []string{deliveryModels.PushPortalSchool}
 	case authModels.PortalScopeUnknown, "":
-		return []string{iotModels.PushPortalStaff, iotModels.PushPortalParent, iotModels.PushPortalSchool}
+		return []string{deliveryModels.PushPortalStaff, deliveryModels.PushPortalParent, deliveryModels.PushPortalSchool}
 	default:
-		return []string{iotModels.PushPortalStaff}
+		return []string{deliveryModels.PushPortalStaff}
 	}
 }
 
@@ -500,13 +500,13 @@ func (s *Service) deletePushForFamilies(ctx context.Context, accountID int64, fa
 }
 
 func (s *Service) deletePushUnboundForTokens(ctx context.Context, accountID int64, tokens []*authModels.Token) error {
-	if err := s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, iotModels.PushPortalStaff), iotModels.PushPortalStaff); err != nil {
+	if err := s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, deliveryModels.PushPortalStaff), deliveryModels.PushPortalStaff); err != nil {
 		return err
 	}
-	if err := s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, iotModels.PushPortalSchool), iotModels.PushPortalSchool); err != nil {
+	if err := s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, deliveryModels.PushPortalSchool), deliveryModels.PushPortalSchool); err != nil {
 		return err
 	}
-	return s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, iotModels.PushPortalParent), iotModels.PushPortalParent)
+	return s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDsForPortal(tokens, deliveryModels.PushPortalParent), deliveryModels.PushPortalParent)
 }
 
 func (s *Service) deletePushUnboundAtTenants(ctx context.Context, accountID int64, tenantIDs []int64, portal string) error {
@@ -516,9 +516,9 @@ func (s *Service) deletePushUnboundAtTenants(ctx context.Context, accountID int6
 		}
 		if err := s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
 			switch portal {
-			case iotModels.PushPortalParent:
+			case deliveryModels.PushPortalParent:
 				return s.repos.PushSubscription.DeleteParentUnboundByAccount(adminCtx, accountID, tenantID)
-			case iotModels.PushPortalSchool:
+			case deliveryModels.PushPortalSchool:
 				return s.repos.PushSubscription.DeleteSchoolUnboundByAccount(adminCtx, accountID, tenantID)
 			default:
 				return s.repos.PushSubscription.DeleteStaffUnboundByAccount(adminCtx, accountID, tenantID)

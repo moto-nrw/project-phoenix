@@ -28,7 +28,7 @@ type SSEStats struct {
 }
 
 type SSEStatsProvider interface {
-	SnapshotStats() SSEStats
+	SnapshotSSEClientsByTenant() map[int64]int
 }
 
 // PWAUsageStat is one (tenant, portal) bucket of PWA standalone-usage
@@ -274,6 +274,27 @@ var (
 		},
 		[]string{"transport", "template", "caller"},
 	)
+	durableDeliveryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_delivery_operations_total",
+			Help: "Durable Delivery intents processed by transport, template, operation, and outcome.",
+		},
+		[]string{"transport", "template", "operation", "outcome"},
+	)
+	durableDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_delivery_operation_duration_seconds",
+			Help:    "Durable Delivery operation duration, including provider and status-query latency.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "operation"},
+	)
+	durableDeliveryOldestPendingAge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "phoenix_delivery_oldest_pending_age_seconds",
+			Help: "Age in seconds of the oldest pending or claimed Delivery intent.",
+		},
+	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_rate_limit_rejections_total",
@@ -414,6 +435,9 @@ func init() {
 		auditRows,
 		synchronousDeliveries,
 		synchronousDeliveryDuration,
+		durableDeliveryOperations,
+		durableDeliveryDuration,
+		durableDeliveryOldestPendingAge,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -574,6 +598,33 @@ func ObserveSynchronousDelivery(transport, template, caller string, duration tim
 	caller = sanitizeLabel(caller)
 	synchronousDeliveries.WithLabelValues(transport, template, caller, outcome).Inc()
 	synchronousDeliveryDuration.WithLabelValues(transport, template, caller).Observe(duration.Seconds())
+}
+
+func ObserveDurableDelivery(transport, template, operation string, duration time.Duration, count int, err error) {
+	if operation == "oldest_pending_age" {
+		if err == nil {
+			durableDeliveryOldestPendingAge.Set(duration.Seconds())
+		}
+		return
+	}
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	operation = sanitizeLabel(operation)
+	amount := count
+	if amount <= 0 {
+		amount = 1
+	}
+	durableDeliveryOperations.WithLabelValues(transport, template, operation, outcome).Add(float64(amount))
+	durableDeliveryDuration.WithLabelValues(transport, template, operation).Observe(duration.Seconds())
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
@@ -749,7 +800,7 @@ func refreshSSEGauges() {
 	if provider == nil {
 		return
 	}
-	stats := provider.SnapshotStats()
+	stats := SSEStats{ClientsByTenant: provider.SnapshotSSEClientsByTenant()}
 	currentTenants := make(map[string]struct{}, len(stats.ClientsByTenant))
 	sseGaugeMu.Lock()
 	defer sseGaugeMu.Unlock()

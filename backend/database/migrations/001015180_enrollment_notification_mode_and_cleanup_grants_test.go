@@ -53,9 +53,10 @@ func insertNotificationModeTestOutbox(t *testing.T, db *testpkg.DB, tenantID, re
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO platform.email_outbox
-			(tenant_id, kind, related_entity_type, related_entity_id, payload,
+			(tenant_id, kind, related_entity_type, related_entity_id, recipient, payload,
 			 status, attempts, next_retry_at, created_at)
-		VALUES (?, ?, 'enrollment_request', ?, '{}'::jsonb, 'pending', 0, NOW(), ?)
+		VALUES (?, ?, 'enrollment_request', ?, '{"address":"migration@example.test"}'::jsonb,
+			'{"recipient_email":"migration@example.test"}'::jsonb, 'pending', 0, NOW(), ?)
 	`, tenantID, kind, requestID, createdAt)
 	require.NoError(t, err)
 }
