@@ -25682,7 +25682,7 @@
     {
       "scope": "test",
       "file": "services/auth/factory_operator_mfa_config_test.go",
-      "declaration": "TestFactoryOperatorMFAUsesConfiguredTokenAuth",
+      "declaration": "TestFactoryOperatorMFARefusesChallengeWithoutSMTP",
       "target": "database/repositories.NewFactory",
       "lines": [
         31
