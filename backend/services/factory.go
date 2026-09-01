@@ -23,9 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -1582,17 +1580,7 @@ func newFactory(
 			registry: emailTemplateRegistry, mailer: mailer, mailIdentity: tenantMailIdentity,
 			push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
 				Subscriber: vapidConfig.Subscriber, PublicKey: vapidConfig.PublicKey, PrivateKey: vapidConfig.PrivateKey,
-			}, func(ctx context.Context, intent deliveryModule.ClaimedIntent) error {
-				return tenant.WithTenantTx(ctx, db, intent.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-					_, err := repos.PushSubscription.DeleteExpiredIfUnchanged(txCtx, &deliveryModels.PushSubscription{
-						Model:     baseModels.Model{ID: intent.PushRecipient.SubscriptionID, UpdatedAt: intent.PushRecipient.UpdatedAt},
-						AccountID: intent.PushRecipient.AccountID, Portal: intent.PushRecipient.Portal,
-						Endpoint: intent.PushRecipient.Endpoint, P256dh: intent.PushRecipient.P256DH,
-						Auth: intent.PushRecipient.Auth,
-					})
-					return err
-				})
-			}),
+			}, newExpiredPushSubscriptionCleaner(db, repos.PushSubscription)),
 			logger: logger.With("service", "delivery"), db: db,
 		},
 		Observe: func(observation deliveryModule.Observation) {

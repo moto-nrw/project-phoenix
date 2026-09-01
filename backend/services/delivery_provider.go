@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/email"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -29,6 +30,26 @@ type deliveryProvider struct {
 
 type guardianDisplayQuery interface {
 	GuardianDisplays(context.Context, []int64) ([]usersService.GuardianDisplay, error)
+}
+
+type pushSubscriptionCleaner interface {
+	DeleteExpiredIfUnchanged(context.Context, *deliveryModels.PushSubscription) (bool, error)
+}
+
+func newExpiredPushSubscriptionCleaner(db *bun.DB, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
+	return func(ctx context.Context, intent delivery.ClaimedIntent) error {
+		return tenant.WithTenantTx(ctx, db, intent.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			subscription := &deliveryModels.PushSubscription{
+				AccountID: intent.PushRecipient.AccountID, Portal: intent.PushRecipient.Portal,
+				Endpoint: intent.PushRecipient.Endpoint, P256dh: intent.PushRecipient.P256DH,
+				Auth: intent.PushRecipient.Auth,
+			}
+			subscription.ID = intent.PushRecipient.SubscriptionID
+			subscription.UpdatedAt = intent.PushRecipient.UpdatedAt
+			_, err := subscriptions.DeleteExpiredIfUnchanged(txCtx, subscription)
+			return err
+		})
+	}
 }
 
 type guardianDisplayResolver struct{ query guardianDisplayQuery }
