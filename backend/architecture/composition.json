@@ -17336,6 +17336,16 @@
     {
       "scope": "test",
       "file": "api/staff/staff_test.go",
+      "declaration": "TestBetreuerRoleDoesNotSeeTheSchoolsAbsenceWording",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        1620
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "api/staff/staff_test.go",
       "declaration": "TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn",
       "target": "database/repositories.NewFactory",
       "lines": [
