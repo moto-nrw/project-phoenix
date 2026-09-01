@@ -272,7 +272,7 @@ s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_ca
 
 ## Email
 
-SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, the factory falls back to `email.NewMockMailer()` which logs metadata (to/subject/template) instead of sending — local dev needs no SMTP. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Email sends are async fire-and-forget; failures are logged, never block API responses. Password hashing/strength helpers: `services/auth/password_helpers.go` — reuse, don't duplicate.
+SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, local development uses `email.NewMockMailer()` to log metadata (to/subject/template); staging and production fail startup. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Most email sends use async `Dispatcher.Dispatch`; fail-closed sends such as MFA challenges use synchronous `Dispatcher.Deliver` and return success only after transport acceptance. Password hashing/strength helpers: `services/auth/password_helpers.go` — reuse, don't duplicate.
 
 **Password-reset rate limit is a cross-layer contract**: 3 requests/hour per email; the backend's `429` + `Retry-After` header drives the live countdown in the frontend's password-reset modal (localStorage-persisted). Changing the window or header silently breaks that UX.
 

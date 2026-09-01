@@ -1,8 +1,11 @@
 package email
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/wneessen/go-mail"
@@ -16,10 +19,6 @@ type SMTPMailer struct {
 
 // NewMailer returns a configured SMTP Mailer.
 func NewMailer() (Mailer, error) {
-	if err := parseTemplates(); err != nil {
-		return nil, err
-	}
-
 	smtp := struct {
 		Host     string
 		Port     int
@@ -32,8 +31,19 @@ func NewMailer() (Mailer, error) {
 		viper.GetString("email_smtp_password"),
 	}
 
-	if smtp.Host == "" {
+	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if appEnv == "test" {
 		return NewMockMailer(), nil
+	}
+	if smtp.Host == "" {
+		switch appEnv {
+		case "production", "staging":
+			return nil, fmt.Errorf("EMAIL_SMTP_HOST is required when APP_ENV=%s", appEnv)
+		}
+		return NewMockMailer(), nil
+	}
+	if err := parseTemplates(); err != nil {
+		return nil, err
 	}
 
 	defaultFrom := NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
@@ -113,6 +123,13 @@ func (m *SMTPMailer) buildMessage(email Message) (*mail.Msg, error) {
 
 // Send sends the mail via smtp.
 func (m *SMTPMailer) Send(email Message) error {
+	return m.SendContext(context.Background(), email)
+}
+
+// SendContext reports caller cancellation immediately. go-mail applies the
+// context while dialing but cannot interrupt DATA after the dial; that bounded
+// exchange drains in the background under the client's socket deadline.
+func (m *SMTPMailer) SendContext(ctx context.Context, email Message) error {
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
 	}
@@ -126,7 +143,8 @@ func (m *SMTPMailer) Send(email Message) error {
 		slog.String("to", email.To.Address),
 		slog.String("subject", email.Subject),
 		slog.String("template", email.Template))
-	if err := m.client.DialAndSend(msg); err != nil {
+	err = m.sendMessageContext(ctx, msg)
+	if err != nil {
 		slog.Default().Error("email send failed",
 			slog.String("to", email.To.Address),
 			slog.Any("error", err),
@@ -137,4 +155,17 @@ func (m *SMTPMailer) Send(email Message) error {
 		slog.String("to", email.To.Address))
 
 	return nil
+}
+
+func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) error {
+	result := make(chan error, 1)
+	go func() {
+		result <- m.client.DialAndSendWithContext(ctx, msg)
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

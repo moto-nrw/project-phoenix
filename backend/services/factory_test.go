@@ -72,6 +72,19 @@ func TestNewFactory(t *testing.T) {
 		assert.Equal(t, 48*time.Hour, factory.InvitationTokenExpiry)
 		assert.Equal(t, 30*time.Minute, factory.PasswordResetTokenExpiry)
 	})
+
+	t.Run("configured email transport failure is not mocked", func(t *testing.T) {
+		t.Setenv("APP_ENV", "development")
+		t.Chdir("..")
+		viper.Set("email_smtp_host", "smtp.example.invalid")
+		viper.Set("email_smtp_port", 0)
+		viper.Set("email_smtp_user", "")
+		viper.Set("email_smtp_password", "")
+		failedFactory, initErr := services.NewFactoryForTests(repos, db, slog.Default())
+		require.Error(t, initErr)
+		assert.Nil(t, failedFactory)
+		assert.ErrorContains(t, initErr, "initialize email transport")
+	})
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.

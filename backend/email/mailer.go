@@ -3,6 +3,7 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"os"
@@ -27,6 +28,14 @@ var (
 
 type Mailer interface {
 	Send(Message) error
+}
+
+// ContextMailer is implemented by transports that report caller cancellation.
+// Mailer stays source-compatible for the durable outbox and existing adapters;
+// synchronous Delivery requires the production SMTP adapter to implement this
+// stronger contract.
+type ContextMailer interface {
+	SendContext(context.Context, Message) error
 }
 
 // Message struct holds all parts of a specific email Message.

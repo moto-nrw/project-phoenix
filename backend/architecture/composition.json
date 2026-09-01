@@ -446,12 +446,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 220,
+          "line": 221,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 701,
+          "line": 702,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -461,7 +461,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 338,
+          "line": 339,
           "declaration": "New"
         }
       ]
@@ -476,7 +476,7 @@
         },
         {
           "file": "api/base.go",
-          "line": 217,
+          "line": 218,
           "declaration": "type API"
         }
       ]
@@ -521,7 +521,7 @@
         },
         {
           "file": "services/auth/mfa_service.go",
-          "line": 287,
+          "line": 288,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -541,7 +541,7 @@
       "locations": [
         {
           "file": "services/platform/operator_mfa_service.go",
-          "line": 91,
+          "line": 92,
           "declaration": "type OperatorMFAServiceConfig"
         },
         {
@@ -561,12 +561,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 344,
+          "line": 346,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 361,
+          "line": 364,
           "declaration": "newFactory"
         },
         {
@@ -16609,7 +16609,7 @@
       "declaration": "New",
       "target": "database/repositories.NewFactory",
       "lines": [
-        338
+        339
       ],
       "tables": []
     },
@@ -25653,7 +25653,7 @@
       "declaration": "TestVerifyCodeForAccount_RefusesForeignPortalChallenge",
       "target": "database/repositories.NewFactory",
       "lines": [
-        122
+        123
       ],
       "tables": [
         "auth.mfa_email_challenges"
@@ -25738,7 +25738,7 @@
       "declaration": "TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode",
       "target": "database/repositories.NewFactory",
       "lines": [
-        241
+        243
       ],
       "tables": []
     },
@@ -25748,7 +25748,7 @@
       "declaration": "newExtraMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        28
       ],
       "tables": []
     },
@@ -25768,7 +25768,17 @@
       "declaration": "newTestMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        38
+        37
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/mfa_synchronous_delivery_test.go",
+      "declaration": "newSynchronousDeliveryMFAService",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        46
       ],
       "tables": []
     },
@@ -27680,7 +27690,7 @@
       "declaration": "TestNewFactory_DefaultEmailFrom_WhenNotConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        265
+        278
       ],
       "tables": []
     },
@@ -27690,7 +27700,7 @@
       "declaration": "TestNewFactory_EmailFrom_WhenConfigured",
       "target": "database/repositories.NewFactory",
       "lines": [
-        284
+        297
       ],
       "tables": []
     },
@@ -27700,7 +27710,7 @@
       "declaration": "TestNewFactory_FrontendURL_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        224
+        237
       ],
       "tables": []
     },
@@ -27710,7 +27720,7 @@
       "declaration": "TestNewFactory_FrontendURL_TrailingSlashRemoved",
       "target": "database/repositories.NewFactory",
       "lines": [
-        206
+        219
       ],
       "tables": []
     },
@@ -27720,7 +27730,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        116
+        129
       ],
       "tables": []
     },
@@ -27730,7 +27740,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        134
+        147
       ],
       "tables": []
     },
@@ -27740,7 +27750,7 @@
       "declaration": "TestNewFactory_InvitationTokenExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        98
+        111
       ],
       "tables": []
     },
@@ -27750,7 +27760,7 @@
       "declaration": "TestNewFactory_NegativeInvitationExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        304
+        317
       ],
       "tables": []
     },
@@ -27760,7 +27770,7 @@
       "declaration": "TestNewFactory_NegativePasswordResetExpiry",
       "target": "database/repositories.NewFactory",
       "lines": [
-        322
+        335
       ],
       "tables": []
     },
@@ -27770,7 +27780,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ClampedToMax",
       "target": "database/repositories.NewFactory",
       "lines": [
-        170
+        183
       ],
       "tables": []
     },
@@ -27780,7 +27790,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ValidValue",
       "target": "database/repositories.NewFactory",
       "lines": [
-        188
+        201
       ],
       "tables": []
     },
@@ -27790,7 +27800,7 @@
       "declaration": "TestNewFactory_PasswordResetExpiry_ZeroDefaults",
       "target": "database/repositories.NewFactory",
       "lines": [
-        152
+        165
       ],
       "tables": []
     },
@@ -27800,7 +27810,7 @@
       "declaration": "TestNewFactory_PortalURLs_Required",
       "target": "database/repositories.NewFactory",
       "lines": [
-        240
+        253
       ],
       "tables": []
     },
@@ -27810,7 +27820,7 @@
       "declaration": "TestNewFactory_RejectsPartialVAPIDConfig",
       "target": "database/repositories.NewFactory",
       "lines": [
-        81
+        94
       ],
       "tables": []
     },
@@ -28940,7 +28950,17 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        25
+        26
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/platform/operator_mfa_synchronous_delivery_test.go",
+      "declaration": "TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        40
       ],
       "tables": []
     },

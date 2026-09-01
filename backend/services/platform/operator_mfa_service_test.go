@@ -12,6 +12,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -27,10 +28,11 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 	require.NoError(t, err)
 
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: operatorMFATestJWTSecret,
-		DB:        db,
+		Repos:      repos,
+		TokenAuth:  tokenAuth,
+		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), nil),
+		JWTSecret:  operatorMFATestJWTSecret,
+		DB:         db,
 	})
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, svc, db)

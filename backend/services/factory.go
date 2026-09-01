@@ -315,6 +315,8 @@ type FeedbackSettingsBinder func(
 
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)
 
+type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+
 func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
@@ -349,12 +351,13 @@ func NewFactoryWithModules(
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
+	observeDelivery DeliveryObserver,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil {
-		return nil, errors.New("meal plan, feedback, and Audit capabilities with their binders and observer are required")
+	if mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil {
+		return nil, errors.New("meal plan, feedback, Audit, and Delivery capabilities with their binders and observers are required")
 	}
-	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, false, clocks...)
+	return newFactory(repos, db, logger, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, false, clocks...)
 }
 
 func newFactory(
@@ -366,6 +369,7 @@ func newFactory(
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
 	observeAuditAppend AuditAppendObserver,
+	observeDelivery DeliveryObserver,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -376,8 +380,7 @@ func newFactory(
 
 	mailer, err := email.NewMailer()
 	if err != nil {
-		logger.Warn("SMTP mailer initialization failed, falling back to mock mailer", "error", err)
-		mailer = email.NewMockMailer()
+		return nil, fmt.Errorf("initialize email transport: %w", err)
 	}
 	if _, ok := mailer.(*email.MockMailer); ok {
 		logger.Warn("SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
@@ -426,7 +429,7 @@ func newFactory(
 	}
 	repos.RouteAuditWrites(auditCommand)
 
-	dispatcher := email.NewDispatcher(mailer, emailLogger)
+	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
 	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
 	if defaultFrom.Address == "" {
@@ -2352,9 +2355,10 @@ func newFactory(
 	if !vapidConfig.Configured() {
 		logger.Info("web push disabled: VAPID keys not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBSCRIBER)")
 	}
-	notificationsService := notifications.NewService(
+	notificationsService := notifications.NewServiceWithDeliveryObserver(
 		settingsService,
 		logger.With("service", "notifications"),
+		notifications.DeliveryObserver(observeDelivery),
 		notifications.NewSSEChannel(realtimeHub, notifications.WithGuardianChildAccess(
 			db, repos.StudentGuardian, logger.With("channel", "sse"))),
 		notifications.NewWebPushChannel(db, repos.PushSubscription, vapidConfig, logger.With("channel", "web_push")),

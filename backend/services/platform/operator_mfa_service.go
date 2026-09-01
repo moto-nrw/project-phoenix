@@ -29,12 +29,13 @@ import (
 // the literals; the per-tenant security.account_lockout_* settings only apply
 // to tenant accounts, which operators are not).
 const (
-	OperatorMFAChallengeTTL          = 10 * time.Minute
-	OperatorMFALockoutThreshold      = authService.MFALockoutThreshold
-	OperatorMFALockoutDuration       = authService.MFALockoutDuration
-	OperatorMFARateLimitWindow       = 15 * time.Minute
-	OperatorMFARateLimitMaxSent      = 3
-	OperatorMFATrustedDeviceDuration = 90 * 24 * time.Hour
+	OperatorMFAChallengeTTL            = 10 * time.Minute
+	OperatorMFALockoutThreshold        = authService.MFALockoutThreshold
+	OperatorMFALockoutDuration         = authService.MFALockoutDuration
+	OperatorMFARateLimitWindow         = 15 * time.Minute
+	OperatorMFARateLimitMaxSent        = 3
+	OperatorMFATrustedDeviceDuration   = 90 * 24 * time.Hour
+	operatorMFAChallengeCleanupTimeout = 5 * time.Second
 )
 
 // Errors mirror the auth-side surface so callers can switch on error
@@ -198,7 +199,10 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
-	s.dispatchChallengeEmail(ctx, op, plainCode, ip)
+	if err := s.dispatchChallengeEmail(ctx, op, plainCode, ip); err != nil {
+		s.invalidateUndeliveredChallenge(ctx, challenge.ID, operatorID, ip)
+		return "", authService.ErrMFAStatusUnavailable
+	}
 	s.recordAudit(ctx, operatorID, platform.ActionMFAEmailSent, ip, &challenge.ID, nil)
 
 	tokenString, err := s.TokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
@@ -470,11 +474,9 @@ func (s *operatorMFAService) parseChallengeToken(tokenString string) (*authjwt.M
 	return s.TokenAuth.ParseMFAChallengeJWT(tokenString)
 }
 
-func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *platform.Operator, plainCode string, ip net.IP) {
+func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *platform.Operator, plainCode string, ip net.IP) error {
 	if s.Dispatcher == nil {
-		s.Logger.Warn("email dispatcher unavailable; operator mfa code not sent",
-			slog.Int64("operator_id", op.ID))
-		return
+		return email.ErrDeliveryUnavailable
 	}
 	frontendURL := strings.TrimRight(s.FrontendURL, "/")
 	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
@@ -503,12 +505,30 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 		ReferenceID: op.ID,
 		Recipient:   op.Email,
 	}
-	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	if err := s.Dispatcher.Deliver(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{time.Second, 5 * time.Second, 15 * time.Second},
 		MaxAttempts:   3,
-	})
+	}); err != nil {
+		s.Logger.Warn("operator mfa challenge delivery failed",
+			slog.Int64("operator_id", op.ID),
+			slog.String("error", err.Error()))
+		return err
+	}
+	return nil
+}
+
+func (s *operatorMFAService) invalidateUndeliveredChallenge(ctx context.Context, challengeID, operatorID int64, ip net.IP) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operatorMFAChallengeCleanupTimeout)
+	defer cancel()
+	if err := s.Repos.OperatorMFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now()); err != nil {
+		s.Logger.Error("failed to invalidate undelivered operator mfa challenge",
+			slog.Int64("operator_id", operatorID),
+			slog.Int64("challenge_id", challengeID),
+			slog.String("error", err.Error()))
+	}
+	s.recordAudit(cleanupCtx, operatorID, platform.ActionMFAFailed, ip, &challengeID, map[string]any{"reason": "delivery failed"})
 }
 
 // dispatchTrustedDeviceAddedEmail mirrors the tenant-side notification so

@@ -34,6 +34,7 @@ const (
 	MFAEmailRateLimitWindow           = 15 * time.Minute // count of issued codes within this window
 	MFAEmailRateLimitMaxSent          = 3                // max codes per account per window
 	MFATrustedDeviceCookieDefaultDays = 90
+	mfaChallengeCleanupTimeout        = 5 * time.Second
 
 	// mfaAuditFallbackIP is the sentinel address written to
 	// audit.auth_events.ip_address when an MFA event has no real client
@@ -625,7 +626,10 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
-	s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip)
+	if err := s.dispatchChallengeEmail(ctx, account, tenantID, plainCode, ip); err != nil {
+		s.invalidateUndeliveredChallenge(ctx, challenge.ID, accountID, tenantID, ip)
+		return "", ErrMFAStatusUnavailable
+	}
 	s.recordAuthEvent(ctx, accountID, tenantID, audit.EventTypeMFAEmailSent, true, ip, "", map[string]any{
 		"challenge_id": challenge.ID,
 	})
@@ -1751,8 +1755,8 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int6
 	return val
 }
 
-// dispatchChallengeEmail fires the branded MFA code email asynchronously
-// via the existing dispatcher. The HTML template
+// dispatchChallengeEmail sends the branded MFA code through synchronous
+// Delivery. The HTML template
 // (templates/email/mfa-email-code.html) handles formatting; html2text
 // generates the plain-text alternative automatically.
 //
@@ -1760,11 +1764,9 @@ func (s *mfaService) resolveTrustedDeviceDays(ctx context.Context, tenantID int6
 // the user must paste the code into the moto login UI on their own.
 // That kills the most common phishing pattern (a malicious mail with
 // "click here to confirm").
-func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, tenantID int64, plainCode string, ip net.IP) {
+func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.Account, tenantID int64, plainCode string, ip net.IP) error {
 	if s.Dispatcher == nil {
-		s.Logger.Warn("email dispatcher unavailable; mfa code not sent",
-			slog.Int64("account_id", account.ID))
-		return
+		return email.ErrDeliveryUnavailable
 	}
 
 	frontendURL := strings.TrimRight(s.FrontendURL, "/")
@@ -1796,11 +1798,33 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 		ReferenceID: account.ID,
 		Recipient:   account.Email,
 	}
-	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
+	if err := s.Dispatcher.Deliver(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: passwordResetEmailBackoff,
 		MaxAttempts:   3,
+	}); err != nil {
+		s.Logger.Warn("mfa challenge delivery failed",
+			slog.Int64("account_id", account.ID),
+			slog.String("error", err.Error()))
+		return err
+	}
+	return nil
+}
+
+func (s *mfaService) invalidateUndeliveredChallenge(ctx context.Context, challengeID, accountID, tenantID int64, ip net.IP) {
+	// Detach request cancellation but preserve tenant/runtime values: the row
+	// must be consumed even when cancellation is what stopped the transport.
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mfaChallengeCleanupTimeout)
+	defer cancel()
+	if err := s.Repos.MFAEmailChallenge.MarkConsumed(cleanupCtx, challengeID, time.Now()); err != nil {
+		s.Logger.Error("failed to invalidate undelivered mfa challenge",
+			slog.Int64("account_id", accountID),
+			slog.Int64("challenge_id", challengeID),
+			slog.String("error", err.Error()))
+	}
+	s.recordAuthEvent(cleanupCtx, accountID, tenantID, audit.EventTypeMFAEmailSent, false, ip, "delivery failed", map[string]any{
+		"challenge_id": challengeID,
 	})
 }
 

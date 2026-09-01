@@ -28,24 +28,7 @@ func TestSMTPMailer_ImplementsMailer(_ *testing.T) {
 // =============================================================================
 
 func TestNewMailer_NoSMTPHost_ReturnsMockMailer(t *testing.T) {
-	// Setup: Create minimal templates directory
-	tempDir := t.TempDir()
-	templatesDir := filepath.Join(tempDir, "templates")
-	require.NoError(t, os.MkdirAll(templatesDir, 0755))
-
-	// Create a minimal template file
-	templateContent := `<!DOCTYPE html><html><body>{{.Content}}</body></html>`
-	require.NoError(t, os.WriteFile(
-		filepath.Join(templatesDir, "test.html"),
-		[]byte(templateContent),
-		0644,
-	))
-
-	// Change working directory temporarily
-	originalDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(originalDir) }()
-	require.NoError(t, os.Chdir(tempDir))
+	t.Setenv("APP_ENV", "development")
 
 	// Clear SMTP host to trigger MockMailer fallback
 	viper.Set("email_smtp_host", "")
@@ -57,6 +40,11 @@ func TestNewMailer_NoSMTPHost_ReturnsMockMailer(t *testing.T) {
 	// Should return MockMailer when SMTP host is empty
 	_, isMock := mailer.(*MockMailer)
 	assert.True(t, isMock, "Expected MockMailer when SMTP host is empty")
+
+	t.Setenv("APP_ENV", "production")
+	mailer, err = NewMailer()
+	require.Error(t, err)
+	assert.Nil(t, mailer, "a deployed environment must not silently accept a mock transport")
 }
 
 func TestNewMailer_WithSMTPHost_ConfiguresClient(t *testing.T) {

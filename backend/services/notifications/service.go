@@ -192,7 +192,12 @@ type router struct {
 	settings configService.SettingsService
 	channels []Channel
 	logger   *slog.Logger
+	observe  DeliveryObserver
 }
+
+// DeliveryObserver records one synchronous transport outcome. All arguments
+// are stable catalogue labels and must never contain recipient data.
+type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
 
 func (r *router) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	for _, channel := range r.channels {
@@ -211,6 +216,13 @@ const TypeTest = "test"
 // assignable to Service for consumers that only notify one audience.
 func NewService(settings configService.SettingsService, logger *slog.Logger, channels ...Channel) Notifier {
 	return &router{settings: settings, channels: channels, logger: logger}
+}
+
+// NewServiceWithDeliveryObserver builds the production router with runtime
+// evidence for fail-closed sends. NewService remains the small test and local
+// adapter constructor.
+func NewServiceWithDeliveryObserver(settings configService.SettingsService, logger *slog.Logger, observe DeliveryObserver, channels ...Channel) Notifier {
+	return &router{settings: settings, channels: channels, logger: logger, observe: observe}
 }
 
 func (r *router) getLogger() *slog.Logger {
@@ -388,8 +400,13 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 	}
 	for _, ch := range r.channels {
 		if synchronous, ok := ch.(synchronousChannel); ok {
-			if err := synchronous.DeliverSynchronously(dispatchCtx, event); err != nil {
-				return fmt.Errorf("synchronous notification channel %s: %w", ch.Name(), err)
+			started := time.Now()
+			deliveryErr := synchronous.DeliverSynchronously(dispatchCtx, event)
+			if r.observe != nil {
+				r.observe(ch.Name(), event.Type, event.Type, time.Since(started), deliveryErr)
+			}
+			if deliveryErr != nil {
+				return fmt.Errorf("synchronous notification channel %s: %w", ch.Name(), deliveryErr)
 			}
 		}
 	}
