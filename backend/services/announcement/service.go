@@ -398,7 +398,12 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 }
 
 func (s *service) Delete(ctx context.Context, id int64) error {
-	a, err := s.repo.FindByID(ctx, id)
+	// Unter der Zeilensperre laden, nicht nur lesen: der Anhang-Upload nimmt
+	// dieselbe Sperre (#2890). Ohne sie kann ein Upload committen, nachdem
+	// purgeAttachments die Anhänge aufgezählt hat — seine Zeile verschwindet
+	// dann mit dem Cascade, ohne dass je ein Cleanup-Intent für ihre Bytes
+	// geschrieben wurde.
+	a, err := s.repo.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return fmt.Errorf("announcement: load for delete: %w", err)
 	}

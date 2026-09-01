@@ -35,7 +35,6 @@ func TestParentAnnouncementFindByIDForUpdateBlocksSecondWriter(t *testing.T) {
 	}
 	draft.SetTenantID(chain.TenantID)
 	require.NoError(t, repo.Create(ctx, draft))
-	t.Cleanup(func() { _ = repo.Delete(ctx, draft.ID) })
 
 	runtimeCtx := tenant.WithTenantID(
 		tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db)),
@@ -92,7 +91,6 @@ func TestParentAnnouncementFindByIDForUpdateIsTenantScoped(t *testing.T) {
 	}
 	draft.SetTenantID(chain.TenantID)
 	require.NoError(t, repo.Create(ctx, draft))
-	t.Cleanup(func() { _ = repo.Delete(ctx, draft.ID) })
 
 	found, err := repo.FindByIDForUpdate(ctx, draft.ID)
 	require.NoError(t, err)

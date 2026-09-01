@@ -403,6 +403,9 @@ func (s *service) ListAttachmentsForGuardian(ctx context.Context, accountID, ann
 	if err != nil {
 		return 0, nil, err
 	}
+	if err := s.revalidateGuardianAccess(ctx, accountID, announcementID, tenantID); err != nil {
+		return 0, nil, err
+	}
 	return tenantID, rows, nil
 }
 
@@ -423,7 +426,32 @@ func (s *service) ResolveGuardianAttachmentDownload(ctx context.Context, account
 	if err != nil {
 		return 0, nil, err
 	}
+	if err := s.revalidateGuardianAccess(ctx, accountID, announcementID, tenantID); err != nil {
+		return 0, nil, err
+	}
 	return tenantID, attachment, nil
+}
+
+// revalidateGuardianAccess asks the audience a second time, after the rows have
+// been read and before anything is handed out.
+//
+// Die erste Prüfung und das Lesen laufen in getrennten Transaktionen — zwischen
+// beiden kann die Mitteilung zurückgezogen worden, abgelaufen oder die Funktion
+// der Schule abgeschaltet worden sein. Die Antwort hängt deshalb an der
+// späteren Prüfung: was danach committet, kann keine Prüfung mehr einholen, aber
+// nichts geht mehr raus, das zum Zeitpunkt der Antwort schon entzogen war.
+//
+// Eine abweichende Schule wird wie „nicht sichtbar" behandelt: dieselbe Zeile
+// unter einer anderen Schule wäre eine Verwechslung, keine Berechtigung.
+func (s *service) revalidateGuardianAccess(ctx context.Context, accountID, announcementID, expectedTenantID int64) error {
+	tenantID, err := s.guardianTenant(ctx, accountID, announcementID)
+	if err != nil {
+		return err
+	}
+	if tenantID != expectedTenantID {
+		return ErrAttachmentNotFound
+	}
+	return nil
 }
 
 // guardianTenant resolves the announcement's school after the audience check.

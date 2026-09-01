@@ -174,8 +174,22 @@ func (rs *Resource) listAnnouncementAttachments(w http.ResponseWriter, r *http.R
 		return
 	}
 	// Whether the announcement may still be changed decides what the UI
-	// offers; asking for it separately would race with the list.
-	editable := rs.Service.AuthorizeAttachmentUpload(r.Context(), announcementID) == nil
+	// offers. Nur die fachlichen Absagen bedeuten „nicht änderbar" — ein
+	// Datenbank- oder Transaktionsfehler darf nicht als editable: false
+	// durchgehen, sonst verschwinden die Bedienelemente ohne jeden Hinweis.
+	editable := true
+	if err := rs.Service.AuthorizeAttachmentUpload(r.Context(), announcementID); err != nil {
+		switch {
+		case errors.Is(err, filestoreSvc.ErrAttachmentAnnouncementPublished),
+			errors.Is(err, filestoreSvc.ErrAttachmentLimitReached),
+			errors.Is(err, filestoreSvc.ErrAttachmentNotFound),
+			errors.Is(err, filestoreSvc.ErrInvalid):
+			editable = false
+		default:
+			renderAttachmentError(w, r, err)
+			return
+		}
+	}
 	common.Respond(w, r, http.StatusOK, newAttachmentListResponse(attachments, editable), "Attachments retrieved successfully")
 }
 

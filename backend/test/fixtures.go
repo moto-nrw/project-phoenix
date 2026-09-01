@@ -3074,10 +3074,6 @@ func CreateTestParentAnnouncement(tb testing.TB, db *bun.DB, createdBy int64, ti
 	if err != nil {
 		tb.Fatalf("create test parent announcement: %v", err)
 	}
-	tb.Cleanup(func() {
-		_, _ = db.NewDelete().TableExpr("users.parent_announcements").
-			Where("id = ?", announcement.ID).Exec(context.Background())
-	})
 	return announcement
 }
 

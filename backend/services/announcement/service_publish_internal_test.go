@@ -37,6 +37,12 @@ func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*usersModel
 	return f.announcement, nil
 }
 
+// FindByIDForUpdate has no row lock to take against a fake; it answers from the
+// same stored row as FindByID, so a test arranges one state for both (#2890).
+func (f *fakeAnnouncementRepo) FindByIDForUpdate(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
+	return f.announcement, nil
+}
+
 // ReplaceOptions is a no-op: these tests drive plain Mitteilungen, whose option
 // set is empty, but Update/Create call it unconditionally (#1371).
 func (f *fakeAnnouncementRepo) ReplaceOptions(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementOption) error {
