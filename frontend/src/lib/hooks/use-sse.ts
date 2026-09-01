@@ -87,6 +87,9 @@ export function useSSE(
     // stream opens, instead of retaining the prior connection's state.
     if (reconnectKeyChanged) {
       setIsConnected(false);
+      setError(null);
+      reconnectAttemptsRef.current = 0;
+      setReconnectAttempts(0);
     }
 
     // Check if EventSource is supported
@@ -317,6 +320,7 @@ export function useSSE(
       // Reset attempts so we get fresh retries
       reconnectAttemptsRef.current = 0;
       setReconnectAttempts(0);
+      setIsConnected(false);
 
       connect();
     };

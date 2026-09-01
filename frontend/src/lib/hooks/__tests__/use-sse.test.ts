@@ -393,6 +393,31 @@ describe("useSSE Hook", () => {
       });
     });
 
+    it("resets retry state when a reconnect key replaces a failed stream", async () => {
+      const { result, rerender } = renderHook(
+        ({ reconnectKey }) => useSSE("/api/sse/events", { reconnectKey }),
+        { initialProps: { reconnectKey: "before" } },
+      );
+
+      await waitForEventSource();
+      requireLatestEventSource().triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      requireLatestEventSource().triggerError();
+      await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), {
+        timeout: 500,
+      });
+
+      rerender({ reconnectKey: "after" });
+
+      await waitFor(() => {
+        expect(result.current.error).toBeNull();
+        expect(result.current.reconnectAttempts).toBe(0);
+      });
+    });
+
     it("should attempt reconnection on error", async () => {
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
@@ -919,6 +944,10 @@ describe("useSSE Hook", () => {
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
         timeout: 500,
       });
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(result.current.status).toBe("idle");
+      });
 
       const secondInstance = requireLatestEventSource();
       secondInstance.triggerOpen();
@@ -957,6 +986,10 @@ describe("useSSE Hook", () => {
       // Should create a new EventSource
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
         timeout: 500,
+      });
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(result.current.status).toBe("idle");
       });
 
       const secondInstance = requireLatestEventSource();
