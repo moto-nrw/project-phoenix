@@ -22,8 +22,8 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -445,7 +445,9 @@ func (s *excusedAbsenceRequestService) Create(ctx context.Context, input Excused
 	// wake staff tabs so planning/search views pick it up without a manual
 	// refetch.
 	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
-	s.emitCreatedRequestPill(ctx, req, guardianAccountID)
+	if err := s.emitCreatedRequestPill(ctx, req, guardianAccountID); err != nil {
+		return nil, err
+	}
 	return req, nil
 }
 
@@ -493,9 +495,9 @@ func (s *excusedAbsenceRequestService) findMatchingPendingRequest(ctx context.Co
 	return nil, nil
 }
 
-func (s *excusedAbsenceRequestService) emitCreatedRequestPill(ctx context.Context, req *activeModels.ExcusedAbsenceRequest, guardianAccountID int64) {
+func (s *excusedAbsenceRequestService) emitCreatedRequestPill(ctx context.Context, req *activeModels.ExcusedAbsenceRequest, guardianAccountID int64) error {
 	createdBody, _, requestType := absenceRequestCopy(req.AbsenceStatus)
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	return s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
@@ -1046,9 +1048,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 				ActorAccountID:     input.ReviewedBy,
 				ExcludedAccountIDs: []int64{req.SubmittedBy},
 			}
-			tenant.RegisterAfterCommit(ctx, func() {
-				s.absenceNotify.NotifyAbsenceReported(context.Background(), report)
-			})
+			if err := s.absenceNotify.NotifyAbsenceReported(ctx, report); err != nil {
+				return nil, fmt.Errorf("enqueue absence notification: %w", err)
+			}
 		}
 		tenant.RegisterAfterCommit(ctx, func() {
 			s.logger.Info("absence request approved",
@@ -1074,7 +1076,7 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	// Either decision clears the child's pending badge (approval also surfaces
 	// the confirmed absence). Wake staff tabs for both outcomes.
 	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: input.ReviewedBy,
@@ -1082,7 +1084,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		RequestType:    requestType,
 		RequestStatus:  pillStatus,
 		DecisionReason: reason,
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	// Every other guardian of this child gets a neutral line: the care
 	// changed, on these days. No reason, no author (#2267, story 47).
@@ -1376,12 +1380,11 @@ func normalizedAbsenceRequestStatus(absenceStatus string) string {
 	return absenceStatus
 }
 
-// emitRequestPillAfterCommit schedules the notification pill for after the
-// ambient transaction commits. The emitter is best-effort and opens its own
-// tenant transaction; ref fields always point at the request row.
-func (s *excusedAbsenceRequestService) emitRequestPillAfterCommit(ctx context.Context, req *activeModels.ExcusedAbsenceRequest, ev parentmessaging.ChildEvent) {
+// emitRequestPillAfterCommit writes the durable decision intent in the ambient
+// transaction, then schedules the best-effort chat pill after commit.
+func (s *excusedAbsenceRequestService) emitRequestPillAfterCommit(ctx context.Context, req *activeModels.ExcusedAbsenceRequest, ev parentmessaging.ChildEvent) error {
 	if s.emitter == nil {
-		return
+		return nil
 	}
 	tenantID := req.TenantID
 	if tenantID <= 0 {
@@ -1392,9 +1395,13 @@ func (s *excusedAbsenceRequestService) emitRequestPillAfterCommit(ctx context.Co
 	ev.RefID = &refID
 	studentID := req.StudentID
 	guardianAccountID := req.SubmittedBy
+	if err := s.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
+		return fmt.Errorf("active: enqueue absence request decision: %w", err)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
+	return nil
 }
 
 // broadcastRequestTransition wakes BOTH audiences after any absence-request
@@ -1552,7 +1559,7 @@ func (s *excusedAbsenceRequestService) MarkDone(
 	}
 	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	_, _, requestType := absenceRequestCopy(req.AbsenceStatus)
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: reviewedBy,
@@ -1560,7 +1567,9 @@ func (s *excusedAbsenceRequestService) MarkDone(
 		RequestType:    requestType,
 		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
 		DecisionReason: trimmed,
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1657,7 +1666,7 @@ func (s *excusedAbsenceRequestService) Correct(
 	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	pillBody, pillStatus := correctedAbsencePill(req.AbsenceStatus, approve)
 	_, _, requestType := absenceRequestCopy(req.AbsenceStatus)
-	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+	if err := s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: reviewedBy,
@@ -1665,7 +1674,9 @@ func (s *excusedAbsenceRequestService) Correct(
 		RequestType:    requestType,
 		RequestStatus:  pillStatus,
 		DecisionReason: trimmed,
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -8,7 +8,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 )
 
 const additionalSupervisorRole = "additional_supervisor"
@@ -176,8 +176,8 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	if err != nil {
 		return nil, err
 	}
-	realtime.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "additional_supervision_assign")
-	realtime.QueueActiveSupervisionChanged(ctx, s.deps.Broadcaster, s.deps.Logger, request.ActiveGroupID, "additional_supervisor_assigned")
+	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "additional_supervision_assign")
+	realtimeevents.QueueActiveSupervisionChanged(ctx, s.deps.Broadcaster, s.deps.Logger, request.ActiveGroupID, "additional_supervisor_assigned")
 	return &result, nil
 }
 

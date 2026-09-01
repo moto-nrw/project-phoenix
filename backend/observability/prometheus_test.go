@@ -15,8 +15,8 @@ type staticSSEStatsProvider struct {
 	stats SSEStats
 }
 
-func (p staticSSEStatsProvider) SnapshotStats() SSEStats {
-	return p.stats
+func (p staticSSEStatsProvider) SnapshotSSEClientsByTenant() map[int64]int {
+	return p.stats.ClientsByTenant
 }
 
 func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
@@ -178,6 +178,22 @@ func TestObserveMealPlanOperationRecordsStatementDuration(t *testing.T) {
 	ObserveMealPlanOperation("replace_day", time.Millisecond, 2, 1, 3*time.Millisecond, nil)
 
 	assert.Equal(t, before+1, testutil.CollectAndCount(mealPlanStatementDuration))
+}
+
+func TestObserveOrganizationTenancyOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const operation = "soft_delete_organization"
+	successBefore := testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "error", "has_schools"))
+	statementBefore := testutil.CollectAndCount(organizationTenancyStatementDuration)
+
+	ObserveOrganizationTenancyOperation(operation, time.Millisecond, 3, 1, 2*time.Millisecond, "none", nil)
+	ObserveOrganizationTenancyOperation(operation, time.Millisecond, 2, 0, 0, "has_schools", assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "error", "has_schools")))
+	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(organizationTenancyStatementDuration))
 }
 
 func TestObserveAuditAppendRecordsRuntimeEvidence(t *testing.T) {

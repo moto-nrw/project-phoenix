@@ -807,6 +807,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	}
 	statusExpiry := s.resolveStatusTokenExpiry(ctx)
 	statusExpiresAt := time.Now().Add(statusExpiry)
+	statusURL := enrollmentStatusURL(s.ParentsURL, statusToken)
 
 	var (
 		createdRequest  *enrollmentModels.Request
@@ -990,15 +991,15 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				return fmt.Errorf("submit: notify capacity decisions: %w", err)
 			}
 		}
+		if !req.SuppressSubmissionEmails {
+			if err := s.enqueueSubmissionEmails(txCtx, req.TenantID, request, createdChildren, statusURL); err != nil {
+				return fmt.Errorf("submit: enqueue submission emails: %w", err)
+			}
+		}
 		return nil
 	})
 	if txErr != nil {
 		return nil, txErr
-	}
-
-	statusURL := enrollmentStatusURL(s.ParentsURL, statusToken)
-	if !req.SuppressSubmissionEmails {
-		s.enqueueSubmissionEmails(ctx, req.TenantID, createdRequest, createdChildren, statusURL)
 	}
 
 	s.Logger.Info("enrollment request submitted",
@@ -2983,11 +2984,11 @@ func (s *requestService) ConfirmRenewal(ctx context.Context, token string) (int,
 }
 
 // enqueueSubmissionEmails fires off the parent confirmation + admin
-// notifications. Best-effort - failures log but don't fail the
-// submission (the rows are already committed).
-func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollmentModels.Request, children []*enrollmentModels.RequestChild, statusURL string) {
+// notifications in the submission transaction so the request and every
+// delivery intent commit together.
+func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID int64, request *enrollmentModels.Request, children []*enrollmentModels.RequestChild, statusURL string) error {
 	if s.OutboxEnqueuer == nil {
-		return
+		return nil
 	}
 
 	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, tenantID, s.ParentsURL)
@@ -3014,9 +3015,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 		RelatedEntityID:   request.ID,
 	}); err != nil {
-		s.Logger.Error("submit: enqueue parent confirmation failed",
-			slog.Int64("request_id", request.ID),
-			slog.String("error", err.Error()))
+		return fmt.Errorf("parent confirmation: %w", err)
 	}
 
 	for _, admin := range s.resolveAdminEmails(ctx) {
@@ -3040,12 +3039,10 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 			RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 			RelatedEntityID:   request.ID,
 		}); err != nil {
-			s.Logger.Error("submit: enqueue admin notification failed",
-				slog.Int64("request_id", request.ID),
-				slog.String("admin", admin),
-				slog.String("error", err.Error()))
+			return fmt.Errorf("admin notification for %s: %w", admin, err)
 		}
 	}
+	return nil
 }
 
 // --- helpers ---

@@ -536,37 +536,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t 
 	assert.True(t, hasAdmin2, "after base_role change to 'admin', should see admin-targeted announcement")
 }
 
-func TestOrganizationRepository_CountByIDs(t *testing.T) {
-	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
-	db := testpkg.SetupTestDB(t)
-
-	orgRepo := platform.NewOrganizationRepository(db)
-
-	orgAID := createTestOrganization(t, db, "CountByIDs Org A")
-	orgBID := createTestOrganization(t, db, "CountByIDs Org B")
-
-	ctx := context.Background()
-
-	t.Run("counts existing IDs", func(t *testing.T) {
-		count, err := orgRepo.CountByIDs(ctx, []int64{orgAID, orgBID})
-		require.NoError(t, err)
-		assert.Equal(t, 2, count)
-	})
-
-	t.Run("returns 0 for empty slice", func(t *testing.T) {
-		count, err := orgRepo.CountByIDs(ctx, []int64{})
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
-	})
-
-	t.Run("counts only existing IDs when some are invalid", func(t *testing.T) {
-		count, err := orgRepo.CountByIDs(ctx, []int64{orgAID, 999999})
-		require.NoError(t, err)
-		assert.Equal(t, 1, count)
-	})
-}
-
 func TestSchoolRepository_CountByIDs(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

@@ -55,3 +55,19 @@ func TestObserveSynchronousDeliverySanitizesEmptyLabels(t *testing.T) {
 	))
 	assert.Equal(t, before+1, after)
 }
+
+func TestObserveDurableDeliveryRecordsCountsAndOldestPendingAge(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(durableDeliveryOperations.WithLabelValues(
+		"email", "welcome", "claim", "success",
+	))
+
+	ObserveDurableDelivery("email", "welcome", "claim", 10*time.Millisecond, 3, nil)
+	ObserveDurableDelivery("", "", "oldest_pending_age", 90*time.Second, 1, nil)
+
+	after := testutil.ToFloat64(durableDeliveryOperations.WithLabelValues(
+		"email", "welcome", "claim", "success",
+	))
+	assert.Equal(t, before+3, after)
+	assert.Equal(t, float64(90), testutil.ToFloat64(durableDeliveryOldestPendingAge))
+}

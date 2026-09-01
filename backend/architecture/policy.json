@@ -645,7 +645,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/notifications",
+      "path": "modules/delivery/http/notifications",
       "owner": "inbound-notifications",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -715,7 +715,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/sse",
+      "path": "modules/delivery/http/sse",
       "owner": "inbound-sse",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -953,6 +953,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "database/repositories/delivery",
+      "owner": "delivery-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "database/repositories/enrollment",
       "owner": "enrollment",
       "role": "postgres",
@@ -974,6 +981,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/delivery/internal/adapters/postgres",
+      "owner": "delivery-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "database/repositories/filestore",
       "owner": "file-storage",
       "role": "postgres",
@@ -990,6 +1004,13 @@
     {
       "path": "modules/mealplan/internal/adapters/postgres",
       "owner": "meal-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/internal/adapters/postgres",
+      "owner": "organization-tenancy",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1035,6 +1056,13 @@
       "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/internal/adapters/webpush",
+      "owner": "delivery-platform",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "internal/architecture",
@@ -1226,6 +1254,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "models/delivery",
+      "owner": "delivery-platform",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "models/display",
       "owner": "device-fleet",
       "role": "domain",
@@ -1275,6 +1310,20 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/delivery/internal/domain",
+      "owner": "delivery-platform",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/internal/ports",
+      "owner": "delivery-platform",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "models/filestore",
       "owner": "file-storage",
       "role": "domain",
@@ -1305,6 +1354,20 @@
     {
       "path": "modules/mealplan/internal/ports",
       "owner": "meal-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/internal/domain",
+      "owner": "organization-tenancy",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/internal/ports",
+      "owner": "organization-tenancy",
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1471,7 +1534,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/emailbranding",
+      "path": "modules/delivery/application/emailbranding",
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1522,6 +1585,27 @@
     {
       "path": "modules/feedback/internal/application",
       "owner": "feedback",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery",
+      "owner": "delivery-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/compose",
+      "owner": "delivery-platform",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/internal/application",
+      "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1590,6 +1674,27 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy",
+      "owner": "organization-tenancy",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/compose",
+      "owner": "organization-tenancy",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/internal/application",
+      "owner": "organization-tenancy",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/messaging",
       "owner": "communication",
       "role": "application",
@@ -1597,11 +1702,11 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/notifications",
+      "path": "modules/delivery/application/notifications",
       "owner": "delivery-platform",
       "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "services/ogsgrouplive",
@@ -1646,11 +1751,18 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/pwa",
+      "path": "modules/delivery/application/pwa",
       "owner": "delivery-platform",
       "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/delivery/application/realtimeevents",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "services/reminders",
@@ -1879,6 +1991,8 @@
     {"name": "iot.pwa_standalone_usage", "write_owner": "observability"},
     {"name": "platform.announcement_views", "write_owner": "communication"},
     {"name": "platform.announcements", "write_owner": "communication"},
+    {"name": "platform.delivery_email_deliveries", "write_owner": "delivery-platform"},
+    {"name": "platform.delivery_push_subscriptions", "write_owner": "delivery-platform"},
     {"name": "platform.email_outbox", "write_owner": "delivery-platform"},
     {"name": "platform.operator_audit_log", "write_owner": "audit-platform"},
     {"name": "platform.operator_email_change_tokens", "write_owner": "identity-access"},
@@ -1892,6 +2006,7 @@
     {"name": "platform.operator_refresh_tokens", "write_owner": "identity-access"},
     {"name": "platform.operators", "write_owner": "identity-access"},
     {"name": "platform.organizations", "write_owner": "organization-tenancy"},
+    {"name": "platform.push_outbox", "write_owner": "delivery-platform"},
     {"name": "platform.schools", "write_owner": "organization-tenancy"},
     {"name": "schedule.activity_exceptions", "write_owner": "timetable-activities"},
     {"name": "schedule.activity_instances", "write_owner": "timetable-activities"},
@@ -4566,6 +4681,175 @@
       "target_role": "postgres"
     },
     {
+      "id": "organization-tenancy.port-domain",
+      "description": "Organization and Tenancy ports express persistence operations using their own domain values.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "organization-tenancy.compose.application",
+      "description": "Organization and Tenancy composition constructs its application service.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "application"
+    },
+    {
+      "id": "organization-tenancy.compose.domain",
+      "description": "Organization and Tenancy composition maps its internal domain values.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "organization-tenancy.compose.orm-sql",
+      "description": "Organization and Tenancy composition supplies the concrete Bun database dependency.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "organization-tenancy.compose.port",
+      "description": "Organization and Tenancy composition exposes observations from its consumer-owned port.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "port"
+    },
+    {
+      "id": "organization-tenancy.compose.postgres",
+      "description": "Organization and Tenancy composition constructs its Postgres adapter.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "postgres"
+    },
+    {
+      "id": "organization-tenancy.compose.public",
+      "description": "Organization and Tenancy composition returns its public facade.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "organization-tenancy.compose.tenant-runtime",
+      "description": "Organization and Tenancy composition binds the shared tenant transaction runtime.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "organization-tenancy.internal-test.orm-sql",
+      "description": "Organization and Tenancy composition tests supply the concrete Bun test database.",
+      "scopes": ["internal_test"],
+      "source_owner": "organization-tenancy",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "organization-tenancy.internal-test.tenant-runtime",
+      "description": "Organization and Tenancy composition tests verify transaction and lock behavior through the shared tenant runtime.",
+      "scopes": ["internal_test"],
+      "source_owner": "organization-tenancy",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "organization-tenancy.integration-test.public",
+      "description": "Organization and Tenancy integration tests exercise the public facade.",
+      "scopes": ["internal_test"],
+      "source_owner": "organization-tenancy",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "organization-tenancy.integration-test.support",
+      "description": "Organization and Tenancy integration tests use hermetic database support.",
+      "scopes": ["internal_test"],
+      "source_owner": "organization-tenancy",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "root-composition.to.organization-tenancy-compose",
+      "description": "The production root constructs the Organization and Tenancy module once.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.organization-tenancy-public",
+      "description": "The production root records stable Organization and Tenancy capability outcomes.",
+      "scopes": ["production"],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.to.organization-tenancy-compose",
+      "description": "Legacy test graph composition constructs the required Organization and Tenancy capability.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.organization-tenancy-public",
+      "description": "Legacy composition passes the Organization and Tenancy facade to consumers.",
+      "scopes": ["production"],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "organization-tenancy.application-public",
+      "description": "The remaining Organization and Tenancy application services consume the owner facade during the school cutover.",
+      "scopes": ["production"],
+      "source_owner": "organization-tenancy",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.to.organization-tenancy",
+      "description": "Audit scan presentation resolves organization names through the public owner query.",
+      "scopes": ["production"],
+      "source_owner": "audit-platform",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.internal-test.organization-tenancy",
+      "description": "Audit service tests implement the public organization query contract.",
+      "scopes": ["internal_test"],
+      "source_owner": "audit-platform",
+      "source_role": "module-internal-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
       "id": "workflow-decision-test.domain",
       "description": "Workflow decision tests may exercise their own domain.",
       "scopes": [
@@ -4594,6 +4878,1175 @@
       "source_role": "workflow-decision-test",
       "target_owner": "test-support",
       "target_role": "test-support"
+    },
+    {
+      "id": "legacy-composition.to.delivery-compose",
+      "description": "Legacy composition constructs the Delivery module during the root cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "legacy-composition.to.delivery-contract",
+      "description": "Legacy composition wires the public Delivery capability during the root cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.behavior-test.delivery-contract",
+      "description": "Enrollment deletion integration tests verify cancellation through the Delivery contract.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.behavior-test.delivery-compose",
+      "description": "Enrollment deletion integration tests construct the real Delivery capability.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "delivery.port-domain",
+      "description": "Delivery ports express persistence and provider operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "delivery.compose.application",
+      "description": "Delivery composition constructs its application services.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery.compose.domain",
+      "description": "Delivery composition maps internal domain values to its public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.compose.orm-sql",
+      "description": "Delivery composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "delivery.compose.postgres",
+      "description": "Delivery composition constructs its Postgres adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "delivery.compose.contract",
+      "description": "Delivery composition returns its contract facade and worker.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery.compose.tenant-runtime",
+      "description": "Delivery composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery.adapter-test.orm-sql",
+      "description": "Delivery Postgres adapter tests supply the concrete Bun test database.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "delivery.adapter-test.domain",
+      "description": "Delivery Postgres adapter tests construct owned domain values.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.adapter-test.postgres",
+      "description": "Delivery Postgres adapter tests exercise the owned adapter.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "delivery.postgres.transaction-postgres",
+      "description": "Delivery subscription persistence reuses the shared tenant-scoped repository implementation.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "delivery.postgres.transaction-domain",
+      "description": "Delivery subscription rows embed the shared persistence model fields.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.postgres.tenant-runtime",
+      "description": "Delivery subscription persistence applies the shared tenant transaction context.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery.domain.transaction-domain",
+      "description": "Delivery subscription rows embed tenant-aware persistence fields.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "domain",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "legacy-composition.to.delivery-domain",
+      "description": "Legacy composition retains the typed subscription repository while Delivery ownership is cut over.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.to.delivery-domain",
+      "description": "Session revocation invokes Delivery's subscription cleanup operations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "organization-tenancy.to.delivery-domain",
+      "description": "Operator PWA summaries use Delivery's stable portal identifiers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.adapter-test.identity-domain",
+      "description": "Delivery persistence tests create account and role fixtures for eligibility checks.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.adapter-test.organization-domain",
+      "description": "Delivery persistence tests create tenant fixtures for isolation checks.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.internal-test.delivery-domain",
+      "description": "Identity-access tests verify subscription cleanup through Delivery's typed rows.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behavior-test.delivery-domain",
+      "description": "Identity-access behavior tests verify subscription cleanup through Delivery's typed rows.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.application.same-owner-adapter",
+      "description": "Delivery applications delegate localization and provider details to owned adapters.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "delivery.application.same-owner-public",
+      "description": "Delivery applications publish realtime events through the owned public facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery.application.security-runtime",
+      "description": "Notification routing enforces recipient authorization.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery.application.calendar-date",
+      "description": "Delivery snapshots use the shared calendar-date value.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.application.settings-domain",
+      "description": "Delivery applications use the notification settings catalogue.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery.application.settings",
+      "description": "Legacy notification and PWA applications read tenant settings through the settings service.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery.application.tenant-runtime",
+      "description": "Delivery applications join the ambient tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery.application.orm-sql",
+      "description": "Legacy delivery applications accept Bun during the module cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "delivery.application.http-router",
+      "description": "The synchronous Web Push exception uses a bounded HTTP client.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_class": "http-router"
+    },
+    {
+      "id": "delivery.application.crypto",
+      "description": "Web Push validates VAPID keys with the standard crypto package.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "inbound-notifications.delivery-application",
+      "description": "Notification handlers call the legacy Delivery application during cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-notifications.http-common",
+      "description": "Notification handlers reuse common HTTP rendering.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-notifications.identity-adapter",
+      "description": "Notification handlers read authenticated account claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-notifications.tenant-runtime",
+      "description": "Notification handlers join the request tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-notifications.orm-sql",
+      "description": "Legacy notification HTTP composition accepts Bun.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-notifications.adapter-test.identity-adapter",
+      "description": "Notification handler tests construct authenticated claims.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-notifications.adapter-test.delivery-application",
+      "description": "Notification handler tests fake the legacy Delivery application.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-notifications.adapter-test.http-router",
+      "description": "Notification handler tests exercise HTTP requests and responses.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-notifications",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-sse.security-runtime",
+      "description": "SSE handlers authorize audiences before attaching streams.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-sse.identity-adapter",
+      "description": "SSE handlers authenticate stream claims.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-sse.identity-application",
+      "description": "SSE handlers resolve the caller tenant scope.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-sse.tenant-runtime",
+      "description": "SSE handlers use the request tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-sse.orm-sql",
+      "description": "SSE HTTP composition accepts Bun.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-sse.adapter-test.http-router",
+      "description": "SSE adapter tests exercise HTTP and router contracts.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "adapter-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "inbound-sse.adapter-test.crypto",
+      "description": "SSE adapter tests mint signed JWT fixtures.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "adapter-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "inbound-sse.adapter-test.identity-adapter",
+      "description": "SSE adapter tests construct JWT middleware.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-sse.adapter-test.orm-sql",
+      "description": "SSE adapter tests use Bun-backed authorization fixtures.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-sse",
+      "source_role": "adapter-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "delivery-cutover.001",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.002",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.003",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.004",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.005",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.006",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.007",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.008",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.009",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.010",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.011",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_class": "http-router"
+    },
+    {
+      "id": "delivery-cutover.012",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "delivery-cutover.013",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.014",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.015",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery-cutover.016",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.017",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "postgres"
+    },
+    {
+      "id": "delivery-cutover.018",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "delivery-cutover.019",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.020",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.021",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.022",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "reminder-delivery",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.023",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.024",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.025",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.026",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "delivery-cutover.027",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery-cutover.028",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "delivery-cutover.029",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.030",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.031",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.032",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.033",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-notifications",
+      "target_role": "http"
+    },
+    {
+      "id": "delivery-cutover.034",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "http",
+      "target_owner": "inbound-notifications",
+      "target_role": "http"
+    },
+    {
+      "id": "delivery-cutover.035",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.036",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.037",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.038",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.039",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.040",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-notifications",
+      "target_role": "http"
+    },
+    {
+      "id": "delivery-cutover.041",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-sse",
+      "target_role": "http"
+    },
+    {
+      "id": "delivery-cutover.042",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.043",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.044",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.045",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.046",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.047",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.048",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.049",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.050",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.051",
+      "description": "Allows one dependency introduced by the Delivery package cutover.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "delivery-cutover.compose-observability",
+      "description": "Delivery composition wires runtime metrics observers.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "observability",
+      "target_role": "public"
+    },
+    {
+      "id": "delivery-cutover.compose-adapter",
+      "description": "Delivery composition constructs its provider adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "delivery-cutover.adapter-contract",
+      "description": "Delivery provider adapters implement the public provider contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "delivery-cutover.compose-public",
+      "description": "Delivery composition wires the realtime public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
     }
   ]
 }

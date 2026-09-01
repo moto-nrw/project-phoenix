@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -90,7 +89,7 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 			(SELECT COUNT(*) FROM target_changes)::int AS change_requests,
 			(SELECT COUNT(*) FROM enrollment.change_request_messages m JOIN target_changes c ON c.id = m.change_request_id WHERE m.tenant_id = ?)::int AS change_request_messages,
 			(SELECT COUNT(*) FROM enrollment.late_invites l WHERE l.used_request_id = ? AND l.tenant_id = ?)::int AS late_invites,
-			(SELECT COUNT(*) FROM platform.email_outbox e WHERE e.related_entity_type = ? AND e.related_entity_id = ? AND e.tenant_id = ?)::int AS email_outbox,
+			0::int AS email_outbox,
 			(SELECT COUNT(*) FROM enrollment.request_children c WHERE c.rollover_source_child_id IN (SELECT id FROM target_children) AND c.tenant_id = ?)::int AS rollover_links_cleared,
 			(SELECT COUNT(*) FROM activities.student_enrollments se WHERE se.enrollment_request_child_id IN (SELECT id FROM target_children) AND se.tenant_id = ?)::int AS student_source_links_cleared,
 			(SELECT COUNT(*) FROM candidate_profiles)::int AS preserved_profiles,
@@ -110,7 +109,6 @@ func (r *DeletionRepository) PreviewRequest(ctx context.Context, requestID int64
 		requestID, tenantID,
 		tenantID,
 		requestID, tenantID,
-		platform.EmailRelatedTypeEnrollmentRequest, requestID, tenantID,
 		tenantID, tenantID, tenantID, tenantID,
 	).Scan(ctx, row)
 	if err != nil {
@@ -289,7 +287,6 @@ func (r *DeletionRepository) DeleteRequest(ctx context.Context, requestID int64)
 		{"child offerings", `DELETE FROM enrollment.request_child_offerings WHERE tenant_id = ? AND request_child_id IN (SELECT id FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ?)`, []any{tenantID, tenantID, requestID}},
 		{"request guardians", `DELETE FROM enrollment.request_guardians WHERE tenant_id = ? AND request_id = ?`, []any{tenantID, requestID}},
 		{"request children", `DELETE FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ?`, []any{tenantID, requestID}},
-		{"email outbox", `DELETE FROM platform.email_outbox WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?`, []any{tenantID, platform.EmailRelatedTypeEnrollmentRequest, requestID}},
 		{"request", `DELETE FROM enrollment.requests WHERE tenant_id = ? AND id = ?`, []any{tenantID, requestID}},
 	}
 	for _, statement := range statements {

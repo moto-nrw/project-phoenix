@@ -18,8 +18,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -74,8 +74,9 @@ func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 	_ context.Context,
 	report notificationsService.AbsenceReport,
-) {
+) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
 func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {

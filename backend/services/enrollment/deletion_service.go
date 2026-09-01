@@ -35,7 +35,15 @@ type enrollmentDeletionService struct {
 	audit    auditModels.EnrollmentDeletionRepository
 	tx       *tenant.TransactionRunner
 	logger   *slog.Logger
+	delivery EnrollmentDeletionDelivery
 }
+
+type EnrollmentDeletionDelivery interface {
+	CountRelatedEmails(context.Context, string, int64) (int, error)
+	CancelRelatedEmails(context.Context, string, int64, string) (int64, error)
+}
+
+const enrollmentRequestDeliveryType = "enrollment_request"
 
 func NewEnrollmentDeletionService(
 	requests enrollmentModels.RequestRepository,
@@ -44,6 +52,7 @@ func NewEnrollmentDeletionService(
 	audit auditModels.EnrollmentDeletionRepository,
 	db *bun.DB,
 	logger *slog.Logger,
+	delivery EnrollmentDeletionDelivery,
 ) EnrollmentDeletionService {
 	if logger == nil {
 		logger = slog.Default()
@@ -55,6 +64,7 @@ func NewEnrollmentDeletionService(
 		audit:    audit,
 		tx:       tenant.NewTransactionRunner(),
 		logger:   logger,
+		delivery: delivery,
 	}
 }
 
@@ -68,6 +78,9 @@ func (s *enrollmentDeletionService) PreviewRequest(ctx context.Context, requestI
 	}
 	if impact == nil || impact.Counts.Requests != 1 {
 		return nil, ErrEnrollmentDeletionNotFound
+	}
+	if err := s.addDeliveryCount(ctx, impact); err != nil {
+		return nil, err
 	}
 	return impact, nil
 }
@@ -89,6 +102,11 @@ func (s *enrollmentDeletionService) PreviewChild(ctx context.Context, requestID,
 	}
 	if child == nil || child.RequestID != requestID {
 		return nil, ErrEnrollmentDeletionNotFound
+	}
+	if impact.DeletesRequest {
+		if err := s.addDeliveryCount(ctx, impact); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateDeletableEnrollmentChild(child); err != nil {
 		return nil, err
@@ -121,6 +139,12 @@ func (s *enrollmentDeletionService) DeleteRequest(ctx context.Context, requestID
 		}
 		if len(impact.BlockingStudentIDs) > 0 {
 			return ErrEnrollmentDeletionStudentExists
+		}
+		if err = s.addDeliveryCount(txCtx, impact); err != nil {
+			return err
+		}
+		if _, err = s.delivery.CancelRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID, "enrollment request deleted"); err != nil {
+			return fmt.Errorf("cancel enrollment delivery intents: %w", err)
 		}
 		if err = s.deletion.DeleteRequest(txCtx, requestID); err != nil {
 			return err
@@ -172,6 +196,12 @@ func (s *enrollmentDeletionService) DeleteChild(ctx context.Context, requestID, 
 			return ErrEnrollmentDeletionStudentExists
 		}
 		if impact.DeletesRequest {
+			if err = s.addDeliveryCount(txCtx, impact); err != nil {
+				return err
+			}
+			if _, err = s.delivery.CancelRelatedEmails(txCtx, enrollmentRequestDeliveryType, requestID, "enrollment request deleted"); err != nil {
+				return fmt.Errorf("cancel enrollment delivery intents: %w", err)
+			}
 			err = s.deletion.DeleteRequest(txCtx, requestID)
 		} else {
 			err = s.deletion.DeleteChild(txCtx, requestID, childID)
@@ -237,9 +267,18 @@ func auditDeletionCounts(counts enrollmentModels.DeletionCounts) auditModels.Enr
 }
 
 func (s *enrollmentDeletionService) validateConfigured() error {
-	if s.requests == nil || s.children == nil || s.deletion == nil || s.audit == nil || s.tx == nil {
+	if s.requests == nil || s.children == nil || s.deletion == nil || s.audit == nil || s.tx == nil || s.delivery == nil {
 		return errors.New("enrollment deletion service is not configured")
 	}
+	return nil
+}
+
+func (s *enrollmentDeletionService) addDeliveryCount(ctx context.Context, impact *enrollmentModels.DeletionImpact) error {
+	count, err := s.delivery.CountRelatedEmails(ctx, enrollmentRequestDeliveryType, impact.RequestID)
+	if err != nil {
+		return fmt.Errorf("count enrollment delivery intents: %w", err)
+	}
+	impact.Counts.EmailOutbox = count
 	return nil
 }
 
