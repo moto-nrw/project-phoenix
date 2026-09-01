@@ -9203,7 +9203,6 @@
         249
       ],
       "tables": [
-        "audit.guardian_financial_changes",
         "users.guardian_profiles"
       ]
     },
