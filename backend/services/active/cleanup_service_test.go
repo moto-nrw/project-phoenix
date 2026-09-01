@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := cleanupService.CleanupStaleAttendance(ctx)

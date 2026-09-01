@@ -85,7 +85,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
 	// instance callback registered below must run before its room/group parents.
 	t.Cleanup(func() {
-		// active.group cleanup happens via CleanupActivityFixtures below
+		// active.group is tenant-owned and dies with the package clone
 	})
 
 	return &attendanceSyncSetup{

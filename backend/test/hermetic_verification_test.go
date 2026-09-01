@@ -5,14 +5,20 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestHermeticTestPatterns verifies that test files follow hermetic testing patterns.
@@ -23,7 +29,7 @@ import (
 // Hermetic tests should:
 // - Create their own test data using fixtures
 // - Never rely on hardcoded IDs that may not exist in the database
-// - Clean up after themselves
+// - Let the package clone or fixture builder own their rows
 // - Be runnable in any order and in parallel
 func TestHermeticTestPatterns(t *testing.T) {
 	// Find the backend root directory
@@ -63,13 +69,13 @@ func TestHermeticTestPatterns(t *testing.T) {
 	})
 
 	t.Run("no_new_cleanup_calls", func(t *testing.T) {
-		violations := checkCleanupCallRatchet(t, backendRoot)
+		violations, err := checkCleanupCallRatchet(backendRoot)
+		require.NoError(t, err)
 		if len(violations) > 0 {
-			t.Errorf("Cleanup-call ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
-				"Since #2419 the package clone owns cleanup: every test binary gets a\n"+
-				"fresh database clone, so per-row Cleanup* calls are redundant. New\n"+
-				"tests must not add them. When you remove cleanup calls from a package,\n"+
-				"lower its baseline in cleanupCallBaseline — never raise one.",
+			t.Errorf("Found explicit fixture cleanup calls:\n\n%s\n\n"+
+				"The package clone owns tenant rows, and tenantless fixture builders\n"+
+				"own their exceptional lifecycle internally. Tests must not call\n"+
+				"Cleanup* helpers or add an allowlist entry.",
 				strings.Join(violations, "\n"))
 		}
 	})
@@ -180,7 +186,7 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"This pattern is silently rejected by bun (interface{} is not a struct),\n"+
 				"causing every Exec() to short-circuit without running SQL — the cleanup\n"+
 				"becomes a no-op and tests rely on stale data from previous runs (#1296).\n\n"+
-				"Fix: replace with TableExpr(...) — the same pattern CleanupTableRecords uses.\n"+
+				"Fix: replace Model((*interface{})(nil)).Table(...) with TableExpr(...).\n"+
 				"  // Before (no-op):\n"+
 				"  db.NewDelete().Model((*interface{})(nil)).Table(\"users.students\").Where(...)\n\n"+
 				"  // After (correct):\n"+
@@ -188,6 +194,114 @@ func TestHermeticTestPatterns(t *testing.T) {
 				len(violations), strings.Join(violations, "\n"))
 		}
 	})
+}
+
+func TestExplicitCleanupCallCountResolvesFixtureAliases(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		code           string
+		fixturePackage bool
+		want           int
+	}{
+		{
+			name: "explicit alias",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { fixture.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "default alias",
+			code: `package sample
+import "github.com/moto-nrw/project-phoenix/test"
+func run() { test.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "parenthesized selector",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { (fixture.CleanupAuthFixtures)(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "generic selector",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { fixture.CleanupTableRecords[int64](nil, nil, "table") }`,
+			want: 1,
+		},
+		{
+			name: "method value alias",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { cleanup := fixture.CleanupAuthFixtures; cleanup(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "deferred fixture call",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { defer fixture.CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name:           "fixture cleanup declaration",
+			fixturePackage: true,
+			code: `package test
+func CleanupFixture() {}`,
+			want: 0,
+		},
+		{
+			name: "uncalled fixture method value",
+			code: `package sample
+import fixture "github.com/moto-nrw/project-phoenix/test"
+func run() { _ = fixture.CleanupAuthFixtures }`,
+			want: 0,
+		},
+		{
+			name:           "unqualified in fixture package",
+			fixturePackage: true,
+			code: `package sample
+func run() { CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "dot import",
+			code: `package sample
+import . "github.com/moto-nrw/project-phoenix/test"
+func run() { CleanupAuthFixtures(nil, nil) }`,
+			want: 1,
+		},
+		{
+			name: "unqualified production function",
+			code: `package sample
+func CleanupExpiredTokens() {}
+func run() { CleanupExpiredTokens() }`,
+			want: 0,
+		},
+		{
+			name: "production method",
+			code: `package sample
+func run() { service.CleanupExpiredTokens() }`,
+			want: 0,
+		},
+		{
+			name: "comment and string",
+			code: `package sample
+// testpkg.CleanupAuthFixtures(nil, nil)
+var text = "CleanupAuthFixtures(nil, nil)"`,
+			want: 0,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := countExplicitCleanupCalls("sample_test.go", []byte(tc.code), tc.fixturePackage)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestParallelGlobalStateGateFindsDirectMutation(t *testing.T) {
@@ -552,39 +666,10 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 	return violations
 }
 
-// cleanupCallBaseline is the shrink-only per-package baseline of Cleanup*
-// fixture calls in _test.go files (#2419). The clone-per-package lifecycle
-// makes a teardown redundant for every row that belongs to a tenant: it dies
-// with the clone, and no other test ever sees it. 5120 such calls are gone.
-//
-// What is left — and what the numbers below still allow — is the teardown the
-// lifecycle does NOT cover:
-//
-//   - rows in tenant-less tables (auth.accounts, the RBAC catalog, the
-//     platform/operator tables, password-reset and MFA rows). The leftover
-//     gate counts those as shared state, so a test that creates one has to
-//     take it back.
-//   - state reset BETWEEN subtests of one test: a unique index or a
-//     tenant-wide count that the next subtest would trip over. The better fix
-//     is testpkg.OwnTenant for that subtest; the teardown is the fallback
-//     where the subtests deliberately build on each other.
-//   - the delete that IS the test: an ID the code under test must report as
-//     missing, or a row a global sweep must not find.
-//
-// Counts may only go DOWN. A package not listed here must stay at zero.
-var cleanupCallBaseline = map[string]int{
-	"api/groups":                     2,
-	"api/staff":                      2,
-	"database/migrations":            58,
-	"database/repositories/auth":     121,
-	"database/repositories/iot":      6,
-	"database/repositories/schedule": 125,
-	"services/active":                1,
-	"services/activities":            1,
-	"services/auth":                  269,
-	"services/education":             1,
-	"services/users":                 1,
-}
+// cleanupCallBaseline is deliberately empty: explicit Cleanup* calls in tests
+// are forbidden. Package clones own tenant rows; tenantless fixtures and the
+// few schema-test exceptions register their lifecycle inside their builders.
+var cleanupCallBaseline = map[string]int{}
 
 // tenantContext1Baseline is empty: tests must generate or locally own tenant
 // identity instead of relying on the fixed bootstrap tenant. A package absent
@@ -618,12 +703,15 @@ func walkGoFiles(root string, testOnly bool, visit func(rel, pkg string, code []
 // written above a test).
 func walkGoFilesRaw(root string, visit func(rel, pkg string, content []byte)) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info.IsDir() {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
-			return nil
+			return err
 		}
 		rel = filepath.ToSlash(rel)
 		switch {
@@ -634,7 +722,7 @@ func walkGoFilesRaw(root string, visit func(rel, pkg string, content []byte)) er
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil
+			return err
 		}
 		visit(rel, filepath.ToSlash(filepath.Dir(rel)), content)
 		return nil
@@ -666,23 +754,153 @@ func shrinkOnlyViolations(current, baseline map[string]int) []string {
 	return violations
 }
 
-// cleanupCallPattern matches a fixture-cleanup call in any spelling the
-// codebase uses: qualified (testpkg.CleanupX), deferred, or — inside package
-// test itself — unqualified in statement position. The leading `\w+\.` guard
-// on the last alternative keeps production calls like svc.CleanupExpiredX()
-// out of it.
-var cleanupCallPattern = regexp.MustCompile(
-	`(?m)testpkg\.Cleanup\w+\(|(?:^|\s)defer Cleanup\w+\(|^\s*Cleanup\w+\(`)
+const fixturePackagePath = "github.com/moto-nrw/project-phoenix/test"
+
+func countExplicitCleanupCalls(filename string, code []byte, fixturePackage bool) (int, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), filename, code, parser.SkipObjectResolution)
+	if err != nil {
+		return 0, err
+	}
+
+	fixtureAliases := make(map[string]struct{})
+	dotImportedFixture := false
+	for _, imported := range file.Imports {
+		path, err := strconv.Unquote(imported.Path.Value)
+		if err != nil || path != fixturePackagePath {
+			continue
+		}
+		alias := "test"
+		if imported.Name != nil {
+			alias = imported.Name.Name
+		}
+		if alias == "." {
+			dotImportedFixture = true
+		}
+		if alias != "." && alias != "_" {
+			fixtureAliases[alias] = struct{}{}
+		}
+	}
+
+	methodValueAliases := cleanupMethodValueAliases(file, fixtureAliases, dotImportedFixture, fixturePackage)
+	count := 0
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if isFixtureCleanupCall(call.Fun, fixtureAliases, dotImportedFixture, fixturePackage, methodValueAliases) {
+			count++
+		}
+		return true
+	})
+	return count, nil
+}
+
+func cleanupMethodValueAliases(
+	file *ast.File,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+) map[string]struct{} {
+	aliases := make(map[string]struct{})
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, target := range assign.Lhs {
+			if i >= len(assign.Rhs) || !isFixtureCleanupReference(assign.Rhs[i], fixtureAliases, dotImportedFixture, fixturePackage) {
+				continue
+			}
+			if name, ok := target.(*ast.Ident); ok {
+				aliases[name.Name] = struct{}{}
+			}
+		}
+		return true
+	})
+	return aliases
+}
+
+func isFixtureCleanupCall(
+	expr ast.Expr,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+	methodValueAliases map[string]struct{},
+) bool {
+	if isFixtureCleanupReference(expr, fixtureAliases, dotImportedFixture, fixturePackage) {
+		return true
+	}
+	name, ok := unwrapCleanupExpression(expr).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	_, ok = methodValueAliases[name.Name]
+	return ok
+}
+
+func isFixtureCleanupReference(
+	expr ast.Expr,
+	fixtureAliases map[string]struct{},
+	dotImportedFixture, fixturePackage bool,
+) bool {
+	switch expression := unwrapCleanupExpression(expr).(type) {
+	case *ast.Ident:
+		return (fixturePackage || dotImportedFixture) && strings.HasPrefix(expression.Name, "Cleanup")
+	case *ast.SelectorExpr:
+		qualifier, ok := expression.X.(*ast.Ident)
+		if !ok || !strings.HasPrefix(expression.Sel.Name, "Cleanup") {
+			return false
+		}
+		_, ok = fixtureAliases[qualifier.Name]
+		return ok
+	default:
+		return false
+	}
+}
+
+func unwrapCleanupExpression(expr ast.Expr) ast.Expr {
+	for {
+		switch expression := expr.(type) {
+		case *ast.ParenExpr:
+			expr = expression.X
+		case *ast.IndexExpr:
+			expr = expression.X
+		case *ast.IndexListExpr:
+			expr = expression.X
+		default:
+			return expr
+		}
+	}
+}
+
+func countExplicitCleanupCallsPerPackage(root string) (map[string]int, error) {
+	counts := make(map[string]int)
+	var parseErr error
+	err := walkGoFilesRaw(root, func(rel, pkg string, code []byte) {
+		if !strings.HasSuffix(rel, "_test.go") {
+			return
+		}
+		count, err := countExplicitCleanupCalls(rel, code, pkg == "test")
+		if err != nil {
+			if parseErr == nil {
+				parseErr = fmt.Errorf("parse %s: %w", rel, err)
+			}
+			return
+		}
+		counts[pkg] += count
+	})
+	if err != nil {
+		return counts, err
+	}
+	return counts, parseErr
+}
 
 // checkCleanupCallRatchet enforces the shrink-only Cleanup*-call baseline.
-func checkCleanupCallRatchet(t *testing.T, root string) []string {
-	t.Helper()
-	re := cleanupCallPattern
-	current, err := countMatchesPerPackage(root, re, true)
+func checkCleanupCallRatchet(root string) ([]string, error) {
+	current, err := countExplicitCleanupCallsPerPackage(root)
 	if err != nil {
-		t.Logf("Warning: error walking directory: %v", err)
+		return nil, err
 	}
-	return shrinkOnlyViolations(current, cleanupCallBaseline)
+	return shrinkOnlyViolations(current, cleanupCallBaseline), nil
 }
 
 // bootstrapTenantPattern matches every spelling of "pin this to the fixed

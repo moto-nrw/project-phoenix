@@ -46,17 +46,16 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 // a service or repository path.
 func OwnTestOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()
-	tb.Cleanup(func() { CleanupOperator(tb, db, operatorID) })
+	tb.Cleanup(func() { cleanupOperator(tb, db, operatorID) })
 }
 
-// CleanupOperator removes an operator and its audit-log rows. All other
+// cleanupOperator removes an operator and its audit-log rows. All other
 // operator-scoped tables (tokens, MFA, passkeys) cascade on delete; rows in
 // domain tables referencing the operator (announcements)
 // must be removed by the caller's own cleanup first.
-func CleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
+func cleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()
 	ctx := context.Background()
-
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(tb, err)
 	defer func() { _ = tx.Rollback() }()

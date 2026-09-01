@@ -25,7 +25,6 @@ func TestMFAService_VerifyTrustedDevice_RejectsCrossTenantCookie(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-cross-tenant-cookie")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -68,7 +67,6 @@ func TestMFAService_ListTrustedDevices_ScopedToTenant(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-list-scoped")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -104,7 +102,6 @@ func TestMFAService_RevokeTrustedDevice_RejectsCrossTenantRevoke(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-revoke-scoped")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)

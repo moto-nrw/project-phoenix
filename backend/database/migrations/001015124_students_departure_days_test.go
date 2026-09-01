@@ -39,8 +39,8 @@ func TestStudentsDepartureDaysMigration(t *testing.T) {
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		if !departureDaysColumnExists(t, db) {
 			require.NoError(t, studentsDepartureDaysUp(ctx, db))
 		}

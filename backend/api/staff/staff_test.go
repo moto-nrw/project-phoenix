@@ -74,18 +74,16 @@ func authToken(t *testing.T, perms ...string) string {
 
 // deleteStaffAuthToken creates the real account-to-staff chain required by
 // deleteStaff to identify the actor for audit tombstones.
-func deleteStaffAuthToken(t *testing.T, db *bun.DB) (string, func()) {
+func deleteStaffAuthToken(t *testing.T, db *bun.DB) string {
 	t.Helper()
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Delete", "Actor")
-	cleanup := func() {
-	}
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.Username = account.Email
 	claims.Permissions = []string{"users:delete"}
-	return testutil.MintTestJWT(t, claims), cleanup
+	return testutil.MintTestJWT(t, claims)
 }
 
 // pinToken mints a bearer token for a PIN-endpoint test. The /pin routes carry
@@ -132,7 +130,9 @@ func assignSystemRoleToAccount(
 			ModelTableExpr(`auth.roles`).
 			Scan(testpkg.TenantContext(tenantID))
 		require.NoError(t, err)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
+		t.Cleanup(func() {
+			require.NoError(t, repositories.NewFactory(db).Role.Delete(context.Background(), role.ID))
+		})
 	} else {
 		require.NoError(t, err)
 	}
@@ -745,8 +745,7 @@ func TestDeleteStaff_Success(t *testing.T) {
 		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
 	})
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(token))
 
@@ -770,8 +769,7 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 
 	ctx := setupStaffRoute(t)
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/999999", nil,
 		testutil.WithJWTBearer(token))
 
@@ -1343,8 +1341,7 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test")
 	// Note: No defer cleanup as we're deleting
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", teacher.StaffID), nil,
 		testutil.WithJWTBearer(token))
 
@@ -1366,8 +1363,7 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 
-	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
-	defer cleanupActor()
+	token := deleteStaffAuthToken(t, ctx.db)
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/staff/%d", staff.ID), nil,
 		testutil.WithJWTBearer(token))
 

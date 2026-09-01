@@ -53,7 +53,6 @@ func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64
 func newSchoolTenant(t *testing.T, db *bun.DB) (tenantID int64, subdomain string) {
 	t.Helper()
 	tenantID, subdomain = testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
 	return tenantID, subdomain
 }
 
@@ -65,7 +64,6 @@ func newSchoolAccount(t *testing.T, db *bun.DB, service auth.AuthService, prefix
 	email, username := uniqueTestCredentials(prefix)
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	return email, account.ID
 }
