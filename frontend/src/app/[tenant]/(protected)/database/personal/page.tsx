@@ -123,6 +123,10 @@ function TeachersPageContent() {
   // Konto, nicht am Personal-Datensatz. Ohne diese Berechtigungen antwortet
   // das Backend mit 403, also zeigen wir die Aktionen erst gar nicht an.
   const canDeleteStaff = hasPermission(sessionData, "users:delete");
+  // Vorname, Nachname und NFC-Karte gehen über PUT /api/users/{id} und
+  // brauchen users:update. Wer nur staff:manage hat, bekommt sie im
+  // Bearbeiten-Dialog als Anzeige, nicht als Eingabefeld (#2906).
+  const canEditPersonFields = hasPermission(sessionData, "users:update");
   // Seit #2906 erreicht die Seite auch, wer nur staff:manage hat. Die beiden
   // Import-Wege bleiben der Leitung bzw. der Zeitwirtschaft vorbehalten —
   // ohne diese Rechte antwortet das Backend mit 403.
@@ -493,6 +497,7 @@ function TeachersPageContent() {
           onSave={handleEditTeacher}
           loading={savingTeacher}
           existingPositions={existingPositions}
+          canEditPersonFields={canEditPersonFields}
         />
       )}
 
