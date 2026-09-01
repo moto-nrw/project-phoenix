@@ -76,6 +76,9 @@ func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsents == nil {
 		return nil, fmt.Errorf("parent: consent dependencies not wired")
 	}
@@ -99,6 +102,9 @@ func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 		student, loadErr := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
+		}
+		if student.CareEndedOn(s.todayDate()) {
+			return ErrChildCareEnded
 		}
 		granting := action == photoConsentActionGrant
 		if granting && student.PhotoConsentGivenAt == nil {

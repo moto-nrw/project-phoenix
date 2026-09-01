@@ -168,6 +168,37 @@ func TestGrantPhotoConsentRejectsNeverRecordedConsent(t *testing.T) {
 	assert.Empty(t, rows)
 }
 
+func TestPhotoConsentChangesRejectCareEndedChild(t *testing.T) {
+	t.Parallel()
+
+	svc, db, repos, unlinker := buildConsentService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
+	storedURL := "/uploads/students/portrait.jpg"
+	student, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	student.PhotoConsentGivenAt = &now
+	student.PhotoPath = &storedURL
+	require.NoError(t, repos.Student.Update(testpkg.Ctx(t), student))
+	endCareFor(t, db, chain.StudentID)
+
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	_, err = svc.WithdrawPhotoConsent(ctx, chain.AccountID, chain.StudentID)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+	_, err = svc.GrantPhotoConsent(ctx, chain.AccountID, chain.StudentID)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+
+	updated, err := repos.Student.FindByID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.PhotoConsentGivenAt)
+	require.NotNil(t, updated.PhotoPath)
+	assert.Equal(t, storedURL, *updated.PhotoPath)
+	assert.Empty(t, unlinker.urls)
+	rows, err := repos.StudentConsentChange.ListByStudentID(testpkg.Ctx(t), chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}
+
 func ChildConsentState(consents []parentService.ChildConsent, key string) string {
 	for _, consent := range consents {
 		if consent.Key == key {
