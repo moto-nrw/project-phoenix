@@ -168,6 +168,42 @@ func TestAnnouncementAttachmentPublishedAnnouncementIsFixed(t *testing.T) {
 	assert.False(t, after.Editable, "the UI must be able to say the file is fixed now")
 }
 
+func TestAnnouncementAttachmentLimitKeepsDraftEditable(t *testing.T) {
+	t.Parallel()
+	c := setupAttachmentRoute(t)
+
+	// Die Höchstzahl steht in der Liste — dieselbe Zahl, die auch der
+	// Assistent anzeigt, statt einer zweiten Quelle im Test.
+	_, empty := c.listAttachments()
+	maxCount := empty.MaxCount
+	require.Positive(t, maxCount)
+
+	for i := range maxCount {
+		rec := c.uploadAttachment(fmt.Sprintf("Anlage-%d.pdf", i+1), fakePDF)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	}
+
+	// Die Höchstzahl ist erreicht: eine weitere Datei passt nicht mehr dazu.
+	assert.Equal(t, http.StatusConflict, c.uploadAttachment("Zuviel.pdf", fakePDF).Code)
+
+	// Änderbar bleibt der Entwurf trotzdem. Sagt die Liste hier editable:
+	// false, blendet die Oberfläche auch das Entfernen aus — und damit den
+	// einzigen Weg, wieder Platz zu schaffen.
+	listRec, list := c.listAttachments()
+	require.Equal(t, http.StatusOK, listRec.Code)
+	require.Len(t, list.Attachments, maxCount)
+	assert.True(t, list.Editable,
+		"an der Höchstzahl darf nur das Hinzufügen enden, nicht das Entfernen")
+
+	delRec := c.do(http.MethodDelete,
+		fmt.Sprintf("/announcement-attachments/%d/%s", c.announcementID, list.Attachments[0].ID),
+		nil, "", c.admin, permissions.AdminWildcard)
+	require.Equal(t, http.StatusOK, delRec.Code, delRec.Body.String())
+
+	// Und danach geht wieder eine dazu.
+	assert.Equal(t, http.StatusCreated, c.uploadAttachment("Ersatz.pdf", fakePDF).Code)
+}
+
 func TestAnnouncementAttachmentUnknownAnnouncementIsNotFound(t *testing.T) {
 	t.Parallel()
 	c := setupAttachmentRoute(t)

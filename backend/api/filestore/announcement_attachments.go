@@ -67,6 +67,8 @@ type AnnouncementAttachmentListResponse struct {
 	MaxBytes    int64                            `json:"max_bytes"`
 	// Editable is false once the announcement is published: attachments are
 	// then fixed, and the UI says so instead of offering a button that 409s.
+	// Es bleibt true, wenn nur die Höchstzahl erreicht ist — entfernen muss
+	// dann weiter möglich sein, sonst gibt es keinen Weg zurück.
 	Editable bool `json:"editable"`
 }
 
@@ -177,11 +179,17 @@ func (rs *Resource) listAnnouncementAttachments(w http.ResponseWriter, r *http.R
 	// offers. Nur die fachlichen Absagen bedeuten „nicht änderbar" — ein
 	// Datenbank- oder Transaktionsfehler darf nicht als editable: false
 	// durchgehen, sonst verschwinden die Bedienelemente ohne jeden Hinweis.
+	//
+	// Die erreichte Höchstzahl ist ausdrücklich KEINE solche Absage: der
+	// Entwurf bleibt änderbar, nur eine weitere Datei passt nicht mehr dazu.
+	// Andernfalls verschwindet mit dem Auswählen auch das Entfernen — und
+	// damit der einzige Weg, wieder Platz zu schaffen.
 	editable := true
 	if err := rs.Service.AuthorizeAttachmentUpload(r.Context(), announcementID); err != nil {
 		switch {
+		case errors.Is(err, filestoreSvc.ErrAttachmentLimitReached):
+			// änderbar bleibt es; die Oberfläche zählt die Dateien selbst.
 		case errors.Is(err, filestoreSvc.ErrAttachmentAnnouncementPublished),
-			errors.Is(err, filestoreSvc.ErrAttachmentLimitReached),
 			errors.Is(err, filestoreSvc.ErrAttachmentNotFound),
 			errors.Is(err, filestoreSvc.ErrInvalid):
 			editable = false

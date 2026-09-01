@@ -46,10 +46,6 @@ const logger = createLogger({ component: "FilesPage" });
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
-function fileIcon(contentType: string) {
-  return <FileTypeIcon contentType={contentType} />;
-}
-
 function visibilityIcon(visibility: FileFolder["visibility"]) {
   const className = "h-3.5 w-3.5 text-gray-400";
   if (visibility === "admins") {
@@ -434,7 +430,7 @@ function FolderFilesPanel({
       header: "Datei",
       render: (file) => (
         <span className="flex min-w-0 items-center gap-2">
-          {fileIcon(file.contentType)}
+          <FileTypeIcon contentType={file.contentType} />
           {isViewableInBrowser(file.contentType) ? (
             <a
               href={filesService.viewUrl(folder.id, file.id)}
