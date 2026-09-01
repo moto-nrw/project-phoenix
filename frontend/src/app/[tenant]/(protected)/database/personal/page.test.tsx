@@ -523,6 +523,51 @@ describe("TeachersPage", () => {
     expect(screen.getByTestId("trigger-notes")).toBeInTheDocument();
   });
 
+  // #2906: Der Personal-Import hängt im Backend an users:create
+  // (POST /api/import/teachers), nicht an der Leitungsrolle.
+  it("shows the staff import link with users:create", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["staff:manage", "users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(screen.getByRole("link", { name: "Importieren" })).toHaveAttribute(
+      "href",
+      "/database/personal/import",
+    );
+  });
+
+  it("hides the staff import link without users:create", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["staff:manage", "users:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(
+      screen.queryByRole("link", { name: "Importieren" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides invitation controls without users:manage", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {

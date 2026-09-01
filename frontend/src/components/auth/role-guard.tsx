@@ -14,9 +14,10 @@ interface RoleGuardProps {
   readonly variant: "adminOnly" | "staffOnly" | "staffOrAdmin";
   /**
    * Berechtigung, die den Bereich zusätzlich zur Rolle öffnet (#2906).
-   * Ohne Angabe entscheidet allein die Rolle.
+   * Eine Liste öffnet, sobald eine der Berechtigungen vorliegt. Ohne
+   * Angabe entscheidet allein die Rolle.
    */
-  readonly permission?: string;
+  readonly permission?: string | readonly string[];
   readonly children: React.ReactNode;
   readonly message?: string;
   /** Rendered while the session loads; pages pass their skeleton to avoid a spinner flash. */
@@ -42,8 +43,11 @@ export function RoleGuard({
   }
 
   const isAdmin = hasEffectiveAdminScope(session);
-  const hasExtraPermission =
-    permission !== undefined && hasPermission(session, permission);
+  const requiredPermissions =
+    typeof permission === "string" ? [permission] : (permission ?? []);
+  const hasExtraPermission = requiredPermissions.some((p) =>
+    hasPermission(session, p),
+  );
   const isAllowed =
     variant === "adminOnly"
       ? isAdmin || hasExtraPermission

@@ -27,7 +27,7 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
-import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { hasPermission } from "~/lib/auth-utils";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
@@ -127,10 +127,12 @@ function TeachersPageContent() {
   // brauchen users:update. Wer nur staff:manage hat, bekommt sie im
   // Bearbeiten-Dialog als Anzeige, nicht als Eingabefeld (#2906).
   const canEditPersonFields = hasPermission(sessionData, "users:update");
-  // Seit #2906 erreicht die Seite auch, wer nur staff:manage hat. Die beiden
-  // Import-Wege bleiben der Leitung bzw. der Zeitwirtschaft vorbehalten —
+  // Seit #2906 erreicht die Seite auch, wer nur staff:manage oder
+  // staff:stammdaten hat. Die beiden Import-Wege hängen an denselben
+  // Berechtigungen wie ihre Backend-Routen: Personal-Import an users:create
+  // (POST /api/import/teachers), Eröffnungssalden an der Zeitwirtschaft —
   // ohne diese Rechte antwortet das Backend mit 403.
-  const canImportStaff = hasEffectiveAdminScope(sessionData);
+  const canImportStaff = hasPermission(sessionData, "users:create");
   const canImportOpeningBalances = hasPermission(
     sessionData,
     "time_tracking:manage",

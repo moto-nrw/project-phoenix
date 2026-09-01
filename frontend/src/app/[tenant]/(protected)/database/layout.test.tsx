@@ -92,6 +92,69 @@ describe("DatabaseLayout", () => {
     expect(screen.getByTestId("database-content")).toBeInTheDocument();
   });
 
+  it("lets staff:stammdaten without admin scope reach the personnel page (#2906)", () => {
+    mockPathname.mockReturnValue("/test-tenant/database/personal");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          isAdmin: false,
+          token: "tok",
+          permissions: ["staff:stammdaten"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("database-content")).toBeInTheDocument();
+  });
+
+  it("lets users:create reach the staff import (#2906)", () => {
+    mockPathname.mockReturnValue("/test-tenant/database/personal/import");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          isAdmin: false,
+          token: "tok",
+          permissions: ["staff:manage", "users:create"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByTestId("database-content")).toBeInTheDocument();
+  });
+
+  it("keeps the staff import closed without users:create (#2906)", () => {
+    mockPathname.mockReturnValue("/test-tenant/database/personal/import");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { isAdmin: false, token: "tok", permissions: ["staff:manage"] },
+      },
+      status: "authenticated",
+    });
+
+    render(
+      <DatabaseLayout>
+        <div data-testid="database-content">Database Content</div>
+      </DatabaseLayout>,
+    );
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(screen.queryByTestId("database-content")).not.toBeInTheDocument();
+  });
+
   it("lets time_tracking:manage reach the opening-balance import (#2906)", () => {
     mockPathname.mockReturnValue(
       "/test-tenant/database/personal/opening-balances",
