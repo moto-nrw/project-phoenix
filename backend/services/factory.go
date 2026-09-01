@@ -1911,7 +1911,7 @@ func newFactory(
 	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
 	// the operator auth service so the login-flow integration in 7b-3 can
 	// inject it via SetMFAService.
-	operatorMFATokenAuth, err := authjwt.NewTokenAuth()
+	operatorMFATokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
 	}
