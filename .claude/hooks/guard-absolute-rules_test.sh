@@ -35,6 +35,10 @@ printf '#!/usr/bin/env bash\necho backend tests\n' >"$repo/scripts/test-backend.
 printf '#!/usr/bin/env bash\necho env check\n' >"$repo/scripts/env-check.sh"
 printf '#!/usr/bin/env bash\necho outside\n' >"$fixture/outside.sh"
 ln -s "$fixture/outside.sh" "$repo/scripts/outside.sh"
+outside_dir="$fixture/outside-dir"
+mkdir -p "$outside_dir/scripts"
+printf '#!/usr/bin/env bash\necho outside\n' >"$outside_dir/scripts/test-backend.sh"
+chmod +x "$outside_dir/scripts/test-backend.sh"
 printf 'package backend\n' >"$repo/backend/doc.go"
 chmod +x "$repo/scripts/run-go-toolchain.sh" "$repo/scripts/test-backend.sh" "$repo/scripts/env-check.sh"
 git -C "$repo" add -A
@@ -104,6 +108,8 @@ assert_bash allow "$repo" "grep -R 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "scripts/run-go-toolchain.sh grep 'test-changed.sh' scripts/"
 assert_bash allow "$repo" "printf '%s\\n' 'a; scripts/new.sh'"
 assert_bash allow "$repo" '/bin/bash scripts/env-check.sh'
+assert_bash allow "$repo" '/usr/bin/git --version'
+assert_bash allow "$repo" '/usr/bin/env'
 
 # --- unvetted execution: denied ---
 assert_bash deny "$repo" './scripts/new.sh'
@@ -133,6 +139,10 @@ assert_bash deny "$repo" 'if true; then ./scripts/new; fi'
 assert_bash deny "$repo" 'PATH=/tmp evil'
 assert_bash deny "$repo" 'foo() { ./scripts/new; }; foo'
 assert_bash deny "$repo" 'cat <(./scripts/new)'
+assert_bash deny "$repo" "env --chdir=$outside_dir scripts/test-backend.sh"
+assert_bash deny "$repo" "env -C$outside_dir scripts/test-backend.sh"
+assert_bash deny "$repo" 'find . -exec ./scripts/new.sh \;'
+assert_bash deny "$repo" 'find . -execdir ./scripts/new.sh \;'
 
 # --- inline payloads and eval: denied, incl. the -lc flag cluster ---
 assert_bash deny "$repo" "bash -c 'echo hi'"
@@ -149,6 +159,7 @@ assert_bash deny "$repo" "echo \`./scripts/new.sh\`"
 # --- rule 1: production hosts ---
 assert_bash deny "$repo" "curl https://$prod_host/health"
 assert_bash deny "$repo" "xh https://$prod_host2/api"
+assert_bash deny "$repo" $'rg api.moto-app.de docs/\ncurl https://api.moto-app.de/health'
 
 # --- rule 2: sops env files ---
 assert_bash deny "$repo" 'echo FOO=1 >> environments/production.sops.env'

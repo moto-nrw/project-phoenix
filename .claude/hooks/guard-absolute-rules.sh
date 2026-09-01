@@ -110,6 +110,17 @@ case "$tool" in
             deny "Blocked: only git-tracked scripts inside this repository may be executed (got: $1)."
         }
 
+        # Absolute executables from standard system tool directories are not
+        # repository scripts. Other paths remain subject to script vetting.
+        vet_executable() {
+            case "$1" in
+                /bin/* | /sbin/* | /usr/bin/* | /usr/sbin/* | /usr/local/bin/* | /opt/homebrew/bin/*)
+                    [[ -x "$1" && ! -d "$1" ]]
+                    ;;
+                *) vet_script "$1" ;;
+            esac
+        }
+
         clean_token() {
             local tok=$1
             tok=${tok//\"/}
@@ -166,6 +177,9 @@ case "$tool" in
                         while [[ $# -gt 0 ]]; do
                             next=$(clean_token "$1")
                             case "$next" in
+                                -C | -C* | --chdir | --chdir=*)
+                                    deny "Blocked: env --chdir changes the executable resolution directory and cannot be inspected by the absolute-rule guard."
+                                    ;;
                                 -S|--split-string)
                                     deny "Blocked: env -S builds a command at runtime and cannot be inspected by the absolute-rule guard. Write the command out directly."
                                     ;;
@@ -256,7 +270,7 @@ case "$tool" in
             case "$first" in
                 /bin/bash|/bin/sh|/bin/zsh) first=${first##*/} ;;
             esac
-            [[ "$first" = */* ]] && vet_script "$first" || [[ "$first" != */* ]] || deny_untracked "$first"
+            [[ "$first" = */* ]] && vet_executable "$first" || [[ "$first" != */* ]] || deny_untracked "$first"
             case "${first##*/}" in
                 cd)
                     # keep resolution honest for `cd backend && ../scripts/x.sh`
@@ -310,6 +324,15 @@ case "$tool" in
                     ;;
                 xargs)
                     deny "Blocked: xargs builds commands from runtime input and cannot be inspected by the absolute-rule guard. Write the command out directly."
+                    ;;
+                find)
+                    for next in "$@"; do
+                        case "$(clean_token "$next")" in
+                            -exec|-execdir)
+                                deny "Blocked: find -exec builds commands from runtime arguments and cannot be inspected by the absolute-rule guard. Write the command out directly."
+                                ;;
+                        esac
+                    done
                     ;;
                 *.sh)
                     vet_script "$first" || deny_untracked "$first"
